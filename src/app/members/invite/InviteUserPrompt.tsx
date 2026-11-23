@@ -65,13 +65,13 @@ import { mergeUserDirectoryUsers, type ServerUserDirectoryUser } from '../userDi
 import { filterInviteUserCandidates } from '../userDirectorySearch';
 import { getDisplayName } from './InviteUserAutocomplete';
 import {
+  beginModeratorGrantIntent,
   createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateModeratorGrant,
   evaluateRoomModeratorGrant,
   formatGrantFailure,
   grantRoleName,
-  grantRoomModeratorRights,
   hasModeratorMindroomAgent,
   supersedeModeratorGrant,
   type DetachedGrantError,
@@ -765,9 +765,14 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
     inFlightRef.current.add(targetId);
     // An invite without the grant withdraws at once the grant an earlier invite of this user
-    // still has in the queue. One with the grant replaces it only once it is sent, by its own
-    // grant below: if it fails, the earlier grant stays.
-    if (grantCeiling === undefined) supersedeModeratorGrant(client, room.roomId, targetId);
+    // has in the queue or still waits to send. One with the grant announces its own before it
+    // is sent, so a later invite without it can withdraw it, and replaces an earlier grant only
+    // once it is sent: if it fails, the earlier grant stays.
+    const grantIntent =
+      grantCeiling === undefined
+        ? undefined
+        : beginModeratorGrantIntent(client, room.roomId, targetId);
+    if (!grantIntent) supersedeModeratorGrant(client, room.roomId, targetId);
     setEnterHint(undefined);
 
     if (options?.clearQuery) {
@@ -812,6 +817,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     try {
       await client.invite(room.roomId, targetId, reason);
     } catch (inviteError) {
+      grantIntent?.release();
       if (alive()) {
         updateAttemptState(targetId, { status: 'failed', error: inviteError });
       }
@@ -827,8 +833,8 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     }
 
     // Finish the submitted grant even if the user closed the dialog while invite was in flight.
-    if (grantCeiling === undefined) return;
-    const grantFailure = await grantRoomModeratorRights(client, room, targetId, grantCeiling);
+    if (!grantIntent || grantCeiling === undefined) return;
+    const grantFailure = await grantIntent.run(room, grantCeiling);
     if (!grantFailure) return;
     const failure = createDetachedGrantError(
       formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)

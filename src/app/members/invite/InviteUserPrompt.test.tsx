@@ -14,6 +14,7 @@ import {
   type UserDirectoryCacheState,
 } from '../userDirectoryCache';
 import {
+  beginModeratorGrantIntent,
   createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateRoomModeratorGrant,
@@ -297,21 +298,31 @@ const focusInput = vi.fn();
 let bodyNode: { contains: (node: unknown) => boolean } | null = null;
 const rowFocusElements: Array<{ focus: ReturnType<typeof vi.fn> }> = [];
 
+/** The client, the room and the store a sheet was rendered with, to open it again on them. */
+type PromptSession = {
+  mx: ReturnType<typeof makeMx>;
+  room: ReturnType<typeof makeRoom>;
+  store: ReturnType<typeof createStore>;
+};
+
 type RenderOptions = RoomOptions & {
   screenSize?: ScreenSize;
   cache?: UserDirectoryCacheState;
   requestClose?: () => void;
+  session?: PromptSession;
 };
 
 const renderPrompt = (options: RenderOptions = {}) => {
-  let roomRef: ReturnType<typeof makeRoom> | null = null;
-  const mx = makeMx((roomId) =>
-    roomRef && roomRef.roomId === roomId ? (roomRef as unknown as Room) : null
-  );
-  const room = makeRoom(mx, options);
+  let roomRef: ReturnType<typeof makeRoom> | null = options.session?.room ?? null;
+  const mx =
+    options.session?.mx ??
+    makeMx((roomId) =>
+      roomRef && roomRef.roomId === roomId ? (roomRef as unknown as Room) : null
+    );
+  const room = roomRef ?? makeRoom(mx, options);
   roomRef = room;
-  const store = createStore();
-  store.set(userDirectoryCacheAtom, options.cache ?? readyCache());
+  const store = options.session?.store ?? createStore();
+  if (!options.session) store.set(userDirectoryCacheAtom, options.cache ?? readyCache());
   const requestClose = options.requestClose ?? vi.fn();
 
   let renderer: ReactTestRenderer;
@@ -676,7 +687,18 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
         );
         return { finish: () => finish(), fail: (error: Error) => fail(error) };
       };
-      return { mx, room, grant, supersede, holdNextRead };
+      /** The next write of the power levels, pending until it is failed. */
+      const holdNextWrite = () => {
+        let fail: (error: Error) => void = () => undefined;
+        vi.mocked(mx.sendStateEvent).mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              fail = reject;
+            })
+        );
+        return { fail: (error: Error) => fail(error) };
+      };
+      return { mx, room, client, grant, supersede, holdNextRead, holdNextWrite };
     };
 
     it('reads and writes nothing when an invite without the grant supersedes it while it waits in the queue', async () => {
@@ -750,6 +772,56 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
       supersededRead.finish();
       expect(await superseded).toBeNull();
       expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    });
+
+    it('reports no failure when it is superseded while it writes and the write fails', async () => {
+      const { mx, grant, supersede, holdNextWrite } = setup();
+      // A write that fails is a failure for a grant that still counts.
+      const failedWrite = holdNextWrite();
+      const current = grant(helper);
+      await settle();
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      failedWrite.fail(new Error('Forbidden'));
+      expect(await current).toEqual({ kind: 'failed', detail: 'Forbidden' });
+
+      const supersededWrite = holdNextWrite();
+      const superseded = grant(helper);
+      await settle();
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(2);
+      supersede(helper);
+      supersededWrite.fail(new Error('Forbidden'));
+      expect(await superseded).toBeNull();
+    });
+
+    it('never enters the queue when an invite without the grant came while its own invite was on its way', async () => {
+      const { mx, room, client, supersede } = setup();
+      const begin = () => beginModeratorGrantIntent(client, room.roomId, helper);
+      const run = (intent: ReturnType<typeof begin>) => intent.run(room as unknown as Room, 50);
+
+      const withdrawn = begin();
+      supersede(helper);
+      expect(await run(withdrawn)).toBeNull();
+      expect(mx.getStateEvent).not.toHaveBeenCalled();
+
+      // An invite with the grant that fails gives up its own grant only, however often it says
+      // so: the grant of the invite that waits beside it goes on.
+      const sent = begin();
+      const failed = begin();
+      failed.release();
+      failed.release();
+      expect(await run(sent)).toBeNull();
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expectGrant(mx, room, helper, 50);
+
+      // Nor does it hide the other from an invite without the grant.
+      room.state.powerLevels = defaultPowerLevels();
+      const pending = begin();
+      const failedAgain = begin();
+      failedAgain.release();
+      failedAgain.release();
+      supersede(helper);
+      expect(await run(pending)).toBeNull();
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
     });
 
     it('leaves the write to the newest of two grants for one user, and takes a grant again once they finished', async () => {
@@ -1660,6 +1732,44 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     });
 
     expectGrant(mx, room, '@mindroom_helper:example.org', 50);
+  });
+
+  it('gives no rights when the sheet closes while an invite with the grant is on its way, opens again and invites the agent without the grant', async () => {
+    const helper = '@mindroom_helper:example.org';
+    const first = renderPrompt();
+    const { mx, room } = first;
+    const finishFirstInvite = holdNextInvite(mx);
+    await clickRowInvite(first.renderer, 'Helper');
+    act(() => {
+      first.renderer.unmount();
+    });
+
+    // The sheet opens again on the same room, and invites Helper with the checkbox cleared.
+    const second = renderPrompt({ session: first });
+    act(() => {
+      findModeratorCheckbox(second.renderer)!.props.onClick();
+    });
+    expect(findModeratorCheckbox(second.renderer)!.props.checked).toBe(false);
+    await clickRowInvite(second.renderer, 'Helper');
+    expect(mx.invite).toHaveBeenCalledTimes(2);
+    expect(mx.invite).toHaveBeenLastCalledWith(room.roomId, helper, undefined);
+
+    // The first invite returns: its grant is withdrawn, and tells of nothing.
+    await finishFirstInvite();
+    expect(mx.getStateEvent).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    expect(getGrantAlerts(second.renderer)).toHaveLength(0);
+    expect(second.store.get(detachedGrantErrorAtom)).toEqual([]);
+
+    // Nothing is left of it: a later invite with the grant gives the rights.
+    emitMembership(mx, room, helper, 'invite');
+    emitMembership(mx, room, helper, 'leave');
+    act(() => {
+      findModeratorCheckbox(second.renderer)!.props.onClick();
+    });
+    await clickRowInvite(second.renderer, 'Helper');
+    expect(mx.invite).toHaveBeenCalledTimes(3);
+    expectGrant(mx, room, helper, 50);
   });
 
   it('re-reads live power levels before writing and writes nothing if target was already promoted', async () => {
