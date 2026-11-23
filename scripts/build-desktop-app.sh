@@ -47,7 +47,7 @@ build_screenshot_helper() {
   local env_clean=()
   if [[ "${DEVELOPER_DIR:-}" == /nix/store/* ]]; then env_clean+=(-u DEVELOPER_DIR); fi
   if [[ "${SDKROOT:-}" == /nix/store/* ]]; then env_clean+=(-u SDKROOT); fi
-  sdk=$(env "${env_clean[@]}" "$xcrun_bin" --sdk macosx --show-sdk-path)
+  sdk=$(env ${env_clean[@]+"${env_clean[@]}"} "$xcrun_bin" --sdk macosx --show-sdk-path)
   [[ -n "$sdk" ]] || die "xcrun --sdk macosx --show-sdk-path returned an empty SDK path"
   local flags=(
     -O
@@ -61,8 +61,8 @@ build_screenshot_helper() {
   helper_scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-helper-build.XXXXXX")
   arm64_bin="$helper_scratch/helper-arm64"
   x64_bin="$helper_scratch/helper-x64"
-  env "${env_clean[@]}" "$xcrun_bin" --sdk macosx swiftc "${flags[@]}" -target arm64-apple-macosx13.0 "$helper_src" -o "$arm64_bin"
-  env "${env_clean[@]}" "$xcrun_bin" --sdk macosx swiftc "${flags[@]}" -target x86_64-apple-macosx13.0 "$helper_src" -o "$x64_bin"
+  env ${env_clean[@]+"${env_clean[@]}"} "$xcrun_bin" --sdk macosx swiftc "${flags[@]}" -target arm64-apple-macosx13.0 "$helper_src" -o "$arm64_bin"
+  env ${env_clean[@]+"${env_clean[@]}"} "$xcrun_bin" --sdk macosx swiftc "${flags[@]}" -target x86_64-apple-macosx13.0 "$helper_src" -o "$x64_bin"
   mkdir -p "$(dirname "$helper_out")"
   lipo -create "$arm64_bin" "$x64_bin" -output "$helper_out"
   chmod 755 "$helper_out"
