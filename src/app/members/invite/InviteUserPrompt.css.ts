@@ -60,7 +60,7 @@ export const SearchField = style({
       boxShadow: `inset 0 0 0 ${config.borderWidth.B300} color-mix(in srgb, ${color.Surface.ContainerLine} 80%, transparent)`,
       transition: 'box-shadow 120ms ease, background-color 120ms ease',
     },
-    '&&:focus-within, &&:has(input:focus)': {
+    '&&:focus-within': {
       backgroundColor: color.Background.Container,
       boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
     },
@@ -237,6 +237,12 @@ export const Footer = style({
   borderBlockStart: `${config.borderWidth.B300} solid color-mix(in srgb, ${color.Surface.ContainerLine} 60%, transparent)`,
 });
 
+export const ModeratorLabel = style({
+  minInlineSize: 0,
+  overflowWrap: 'break-word',
+  cursor: 'pointer',
+});
+
 export const InfoButton = style([
   touchTarget('6px'),
   {
@@ -263,6 +269,7 @@ export const ModeratorHelp = style({
   paddingBlock: config.space.S200,
   paddingInline: config.space.S300,
   borderRadius: config.radii.R300,
+  color: color.Surface.OnContainer,
   backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container} 55%, transparent)`,
   border: `${config.borderWidth.B300} solid color-mix(in srgb, ${color.Surface.ContainerLine} 60%, transparent)`,
 });

@@ -69,6 +69,7 @@ vi.mock('./InviteUserPrompt.css', () => ({
   CenteredHint: 'InviteCenteredHint',
   EmptyState: 'InviteEmptyState',
   Footer: 'InviteFooter',
+  ModeratorLabel: 'InviteModeratorLabel',
   InfoButton: 'InviteInfoButton',
   ModeratorHelp: 'InviteModeratorHelp',
   NoteToggle: 'InviteNoteToggle',
@@ -367,6 +368,15 @@ const click = (node: ReactTestInstance) => {
   });
 };
 
+// Native <label htmlFor> forwards clicks to its associated control in browsers without an onClick handler.
+const clickLabel = (r: ReactTestRenderer, label: ReactTestInstance) => {
+  expect(label.type).toBe('label');
+  const targetId = label.props.htmlFor as string | undefined;
+  expect(targetId).toBeTruthy();
+  expect(label.props.onClick).toBeUndefined();
+  click(r.root.find((n) => typeof n.type === 'string' && n.props.id === targetId));
+};
+
 const clickAsync = async (button: ReactTestInstance) => {
   await act(async () => {
     button.props.onClick?.();
@@ -590,15 +600,28 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getRows(renderer)).toHaveLength(2);
     expect(getModeratorSwitch(renderer)).toBeDefined();
 
-    // Info disclosure toggles the moderator help callout and wires aria-describedby.
+    // Clicking the wrappable label toggles the switch; Info button stays outside the label and never flips it.
+    const modLabel = renderer.root.findByType('label');
+    expect(modLabel.props.className).toContain('InviteModeratorLabel');
+    expect(modLabel.findAllByType('button')).toHaveLength(0);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(true);
+    clickLabel(renderer, modLabel);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(false);
+    clickLabel(renderer, modLabel);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(true);
+
+    // Info disclosure toggles the moderator help callout and wires aria-controls / aria-describedby only when open.
     const infoBtn = getButtonByLabel(renderer, 'Information');
     expect(infoBtn.props['aria-expanded']).toBe(false);
+    expect(infoBtn.props['aria-controls']).toBeUndefined();
     expect(getModeratorSwitch(renderer).props['aria-describedby']).toBeUndefined();
     expect(extractText(getDialog(renderer))).not.toContain('fold voice transcripts');
 
     click(infoBtn);
     expect(infoBtn.props['aria-expanded']).toBe(true);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(true);
     const helpId = infoBtn.props['aria-controls'] as string;
+    expect(helpId).toBeTruthy();
     expect(getModeratorSwitch(renderer).props['aria-describedby']).toBe(helpId);
     expect(extractText(renderer.root.findByProps({ id: helpId }))).toContain(
       'fold voice transcripts'
@@ -606,7 +629,9 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     click(infoBtn);
     expect(infoBtn.props['aria-expanded']).toBe(false);
+    expect(infoBtn.props['aria-controls']).toBeUndefined();
     expect(getModeratorSwitch(renderer).props['aria-describedby']).toBeUndefined();
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(true);
 
     // Typing a listed agent MXID on the People tab still resolves its directory display name.
     typeSearch(renderer, '@mindroom_coder:example.org');
@@ -771,6 +796,20 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
   it('consumes invite note immediately on submit, skips when collapsed, and preserves on Retry', async () => {
     const { renderer, mx } = renderPrompt();
     openNoteAndType(renderer, 'Welcome aboard');
+
+    // Note input renders immediately after the toggle button so Tab moves straight into it.
+    const footer = renderer.root.find(
+      (n) => n.type === 'div' && n.props.className === 'InviteFooter'
+    );
+    const footerControls = footer.findAll(
+      (n) =>
+        (n.type === 'button' &&
+          (n.props.role === 'switch' || n.props.className === 'InviteNoteToggle')) ||
+        n.type === 'input'
+    );
+    expect(
+      footerControls.map((n) => (n.type === 'input' ? 'input' : n.props.role ?? n.props.className))
+    ).toEqual(['switch', 'InviteNoteToggle', 'input']);
 
     // Collapsing skips sending the note.
     const toggle = getNoteToggle(renderer);

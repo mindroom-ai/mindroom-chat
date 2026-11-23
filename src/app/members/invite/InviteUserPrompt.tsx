@@ -259,6 +259,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   const { t } = useTranslation();
   const idPrefix = useId();
   const noteInputId = `${idPrefix}-note`;
+  const moderatorSwitchId = `${idPrefix}-mod-switch`;
   const moderatorHelpId = `${idPrefix}-mod`;
   const store = useStore();
   const client = useMatrixClient();
@@ -871,30 +872,13 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                 <InsetScrollbar
                   scrollRef={listRef}
                   contentRef={listContentRef}
-                  label={title}
+                  label={t('sharedUi.pageScroll.scrollbar')}
                   className={css.ListScrollbar}
                   tabIndex={-1}
                 />
               </div>
 
               <div className={css.Footer}>
-                {noteOpen && (
-                  <Input
-                    id={noteInputId}
-                    className={css.SearchField}
-                    size="400"
-                    variant="Background"
-                    radii="400"
-                    value={note}
-                    onChange={(evt: ChangeEvent<HTMLInputElement>) => {
-                      noteRef.current = evt.target.value;
-                      setNote(evt.target.value);
-                    }}
-                    placeholder={t('sharedUi.inviteUserPrompt.notePlaceholder')}
-                    aria-label={t('sharedUi.inviteUserPrompt.notePlaceholder')}
-                    autoComplete="off"
-                  />
-                )}
                 {roomGrantLevel !== undefined && (
                   <>
                     <Box
@@ -904,14 +888,19 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                       style={{ minInlineSize: 0 }}
                     >
                       <Box alignItems="Center" gap="100" style={{ minInlineSize: 0 }}>
-                        <Text as="span" size="T200" truncate title={moderatorLabel}>
+                        <Text
+                          as="label"
+                          htmlFor={moderatorSwitchId}
+                          size="T200"
+                          className={css.ModeratorLabel}
+                        >
                           {moderatorLabel}
                         </Text>
                         <button
                           type="button"
                           className={css.InfoButton}
                           aria-expanded={modInfoOpen}
-                          aria-controls={moderatorHelpId}
+                          aria-controls={modInfoOpen ? moderatorHelpId : undefined}
                           aria-label={t('sharedUi.agentCard.groups.information')}
                           onClick={() => setModInfoOpen((open) => !open)}
                         >
@@ -919,21 +908,16 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                         </button>
                       </Box>
                       <Switch
+                        id={moderatorSwitchId}
                         variant="Primary"
+                        className={css.TouchIcon}
                         value={grantModerator}
                         onChange={setGrantOverride}
-                        aria-label={moderatorLabel}
                         aria-describedby={modInfoOpen ? moderatorHelpId : undefined}
                       />
                     </Box>
                     {modInfoOpen && (
-                      <Text
-                        as="p"
-                        id={moderatorHelpId}
-                        size="T200"
-                        priority="300"
-                        className={css.ModeratorHelp}
-                      >
+                      <Text as="p" id={moderatorHelpId} size="T200" className={css.ModeratorHelp}>
                         {t('sharedUi.inviteUserPrompt.giveRoleRightsHelp', { role: roleName })}
                       </Text>
                     )}
@@ -952,6 +936,23 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                       : t('sharedUi.inviteUserPrompt.addNote')}
                   </Text>
                 </button>
+                {noteOpen && (
+                  <Input
+                    id={noteInputId}
+                    className={css.SearchField}
+                    size="400"
+                    variant="Background"
+                    radii="400"
+                    value={note}
+                    onChange={(evt: ChangeEvent<HTMLInputElement>) => {
+                      noteRef.current = evt.target.value;
+                      setNote(evt.target.value);
+                    }}
+                    placeholder={t('sharedUi.inviteUserPrompt.notePlaceholder')}
+                    aria-label={t('sharedUi.inviteUserPrompt.notePlaceholder')}
+                    autoComplete="off"
+                  />
+                )}
               </div>
             </div>
 

@@ -275,9 +275,27 @@ const checkInviteRetryNoteAndGrant = async (page: Page, seeded: Seed) => {
   const dialog = await openInvite(page, seeded);
   await expect(dialog.locator('li')).toHaveCount(8, { timeout: 30_000 });
 
-  // Add an invite note, simulate one transient invite failure, then Retry and succeed.
-  await dialog.getByRole('button', { name: '+ Add invite note' }).click();
+  // Clicking the moderator label toggles the switch; Info toggles help without flipping the switch.
+  const modLabel = dialog.getByText(/^Give invited agents .+ rights$/);
+  const modSwitch = dialog.getByRole('switch');
+  await expect(modSwitch).toBeChecked();
+  await modLabel.click();
+  await expect(modSwitch).not.toBeChecked();
+  await modLabel.click();
+  await expect(modSwitch).toBeChecked();
+  const infoBtn = dialog.getByRole('button', { name: 'Information', exact: true });
+  await infoBtn.click();
+  await expect(infoBtn).toHaveAttribute('aria-expanded', 'true');
+  await expect(modSwitch).toBeChecked();
+  await infoBtn.click();
+  await expect(infoBtn).toHaveAttribute('aria-expanded', 'false');
+
+  // Opening the note places the input next in Tab order right after the toggle button.
+  const noteToggle = dialog.getByRole('button', { name: '+ Add invite note' });
+  await noteToggle.click();
+  await page.keyboard.press('Tab');
   const noteField = dialog.getByPlaceholder('Add a note to your invite...');
+  await expect(noteField).toBeFocused();
   await noteField.fill('Welcome to the studio');
 
   let failOnce = true;
