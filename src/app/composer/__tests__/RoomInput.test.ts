@@ -5283,9 +5283,10 @@ describe("RoomInput as Home's ask field", () => {
     const echoId = `~${ROOM_ID}:txn-room-input`;
     const onLocalEcho = vi.fn();
     const onRoomMessageSent = vi.fn();
+    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
     const mounted = await sendLongQuestion({ onLocalEcho }, ROOM_ID, onRoomMessageSent);
     await mounted.finishUpload();
-    expect(onLocalEcho.mock.calls).toEqual([[echoId]]);
+    expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
     expect(onRoomMessageSent.mock.calls).toEqual([[echoId]]);
     mounted.renderer.unmount();
 
@@ -5296,8 +5297,43 @@ describe("RoomInput as Home's ask field", () => {
     gone.renderer.unmount();
     await gone.finishUpload();
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(onLocalEcho.mock.calls).toEqual([[echoId]]);
+    expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
     expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
+
+  it('asks and tells a send as it was at its press, whatever the field shows by then', async () => {
+    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
+    // The field moves to another room while the long text uploads.
+    const moved = { canSend: vi.fn(() => true), onLocalEcho: vi.fn() };
+    const moveOn = (sent: Awaited<ReturnType<typeof sendLongQuestion>>) =>
+      updateRoomInput(sent.renderer, sent.store, { roomId: OTHER_ROOM_ID, ask: askProps(moved) });
+
+    // Refused where it was going: asked there about that room, and nothing goes out.
+    const pressed = { canSend: vi.fn((sentTo?: unknown) => !sentTo), onLocalEcho: vi.fn() };
+    const refused = await sendLongQuestion(pressed);
+    await moveOn(refused);
+    await refused.finishUpload();
+    expect(pressed.canSend).toHaveBeenCalledWith(inRoom);
+    expect(moved.canSend).not.toHaveBeenCalledWith(expect.anything());
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(refused.store.get(homeDraft())).toEqual(question);
+    expect(refused.store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
+      agentId: HELPER,
+      roomId: ROOM_ID,
+    });
+    refused.renderer.unmount();
+    refused.store.set(homeDraft(), []);
+
+    // Allowed, it goes where it was going, and its message is told of there.
+    const allowed = { canSend: vi.fn(() => true), onLocalEcho: vi.fn() };
+    const sent = await sendLongQuestion(allowed);
+    await moveOn(sent);
+    await sent.finishUpload();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0]![0]).toBe(ROOM_ID);
+    expect(allowed.onLocalEcho.mock.calls).toEqual([[`~${ROOM_ID}:txn-room-input`, inRoom]]);
+    expect(moved.onLocalEcho).not.toHaveBeenCalled();
+    sent.renderer.unmount();
   });
 
   it('says while a send is on its way, to its end also after the composer has gone', async () => {
@@ -5320,14 +5356,15 @@ describe("RoomInput as Home's ask field", () => {
 
   it('asks again just before the message goes out, and sends nothing where it may no longer go', async () => {
     // Allowed at the press; by the time the message would go out, the room or agent has changed.
-    const canSend = vi.fn((sent?: boolean) => !sent);
+    const canSend = vi.fn((sentTo?: unknown) => !sentTo);
+    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
     const { renderer } = await renderRoomInput(createStore(), { ask: askProps({ canSend }) });
     stageComposerText('A short question');
     resetEditorOnNextSend();
     await act(async () => {
       await getPrimarySendButton(renderer).props.onClick();
     });
-    expect(canSend).toHaveBeenCalledWith(true);
+    expect(canSend).toHaveBeenCalledWith(inRoom);
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual([
       { type: 'paragraph', children: [{ text: 'A short question' }] },
@@ -5338,9 +5375,9 @@ describe("RoomInput as Home's ask field", () => {
     editorMocks.restoreEditorContent.mockClear();
     canSend.mockClear();
     const long = await sendLongQuestion({ canSend });
-    expect(canSend).not.toHaveBeenCalledWith(true);
+    expect(canSend).not.toHaveBeenCalledWith(inRoom);
     await long.finishUpload();
-    expect(canSend).toHaveBeenCalledWith(true);
+    expect(canSend).toHaveBeenCalledWith(inRoom);
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
     long.renderer.unmount();

@@ -138,20 +138,21 @@ export type RoomInputProps = {
    * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
    * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
    * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
-   * and again for the question on its way (`sent`) just before its message goes out, when the
-   * room or the agent may have changed. `onSendingChange` hears while a send is on its way, to
-   * its end, and `onLocalEcho` of the message the client made for it, both also after the
-   * composer has gone. `isDirect` says the room was picked as the agent's direct chat, which a
-   * question returned to Home's draft keeps.
+   * and again for the question on its way, with the room it goes to (`sentTo`), just before its
+   * message goes out, when that room or the agent may have changed. `onSendingChange` hears
+   * while a send is on its way, to its end, and `onLocalEcho` of the message the client made for
+   * it and the room that is in, both also after the composer has gone. A send keeps the three as
+   * they were at its press, whatever the field shows by then. `isDirect` says the room was picked
+   * as the agent's direct chat, which a question returned to Home's draft keeps.
    */
   ask?: {
     agentUserId: string;
     isDirect?: boolean;
     placeholder: string;
     pickers: ReactNode;
-    canSend: (sent?: boolean) => boolean;
+    canSend: (sentTo?: Room) => boolean;
     onSendingChange?: (sending: boolean) => void;
-    onLocalEcho?: (eventId: string) => void;
+    onLocalEcho?: (eventId: string, room: Room) => void;
   };
 };
 
@@ -464,8 +465,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       onRoomMessageSent,
       forkFrom,
       takeRootModelDraft,
-      beforeSend: ask && (() => ask.canSend(true)),
-      onLocalEchoCreated: ask?.onLocalEcho,
     });
 
     const { restoreText: restoreSentText } = sessions;
@@ -608,7 +607,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         setSubmitPending(true);
         ask?.onSendingChange?.(true);
         try {
-          const sending = sessions.startSendSession({ textContent });
+          const sending = sessions.startSendSession({
+            textContent,
+            // Home's question is asked about, and told of, as it was at this press.
+            beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
+            onLocalEchoCreated: ask?.onLocalEcho,
+          });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;

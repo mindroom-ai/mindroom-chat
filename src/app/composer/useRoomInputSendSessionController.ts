@@ -73,6 +73,8 @@ type SendSession = RoomInputSendSessionState & {
   failFast: boolean;
   uploads?: Upload[];
   onUploadSent?: (file: TUploadContent) => void;
+  beforeSend?: StartRoomInputSendSessionOptions['beforeSend'];
+  onLocalEchoCreated?: StartRoomInputSendSessionOptions['onLocalEchoCreated'];
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
@@ -202,6 +204,17 @@ export type StartRoomInputSendSessionOptions = {
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
   onUploadSent?: (file: TUploadContent) => void;
+  /**
+   * Asked for this send, with the room it goes to, just before its text message goes out, after
+   * anything it waited for (its long-text upload): false sends nothing, and the text returns to
+   * the composer.
+   */
+  beforeSend?: (room: Room) => boolean;
+  /**
+   * Hears of the local echo of this send's text message, in the room it goes to, as it is made:
+   * also after the composer has gone, or shows another room.
+   */
+  onLocalEchoCreated?: (eventId: string, room: Room) => void;
 };
 
 export type RoomInputReplyDraftContext = Pick<RoomInputSendContext, 'roomId' | 'replyDraft'>;
@@ -232,13 +245,6 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
-  /**
-   * Asked just before a text message goes out, after anything it waited for (its long-text
-   * upload): false sends nothing, and the text returns to the composer.
-   */
-  beforeSend?: () => boolean;
-  /** Hears of a text message's local echo as it is made, also after the composer has gone. */
-  onLocalEchoCreated?: (eventId: string) => void;
 };
 
 const getTextContentStrings = (content: IContent | undefined): string[] => {
@@ -288,6 +294,8 @@ const createSendSession = (
     | 'failFast'
     | 'uploads'
     | 'onUploadSent'
+    | 'beforeSend'
+    | 'onLocalEchoCreated'
     | 'composer'
   >
 ): SendSession => ({
@@ -460,8 +468,6 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
-  beforeSend,
-  onLocalEchoCreated,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -488,8 +494,6 @@ export const useRoomInputSendSessionController = ({
   const composerContextRef = useRef({ roomId, threadId: composerThreadId });
   composerContextRef.current = { roomId, threadId: composerThreadId };
   const onRoomMessageSentRef = useLatestRef(onRoomMessageSent);
-  const beforeSendRef = useLatestRef(beforeSend);
-  const onLocalEchoCreatedRef = useLatestRef(onLocalEchoCreated);
 
   const isMounted = useCallback(() => mountedRef?.current ?? true, [mountedRef]);
   const showsContext = useCallback(
@@ -536,7 +540,7 @@ export const useRoomInputSendSessionController = ({
                 markedContent,
                 buildLongTextPreview(markedContent)
               );
-        if (beforeSendRef.current?.() === false) {
+        if (session.beforeSend?.(session.room) === false) {
           throw new Error('The message can no longer go where it was sent.');
         }
       } catch (error) {
@@ -570,7 +574,7 @@ export const useRoomInputSendSessionController = ({
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
-        onLocalEchoCreatedRef.current?.(localEventId);
+        session.onLocalEchoCreated?.(localEventId, session.room);
         notifyRoomMessageSent(localEventId);
       }
 
@@ -588,7 +592,7 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       clearReplyDraftForSession(session);
     },
-    [beforeSendRef, mx, onLocalEchoCreatedRef]
+    [mx]
   );
 
   const sendSessionUpload = useCallback(
@@ -734,6 +738,8 @@ export const useRoomInputSendSessionController = ({
       composerContext,
       composerAlreadyReset = false,
       onUploadSent,
+      beforeSend,
+      onLocalEchoCreated,
     }: StartRoomInputSendSessionOptions = {}, sendSlot: SendSlot = slotRef.current) => {
       // The session takes what it needs of this composer now: it may outlive it.
       const composer: SessionComposer = {
@@ -808,6 +814,8 @@ export const useRoomInputSendSessionController = ({
             composerFallback: nextFallback,
             composerContext: nextComposerContext,
             failFast: false,
+            beforeSend,
+            onLocalEchoCreated,
             composer,
           });
           const sending = sendSlot.textsBeside.then(() =>
@@ -828,6 +836,8 @@ export const useRoomInputSendSessionController = ({
               composerContext: nextComposerContext,
               composerAlreadyReset: true,
               onUploadSent,
+              beforeSend,
+              onLocalEchoCreated,
             }, sendSlot)
             .catch((error: unknown) => {
               // eslint-disable-next-line no-console
@@ -869,6 +879,8 @@ export const useRoomInputSendSessionController = ({
         failFast: completeWithinCall,
         uploads: batch?.uploads,
         onUploadSent,
+        beforeSend,
+        onLocalEchoCreated,
         composer,
       });
       session.originThreadView = threadView;

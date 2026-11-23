@@ -73,6 +73,7 @@ vi.mock('../ui/IconTooltip', () => ({
 vi.mock('../ui/directional', () => ({
   IsolatedText: ({ text }: { text: string }) => <span>{text}</span>,
   isolateInSentence: (text: string) => text,
+  ownDirectionLine: {},
   revealDirectionControls: (text: string) => text,
   PopOut: ({
     anchor,
@@ -185,7 +186,7 @@ const sendEcho = (room: FakeRoom, from = lastRoomInputProps.current) => {
   const sent = { status: EventStatus.SENDING, error: new Error('offline'), getId: () => ECHO_ID };
   room.echoes.set(ECHO_ID, sent as unknown as MatrixEvent);
   act(() => {
-    from?.ask?.onLocalEcho?.(ECHO_ID);
+    from?.ask?.onLocalEcho?.(ECHO_ID, room);
   });
   return sent as unknown as MatrixEvent;
 };
@@ -480,9 +481,9 @@ describe('HomeAsk', () => {
 
     // The question on its way is asked again just before its message goes out: not held by
     // itself, it goes only while the agent still answers there.
-    expect(ask()?.canSend(true)).toBe(true);
+    expect(ask()?.canSend(lobby)).toBe(true);
     lobby.members[HELPER] = 'leave';
-    expect(ask()?.canSend(true)).toBe(false);
+    expect(ask()?.canSend(lobby)).toBe(false);
     lobby.members[HELPER] = 'join';
 
     // The send's end is heard from the composer that went.
@@ -559,9 +560,12 @@ describe('HomeAsk', () => {
     settleEcho(mx, eng, EventStatus.NOT_SENT);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
 
-    // The last agent leaves: the field goes, the notice stays, with nowhere to send again.
+    // The last agent leaves: the field goes, the notice stays, with nowhere to send again. The
+    // question is followed throughout.
     eng.members[HELPER] = 'leave';
+    const unfollowed = vi.spyOn(mx, 'removeListener');
     refresh([]);
+    expect(unfollowed).not.toHaveBeenCalled();
     expect(screen.queryByTestId('room-input')).toBeNull();
     expect(screen.getByText('Not sent')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
@@ -598,9 +602,10 @@ describe('HomeAsk', () => {
     const first = makeRoom('!dm-first', 'Helper', [HELPER], 2);
     const second = makeRoom('!dm-second', 'Helper', [HELPER], 2);
     const mx = makeClient([first, second]);
+    // Helper publishes its state in both chats, so they are among its rooms too.
     const agent = (roomId: string): HomeAgent => ({
       ...helperAgent,
-      roomIds: [],
+      roomIds: ['!dm-first', '!dm-second'],
       direct: { roomId, waiting: false },
       defaultRoomId: roomId,
     });
@@ -617,6 +622,16 @@ describe('HomeAsk', () => {
     expect(lastRoomInputProps.current?.roomId).toBe('!dm-first');
     expect(ask()?.canSend()).toBe(true);
     expect(screen.queryByRole('alert')).toBeNull();
+
+    // Both are offered as the direct chat, told apart by their IDs. The one the draft is for,
+    // picked again, stays the direct chat it was picked as.
+    fireEvent.click(screen.getByRole('button', { name: 'In Direct chat' }));
+    const rows = screen.getAllByRole('menuitemradio');
+    expect(rows.map((row) => row.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    expect(rows[0]?.textContent).toContain('Direct chat!dm-first');
+    fireEvent.click(rows[0]!);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-first');
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!dm-first', isDirect: true });
     expect(screen.getByRole('button', { name: 'In Direct chat' })).toBeTruthy();
 
     // Once someone else is in it, it is no direct chat, and takes the draft no longer.
@@ -624,6 +639,80 @@ describe('HomeAsk', () => {
     refresh([agent('!dm-second')]);
     expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
     expect(ask()?.canSend()).toBe(false);
+  });
+
+  it('reads a room picked as a room by its name, also once it is the direct chat', () => {
+    const plan = makeRoom('!plan', 'Planning', [HELPER], 2);
+    const mx = makeClient([makeRoom('!eng', 'Engineering', [HELPER]), plan]);
+    const agent: HomeAgent = { ...helperAgent, roomIds: ['!eng', '!plan'] };
+    const { refresh } = renderAsk(mx, [agent]);
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Planning' }));
+
+    // `m.direct` lists it as Helper's direct chat: picked as a room, it stays one.
+    refresh([{ ...agent, direct: { roomId: '!plan', waiting: false } }]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!plan');
+    expect(ask()?.isDirect).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'In Planning' }));
+    const checked = (name: string) =>
+      screen.getByRole('menuitemradio', { name }).getAttribute('aria-checked');
+    expect(checked('Planning')).toBe('true');
+    expect(checked('Direct chat')).toBe('false');
+
+    // Picked as the direct chat, it reads as that, and takes a question only as one.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
+    expect(screen.getByRole('button', { name: 'In Direct chat' })).toBeTruthy();
+    expect(ask()?.isDirect).toBe(true);
+    plan.joined = 3;
+    expect(ask()?.canSend()).toBe(false);
+  });
+
+  it('holds a direct chat yet to be started to the chat found for it, also a question on its way', () => {
+    const first = makeRoom('!dm-first', 'Quill', [QUILL], 2);
+    const second = makeRoom('!dm-second', 'Quill', [QUILL], 2);
+    const mx = makeClient([first, second]);
+    const store = createStore();
+    const chatting = (roomId: string): HomeAgent => ({
+      ...quillAgent,
+      direct: { roomId, waiting: false },
+      defaultRoomId: roomId,
+    });
+    const { refresh } = renderAsk(mx, [quillAgent], store);
+    // Typed for Quill's direct chat, which is yet to be started.
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+    });
+    expect(storedDestination()).toEqual({ agentId: QUILL, roomId: null, isDirect: true });
+    expect(screen.queryByTestId('room-input')).toBeNull();
+
+    // `m.direct` lists a chat with Quill: the draft is for that chat from now on.
+    refresh([chatting('!dm-first')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-first');
+    expect(storedDestination()).toEqual({ agentId: QUILL, roomId: '!dm-first', isDirect: true });
+
+    // The question is sent, and its long text uploads. Someone joins the chat meanwhile, and
+    // Quill's direct chat is another: the field stays on the first, which takes nothing now.
+    const going = lastRoomInputProps.current;
+    act(() => going?.ask?.onSendingChange?.(true));
+    first.joined = 3;
+    refresh([chatting('!dm-second')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-first');
+    expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
+
+    // Asked again before its message goes out, about the room that goes to: refused.
+    expect(going?.ask?.canSend(first)).toBe(false);
+    expect(ask()?.canSend(first)).toBe(false);
+    expect(going?.ask?.canSend(second)).toBe(true);
+    // A message made for it is followed in the room it is in.
+    sendEcho(first, going);
+    expect(store.get(homeAskPendingAtomFamily(ME))).toMatchObject({
+      state: 'echo',
+      roomId: '!dm-first',
+      agentId: QUILL,
+      isDirect: true,
+    });
   });
 
   it('leaves a newer draft of another tab as it is when the page opens', () => {

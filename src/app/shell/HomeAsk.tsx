@@ -33,7 +33,13 @@ import { getRoomThreadMode } from '../matrix/protocol/roomThreadMode';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversationView';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { IsolatedText, isolateInSentence, revealDirectionControls } from '../ui/directional';
+import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
+import {
+  IsolatedText,
+  isolateInSentence,
+  ownDirectionLine,
+  revealDirectionControls,
+} from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { canAskIn, type HomeAgent, isDirectRoomWith, startDirectChat } from './homeAgents';
 import * as css from './Home.css';
@@ -77,7 +83,14 @@ const goneAgent = (userId: string): HomeAgent => ({
   lastUsedTs: 0,
 });
 
-/** Where a question to `agent` goes with `roomId` picked: its direct chat, or one of its rooms. */
+/**
+ * Where a question to an agent goes: one of its rooms, or, as its direct chat, a chat of the two
+ * (a null room: one yet to be started). One room can be either: as the direct chat it takes a
+ * question only while the two are alone in it.
+ */
+type Place = { roomId: string | null; isDirect: boolean };
+
+/** Where a question to `agent` goes by default, `roomId` being its default room. */
 const destinationOf = (agent: HomeAgent, roomId: string | null): HomeAskDestination => ({
   agentId: agent.userId,
   roomId,
@@ -170,14 +183,15 @@ const useHomeAskPendingNotice = (): ReactNode => {
  */
 export function HomeAsk({ agents }: { agents: HomeAgent[] }) {
   const first = agents[0];
-  return first ? <HomeAskField agents={agents} first={first} /> : <HomeAskPendingNotice />;
+  // Followed from here, so as the last agent goes or the first comes, nothing is missed.
+  const failedNotice = useHomeAskPendingNotice();
+  if (!first) return <>{failedNotice}</>;
+  return <HomeAskField agents={agents} first={first} failedNotice={failedNotice} />;
 }
 
-function HomeAskPendingNotice() {
-  return <>{useHomeAskPendingNotice()}</>;
-}
+type HomeAskFieldProps = { agents: HomeAgent[]; first: HomeAgent; failedNotice: ReactNode };
 
-function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent }) {
+function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const store = useStore();
@@ -215,9 +229,13 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const agent =
     agents.find((candidate) => candidate.userId === selected.agentId) ??
     goneAgent(selected.agentId);
+  // A direct chat yet to be started is the agent's direct chat once it has one, and stays that
+  // chat whichever the agent prefers later: the field shows no composer before it is held to it.
+  if (choice && choice.roomId === null && choice.isDirect && agent.direct) {
+    setChoice({ agentId: choice.agentId, roomId: agent.direct.roomId, isDirect: true });
+  }
+  const { roomId } = selected;
   const isDirect = !!selected.isDirect;
-  // A direct chat yet to be started is the agent's direct chat once it has one.
-  const roomId = selected.roomId ?? (isDirect ? agent.direct?.roomId ?? null : null);
   if (typed && !choice) setChoice(selected);
   // The draft's text is stored with where it goes, in one entry. This keeps that current, with
   // nothing typed too, so the first letter typed is stored with it. Storage is written only as
@@ -228,7 +246,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const selection = useRef({ agentId: agent.userId, roomId });
   selection.current = { agentId: agent.userId, roomId };
   const open = useOpenQuestion();
-  const failedNotice = useHomeAskPendingNotice();
   // No drop zone: a file dropped on Home is not attached.
   const noDrop = useRef<HTMLElement>(null);
   const agentPickerRef = useRef<HTMLButtonElement | null>(null);
@@ -238,10 +255,6 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   // Names read in their own direction in a sentence; an accessible name needs no isolate.
   const name = isolateInSentence(agent.name);
   const { direct } = agent;
-  // Its rooms, then its direct chat, or none yet to start (null).
-  const roomIds: (string | null)[] = [...agent.roomIds];
-  if (!direct) roomIds.push(null);
-  else if (!roomIds.includes(direct.roomId)) roomIds.push(direct.roomId);
   const room = roomId ? mx.getRoom(roomId) : null;
   // A room picked as the direct chat stays a choice only while it is one, not as a room of the
   // same ID that others have joined since: the agent's direct chat, or another chat of the two
@@ -262,6 +275,23 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
     isDirect && valid && !!room && isDirectRoomWith(room, agent.userId, ['invite', undefined]);
   const starting = starts[agent.userId];
   const composerShown = !!room && !waiting;
+  // The direct chat to pick: the one the field is on (one just started that `m.direct` has yet to
+  // list, or one another chat has replaced since), then the agent's; with neither, the one yet to
+  // be started (null).
+  const directIds: (string | null)[] = isDirect && roomId !== null && valid ? [roomId] : [];
+  if (direct && !directIds.includes(direct.roomId)) directIds.push(direct.roomId);
+  if (directIds.length === 0) directIds.push(null);
+  // The places to pick: the agent's rooms, then its direct chat. A room that is the direct chat
+  // is offered as that, at its place among the rooms, and as a room only while picked as one.
+  const places: Place[] = agent.roomIds.map((id) => ({
+    roomId: id,
+    isDirect: directIds.includes(id) && (isDirect || id !== roomId),
+  }));
+  directIds.forEach((id) => {
+    if (!places.some((place) => place.isDirect && place.roomId === id)) {
+      places.push({ roomId: id, isDirect: true });
+    }
+  });
   useEffect(() => {
     if (!focusOnMount || !composerShown) return;
     ReactEditor.focus(editor);
@@ -282,7 +312,8 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
     // would take it. A pick already made stays as it is.
     if (!choice) setChoice({ agentId, roomId: null, isDirect: true });
     setStarts((all) => ({ ...all, [agentId]: 'busy' }));
-    startDirectChat(mx, agentId, version).then(
+    const threads = store.get(crossRoomThreadIndexAtom).entries.values();
+    startDirectChat(mx, agentId, version, threads).then(
       (started) => {
         setStarts(({ [agentId]: done, ...others }) => others);
         // A choice made meanwhile stands; the chat itself, shown already as `m.direct` lists it,
@@ -303,17 +334,19 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
     setChoice(destination);
   };
 
-  const shown = (id: string | null) => {
-    const choiceRoom = id ? mx.getRoom(id) : null;
-    // The direct chat, also one just started that `m.direct` has yet to list.
-    if (!choiceRoom || id === direct?.roomId || (isDirect && id === roomId && valid)) {
+  // How a place reads: the direct chat as that, whatever its room is named; a room by its name,
+  // also one that is the agent's direct chat but was picked as a room.
+  const shown = ({ roomId: id, isDirect: asDirect }: Place) => {
+    if (asDirect || id === null) {
       return { label: t('home.ask.directChat'), badge: agentBadge(agent) };
     }
-    const label = revealDirectionControls(choiceRoom.name);
-    const mxc = choiceRoom.getMxcAvatarUrl() ?? undefined;
-    return { label, badge: <Badge id={choiceRoom.roomId} name={label} mxc={mxc} square /> };
+    const placeRoom = mx.getRoom(id);
+    const label = revealDirectionControls(placeRoom?.name ?? id);
+    const mxc = placeRoom?.getMxcAvatarUrl() ?? undefined;
+    return { label, badge: <Badge id={id} name={label} mxc={mxc} square /> };
   };
-  const current = shown(roomId);
+  // A direct chat that is one no longer reads as the room it is.
+  const current = shown({ roomId, isDirect: isDirect && (valid || !room) });
   const radio = (
     key: string,
     checked: boolean,
@@ -343,7 +376,9 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
           content: (
             <>
               {agent.userId && agentBadge(agent)}
-              <span className={css.PickerText}>{agent.name || t('home.ask.chooseAgent')}</span>
+              <span className={css.PickerText} {...ownDirectionLine}>
+                {agent.name || t('home.ask.chooseAgent')}
+              </span>
             </>
           ),
           label: agent.name
@@ -388,18 +423,21 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
           }}
         >
           {({ choose }) => {
-            const choices = roomIds.map((id) => ({ id, ...shown(id) }));
-            return choices.map(({ id, ...face }) => {
-              // Rooms of one name are told apart by their addresses, else by their IDs.
-              const twin = choices.some((other) => other.id !== id && other.label === face.label);
-              const twinRoom = twin && id ? mx.getRoom(id) : null;
+            const rows = places.map((place) => ({ place, face: shown(place) }));
+            return rows.map(({ place, face }, index) => {
+              // Places of one name are told apart by their addresses, else by their IDs.
+              const twin = rows.some(
+                (other, at) => at !== index && other.face.label === face.label
+              );
+              const twinRoom = twin && place.roomId ? mx.getRoom(place.roomId) : null;
               const address = twinRoom?.getCanonicalAlias() || twinRoom?.roomId;
               return radio(
-                id ?? 'new-direct',
-                id === roomId && valid,
+                `${place.isDirect ? 'direct' : 'room'}:${place.roomId ?? ''}`,
+                place.roomId === roomId && place.isDirect === isDirect && valid,
                 face,
-                choose(() => pick('room', destinationOf(agent, id))),
-                id === null
+                // Picked as what the row says it is: a checked row picked again changes nothing.
+                choose(() => pick('room', { agentId: agent.userId, ...place })),
+                place.roomId === null
                   ? t('home.ask.startsDirectChat', { name })
                   : address && revealDirectionControls(address)
               );
@@ -438,12 +476,13 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               isDirect,
               placeholder,
               pickers,
-              // Read again at the press, and for the question on its way (`sent`) just before
-              // its message goes out: the room or the agent may have changed since.
-              canSend: (sent) =>
-                (sent || !store.get(pendingAtom)) &&
-                valid &&
-                answersIn(room, agent.userId, isDirect),
+              // Read again at the press, and for the question on its way, with the room it goes
+              // to, just before its message goes out: that room or the agent may have changed
+              // since. A send asks the field as it was at its press, so about where it goes.
+              canSend: (sentTo) =>
+                sentTo
+                  ? answersIn(sentTo, agent.userId, isDirect)
+                  : !store.get(pendingAtom) && valid && answersIn(room, agent.userId, isDirect),
               // Heard also after this page has gone, to the send's end.
               onSendingChange: (now) => {
                 if (now) {
@@ -455,8 +494,8 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
               },
               // The question's message, followed from here on: heard also after this page has
               // gone, so the page finds it when it opens again.
-              onLocalEcho: (eventId) => {
-                const sent = { roomId: room.roomId, agentId: agent.userId, isDirect, eventId };
+              onLocalEcho: (eventId, sentTo) => {
+                const sent = { roomId: sentTo.roomId, agentId: agent.userId, isDirect, eventId };
                 store.set(pendingAtom, { state: 'echo', ...sent });
               },
             }}

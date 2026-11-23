@@ -33,6 +33,8 @@ type MessageSpec =
       redacted?: boolean;
       relType?: string;
       title?: boolean;
+      /** It could not be decrypted. */
+      failed?: boolean;
     };
 const TITLE = { msgtype: 'm.notice', 'io.mindroom.thread_summary': { summary: 'A title' } };
 
@@ -55,7 +57,7 @@ const event = (
   sender: string,
   ts = 0,
   content: Record<string, unknown> = {},
-  options: { type?: string; redacted?: boolean; relType?: string } = {}
+  options: { type?: string; redacted?: boolean; relType?: string; failed?: boolean } = {}
 ) =>
   ({
     getId: () => `$${sender}-${ts}`,
@@ -65,6 +67,7 @@ const event = (
     getType: () => options.type ?? EventType.RoomMessage,
     isState: () => false,
     isRedacted: () => options.redacted ?? false,
+    isDecryptionFailure: () => options.failed ?? false,
     getRelation: () => (options.relType ? { rel_type: options.relType } : null),
     getContent: () => content,
   } as unknown as MatrixEvent);
@@ -332,6 +335,32 @@ describe('readHomeAgents', () => {
     expect(indexed).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 900 });
   });
 
+  it('counts no message that could not be decrypted, whatever it turns out to be', () => {
+    const lobby = (failed: boolean) => [
+      room('!lobby', {
+        agents: [HELPER],
+        // Helper's title notice, which reads as a message while it cannot be decrypted.
+        messages: [[HELPER, 100], failed ? { sender: HELPER, ts: 500, failed } : [HELPER, 500]],
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    const [undecrypted] = readHomeAgents(client(lobby(true)), ids(lobby(true)), []);
+    expect(undecrypted).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+    // Decrypted, it is the notice it is, and still counts nothing.
+    const titled = [
+      room('!lobby', {
+        agents: [HELPER],
+        messages: [[HELPER, 100], { sender: HELPER, ts: 500, title: true }],
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    const [decrypted] = readHomeAgents(client(titled), ids(titled), []);
+    expect(decrypted).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+    // A message that is read counts.
+    const [read] = readHomeAgents(client(lobby(false)), ids(lobby(false)), []);
+    expect(read).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 500 });
+  });
+
   it('keeps a loaded answer at the time it was sent when a title notice ends its thread', () => {
     const rooms = [
       room('!lobby', {
@@ -542,6 +571,34 @@ describe('startDirectChat', () => {
     await expect(startDirectChat(both, SCOUT)).resolves.toBe('!found');
     expect(lost.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
     expect(both.createRoom).not.toHaveBeenCalled();
+  });
+
+  it('takes, of several listed chats whose members load, the one the agent last answered in', async () => {
+    // Two chats `m.direct` lists, Scout's membership in neither loaded yet.
+    const listing = (first: number, second: number) => {
+      let loaded = false;
+      const chat = (roomId: string, ts: number) =>
+        Object.assign(room(roomId, { count: 2, messages: [[SCOUT, ts]] }), {
+          getMember: (userId: string) =>
+            loaded && userId === SCOUT ? { membership: 'join' } : null,
+          loadMembersIfNeeded: vi.fn(async () => {
+            loaded = true;
+            return true;
+          }),
+        });
+      const rooms = [chat('!dm-first', first), chat('!dm-second', second)];
+      return Object.assign(client(rooms, { [SCOUT]: ids(rooms) }), {
+        createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+        setAccountData: vi.fn(async () => undefined),
+      });
+    };
+    // As `readHomeAgents` takes it: by its messages the client has, then by the thread index.
+    await expect(startDirectChat(listing(200, 500), SCOUT)).resolves.toBe('!dm-second');
+    await expect(startDirectChat(listing(200, 200), SCOUT)).resolves.toBe('!dm-first');
+    const index = [thread('!dm-first', SCOUT, 900)];
+    const indexed = listing(200, 500);
+    await expect(startDirectChat(indexed, SCOUT, undefined, index)).resolves.toBe('!dm-first');
+    expect(indexed.createRoom).not.toHaveBeenCalled();
   });
 
   it('starts one chat however often it is asked while it starts', async () => {

@@ -34,6 +34,7 @@ const message = (sender: string, ts: number, type: string = EventType.RoomMessag
     getType: () => type,
     isState: () => false,
     isRedacted: () => false,
+    isDecryptionFailure: () => false,
     getRelation: () => (edit ? { rel_type: RelationType.Replace } : null),
     getContent: () => ({}),
   } as unknown as MatrixEvent);
