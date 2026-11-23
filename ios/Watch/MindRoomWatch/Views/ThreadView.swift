@@ -2,7 +2,7 @@ import MindRoomWatchKit
 import SwiftUI
 
 /// One thread: what it is about and every message in it, opened at what waits for the person or the newest
-/// answer, with pinned done/reply toolbar, expandable work folds, and Handoff to the iPhone.
+/// answer, with a floating done/reply bottom toolbar, expandable work folds, and Handoff to the iPhone.
 struct ThreadView: View {
     @ObservedObject var roomModel: RoomModel
     let rootId: String
@@ -23,83 +23,92 @@ struct ThreadView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { scroll in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let snapshot = model.snapshot {
-                            if let heading = snapshot.heading {
-                                Text(heading)
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(WatchTheme.tealBright.opacity(0.92))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(WatchTheme.teal.opacity(0.12))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .strokeBorder(WatchTheme.tealBright.opacity(0.22), lineWidth: 0.75)
-                                            )
-                                    )
-                            }
-                            ForEach(snapshot.entries) { entry in
-                                switch entry {
-                                case let .message(message): messageView(message, in: snapshot)
-                                case let .approval(card): approvalView(card)
-                                }
-                            }
-                            if snapshot.reply == nil {
-                                Text("Sent")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 4)
-                            }
-                        } else {
-                            ProgressView()
-                                .tint(WatchTheme.tealBright)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.top, 16)
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let snapshot = model.snapshot {
+                        if let heading = snapshot.heading {
+                            Text(heading)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(WatchTheme.tealBright.opacity(0.92))
+                                .padding(.horizontal, 4)
+                                .accessibilityAddTraits(.isHeader)
                         }
-                        if let error = model.error {
-                            Text(error)
+                        ForEach(snapshot.entries) { entry in
+                            switch entry {
+                            case let .message(message): messageView(message, in: snapshot)
+                            case let .approval(card): approvalView(card)
+                            }
+                        }
+                        if snapshot.reply == nil {
+                            Text("Sent")
                                 .font(.footnote)
-                                .foregroundStyle(WatchTheme.coral)
+                                .foregroundStyle(.secondary)
                                 .padding(.horizontal, 4)
                         }
-                        ForEach(model.failedReplies, id: \.self) { transactionId in
-                            HStack {
-                                Text("Not sent").font(.footnote).foregroundStyle(WatchTheme.coral)
-                                Spacer()
-                                Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
-                                    .fixedSize()
-                            }
-                            .padding(8)
-                            .background(
-                                GlassCardBackground(
-                                    tint: WatchTheme.coral.opacity(0.12),
-                                    border: WatchTheme.coral.opacity(0.32),
-                                    cornerRadius: 12
-                                )
-                            )
-                        }
+                    } else {
+                        ProgressView()
+                            .tint(WatchTheme.tealBright)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.top, 16)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.bottom, 6)
+                    if let error = model.error {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(WatchTheme.coral)
+                            .padding(.horizontal, 4)
+                    }
+                    ForEach(model.failedReplies, id: \.self) { transactionId in
+                        HStack {
+                            Text("Not sent").font(.footnote).foregroundStyle(WatchTheme.coral)
+                            Spacer()
+                            Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
+                                .fixedSize()
+                        }
+                        .padding(8)
+                        .background(
+                            GlassCardBackground(
+                                tint: WatchTheme.coral.opacity(0.12),
+                                border: WatchTheme.coral.opacity(0.32),
+                                cornerRadius: 12
+                            )
+                        )
+                    }
                 }
-                .clipped()
-                // Opens at the top of what waits (so an approval card's tool name is always read first) or the newest answer.
-                .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
-                    if let focus { scroll.scrollTo(focus, anchor: .top) }
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 40)
             }
-            bottomActionBar
+            // Opens at the top of what waits (so an approval card's tool name is always read first) or the newest answer.
+            .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
+                if let focus { scroll.scrollTo(focus, anchor: .top) }
+            }
         }
         .containerBackground(for: .navigation) {
             WatchTheme.threadBackground
         }
-        .navigationTitle(model.snapshot?.title ?? "")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .bottomBar) {
+                // Marks the thread done (resolved) and goes back to the room.
+                Button {
+                    Task { await roomModel.resolve(rootId); dismiss() }
+                } label: {
+                    Label("Done", systemImage: "checkmark")
+                        .labelStyle(.iconOnly)
+                }
+                Spacer()
+                Button {
+                    speaker.stop()
+                    recording = true
+                } label: {
+                    Label("Reply", systemImage: "mic.fill")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(WatchTheme.tealInk)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
+                .tint(WatchTheme.teal)
+            }
+        }
         .task { await model.start() }
         .onChange(of: model.snapshot.map(people), initial: true) { _, people in
             if let people { Task { await roomModel.learnNames(people) } }
@@ -125,65 +134,6 @@ struct ThreadView: View {
         .onChange(of: speaker.current) { _, current in E2EHooks.log("sound \(current ?? "ended")") }
         .onChange(of: speaker.failed) { _, failed in if let failed { E2EHooks.log("sound failed \(failed)") } }
         #endif
-    }
-
-    private var bottomActionBar: some View {
-        HStack(spacing: 8) {
-            // Marks the thread done (resolved) and goes back to the room.
-            Button {
-                Task { await roomModel.resolve(rootId); dismiss() }
-            } label: {
-                Image(systemName: "checkmark")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(
-                        Circle()
-                            .fill(Color.white.opacity(0.16))
-                            .overlay(Circle().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.75))
-                    )
-                    // A tap target of 44 by 36 around the circle, in the room the bar's edge and spacing
-                    // leave: the bar is laid out as before.
-                    .padding(.horizontal, 4)
-                    .contentShape(Rectangle())
-                    .padding(.horizontal, -4)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Done"))
-
-            Button {
-                speaker.stop()
-                recording = true
-            } label: {
-                Label("Reply", systemImage: "mic.fill")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(WatchTheme.tealInk)
-                    .frame(maxWidth: .infinity, minHeight: 36)
-                    .background(
-                        Capsule().fill(
-                            LinearGradient(
-                                colors: [WatchTheme.tealBright, WatchTheme.teal],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    )
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 5)
-        .padding(.bottom, 2)
-        .background(
-            Color.black.opacity(0.92)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(height: 0.5)
-                }
-                .ignoresSafeArea(edges: .bottom)
-        )
     }
 
     /// Everyone the thread's messages are from or name.
@@ -212,7 +162,7 @@ struct ThreadView: View {
 
     private func ownMessageBubble(_ message: ThreadSnapshot.Message) -> some View {
         HStack {
-            Spacer(minLength: 18)
+            Spacer(minLength: 16)
             VStack(alignment: .leading, spacing: 5) {
                 if message.isVoiceOnly {
                     Label("Voice message", systemImage: "waveform")
@@ -230,8 +180,8 @@ struct ThreadView: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
             .background(
                 GlassCardBackground(
                     tint: Color.white.opacity(0.11),
@@ -246,32 +196,21 @@ struct ThreadView: View {
         let senderName = roomModel.name(message.sender)
         let showsWorkFold = !message.toolNames.isEmpty || message.workText != nil
         let displayText = message.answerText.isEmpty ? message.text : message.answerText
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 5) {
-                AgentMonogram(name: senderName)
-                Text(senderName)
-                    .font(.caption.bold())
-                    .foregroundStyle(WatchTheme.tealBright)
-                    .lineLimit(1)
-                Spacer(minLength: 2)
-                if !showsWorkFold && message.tools > 0 {
-                    Text(message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        let onListen = listenAction(for: message, in: snapshot)
+        return VStack(alignment: .leading, spacing: 5) {
+            if let onListen {
+                ViewThatFits(in: .horizontal) {
+                    agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                                onListen: onListen, iconOnlyListen: false)
+                    agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                                onListen: onListen, iconOnlyListen: true)
                 }
-                // The work fold has its own mark of a run that goes on.
-                if !showsWorkFold && message.run == .streaming {
-                    if reduceMotion {
-                        Circle()
-                            .fill(WatchTheme.tealBright)
-                            .frame(width: 6, height: 6)
-                    } else {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(WatchTheme.tealBright)
-                    }
-                }
+            } else {
+                agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                            onListen: nil, iconOnlyListen: false)
+            }
+            if speaker.failed == message.eventId {
+                Text("Could not play").font(.footnote).foregroundStyle(WatchTheme.coral)
             }
             if showsWorkFold {
                 WorkFoldView(
@@ -299,18 +238,9 @@ struct ThreadView: View {
                     .font(.body)
                     .foregroundStyle(.primary)
             }
-            if let audio = message.audio {
-                listen(message) { speaker.toggle(message.eventId) { try await roomModel.audio(audio) } }
-                if speaker.failed == message.eventId {
-                    Text("Could not play").font(.footnote).foregroundStyle(WatchTheme.coral)
-                }
-            } else if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
-                let spoken = message.answerText.isEmpty ? message.text : message.answerText
-                listen(message) { speaker.toggle(message.eventId, text: roomModel.named(spoken)) }
-            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             GlassCardBackground(
@@ -321,23 +251,80 @@ struct ThreadView: View {
         )
     }
 
-    private func listen(_ message: ThreadSnapshot.Message, action: @escaping () -> Void) -> some View {
+    private func agentHeader(_ message: ThreadSnapshot.Message, senderName: String, showsWorkFold: Bool,
+                             onListen: (() -> Void)?, iconOnlyListen: Bool) -> some View {
+        HStack(spacing: 5) {
+            AgentMonogram(name: senderName)
+            Text(senderName)
+                .font(.caption.bold())
+                .foregroundStyle(WatchTheme.tealBright)
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            if !showsWorkFold && message.tools > 0 {
+                Text(message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            // The work fold has its own mark of a run that goes on.
+            if !showsWorkFold && message.run == .streaming {
+                if reduceMotion {
+                    Circle()
+                        .fill(WatchTheme.tealBright)
+                        .frame(width: 6, height: 6)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(WatchTheme.tealBright)
+                }
+            }
+            if let onListen {
+                listen(message, compact: true, iconOnly: iconOnlyListen, action: onListen)
+            }
+        }
+    }
+
+    private func listenAction(for message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> (() -> Void)? {
+        if let audio = message.audio {
+            return { speaker.toggle(message.eventId) { try await roomModel.audio(audio) } }
+        }
+        if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
+            let spoken = message.answerText.isEmpty ? message.text : message.answerText
+            return { speaker.toggle(message.eventId, text: roomModel.named(spoken)) }
+        }
+        return nil
+    }
+
+    private func listen(_ message: ThreadSnapshot.Message, compact: Bool = false, iconOnly: Bool = false,
+                        action: @escaping () -> Void) -> some View {
         let sounds = speaker.current == message.eventId
+        let horizontal: CGFloat = compact ? 7 : 10
+        let vertical: CGFloat = compact ? 3 : 5
+        let top: CGFloat = compact ? 0 : 2
         return Button(action: action) {
-            Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
-                  systemImage: sounds ? "stop.fill" : "play.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(sounds ? WatchTheme.tealInk : WatchTheme.tealBright)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule()
-                        .fill(sounds ? WatchTheme.tealBright : WatchTheme.teal.opacity(0.22))
-                        .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.38), lineWidth: 0.75))
-                )
+            Group {
+                if iconOnly {
+                    Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
+                          systemImage: sounds ? "stop.fill" : "play.fill")
+                        .labelStyle(.iconOnly)
+                } else {
+                    Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
+                          systemImage: sounds ? "stop.fill" : "play.fill")
+                }
+            }
+            .font((compact ? Font.caption2 : Font.caption).weight(.bold))
+            .foregroundStyle(sounds ? WatchTheme.tealInk : WatchTheme.tealBright)
+            .padding(.horizontal, horizontal)
+            .padding(.vertical, vertical)
+            .background(
+                Capsule()
+                    .fill(sounds ? WatchTheme.tealBright : WatchTheme.teal.opacity(0.22))
+                    .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.38), lineWidth: 0.75))
+            )
         }
         .buttonStyle(.plain)
-        .padding(.top, 2)
+        .fixedSize()
+        .padding(.top, top)
     }
 
     private func approvalView(_ card: ApprovalCard) -> some View {
@@ -371,7 +358,7 @@ private struct WorkFoldView: View {
                         .foregroundStyle(WatchTheme.tealBright.opacity(0.85))
                 }
                 .padding(.horizontal, 7)
-                .padding(.vertical, 5)
+                .padding(.vertical, 3)
                 .background(
                     Capsule()
                         .fill(Color.white.opacity(0.09))
@@ -406,7 +393,7 @@ private struct WorkFoldView: View {
                         }
                     }
                 }
-                .padding(8)
+                .padding(6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
