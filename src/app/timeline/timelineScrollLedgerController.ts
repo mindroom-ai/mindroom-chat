@@ -651,27 +651,15 @@ export const useTimelineScrollLedgerController = ({
   // momentum frame.
   const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
 
-  // Discard watchdog (PR #126, second mechanism): a settle write landing
-  // inside a touchless scroll session's pause (scrubber/trackpad — no
-  // touch events, so no gate can see the session) is DISCARDED by the
-  // compositor, which reasserts the pre-settle offset as one large scroll
-  // event 74-300ms later (matched-snapshot settles 491/617 in
-  // ride-trace-1783829722124 reverted this way; pinned in
-  // rideTraceReplay.test.ts). The session-aware quiescence waiter prevents
-  // most of these on scrollend-capable WebKit; this watchdog restores the
-  // fold to the ledger when a write is reverted anyway.
+  // Restores the fold when the compositor discards a settle write and reasserts the pre-settle
+  // offset; under a wheel, keeps watching (`landsAt`) for a late WebKit replay of that write.
   const settleDiscardWatchRef = useRef<
     | {
         px: number;
-        /** The part of `px` that rows brought with their own height (`rowFoldPxRef`). */
         rowFoldPx: number;
         preSettleScrollTop: number;
         settledScrollTop: number;
         at: number;
-        /**
-         * After the fold came back in a wheel's scroll: the offset of a write WebKit has not
-         * applied yet (the settle's at first), which it may still apply a few frames late.
-         */
         landsAt?: number;
       }
     | undefined
@@ -888,21 +876,13 @@ export const useTimelineScrollLedgerController = ({
       // gesture's, never a late reassertion of a pre-settle offset.
       settleDiscardWatchRef.current = undefined;
     };
-    // How far the reader's wheel asked to scroll since the last scroll event that moved the
-    // offset (a write's own event moves nothing, and the wheel's scroll comes after it). A mouse
-    // wheel's notch moves about as far as a settle can: a move back toward the pre-settle offset
-    // that the wheel accounts for is the reader's, not the compositor reasserting it (a trackpad's
-    // momentum ticks are far shorter than such a reassertion). Lines and pages account for any move.
+    // Wheel delta accumulated since the last offset-changing scroll event (lines/pages -> ±Infinity).
     let wheelPx = 0;
     const onLedgerBoundaryWheel = (event: WheelEvent) => {
       wheelPx += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * Infinity;
     };
-    // The scroll event's first half listens in the capture phase, which comes first on the scroll
-    // area itself: a discarded settle has its fold back before virtual-core, which listens there
-    // too, renders the rows at the reasserted offset. Without the fold those are rows far above
-    // the reader, and they were measured as if in view: their size changes moved the reader's
-    // rows for good (580 px after a 16,626 px settle). It leaves the event's direction for the
-    // boundary half, or nothing after a restore.
+    // Capture-phase scroll handler: restores a discarded fold or absorbs a late WebKit replay
+    // synchronously before virtual-core's scroll listener mounts rows at the wrong offset.
     let boundaryScroll:
       | { currentScrollTop: number; scrollDirection: 'forward' | 'backward' | null }
       | undefined;
@@ -942,34 +922,25 @@ export const useTimelineScrollLedgerController = ({
             wheeledPx,
           })
         ) {
-          // The compositor reasserted the pre-settle offset: the settle's
-          // write is gone while its margin fold already reached the DOM.
-          // Restore the fold through the ordinary drop path (coherent
-          // commit + fresh true-rest wait); the position itself belongs to
-          // the still-live session. Skip the boundary evaluation for this
-          // event — its geometry is mid-restoration.
-          // Under a wheel WebKit may still apply the write: the watch goes on for that.
+          // Compositor reasserted pre-settle offset: restore fold before paint, and keep watching
+          // under a wheel in case WebKit applies the settle write late.
           watch.landsAt = watch.settledScrollTop;
           if (wheeledPx === 0) settleDiscardWatchRef.current = undefined;
           countCacheProbe('ledgerSettleWriteDiscarded');
-          // The rows' part comes back with the margin, in the render that paints it: without
-          // it the end clamp read that part of the restored margin as rows that shrank.
           droppedRowFoldPxRef.current += watch.rowFoldPx;
-          // Rendered now, before this event's frame paints the rows without their fold.
           flushSync(() => handleDroppedCorrection(watch.px));
           return;
         } else if (watch.landsAt !== undefined) {
-          // WebKit applies a write it reported as gone, the settle's or one made since at the
-          // offset it reported, once its scrolling thread gets to it: the offset lands where
-          // that write asked (unclamped before layout, or clamped to the scroll range's end),
-          // give or take the wheel's travel. That move is the browser's, so the ledger takes
-          // it and the rows stay where the reader has them.
+          // Late WebKit replay: check wheel-adjusted landing before treating the net delta as
+          // pure wheel travel, matching either unclamped `landsAt` or clamped `end`.
           const wheel = Number.isFinite(wheeledPx) ? wheeledPx : 0;
           const target = currentScrollTop - wheel;
-          const slack = SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel);
           const movedPx = delta - wheel;
+          const slack = wheeled
+            ? SETTLE_DISCARD_HELD_SLACK_PX
+            : SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel);
           if (
-            !wheeled &&
+            (!wheeled || Number.isFinite(wheeledPx)) &&
             Math.abs(movedPx) > SETTLE_DISCARD_HELD_SLACK_PX &&
             (Math.abs(target - watch.landsAt) <= slack ||
               Math.abs(
@@ -983,9 +954,7 @@ export const useTimelineScrollLedgerController = ({
             watch.landsAt = previousScrollTop;
             droppedRowFoldPxRef.current += rowFoldDelta;
             flushSync(() => handleDroppedCorrection(-movedPx));
-            // WebKit can still clamp an unclamped scrolling-thread offset to the prior end
-            // during the commit's layout before the restored margin resolves; fold that clamp
-            // before virtual-core reads the event.
+            // Fold any layout clamp of an unclamped offset before virtual-core reads the event.
             const clampedPx = scrollElement.scrollTop - currentScrollTop;
             if (clampedPx !== 0) {
               ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;

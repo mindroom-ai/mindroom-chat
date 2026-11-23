@@ -160,6 +160,41 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
       rowFoldPx: 0,
     });
     expect(marginAtRender.at(-1)).toBe('40px');
+
+    // Same replay under a faster -240 px wheel notch: net scrollTop moves -108 px (360 -> 252),
+    // which is smaller than the notch, yet 252 + 240 matches the pending write to 492 exactly.
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    scrollElement.scrollTop = 400;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    leadingPx = 160;
+    render();
+    expect(
+      hook({ end: 100, index: 0 }, 62, {
+        scrollOffset: 400,
+        scrollDirection: 'backward',
+        scrollElement,
+      })
+    ).toBe(false);
+    render();
+    render();
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(scrollElement.scrollTop).toBe(492);
+    wheelUp();
+    scrollElement.scrollTop = 360;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual(held);
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+    scrollElement.scrollTop = 252;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '40px',
+      rowFoldPx: 0,
+    });
+    expect(marginAtRender.at(-1)).toBe('40px');
   } finally {
     flushSync(() => root.unmount());
     rect.mockRestore();
