@@ -765,3 +765,77 @@ it('saves a listed root that is still being decrypted when the overview closes',
   await decrypted;
   await vi.waitFor(() => expect(saved).toEqual(['$decrypting m.room.message']));
 });
+
+it('does not rewrite unchanged cached roots restored on a fresh Room when listing threads', async () => {
+  const { mx, room, engine } = setUpRoom();
+  room.setMaxListeners(100);
+  // Seed 40 cached thread roots (as from a prior session before an account switch creates a new
+  // Room instance whose savedRootRevisions WeakMap is empty).
+  for (let i = 0; i < 40; i += 1) {
+    const rootId = `$cached-root-${i}`;
+    const reply: Partial<IEvent> = {
+      event_id: `$cached-reply-${i}`,
+      room_id: roomId,
+      sender: userId,
+      origin_server_ts: 2_000 + i,
+      type: 'm.room.message',
+      content: {
+        msgtype: 'm.text',
+        body: `Cached reply ${i}`,
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      },
+    };
+    const root: Partial<IEvent> = {
+      event_id: rootId,
+      room_id: roomId,
+      sender: userId,
+      origin_server_ts: 1_000 + i,
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: `Cached thread ${i}` },
+      unsigned: {
+        'm.relations': {
+          'm.thread': { count: 1, current_user_participated: true, latest_event: reply },
+        },
+      },
+    };
+    // eslint-disable-next-line no-await-in-loop
+    await saveThreadEventsToCache(sessionId, roomId, rootId, [reply], root);
+  }
+
+  const saved: string[] = [];
+  recordSaves(engine, (threadId) => saved.push(threadId));
+  let releaseServerList!: () => void;
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        releaseServerList = () => {
+          room.processThreadRoots(
+            [
+              new MatrixEvent({
+                event_id: '$newly-listed-root',
+                room_id: roomId,
+                sender: userId,
+                origin_server_ts: 9_000,
+                type: 'm.room.message',
+                content: { msgtype: 'm.text', body: 'Newly listed thread' },
+              }),
+            ],
+            false
+          );
+          resolve();
+        };
+      })
+  );
+
+  await act(async () => {
+    const list = showList(mx, engine, room);
+    // Wait until loadCachedThreadRootsForRoom restores all 40 cached threads into `room`.
+    await vi.waitFor(() => expect(room.getThreads().length).toBe(40));
+    releaseServerList();
+    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
+  });
+
+  // Only the 1 newly listed thread changed; rewriting all 40 unchanged cached roots back to IDB
+  // fires 40 concurrent 6-store readwrite transactions in one synchronous forEach burst.
+  expect(saved).toEqual(['$newly-listed-root']);
+});
