@@ -225,6 +225,11 @@ const instrument = () => {
       document.querySelector('[data-compact-room-view]')?.getAttribute('data-compact-card-count') ??
         Number.NaN
     );
+  // The count the filter bar shows, which a commit can update after the list.
+  const chip = () =>
+    Number(
+      document.querySelector('[data-room-thread-overview] [data-thread-count]')?.textContent?.trim()
+    );
   const arm = (expected: Expect) => {
     const timing: Timing = {};
     state.timing = timing;
@@ -232,7 +237,8 @@ const instrument = () => {
       const ids = cardIds();
       const count = counted();
       if (expected.first?.some((id, index) => ids[index] !== id)) return false;
-      if (expected.count !== undefined && count !== expected.count) return false;
+      if (expected.count !== undefined && (count !== expected.count || chip() !== count))
+        return false;
       if (expected.hidden !== undefined && total() - count !== expected.hidden) return false;
       if (
         expected.resolved !== undefined &&
