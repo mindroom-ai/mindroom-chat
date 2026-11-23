@@ -83,14 +83,15 @@ export function SheetScrollArea({
         data-y-scrollbar-width={0}
       >
         <div ref={contentRef}>{children}</div>
+        {/* Inside the viewport so wheel events over the track scroll it; placed by the frame so it stays put. */}
+        <InsetScrollbar
+          scrollRef={internalScrollRef}
+          contentRef={contentRef}
+          label={t('sharedUi.pageScroll.scrollbar')}
+          className={css.SheetScrollbar}
+          tabIndex={-1}
+        />
       </div>
-      <InsetScrollbar
-        scrollRef={internalScrollRef}
-        contentRef={contentRef}
-        label={t('sharedUi.pageScroll.scrollbar')}
-        className={css.SheetScrollbar}
-        tabIndex={-1}
-      />
     </div>
   );
 }

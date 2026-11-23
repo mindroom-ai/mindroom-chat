@@ -87,6 +87,7 @@ export const SheetRowAction = style({
   '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
 });
 
+// Pairs with SheetRow on the parent row so hovering/focusing a row promotes its action button.
 const idleActionBg = `color-mix(in srgb, ${color.Surface.Container} 40%, transparent)`;
 const enabledAction = ':not([aria-disabled="true"]):not(:disabled)';
 export const SheetRowActionIdle = style({

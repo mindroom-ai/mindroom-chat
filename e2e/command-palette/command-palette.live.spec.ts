@@ -51,6 +51,8 @@ test.describe('command palette', () => {
     await expect(input).toHaveValue(roomName);
     await input.fill('');
     const firstSelectedId = await input.getAttribute('aria-activedescendant');
+    const previousViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1280, height: 400 });
     const scrolledTop = await dialog.getByRole('tabpanel').evaluate((scroll) => {
       scroll.scrollTop = scroll.scrollHeight;
       return scroll.scrollTop;
@@ -59,6 +61,7 @@ test.describe('command palette', () => {
     await input.fill(' ');
     await expect(input).toHaveAttribute('aria-activedescendant', firstSelectedId!);
     await expect(dialog.getByRole('option', { selected: true })).toBeInViewport();
+    if (previousViewport) await page.setViewportSize(previousViewport);
     await input.press('ArrowUp');
     const selected = dialog.getByRole('option', { selected: true });
     await expect(selected).toBeInViewport();

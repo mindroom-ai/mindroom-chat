@@ -68,6 +68,7 @@ describe('SheetScrollArea', () => {
     expect(scrollbar.getAttribute('tabindex')).toBe('-1');
     expect(scrollbar.getAttribute('aria-controls')).toBe('results-panel');
     expect(scrollbar.className).toContain('dialog-scrollbar');
+    expect(viewport.contains(scrollbar)).toBe(true);
 
     fireEvent.keyDown(viewport, { key: 'ArrowDown' });
     expect(onKeyDown).toHaveBeenCalledTimes(1);
