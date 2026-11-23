@@ -211,7 +211,7 @@ const createSchedulerHost = (
 
 const BUILDS = [
   'scheduler/cjs/scheduler.development.js',
-  'scheduler/cjs/scheduler.production.min.js',
+  'scheduler/cjs/scheduler.production.js',
 ] as const;
 
 describe.each(BUILDS)('React Scheduler MessagePort loss (%s)', (build) => {
