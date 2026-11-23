@@ -8,6 +8,7 @@ import {
   hasLongTextMetadata,
   hydrateLongTextSource,
   parseLongTextJsonSidecar,
+  withToolTraceFallback,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { sanitizeContent } from './untrustedContent';
@@ -429,6 +430,99 @@ describe('hydrateLongTextSource', () => {
     });
   });
 
+  // The backend wraps a reply's row as an edit only when it sends it, after its sidecar went up,
+  // and sends the row as the reply itself when no earlier row created it. The file holds the
+  // replacement as the content it is and as an edit's `m.new_content`; an earlier backend
+  // uploaded the replacement alone.
+  describe.each([
+    ['as its own m.new_content too', true],
+    ['alone', false],
+  ])('a sidecar that holds a replacement %s', (_name, namesItself) => {
+    const preview = {
+      msgtype: 'm.file',
+      body: 'Found',
+      url: 'mxc://server/replacement',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    const replacement = {
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1]\n\nFound it.',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>🔧 <code>shell</code> [1]</p>\n<p>Found it.</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+      },
+    };
+    const sidecar = JSON.stringify(
+      namesItself ? { ...replacement, 'm.new_content': replacement } : replacement
+    );
+
+    it.each([
+      [
+        'an edit',
+        {
+          ...preview,
+          body: '* Found',
+          'm.new_content': preview,
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        },
+      ],
+      ['the reply itself', preview],
+    ])('hydrates %s', async (_event, content) => {
+      const source = expectDefined(getLongTextSource(content));
+      expect(source.previewContent).toBe(preview);
+
+      expect(await hydrateLongTextSource(source, async () => sidecar, {})).toEqual(replacement);
+    });
+  });
+
+  // The trace of the fallback alone places calls in the fallback's text, not in the replacement's.
+  it.each([
+    ['a placeholder', { placeholder_body: true }, { body_line: 0, at: 0 }],
+    ['positions', {}, { body_line: 1, at: 1 }],
+  ])(
+    'keeps the text of a replacement without a trace when its fallback has a version-3 trace of %s',
+    async (_name, flags, place) => {
+      const source = expectDefined(
+        getLongTextSource({
+          msgtype: 'm.file',
+          body: 'preview',
+          url: 'mxc://server/edit-wrapper-positions',
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        })
+      );
+      const replacement = {
+        msgtype: 'm.text',
+        body: 'New answer',
+        format: 'org.matrix.custom.html',
+        formatted_body: '<p>New answer</p>\n',
+      };
+
+      const resolved = await hydrateLongTextSource(
+        source,
+        async () =>
+          JSON.stringify({
+            msgtype: 'm.text',
+            body: '* Thinking...',
+            format: 'org.matrix.custom.html',
+            formatted_body: '<p>Thinking...</p>\n',
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.tool_trace': {
+              version: 3,
+              ...flags,
+              events: [{ type: 'tool_call_started', tool_name: 'shell', ...place }],
+            },
+            'm.new_content': replacement,
+          }),
+        {}
+      );
+
+      expect(resolved).toEqual({ ...replacement, 'io.mindroom.stream_status': 'streaming' });
+      expect(sanitizeContent(resolved, true)).toEqual(resolved);
+    }
+  );
+
   it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
     const source = expectDefined(
       getLongTextSource({
@@ -753,5 +847,44 @@ describe('buildLongTextPreview thread_model routing', () => {
       ...pick,
     });
     expect(preview[THREAD_MODEL_KEY]).toEqual(pick[THREAD_MODEL_KEY]);
+  });
+});
+
+describe('withToolTraceFallback', () => {
+  it('does not copy a v3 tool trace from a previous revision onto a new preview', () => {
+    const nextPreview = {
+      msgtype: 'm.text',
+      body: 'Found it.',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Found it.</p>\n',
+    };
+    const previousV3 = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Thinking...</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 3,
+        placeholder_body: true,
+        events: [{ type: 'tool_call_started', tool_name: 'shell', body_line: 0, at: 0 }],
+      },
+    };
+    const result = withToolTraceFallback(nextPreview, previousV3);
+    expect(result).toBe(nextPreview);
+    expect(result['io.mindroom.tool_trace']).toBeUndefined();
+  });
+
+  it('still copies a v2 tool trace fallback when the preview has none', () => {
+    const nextPreview = { msgtype: 'm.text', body: 'Preview' };
+    const previousV2 = {
+      msgtype: 'm.text',
+      body: 'Old',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+      },
+    };
+    const result = withToolTraceFallback(nextPreview, previousV2);
+    expect(result['io.mindroom.tool_trace']).toEqual(previousV2['io.mindroom.tool_trace']);
   });
 });
