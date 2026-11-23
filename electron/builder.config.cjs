@@ -79,6 +79,7 @@ module.exports = {
     enableEmbeddedAsarIntegrityValidation: true,
     onlyLoadAppFromAsar: true,
     grantFileProtocolExtraPrivileges: false,
+    resetAdHocDarwinSignature: !sign,
   },
   publish: null,
 };
