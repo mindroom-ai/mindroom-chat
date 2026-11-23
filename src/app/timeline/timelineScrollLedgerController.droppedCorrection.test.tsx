@@ -141,3 +141,85 @@ it('drops a waiting correction with the thread it was taken for', () => {
     rowFoldPx: 0,
   });
 });
+
+it('reads no shrink when leading content (e.g. Load older messages) mounts above a thread list', () => {
+  const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
+  reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+  const scrollElement = document.createElement('div');
+  scrollElement.scrollTop = 400;
+  const rect = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute('data-list')) return { top: -400, bottom: 800, height: 400 } as DOMRect;
+      if (this.dataset.index === '0') return { top: 400, bottom: 600, height: 200 } as DOMRect;
+      if (this.dataset.index === '1') return { top: 600, bottom: 800, height: 200 } as DOMRect;
+      return { top: 0, bottom: 400, height: 400 } as DOMRect;
+    });
+  let readRowFoldPx = () => 0;
+  let leadingHeight = 0;
+  function Harness({ leadingKey }: { leadingKey: string }) {
+    const controller = useTimelineScrollLedgerController({
+      alive: () => true,
+      estimateSize: () => 200,
+      getItemKey: (index) => index,
+      getScrollElement: () => scrollElement,
+      itemCount: 2,
+      leadingKey,
+      pendingRoomFoldPxRef: useRef(0),
+      roomFoldPriceRef: useRef(() => 200),
+      roomId: '!room:example.org',
+      threadEventIndexMap: new Map([
+        ['$e0', 0],
+        ['$e1', 1],
+      ]),
+      threadEvents: [{ getId: () => '$e0' }, { getId: () => '$e1' }],
+      threadId: '$thread',
+      threadInitialRenderMode: 'live',
+    });
+    readRowFoldPx = controller.readRowFoldPx;
+    return (
+      <>
+        <div
+          ref={(node) => {
+            (controller.leadingRef as { current: HTMLDivElement | null }).current = node;
+            if (node) {
+              Object.defineProperty(node, 'offsetHeight', {
+                configurable: true,
+                get: () => leadingHeight,
+              });
+            }
+          }}
+        />
+        <div ref={controller.virtualInnerRef} data-list style={{ marginTop: controller.ledgerPxAtRender ? `${-controller.ledgerPxAtRender}px` : '' }}>
+          <div data-index="0" />
+          <div data-index="1" />
+        </div>
+      </>
+    );
+  }
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    flushSync(() => root.render(<Harness leadingKey="" />));
+    // Mount "Load older messages" (40 px) above the list after the thread is already anchored.
+    leadingHeight = 40;
+    flushSync(() => root.render(<Harness leadingKey="|older|" />));
+    const inner = container.querySelector<HTMLElement>('[data-list]')!;
+    inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile) => {
+      Object.defineProperty(tile, 'offsetHeight', { configurable: true, value: 200 });
+    });
+    const rows = [
+      { index: 0, size: 200 },
+      { index: 1, size: 200 },
+    ];
+    // Leading content added 40 px above the list and marginTop pulled the list up by 40 px:
+    // total scroll content height did not shrink, so useListEndClamp must read 0 px pending shrink.
+    expect(inner.style.marginTop).toBe('-40px');
+    expect(listShrinkNotRendered(inner, rows, readRowFoldPx())).toBe(0);
+  } finally {
+    flushSync(() => root.unmount());
+    rect.mockRestore();
+    reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+  }
+});
