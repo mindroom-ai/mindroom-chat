@@ -25,8 +25,8 @@ import {
   type Room,
   type RoomMember,
 } from 'matrix-js-sdk';
+import { DialogCloseButton, SheetScrollArea } from '../../ui/DialogChrome';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
-import { InsetScrollbar } from '../../ui/InsetScrollbar';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 import { isolateInSentence, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
@@ -62,6 +62,7 @@ import {
   grantRoomModeratorRights,
   hasModeratorMindroomAgent,
 } from './moderatorInvite';
+import * as dialogCss from '../../ui/DialogChrome.css';
 import * as modalCss from '../../ui/Modal500.css';
 import * as css from './InviteUserPrompt.css';
 
@@ -236,7 +237,7 @@ function InviteDirectoryRow({
         radii={status === 'invited' ? 'Pill' : '300'}
         className={classNames(
           css.RowAction,
-          (!status || status === 'inviting') && css.RowActionIdle,
+          (!status || status === 'inviting') && dialogCss.SheetRowActionIdle,
           status === 'invited' && css.RowActionSent
         )}
         {...{ [ROW_ACTION_ATTR]: '' }}
@@ -276,7 +277,6 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
   const inputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const listContentRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(new Set<string>());
   const noteRef = useRef('');
   const pinOrderRef = useRef(0);
@@ -663,7 +663,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
             variant="Surface"
             className={classNames(css.Dialog, phone && modalCss.PhoneModal)}
           >
-            <Header size="500" className={css.TitleBar}>
+            <Header size="500" className={dialogCss.SheetTitleBar}>
               <Box direction="Column" grow="Yes" style={{ minInlineSize: 0 }}>
                 <Text as="h2" size="H4" id={TITLE_ID} truncate>
                   {title}
@@ -672,24 +672,17 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                   {subtitle}
                 </Text>
               </Box>
-              <IconButton
-                type="button"
-                variant="SurfaceVariant"
-                size="400"
-                radii="Pill"
-                className={css.TouchIcon}
-                aria-label={t('sharedUi.joinAddressPrompt.close')}
+              <DialogCloseButton
+                label={t('sharedUi.joinAddressPrompt.close')}
                 onClick={requestClose}
-              >
-                <Icon size="100" src={Icons.Cross} />
-              </IconButton>
+              />
             </Header>
 
             <div ref={bodyRef} className={css.Body}>
               <div className={css.Controls}>
                 <Input
                   ref={inputRef}
-                  className={css.SearchField}
+                  className={dialogCss.InsetField}
                   type="search"
                   size="400"
                   variant="Background"
@@ -704,7 +697,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                         type="button"
                         size="300"
                         radii="Pill"
-                        className={css.TouchIcon}
+                        className={dialogCss.TouchIcon}
                         aria-label={t('mindroomUi.message-search.searchInput.clear')}
                         onClick={handleClearSearch}
                       >
@@ -763,120 +756,103 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                 </div>
               )}
 
-              <div className={css.ListFrame}>
-                {/* Arrow keys move focus between row actions and the search field. */}
-                {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-                <div
-                  ref={listRef}
-                  className={css.ListArea}
-                  onKeyDown={handleListKeyDown}
-                  data-y-scrollbar-width={0}
-                >
-                  <div ref={listContentRef}>
-                    <div role="status">
-                      {activeHint && (
-                        <Text as="p" size="T200" priority="300" className={css.CenteredHint}>
-                          {activeHint}
-                        </Text>
-                      )}
-                    </div>
-
-                    {directoryFailed && (
-                      <Box
-                        direction="Column"
-                        alignItems="Center"
-                        gap="200"
-                        className={css.EmptyState}
-                      >
-                        <Text as="p" size="T200" priority="300" role="alert">
-                          {t('sharedUi.invites.actionFailed')}
-                        </Text>
-                        <Button
-                          type="button"
-                          size="300"
-                          variant="Secondary"
-                          fill="Soft"
-                          radii="300"
-                          onClick={() => void cache.refresh()}
-                        >
-                          <Text as="span" size="B300">
-                            {t('sharedUi.roomCard.retry')}
-                          </Text>
-                        </Button>
-                      </Box>
-                    )}
-
-                    {rowGroups.map((group) => (
-                      <div key={group.key}>
-                        {group.heading && (
-                          <Text
-                            as="h3"
-                            id={group.headingId}
-                            size="L400"
-                            priority="300"
-                            className={css.SectionHeader}
-                          >
-                            {group.heading}
-                          </Text>
-                        )}
-                        {/* Keep list semantics in Safari VoiceOver when list-style is none. */}
-                        {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
-                        <ul
-                          role="list"
-                          className={css.List}
-                          aria-label={group.ariaLabel}
-                          aria-labelledby={group.headingId}
-                        >
-                          {group.rows.map((row, index) => (
-                            <InviteDirectoryRow
-                              key={row.user.userId}
-                              row={row}
-                              viewerId={me}
-                              authenticatedMedia={authenticatedMedia}
-                              onInvite={() => void inviteUser(row, index)}
-                            />
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-
-                    {(isDirectoryLoading || (isSearching && isFetching)) && (
-                      <Box
-                        alignItems="Center"
-                        justifyContent="Center"
-                        gap="200"
-                        className={css.CenteredHint}
-                      >
-                        <Spinner variant="Secondary" size="100" />
-                        {totalVisibleRows === 0 && (
-                          <Text as="span" size="T200" priority="300">
-                            {t('sharedUi.inviteUserAutocomplete.searching')}
-                          </Text>
-                        )}
-                      </Box>
-                    )}
-
-                    {!isDirectoryLoading &&
-                      !directoryFailed &&
-                      !(isSearching && isFetching) &&
-                      totalVisibleRows === 0 &&
-                      !activeHint && (
-                        <Text as="p" size="T200" priority="300" className={css.EmptyState}>
-                          {isSearching
-                            ? t('sharedUi.inviteUserPrompt.noMatches')
-                            : t('sharedUi.inviteUserPrompt.emptyDirectory')}
-                        </Text>
-                      )}
-                  </div>
+              <SheetScrollArea
+                scrollRef={listRef}
+                chainOverscroll
+                className={css.ListFrame}
+                viewportClassName={css.ListArea}
+                onKeyDown={handleListKeyDown}
+              >
+                <div role="status">
+                  {activeHint && (
+                    <Text as="p" size="T200" priority="300" className={css.CenteredHint}>
+                      {activeHint}
+                    </Text>
+                  )}
                 </div>
-                <InsetScrollbar
-                  scrollRef={listRef}
-                  contentRef={listContentRef}
-                  label={t('sharedUi.pageScroll.scrollbar')}
-                  className={css.ListScrollbar}
-                  tabIndex={-1}
-                />
-              </div>
+
+                {directoryFailed && (
+                  <Box direction="Column" alignItems="Center" gap="200" className={css.EmptyState}>
+                    <Text as="p" size="T200" priority="300" role="alert">
+                      {t('sharedUi.invites.actionFailed')}
+                    </Text>
+                    <Button
+                      type="button"
+                      size="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      radii="300"
+                      onClick={() => void cache.refresh()}
+                    >
+                      <Text as="span" size="B300">
+                        {t('sharedUi.roomCard.retry')}
+                      </Text>
+                    </Button>
+                  </Box>
+                )}
+
+                {rowGroups.map((group) => (
+                  <div key={group.key}>
+                    {group.heading && (
+                      <Text
+                        as="h3"
+                        id={group.headingId}
+                        size="L400"
+                        priority="300"
+                        className={dialogCss.SheetSectionLabel}
+                      >
+                        {group.heading}
+                      </Text>
+                    )}
+                    {/* Keep list semantics in Safari VoiceOver when list-style is none. */}
+                    {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
+                    <ul
+                      role="list"
+                      className={css.List}
+                      aria-label={group.ariaLabel}
+                      aria-labelledby={group.headingId}
+                    >
+                      {group.rows.map((row, index) => (
+                        <InviteDirectoryRow
+                          key={row.user.userId}
+                          row={row}
+                          viewerId={me}
+                          authenticatedMedia={authenticatedMedia}
+                          onInvite={() => void inviteUser(row, index)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+
+                {(isDirectoryLoading || (isSearching && isFetching)) && (
+                  <Box
+                    alignItems="Center"
+                    justifyContent="Center"
+                    gap="200"
+                    className={css.CenteredHint}
+                  >
+                    <Spinner variant="Secondary" size="100" />
+                    {totalVisibleRows === 0 && (
+                      <Text as="span" size="T200" priority="300">
+                        {t('sharedUi.inviteUserAutocomplete.searching')}
+                      </Text>
+                    )}
+                  </Box>
+                )}
+
+                {!isDirectoryLoading &&
+                  !directoryFailed &&
+                  !(isSearching && isFetching) &&
+                  totalVisibleRows === 0 &&
+                  !activeHint && (
+                    <Text as="p" size="T200" priority="300" className={css.EmptyState}>
+                      {isSearching
+                        ? t('sharedUi.inviteUserPrompt.noMatches')
+                        : t('sharedUi.inviteUserPrompt.emptyDirectory')}
+                    </Text>
+                  )}
+              </SheetScrollArea>
 
               <div className={css.Footer}>
                 {roomGrantLevel !== undefined && (
@@ -910,7 +886,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                       <Switch
                         id={moderatorSwitchId}
                         variant="Primary"
-                        className={css.TouchIcon}
+                        className={dialogCss.TouchIcon}
                         value={grantModerator}
                         onChange={setGrantOverride}
                         aria-describedby={modInfoOpen ? moderatorHelpId : undefined}
@@ -939,7 +915,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
                 {noteOpen && (
                   <Input
                     id={noteInputId}
-                    className={css.SearchField}
+                    className={dialogCss.InsetField}
                     size="400"
                     variant="Background"
                     radii="400"

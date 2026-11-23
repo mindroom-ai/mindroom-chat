@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { DialogCloseButton } from './DialogChrome';
 import { Modal500 } from './Modal500';
 import { Page, PageContent, PageHeader } from './page/Page';
 import { PageScroll } from './page/PageScroll';
@@ -36,13 +37,10 @@ export function CreateDialogFrame({
           {title}
         </Text>
       </Box>
-      <IconButton
-        variant="Surface"
+      <DialogCloseButton
         onClick={requestClose}
-        aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-      >
-        <Icon src={Icons.Cross} />
-      </IconButton>
+        label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+      />
     </PageHeader>
   );
 

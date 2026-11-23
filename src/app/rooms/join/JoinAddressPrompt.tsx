@@ -18,6 +18,7 @@ import {
   Text,
 } from 'folds';
 import classNames from 'classnames';
+import { DialogCloseButton, SheetScrollArea } from '../../ui/DialogChrome';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { RoomSummaryLoader } from '../RoomSummaryLoader';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -36,6 +37,7 @@ import {
   filterDirectoryRooms,
   parseJoinAddress,
 } from './joinAddress';
+import * as dialogCss from '../../ui/DialogChrome.css';
 import * as modalCss from '../../ui/Modal500.css';
 import * as css from './JoinRoom.css';
 
@@ -137,7 +139,7 @@ function DirectoryRooms({ search, term, onOpen }: DirectoryRoomsProps) {
 
   return (
     <>
-      <Text id={labelId} size="L400" priority="300" className={css.SectionLabel}>
+      <Text id={labelId} size="L400" priority="300" className={dialogCss.SheetSectionLabel}>
         {t('sharedUi.joinAddressPrompt.publicRoomsOn', { server: mx.getDomain() ?? '' })}
       </Text>
       {rooms.length > 0 && (
@@ -268,6 +270,7 @@ export function JoinRoomPanel({ onOpen, onExplore }: JoinRoomPanelProps) {
       <div className={css.Field}>
         <Input
           ref={fieldRef}
+          className={dialogCss.InsetField}
           type="search"
           value={search}
           onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
@@ -275,8 +278,25 @@ export function JoinRoomPanel({ onOpen, onExplore }: JoinRoomPanelProps) {
           placeholder={t('sharedUi.joinAddressPrompt.searchOrPaste')}
           aria-label={t('sharedUi.joinAddressPrompt.searchOrPaste')}
           before={<Icon size="200" src={Icons.Search} />}
+          after={
+            search ? (
+              <IconButton
+                type="button"
+                size="300"
+                radii="Pill"
+                className={dialogCss.TouchIcon}
+                aria-label={t('mindroomUi.message-search.searchInput.clear')}
+                onClick={() => {
+                  setSearch('');
+                  fieldRef.current?.focus();
+                }}
+              >
+                <Icon size="50" src={Icons.Cross} />
+              </IconButton>
+            ) : undefined
+          }
           variant="Background"
-          size="500"
+          size="400"
           radii="400"
           // Not a sign-in field: password managers leave it alone.
           autoComplete="off"
@@ -287,9 +307,11 @@ export function JoinRoomPanel({ onOpen, onExplore }: JoinRoomPanelProps) {
           autoFocus
         />
       </div>
-      {/* Arrow keys pressed on a row's button move to the next or previous row. */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div ref={resultsRef} className={css.Results} onKeyDown={handleKeys}>
+      <SheetScrollArea
+        scrollRef={resultsRef}
+        viewportClassName={css.Results}
+        onKeyDown={handleKeys}
+      >
         {address && settledAddress && addressReady && (
           <ul className={css.RoomList}>
             <AddressRow
@@ -305,7 +327,7 @@ export function JoinRoomPanel({ onOpen, onExplore }: JoinRoomPanelProps) {
           </Box>
         )}
         {!address && <DirectoryRooms search={search} term={settled.trim()} onOpen={onOpen} />}
-      </div>
+      </SheetScrollArea>
       <div className={css.ExploreFooter}>
         <Text as="span" size="T200">
           <Link to={getExplorePath()} onClick={onExplore} className={css.ExploreLink}>
@@ -345,18 +367,11 @@ export function JoinAddressPrompt({ onOpen, onCancel }: JoinAddressPromptProps) 
             variant="Surface"
             className={classNames(css.Dialog, phone && modalCss.PhoneModal)}
           >
-            <Header size="500" className={css.TitleBar}>
+            <Header size="500" className={dialogCss.SheetTitleBar}>
               <Text id={TITLE_ID} as="h2" size="H4" style={{ flexGrow: 1 }}>
                 {t('sharedUi.joinAddressPrompt.joinARoom')}
               </Text>
-              <IconButton
-                size="300"
-                radii="300"
-                onClick={onCancel}
-                aria-label={t('sharedUi.joinAddressPrompt.close')}
-              >
-                <Icon src={Icons.Cross} />
-              </IconButton>
+              <DialogCloseButton onClick={onCancel} label={t('sharedUi.joinAddressPrompt.close')} />
             </Header>
             <JoinRoomPanel onOpen={onOpen} onExplore={onCancel} />
           </Dialog>

@@ -142,6 +142,20 @@ vi.mock('../app/ui/InsetScrollbar.css', () => ({
   Track: 'inset-track',
   Thumb: 'inset-thumb',
 }));
+vi.mock('../app/ui/DialogChrome.css', () => ({
+  TouchIcon: 'dialog-touch-icon',
+  SheetTitleBar: 'dialog-title-bar',
+  InsetField: 'dialog-inset-field',
+  SheetScrollFrame: 'dialog-scroll-frame',
+  SheetScrollViewport: 'dialog-scroll-viewport',
+  SheetScrollChain: 'dialog-scroll-chain',
+  SheetScrollbar: 'dialog-scrollbar',
+  SheetSectionLabel: 'dialog-section-label',
+  SheetRow: 'dialog-sheet-row',
+  SheetRowAction: 'dialog-row-action',
+  SheetRowActionIdle: 'dialog-row-action-idle',
+  SheetFooter: 'dialog-sheet-footer',
+}));
 
 // Component tests use the real English catalog without browser detection or HTTP.
 void i18next.use(initReactI18next).init({
