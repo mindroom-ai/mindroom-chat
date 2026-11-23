@@ -17,7 +17,7 @@ it('constrains the menu clear of the safe areas and scrolls its rows on every po
     display: 'flex',
     flexDirection: 'column',
     maxHeight:
-      'calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+      'calc(100dvh - 4.5rem - var(--app-inset-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px))',
   });
   expect(rules.get(ThreadMenuRows)).toMatchObject({
     minHeight: 0,

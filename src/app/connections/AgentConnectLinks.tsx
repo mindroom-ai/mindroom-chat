@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useOpenConnectionsPortal } from './useOpenConnectionsPortal';
 
@@ -38,7 +38,7 @@ export function AgentConnectLinkFeature() {
 
   useEffect(() => {
     // The native shells have no pop-up window to hand a token to.
-    if (Capacitor.isNativePlatform()) return undefined;
+    if (isBundledApp()) return undefined;
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

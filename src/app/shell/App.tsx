@@ -8,6 +8,7 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { ScreenSizeProvider, useScreenSize } from '../lib/hooks/useScreenSize';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { watchComposerAccount } from '../composer/roomInputDrafts';
+import { parkLiveVoiceRecording } from '../composer/voice/liveVoiceRecording';
 import {
   ThemeContextProvider,
   deploymentDefaultTheme,
@@ -20,6 +21,7 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
+import { watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
 import {
   createRouterAppPathNavigator,
   setNativeAppPathNavigator,
@@ -31,6 +33,7 @@ import { NoticeLayout } from '../notifications/notices/NoticeBanners';
 import { NewVersionNotice } from './NewVersionNotice';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { installOverlayFocus } from '../lib/overlayFocus';
+import { isDesktopApp } from '../lib/nativeShell';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
@@ -104,12 +107,14 @@ function App() {
   // on the sign-in pages.
   useReconcileNativeNotifications();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
+  useEffect(() => watchDesktopWindowHidden(() => parkLiveVoiceRecording(appJotaiStore)), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.
   useEffect(() => installStatusBarTapScroll(window), []);
   return (
     <JotaiProvider store={appJotaiStore}>
+      {isDesktopApp() && <div data-titlebar-drag="" aria-hidden="true" />}
       <AppTheme>
         <QueryClientProvider client={queryClient}>
           {/* One particle renderer for the sign-in pages and every splash in turn: a new one per

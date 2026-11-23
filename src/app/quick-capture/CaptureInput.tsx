@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { getDataTransferFiles } from '../lib/dom';
 import {
   captureScreenshot,
-  isNativeQuickCaptureAvailable,
+  isNativeScreenshotAvailable,
   openScreenRecordingSettings,
   ScreenshotError,
   type ScreenshotErrorCode,
@@ -116,7 +116,7 @@ export function CaptureInput({
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<CaptureErrorCode>();
   const [shotError, setShotError] = useState<ScreenshotErrorCode>();
-  const screenshots = isNativeQuickCaptureAvailable();
+  const screenshots = isNativeScreenshotAvailable();
   const full = images.length >= MAX_CAPTURE_IMAGES;
 
   const attach = (files: File[]) =>

@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { type ClientConfig, useOptionalClientConfig } from './useClientConfig';
 import { trimTrailingSlash } from '../lib/common';
 import { markPageStartup } from '../lib/startupTimeline';
@@ -170,7 +170,7 @@ type ClientConfigLoaderProps = {
 export function ClientConfigLoader({ children, error, fallback }: ClientConfigLoaderProps) {
   const [state, setState] = useState<LoaderState>(() => {
     // Native apps wait for a fresh configuration; the web starts from the cached one.
-    const cached = Capacitor.isNativePlatform() ? undefined : readCachedClientConfig();
+    const cached = isBundledApp() ? undefined : readCachedClientConfig();
     if (cached) markPageStartup('config.ready');
     return cached ? { status: 'ready', config: cached } : { status: 'loading' };
   });

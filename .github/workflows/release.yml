@@ -3,7 +3,7 @@
 # release, when package.json says "autoRelease": true. With false the job still runs, logs
 # that automatic releases are off and stops. scripts/calver.mjs does the work; docs/ios-release.md
 # describes the scheme and how Xcode Cloud builds the tags. A new release then gets its container
-# image (image.yml) and its Mac DMG (macos.yml).
+# image (image.yml) and its Mac DMG (desktop.yml).
 name: Release
 
 on:
@@ -66,7 +66,7 @@ jobs:
     if: needs.release.outputs.tag != ''
     permissions:
       contents: write
-    uses: ./.github/workflows/macos.yml
+    uses: ./.github/workflows/desktop.yml
     with:
       tag: ${{ needs.release.outputs.tag }}
     # Signing, notarization and the Homebrew tap token.

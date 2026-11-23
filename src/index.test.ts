@@ -6,6 +6,8 @@ import { DEBUG_MODE_KEY } from './app/diagnostics/debugMode';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
+  isNativeApp: vi.fn(() => false),
+  registerNativeAppUrlCallbacks: vi.fn(),
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
   installIndexedDbLossRecovery: vi.fn(),
@@ -31,8 +33,8 @@ vi.mock('@capacitor/app', () => ({
 
 vi.mock('./app/native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
-  isNativeApp: () => false,
-  registerNativeAppUrlCallbacks: vi.fn(),
+  isNativeApp: mocks.isNativeApp,
+  registerNativeAppUrlCallbacks: mocks.registerNativeAppUrlCallbacks,
 }));
 
 vi.mock('./app/diagnostics/flightRecorder', () => ({
@@ -200,21 +202,35 @@ describe('application bootstrap', () => {
     expect(mocks.forgetAvatars).toHaveBeenCalledTimes(deletes);
   });
 
-  it("leaves the recorders to the main web view in the quick capture widget's", async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
-    const originalUrl = window.location.href;
-    window.history.replaceState(null, '', '/quick-capture/');
-    try {
-      await import('./index');
-    } finally {
-      window.history.replaceState(null, '', originalUrl);
-    }
+  it.each([
+    ['native iOS', true, false],
+    ['desktop app', false, true],
+  ])(
+    "leaves the recorders to the main web view in the quick capture widget's (%s)",
+    async (_label, nativeIOS, desktop) => {
+      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+      if (desktop) {
+        Object.defineProperty(window, 'mindroomDesktop', {
+          configurable: true,
+          value: { onShellEvent: vi.fn(() => vi.fn()) },
+        });
+      }
+      const originalUrl = window.location.href;
+      window.history.replaceState(null, '', '/quick-capture/');
+      try {
+        await import('./index');
+      } finally {
+        window.history.replaceState(null, '', originalUrl);
+        Reflect.deleteProperty(window, 'mindroomDesktop');
+        delete document.documentElement.dataset.shell;
+      }
 
-    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
-    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
-    expect(mocks.startMemorySampler).not.toHaveBeenCalled();
-    expect(mocks.createRoot).toHaveBeenCalledOnce();
-  });
+      expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+      expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+      expect(mocks.startMemorySampler).not.toHaveBeenCalled();
+      expect(mocks.createRoot).toHaveBeenCalledOnce();
+    }
+  );
 
   it('continues boot when recorder route classification throws', async () => {
     mocks.isNativeIOS.mockReturnValue(true);
@@ -277,6 +293,56 @@ describe('application bootstrap', () => {
 
     expect(mocks.recordDeepTraceEvent).not.toHaveBeenCalled();
     expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
+  });
+
+  it('marks the desktop shell and requests persistent storage in Electron', async () => {
+    const persist = vi.fn().mockResolvedValue(true);
+    const originalStorage = navigator.storage;
+    const listeners: Array<(event: { type: 'fullscreen'; value: boolean }) => void> = [];
+    const bridge = {
+      onShellEvent: vi.fn((listener: (event: { type: 'fullscreen'; value: boolean }) => void) => {
+        listeners.push(listener);
+        return () => undefined;
+      }),
+      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+      startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
+      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      setBadge: vi.fn(),
+      isWindowFocused: () => true,
+      screenShare: false,
+      appUrl: {
+        addListener: vi.fn(async () => ({ remove: vi.fn() })),
+        getLaunchUrl: vi.fn(async () => undefined),
+      },
+    };
+    const win = window as Window & { mindroomDesktop?: typeof bridge };
+    win.mindroomDesktop = bridge;
+    Object.defineProperty(navigator, 'storage', {
+      configurable: true,
+      value: { persist },
+    });
+    mocks.isNativeApp.mockReturnValueOnce(true);
+    try {
+      await import('./index');
+      expect(document.documentElement.dataset.shell).toBe('desktop');
+      expect(persist).toHaveBeenCalledOnce();
+      expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
+      expect(mocks.registerNativeAppUrlCallbacks).toHaveBeenCalledWith(bridge.appUrl);
+      expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+      expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+      expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
+      listeners[0]?.({ type: 'fullscreen', value: true });
+      expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
+    } finally {
+      delete win.mindroomDesktop;
+      delete document.documentElement.dataset.shell;
+      document.documentElement.removeAttribute('data-fullscreen');
+      Object.defineProperty(navigator, 'storage', {
+        configurable: true,
+        value: originalStorage,
+      });
+    }
   });
 
   it('continues boot when IndexedDB loss recovery setup throws', async () => {

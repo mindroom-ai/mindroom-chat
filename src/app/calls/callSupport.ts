@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { desktopBridge } from '../lib/nativeShell';
 import { getLivekitServiceUrl } from './rtcFocus';
 
 /** Whether this browser can place calls at all. */
@@ -10,7 +11,9 @@ export const browserSupportsCalls = (): boolean =>
 
 /** Whether this browser can share a screen; phone browsers cannot. */
 export const browserSharesScreens = (): boolean =>
-  typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+  desktopBridge()?.screenShare !== false &&
+  typeof navigator !== 'undefined' &&
+  typeof navigator.mediaDevices?.getDisplayMedia === 'function';
 
 /** Whether screen sharing captures only this app (iOS / iPadOS WebKit). */
 export { isIOS as screenShareIsInAppOnly } from '../lib/user-agent';

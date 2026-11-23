@@ -15,6 +15,7 @@ import {
   useIntersectionObserver,
 } from '../lib/hooks/useIntersectionObserver';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { isAppWindowFocused } from '../lib/nativeShell';
 import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
@@ -377,7 +378,7 @@ export const useTimelineReadReceiptController = ({
   useEffect(() => {
     const wasCovered = coveredRef.current;
     coveredRef.current = outOfSight;
-    if (wasCovered && !outOfSight) handleWindowFocus(document.hasFocus());
+    if (wasCovered && !outOfSight) handleWindowFocus(isAppWindowFocused());
   }, [handleWindowFocus, outOfSight]);
 
   // A thread that opens at its newest reply, or gets a reply while the reader sits at its

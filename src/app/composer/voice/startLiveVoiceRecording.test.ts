@@ -10,6 +10,8 @@ import {
   liveVoiceRecordingAtom,
   parkLiveVoiceRecording,
 } from './liveVoiceRecording';
+import type { DesktopBridge, DesktopShellEvent } from '../../lib/desktopBridge';
+import { watchDesktopWindowHidden } from '../../native/desktopShellLifecycle';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { clearVoiceRecordings, recoverVoiceRecording } from './voiceRecordingJournal';
 
@@ -206,4 +208,48 @@ it('leaves no recording behind when one still asking for the microphone is parke
   // The sign-in pages park it (Add account): no composer is left a capsule of nothing.
   parkLiveVoiceRecording(store);
   expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+});
+
+it('parks the live voice recording when the desktop shell emits window-hidden', async () => {
+  let shellListener: ((event: DesktopShellEvent) => void) | undefined;
+  const bridge: DesktopBridge = {
+    onShellEvent: (listener) => {
+      shellListener = listener;
+      return () => {
+        shellListener = undefined;
+      };
+    },
+    setMediaSession: () => ({ ok: true, value: undefined }),
+    startSignIn: async () => ({ ok: true, value: '' }),
+    openSignIn: async () => ({ ok: true, value: undefined }),
+    showMainWindow: async () => ({ ok: true, value: undefined }),
+    setBadge: () => undefined,
+    isWindowFocused: () => true,
+    screenShare: false,
+    appUrl: {
+      addListener: async () => undefined,
+      getLaunchUrl: async () => undefined,
+    },
+  };
+  Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+
+  const store = createStore();
+  const stop = watchDesktopWindowHidden(() => parkLiveVoiceRecording(store));
+  try {
+    expect(await startLiveVoiceRecording(store, context)).toBe(true);
+    MockMediaRecorder.latest.emit('desktop-hidden-audio');
+    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+
+    shellListener?.({ type: 'window-hidden' });
+    MockMediaRecorder.latest.stopOnItsOwn();
+
+    expect(track.stop).toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    const parked = store.get(pendingVoiceSendDraftAtom);
+    expect(parked).toMatchObject({ recovered: true, context });
+    expect(await parked?.file.text()).toBe('desktop-hidden-audio');
+  } finally {
+    stop();
+    Reflect.deleteProperty(window, 'mindroomDesktop');
+  }
 });

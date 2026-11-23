@@ -25,6 +25,7 @@ import { CheckIcon, CopyIcon } from '../../rich-text/code/CodeBlockIcons';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
+import { isDesktopApp } from '../../lib/nativeShell';
 import { isNativeIOS } from '../../native/nativeSso';
 import { MacAppIcon } from '../../native/MacAppIcon';
 import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
@@ -576,12 +577,12 @@ function AppIdentity() {
 }
 
 /**
- * App version, debug mode, diagnostics tools (always in the iOS app, behind debug mode elsewhere),
- * error reports when configured, the interface tour, and credits.
+ * App version, debug mode, diagnostics tools (always in the iOS and desktop apps, behind debug
+ * mode elsewhere), error reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
-  const nativeDiagnostics = isNativeIOS();
+  const nativeDiagnostics = isNativeIOS() || isDesktopApp();
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;

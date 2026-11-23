@@ -6,6 +6,8 @@ type LoginOptions = {
   username: string;
   password: string;
   addAccount?: boolean;
+  /** Optional absolute origin (e.g. `capacitor://localhost` in Electron) for navigating to login. */
+  baseUrl?: string;
   /**
    * The app hides agent replies' tool calls until the reader shows them; most specs check them,
    * so the page shows them unless its settings already say. `false` keeps the app's default.
@@ -122,6 +124,7 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
     username,
     password,
     addAccount = false,
+    baseUrl,
     showToolCalls = true,
     showUsageDetails = false,
   } = options;
@@ -146,7 +149,8 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
       );
     }, shown);
   }
-  await page.goto(buildLoginPath(homeserver, addAccount));
+  const loginPath = buildLoginPath(homeserver, addAccount);
+  await page.goto(baseUrl ? new URL(loginPath, baseUrl).href : loginPath);
 
   const serverInput = page.locator('input[name="serverInput"]');
   await expect(serverInput).toHaveValue(homeserver);
