@@ -4,7 +4,6 @@ import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
 import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearVoiceRecordings } from '../../composer/voice/voiceRecordingJournal';
-import { clearNativeVoiceRecordings } from '../../native/nativeVoiceRecorder';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentRoomsStore } from '../../navigation/recentRooms';
@@ -138,7 +137,7 @@ export const clearUserUiState = async (userId: string): Promise<void> => {
     .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
     .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
-  await Promise.allSettled([journalCleanup, clearNativeVoiceRecordings(userId)]);
+  await journalCleanup.catch(() => undefined);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {

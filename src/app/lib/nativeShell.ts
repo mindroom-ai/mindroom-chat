@@ -8,7 +8,7 @@ export const desktopBridge = (): DesktopBridge | undefined =>
 /** Whether the page runs inside the Electron desktop shell. */
 export const isDesktopApp = (): boolean => desktopBridge() !== undefined;
 
-/** Whether the page runs inside a Capacitor native shell (iOS, Android, or Mac Catalyst). */
+/** Whether the page runs inside a Capacitor native shell (iOS or Android). */
 export const isCapacitorApp = (): boolean => Capacitor.isNativePlatform();
 
 /** Whether the page runs inside any bundled app shell (Capacitor or Electron). */

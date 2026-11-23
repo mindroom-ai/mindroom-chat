@@ -166,7 +166,7 @@ afterEach(() => {
 });
 
 describe('useDictationServer', () => {
-  it('hides Dictate and makes zero requests when navigator.mediaDevices is undefined (Mac Catalyst)', async () => {
+  it('hides Dictate and makes zero requests when navigator.mediaDevices is undefined', async () => {
     installMediaCapabilities(false);
     expect(isDictationSupported()).toBe(false);
     const mx = createTestClient();

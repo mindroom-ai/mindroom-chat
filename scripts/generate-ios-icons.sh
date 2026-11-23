@@ -52,7 +52,7 @@ resize 76 "Icon-App-76x76@1x~ipad.png"
 resize 152 "Icon-App-76x76@2x~ipad.png"
 resize 167 "Icon-App-83.5x83.5@2x~ipad.png"
 
-# Mac Catalyst. macOS draws app icons unmasked, so follow its icon grid:
+# macOS (used by the Electron desktop build). macOS draws app icons unmasked, so follow its icon grid:
 # an 824-pixel rounded square centered on a transparent 1024-pixel canvas.
 MAC_DIR="$(mktemp -d)"
 trap 'rm -rf "$MAC_DIR"' EXIT

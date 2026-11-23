@@ -116,13 +116,11 @@ globalStyle(
 );
 
 /**
- * The window has no title bar: its header is the page's, from the window's top edge. An app
- * scaled to match iPad draws a CSS pixel at 0.77 of the Mac's point; the window says by how much
- * to scale the rem (`--mac-point-scale`), which every size here is in, so the text is the size of
- * other apps' text whatever page zoom the app has.
+ * The window has no title bar: its header is the page's, from the window's top edge, and its text
+ * stays at 100% whatever page zoom the main app has.
  */
 globalStyle(`html:has(${Page}[data-native])`, {
-  fontSize: 'calc(var(--mac-point-scale, 1) * 100%) !important',
+  fontSize: '100% !important',
   vars: { '--app-inset-top': '0px' },
 });
 globalStyle(`html:has(${Page}[data-native]) #root`, { paddingBlockStart: 0 });

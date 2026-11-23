@@ -26,8 +26,8 @@ export type DictationServerInfo = {
 
 /**
  * Dictation requires browser microphone capture plus Web Audio AudioWorklet.
- * On Mac Catalyst (where `navigator.mediaDevices` is undefined) or older runtimes this returns
- * false so Dictate stays hidden and native voice messages remain untouched.
+ * On runtimes where `navigator.mediaDevices` or AudioWorklet is unavailable this returns false so
+ * Dictate stays hidden.
  */
 export const isDictationSupported = (): boolean =>
   typeof navigator !== 'undefined' &&

@@ -1,10 +1,5 @@
 import { isNativeApp } from '../../native/nativeSso';
 import {
-  isNativeVoiceRecorderAvailable,
-  startNativeVoiceRecorder,
-} from '../../native/nativeVoiceRecorder';
-import {
-  analyserRmsToMatrixPoint,
   createFallbackWaveform,
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
@@ -78,7 +73,7 @@ export type VoiceCaptureSnapshot = {
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
   subscribe: (listener: () => void) => () => void;
-  start: (userId?: string) => Promise<boolean>;
+  start: () => Promise<boolean>;
   canStop: () => boolean;
   pause: () => boolean;
   resume: () => boolean;
@@ -94,7 +89,6 @@ export type VoiceCaptureSession = {
   discard: () => Promise<void>;
 };
 
-/** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
   Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
@@ -325,8 +319,7 @@ export const createVoiceCaptureSession = (
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    // No Send asked for this stop: the recorder stopped on its own or was parked, and its audio
-    // parks. The Mac app's recorder has audio only when parked: it has none when it stops itself.
+    // No Send asked for this stop: the recorder stopped on its own or was parked, and its audio parks.
     const park = !generation.sending && !!onPark;
     if (!generation.sending && (!park || !generation.chunks.length)) {
       void journal?.remove();
@@ -374,17 +367,14 @@ export const createVoiceCaptureSession = (
     if (!onPark?.(recording)) journal?.release();
     update(idleSnapshot());
   };
-  const start = async (userId = '') => {
+  const start = async () => {
     if (snapshot.phase !== 'idle' || current?.acceptsEvents) return false;
     if (current) retire(current);
     const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
     current = generation;
     publish({ errorMessage: undefined });
     if (!owns(generation)) return false;
-    const webCapture =
-      !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
-    const native = !webCapture && isNativeVoiceRecorderAvailable();
-    if (!webCapture && !native) {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       current = undefined;
       retire(generation);
       publish({ errorMessage: 'Voice recording is not supported in this browser.' });
@@ -400,49 +390,34 @@ export const createVoiceCaptureSession = (
     publish({ ...idleSnapshot(), phase: 'requesting' });
     if (!owns(generation)) return false;
     try {
-      let recorder: VoiceRecorder;
-      let webRecorder: MediaRecorder | undefined;
-      let mimeType: string | undefined;
-      if (native) {
-        const nativeRecorder = await startNativeVoiceRecorder(userId);
-        if (!owns(generation)) {
-          nativeRecorder.stop();
-          return false;
-        }
-        recorder = nativeRecorder;
-        generation.recorder = recorder;
-        generation.readLevel = () => analyserRmsToMatrixPoint(nativeRecorder.level());
-      } else {
-        let stream: MediaStream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
-          });
-        } catch (err) {
-          if (err instanceof DOMException && err.name === 'OverconstrainedError') {
-            if (!owns(generation)) return false;
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          } else throw err;
-        }
-        if (!owns(generation)) {
-          stream.getTracks().forEach((track) => track.stop());
-          return false;
-        }
-        generation.stream = stream;
-        mimeType = getSupportedRecorderMimeType();
-        const options: MediaRecorderOptions = {
-          audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
-        };
-        if (mimeType) options.mimeType = mimeType;
-        webRecorder = new MediaRecorder(stream, options);
-        recorder = webRecorder;
-        generation.recorder = recorder;
-        publish({
-          canPause: typeof recorder.pause === 'function' && typeof recorder.resume === 'function',
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
         });
-        if (!owns(generation)) return false;
-        setupAnalyser(generation, stream);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'OverconstrainedError') {
+          if (!owns(generation)) return false;
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } else throw err;
       }
+      if (!owns(generation)) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+      generation.stream = stream;
+      const mimeType = getSupportedRecorderMimeType();
+      const options: MediaRecorderOptions = {
+        audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+      };
+      if (mimeType) options.mimeType = mimeType;
+      const recorder = new MediaRecorder(stream, options);
+      generation.recorder = recorder;
+      publish({
+        canPause: typeof recorder.pause === 'function' && typeof recorder.resume === 'function',
+      });
+      if (!owns(generation)) return false;
+      setupAnalyser(generation, stream);
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
         if (!generation.acceptsEvents || data.size === 0) return;
@@ -460,17 +435,15 @@ export const createVoiceCaptureSession = (
         recorder.removeEventListener?.('stop', onStop);
       };
       generation.startedAt = now();
-      if (webRecorder) {
-        try {
-          generation.journal = beginJournal?.(
-            generation.startedAt,
-            recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
-          );
-        } catch {
-          // Storage is best effort; capture still works from memory.
-        }
-        webRecorder.start(VOICE_RECORDER_TIMESLICE_MS);
+      try {
+        generation.journal = beginJournal?.(
+          generation.startedAt,
+          recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE
+        );
+      } catch {
+        // Storage is best effort; capture still works from memory.
       }
+      recorder.start(VOICE_RECORDER_TIMESLICE_MS);
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });

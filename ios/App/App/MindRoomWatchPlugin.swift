@@ -1,7 +1,6 @@
 import Capacitor
 import Foundation
-// The Mac has no Apple Watch app to talk to.
-#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
+#if canImport(WatchConnectivity)
 import WatchConnectivity
 #endif
 
@@ -112,7 +111,7 @@ final class WatchLink: NSObject {
     var onSignedIn: (([String: Any]) -> Void)?
 
     func activate() {
-#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
+#if canImport(WatchConnectivity)
         guard WCSession.isSupported(), WCSession.default.delegate == nil else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
@@ -120,7 +119,7 @@ final class WatchLink: NSObject {
     }
 
     func status() -> [String: Any] {
-#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
+#if canImport(WatchConnectivity)
         guard WCSession.isSupported() else { return ["paired": false, "installed": false, "reachable": false] }
         let session = WCSession.default
         return ["paired": session.isPaired, "installed": session.isWatchAppInstalled, "reachable": session.isReachable]
@@ -131,7 +130,7 @@ final class WatchLink: NSObject {
 
     /// Queues the message for the watch app, which gets it once, in order, as soon as it runs; false without one.
     func send(_ message: [String: Any]) -> Bool {
-#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
+#if canImport(WatchConnectivity)
         let session = WCSession.default
         guard WCSession.isSupported(), session.activationState == .activated, session.isWatchAppInstalled else { return false }
         session.transferUserInfo(message)
@@ -151,7 +150,7 @@ final class WatchLink: NSObject {
     }
 }
 
-#if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
+#if canImport(WatchConnectivity)
 extension WatchLink: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
 
