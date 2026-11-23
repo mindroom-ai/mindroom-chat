@@ -279,6 +279,32 @@ describe('ImageViewer paging', () => {
     expect(onStep).not.toHaveBeenCalled();
   });
 
+  it('keeps where a zoomed picture was dragged to when a pinch zooms it further', () => {
+    render(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
+    const area = imageArea();
+    const image = screen.getByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    const pointer = { pointerId: 1, pointerType: 'touch', button: 0 };
+    fireEvent.pointerDown(area, { ...pointer, clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(area, { ...pointer, clientX: 340, clientY: 230 });
+    fireEvent.pointerUp(area, { ...pointer, clientX: 340, clientY: 230 });
+    expect(image.style.transform).toBe('translate(40px, 30px) scale(2)');
+
+    // Two fingers spread from 100 px to 150 px apart around the same midpoint.
+    const pinch = (type: string, firstX: number, secondX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', {
+        value: [firstX, secondX].map((clientX) => ({ clientX, clientY: 200 })),
+      });
+      act(() => {
+        area.dispatchEvent(event);
+      });
+    };
+    pinch('touchstart', 100, 200);
+    pinch('touchmove', 75, 225);
+    expect(image.style.transform).toBe('translate(40px, 30px) scale(3)');
+  });
+
   it('goes back to fit when the picture changes', () => {
     const props = {
       alt: 'a.png',

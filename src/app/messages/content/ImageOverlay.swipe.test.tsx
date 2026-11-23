@@ -25,6 +25,19 @@ vi.mock('focus-trap-react', async (original) => {
   };
 });
 
+// jsdom has no pointer events.
+class TestPointerEvent extends MouseEvent {
+  readonly pointerId: number;
+
+  readonly pointerType: string;
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.pointerType = init.pointerType ?? '';
+  }
+}
+
 type RecordedAnimation = {
   element: Element;
   keyframes: Keyframe[];
@@ -620,6 +633,48 @@ describe('ImageOverlay interactive edge close', () => {
 
     expect(setPageZoom).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '200%' })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('moves the image with the pinch alone when its 2nd finger is on the backdrop strip, with no pan of the first finger on top', () => {
+    vi.stubGlobal('PointerEvent', TestPointerEvent);
+    const { onClose, modal, backdrop } = mountViewer();
+    const image = screen.getByRole('img');
+    const imageArea = image.parentElement!;
+    // The image area sees the first finger alone: the second one is down outside it.
+    const finger = { pointerId: 1, pointerType: 'touch', button: 0, clientY: 200 };
+    const fingers = (firstX: number, secondX: number) => [
+      { clientX: firstX, clientY: 200, identifier: 0, target: imageArea },
+      { clientX: secondX, clientY: 200, identifier: 1, target: backdrop },
+    ];
+    // As a browser does: a finger's pointer event comes before its touch event.
+    const pinchTo = (firstX: number, secondX: number, timeStamp: number) => {
+      fireEvent.pointerMove(imageArea, { ...finger, clientX: firstX });
+      dispatchTouch(backdrop, 'touchmove', fingers(firstX, secondX), timeStamp);
+    };
+
+    // A drag from the left edge on the image exposes the backdrop strip, for the 2nd finger.
+    fireEvent.pointerDown(imageArea, { ...finger, clientX: 10 });
+    dispatchTouch(imageArea, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
+    fireEvent.pointerMove(imageArea, { ...finger, clientX: 150 });
+    dispatchTouch(imageArea, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
+    flushRaf();
+    expect(modal.style.translate).toBe('130px 0');
+    dispatchTouch(backdrop, 'touchstart', fingers(150, 40), 210);
+    expect(modal.style.translate).toBe('');
+
+    // The fingers spread from 110 px to 165 px, then to 220 px, the first one moving 100 px.
+    pinchTo(200, 35, 240);
+    expect(image.style.transform).toBe('translate(22.5px, 0px) scale(1.5)');
+    pinchTo(250, 30, 270);
+    // The way of the fingers' midpoint, 22.5 px a step, and none of the first finger's own.
+    expect(image.style.transform).toBe('translate(45px, 0px) scale(2)');
+
+    // The 2nd finger lifts: the first one pans from where it is, with no jump.
+    const last = fingers(250, 30);
+    dispatchTouch(backdrop, 'touchend', last.slice(0, 1), 300, last.slice(1));
+    fireEvent.pointerMove(imageArea, { ...finger, clientX: 260 });
+    expect(image.style.transform).toBe('translate(55px, 0px) scale(2)');
     expect(onClose).not.toHaveBeenCalled();
   });
 });

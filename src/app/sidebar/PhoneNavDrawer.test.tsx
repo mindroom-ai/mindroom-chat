@@ -1079,4 +1079,109 @@ describe('PhoneNavDrawer interactive swipes', () => {
       raf.mockRestore();
     }
   });
+
+  /** The page's notice place with a notice that moves into what covers the page, focused. */
+  const showCoverNotice = (drawer: ReturnType<typeof mountDomDrawer>) => {
+    const pageNoticeSlot = document.createElement('div');
+    const notice = document.createElement('div');
+    notice.setAttribute('data-cover-notice', '');
+    const discard = document.createElement('button');
+    discard.type = 'button';
+    discard.textContent = 'Discard recording';
+    notice.append(discard);
+    pageNoticeSlot.append(notice);
+    document.body.append(pageNoticeSlot);
+    drawer.store.set(pageNoticeSlotAtom, pageNoticeSlot);
+    discard.focus();
+    return { pageNoticeSlot, discard };
+  };
+
+  it('opens on release, with no peek, on rail-only pages when a notice that moves into the drawer shows on the page', async () => {
+    const drawer = mountDomDrawer({ withList: false });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 64,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 64,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const { pageNoticeSlot, discard } = showCoverNotice(drawer);
+
+    try {
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 130, clientY: 200 }], 200);
+      });
+
+      // Open, the drawer would widen for the notice: nothing follows the finger, and nothing peeks.
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      expect(drawer.store.get(drawerNoticeSlotAtom)).toBeNull();
+      expect(document.activeElement).toBe(discard);
+
+      // Released past the discrete threshold, it opens as it does without finger-following.
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+      expect(drawer.store.get(drawerNoticeSlotAtom)).not.toBeNull();
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+    } finally {
+      drawer.unmount();
+      pageNoticeSlot.remove();
+    }
+  });
+
+  it('still opens interactively beside a list when a notice that moves into the drawer shows on the page', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const { pageNoticeSlot } = showCoverNotice(drawer);
+
+    try {
+      // The list makes the drawer as wide as it gets: the notice widens nothing.
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 180, clientY: 200 }], 200);
+      });
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
+      expect(drawer.panel.style.translate).toBe('162px 0');
+      expect(drawer.container.querySelector('[data-testid="drawer-list"]')).not.toBeNull();
+
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+    } finally {
+      drawer.unmount();
+      pageNoticeSlot.remove();
+      raf.mockRestore();
+    }
+  });
 });

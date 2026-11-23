@@ -80,6 +80,8 @@ type ActiveGesture = {
   entry: SwipeRegistration;
   tracker: SwipeTracker;
   startEvent: Event;
+  /** The touched node: out of the document, its touchmove and touchend reach no listener. */
+  startTarget: EventTarget | null;
   touchIdentifier: number | undefined;
   axisSign: 1 | -1;
   dirSign: 1 | -1;
@@ -361,8 +363,22 @@ const connectBlockerObserver = () => {
     return;
   }
   activeBlockerObserver = new MutationObserver(() => {
-    if (activeGesture && isEntryBlocked(activeGesture.entry, activeGesture.overlayScope)) {
-      abortActiveGesture();
+    if (activeGesture) {
+      const { startTarget } = activeGesture;
+      if (
+        (startTarget instanceof Node && !startTarget.isConnected) ||
+        isEntryBlocked(activeGesture.entry, activeGesture.overlayScope)
+      ) {
+        abortActiveGesture();
+      }
+      return;
+    }
+    // Through the settle too: a dialog that opens and closes again before it ends still cancels it.
+    if (
+      activeSettle &&
+      isEntryBlocked(activeSettle.gesture.entry, activeSettle.gesture.overlayScope)
+    ) {
+      abortActiveSettle();
     }
   });
   activeBlockerObserver.observe(document.body, {
@@ -385,6 +401,7 @@ const abortActiveSettle = () => {
   if (!activeSettle) return;
   const settle = activeSettle;
   activeSettle = null;
+  if (!activeGesture) disconnectBlockerObserver();
   settle.aborted = true;
   clearTimeout(settle.watchdogId);
   for (const abort of settle.abortHandlers) {
@@ -429,6 +446,7 @@ const startGesture = (
       discreteMinPx,
     }),
     startEvent,
+    startTarget: startEvent.target,
     touchIdentifier: typeof touch.identifier === 'number' ? touch.identifier : undefined,
     axisSign,
     dirSign,
@@ -633,6 +651,8 @@ const handleActiveEnd = (
     abortHandlers: new Set(),
     aborted: false,
   };
+  // Watches on through the settle (see `connectBlockerObserver`), until it ends or is aborted.
+  connectBlockerObserver();
 
   void (async () => {
     let committed = false;
@@ -650,6 +670,7 @@ const handleActiveEnd = (
       clearTimeout(watchdogId);
       if (activeSettle?.token === settleToken) {
         activeSettle = null;
+        disconnectBlockerObserver();
       }
       if (!gesture.cleanedUp) {
         gesture.cleanedUp = true;
@@ -662,6 +683,11 @@ const handleActiveEnd = (
 // Runs in window capture phase so multi-touch aborts clear inline translate before
 // document capture listeners (e.g. FocusTrap) and element listeners (e.g. useZoom) observe the touch.
 const handleWindowTouchStartCapture = (event: TouchEvent) => {
+  // Two fingers down while a released swipe settles: it must not commit under them.
+  if (activeSettle && event.touches.length !== 1) {
+    abortedTouchStartEvents.add(event);
+    abortActiveSettle();
+  }
   if (!activeGesture || activeGesture.startEvent === event) return;
   if (event.touches.length !== 1) {
     abortedTouchStartEvents.add(event);

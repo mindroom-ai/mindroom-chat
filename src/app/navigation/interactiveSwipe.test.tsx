@@ -722,6 +722,94 @@ describe('interactiveSwipe', () => {
       higherDialog.remove();
     });
 
+    it('aborts a pending settle(true) when two fingers touch down before it ends', async () => {
+      const mock = createMockScene(400);
+      mock.deferSettle();
+      render(<AbortHarness scene={mock.scene} />);
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 260, clientY: 200 }], 40));
+        window.dispatchEvent(createTouchEvent('touchend', [], 60));
+      });
+      expect(mock.settle).toHaveBeenCalledWith(true, expect.any(Number), expect.any(Number));
+
+      // One finger alone leaves the settle be.
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 200, clientY: 300 }], 70));
+      });
+      expect(mock.cleanup).not.toHaveBeenCalled();
+
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent(
+            'touchstart',
+            [
+              { clientX: 200, clientY: 300 },
+              { clientX: 250, clientY: 320 },
+            ],
+            80
+          )
+        );
+      });
+      expect(mock.cleanup).toHaveBeenCalledTimes(1);
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+
+      await mock.finishSettle();
+      expect(mock.commit).not.toHaveBeenCalled();
+      expect(mock.cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it('aborts a pending settle(true) at once when a dialog opens, though it closes again before the settle ends', async () => {
+      const mock = createMockScene(400);
+      mock.deferSettle();
+      render(<AbortHarness scene={mock.scene} />);
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 260, clientY: 200 }], 40));
+        window.dispatchEvent(createTouchEvent('touchend', [], 60));
+      });
+      expect(mock.settle).toHaveBeenCalledWith(true, expect.any(Number), expect.any(Number));
+      expect(mock.cleanup).not.toHaveBeenCalled();
+
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      document.body.append(dialog);
+      await flushMicrotasks();
+      expect(mock.cleanup).toHaveBeenCalledTimes(1);
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+
+      // Gone again by the time the settle ends: nothing blocks then, and still nothing commits.
+      dialog.remove();
+      await mock.finishSettle();
+      expect(mock.commit).not.toHaveBeenCalled();
+      expect(mock.cleanup).toHaveBeenCalledTimes(1);
+    });
+
+    it('aborts a drag at once when the touched node leaves the document, with no further touch', async () => {
+      const mock = createMockScene(400);
+      render(<AbortHarness scene={mock.scene} />);
+      // A row of the page, as a timeline's: not React's, so the test can take it away.
+      const row = document.createElement('div');
+      screen.getByTestId('panel').append(row);
+
+      act(() => {
+        row.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        row.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 120, clientY: 200 }], 20));
+      });
+      expect(mock.cleanup).not.toHaveBeenCalled();
+
+      // Its touchmove and touchend would no longer reach the window.
+      row.remove();
+      await flushMicrotasks();
+
+      expect(mock.cleanup).toHaveBeenCalledTimes(1);
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+      expect(mock.settle).not.toHaveBeenCalled();
+      expect(mock.commit).not.toHaveBeenCalled();
+    });
+
     it('resets edge swipe on touchcancel, but evaluates commit on element swipe with cancelCommits', async () => {
       const edgeMock = createMockScene(400);
       const { unmount } = render(<AbortHarness scene={edgeMock.scene} zone="edge" />);

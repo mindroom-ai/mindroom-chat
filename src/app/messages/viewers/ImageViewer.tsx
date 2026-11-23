@@ -208,7 +208,9 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       },
       pinchSurfaceRef
     );
-    const panning = usePan(zoom !== 1);
+    // Suspended through a pinch: with its second finger on the backdrop strip a close drag
+    // exposed, the image area sees one pointer, whose drag would pan on top of `zoomAround`.
+    const panning = usePan(zoom !== 1, isZooming);
     const { pan, cursor, isPanning } = panning;
     const saving = downloadState === 'saving';
 

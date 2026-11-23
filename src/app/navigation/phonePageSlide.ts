@@ -35,7 +35,10 @@ const SWIPE_PREVIEW = 'data-swipe-preview';
 const SWIPE_BACKDROP = 'data-swipe-backdrop';
 /** Marks the subtle dim veil between the upper and lower swipe layers. */
 const SWIPE_DIM = 'data-swipe-dim';
-/** Marks the input shield below the top bar while an interactive handoff awaits route commit. */
+/**
+ * Marks the input shield below the top bar, from the release of an interactive thread swipe until
+ * it has settled back or its handoff has seen the route commit.
+ */
 const SWIPE_HOLD_SHIELD = 'data-swipe-hold-shield';
 /** Elements inside the stage that belong to active slide/swipe chrome and must never be cloned. */
 const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${SWIPE_HOLD_SHIELD}], [${COPY}]`;
@@ -84,6 +87,7 @@ type StoredPreviewKey = {
   roomId: string;
   threadId: string;
   width: number;
+  height: number;
 };
 
 type StoredPreview = {
@@ -319,6 +323,10 @@ export const getCurrentPhoneLocationKey = (): string | undefined => currentPhone
 
 export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
 
+/**
+ * Another width discards a preview. Another height alone (a soft keyboard) keeps it:
+ * `getMatchingPreview` shows it again once the height it was taken at is back.
+ */
 const handlePreviewResize = (): void => {
   if (typeof window === 'undefined') return;
   const width = window.innerWidth;
@@ -357,6 +365,7 @@ const storePhoneSwipePreview = (
       roomId: key.roomId,
       threadId: key.threadId,
       width: window.innerWidth,
+      height: window.innerHeight,
     },
   };
   if (kind === 'room') roomPreview = stored;
@@ -421,6 +430,8 @@ const getMatchingPreview = (
   if (!key.threadId || entry.key.threadId !== key.threadId) {
     return undefined;
   }
+  // Taken at another height (the keyboard is open): kept, not shown, as its rows would not fit.
+  if (entry.key.height !== window.innerHeight) return undefined;
   if (entry.snapshot.copy.isConnected) return undefined;
   return entry.snapshot;
 };
@@ -472,10 +483,13 @@ let active: Slide | undefined;
 export const claimInteractivePhoneSlide = ({
   fromLocationKey,
   holdElement,
+  shield: settleShield,
   timeoutMs = DEFAULT_HANDOFF_TIMEOUT_MS,
 }: {
   fromLocationKey: string;
   holdElement?: HTMLElement;
+  /** The shield the scene mounted for its settle: the handoff keeps it, with no second one. */
+  shield?: HTMLElement;
   timeoutMs?: number;
 }): (() => void) => {
   if (
@@ -484,6 +498,7 @@ export const claimInteractivePhoneSlide = ({
     currentPhoneLocationKey !== undefined &&
     currentPhoneLocationKey !== fromLocationKey
   ) {
+    settleShield?.remove();
     if (holdElement) {
       holdElement.remove();
       holdElement.removeAttribute(SWIPE_PREVIEW);
@@ -504,23 +519,7 @@ export const claimInteractivePhoneSlide = ({
     holdElement.style.translate = '0px 0';
   }
 
-  let shield: HTMLDivElement | undefined;
-  if (page && stage) {
-    shield = page.createElement('div');
-    shield.setAttribute(SWIPE_HOLD_SHIELD, '');
-    shield.setAttribute('aria-hidden', 'true');
-    const topBarHeight = getTopBarHeight(stage);
-    if (topBarHeight > 0) shield.style.insetBlockStart = `${topBarHeight}px`;
-    shield.style.pointerEvents = 'auto';
-    const stopTouch = (event: Event) => {
-      event.stopPropagation();
-    };
-    shield.addEventListener('touchstart', stopTouch, { passive: true });
-    shield.addEventListener('touchmove', stopTouch, { passive: true });
-    shield.addEventListener('touchend', stopTouch, { passive: true });
-    shield.addEventListener('touchcancel', stopTouch, { passive: true });
-    stage.append(shield);
-  }
+  const shield = settleShield ?? (stage ? mountHoldShield(stage) : undefined);
 
   let released = false;
   let timer = 0;
@@ -607,6 +606,25 @@ const getTopBarHeight = (stage: Element): number => {
   return topBar ? topBar.getBoundingClientRect().height : 0;
 };
 
+/** Mounts the input shield over `stage`, below its top bar: taps and touches stop at it. */
+const mountHoldShield = (stage: Element): HTMLDivElement => {
+  const shield = document.createElement('div');
+  shield.setAttribute(SWIPE_HOLD_SHIELD, '');
+  shield.setAttribute('aria-hidden', 'true');
+  const topBarHeight = getTopBarHeight(stage);
+  if (topBarHeight > 0) shield.style.insetBlockStart = `${topBarHeight}px`;
+  shield.style.pointerEvents = 'auto';
+  const stopTouch = (event: Event) => {
+    event.stopPropagation();
+  };
+  shield.addEventListener('touchstart', stopTouch, { passive: true });
+  shield.addEventListener('touchmove', stopTouch, { passive: true });
+  shield.addEventListener('touchend', stopTouch, { passive: true });
+  shield.addEventListener('touchcancel', stopTouch, { passive: true });
+  stage.append(shield);
+  return shield;
+};
+
 const createBackdropElement = (
   mode: 'backdrop' | 'over-backdrop',
   topBarHeight: number
@@ -675,6 +693,7 @@ export const createThreadBackSwipeScene = ({
 
   const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let shield: HTMLElement | undefined;
   let capturedPreview: StoredPreview | undefined;
 
   const rollbackCapturedPreview = () => {
@@ -705,6 +724,8 @@ export const createThreadBackSwipeScene = ({
       dim.style.opacity = String(DIM_MAX_OPACITY * (1 - progress));
     },
     settle(commit, durationMs, currentOffsetPx) {
+      // From the release on, whichever way it settles: a tap must not land on what still moves.
+      shield ??= mountHoldShield(stage);
       const shouldCommit =
         commit && isSceneContextCurrent('back', key, fromLocationKey, startedWithContext);
       if (shouldCommit) {
@@ -752,7 +773,7 @@ export const createThreadBackSwipeScene = ({
         roomPreview = undefined;
         syncPreviewResizeListener();
       }
-      claimInteractivePhoneSlide({ fromLocationKey, holdElement: under });
+      claimInteractivePhoneSlide({ fromLocationKey, holdElement: under, shield });
       clearTopStyles();
       onCommit();
     },
@@ -760,6 +781,7 @@ export const createThreadBackSwipeScene = ({
       dim.remove();
       clearTopStyles();
       if (!handedOff) {
+        shield?.remove();
         rollbackCapturedPreview();
         under.remove();
         under.removeAttribute(SWIPE_PREVIEW);
@@ -828,6 +850,7 @@ export const createThreadForwardSwipeScene = ({
 
   const startedWithContext = activeSwipeContext !== undefined;
   let handedOff = false;
+  let shield: HTMLElement | undefined;
   let capturedPreview: StoredPreview | undefined;
 
   const rollbackCapturedPreview = () => {
@@ -857,6 +880,8 @@ export const createThreadForwardSwipeScene = ({
       dim.style.opacity = String(DIM_MAX_OPACITY * progress);
     },
     settle(commit, durationMs, currentOffsetPx) {
+      // From the release on, whichever way it settles: a tap must not land on what still moves.
+      shield ??= mountHoldShield(stage);
       const currentProgress = Math.max(0, Math.min(1, currentOffsetPx / width));
       const shouldCommit =
         commit && isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext);
@@ -905,7 +930,7 @@ export const createThreadForwardSwipeScene = ({
         threadPreview = undefined;
         syncPreviewResizeListener();
       }
-      claimInteractivePhoneSlide({ fromLocationKey, holdElement: over });
+      claimInteractivePhoneSlide({ fromLocationKey, holdElement: over, shield });
       clearUnderStyles();
       onCommit();
     },
@@ -913,6 +938,7 @@ export const createThreadForwardSwipeScene = ({
       dim.remove();
       clearUnderStyles();
       if (!handedOff) {
+        shield?.remove();
         rollbackCapturedPreview();
         over.remove();
         over.removeAttribute(SWIPE_PREVIEW);

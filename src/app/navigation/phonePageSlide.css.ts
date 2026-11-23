@@ -62,8 +62,9 @@ globalStyle("[data-swipe-preview='over'], [data-swipe-preview='over-backdrop']",
 globalStyle("[data-swipe-preview='hold']", {
   zIndex: 2,
 });
-// Blocks taps below the top bar while an async interactive handoff awaits route commit,
-// so taps on the settled preview cannot activate controls in the departing page underneath.
+// Blocks taps below the top bar from the release of an interactive thread swipe, while it settles
+// and while its async handoff awaits route commit, so taps on what moves or on the settled
+// preview cannot activate controls in the page underneath.
 globalStyle(HOLD_SHIELD, {
   position: 'absolute',
   insetInline: 0,

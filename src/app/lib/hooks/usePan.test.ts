@@ -18,8 +18,8 @@ describe('usePan', () => {
       preventDefault: vi.fn(),
     } as unknown as PointerEvent<HTMLElement>);
 
-  function Harness({ active }: { active: boolean }) {
-    state = usePan(active);
+  function Harness({ active, suspended }: { active: boolean; suspended?: boolean }) {
+    state = usePan(active, suspended);
     return null;
   }
 
@@ -31,6 +31,11 @@ describe('usePan', () => {
   const activate = (active: boolean) => {
     act(() => {
       renderer.update(React.createElement(Harness, { active }));
+    });
+  };
+  const suspend = (suspended: boolean) => {
+    act(() => {
+      renderer.update(React.createElement(Harness, { active: true, suspended }));
     });
   };
 
@@ -146,6 +151,19 @@ describe('usePan', () => {
     expect(state.pan).toEqual({ translateX: 0, translateY: 0 });
     expect(state.isPanning).toBe(false);
     expect(state.cursor).toBe('initial');
+  });
+
+  it('pans no drag while suspended, keeps the offset, and goes on from where the finger is', () => {
+    mount();
+    act(() => state.onPointerDown(event(1, 100, 200)));
+    act(() => state.onPointerMove(event(1, 120, 210)));
+    suspend(true);
+    act(() => state.onPointerMove(event(1, 300, 400)));
+    expect(state.pan).toEqual({ translateX: 20, translateY: 10 });
+    expect(state.isPanning).toBe(false);
+    suspend(false);
+    act(() => state.onPointerMove(event(1, 310, 420)));
+    expect(state.pan).toEqual({ translateX: 30, translateY: 30 });
   });
 
   it('ignores secondary mouse buttons and pointers that did not start on the surface', () => {

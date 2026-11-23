@@ -28,7 +28,7 @@ import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
-import { NoticeSlot } from '../ui/noticeSlots';
+import { NoticeSlot, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { focusHandOffAtom } from '../calls/window/callWindowState';
 import { PHONE_NAV_DRAWER_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
@@ -243,6 +243,16 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       if (isPanelTransformTransitionRunning(panel)) return null;
 
       flushSync(() => setPeeking(true));
+      // A drawer with the rail alone would widen once it is open for a notice that moves into
+      // it (`[data-cover-notice]`): it opens on release then. A notice that stays on the page
+      // leaves it as wide as it is.
+      const railOnly = (slotRef.current?.childElementCount ?? 0) === 0;
+      const hasCoverNotice =
+        store.get(pageNoticeSlotAtom)?.querySelector('[data-cover-notice]') != null;
+      if (railOnly && hasCoverNotice) {
+        setPeeking(false);
+        return null;
+      }
       const extent = panel.getBoundingClientRect().width;
       if (extent <= 0) {
         flushSync(() => setPeeking(false));
