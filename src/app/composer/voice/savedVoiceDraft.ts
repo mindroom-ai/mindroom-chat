@@ -3,6 +3,7 @@ import { atom, useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isJoined } from '../../matrix/state/roomList';
+import { isMidTurnMode, type MidTurnMode } from '../../preferences/midTurnModes';
 import { isNativeVoiceRecorderAvailable } from '../../native/nativeVoiceRecorder';
 import {
   pendingVoiceSendDraftAtom,
@@ -41,6 +42,7 @@ type SavedVoiceDraft = {
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
   threadView?: boolean;
+  midTurnMode?: MidTurnMode;
 };
 
 interface VoiceDraftDb extends DBSchema {
@@ -108,6 +110,7 @@ const saveVoiceDraft = async (
       threadingEnabled: context.threadingEnabled,
       signalBridgedRoom: context.signalBridgedRoom,
       threadView: context.threadView,
+      ...(isMidTurnMode(context.midTurnMode) && { midTurnMode: context.midTurnMode }),
     });
   });
 };
@@ -119,18 +122,21 @@ export const voiceDraftRestoresAtom = atom<ReadonlyMap<string, Promise<void> | n
 /**
  * Brings back what the account left on disk, once: its failed send where it was meant for, else
  * a journaled recording (a crash, a recorder that stopped) as a recovered one, which is sent
- * wherever Send is pressed; `getRecoveryContext` only names the account for it.
+ * wherever Send is pressed; `getRecoveryContext` only names the account for it. With `restore`
+ * false it brings nothing back, and leaves that to a composer that can show a recording: held
+ * here, the recording would be kept from another tab's.
  */
 export const useSavedVoiceDraft = (
   mx: MatrixClient,
-  getRecoveryContext?: () => PendingVoiceSendContext
+  getRecoveryContext?: () => PendingVoiceSendContext,
+  restore = true
 ): void => {
   const store = useStore();
   const draft = useAtomValue(pendingVoiceSendDraftAtom);
   const userId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
-    if (!userId || store.get(voiceDraftRestoresAtom).has(userId)) return;
+    if (!restore || !userId || store.get(voiceDraftRestoresAtom).has(userId)) return;
     const pending = withDraftDb((db) => db.get('drafts', userId))
       .then(async (saved) => {
         const slotTaken = () => !!store.get(pendingVoiceSendDraftAtom);
@@ -166,6 +172,7 @@ export const useSavedVoiceDraft = (
               threadingEnabled: saved.threadingEnabled,
               signalBridgedRoom: saved.signalBridgedRoom,
               ...(saved.threadView && { threadView: true }),
+              ...(isMidTurnMode(saved.midTurnMode) && { midTurnMode: saved.midTurnMode }),
             },
           });
         } else if (getRecoveryContext) {
@@ -184,7 +191,7 @@ export const useSavedVoiceDraft = (
         store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, null));
       });
     store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, pending));
-  }, [getRecoveryContext, mx, store, userId]);
+  }, [getRecoveryContext, mx, restore, store, userId]);
 
   useEffect(() => {
     const owner = draft?.context.ownerSessionId;

@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +29,12 @@ import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import {
+  animateSwipeElements,
+  type InteractiveSwipeScene,
+  SWIPE_PRIORITY,
+} from '../navigation/interactiveSwipe';
+import { RoomPanelEdgeSwipeContext } from '../navigation/roomPanelEdgeSwipeContext';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { MembersDrawer } from '../members/MembersDrawer';
@@ -40,7 +47,7 @@ import {
   ResizablePanel,
   SIDE_PANEL_MAX_WIDTH,
 } from '../ui/panels/ResizablePanel';
-import { usePanelSlot } from '../ui/panels/panelPresence';
+import { layoutParentOf, usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
@@ -119,6 +126,7 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { createParagraphElement } from '../editor/utils';
 import { confirmedVoiceThreadId as confirmed } from '../composer/RoomInputExtensions';
+import * as swipeCss from './RoomSidePanelSwipe.css';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
@@ -142,6 +150,8 @@ const HeaderCallButtons = lazyPart(() =>
 
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
+
+const PANEL_SWIPE_DIM_MAX_OPACITY = 0.12;
 
 const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
 // Behind a side panel in its place, the conversation takes no room in the row but stays as it was
@@ -904,12 +914,153 @@ function RoomContent() {
     if (focused && box?.contains(focused)) (focused as HTMLElement).blur();
     return () => setBehindPanel(false);
   }, [behindPanel, setBehindPanel]);
-  // Covered, the thread's back swipe is off, and a plugin's panel has no swipe of its own, so the
-  // left edge would open the room list (the drawer) instead of leaving the panel.
-  useEdgeSwipeBack(
-    closePluginPanel,
-    mobile && behindPanel && !!shown && shown.id === pluginPanel?.id
+  const sidePanelHostRef = useRef<HTMLDivElement>(null);
+  const shownRef = useLatestRef(shown);
+  const callFloatsRef = useLatestRef(callFloats);
+  const { close: closeTranscript } = transcript;
+  const closeCoveringPanel = useCallback(() => {
+    const current = shownRef.current;
+    if (!current) return;
+    if (current.id === 'transcript') {
+      closeTranscript();
+    } else {
+      current.close();
+    }
+  }, [closeTranscript, shownRef]);
+  const closeCoveringPanelRef = useLatestRef(closeCoveringPanel);
+  const beginPanelClose = useCallback(
+    ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
+      const currentShown = shownRef.current;
+      const host = sidePanelHostRef.current;
+      const conversation = conversationRef.current;
+      if (!currentShown || !host) return null;
+      const extent = host.getBoundingClientRect().width;
+      if (extent <= 0) return null;
+
+      const startShownId = currentShown.id;
+      const stage = layoutParentOf(host);
+      const useBackdrop =
+        startShownId === 'transcript' &&
+        !callFloatsRef.current &&
+        store.get(transcriptPanelAtom)?.replacedCall === true;
+      if (!useBackdrop && !conversation) return null;
+
+      const hostParent = stage ?? host.parentElement;
+      if (stage) stage.dataset.swipePanelStage = '';
+
+      let backdrop: HTMLDivElement | null = null;
+      let underLayer: HTMLElement;
+      if (useBackdrop) {
+        backdrop = host.ownerDocument.createElement('div');
+        backdrop.className = swipeCss.PanelSwipeBackdrop;
+        backdrop.dataset.swipePanelBackdrop = '';
+        backdrop.dataset.swiping = '';
+        backdrop.setAttribute('aria-hidden', 'true');
+        hostParent?.appendChild(backdrop);
+        underLayer = backdrop;
+      } else {
+        conversation!.dataset.swipeUnderPanel = '';
+        conversation!.dataset.swiping = '';
+        underLayer = conversation!;
+      }
+
+      const dim = host.ownerDocument.createElement('div');
+      dim.className = swipeCss.PanelSwipeDim;
+      dim.dataset.swipePanelDim = '';
+      dim.dataset.swiping = '';
+      dim.setAttribute('aria-hidden', 'true');
+      hostParent?.appendChild(dim);
+
+      host.dataset.swiping = '';
+      host.dataset.swipeShadow = '';
+
+      const applyPositions = (offsetPx: number, progress: number) => {
+        host.style.translate = `${offsetPx * dirSign}px 0`;
+        underLayer.style.translate = `${-0.3 * extent * (1 - progress) * dirSign}px 0`;
+        dim.style.opacity = String(PANEL_SWIPE_DIM_MAX_OPACITY * (1 - progress));
+      };
+      applyPositions(0, 0);
+
+      let cleaned = false;
+      const resetDom = () => {
+        if (cleaned) return;
+        cleaned = true;
+        delete host.dataset.swiping;
+        delete host.dataset.swipeShadow;
+        host.style.translate = '';
+        if (backdrop) {
+          backdrop.remove();
+        } else if (conversation) {
+          delete conversation.dataset.swipeUnderPanel;
+          delete conversation.dataset.swiping;
+          conversation.style.translate = '';
+        }
+        dim.remove();
+        if (stage) {
+          delete stage.dataset.swipePanelStage;
+        }
+      };
+
+      return {
+        extent,
+        update(offsetPx, progress) {
+          applyPositions(offsetPx, progress);
+        },
+        settle(commit, durationMs, currentOffsetPx) {
+          const currentProgress =
+            extent > 0 ? Math.min(1, Math.max(0, currentOffsetPx / extent)) : 0;
+          const startPanelX = currentOffsetPx * dirSign;
+          const targetPanelX = (commit ? extent : 0) * dirSign;
+          const startUnderX = -0.3 * extent * (1 - currentProgress) * dirSign;
+          const targetUnderX = (commit ? 0 : -0.3 * extent) * dirSign;
+          const startDimOpacity = PANEL_SWIPE_DIM_MAX_OPACITY * (1 - currentProgress);
+          const targetDimOpacity = commit ? 0 : PANEL_SWIPE_DIM_MAX_OPACITY;
+          return animateSwipeElements(
+            [
+              {
+                element: host,
+                keyframes: [
+                  { translate: `${startPanelX}px 0` },
+                  { translate: `${targetPanelX}px 0` },
+                ],
+              },
+              {
+                element: underLayer,
+                keyframes: [
+                  { translate: `${startUnderX}px 0` },
+                  { translate: `${targetUnderX}px 0` },
+                ],
+              },
+              {
+                element: dim,
+                keyframes: [
+                  { opacity: String(startDimOpacity) },
+                  { opacity: String(targetDimOpacity) },
+                ],
+              },
+            ],
+            durationMs
+          );
+        },
+        commit() {
+          if (shownRef.current?.id !== startShownId) return;
+          flushSync(() => {
+            closeCoveringPanelRef.current();
+          });
+          resetDom();
+        },
+        cleanup() {
+          resetDom();
+        },
+      };
+    },
+    [callFloatsRef, closeCoveringPanelRef, shownRef, store]
   );
+  // Covered on phones, one Room-level start-edge swipe closes any covering side panel uniformly.
+  useEdgeSwipeBack(closeCoveringPanel, mobile && behindPanel && !!shown, {
+    priority: SWIPE_PRIORITY.PANEL,
+    begin: beginPanelClose,
+  });
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -990,7 +1141,22 @@ function RoomContent() {
                 />
               </MessageLinkCards>
             </Box>
-            {sidePanel}
+            <RoomPanelEdgeSwipeContext.Provider value={mobile && behindPanel}>
+              {sidePanel && (
+                <div
+                  ref={sidePanelHostRef}
+                  className={
+                    mobile && behindPanel
+                      ? swipeCss.PhoneSidePanelHost
+                      : swipeCss.PhoneSidePanelPassthrough
+                  }
+                  data-side-panel-host=""
+                  data-phone-side-panel-host={mobile && behindPanel ? '' : undefined}
+                >
+                  {sidePanel}
+                </div>
+              )}
+            </RoomPanelEdgeSwipeContext.Provider>
             {/* A thread card dragged on the page drops at the room's end edge into B. */}
             {secondThread && (
               <SecondThreadDropZone

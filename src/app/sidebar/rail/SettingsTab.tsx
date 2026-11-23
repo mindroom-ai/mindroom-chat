@@ -1,4 +1,5 @@
 import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Avatar, IconButton, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import { useSetAtom } from 'jotai';
@@ -25,6 +26,9 @@ import { withAddAccountSearch } from '../../navigation/addAccount';
 import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
 import { AccountMenu } from '../../account/switcher/AccountMenu';
 import { AccountSwitcher } from '../../account/switcher/AccountSwitcher';
+import { QuickAccountMenu } from '../../account/switcher/QuickAccountMenu';
+import * as quickSwitchCss from '../../account/switcher/QuickAccountMenu.css';
+import { useAccountHoldSwitch } from '../../account/switcher/useAccountHoldSwitch';
 import { LogoutDialog } from '../../account/LogoutDialog';
 import { useShortcut } from '../../shortcuts/useShortcut';
 
@@ -113,7 +117,7 @@ const useCachedActiveAvatar = (
 /**
  * The account button at the foot of the icon rail, or with `inTopBar` at the end of a phone's top
  * bar: the active account's avatar, which opens the account menu (Settings, the other accounts,
- * Add Account, Manage Accounts).
+ * Add Account, Logout).
  */
 export function SettingsTab({
   inTopBar = false,
@@ -132,8 +136,8 @@ export function SettingsTab({
   const [menuButton, setMenuButton] = useState<HTMLElement>();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
-  /** The inactive account whose logout waits for confirmation. */
-  const [leaving, setLeaving] = useState<StoredSession>();
+  /** The account whose logout waits for confirmation: the active one or an inactive session. */
+  const [leaving, setLeaving] = useState<'active' | StoredSession>();
 
   const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
   // The stored copy carries the freshest cached profile fields.
@@ -211,6 +215,12 @@ export function SettingsTab({
     return true;
   });
 
+  const holdSwitch = useAccountHoldSwitch({
+    enabled: otherAccounts.length > 0 && !menuButton,
+    others: otherAccounts,
+    onSwitch: handleSwitch,
+  });
+
   // Pressing the avatar while its menu is open closes the menu.
   const toggleAccountMenu = (event: MouseEvent<HTMLElement>) => {
     const button = event.currentTarget;
@@ -235,11 +245,24 @@ export function SettingsTab({
       onOpenSettings={openSettings}
       onSwitchAccount={handleSwitch}
       onAddAccount={handleAddAccount}
+      onSignOut={() => setLeaving('active')}
       onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
       onClose={closeMenu}
       below={inTopBar}
     />
   );
+
+  const quickAccountMenu = holdSwitch.holdAnchor && otherAccounts.length > 0 && (
+    <QuickAccountMenu
+      anchor={holdSwitch.holdAnchor}
+      others={otherAccounts}
+      hoveredSessionId={holdSwitch.hoveredSessionId}
+      menuRef={holdSwitch.menuRef}
+      below={inTopBar}
+    />
+  );
+  // Of `AccountMenu` alone, the menu `aria-haspopup` promises; the quick menu is the pointer's.
+  const menuExpanded = !!menuButton;
 
   // In the rail the active account carries the selection mark and its menu opens beside it; in
   // the top bar the menu opens below the avatar.
@@ -248,20 +271,22 @@ export function SettingsTab({
       {inTopBar ? (
         <>
           <IconButton
-            className={className}
+            className={classNames(className, quickSwitchCss.HoldTrigger)}
             size="400"
             radii="Pill"
             variant="Background"
             aria-label={label}
             aria-haspopup="menu"
-            aria-expanded={!!menuButton}
+            aria-expanded={menuExpanded}
             onClick={toggleAccountMenu}
+            {...holdSwitch.triggerProps}
           >
             <Avatar size="200" radii="Pill">
               {avatar}
             </Avatar>
           </IconButton>
           {accountMenu}
+          {quickAccountMenu}
         </>
       ) : (
         <SidebarItem active>
@@ -270,18 +295,21 @@ export function SettingsTab({
               <SidebarAvatar
                 as="button"
                 ref={triggerRef}
+                className={quickSwitchCss.HoldTrigger}
                 aria-label={label}
                 aria-haspopup="menu"
-                aria-expanded={!!menuButton}
+                aria-expanded={menuExpanded}
                 // The signed-in account, not an open page.
                 aria-current="true"
                 onClick={toggleAccountMenu}
+                {...holdSwitch.triggerProps}
               >
                 {avatar}
               </SidebarAvatar>
             )}
           </SidebarItemTooltip>
           {accountMenu}
+          {quickAccountMenu}
         </SidebarItem>
       )}
       {switcherOpen && (
@@ -316,7 +344,10 @@ export function SettingsTab({
                 onDeactivate: closeLeaving,
               }}
             >
-              <LogoutDialog session={leaving} handleClose={closeLeaving} />
+              <LogoutDialog
+                session={leaving === 'active' ? undefined : leaving}
+                handleClose={closeLeaving}
+              />
             </FocusTrap>
           </OverlayCenter>
         </Overlay>

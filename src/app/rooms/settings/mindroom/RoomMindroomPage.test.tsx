@@ -105,7 +105,9 @@ describe('RoomMindroomPage', () => {
       'tile-model true true',
       'tile-reply_mode',
       'tile-thread_mode',
+      'tile-agent_instructions',
     ]);
+    expect(screen.getByTestId('tile-agent_instructions').dataset.kind).toBe('text');
     expect(tilesUnder('Thread titles')).toEqual([
       'tile-thread_summary_instructions',
       'tile-thread_summary_model false true',

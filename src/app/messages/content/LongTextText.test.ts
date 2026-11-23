@@ -1705,6 +1705,410 @@ describe('a finished agent reply in a sidecar', () => {
   });
 });
 
+describe('v3 tool-trace sidecar hydration', () => {
+  beforeEach(() => {
+    clearLongTextHydrationCache();
+    vi.clearAllMocks();
+  });
+
+  const v3WireSidecar = {
+    msgtype: 'm.text',
+    body: 'Checking notes.\n\nAll set.',
+    format: 'org.matrix.custom.html',
+    formatted_body: '<p>Checking notes.</p>\n<p>All set.</p>\n',
+    'io.mindroom.tool_trace': {
+      version: 3,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'read_file',
+          args_preview: 'path=notes.txt',
+          result_preview: 'Read notes successfully',
+          body_line: 2,
+          at: 1,
+        },
+      ],
+    },
+  };
+
+  it('applies transformContent before MText builds props without mutating the shared MXC cache', async () => {
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
+      '../../matrix/protocol/longText'
+    );
+    const { sanitizeContent } = await import('../../matrix/protocol/untrustedContent');
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const mxcUri = 'mxc://server/v3-transform-unit';
+    const preview = {
+      ...createPreviewContent(),
+      url: mxcUri,
+    };
+    const source = createLongTextSource({ previewContent: preview, mxcUri });
+
+    await actualLongText.hydrateLongTextSource(
+      source,
+      async () => JSON.stringify(v3WireSidecar),
+      mockMx
+    );
+
+    const observed: Array<{
+      content: Record<string, unknown>;
+      props: { body: string; customBody?: string };
+    }> = [];
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(LongTextText, {
+          kind: LongTextKind.Text,
+          content: preview,
+          longTextSource: source,
+          transformContent: (downloaded) => sanitizeContent(downloaded, true),
+          renderBody: (resolved, props) => {
+            observed.push({ content: resolved, props });
+            return React.createElement('span', null, props.customBody ?? props.body);
+          },
+        })
+      );
+    });
+
+    try {
+      const last = observed.at(-1);
+      expect(last?.props.body).toContain('🔧 `read_file` [1]');
+      expect(last?.props.customBody).toContain('<p>🔧 <code>read_file</code> [1]</p>');
+      expect((last?.content['io.mindroom.tool_trace'] as { version?: number })?.version).toBe(2);
+
+      // Shared MXC cache keeps raw wire v3 JSON untouched.
+      const cached = actualLongText.getCachedLongTextContent(source, mockMx);
+      expect(cached?.body).toBe('Checking notes.\n\nAll set.');
+      expect(cached?.formatted_body).toBe('<p>Checking notes.</p>\n<p>All set.</p>\n');
+      expect((cached?.['io.mindroom.tool_trace'] as { version?: number })?.version).toBe(3);
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
+  it('restores v3 tool rows for a trusted agent and keeps the same cached sidecar clean for a non-agent', async () => {
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
+      '../../matrix/protocol/longText'
+    );
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const mxcUri = 'mxc://server/v3-shared-cache';
+    const preview = {
+      ...createPreviewContent(),
+      body: 'Checking notes...',
+      url: mxcUri,
+    };
+    const source = createLongTextSource({ previewContent: preview, mxcUri });
+
+    // Pre-populate the shared MXC cache with raw v3 wire JSON (sender-agnostic).
+    await actualLongText.hydrateLongTextSource(
+      source,
+      async () => JSON.stringify(v3WireSidecar),
+      mockMx
+    );
+
+    const renderForSender = async (fromMindroomAgent: boolean, eventId: string) => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} },
+            renderAgentMessageContent({
+              eventId,
+              fromMindroomAgent,
+              displayName: fromMindroomAgent ? 'MindRoom' : 'Someone',
+              msgType: 'm.text',
+              content: preview,
+              htmlReactParserOptions: {},
+              linkifyOpts: {},
+            })
+          )
+        );
+      });
+      return renderer;
+    };
+
+    const agentRenderer = await renderForSender(true, '$v3-agent-1');
+    try {
+      const collapsed = JSON.stringify(agentRenderer.toJSON());
+      expect(collapsed).toContain('Ran 1 tool call');
+      expect(collapsed).toContain('read_file');
+      expect(collapsed).toContain('All set.');
+
+      await act(async () => {
+        agentRenderer.root.findByType('button').props.onClick();
+      });
+      const expanded = JSON.stringify(agentRenderer.toJSON());
+      expect(expanded).toContain('Read notes successfully');
+    } finally {
+      await act(async () => {
+        agentRenderer.unmount();
+      });
+    }
+
+    // Same cached MXC entry rendered for a non-agent sender drops tool_trace and injects no tool rows.
+    const nonAgentRenderer = await renderForSender(false, '$v3-non-agent');
+    try {
+      const nonAgentJson = JSON.stringify(nonAgentRenderer.toJSON());
+      expect(nonAgentJson).toContain('Checking notes.');
+      expect(nonAgentJson).toContain('All set.');
+      expect(nonAgentJson).not.toContain('Ran 1 tool call');
+      expect(nonAgentJson).not.toContain('read_file');
+      expect(nonAgentJson).not.toContain('Read notes successfully');
+      expect(nonAgentJson).not.toContain('🔧');
+    } finally {
+      await act(async () => {
+        nonAgentRenderer.unmount();
+      });
+    }
+
+    // Shared MXC cache is still uncorrupted raw v3 wire JSON, and a subsequent agent render still restores rows.
+    const cached = actualLongText.getCachedLongTextContent(source, mockMx);
+    expect(cached?.formatted_body).toBe('<p>Checking notes.</p>\n<p>All set.</p>\n');
+    expect((cached?.['io.mindroom.tool_trace'] as { version?: number })?.version).toBe(3);
+
+    const agentAgainRenderer = await renderForSender(true, '$v3-agent-2');
+    try {
+      const agentAgainJson = JSON.stringify(agentAgainRenderer.toJSON());
+      expect(agentAgainJson).toContain('Ran 1 tool call');
+      expect(agentAgainJson).toContain('read_file');
+    } finally {
+      await act(async () => {
+        agentAgainRenderer.unmount();
+      });
+    }
+  });
+
+  it('discards placeholder_body on a hydrated v3 tool-only sidecar for a trusted agent', async () => {
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const deferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+    const preview = {
+      ...createPreviewContent(),
+      body: '2 tool calls',
+      url: 'mxc://server/v3-placeholder-sidecar',
+    };
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderAgentMessageContent({
+            eventId: '$v3-placeholder',
+            fromMindroomAgent: true,
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content: preview,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    try {
+      await act(async () => {
+        deferred.resolve({
+          msgtype: 'm.text',
+          body: '2 tool calls',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<p>2 tool calls</p>\n',
+          'io.mindroom.tool_trace': {
+            version: 3,
+            placeholder_body: true,
+            events: [
+              {
+                type: 'tool_call_completed',
+                tool_name: 'shell',
+                args_preview: 'cmd=ls',
+                result_preview: 'notes.txt',
+                body_line: 0,
+                at: 0,
+              },
+              {
+                type: 'tool_call_completed',
+                tool_name: 'read_file',
+                args_preview: 'path=notes.txt',
+                result_preview: 'hello world',
+                body_line: 0,
+                at: 0,
+              },
+            ],
+          },
+        });
+      });
+
+      expect(renderer.root.findAllByType('p')).toHaveLength(0);
+      const collapsed = JSON.stringify(renderer.toJSON());
+      expect(collapsed).toContain('Ran 2 tool calls');
+      expect(collapsed).toContain('shell, read_file');
+
+      await act(async () => {
+        renderer.root.findByType('button').props.onClick();
+      });
+      const expanded = JSON.stringify(renderer.toJSON());
+      expect(expanded).toContain('hello world');
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+  it('hydrates a streaming m.text sidecar whose preview body is Thinking... instead of locking on ThinkingPlaceholder', async () => {
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const deferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+    const preview = {
+      ...createPreviewContent(),
+      body: 'Thinking...',
+      url: 'mxc://server/v3-streaming-thinking-sidecar',
+      'io.mindroom.stream_status': 'streaming',
+    };
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderAgentMessageContent({
+            eventId: '$v3-streaming-thinking',
+            fromMindroomAgent: true,
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content: preview,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    try {
+      expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        deferred.resolve({
+          msgtype: 'm.text',
+          body: 'Thinking...',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<p>Thinking...</p>\n',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.tool_trace': {
+            version: 3,
+            placeholder_body: true,
+            events: [
+              {
+                type: 'tool_call_started',
+                tool_name: 'shell',
+                args_preview: 'cmd=pwd',
+                body_line: 0,
+                at: 0,
+              },
+            ],
+          },
+        });
+      });
+
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('shell');
+      expect(rendered).not.toContain('Thinking...');
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
+  it('does not erase prose on a new revision preview while loading after a v3 placeholder_body sidecar', async () => {
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const firstDeferred = createDeferred<Record<string, unknown>>();
+    const secondDeferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource
+      .mockReturnValueOnce(firstDeferred.promise)
+      .mockReturnValueOnce(secondDeferred.promise);
+
+    const firstPreview = {
+      ...createPreviewContent(),
+      body: 'Thinking...',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Thinking...</p>\n',
+      url: 'mxc://server/v3-rev-1',
+      'io.mindroom.stream_status': 'streaming',
+    };
+    const secondPreview = {
+      ...createPreviewContent(),
+      body: 'Found it.',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>Found it.</p>\n',
+      url: 'mxc://server/v3-rev-2',
+      'io.mindroom.stream_status': 'streaming',
+    };
+
+    const renderRevision = (preview: Record<string, unknown>) =>
+      React.createElement(
+        ClientConfigProvider,
+        { value: {} },
+        renderAgentMessageContent({
+          eventId: '$v3-revision-switch',
+          fromMindroomAgent: true,
+          displayName: 'MindRoom',
+          msgType: 'm.text',
+          content: preview,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(renderRevision(firstPreview));
+    });
+
+    try {
+      await act(async () => {
+        firstDeferred.resolve({
+          msgtype: 'm.text',
+          body: 'Thinking...',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<p>Thinking...</p>\n',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.tool_trace': {
+            version: 3,
+            placeholder_body: true,
+            events: [
+              {
+                type: 'tool_call_completed',
+                tool_name: 'shell',
+                body_line: 0,
+                at: 0,
+              },
+            ],
+          },
+        });
+      });
+
+      expect(JSON.stringify(renderer.toJSON())).toContain('shell');
+
+      // Switch to revision 2 while its sidecar is still in flight: its prose must stay intact.
+      await act(async () => {
+        renderer.update(renderRevision(secondPreview));
+      });
+
+      const whileLoading = JSON.stringify(renderer.toJSON());
+      expect(whileLoading).toContain('Found it.');
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+});
+
 describe('useLongTextResolvedContent', () => {
   beforeEach(async () => {
     clearLongTextHydrationCache();

@@ -8,10 +8,11 @@ import {
   type FocusEvent,
   type ReactElement,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, config, toRem } from 'folds';
@@ -29,6 +30,8 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -49,7 +52,19 @@ import {
   RoomSchedulesOverlay,
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
-import { getRoomScheduleCount } from '../schedules/roomSchedules';
+import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
+import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
+import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  pendingVoiceSendDraftAtom,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { toPlainText } from '../editor/output';
+import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
@@ -65,6 +80,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
+import { sendCancelScheduledTask } from './roomScheduleActions';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
   HeaderActionButton,
@@ -90,6 +106,10 @@ export type RoomViewHeaderProps = {
   openThreadId?: string;
   /** The room's thread filters: the filter button marks them while their bar is hidden. */
   threadFilterState?: ThreadFilterState;
+  /** Focuses the target conversation composer after an action closes a header dialog. */
+  onFocusComposer?: (targetThreadId?: string) => void;
+  /** False when the active view has no eligible composer to receive an edit command. */
+  canEditSchedule?: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -209,6 +229,8 @@ export function RoomViewHeader({
   threadId,
   openThreadId = threadId,
   threadFilterState,
+  onFocusComposer,
+  canEditSchedule = true,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -241,8 +263,12 @@ export function RoomViewHeader({
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
+  const store = useStore();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const myUserId = mx.getSafeUserId();
+  const canSendMessages = permissions.event('m.room.message', myUserId);
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const canManageSchedules = Boolean(hasMindroomAgents && canSendMessages && !tombstone);
 
   // Spaces and direct chats are addressed like their links: by canonical alias when there is one.
   const space = useSpaceOptionally();
@@ -389,6 +415,36 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
+  const cancelScheduledTask = useCallback(
+    (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
+    [mx, room]
+  );
+  const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
+    if (!isCommandSafeTaskId(task.taskId)) return undefined;
+    if (
+      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(pendingVoiceSendDraftAtom)?.recovered
+    ) {
+      return 'draft-busy';
+    }
+    const prefix = `!edit_schedule ${task.taskId} `;
+    const draftAtom = roomIdToMsgDraftAtomFamily(
+      getRoomInputDraftKey(myUserId, room.roomId, threadId)
+    );
+    const existing = store.get(draftAtom);
+    const offer = [createParagraphElement(prefix)];
+    const targetOffer = toPlainText(existing, false).startsWith(prefix) ? existing : offer;
+    const offerState = store.get(
+      composerOfferAtom([myUserId, room.roomId, threadId], targetOffer, confirmedVoiceThreadId)
+    );
+    if (offerState === 'busy') return 'draft-busy';
+    const opener = schedules?.opener;
+    flushSync(() => setSchedules(undefined));
+    if (onFocusComposer) onFocusComposer(threadId);
+    else restoreFocusAfterDismiss(opener);
+    if (offerState === 'empty') store.set(draftAtom, offer);
+    return 'prefilled';
+  };
 
   // The header's actions, in the order both the row and the room menu use.
   const listed: (RoomHeaderEntry | false | undefined)[] = [
@@ -760,6 +816,8 @@ export function RoomViewHeader({
             }
           }}
           onOpenThread={openScheduledThread}
+          onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
+          onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
         />
       )}
       {dialog}

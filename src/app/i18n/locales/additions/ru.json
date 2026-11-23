@@ -100,7 +100,12 @@
     },
     "inviteUserPrompt": {
       "close": "Закрыть",
-      "invited": "Приглашение отправлено: {{user}}."
+      "invited": "Приглашение отправлено: {{user}}.",
+      "giveRoleRights": "Выдать права роли «{{role}}»",
+      "giveRoleRightsHelp": "В этой комнате для сворачивания расшифровок голосовых сообщений и управления расписаниями и настройками требуются права роли «{{role}}».",
+      "roleFailed": "Приглашение отправлено: {{user}}, но не удалось выдать права роли «{{role}}»: {{error}}",
+      "roleRequirementChanged": "В этой комнате теперь требуются права роли «{{role}}».",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Закрыть",
@@ -114,6 +119,49 @@
     },
     "textViewer": {
       "close": "Закрыть"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Событие",
+      "metaType": "Тип",
+      "metaSender": "Отправитель",
+      "metaTime": "Время",
+      "badgeEdited": "Изменено",
+      "badgeEncrypted": "Зашифровано",
+      "documentTabsLabel": "Версии события",
+      "tabEvent": "Событие",
+      "tabOriginal": "Исходное",
+      "tabLatestEdit": "Последняя правка",
+      "tabDecrypted": "Расшифровано",
+      "tabDecryptionError": "Ошибка расшифровки",
+      "tabEncrypted": "Зашифровано",
+      "collapseAll": "Свернуть",
+      "expandAll": "Развернуть",
+      "foldStrings": "Сворачивать строки",
+      "rawJson": "Исходник",
+      "filterPlaceholder": "Фильтр по ключам и значениям…",
+      "noMatches": "Нет совпадений для «{{query}}»",
+      "copyField": "Копировать {{field}}",
+      "copyValue": "Копировать значение",
+      "expandNode": "Развернуть {{name}}",
+      "collapseNode": "Свернуть {{name}}",
+      "expandString": "Развернуть строку",
+      "collapseString": "Свернуть строку",
+      "matchCount_one": "{{count}} совпадение",
+      "matchCount_few": "{{count}} совпадения",
+      "matchCount_many": "{{count}} совпадений",
+      "matchCount_other": "{{count}} совпадений",
+      "keyCount_one": "{{count}} ключ",
+      "keyCount_few": "{{count}} ключа",
+      "keyCount_many": "{{count}} ключей",
+      "keyCount_other": "{{count}} ключей",
+      "itemCount_one": "{{count}} элемент",
+      "itemCount_few": "{{count}} элемента",
+      "itemCount_many": "{{count}} элементов",
+      "itemCount_other": "{{count}} элементов",
+      "charCount_one": "{{count}} символ",
+      "charCount_few": "{{count}} символа",
+      "charCount_many": "{{count}} символов",
+      "charCount_other": "{{count}} символов"
     },
     "invites": {
       "actionFailed": "Что-то пошло не так. Повторите попытку."
@@ -261,9 +309,6 @@
       "newIntro": "Выберите новый пароль восстановления. Старый перестанет работать.",
       "notCached": "В этом сеансе есть не все ключи шифрования. Подтвердите его паролем восстановления или с другого устройства, затем повторите попытку.",
       "incompleteError": "Новый пароль восстановления пока не охватывает все ключи шифрования. Повторите попытку.",
-      "nudgeTitle": "Защитите свои сообщения",
-      "nudgeBody": "Задайте пароль восстановления, чтобы по-прежнему читать зашифрованные чаты после очистки этого браузера или входа на новом устройстве.",
-      "nudgeButton": "Настроить пароль восстановления",
       "unlockWithPassword": "Разблокировать паролем восстановления",
       "resetLoss": "Сообщения, которые это устройство сейчас не может прочитать, останутся нечитаемыми. Остальные ваши сеансы нужно будет подтвердить заново.",
       "setupCheckFailed": "Не удалось проверить настройку шифрования.",
@@ -494,6 +539,7 @@
         "close": "Закрыть экран звонка",
         "participants": "Участники звонка",
         "connecting": "Подключение…",
+        "connectingAnotherCall": "Подключение к другому звонку…",
         "reconnecting": "Переподключение…",
         "ended": "Звонок завершён.",
         "waitingFor": "Ожидание {{name}}…",
@@ -631,7 +677,8 @@
     },
     "accountMenu": {
       "open": "Открыть меню учётной записи {{name}}",
-      "manageAccounts": "Управление учётными записями"
+      "otherAccounts": "Другие учётные записи",
+      "manage": "Управлять"
     },
     "roomOrder": {
       "sortByName": "Сортировать комнаты от А до Я"
@@ -752,6 +799,9 @@
         "save": "Сохранить",
         "saved": "Сохранено",
         "clear": "Очистить",
+        "saveSetting": "Сохранить: {{setting}}",
+        "savedSetting": "Сохранено: {{setting}}",
+        "clearSetting": "Очистить: {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Изменять это могут только те, кому разрешено менять настройки этой комнаты.",
         "saveFailed": "Не удалось сохранить настройку. Попробуйте ещё раз.",
@@ -791,6 +841,11 @@
         "threadSummaryModel": {
           "label": "Модель заголовков",
           "description": "Модель, создающая автоматические заголовки веток в этой комнате."
+        },
+        "agentInstructions": {
+          "label": "Инструкции для агентов",
+          "description": "Дополнительные инструкции, передаваемые каждому агенту при ответе в этой комнате. Модераторы могут их редактировать; они не дают агентам дополнительных прав. Их может прочитать каждый участник комнаты, а состояние комнаты не защищено сквозным шифрованием, поэтому не указывайте здесь секреты.",
+          "placeholder": "Например: отвечайте коротко и на нидерландском языке"
         }
       }
     },
@@ -962,6 +1017,50 @@
         "hide_few": "Скрыть {{count}} сообщения",
         "hide_many": "Скрыть {{count}} сообщений",
         "hide_other": "Скрыть {{count}} сообщения"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} событие комнаты",
+        "summary_few": "{{count}} события комнаты",
+        "summary_many": "{{count}} событий комнаты",
+        "summary_other": "{{count}} события комнаты",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Скрыть {{count}} событие комнаты",
+        "hide_few": "Скрыть {{count}} события комнаты",
+        "hide_many": "Скрыть {{count}} событий комнаты",
+        "hide_other": "Скрыть {{count}} события комнаты",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} вошёл",
+        "joined_few": "{{count}} вошли",
+        "joined_many": "{{count}} вошли",
+        "joined_other": "{{count}} вошли",
+        "left_one": "{{count}} вышел",
+        "left_few": "{{count}} вышли",
+        "left_many": "{{count}} вышли",
+        "left_other": "{{count}} вышли",
+        "invited_one": "{{count}} приглашён",
+        "invited_few": "{{count}} приглашены",
+        "invited_many": "{{count}} приглашены",
+        "invited_other": "{{count}} приглашены",
+        "requested_one": "{{count}} запросил вход",
+        "requested_few": "{{count}} запросили вход",
+        "requested_many": "{{count}} запросили вход",
+        "requested_other": "{{count}} запросили вход",
+        "kicked_one": "{{count}} исключён",
+        "kicked_few": "{{count}} исключены",
+        "kicked_many": "{{count}} исключены",
+        "kicked_other": "{{count}} исключены",
+        "banned_one": "{{count}} заблокирован",
+        "banned_few": "{{count}} заблокированы",
+        "banned_many": "{{count}} заблокированы",
+        "banned_other": "{{count}} заблокированы",
+        "unbanned_one": "{{count}} разблокирован",
+        "unbanned_few": "{{count}} разблокированы",
+        "unbanned_many": "{{count}} разблокированы",
+        "unbanned_other": "{{count}} разблокированы",
+        "profileChanges_one": "{{count}} изменение профиля",
+        "profileChanges_few": "{{count}} изменения профиля",
+        "profileChanges_many": "{{count}} изменений профиля",
+        "profileChanges_other": "{{count}} изменения профиля"
       },
       "questionCard": {
         "title": "Вопрос",
@@ -1795,6 +1894,10 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "Ещё {{count}} ветка",
+    "moreThreads_few": "Ещё {{count}} ветки",
+    "moreThreads_many": "Ещё {{count}} веток",
+    "moreThreads_other": "Ещё {{count}} ветки",
     "forMe": "Для меня",
     "forMeHint": "Только ветки, в которых вы участвуете, в которых агент написал от вашего имени или которые вы закрепили",
     "roomForMeHint": "Только ветки, в которых вы участвуете или в которых агент написал от вашего имени",
@@ -1841,6 +1944,67 @@
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",
-    "elsewhereInRoom": "В других местах этой комнаты"
+    "elsewhereInRoom": "В других местах этой комнаты",
+    "filterAll": "Все",
+    "filterLabel": "Фильтр запланированных задач",
+    "awaitingShort": "Ожидание",
+    "inSeconds": "через {{count}}с",
+    "inMinutes": "через {{count}}м",
+    "inHours": "через {{count}}ч",
+    "inHoursMinutes": "через {{hours}}ч {{minutes}}м",
+    "inDays": "через {{count}}д",
+    "thread": "Ветка",
+    "destination": "Назначение",
+    "showFullPrompt": "Показать весь промпт",
+    "showLessPrompt": "Свернуть",
+    "details": "Подробности",
+    "hideDetails": "Скрыть подробности",
+    "copyId": "Копировать ID",
+    "copied": "Скопировано",
+    "edit": "Изменить",
+    "cancel": "Отменить",
+    "cancelConfirm": "Отменить эту запланированную задачу?",
+    "keep": "Оставить",
+    "cancelTask": "Отменить задачу",
+    "cancelling": "Отмена...",
+    "cancelError": "Не удалось отменить задачу. Попробуйте снова.",
+    "cancellationSent": "Запрос на отмену отправлен",
+    "editDraftBusy": "Очистите текущий черновик перед редактированием этой задачи.",
+    "copyFailed": "Не удалось скопировать. Выберите ID задачи в Подробностях."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Доброе утро, {{name}}",
+      "afternoon": "Добрый день, {{name}}",
+      "evening": "Добрый вечер, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Спросите {{name}} о чём угодно…",
+      "chooseAgent": "Выбрать, кто ответит",
+      "agentChoice": "Отвечает {{name}}",
+      "chooseRoom": "Выбрать, где начнётся тред",
+      "roomChoice": "В {{room}}",
+      "inRoom": "в <avatar/>{{room}}",
+      "directChat": "Личный чат",
+      "startsDirectChat": "Начинает чат с {{name}}",
+      "startingDirectChat": "Начинаем чат с {{name}}…",
+      "directChatFailed": "Не удалось начать чат с {{name}}. Попробуйте ещё раз.",
+      "waitingForAgent": "Ждём, когда {{name}} присоединится к чату…",
+      "notSent": "Не отправлено для {{agent}} в {{room}}",
+      "chooseAgain": "Этот выбор больше не действует. Текст сохранён: выберите, кто ответит или где."
+    },
+    "recent": {
+      "title": "Недавние треды",
+      "allThreads": "Все треды",
+      "unread": "Не прочитано"
+    },
+    "recovery": {
+      "action": "Задать пароль восстановления",
+      "text": "Сохраните доступ к зашифрованным чатам на новом устройстве."
+    },
+    "device": {
+      "action": "Подтвердить это устройство",
+      "text": "До тех пор оно не может читать ваши зашифрованные чаты."
+    }
   }
 }

@@ -149,7 +149,10 @@ test.describe('the Compact cards in motion', () => {
     });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     await expectRoomCompact(page, true, 60_000);
-    await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+    const view = page.locator('[data-compact-room-view]');
+    await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+      timeout: 60_000,
+    });
     // The pointer away from the cards, which it would hold in their order.
     await page.mouse.move(5, 5);
     const slow = SHOTS ? await page.context().newCDPSession(page) : undefined;
@@ -190,8 +193,9 @@ test.describe('the Compact cards in motion', () => {
       await takePlays(page);
     }
 
-    // 1. A reply in the oldest thread: its card, the last one, glides to the top.
+    // 1. A reply in the oldest visible thread: its card glides to the top.
     const oldest = rootIds[0] ?? '';
+    await expect(view.locator(`[data-thread-root-id="${oldest}"]`)).toBeInViewport();
     await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Found it: the exporter does not quote commas.',
@@ -228,7 +232,9 @@ test.describe('the Compact cards in motion', () => {
     const shell = page.locator(`[data-scroll-anchor="${resolved}"]`);
     await shell.hover();
     await shell.locator('[data-compact-thread-resolve="true"]').click();
-    await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 30_000 });
+    await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+      timeout: 30_000,
+    });
     await shot('3-resolved-card-leaves');
     const left = await takePlays(page);
     expect(

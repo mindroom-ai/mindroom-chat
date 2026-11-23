@@ -328,6 +328,7 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: (action: string) =>
       action === 'invite' ? permissionState.canInvite : permissionState.canKick,
+    event: () => false,
     stateEvent: () => false,
   }),
 }));

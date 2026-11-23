@@ -125,7 +125,7 @@ config:
 | `sidebar.showMindRoom` | boolean | `true` | `false` turns Local MindRoom off: no icon rail entry or switch for it, no Settings page, no setup steps on the welcome page, and `/connect` (pairing links included) goes to `/`. |
 | `sidebar.mindRoomProvisioningUrl` | string (URL) | the account's homeserver | Origin of the provisioning service that pairs a Local MindRoom (the `/connect` page, Settings, and the setup steps the welcome page shows a day after first use while nothing is paired). An account whose homeserver has another origin cannot sign in to that service, so it gets no Local MindRoom entry. |
 
-On top of these, each person picks which of Threads, Canvases, Explore Community, Create Space, Search (the command palette) and Local MindRoom their own rail shows, in Settings > General > Sidebar. The choice is stored in the account's `io.mindroom.settings` account data, so it follows the account to every device; a button the deployment hides has no switch there. A hidden page stays reachable: Threads and Explore Community from the ⋮ menu of Home, Create Space from the command palette, the command palette from its keyboard shortcut (Ctrl + K, or ⌘ K on Apple devices), and Local MindRoom from its Settings page. The rail's account button opens a menu with Settings, the other accounts on the device, Add Account and Manage Accounts.
+On top of these, each person picks which of Threads, Canvases, Explore Community, Create Space, Search (the command palette) and Local MindRoom their own rail shows, in Settings > General > Sidebar. The choice is stored in the account's `io.mindroom.settings` account data, so it follows the account to every device; a button the deployment hides has no switch there. A hidden page stays reachable: Threads and Explore Community from the ⋮ menu of Home, Create Space from the command palette, the command palette from its keyboard shortcut (Ctrl + K, or ⌘ K on Apple devices), and Local MindRoom from its Settings page. The rail's account button opens a menu that names the signed-in account and offers Settings, Add Account and Logout (which asks for confirmation first). With more than one account on the device, the menu also lists the other accounts, each of which switches to that account, under an "Other accounts" heading with a Manage link that opens the Accounts dialog, where an inactive account can be removed.
 
 Eight more preferences follow the account to every device: Markdown, Enter for a new line, hiding membership changes, hiding profile changes, link previews (in rooms without encryption), hiding typing and read receipts, the 24-hour clock and the date format. Settings labels each of them "Your account (all devices)". They are stored in the account's `io.mindroom.client.settings` account data, apart from `io.mindroom.settings`, which other MindRoom clients write too. A change applies at once, also offline, and reaches the homeserver as soon as the device is online; for each setting the last change sent wins. Each time a device starts, it adds its own earlier choices that differ from the defaults wherever the account has no value yet; where the account has one, the account's value wins. Every other setting, such as the theme, zoom, message layout, media loading, link previews in encrypted rooms, notifications, the language, developer tools and error reports, stays on the device. Account data is not encrypted, so the homeserver can read these preferences.
 
@@ -153,7 +153,7 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. Closing either one before the session is verified (Not now, the close button, Escape) keeps it from opening by itself for that account on that browser for 7 days; verifying the session or signing out ends that. The welcome page cards and Settings still offer them. |
+| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. Closing either one before the session is verified (Not now, the close button, Escape) keeps it from opening by itself for that account on that browser for 7 days; verifying the session or signing out ends that. The welcome page notices and Settings still offer them. |
 
 ### Tour
 
@@ -171,12 +171,12 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open). |
-| `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under the heading; also shown in Settings > About. |
-| `welcome.sourceLabel` | string | `Source Code` | Label of the first welcome button. |
-| `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the button. Settings > About always links to the default. |
-| `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |
-| `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the button. |
+| `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open) for an account whose rooms have no agent; with one, the page greets the person by name over a field that asks an agent. |
+| `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under that heading; also shown in Settings > About. |
+| `welcome.sourceLabel` | string | `Source Code` | Label of the Source Code link in the welcome page footer. |
+| `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the link. Settings > About always links to the default. |
+| `welcome.docsLabel` | string | `Docs` | Label of the Docs link in the welcome page footer. |
+| `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the link. |
 | `welcome.poweredBy` | `{label, url}[]` | MindRoom and Matrix | The "Powered by" links on the welcome page. `[]` hides the line. |
 | `splash.loadingMessages` | string[] | `Loading MindRoom` (with `branding.title` for the name), translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
 | `mindroom.thinkingPlaceholderMessages` | string[] | `Making progress`, `Almost there`, `Boosting the GPUs`, `Checking the thread`, `Composing the reply` | Shown in turn, every 3.6 seconds, while an agent's reply still reads `Thinking...`. Blank and non-string entries are skipped; an empty list means the defaults. |

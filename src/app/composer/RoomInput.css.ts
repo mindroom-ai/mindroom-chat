@@ -4,6 +4,20 @@ import { touchTarget } from '../ui/styles/touchTarget';
 /** The composer's icon buttons, 32 px with 4 px between them: 44 px tall and 36 px wide to a finger. */
 export const ComposerIconButton = style(touchTarget('2px'));
 
+/** A picker in the composer's row (Home's agent and room): its choice, then a chevron. */
+export const ComposerPickerButton = style([
+  touchTarget('2px'),
+  {
+    width: 'auto',
+    minWidth: 0,
+    maxWidth: '11.25rem',
+    gap: '0.25rem',
+    paddingInline: '0.375rem',
+    flexShrink: 1,
+    fontSize: '0.875rem',
+  },
+]);
+
 /** Send on a phone, alone beside the text box: 44 px wide to a finger too. */
 export const ComposerLoneButton = style(touchTarget('6px'));
 

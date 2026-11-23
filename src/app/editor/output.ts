@@ -40,6 +40,7 @@ const LINE_BREAK = '<br/>';
 const isMxcUri = (value: string): boolean => value.startsWith('mxc://');
 
 const getMentionHref = (mention: MentionElement): string => {
+  if (mention.href) return mention.href;
   if (mention.id.startsWith('@')) return getMatrixToUser(mention.id);
   if (mention.eventId) return getMatrixToRoomEvent(mention.id, mention.eventId, mention.viaServers);
   return getMatrixToRoom(mention.id, mention.viaServers);

@@ -1,5 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import { createEditor, type Descendant } from 'slate';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMarkdownDecorate } from '../../editor/markdownDecorations';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { getEditedContent, getEditorDocument, isUnchanged } from './MessageEditor';
@@ -22,6 +23,10 @@ const resave = (content: Record<string, unknown>, markdown = true) =>
   );
 
 describe('the content of an edit', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('keeps the message type it is given', () => {
     const editor = editorWith([{ type: 'paragraph', children: [{ text: 'waves again' }] }]);
     expect(getEditedContent(editor, true, 'm.emote', ME)).toEqual({
@@ -141,5 +146,30 @@ describe('the content of an edit', () => {
     const editor = editorWith(getEditorDocument(content, true));
     editor.children = [{ type: 'paragraph', children: [{ text: 'Hello again' }] }];
     expect(isUnchanged(content, getEditedContent(editor, true, 'm.text', ME)!)).toBe(false);
+  });
+
+  it('preserves existing matrix.to room and event hrefs when resaving on native', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    for (const content of [
+      {
+        msgtype: 'm.text',
+        body: 'see #harbor:example.org',
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          'see <a href="https://matrix.to/#/%23harbor:example.org">#harbor:example.org</a>',
+      },
+      {
+        msgtype: 'm.text',
+        body: 'see event',
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          'see <a href="https://matrix.to/#/!harbor:example.org/$e1?via=example.org">event</a>',
+      },
+    ]) {
+      const edited = resave(content);
+      expect(edited).toBeDefined();
+      expect(edited?.formatted_body).toBe(content.formatted_body);
+      expect(isUnchanged(content, edited!)).toBe(true);
+    }
   });
 });

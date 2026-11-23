@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "बंद करें",
-      "invited": "{{user}} को आमंत्रित किया गया।"
+      "invited": "{{user}} को आमंत्रित किया गया।",
+      "giveRoleRights": "{{role}} अधिकार दें",
+      "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
+      "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
+      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -108,6 +113,41 @@
     },
     "textViewer": {
       "close": "बंद करें"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "इवेंट",
+      "metaType": "प्रकार",
+      "metaSender": "प्रेषक",
+      "metaTime": "समय",
+      "badgeEdited": "संपादित",
+      "badgeEncrypted": "एन्क्रिप्टेड",
+      "documentTabsLabel": "इवेंट संस्करण",
+      "tabEvent": "इवेंट",
+      "tabOriginal": "मूल",
+      "tabLatestEdit": "नवीनतम संपादन",
+      "tabDecrypted": "डिक्रिप्टेड",
+      "tabDecryptionError": "डिक्रिप्शन विफल",
+      "tabEncrypted": "एन्क्रिप्टेड",
+      "collapseAll": "समेकित करें",
+      "expandAll": "विस्तार करें",
+      "foldStrings": "स्ट्रिंग मोड़ें",
+      "rawJson": "कच्चा",
+      "filterPlaceholder": "कुंजी या मान फ़िल्टर करें…",
+      "noMatches": "“{{query}}” के लिए कोई मिलान नहीं",
+      "copyField": "{{field}} कॉपी करें",
+      "copyValue": "मान कॉपी करें",
+      "expandNode": "{{name}} विस्तार करें",
+      "collapseNode": "{{name}} समेकित करें",
+      "expandString": "स्ट्रिंग विस्तार करें",
+      "collapseString": "स्ट्रिंग समेकित करें",
+      "matchCount_one": "{{count}} मिलान",
+      "matchCount_other": "{{count}} मिलान",
+      "keyCount_one": "{{count}} कुंजी",
+      "keyCount_other": "{{count}} कुंजियाँ",
+      "itemCount_one": "{{count}} आइटम",
+      "itemCount_other": "{{count}} आइटम",
+      "charCount_one": "{{count}} अक्षर",
+      "charCount_other": "{{count}} अक्षर"
     },
     "invites": {
       "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।"
@@ -253,9 +293,6 @@
       "newIntro": "नया रिकवरी पासवर्ड चुनें। पुराना काम करना बंद कर देगा।",
       "notCached": "इस सेशन के पास सभी एन्क्रिप्शन कुंजियाँ नहीं हैं। इसे अपने रिकवरी पासवर्ड या किसी दूसरे डिवाइस से सत्यापित करें, फिर दोबारा कोशिश करें।",
       "incompleteError": "नया रिकवरी पासवर्ड अभी सभी एन्क्रिप्शन कुंजियों को कवर नहीं करता। फिर कोशिश करें।",
-      "nudgeTitle": "अपने संदेशों को सुरक्षित रखें",
-      "nudgeBody": "एक रिकवरी पासवर्ड सेट करें, ताकि इस ब्राउज़र का डेटा साफ़ करने या नए डिवाइस पर साइन इन करने के बाद भी आप अपनी एन्क्रिप्टेड चैट पढ़ सकें।",
-      "nudgeButton": "रिकवरी पासवर्ड सेट करें",
       "unlockWithPassword": "रिकवरी पासवर्ड से अनलॉक करें",
       "resetLoss": "जो संदेश यह डिवाइस अभी नहीं पढ़ सकता, वे अपठनीय ही रहेंगे। आपके अन्य सेशन को फिर से सत्यापित करना होगा।",
       "setupCheckFailed": "आपका एन्क्रिप्शन सेटअप जाँचा नहीं जा सका।",
@@ -476,6 +513,7 @@
         "close": "कॉल व्यू बंद करें",
         "participants": "कॉल में मौजूद लोग",
         "connecting": "कनेक्ट हो रहा है…",
+        "connectingAnotherCall": "किसी अन्य कॉल से कनेक्ट हो रहा है…",
         "reconnecting": "फिर से कनेक्ट हो रहा है…",
         "ended": "कॉल समाप्त हो गई।",
         "waitingFor": "{{name}} की प्रतीक्षा की जा रही है…",
@@ -605,7 +643,8 @@
     },
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
-      "manageAccounts": "खातों का प्रबंधन"
+      "otherAccounts": "अन्य खाते",
+      "manage": "प्रबंधित करें"
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"
@@ -726,6 +765,9 @@
         "save": "सहेजें",
         "saved": "सहेजा गया",
         "clear": "साफ़ करें",
+        "saveSetting": "{{setting}} सहेजें",
+        "savedSetting": "{{setting}} सहेजा गया",
+        "clearSetting": "{{setting}} साफ़ करें",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "इसे सिर्फ़ वही लोग बदल सकते हैं जिन्हें इस रूम की सेटिंग बदलने की अनुमति है।",
         "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।",
@@ -765,6 +807,11 @@
         "threadSummaryModel": {
           "label": "शीर्षक मॉडल",
           "description": "वह मॉडल जो इस रूम के स्वचालित थ्रेड शीर्षक लिखता है।"
+        },
+        "agentInstructions": {
+          "label": "एजेंट के लिए निर्देश",
+          "description": "इस रूम में जवाब देने वाले हर एजेंट को दिए जाने वाले अतिरिक्त निर्देश। मॉडरेटर इन्हें संपादित कर सकते हैं; इनसे एजेंटों को कोई अतिरिक्त अनुमति नहीं मिलती। रूम में हर कोई इन्हें पढ़ सकता है, और रूम स्टेट एंड-टू-एंड एन्क्रिप्टेड नहीं होता, इसलिए यहाँ कोई गोपनीय जानकारी न डालें।",
+          "placeholder": "उदाहरण: जवाब छोटे रखें और डच में उत्तर दें"
         }
       }
     },
@@ -928,6 +975,30 @@
         "earlier_other": "{{count}} पिछले संदेश",
         "hide_one": "{{count}} संदेश छिपाएँ",
         "hide_other": "{{count}} संदेश छिपाएँ"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} रूम इवेंट",
+        "summary_other": "{{count}} रूम इवेंट",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} रूम इवेंट छिपाएँ",
+        "hide_other": "{{count}} रूम इवेंट छिपाएँ",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} शामिल हुए",
+        "joined_other": "{{count}} शामिल हुए",
+        "left_one": "{{count}} बाहर गए",
+        "left_other": "{{count}} बाहर गए",
+        "invited_one": "{{count}} आमंत्रित",
+        "invited_other": "{{count}} आमंत्रित",
+        "requested_one": "{{count}} ने शामिल होने का अनुरोध किया",
+        "requested_other": "{{count}} ने शामिल होने का अनुरोध किया",
+        "kicked_one": "{{count}} निकाले गए",
+        "kicked_other": "{{count}} निकाले गए",
+        "banned_one": "{{count}} प्रतिबंधित",
+        "banned_other": "{{count}} प्रतिबंधित",
+        "unbanned_one": "{{count}} से प्रतिबंध हटा",
+        "unbanned_other": "{{count}} से प्रतिबंध हटा",
+        "profileChanges_one": "{{count}} प्रोफ़ाइल बदलाव",
+        "profileChanges_other": "{{count}} प्रोफ़ाइल बदलाव"
       },
       "questionCard": {
         "title": "सवाल",
@@ -1715,6 +1786,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} और थ्रेड",
+    "moreThreads_other": "{{count}} और थ्रेड",
     "forMe": "मेरे लिए",
     "forMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं, जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है या जिन्हें आपने पिन किया है",
     "roomForMeHint": "सिर्फ़ वे थ्रेड जिनमें आप हिस्सा लेते हैं या जिनमें किसी एजेंट ने आपकी ओर से पोस्ट किया है",
@@ -1753,6 +1826,67 @@
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",
-    "elsewhereInRoom": "इस रूम में कहीं और"
+    "elsewhereInRoom": "इस रूम में कहीं और",
+    "filterAll": "सभी",
+    "filterLabel": "शेड्यूल किए गए कार्य फ़िल्टर करें",
+    "awaitingShort": "प्रतीक्षारत",
+    "inSeconds": "{{count}}से में",
+    "inMinutes": "{{count}}मि में",
+    "inHours": "{{count}}घं में",
+    "inHoursMinutes": "{{hours}}घं {{minutes}}मि में",
+    "inDays": "{{count}}दि में",
+    "thread": "थ्रेड",
+    "destination": "गंतव्य",
+    "showFullPrompt": "पूरा प्रॉम्प्ट दिखाएं",
+    "showLessPrompt": "कम दिखाएं",
+    "details": "विवरण",
+    "hideDetails": "विवरण छिपाएं",
+    "copyId": "आईडी कॉपी करें",
+    "copied": "कॉपी हो गया",
+    "edit": "संपादित करें",
+    "cancel": "रद्द करें",
+    "cancelConfirm": "क्या इस शेड्यूल किए गए कार्य को रद्द करें?",
+    "keep": "रखें",
+    "cancelTask": "कार्य रद्द करें",
+    "cancelling": "रद्द किया जा रहा है...",
+    "cancelError": "कार्य रद्द नहीं किया जा सका। फिर से प्रयास करें।",
+    "cancellationSent": "रद्दीकरण भेजा गया",
+    "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
+    "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
+  },
+  "home": {
+    "greeting": {
+      "morning": "सुप्रभात, {{name}}",
+      "afternoon": "नमस्ते, {{name}}",
+      "evening": "शुभ संध्या, {{name}}"
+    },
+    "ask": {
+      "placeholder": "{{name}} से कुछ भी पूछें…",
+      "chooseAgent": "चुनें कि कौन जवाब दे",
+      "agentChoice": "{{name}} जवाब देगा",
+      "chooseRoom": "चुनें कि थ्रेड कहाँ शुरू हो",
+      "roomChoice": "{{room}} में",
+      "inRoom": "<avatar/>{{room}} में",
+      "directChat": "सीधी चैट",
+      "startsDirectChat": "{{name}} के साथ चैट शुरू करता है",
+      "startingDirectChat": "{{name}} के साथ चैट शुरू हो रही है…",
+      "directChatFailed": "{{name}} के साथ चैट शुरू नहीं हो सकी। फिर से कोशिश करें।",
+      "waitingForAgent": "{{name}} के चैट में शामिल होने का इंतज़ार…",
+      "notSent": "{{room}} में {{agent}} को नहीं भेजा गया",
+      "chooseAgain": "यह चुनाव अब काम नहीं करता। आपका लिखा हुआ सुरक्षित है: चुनें कि कौन जवाब दे या कहाँ।"
+    },
+    "recent": {
+      "title": "हाल के थ्रेड",
+      "allThreads": "सभी थ्रेड",
+      "unread": "अपठित"
+    },
+    "recovery": {
+      "action": "रिकवरी पासवर्ड सेट करें",
+      "text": "नए डिवाइस पर भी एन्क्रिप्टेड चैट तक पहुँच बनाए रखें।"
+    },
+    "device": {
+      "action": "इस डिवाइस को सत्यापित करें",
+      "text": "तब तक यह आपकी एन्क्रिप्टेड चैट नहीं पढ़ सकता।"
+    }
   }
 }

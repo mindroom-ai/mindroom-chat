@@ -26,8 +26,10 @@ const isBlankLine = (node: Descendant): boolean =>
  * `composeTextMessage` makes no message of. It stops at the first line that holds anything, so
  * it is cheap enough to ask at every change, which composing the message is not.
  */
-export const holdsNoText = (editor: Editor): boolean =>
-  takeMessageCommand(editor.children).document.every(isBlankLine);
+export const holdsNoText = (editor: Editor, parseCommands = true): boolean =>
+  (parseCommands ? takeMessageCommand(editor.children).document : editor.children).every(
+    isBlankLine
+  );
 
 /**
  * The message the composer holds, or undefined when no text is left to send: the plain body,
@@ -38,9 +40,12 @@ export const composeTextMessage = (
   editor: Editor,
   markdown: boolean,
   ownUserId: string | undefined,
-  linkSchemes?: readonly string[]
+  linkSchemes?: readonly string[],
+  parseCommands = true
 ): IContent | undefined => {
-  const { command, document } = takeMessageCommand(editor.children);
+  const { command, document } = parseCommands
+    ? takeMessageCommand(editor.children)
+    : { command: undefined, document: editor.children };
   const msgtype = (command && MSGTYPE_BY_COMMAND.get(command)) ?? MsgType.Text;
   // `/plain` sends what was typed as it is, without reading Markdown in it.
   const readMarkdown = markdown && !sendsAsTyped(command);
@@ -70,4 +75,12 @@ export const composeTextMessage = (
       ? {}
       : { format: 'org.matrix.custom.html', formatted_body: html };
   return { msgtype, body, ...formatted, 'm.mentions': mentions };
+};
+
+/** The message with `userId` among its intentional mentions, as a question to that agent is. */
+export const withMention = (content: IContent, userId: string): IContent => {
+  const mentions = content['m.mentions'] ?? {};
+  const userIds = mentions.user_ids ?? [];
+  if (userIds.includes(userId)) return content;
+  return { ...content, 'm.mentions': { ...mentions, user_ids: [...userIds, userId] } };
 };

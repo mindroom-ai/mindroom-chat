@@ -655,6 +655,36 @@ test('real controls keep focus, editing, playback, and narrow layout', async ({ 
   }
 });
 
+// Outlined rail buttons sit on the opaque rail and use glassSurface for their rim, shadow, and
+// highlight. Leaving backdrop-filter on creates a WebKit backdrop layer that paints over sibling
+// unread badges while the clipped phone navigation drawer slides in.
+test('outlined rail buttons drop backdrop-filter while keeping their glass rim @webkit', async ({
+  page,
+}) => {
+  await page.goto('/e2e/fixtures/glass-surfaces.html?theme=dark');
+  const workspace = page.getByRole('button', { name: 'Open workspace' });
+  await expect(workspace).toBeVisible();
+  await expect(workspace).toHaveCSS('backdrop-filter', 'none');
+  expect(
+    await workspace.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const webkitFilter = style.getPropertyValue('-webkit-backdrop-filter');
+      const rim = getComputedStyle(element, '::before');
+      return {
+        webkitFilter,
+        backgroundImage: style.backgroundImage,
+        rimDisplay: rim.display,
+        rimContent: rim.content,
+      };
+    })
+  ).toEqual({
+    webkitFilter: expect.stringMatching(/^(none|)$/),
+    backgroundImage: expect.stringContaining('radial-gradient('),
+    rimDisplay: expect.not.stringMatching(/^none$/),
+    rimContent: expect.not.stringMatching(/^none$/),
+  });
+});
+
 test('nested page layouts share the outer material while portal menus own a surface', async ({
   page,
 }) => {

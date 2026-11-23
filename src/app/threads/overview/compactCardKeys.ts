@@ -1,7 +1,19 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 /** The button of a Compact room's card that opens its thread. */
-const CARD_SELECTOR = '[data-compact-room-view] [data-thread-root-id]';
+const VIEW_SELECTOR = '[data-compact-room-view]';
+const CARD_SELECTOR = `${VIEW_SELECTOR} [data-thread-root-id]`;
+
+/** The full keyboard order and focus command for each mounted Compact scroller. */
+export const compactCardNavigation = new WeakMap<
+  Element,
+  { ids: readonly string[]; focus: (id: string | undefined, last?: boolean) => boolean }
+>();
+
+export const navigationIn = (root: HTMLElement | null) => {
+  const view = root?.closest(VIEW_SELECTOR) ?? root?.querySelector(VIEW_SELECTOR);
+  return view ? compactCardNavigation.get(view) : undefined;
+};
 
 /**
  * Marks a card the keys focused. A browser shows `:focus-visible` on a script's focus only after
@@ -41,26 +53,26 @@ export const focusedCompactCard = (root?: Node | null): HTMLElement | undefined 
 
 /** The first card below the floating header, which a card scrolled under it is not. */
 const firstCardInView = (cards: readonly HTMLElement[]): HTMLElement | undefined => {
-  const view = cards[0]?.closest('[data-compact-room-view]');
+  const view = cards[0]?.closest(VIEW_SELECTOR);
   if (!view) return cards[0];
   const top =
     view.getBoundingClientRect().top + (parseFloat(getComputedStyle(view).scrollPaddingTop) || 0);
   return cards.find((card) => card.getBoundingClientRect().top >= top - 1) ?? cards[0];
 };
 
-/**
- * Where the focus goes from outside the cards: the card `step` places from the thread just left
- * (that thread's own card at either end, and for no step), or the first card in view when its
- * card does not show.
- */
-export const cardBeside = (
-  cards: readonly HTMLElement[],
-  leftThreadId: string | undefined,
-  step: -1 | 0 | 1
-): HTMLElement | undefined => {
-  const index = cards.findIndex((card) => card.dataset.threadRootId === leftThreadId);
-  if (leftThreadId === undefined || index < 0) return firstCardInView(cards);
-  return cards[index + step] ?? cards[index];
+/** Focuses a logical neighbour, including one outside the mounted window. */
+export const focusCardBeside = (
+  root: HTMLElement | null,
+  id: string | undefined,
+  step: -1 | 0 | 1,
+  exact = false
+): boolean => {
+  const navigation = navigationIn(root);
+  const index = id === undefined ? -1 : navigation?.ids.indexOf(id) ?? -1;
+  if (navigation && index >= 0) {
+    return navigation.focus(navigation.ids[index + step] ?? navigation.ids[index]);
+  }
+  return exact ? false : focusCompactCard(firstCardInView(compactCardsIn(root)));
 };
 
 /**
@@ -71,15 +83,11 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
   if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const { key, target } = event;
   if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'Home' && key !== 'End') return;
-  const cards = compactCardsIn(event.currentTarget);
-  const index = cards.indexOf(target as HTMLElement);
-  if (index < 0) return;
+  const navigation = navigationIn(event.currentTarget);
+  const at = navigation?.ids.indexOf((target as HTMLElement).dataset.threadRootId ?? '') ?? -1;
+  if (!navigation || at < 0 || !compactCardsIn(event.currentTarget).includes(target as HTMLElement))
+    return;
   event.preventDefault();
-  const next = {
-    ArrowUp: cards[index - 1],
-    ArrowDown: cards[index + 1],
-    Home: cards[0],
-    End: cards[cards.length - 1],
-  }[key];
-  focusCompactCard(next);
+  const next = { ArrowUp: at - 1, ArrowDown: at + 1, Home: 0, End: navigation.ids.length - 1 }[key];
+  navigation.focus(navigation.ids[next]);
 };

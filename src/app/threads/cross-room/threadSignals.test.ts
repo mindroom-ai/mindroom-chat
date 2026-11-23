@@ -8,7 +8,10 @@ import {
 } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isEventStreaming } from '../../event-store/threads/useThreadStreamingState';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import type { RegisteredPlugin } from '../../plugins/registry';
 import {
   FINISHED_AFTER_MS,
@@ -470,6 +473,198 @@ describe('readThreadSignals', () => {
     );
     const { room: fast } = await setup(ME, [quick]);
     expect(readThreadSignals(fast, ROOT, ME, NOW).outcome).toBeUndefined();
+  });
+
+  it('reads terminal stream_status outcomes even when early or non-terminal ai_run is present', async () => {
+    const earlyRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+
+    const stoppedStatusless = event({
+      id: '$stop-statusless',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': earlyRun,
+        'io.mindroom.stream_status': 'cancelled',
+      },
+    });
+    const { room: r1 } = await setup(ME, [stoppedStatusless]);
+    expect(readThreadSignals(r1, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+
+    const stoppedWithStreamingRun = event({
+      id: '$stop-streaming-run',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': { ...earlyRun, status: 'streaming' },
+        'io.mindroom.stream_status': 'error',
+      },
+    });
+    const { room: r2 } = await setup(ME, [stoppedWithStreamingRun]);
+    expect(readThreadSignals(r2, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+
+    const finishedWithPendingRun = event({ id: '$finish-pending-run', ts: 2000, sender: AGENT });
+    finishedWithPendingRun.makeReplaced(
+      event({
+        id: '$finish-pending-run-edit',
+        ts: 2000 + FINISHED_AFTER_MS + 10_000,
+        sender: AGENT,
+        content: {
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'Done',
+            'io.mindroom.ai_run': { ...earlyRun, status: 'pending' },
+            'io.mindroom.stream_status': 'completed',
+          },
+        },
+      })
+    );
+    const { room: r3 } = await setup(ME, [finishedWithPendingRun]);
+    expect(readThreadSignals(r3, ROOT, ME, NOW).outcome).toMatchObject({
+      kind: 'finished',
+      durationMs: FINISHED_AFTER_MS + 10_000,
+    });
+
+    const stoppedRecordStatus = event({
+      id: '$stop-record-status',
+      ts: 2000,
+      sender: AGENT,
+      content: {
+        'io.mindroom.ai_run': { ...earlyRun, status: 'streaming' },
+        'io.mindroom.stream_status': { status: 'cancelled' },
+      },
+    });
+    const { room: r4 } = await setup(ME, [stoppedRecordStatus]);
+    expect(readThreadSignals(r4, ROOT, ME, NOW).outcome?.kind).toBe('stopped');
+  });
+
+  // A correction of the text long after a run shows the finished status of an older edit, and
+  // remembers when that edit was sent (`STREAM_STATUS_TS_KEY`): the run ended then.
+  describe('a finished reply whose text is corrected later', () => {
+    /** The outcome of a reply sent at 2000, finished at `finishTs` and corrected at `correctionTs`. */
+    const outcomeOf = async (finishTs: number, correctionTs: number) => {
+      const reply = event({ id: '$corrected-reply', ts: 2000, sender: AGENT });
+      const makeReplace = (id: string, ts: number, newContent: Record<string, unknown>) =>
+        new MatrixEvent({
+          event_id: id,
+          room_id: ROOM_ID,
+          sender: AGENT,
+          type: 'm.room.message',
+          origin_server_ts: ts,
+          content: {
+            msgtype: 'm.text',
+            body: `* ${id}`,
+            'm.new_content': { msgtype: 'm.text', body: id, ...newContent },
+            'm.relates_to': { rel_type: RelationType.Replace, event_id: '$corrected-reply' },
+          },
+        });
+      // The run states no status of its own, so the borrowed stream status gives the outcome.
+      const progressEdit = makeReplace('$progress', 4000, {
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.ai_run': { version: 1, model: { display_name: 'Model' } },
+      });
+      const completedEdit = makeReplace('$completed', finishTs, {
+        'io.mindroom.stream_status': 'completed',
+      });
+      const textOnlyEdit = makeReplace('$typo-fix', correctionTs, { body: 'Fixed a typo.' });
+
+      const { room, thread } = await setup(ME, [reply], { opened: true });
+      [progressEdit, completedEdit, textOnlyEdit].forEach((edit) => {
+        thread.timelineSet.addLiveEvent(edit, { addToState: false });
+      });
+      reply.makeReplaced(textOnlyEdit);
+      return readThreadSignals(room, ROOT, ME, NOW).outcome;
+    };
+
+    it('uses the borrowed stream finish timestamp so a later text-only edit does not inflate a short run', async () => {
+      expect(await outcomeOf(12_000, 2000 + 2 * FINISHED_AFTER_MS)).toBeUndefined();
+    });
+
+    it('finished a long run when its finishing edit was sent, not when its text was corrected', async () => {
+      const finishTs = 2000 + FINISHED_AFTER_MS + 10_000;
+      expect(await outcomeOf(finishTs, finishTs + 10 * FINISHED_AFTER_MS)).toEqual({
+        kind: 'finished',
+        senderId: AGENT,
+        ts: finishTs,
+        durationMs: FINISHED_AFTER_MS + 10_000,
+      });
+    });
+  });
+
+  // The shown edit of a reply borrows the stream status it lacks from an older edit. What reads
+  // the reply must agree on what the borrowed status means: the thread's spinner
+  // (`isEventStreaming`), the reply's own indicator (`isAiRunStreaming`) and the card's outcome.
+  describe('a reply whose shown edit borrows from its older edits', () => {
+    const earlyRun = { 'io.mindroom.ai_run': { version: 1, model: { config: 'gemini4_neon' } } };
+    const streamingRun = { 'io.mindroom.ai_run': { version: 1, status: 'streaming' } };
+    const streamStatus = (status: string) => ({ 'io.mindroom.stream_status': status });
+
+    /** How a reply reads whose opened thread holds edits of these new contents, a minute apart. */
+    const read = async (...newContents: Record<string, unknown>[]) => {
+      const reply = event({ id: '$reply', ts: 2000, sender: AGENT });
+      const { room, thread } = await setup(ME, [reply], { opened: true });
+      const edits = newContents.map(
+        (newContent, index) =>
+          new MatrixEvent({
+            event_id: `$edit-${index}`,
+            room_id: ROOM_ID,
+            sender: AGENT,
+            type: 'm.room.message',
+            origin_server_ts: 2000 + (index + 1) * FINISHED_AFTER_MS,
+            content: {
+              msgtype: 'm.text',
+              body: `* edit ${index}`,
+              'm.new_content': { msgtype: 'm.text', body: `edit ${index}`, ...newContent },
+              'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
+            },
+          })
+      );
+      edits.forEach((edit) => thread.timelineSet.addLiveEvent(edit, { addToState: false }));
+      reply.makeReplaced(edits.at(-1));
+      const shown = getEditedEvent('$reply', reply, thread.timelineSet);
+      return {
+        spinner: isEventStreaming(reply, undefined, thread.timelineSet),
+        indicator: isAiRunStreaming(getLatestMessageContent(reply, shown)),
+        outcome: readThreadSignals(room, ROOT, ME, NOW).outcome?.kind,
+      };
+    };
+    const streams = { spinner: true, indicator: true, outcome: undefined };
+    const rests = (outcome?: 'finished' | 'stopped') => ({
+      spinner: false,
+      indicator: false,
+      outcome,
+    });
+
+    it.each(['cancelled', 'completed', 'approval_pending'])(
+      'streams by the run status of a retry after a %s edit',
+      async (status) => {
+        expect(await read(streamStatus(status), streamingRun)).toEqual(streams);
+      }
+    );
+
+    it('is stopped by a stop note that borrows the streaming run of the edit before it', async () => {
+      expect(await read(streamingRun, streamStatus('cancelled'))).toEqual(rests('stopped'));
+    });
+
+    it.each([
+      ['approval_pending', undefined],
+      ['cancelled', 'stopped'],
+      ['completed', 'finished'],
+    ] as const)(
+      'reads %s beside an early run the same in the edit itself and borrowed by a correction',
+      async (status, outcome) => {
+        const own = { ...earlyRun, ...streamStatus(status) };
+        expect(await read(own)).toEqual(rests(outcome));
+        expect(await read(own, { body: 'Corrected text' })).toEqual(rests(outcome));
+      }
+    );
   });
 
   it('calls an agent thread nobody wrote in an automation', async () => {

@@ -8,6 +8,11 @@ import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
+import {
+  compactCardNavigation,
+  compactCardsIn,
+  focusCompactCard,
+} from '../threads/overview/compactCardKeys';
 import { useThreadKeys } from './useThreadKeys';
 
 const ROOM = '!room:server';
@@ -46,12 +51,26 @@ const mount = (openThreadId?: string, viewMode: RoomViewMode = 'compact') =>
 const press = (id: ShortcutId, init: KeyboardEventInit = {}): boolean =>
   runShortcut(id, new KeyboardEvent('keydown', init));
 
+const registerNavigation = () => {
+  const scroller = area.querySelector('[data-compact-room-view]');
+  if (!scroller) return;
+  const ids = compactCardsIn(scroller)
+    .map((el) => el.dataset.threadRootId)
+    .filter((id): id is string => Boolean(id));
+  compactCardNavigation.set(scroller, {
+    ids,
+    focus: (id) =>
+      focusCompactCard(compactCardsIn(scroller).find((el) => el.dataset.threadRootId === id)),
+  });
+};
+
 beforeEach(() => {
   store = createStore();
   area = document.createElement('div');
   area.innerHTML = `<div data-compact-room-view="true">${['$a', '$b', '$c']
     .map((id) => `<button data-thread-root-id="${id}"></button>`)
     .join('')}</div>`;
+  registerNavigation();
   area.addEventListener('click', (event) =>
     opened((event.target as HTMLElement).dataset.threadRootId)
   );
@@ -75,6 +94,20 @@ describe('useThreadKeys', () => {
     expect(press('previousThread')).toBe(true);
     expect(document.activeElement).toBe(card('$a'));
     expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
+  it('steps beside the open thread even when it and both neighbours are off-window', () => {
+    const scroller = area.querySelector('[data-compact-room-view]')!;
+    const focus = vi.fn(() => true);
+    compactCardNavigation.set(scroller, { ids: ['$a', '$b', '$c', '$d', '$e', '$f'], focus });
+    try {
+      mount('$e');
+      expect(press('nextThread')).toBe(true);
+      expect(press('previousThread')).toBe(true);
+      expect(focus.mock.calls).toEqual([['$f'], ['$d']]);
+    } finally {
+      compactCardNavigation.delete(scroller);
+    }
   });
 
   it('starts beside the thread just left', () => {
@@ -145,11 +178,18 @@ describe('useThreadKeys', () => {
   });
 
   it("moves the focus to the left thread's card from another card beside the thread", () => {
-    const { rerender } = mount('$b');
-    card('$c').focus();
-    expect(press('leaveThread')).toBe(true);
-    rerender({ threadId: undefined });
-    expect(document.activeElement).toBe(card('$b'));
+    const scroller = area.querySelector('[data-compact-room-view]')!;
+    const focus = vi.fn(() => true);
+    compactCardNavigation.set(scroller, { ids: ['$a', '$b', '$c'], focus });
+    try {
+      const { rerender } = mount('$b');
+      card('$c').focus();
+      expect(press('leaveThread')).toBe(true);
+      rerender({ threadId: undefined });
+      expect(focus).toHaveBeenCalledWith('$b');
+    } finally {
+      compactCardNavigation.delete(scroller);
+    }
   });
 
   it('leaves the focus alone when the reader moved it before the thread closed', () => {
@@ -182,6 +222,7 @@ describe('useThreadKeys', () => {
       leave();
       expect(otherwise).not.toHaveBeenCalled();
       area.innerHTML = cards;
+      registerNavigation();
       await Promise.resolve();
       expect(document.activeElement).toBe(card('$b'));
       expect(otherwise).not.toHaveBeenCalled();
@@ -191,6 +232,7 @@ describe('useThreadKeys', () => {
       leave();
       area.innerHTML =
         '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>';
+      registerNavigation();
       expect(otherwise).not.toHaveBeenCalled();
       await Promise.resolve();
       expect(otherwise).toHaveBeenCalledTimes(1);
@@ -203,6 +245,7 @@ describe('useThreadKeys', () => {
       leave();
       search.focus();
       area.innerHTML = cards;
+      registerNavigation();
       await Promise.resolve();
       expect(document.activeElement).toBe(search);
       expect(otherwise).toHaveBeenCalledTimes(1);

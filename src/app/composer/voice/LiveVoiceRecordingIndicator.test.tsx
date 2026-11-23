@@ -332,6 +332,9 @@ describe('LiveVoiceRecordingIndicator', () => {
     // is out of sight for as long as it does.
     rerender(page('drawer'));
     expect(screen.getByTestId('drawer').contains(pill())).toBe(true);
+    // Marked as a notice that moves there: a rail-only drawer opens on release for it
+    // (sidebar/PhoneNavDrawer.tsx).
+    expect(pill()?.hasAttribute('data-cover-notice')).toBe(true);
     rerender(page('sheet'));
     expect(screen.getByTestId('sheet').contains(pill())).toBe(true);
     rerender(page());

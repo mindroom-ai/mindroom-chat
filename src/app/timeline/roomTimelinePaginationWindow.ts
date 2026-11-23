@@ -72,6 +72,42 @@ export const useWindowKeepsNewestRow = ({
 };
 
 /**
+ * The room's rows list a closed fold as one row (`RoomRowProjection`), and a window that the
+ * state counts into a closed fold shows the fold whole: a page of history brought earlier events
+ * of the run the window starts with, or a fold closed over a window's edge. The state then
+ * follows the window shown, so what counts on from it (a live row grown in at its end) counts
+ * from the rows on screen, and a fold that opens has its rows in the window.
+ *
+ * The window shown is the state's, or the newest rows where the state's no longer fits the rows
+ * (`getVisibleTimelineRange`: a row left the room's rows): the state follows from either.
+ */
+export const useWindowHoldsWholeFolds = ({
+  timeline,
+  roomWindow,
+  stateRange,
+  loadedRange,
+  setTimeline,
+}: {
+  timeline: Timeline;
+  /** The room's own window is shown: not a thread's rows, nor a filtered overview's. */
+  roomWindow: boolean;
+  /** The window the state counts, in loaded rows, and the loaded rows of the window shown. */
+  stateRange: ItemRange;
+  loadedRange: ItemRange;
+  setTimeline: SetTimeline;
+}) => {
+  useLayoutEffect(() => {
+    // The window shown is the state's own object while it holds the same rows.
+    if (!roomWindow || loadedRange === stateRange) return;
+    // Unless the state moved meanwhile (the classic view placed its window): it shows next.
+    const stored = timeline.range;
+    setTimeline((current) =>
+      current.range === stored ? { ...current, range: loadedRange } : current
+    );
+  }, [loadedRange, roomWindow, setTimeline, stateRange, timeline.range]);
+};
+
+/**
  * Shows the chain a limited sync's relink rebuilt, unless it holds no row: a server can mark a
  * room's timeline limited for events the view hides (a member's new name while membership changes
  * are hidden), and the new live timeline alone then shows nothing. The view keeps its rows while
@@ -208,10 +244,18 @@ export const useRoomRowRemoval = ({
 
 type RoomRowFoldPrice = (key: string | number | bigint, index: number) => number;
 
+/** The ID of the event at the end of the loaded chain that a page towards `back` adds to. */
+const loadedEdgeEventId = (timeline: EventTimeline, back: boolean): string | undefined => {
+  const chain = getLinkedTimelines(timeline);
+  const events = (back ? chain[0] : chain.at(-1))?.getEvents();
+  return (back ? events?.[0] : events?.at(-1))?.getId();
+};
+
 /**
  * The paginator of the room's window. Rows mounted above the reader put their height into the
  * offset ledger (`pendingRoomFoldPxRef`, priced by `roomFoldPriceRef`), so the rows on screen stay
- * where they are, and reaching either end of the window loads more of the room.
+ * where they are, and reaching either end of the window loads more of the room. It counts in the
+ * room's rows; the state takes each window in loaded rows (`loadedRangeOfRef`).
  */
 export const useRoomWindowPaginator = ({
   alive,
@@ -219,8 +263,10 @@ export const useRoomWindowPaginator = ({
   roomRowsRef,
   activeTimelineRange,
   activeRangeRef,
+  loadedRangeOfRef,
   threadIdRef,
   firstRoomTimelineRef,
+  lastRoomTimelineRef,
   scrollRef,
   setTimeline,
   paginateRoom,
@@ -235,8 +281,11 @@ export const useRoomWindowPaginator = ({
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
   activeTimelineRange: ItemRange;
   activeRangeRef: MutableRefObject<ItemRange>;
+  /** The loaded rows that a window of the room's rows stands for. */
+  loadedRangeOfRef: MutableRefObject<(rowRange: ItemRange) => ItemRange>;
   threadIdRef: MutableRefObject<string | undefined>;
   firstRoomTimelineRef: MutableRefObject<EventTimeline | undefined>;
+  lastRoomTimelineRef: MutableRefObject<EventTimeline | undefined>;
   scrollRef: MutableRefObject<HTMLElement | null>;
   setTimeline: SetTimeline;
   paginateRoom: (back: boolean) => Promise<void>;
@@ -271,15 +320,17 @@ export const useRoomWindowPaginator = ({
       // widened. When another window was set after that render (the newest row kept, a live row
       // grown in), the page would undo it and drop rows the reader sees: it is dropped, and the
       // paginator looks at the sentinels again once that window renders.
-      const widened = pagedFrom && next.end > pagedFrom.end ? pagedFrom : undefined;
+      const loadedRangeOf = loadedRangeOfRef.current;
+      const widened = pagedFrom && next.end > pagedFrom.end ? loadedRangeOf(pagedFrom) : undefined;
+      const range = loadedRangeOf(next);
       setTimeline((currentTimeline) =>
         widened &&
         (currentTimeline.range.start !== widened.start || currentTimeline.range.end !== widened.end)
           ? currentTimeline
-          : { ...currentTimeline, range: next }
+          : { ...currentTimeline, range }
       );
     },
-    [activeRangeRef, roomRowsRef, setTimeline, threadIdRef]
+    [activeRangeRef, loadedRangeOfRef, roomRowsRef, setTimeline, threadIdRef]
   );
   const getRoomRowElement = useCallback(
     (index: number) =>
@@ -292,10 +343,18 @@ export const useRoomWindowPaginator = ({
   // or reached the room's start) leaves the window as it was: nothing else would show the room's
   // start or drop the sentinel, and the paginator, which follows window changes, would not ask
   // again while it stays in view. Each such page renders again and checks the sentinel once more.
+  // So does a page that loaded events and left its token: a page from the cache that has no
+  // token of its own keeps the room's, and its events can all go into the closed fold the rows
+  // start with, which stays one row.
   // So does a page whose chain a limited sync replaced while it ran: the page asked for the new
   // chain meanwhile waited for it instead of running, and the new chain may hold only hidden
   // events, which leaves the room blank.
-  const [roomBackPage, setRoomBackPage] = useState<{
+  // A page of newer events that adds no row to the room's rows leaves the window as it was, too:
+  // one that only moved the room's forward token, or one whose events all went into the closed
+  // fold the rows end with, which stays one row. Its sentinel is checked once more as well.
+  // A page that neither moved its token nor loaded an event (it failed, or the room has no more)
+  // is not asked for again by itself, in either direction.
+  const [settledRoomPage, setSettledRoomPage] = useState<{
     rowsBefore: number;
     chainReplaced: boolean;
   }>();
@@ -306,8 +365,10 @@ export const useRoomWindowPaginator = ({
   const backPageRef = useRef<{ page: Promise<void>; joined: boolean }>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
-      const edge = back ? firstRoomTimelineRef.current : undefined;
-      const tokenBefore = edge?.getPaginationToken(Direction.Backward);
+      const edge = back ? firstRoomTimelineRef.current : lastRoomTimelineRef.current;
+      const direction = back ? Direction.Backward : Direction.Forward;
+      const tokenBefore = edge?.getPaginationToken(direction);
+      const edgeEventBefore = edge && loadedEdgeEventId(edge, back);
       const rowsBefore = roomRowsRef.current.length;
       const page = paginateRoom(back);
       if (back && backPageRef.current?.page === page) {
@@ -318,18 +379,24 @@ export const useRoomWindowPaginator = ({
       if (backPage) backPageRef.current = backPage;
       void page.then(() => {
         if (!edge || !alive()) return;
+        const progressed =
+          edge.getPaginationToken(direction) !== tokenBefore ||
+          loadedEdgeEventId(edge, back) !== edgeEventBefore;
+        if (!back) {
+          if (progressed) setSettledRoomPage({ rowsBefore, chainReplaced: false });
+          return;
+        }
         const shown = firstRoomTimelineRef.current;
         const chainReplaced = !!shown && !getLinkedTimelines(shown).includes(edge);
         const joined = !!backPage?.joined;
-        const tokenMoved = edge.getPaginationToken(Direction.Backward) !== tokenBefore;
-        if (!chainReplaced && !tokenMoved && !joined) return;
-        setRoomBackPage({
+        if (!chainReplaced && !progressed && !joined) return;
+        setSettledRoomPage({
           rowsBefore: joined ? roomRowsRef.current.length : rowsBefore,
           chainReplaced,
         });
       });
     },
-    [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
+    [alive, firstRoomTimelineRef, lastRoomTimelineRef, paginateRoom, roomRowsRef]
   );
   const shouldSuppressPagination = useCallback(
     () => suppressFocusPaginationRef.current,
@@ -353,26 +420,26 @@ export const useRoomWindowPaginator = ({
     pendingRoomFoldPxRef,
     roomFoldWindowRef,
     roomFoldPriceRef,
-    roomBackPage,
+    settledRoomPage,
     getRoomRowElement,
   };
 };
 
 /**
- * A back page that added no rows, or that went to a chain the room no longer shows, asks the
- * paginator again; one with rows moved the window.
+ * A page that added no row to the room's rows, or a back page that went to a chain the room no
+ * longer shows, asks the paginator again; one with rows moved the window.
  */
-export const useRetryAfterEmptyBackPage = (
-  roomBackPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
+export const useRetryAfterPageWithoutRows = (
+  settledRoomPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
   roomRowsRef: MutableRefObject<MatrixEvent[]>,
   retryPagination: () => void
 ) => {
   useLayoutEffect(() => {
-    if (!roomBackPage) return;
+    if (!settledRoomPage) return;
     // A page that added rows moved the window, and the paginator carries on from there.
-    if (roomBackPage.chainReplaced || roomRowsRef.current.length === roomBackPage.rowsBefore)
+    if (settledRoomPage.chainReplaced || roomRowsRef.current.length === settledRoomPage.rowsBefore)
       retryPagination();
-  }, [retryPagination, roomBackPage, roomRowsRef]);
+  }, [retryPagination, settledRoomPage, roomRowsRef]);
 };
 
 /**

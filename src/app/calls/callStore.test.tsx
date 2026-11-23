@@ -5,9 +5,12 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   activeCallAtom,
   callPanelRoomAtom,
+  callStartingAtom,
   callStartProblemAtom,
   callViewStateAtom,
+  ENGINE_LOAD_TIMEOUT_MS,
   forgetCallState,
+  MEMBERS_LOAD_TIMEOUT_MS,
   noteCallStart,
   useCallActions,
   useInCall,
@@ -305,6 +308,62 @@ describe('useCallActions startCall', () => {
       getLiveTimeline: () => ({ getEvents: () => [] }),
     } as unknown as Room);
 
+  it('gives up as failed when loading the call engine stalls, then starts on retry once it loads', async () => {
+    vi.useFakeTimers();
+    const locks = fakeWebLocks();
+    vi.stubGlobal('navigator', { locks });
+    let resolveEngine!: () => void;
+    const pendingEngine = new Promise<void>((resolve) => {
+      resolveEngine = resolve;
+    });
+    vi.resetModules();
+    vi.doMock('./RoomCall', async () => {
+      await pendingEngine;
+      return { RoomCall: FakeRoomCall };
+    });
+    const fresh = await import('./callStore');
+    const store = createStore();
+    const onEnded = vi.fn(async () => undefined);
+    const prepare = vi.fn(async () => undefined);
+    const actions = actionsIn(store, runningClient(), fresh.useCallActions);
+    try {
+      let result: string | undefined;
+      const starting = actions
+        .startCall({ room: loadedRoom(), kind: 'agent', prepare, onEnded })
+        .then((value) => {
+          result = value;
+        });
+      await vi.advanceTimersByTimeAsync(ENGINE_LOAD_TIMEOUT_MS);
+      await Promise.resolve();
+
+      expect(result).toBe('failed');
+      expect(store.get(fresh.activeCallAtom)).toBeUndefined();
+      expect(store.get(fresh.callStartingAtom)).toBeUndefined();
+      expect(onEnded).toHaveBeenCalledTimes(1);
+      await starting;
+      expect((await locks.query()).held).toEqual([]);
+
+      // Same store and atoms: the retry reuses the in-flight import(), now resolved.
+      resolveEngine();
+      vi.useRealTimers();
+      await expect(actions.startCall({ room: loadedRoom(), kind: 'room' })).resolves.toBe(
+        'started'
+      );
+      expect(store.get(fresh.callStartingAtom)).toBeUndefined();
+      const call = store.get(fresh.activeCallAtom)?.call as unknown as {
+        releaseDeviceLock?: () => void;
+      };
+      call.releaseDeviceLock?.();
+    } finally {
+      resolveEngine();
+      vi.doMock('./RoomCall', () => {
+        if (engine.missing) throw new Error('Failed to fetch dynamically imported module');
+        return { RoomCall: FakeRoomCall };
+      });
+      vi.useRealTimers();
+    }
+  });
+
   it("asks for the call service's grant while the call is prepared, and hands it to the call", async () => {
     const store = createStore();
     const mx = runningClient();
@@ -362,9 +421,11 @@ describe('useCallActions startCall', () => {
     const store = createStore();
     const { room, finishLoading } = slowRoom();
     const starting = actionsIn(store, runningClient()).startCall({ room, kind: 'room' });
+    expect(store.get(callStartingAtom)).toEqual({ roomId: room.roomId, originRoomId: undefined });
     await finishLoading();
 
     await expect(starting).resolves.toBe('started');
+    expect(store.get(callStartingAtom)).toBeUndefined();
     expect(store.get(activeCallAtom)?.call.room).toBe(room);
   });
 
@@ -595,6 +656,80 @@ describe('useCallActions startCall', () => {
       expect(onEnded).toHaveBeenCalledTimes(1);
     }
   );
+
+  it('gives up as failed when loading room members stalls, then starts on retry once loaded', async () => {
+    vi.useFakeTimers();
+    const locks = fakeWebLocks();
+    vi.stubGlobal('navigator', { locks });
+    let resolveMembers!: () => void;
+    const membersPromise = new Promise<void>((resolve) => {
+      resolveMembers = resolve;
+    });
+    const room = {
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded: () => membersPromise,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room;
+    const store = createStore();
+    const actions = actionsIn(store, runningClient());
+    try {
+      let result: string | undefined;
+      const starting = actions.startCall({ room, kind: 'room' }).then((value) => {
+        result = value;
+      });
+      await vi.advanceTimersByTimeAsync(MEMBERS_LOAD_TIMEOUT_MS - 1);
+      await Promise.resolve();
+      expect(result).toBeUndefined();
+      expect(store.get(callStartingAtom)).toEqual({ roomId: room.roomId, originRoomId: undefined });
+
+      await vi.advanceTimersByTimeAsync(1);
+      await Promise.resolve();
+
+      expect(result).toBe('failed');
+      expect(store.get(activeCallAtom)).toBeUndefined();
+      expect(store.get(callStartingAtom)).toBeUndefined();
+      await starting;
+      expect((await locks.query()).held).toEqual([]);
+
+      resolveMembers();
+      vi.useRealTimers();
+      await expect(actions.startCall({ room, kind: 'room' })).resolves.toBe('started');
+      expect(store.get(callStartingAtom)).toBeUndefined();
+      expect(store.get(activeCallAtom)?.call.room).toBe(room);
+      const call = store.get(activeCallAtom)?.call as unknown as { releaseDeviceLock?: () => void };
+      call.releaseDeviceLock?.();
+    } finally {
+      resolveMembers();
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up as failed when loading room members rejects, and starts once a retry succeeds', async () => {
+    const locks = fakeWebLocks();
+    vi.stubGlobal('navigator', { locks });
+    const loadMembersIfNeeded = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(undefined);
+    const room = {
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room;
+    const store = createStore();
+    const actions = actionsIn(store, runningClient());
+
+    await expect(actions.startCall({ room, kind: 'room' })).resolves.toBe('failed');
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    expect(store.get(callStartingAtom)).toBeUndefined();
+    await settleLocks();
+    expect((await locks.query()).held).toEqual([]);
+
+    await expect(actions.startCall({ room, kind: 'room' })).resolves.toBe('started');
+    expect(store.get(activeCallAtom)?.call.room).toBe(room);
+    const call = store.get(activeCallAtom)?.call as unknown as { releaseDeviceLock?: () => void };
+    call.releaseDeviceLock?.();
+  });
 });
 
 describe('noteCallStart', () => {

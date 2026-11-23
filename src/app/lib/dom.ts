@@ -30,31 +30,53 @@ const copyWithBrowserClipboard = async (text: string): Promise<boolean> => {
 };
 
 // The pre-Clipboard API way: select the text in a hidden field and run the copy command.
-const copyWithSelection = (text: string): boolean => {
+const copyWithSelection = (text: string, container?: Element | null): boolean => {
   if (typeof document === 'undefined' || !document.body) return false;
-  const input = document.createElement('input');
-  input.setAttribute('data-clipboard-fallback', '');
-  input.setAttribute('aria-hidden', 'true');
-  input.readOnly = true;
-  input.value = text;
-  // eslint-disable-next-line no-restricted-syntax -- off screen; either edge hides it
-  Object.assign(input.style, { position: 'fixed', top: '0', left: '-9999px', opacity: '0' });
-  document.body.appendChild(input);
+  const previouslyFocused =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const mountTarget =
+    container?.closest('[role="dialog"]') ??
+    previouslyFocused?.closest('[role="dialog"]') ??
+    document.body;
+  const field = document.createElement('textarea');
+  field.setAttribute('data-clipboard-fallback', '');
+  field.setAttribute('aria-hidden', 'true');
+  field.readOnly = true;
+  field.value = text;
+  if (field.value !== text) return false;
+  Object.assign(field.style, {
+    position: 'fixed',
+    top: '0',
+    insetInlineStart: '0',
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
+  mountTarget.appendChild(field);
   try {
-    input.select();
+    field.focus({ preventScroll: true });
+    field.select();
+    if (document.activeElement !== field) return false;
     return document.execCommand('copy');
   } catch {
     return false;
   } finally {
-    input.remove();
+    field.remove();
+    if (previouslyFocused?.isConnected && document.activeElement !== previouslyFocused) {
+      previouslyFocused.focus({ preventScroll: true });
+    }
   }
 };
 
 /** Copies text with the first clipboard that works: native, browser, then the copy command. */
-export const copyToClipboard = async (text: string): Promise<boolean> => {
+export const copyToClipboard = async (
+  text: string,
+  container?: Element | null
+): Promise<boolean> => {
   if (await copyWithNativeClipboard(text)) return true;
   if (await copyWithBrowserClipboard(text)) return true;
-  return copyWithSelection(text);
+  return copyWithSelection(text, container);
 };
 
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);

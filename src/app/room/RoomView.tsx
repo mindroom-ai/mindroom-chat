@@ -195,6 +195,13 @@ export function RoomView({
     if (!columnFills) ReactEditor.focus(editor);
     else focusColumn.current?.();
   }, [columnFills, editor]);
+  const focusScheduleComposer = useCallback(
+    (targetThreadId?: string) => {
+      if (targetThreadId) focusColumn.current?.();
+      else ReactEditor.focus(editor);
+    },
+    [editor]
+  );
   useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
@@ -337,6 +344,8 @@ export function RoomView({
               hasMindroomAgents={hasMindroomAgents}
               openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
+              onFocusComposer={focusScheduleComposer}
+              canEditSchedule={composerShown && !hidden}
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -388,6 +397,7 @@ export function RoomView({
                     hasMindroomAgents={hasMindroomAgents}
                     threadId={openThreadId}
                     threadFilterState={threadState.threadFilterState}
+                    canEditSchedule={false}
                     {...headerProps}
                   />
                 )}
@@ -427,6 +437,10 @@ export function RoomView({
                             hasMindroomAgents={hasMindroomAgents}
                             threadId={openThreadId}
                             threadFilterState={threadState.threadFilterState}
+                            onFocusComposer={focusScheduleComposer}
+                            canEditSchedule={
+                              composerShown && !isConfirmedMatrixEventId(forkAt) && !behindPanel
+                            }
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

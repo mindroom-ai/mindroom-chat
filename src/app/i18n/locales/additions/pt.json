@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Fechar",
-      "invited": "{{user}} foi convidado."
+      "invited": "{{user}} foi convidado.",
+      "giveRoleRights": "Conceder permissões de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requer permissões de {{role}} para recolher transcrições de voz e gerenciar agendamentos e configurações da sala.",
+      "roleFailed": "{{user}} foi convidado, mas não foi possível conceder permissões de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala agora requer permissões de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Fechar",
@@ -111,6 +116,45 @@
     },
     "textViewer": {
       "close": "Fechar"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Evento",
+      "metaType": "Tipo",
+      "metaSender": "Remetente",
+      "metaTime": "Hora",
+      "badgeEdited": "Editado",
+      "badgeEncrypted": "Criptografado",
+      "documentTabsLabel": "Versões do evento",
+      "tabEvent": "Evento",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Última edição",
+      "tabDecrypted": "Descriptografado",
+      "tabDecryptionError": "Falha na descriptografia",
+      "tabEncrypted": "Criptografado",
+      "collapseAll": "Recolher",
+      "expandAll": "Expandir",
+      "foldStrings": "Dobrar strings",
+      "rawJson": "Bruto",
+      "filterPlaceholder": "Filtrar chaves ou valores…",
+      "noMatches": "Nenhuma correspondência para “{{query}}”",
+      "copyField": "Copiar {{field}}",
+      "copyValue": "Copiar valor",
+      "expandNode": "Expandir {{name}}",
+      "collapseNode": "Recolher {{name}}",
+      "expandString": "Expandir string",
+      "collapseString": "Recolher string",
+      "matchCount_one": "{{count}} correspondência",
+      "matchCount_many": "{{count}} correspondências",
+      "matchCount_other": "{{count}} correspondências",
+      "keyCount_one": "{{count}} chave",
+      "keyCount_many": "{{count}} chaves",
+      "keyCount_other": "{{count}} chaves",
+      "itemCount_one": "{{count}} item",
+      "itemCount_many": "{{count}} itens",
+      "itemCount_other": "{{count}} itens",
+      "charCount_one": "{{count}} caractere",
+      "charCount_many": "{{count}} caracteres",
+      "charCount_other": "{{count}} caracteres"
     },
     "invites": {
       "actionFailed": "Ocorreu um erro. Tente novamente."
@@ -257,9 +301,6 @@
       "newIntro": "Escolhe uma nova senha de recuperação. A antiga deixa de funcionar.",
       "notCached": "Esta sessão não tem todas as chaves de cifragem. Verifique-a com a sua senha de recuperação ou com outro dispositivo e tente novamente.",
       "incompleteError": "A nova senha de recuperação ainda não cobre todas as chaves de cifragem. Tenta novamente.",
-      "nudgeTitle": "Proteja as suas mensagens",
-      "nudgeBody": "Defina uma senha de recuperação para continuar a ler as suas conversas cifradas depois de limpar este navegador ou iniciar sessão num novo dispositivo.",
-      "nudgeButton": "Configurar senha de recuperação",
       "unlockWithPassword": "Desbloquear com a senha de recuperação",
       "resetLoss": "As mensagens que este dispositivo não consegue ler agora continuarão ilegíveis. As suas outras sessões precisarão ser verificadas novamente.",
       "setupCheckFailed": "Não foi possível verificar a configuração da sua cifragem.",
@@ -485,6 +526,7 @@
         "close": "Fechar a visão da chamada",
         "participants": "Pessoas na chamada",
         "connecting": "A ligar…",
+        "connectingAnotherCall": "A ligar a outra chamada…",
         "reconnecting": "A restabelecer a ligação…",
         "ended": "A chamada terminou.",
         "waitingFor": "À espera de {{name}}…",
@@ -618,7 +660,8 @@
     },
     "accountMenu": {
       "open": "Abrir o menu da conta de {{name}}",
-      "manageAccounts": "Gerir contas"
+      "otherAccounts": "Outras contas",
+      "manage": "Gerir"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de A a Z"
@@ -739,6 +782,9 @@
         "save": "Guardar",
         "saved": "Guardado",
         "clear": "Limpar",
+        "saveSetting": "Guardar {{setting}}",
+        "savedSetting": "Guardado: {{setting}}",
+        "clearSetting": "Limpar {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Só quem pode alterar as definições desta sala pode editar isto.",
         "saveFailed": "Não foi possível guardar a definição. Tente novamente.",
@@ -778,6 +824,11 @@
         "threadSummaryModel": {
           "label": "Modelo de títulos",
           "description": "Modelo que escreve os títulos automáticos dos tópicos desta sala."
+        },
+        "agentInstructions": {
+          "label": "Instruções para agentes",
+          "description": "Instruções adicionais fornecidas a cada agente que responde nesta sala. Moderadores podem editá-las; elas não concedem permissões adicionais aos agentes. Todos na sala podem lê-las e o estado da sala não tem encriptação ponto a ponto, por isso não coloque segredos aqui.",
+          "placeholder": "Por exemplo: mantenha as respostas curtas e responda em neerlandês"
         }
       }
     },
@@ -945,6 +996,40 @@
         "hide_one": "Ocultar {{count}} mensagem",
         "hide_many": "Ocultar {{count}} mensagens",
         "hide_other": "Ocultar {{count}} mensagens"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} evento da sala",
+        "summary_many": "{{count}} eventos da sala",
+        "summary_other": "{{count}} eventos da sala",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Ocultar {{count}} evento da sala",
+        "hide_many": "Ocultar {{count}} eventos da sala",
+        "hide_other": "Ocultar {{count}} eventos da sala",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} entrou",
+        "joined_many": "{{count}} entraram",
+        "joined_other": "{{count}} entraram",
+        "left_one": "{{count}} saiu",
+        "left_many": "{{count}} saíram",
+        "left_other": "{{count}} saíram",
+        "invited_one": "{{count}} convidado",
+        "invited_many": "{{count}} convidados",
+        "invited_other": "{{count}} convidados",
+        "requested_one": "{{count}} pediu para entrar",
+        "requested_many": "{{count}} pediram para entrar",
+        "requested_other": "{{count}} pediram para entrar",
+        "kicked_one": "{{count}} expulso",
+        "kicked_many": "{{count}} expulsos",
+        "kicked_other": "{{count}} expulsos",
+        "banned_one": "{{count}} banido",
+        "banned_many": "{{count}} banidos",
+        "banned_other": "{{count}} banidos",
+        "unbanned_one": "{{count}} desbanido",
+        "unbanned_many": "{{count}} desbanidos",
+        "unbanned_other": "{{count}} desbanidos",
+        "profileChanges_one": "{{count}} alteração de perfil",
+        "profileChanges_many": "{{count}} alterações de perfil",
+        "profileChanges_other": "{{count}} alterações de perfil"
       },
       "questionCard": {
         "title": "Pergunta",
@@ -1755,6 +1840,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "Mais {{count}} tópico",
+    "moreThreads_many": "Mais {{count}} de tópicos",
+    "moreThreads_other": "Mais {{count}} tópicos",
     "forMe": "Para mim",
     "forMeHint": "Apenas tópicos em que participa, em que um agente publicou em seu nome ou que fixou",
     "roomForMeHint": "Apenas tópicos em que participa ou em que um agente publicou em seu nome",
@@ -1797,6 +1885,67 @@
   },
   "roomSchedules": {
     "thisThread": "Este tópico",
-    "elsewhereInRoom": "Em outras partes desta sala"
+    "elsewhereInRoom": "Em outras partes desta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tarefas agendadas",
+    "awaitingShort": "Aguardando",
+    "inSeconds": "em {{count}}s",
+    "inMinutes": "em {{count}}m",
+    "inHours": "em {{count}}h",
+    "inHoursMinutes": "em {{hours}}h {{minutes}}m",
+    "inDays": "em {{count}}d",
+    "thread": "Tópico",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalhes",
+    "hideDetails": "Ocultar detalhes",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "Cancelar esta tarefa agendada?",
+    "keep": "Manter",
+    "cancelTask": "Cancelar tarefa",
+    "cancelling": "Cancelando...",
+    "cancelError": "Não foi possível cancelar a tarefa. Tente novamente.",
+    "cancellationSent": "Cancelamento enviado",
+    "editDraftBusy": "Limpe o rascunho atual antes de editar este agendamento.",
+    "copyFailed": "Não foi possível copiar. Selecione o ID da tarefa em Detalhes."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Bom dia, {{name}}",
+      "afternoon": "Boa tarde, {{name}}",
+      "evening": "Boa noite, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Pergunte qualquer coisa a {{name}}…",
+      "chooseAgent": "Escolher quem responde",
+      "agentChoice": "{{name}} responde",
+      "chooseRoom": "Escolher onde a conversa começa",
+      "roomChoice": "Em {{room}}",
+      "inRoom": "em <avatar/>{{room}}",
+      "directChat": "Conversa direta",
+      "startsDirectChat": "Inicia uma conversa com {{name}}",
+      "startingDirectChat": "Iniciando uma conversa com {{name}}…",
+      "directChatFailed": "Não foi possível iniciar uma conversa com {{name}}. Tente novamente.",
+      "waitingForAgent": "Aguardando {{name}} entrar no chat…",
+      "notSent": "Não enviado para {{agent}} em {{room}}",
+      "chooseAgain": "Essa escolha não funciona mais. Seu texto foi mantido: escolha quem responde, ou onde."
+    },
+    "recent": {
+      "title": "Conversas recentes",
+      "allThreads": "Todas as conversas",
+      "unread": "Não lida"
+    },
+    "recovery": {
+      "action": "Definir uma senha de recuperação",
+      "text": "Mantenha o acesso às conversas criptografadas em um novo dispositivo."
+    },
+    "device": {
+      "action": "Verificar este dispositivo",
+      "text": "Até lá, ele não consegue ler suas conversas criptografadas."
+    }
   }
 }

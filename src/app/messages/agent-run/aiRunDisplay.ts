@@ -6,6 +6,7 @@ import {
   type AiRunTokenCounts,
   type AiRunTokenKind,
 } from '../../matrix/protocol/aiRun';
+import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 
 export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
@@ -166,4 +167,26 @@ export const getAiRunContextBarSegments = (
       percentage: (displayedUncachedTokens / windowTokens) * 100,
     },
   ];
+};
+
+/** Statuses that ReplyDetails displays as a flagged status badge in its header. */
+export const isFlaggedAiRunStatus = (status: string | undefined): status is 'error' | 'cancelled' =>
+  status === 'error' || status === 'cancelled';
+
+/** True iff ReplyDetails renders at least one section for `info`. */
+export const hasRenderableAiRunDetails = (info: AiRunInfo): boolean => {
+  const status = info.status?.toLowerCase();
+  return Boolean(
+    getAiRunCompactModelLabel(info) ||
+      isFlaggedAiRunStatus(status) ||
+      info.costUsd !== undefined ||
+      info.subagentsCostUsd !== undefined ||
+      getAiRunTokenParts(info) ||
+      getAiRunContextLabel(info) ||
+      info.toolCount !== undefined ||
+      formatAiRunTimeToFirstToken(info.timeToFirstToken) ||
+      info.modelConfig ||
+      info.runId ||
+      info.sessionId
+  );
 };
