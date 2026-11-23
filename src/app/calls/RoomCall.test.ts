@@ -2731,6 +2731,36 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState().participants[0]?.video).toBeUndefined();
   });
 
+  it.each([
+    ['camera', 'setCamera', 'setCameraEnabled', 'cameraStopped'],
+    ['microphone', 'setMicrophone', 'setMicrophoneEnabled', 'microphoneStopped'],
+  ] as const)(
+    'keeps the stopped %s notice when Turn back on fails, until capture succeeds',
+    async (kind, turnOn, enable, stopped) => {
+      const { call } = setup({ microphone: true, video: true });
+      await call.join();
+      const media = onlyMediaRoom();
+      const pub = publicationOf(media, kind);
+      pub.track.mediaStreamTrack.readyState = 'ended';
+      pub.track.mediaStreamTrack.dispatchEvent(new Event('ended'));
+      expect(call.getState()).toMatchObject({ [kind]: false, [stopped]: true });
+
+      // The device is still gone: the retry fails, and the notice with its action stands.
+      media.localParticipant[enable].mockRejectedValueOnce(new Error('NotFoundError'));
+      await call[turnOn](true);
+      expect(call.getState()).toMatchObject({ [kind]: false, [stopped]: true, problem: 'device' });
+
+      // Plugged in again, the next retry captures and clears it.
+      media.localParticipant[enable].mockImplementationOnce(async () => {
+        pub.isMuted = false;
+        pub.track.mediaStreamTrack = inputTrack(`${kind}-recovered`);
+        return pub;
+      });
+      await call[turnOn](true);
+      expect(call.getState()).toMatchObject({ [kind]: true, [stopped]: false, problem: undefined });
+    }
+  );
+
   it('does not warn when the user turns microphone or camera off', async () => {
     const { call } = setup({ microphone: true, video: true });
     await call.join();

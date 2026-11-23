@@ -346,8 +346,7 @@ export class RoomCall {
     // Sharing also ends from the browser's own "Stop sharing" control.
     // Nor is a share on that the background stop is still letting go of.
     const share = media?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-    const screenShare =
-      !!media?.localParticipant.isScreenShareEnabled && !(share && share === this.retiringShare);
+    const screenShare = !!share && share !== this.retiringShare;
     const microphoneStopped = this.stoppedInputs.get('microphone') === 'shown';
     const cameraStopped = this.stoppedInputs.get('camera') === 'shown';
     const microphoneTrack = this.readMicrophoneTrack();
@@ -968,9 +967,11 @@ export class RoomCall {
   private async setInputEnabled(kind: InputKind, on: boolean) {
     if (this.stopped) return;
     const op = (this.toggleOps[kind] += 1);
-    const wasStopped = this.stoppedInputs.delete(kind);
+    // Turned off, the input is stopped no longer; turned on again, it is until capture succeeds
+    // (refreshInput), so a retry that fails leaves its notice and action standing.
+    const wasStopped = on ? this.stoppedInputs.has(kind) : this.stoppedInputs.delete(kind);
     this.requestedInputs[kind] = on;
-    this.update({ [kind]: on, [`${kind}Stopped`]: false });
+    this.update({ [kind]: on, ...(on ? {} : { [`${kind}Stopped`]: false }) });
     const media = this.media;
     if (!media || this.state.phase === 'connecting' || this.rejoin) return;
     // LiveKit's unmute skips track re-acquisition if the publication was never muted when it died.
@@ -1042,13 +1043,13 @@ export class RoomCall {
       if (this.screenShareStart === start) this.screenShareStart = undefined;
       if (this.media !== media) return;
       const sharing = participant.isScreenShareEnabled;
-      if (start.hid && sharing) return this.stopScreenShareInBackground();
+      if (start.hid && sharing) {
+        await this.stopScreenShareInBackground();
+        return;
+      }
       // The notice stays until a share is on: the picker closed or refused leaves it standing.
       if (sharing) this.dismissScreenShareNotice();
-      this.refresh();
-      return;
-    }
-    await participant.setScreenShareEnabled(false).catch(() => undefined);
+    } else await participant.setScreenShareEnabled(false).catch(() => undefined);
     this.refresh();
   }
 
@@ -1144,6 +1145,7 @@ export class RoomCall {
     this.watchInputTrack('microphone');
     this.watchInputTrack('camera');
     this.screenShareStart = undefined;
+    this.retiringShare = undefined;
     if (media) this.watchMedia(media, 'off');
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
