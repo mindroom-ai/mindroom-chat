@@ -5,6 +5,7 @@ import {
   Range as SlateRange,
   Text as SlateText,
   Transforms,
+  type BasePoint,
   type BaseRange,
   type Editor,
 } from 'slate';
@@ -21,11 +22,12 @@ const isValidPoint = (editor: Editor, point: BaseRange['anchor']): boolean => {
 const isValidRange = (editor: Editor, range: BaseRange | null | undefined): range is BaseRange =>
   !!range && isValidPoint(editor, range.anchor) && isValidPoint(editor, range.focus);
 
-const withSmartSpacing = (editor: Editor, text: string): string => {
-  const selection = editor.selection;
-  if (!selection) return text;
+export type InsertDictatedTextOptions = {
+  focus?: boolean;
+};
 
-  const [start, end] = SlateRange.edges(selection);
+const withSmartSpacing = (editor: Editor, text: string, target: BaseRange | BasePoint): string => {
+  const [start, end] = SlateRange.isRange(target) ? SlateRange.edges(target) : [target, target];
   const isBlock = (node: SlateNode) =>
     SlateElement.isElement(node) && SlateEditor.isBlock(editor, node);
   const startBlock = SlateEditor.above(editor, { at: start, match: isBlock });
@@ -53,20 +55,25 @@ const withSmartSpacing = (editor: Editor, text: string): string => {
 export const insertDictatedText = (
   editor: Editor,
   rawText: string,
-  savedSelection?: BaseRange | null
+  savedSelection?: BaseRange | null,
+  options?: InsertDictatedTextOptions
 ): boolean => {
   const trimmed = rawText.trim();
   if (!trimmed) return false;
 
-  if (isValidRange(editor, savedSelection)) {
-    Transforms.select(editor, savedSelection);
-  } else if (!editor.selection) {
-    Transforms.select(editor, SlateEditor.end(editor, []));
-  }
+  const focus = options?.focus ?? false;
+  const targetRange: BaseRange | BasePoint = isValidRange(editor, savedSelection)
+    ? savedSelection
+    : editor.selection ?? SlateEditor.end(editor, []);
+  const formatted = withSmartSpacing(editor, trimmed, targetRange);
 
-  const formatted = withSmartSpacing(editor, trimmed);
   const run = () => {
-    SlateEditor.insertText(editor, formatted);
+    if (focus) {
+      Transforms.select(editor, targetRange);
+      SlateEditor.insertText(editor, formatted);
+    } else {
+      Transforms.insertText(editor, formatted, { at: targetRange });
+    }
   };
 
   if (HistoryEditor.isHistoryEditor(editor)) {
@@ -76,10 +83,12 @@ export const insertDictatedText = (
     run();
   }
 
-  try {
-    ReactEditor.focus(editor);
-  } catch {
-    // Editor may not be attached to a DOM tree in headless unit tests.
+  if (focus) {
+    try {
+      ReactEditor.focus(editor);
+    } catch {
+      // Editor may not be attached to a DOM tree in headless unit tests.
+    }
   }
   return true;
 };

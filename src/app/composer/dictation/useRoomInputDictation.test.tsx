@@ -75,6 +75,7 @@ const createMockSession = () => {
     failedSegments: 0,
     completedSegments: 0,
     hasPartialText: false,
+    previewText: '',
     capReached: false,
     interrupted: false,
     errorMessage: undefined,
@@ -210,6 +211,46 @@ describe('insertDictatedText', () => {
 
     expect(insertDictatedText(editor, 'replacement', editor.selection)).toBe(true);
     expect(readText(editor)).toBe('replacement second');
+  });
+
+  it('inserts at saved selection or document end with single-step undo without focusing when focus is false', () => {
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    try {
+      // Point insertion at document end when editor.selection is null (never focused).
+      const unfocused = makeSlateEditor('Hello');
+      expect(unfocused.selection).toBeNull();
+      expect(insertDictatedText(unfocused, 'world', null, { focus: false })).toBe(true);
+      expect(readText(unfocused)).toBe('Hello world');
+      expect(unfocused.selection).toBeNull();
+      expect(focusSpy).not.toHaveBeenCalled();
+
+      unfocused.undo();
+      expect(readText(unfocused)).toBe('Hello');
+
+      // Range replacement with focus: false still reverts in one undo step without focusing.
+      const rangeEditor = makeSlateEditor('red apples');
+      const savedRange = {
+        anchor: { path: [0, 0], offset: 0 },
+        focus: { path: [0, 0], offset: 3 },
+      };
+      expect(insertDictatedText(rangeEditor, 'green', savedRange, { focus: false })).toBe(true);
+      expect(readText(rangeEditor)).toBe('green apples');
+      expect(focusSpy).not.toHaveBeenCalled();
+
+      HistoryEditor.undo(rangeEditor);
+      expect(readText(rangeEditor)).toBe('red apples');
+
+      // focus: true selects, inserts with single-step undo, and focuses the editor.
+      const focused = makeSlateEditor('red apples');
+      expect(insertDictatedText(focused, 'blue', savedRange, { focus: true })).toBe(true);
+      expect(readText(focused)).toBe('blue apples');
+      expect(focusSpy).toHaveBeenCalledWith(focused);
+
+      HistoryEditor.undo(focused);
+      expect(readText(focused)).toBe('red apples');
+    } finally {
+      focusSpy.mockRestore();
+    }
   });
 });
 
@@ -460,5 +501,95 @@ describe('useRoomInputDictation', () => {
       setConversationHidden(true);
     });
     expect(session.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not focus the editor on Finish or Cancel when started unfocused', async () => {
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    try {
+      const editor = makeSlateEditor('Draft');
+      const store = createStore();
+      const { session } = createMockSession();
+
+      renderHarness(editor, store, session);
+      const btn = screen.getByLabelText('composer.dictation.label');
+
+      // Finish from unfocused start.
+      await act(async () => {
+        fireEvent.pointerDown(btn);
+        fireEvent.click(btn);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(readText(editor)).toBe('Draft dictated words');
+      expect(focusSpy).not.toHaveBeenCalled();
+
+      // Cancel from unfocused start.
+      await act(async () => {
+        fireEvent.pointerDown(btn);
+        fireEvent.click(btn);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
+      });
+      expect(focusSpy).not.toHaveBeenCalled();
+    } finally {
+      focusSpy.mockRestore();
+    }
+  });
+
+  it('restores focus when started focused via pointerDown or Mod+Shift+D, unless focus moved outside', async () => {
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    const outside = document.createElement('input');
+    document.body.appendChild(outside);
+    try {
+      const editor = makeSlateEditor();
+      const store = createStore();
+      const { session } = createMockSession();
+
+      renderHarness(editor, store, session);
+      const input = screen.getByTestId('editor-focus');
+      const btn = screen.getByLabelText('composer.dictation.label');
+
+      // pointerDown captures focus even if touch blurs the editor before click fires.
+      input.focus();
+      await act(async () => {
+        fireEvent.pointerDown(btn);
+        input.blur();
+        fireEvent.click(btn);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+      expect(focusSpy).toHaveBeenLastCalledWith(editor);
+
+      // Mod+Shift+D while focused also restores focus on Finish.
+      focusSpy.mockClear();
+      input.focus();
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+      });
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+      });
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+
+      // Moving focus to a control outside the composer mid-dictation prevents stealing focus.
+      focusSpy.mockClear();
+      input.focus();
+      await act(async () => {
+        fireEvent.pointerDown(btn);
+        fireEvent.click(btn);
+      });
+      outside.focus();
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(focusSpy).not.toHaveBeenCalled();
+    } finally {
+      outside.remove();
+      focusSpy.mockRestore();
+    }
   });
 });

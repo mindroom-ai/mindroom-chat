@@ -1395,6 +1395,7 @@
       "insertPartial": "Deeltekst invoegen",
       "discard": "Verwijderen",
       "dismissError": "Dicteerfout sluiten",
+      "previewLabel": "Dicteervoorvertoning",
       "statusStarting": "Dicteren starten",
       "statusListening": "Aan het dicteren",
       "statusPaused": "Dicteren gepauzeerd",

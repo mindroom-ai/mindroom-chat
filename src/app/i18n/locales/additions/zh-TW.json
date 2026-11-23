@@ -1350,6 +1350,7 @@
       "insertPartial": "插入部分文字",
       "discard": "捨棄",
       "dismissError": "關閉聽寫錯誤",
+      "previewLabel": "聽寫預覽",
       "statusStarting": "正在啟動聽寫",
       "statusListening": "正在聽寫",
       "statusPaused": "聽寫已暫停",

@@ -36,6 +36,7 @@ const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnap
   failedSegments: 0,
   completedSegments: 0,
   hasPartialText: false,
+  previewText: '',
   capReached: false,
   interrupted: false,
   errorMessage: undefined,
@@ -61,6 +62,7 @@ describe('DictationCapsule', () => {
     render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
 
     expect(screen.getByText('0:18')).toBeTruthy();
+    expect(screen.queryByTestId('dictation-preview')).toBeNull();
     expect(screen.getByTestId('waveform').getAttribute('data-live')).toBe('3');
     expect(screen.getByTestId('waveform').getAttribute('data-dimmed')).toBe('false');
 
@@ -140,7 +142,79 @@ describe('DictationCapsule', () => {
     );
 
     expect(screen.getByRole('alert').textContent).toContain('Microphone permission denied.');
+    expect(screen.queryByTestId('dictation-preview')).toBeNull();
     fireEvent.click(screen.getByLabelText('composer.dictation.dismissError'));
     expect(h.onDismissError).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders live preview during recording, paused, finishing, and failed only when previewText is non-empty', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'recording', previewText: 'Hello world.' })}
+        {...h}
+      />
+    );
+
+    for (const phase of ['recording', 'paused', 'finishing', 'failed'] as const) {
+      rerender(
+        <DictationCapsule
+          snapshot={baseSnapshot({
+            phase,
+            previewText: 'Hello world.',
+            hasPartialText: true,
+            failedSegments: phase === 'failed' ? 1 : 0,
+          })}
+          {...h}
+        />
+      );
+      const preview = screen.getByTestId('dictation-preview');
+      expect(preview.textContent).toBe('Hello world.');
+      expect(preview.getAttribute('aria-label')).toBe('composer.dictation.previewLabel');
+      expect(preview.getAttribute('role')).toBeNull();
+    }
+
+    rerender(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'paused', previewText: '' })} {...h} />
+    );
+    expect(screen.queryByTestId('dictation-preview')).toBeNull();
+  });
+
+  it('auto-scrolls the preview container to the bottom when previewText updates', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'recording', previewText: 'First phrase.' })}
+        {...h}
+      />
+    );
+
+    const preview = screen.getByTestId('dictation-preview');
+    let mockScrollHeight = 140;
+    Object.defineProperty(preview, 'scrollHeight', {
+      configurable: true,
+      get: () => mockScrollHeight,
+    });
+    preview.scrollTop = 0;
+
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'recording', previewText: 'First phrase. Second phrase.' })}
+        {...h}
+      />
+    );
+    expect(preview.scrollTop).toBe(140);
+
+    mockScrollHeight = 260;
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'recording',
+          previewText: 'First phrase. Second phrase. Third phrase.',
+        })}
+        {...h}
+      />
+    );
+    expect(preview.scrollTop).toBe(260);
   });
 });

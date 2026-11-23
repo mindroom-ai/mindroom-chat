@@ -1395,6 +1395,7 @@
       "insertPartial": "আংশিক লেখা যোগ করুন",
       "discard": "বাতিল করুন",
       "dismissError": "ডিকটেশন ত্রুটি বন্ধ করুন",
+      "previewLabel": "ডিকটেশন প্রিভিউ",
       "statusStarting": "ডিকটেশন শুরু হচ্ছে",
       "statusListening": "ডিকটেশন চলছে",
       "statusPaused": "ডিকটেশন বিরতিতে",

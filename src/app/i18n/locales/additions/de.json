@@ -1395,6 +1395,7 @@
       "insertPartial": "Teiltext einfügen",
       "discard": "Verwerfen",
       "dismissError": "Diktatfehler schließen",
+      "previewLabel": "Diktatvorschau",
       "statusStarting": "Diktat wird gestartet",
       "statusListening": "Diktat läuft",
       "statusPaused": "Diktat pausiert",

@@ -62,6 +62,7 @@ const IDLE_SNAPSHOT: DictationSnapshot = {
   failedSegments: 0,
   completedSegments: 0,
   hasPartialText: false,
+  previewText: '',
   capReached: false,
   interrupted: false,
   errorMessage: undefined,
@@ -69,6 +70,17 @@ const IDLE_SNAPSHOT: DictationSnapshot = {
 
 const noopSubscribe = () => () => undefined;
 const keepTextFocus = (event: MouseEvent) => event.preventDefault();
+
+const isEditorFocused = (editor: Editor, rootRef: RefObject<HTMLElement | null>): boolean => {
+  const activeEl = document.activeElement;
+  try {
+    if (ReactEditor.isFocused(editor)) return true;
+    return Boolean(activeEl && ReactEditor.toDOMNode(editor, editor).contains(activeEl));
+  } catch {
+    // Editor may not be attached to a DOM tree in headless unit tests.
+    return Boolean(activeEl && rootRef.current?.contains(activeEl) && !activeEl.closest('button'));
+  }
+};
 
 export const useRoomInputDictation = ({
   editor,
@@ -86,6 +98,8 @@ export const useRoomInputDictation = ({
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
 
   const selectionRef = useRef<RangeRef | null>(null);
+  const pendingButtonFocusRef = useRef<boolean | undefined>(undefined);
+  const shouldRestoreFocusRef = useRef(false);
   const session = useMemo(() => {
     if (!sessions) return undefined;
     return createSession({
@@ -121,6 +135,14 @@ export const useRoomInputDictation = ({
     return range;
   }, []);
 
+  const consumeRestoreFocus = useCallback((): boolean => {
+    const shouldRestore = shouldRestoreFocusRef.current;
+    shouldRestoreFocusRef.current = false;
+    if (!shouldRestore) return false;
+    const activeEl = document.activeElement;
+    return !activeEl || activeEl === document.body || Boolean(rootRef.current?.contains(activeEl));
+  }, [rootRef]);
+
   const focusEditor = useCallback(() => {
     try {
       ReactEditor.focus(editor);
@@ -132,6 +154,8 @@ export const useRoomInputDictation = ({
   // Discard and release ownership when this session is replaced or the composer unmounts.
   useEffect(
     () => () => {
+      shouldRestoreFocusRef.current = false;
+      pendingButtonFocusRef.current = undefined;
       clearSelectionRef();
       session?.discard();
       releaseOwnership();
@@ -142,12 +166,15 @@ export const useRoomInputDictation = ({
   // Account switch or sign-out clears activeDictationAtom externally; abort local capture too.
   useEffect(() => {
     if (activeDictation !== ownerKey && snapshot.phase !== 'idle') {
+      shouldRestoreFocusRef.current = false;
       clearSelectionRef();
       session?.discard();
     }
   }, [activeDictation, clearSelectionRef, ownerKey, session, snapshot.phase]);
 
   const start = useCallback((): boolean => {
+    const pendingFocus = pendingButtonFocusRef.current;
+    pendingButtonFocusRef.current = undefined;
     if (!available || !session) return false;
     if (
       store.get(liveVoiceRecordingAtom) !== undefined ||
@@ -160,55 +187,81 @@ export const useRoomInputDictation = ({
     if (editor.selection) {
       selectionRef.current = SlateEditor.rangeRef(editor, editor.selection);
     }
+    shouldRestoreFocusRef.current = pendingFocus ?? isEditorFocused(editor, rootRef);
     store.set(activeDictationAtom, ownerKey);
     void session.start().then((started) => {
       if (!started) {
+        shouldRestoreFocusRef.current = false;
         clearSelectionRef();
         releaseOwnership();
       }
     });
     return true;
-  }, [available, clearSelectionRef, editor, ownerKey, releaseOwnership, session, store]);
+  }, [available, clearSelectionRef, editor, ownerKey, releaseOwnership, rootRef, session, store]);
 
   const handleFinish = useCallback(() => {
     if (!session) return;
     void session.finish().then((result) => {
       if (result.status === 'completed') {
-        insertDictatedText(editor, result.text, consumeSelectionRef());
+        insertDictatedText(editor, result.text, consumeSelectionRef(), {
+          focus: consumeRestoreFocus(),
+        });
         releaseOwnership();
       } else if (result.status === 'cancelled') {
+        shouldRestoreFocusRef.current = false;
         clearSelectionRef();
         releaseOwnership();
       }
     });
-  }, [clearSelectionRef, consumeSelectionRef, editor, releaseOwnership, session]);
+  }, [
+    clearSelectionRef,
+    consumeRestoreFocus,
+    consumeSelectionRef,
+    editor,
+    releaseOwnership,
+    session,
+  ]);
 
   const handleRetry = useCallback(() => {
     if (!session) return;
     void session.retryFailed().then((result) => {
       if (result.status === 'completed') {
-        insertDictatedText(editor, result.text, consumeSelectionRef());
+        insertDictatedText(editor, result.text, consumeSelectionRef(), {
+          focus: consumeRestoreFocus(),
+        });
         releaseOwnership();
       } else if (result.status === 'cancelled') {
+        shouldRestoreFocusRef.current = false;
         clearSelectionRef();
         releaseOwnership();
       }
     });
-  }, [clearSelectionRef, consumeSelectionRef, editor, releaseOwnership, session]);
+  }, [
+    clearSelectionRef,
+    consumeRestoreFocus,
+    consumeSelectionRef,
+    editor,
+    releaseOwnership,
+    session,
+  ]);
 
   const handleInsertPartial = useCallback(() => {
     if (!session) return;
     const text = session.takePartialText();
-    insertDictatedText(editor, text, consumeSelectionRef());
+    insertDictatedText(editor, text, consumeSelectionRef(), {
+      focus: consumeRestoreFocus(),
+    });
     releaseOwnership();
-  }, [consumeSelectionRef, editor, releaseOwnership, session]);
+  }, [consumeRestoreFocus, consumeSelectionRef, editor, releaseOwnership, session]);
 
   const handleDiscard = useCallback(() => {
     session?.discard();
     clearSelectionRef();
     releaseOwnership();
-    focusEditor();
-  }, [clearSelectionRef, focusEditor, releaseOwnership, session]);
+    if (consumeRestoreFocus()) {
+      focusEditor();
+    }
+  }, [clearSelectionRef, consumeRestoreFocus, focusEditor, releaseOwnership, session]);
 
   const handlePause = useCallback(() => {
     void session?.pause();
@@ -295,6 +348,12 @@ export const useRoomInputDictation = ({
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
+          onPointerDown={() => {
+            pendingButtonFocusRef.current = isEditorFocused(editor, rootRef);
+          }}
+          onPointerCancel={() => {
+            pendingButtonFocusRef.current = undefined;
+          }}
           onClick={() => {
             start();
           }}

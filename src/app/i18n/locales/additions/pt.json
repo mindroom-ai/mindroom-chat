@@ -1440,6 +1440,7 @@
       "insertPartial": "Inserir texto parcial",
       "discard": "Descartar",
       "dismissError": "Fechar erro de ditado",
+      "previewLabel": "Pré-visualização do ditado",
       "statusStarting": "Iniciando ditado",
       "statusListening": "Ditando",
       "statusPaused": "Ditado pausado",
