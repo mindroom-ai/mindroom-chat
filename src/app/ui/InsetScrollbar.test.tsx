@@ -15,7 +15,24 @@ describe('InsetScrollbar', () => {
   let frame: FrameRequestCallback | undefined;
   let trackHeight: number;
   let contentHeight: number;
+  let scrollRef = createRef<HTMLDivElement>();
+  let contentRef = createRef<HTMLDivElement>();
   const disconnect = vi.fn();
+  const mountBar = (beforeEnd?: () => void) =>
+    act(() =>
+      root.render(
+        <div ref={scrollRef}>
+          <div ref={contentRef} />
+          <InsetScrollbar
+            scrollRef={scrollRef}
+            contentRef={contentRef}
+            label="Messages"
+            className="placement"
+            beforeEnd={beforeEnd}
+          />
+        </div>
+      )
+    );
 
   const flush = () => {
     const pending = frame;
@@ -72,21 +89,9 @@ describe('InsetScrollbar', () => {
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
-    const scrollRef = createRef<HTMLDivElement>();
-    const contentRef = createRef<HTMLDivElement>();
-    act(() =>
-      root.render(
-        <div ref={scrollRef}>
-          <div ref={contentRef} />
-          <InsetScrollbar
-            scrollRef={scrollRef}
-            contentRef={contentRef}
-            label="Messages"
-            className="placement"
-          />
-        </div>
-      )
-    );
+    scrollRef = createRef<HTMLDivElement>();
+    contentRef = createRef<HTMLDivElement>();
+    mountBar();
     scroll = scrollRef.current!;
     track = host.querySelector('[role="scrollbar"]')!;
     thumb = track.firstElementChild as HTMLDivElement;
@@ -167,54 +172,21 @@ describe('InsetScrollbar', () => {
     expect(scroll.scrollTop).toBe(300);
   });
 
-  it('lets a windowed list show its end before End reads the extent', () => {
-    const scrollRef = createRef<HTMLDivElement>();
-    const contentRef = createRef<HTMLDivElement>();
-    // The end mounts taller than its cached heights said.
+  it('runs beforeEnd only on unmodified End and preserves an active drag across prop changes', () => {
     const beforeEnd = vi.fn(() => {
       contentHeight = 2100;
     });
-    act(() =>
-      root.render(
-        <div ref={scrollRef}>
-          <div ref={contentRef} />
-          <InsetScrollbar
-            scrollRef={scrollRef}
-            contentRef={contentRef}
-            label="Messages"
-            className="placement"
-            beforeEnd={beforeEnd}
-          />
-        </div>
-      )
-    );
+    mountBar(beforeEnd);
     key('PageDown');
     key('Home');
     expect(beforeEnd).not.toHaveBeenCalled();
     key('End');
     expect(beforeEnd).toHaveBeenCalledTimes(1);
-    expect(scrollRef.current!.scrollTop).toBe(1600);
-    // A chord is the browser's: nothing is prepared for it.
+    expect(scroll.scrollTop).toBe(1600);
     key('End', { ctrlKey: true });
     expect(beforeEnd).toHaveBeenCalledTimes(1);
-  });
 
-  it('keeps a drag while the list starts or stops offering its end', () => {
-    const scrollRef = createRef<HTMLDivElement>();
-    const contentRef = createRef<HTMLDivElement>();
-    const bar = (beforeEnd?: () => void) => (
-      <div ref={scrollRef}>
-        <div ref={contentRef} />
-        <InsetScrollbar
-          scrollRef={scrollRef}
-          contentRef={contentRef}
-          label="Messages"
-          className="placement"
-          beforeEnd={beforeEnd}
-        />
-      </div>
-    );
-    act(() => root.render(bar()));
+    mountBar();
     track.setPointerCapture = vi.fn();
     track.hasPointerCapture = vi.fn(() => false);
     const pointer = (type: string, clientY: number) => {
@@ -224,12 +196,11 @@ describe('InsetScrollbar', () => {
     };
     const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
     pointer('pointerdown', 100);
-    const pressed = scrollRef.current!.scrollTop;
-    // The last block is measured mid-drag: the list now offers to prepare its end.
-    act(() => root.render(bar(() => {})));
+    const pressed = scroll.scrollTop;
+    mountBar(() => {});
     expect(blocked()).toBe(true);
     pointer('pointermove', 200);
-    expect(scrollRef.current!.scrollTop).toBeGreaterThan(pressed);
+    expect(scroll.scrollTop).toBeGreaterThan(pressed);
     pointer('pointerup', 200);
     expect(blocked()).toBe(false);
   });

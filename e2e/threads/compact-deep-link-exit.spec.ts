@@ -172,8 +172,8 @@ for (const [form, options] of [
 }
 
 /** Sample visible cards over consecutive frames, without waiting for each window swap to settle. */
-const measureReverseScroll = (view: Locator, throughTop: boolean) =>
-  view.evaluate(async (scroller, toTop) => {
+const measureReverseScroll = (view: Locator) =>
+  view.evaluate(async (scroller) => {
     const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
     const writes: number[] = [];
     Object.defineProperty(scroller, 'scrollTop', {
@@ -199,7 +199,7 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
     const deltaY = -64;
     let before = read();
     const startScrollTop = before.scrollTop;
-    const frames = toTop ? Math.ceil(startScrollTop / -deltaY) : 48;
+    const frames = Math.ceil(startScrollTop / -deltaY);
     const mountedAtSeek = new Set(before.cards.keys());
     const newVisibleHeights = new Map<string, number>();
     const offsets: number[] = [startScrollTop];
@@ -263,15 +263,14 @@ const measureReverseScroll = (view: Locator, throughTop: boolean) =>
       heightSpread: heights.length ? Math.max(...heights) - Math.min(...heights) : 0,
       worst,
     };
-  }, throughTop);
+  });
 
 const checkReverseScroll = async (
   baseURL: string | undefined,
-  reducedMotion: 'no-preference' | 'reduce',
-  throughTop = false
+  reducedMotion: 'no-preference' | 'reduce'
 ) => {
   const { reader, roomId, rootIds } = await seed(
-    throughTop ? 'reverse_top' : reducedMotion === 'reduce' ? 'reverse_reduced' : 'reverse',
+    reducedMotion === 'reduce' ? 'reverse_reduced' : 'reverse',
     true
   );
   await onWebKitPage({ ...PHONE, baseURL, reducedMotion }, async (page) => {
@@ -299,7 +298,7 @@ const checkReverseScroll = async (
     await expect(early).toBeFocused();
     await expect(early).not.toBeInViewport();
 
-    const result = await measureReverseScroll(view, throughTop);
+    const result = await measureReverseScroll(view);
     test.info().annotations.push({ type: 'reverse scroll', description: JSON.stringify(result) });
     expect(result.distance, 'actual upward scroll distance').toBeGreaterThan(2_200);
     expect(
@@ -319,14 +318,14 @@ const checkReverseScroll = async (
       result.worstStep,
       `each frame lands where it was asked to: ${result.offsets.join(', ')}`
     ).toBeLessThan(1);
-    if (throughTop) expect(result.offsets.slice(-2)).toEqual([0, 0]);
+    expect(result.offsets.slice(-2)).toEqual([0, 0]);
     await expect(early).toBeFocused();
   });
 };
 
 for (const reducedMotion of ['no-preference', 'reduce'] as const) {
   const mode = reducedMotion === 'reduce' ? ', reduced motion' : '';
-  test(`reverse scrolling after a deep seek in mixed-height Compact cards (WebKit${mode})`, async ({
+  test(`reverse scrolling after a deep seek reaches native zero in mixed-height Compact cards (WebKit${mode})`, async ({
     baseURL,
   }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
@@ -334,118 +333,6 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     await checkReverseScroll(baseURL, reducedMotion);
   });
 }
-
-test('reverse scrolling reaches native zero through its first idle paint (WebKit)', async ({
-  baseURL,
-}) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(240_000);
-  await checkReverseScroll(baseURL, 'no-preference', true);
-});
-
-// After a width change the cards outside the window keep their cached heights until they mount.
-// End must read the extent with the real end mounted, in its one scroll write.
-/**
- * From a measured list, wide: scrolls to the middle, narrows the page so the cards below grow,
- * and presses the scrollbar's End. One write takes the list to its real end, where `last` shows.
- */
-const checkEndAfterNarrowing = async (page: Page, view: Locator, last: Locator) => {
-  const frames = () =>
-    page.evaluate(
-      () =>
-        new Promise((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        })
-    );
-  const extent = () => view.evaluate((el) => el.scrollHeight - el.clientHeight);
-  await view.evaluate((el) => {
-    el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.4;
-  });
-  await frames();
-  const wide = await extent();
-  await page.setViewportSize({ width: 1000, height: 800 });
-  await frames();
-  await frames();
-  await expect(last).toHaveCount(0);
-  const end = await view.evaluate((scroller) => {
-    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
-    const writes: number[] = [];
-    Object.defineProperty(scroller, 'scrollTop', {
-      configurable: true,
-      get: () => Number(descriptor.get?.call(scroller)),
-      set: (value: number) => {
-        writes.push(value);
-        descriptor.set?.call(scroller, value);
-      },
-    });
-    const before = scroller.scrollHeight - scroller.clientHeight;
-    const bar = scroller.querySelector<HTMLElement>('[role="scrollbar"]')!;
-    bar.focus({ preventScroll: true });
-    bar.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
-    );
-    const result = {
-      before,
-      writes,
-      scrollTop: scroller.scrollTop,
-      maximum: scroller.scrollHeight - scroller.clientHeight,
-    };
-    return new Promise<typeof result & { settledTop: number; settledMaximum: number }>(
-      (resolve) => {
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            Reflect.deleteProperty(scroller, 'scrollTop');
-            resolve({
-              ...result,
-              settledTop: scroller.scrollTop,
-              settledMaximum: scroller.scrollHeight - scroller.clientHeight,
-            });
-          })
-        );
-      }
-    );
-  });
-  test.info().annotations.push({ type: 'resized end', description: JSON.stringify(end) });
-  expect(wide, 'the list had a deep scroll range at the wide width').toBeGreaterThan(3_000);
-  expect(
-    end.settledMaximum - end.before,
-    'the cards below the reader were taller than their cached heights'
-  ).toBeGreaterThan(100);
-  expect(end.writes, 'End writes the offset once').toHaveLength(1);
-  expect(Math.abs(end.scrollTop - end.maximum), 'End lands on the real end').toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(end.settledTop - end.settledMaximum),
-    'and the end stays the end once the window has settled'
-  ).toBeLessThanOrEqual(1);
-  await expect(last).toBeInViewport();
-};
-
-test('scrollbar End reaches the real end after the cards below grew (WebKit)', async ({
-  baseURL,
-}) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(240_000);
-  const { reader, roomId, rootIds } = await seed('resized_end', true);
-  // Wide enough for the long titles to take one line; narrowed below, they take two.
-  await onWebKitPage({ viewport: { width: 1800, height: 800 }, baseURL }, async (page) => {
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: reader.username,
-      password: PASSWORD,
-    });
-    await page.goto(`/home/${encodeURIComponent(roomId)}`);
-    const view = page.locator(COMPACT_VIEW);
-    await expect(view).toHaveAttribute('data-compact-card-count', String(ROOTS), {
-      timeout: 60_000,
-    });
-    await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
-    await checkEndAfterNarrowing(
-      page,
-      view,
-      view.locator(`button[data-thread-root-id="${rootIds[0]!}"]`)
-    );
-  });
-});
 
 test('scrollbar End reaches the real end below two short last sections (WebKit)', async ({
   baseURL,
@@ -511,7 +398,77 @@ test('scrollbar End reaches the real end below two short last sections (WebKit)'
       'data-compact-section',
       'done'
     );
-    await checkEndAfterNarrowing(page, view, view.locator(`button[data-thread-root-id="${done}"]`));
+    const doneCard = view.locator(`button[data-thread-root-id="${done}"]`);
+    const frames = () =>
+      page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          })
+      );
+    const extent = () => view.evaluate((el) => el.scrollHeight - el.clientHeight);
+    await view.evaluate((el) => {
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * 0.4;
+    });
+    await frames();
+    const wide = await extent();
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await frames();
+    await frames();
+    await expect(doneCard).toHaveCount(0);
+    const end = await view.evaluate((scroller) => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+      const writes: number[] = [];
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => Number(descriptor.get?.call(scroller)),
+        set: (value: number) => {
+          writes.push(value);
+          descriptor.set?.call(scroller, value);
+        },
+      });
+      const before = scroller.scrollHeight - scroller.clientHeight;
+      const bar = scroller.querySelector<HTMLElement>('[role="scrollbar"]')!;
+      bar.focus({ preventScroll: true });
+      bar.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
+      );
+      const result = {
+        before,
+        writes,
+        scrollTop: scroller.scrollTop,
+        maximum: scroller.scrollHeight - scroller.clientHeight,
+      };
+      return new Promise<typeof result & { settledTop: number; settledMaximum: number }>(
+        (resolve) => {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              Reflect.deleteProperty(scroller, 'scrollTop');
+              resolve({
+                ...result,
+                settledTop: scroller.scrollTop,
+                settledMaximum: scroller.scrollHeight - scroller.clientHeight,
+              });
+            })
+          );
+        }
+      );
+    });
+    test.info().annotations.push({ type: 'resized end', description: JSON.stringify(end) });
+    expect(wide, 'the list had a deep scroll range at the wide width').toBeGreaterThan(3_000);
+    expect(
+      end.settledMaximum - end.before,
+      'the cards below the reader were taller than their cached heights'
+    ).toBeGreaterThan(100);
+    expect(end.writes, 'End writes the offset once').toHaveLength(1);
+    expect(Math.abs(end.scrollTop - end.maximum), 'End lands on the real end').toBeLessThanOrEqual(
+      1
+    );
+    expect(
+      Math.abs(end.settledTop - end.settledMaximum),
+      'and the end stays the end once the window has settled'
+    ).toBeLessThanOrEqual(1);
+    await expect(doneCard).toBeInViewport();
   });
 });
 
