@@ -156,30 +156,32 @@ it('measures in blocks, slides without detaching staying cards, and remounts evi
   expect(anchor(view, '$row60')).toBeNull();
 });
 
-it('remeasures evicted cards on width and font changes without shrinking or probing above a deep reader', () => {
-  const { view, rerender } = mount();
-  tick(12);
-  expect(spacerHeight(view)).toBe(7168.75);
-  fontSize = 24;
-  rerender();
-  expect(spacerHeight(view)).toBe(7168.75);
-  tick(12);
-  expect(spacerHeight(view)).toBe(10602.25);
-
-  fontSize = 16;
-  width = 320;
-  rerender();
-  layout.resize();
-  tick(12);
-  expect(spacerHeight(view)).toBe(10602.25);
-
-  layout.scroll(view, 30 * 199.25 * 1.5);
-  expect(anchor(view, '$row0')).toBeNull();
-  fontSize = 24;
-  rerender();
-  tick(1);
-  expect(anchor(view, '$row0')).toBeNull();
-});
+it.each(['width', 'font'] as const)(
+  'remeasures evicted cards on a %s change without shrinking or probing above a deep reader',
+  (kind) => {
+    const { view, rerender } = mount();
+    tick(12);
+    expect(spacerHeight(view)).toBe(7168.75);
+    if (kind === 'width') {
+      width = 320;
+      layout.resize();
+    } else {
+      fontSize = 24;
+      rerender();
+    }
+    expect(spacerHeight(view)).toBe(7168.75);
+    tick(12);
+    expect(spacerHeight(view)).toBe(10602.25);
+    if (kind === 'font') {
+      layout.scroll(view, 30 * 199.25 * 1.5);
+      expect(anchor(view, '$row0')).toBeNull();
+      fontSize = 20;
+      rerender();
+      tick(1);
+      expect(anchor(view, '$row0')).toBeNull();
+    }
+  }
+);
 
 it('handles partial-index restores: retention on clamp, non-wheel takeover, and small-index readiness', () => {
   const id = '$row23';
