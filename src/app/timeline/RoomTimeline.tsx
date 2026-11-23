@@ -203,7 +203,7 @@ import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './me
 import {
   NO_RENDERED_ROOM_ROWS,
   forgetFormedFoldHeights,
-  useExposedFoldRowsHeld,
+  exposedFoldRowsPxOfRender,
   useMembershipFoldRowSizes,
   useMembershipFolds,
   useRoomRowWindow,
@@ -1231,17 +1231,18 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     membershipFoldsRef,
     renderedRoomRowsRef,
   });
-  // Before the ledger takes this render's folds: the rows of a closed fold that came apart above
-  // the reader's view.
-  useExposedFoldRowsHeld({
-    renderedRef: renderedRoomRowsRef,
-    view: membershipFolds.view,
-    rows: roomProjection,
-    windowRows: roomWindowRows,
-    pinnedIds: membershipPinnedIds,
-    estimateSize,
-    pendingRoomFoldPxRef,
-  });
+  // For the ledger to take with this render: the rows of a closed fold that came apart above the
+  // reader's view.
+  const exposedRoomRowsPx = exposedFoldRowsPxOfRender(
+    renderedRoomRowsRef.current,
+    {
+      view: membershipFolds.view,
+      foldedRows: roomProjection.foldedRows,
+      windowRows: roomWindowRows,
+      pinnedIds: membershipPinnedIds,
+    },
+    estimateSize
+  );
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
@@ -1266,6 +1267,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     getScrollElement,
     itemCount,
     pendingRoomFoldPxRef,
+    exposedRoomRowsPx,
     // virtual-core renders at once when the reader scrolls, which can come before the update of
     // a window widened over older rows: that render keeps the window the fold was priced for.
     roomFoldHeld: activeTimelineRange === roomFoldWindowRef.current,

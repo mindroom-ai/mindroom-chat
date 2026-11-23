@@ -99,10 +99,10 @@ export const useMembershipFolds = ({
     setOpenAnchorIds((anchors) => {
       const next = new Set(anchors);
       const isOpen = fold.eventIds.some((id) => next.has(id));
-      if (isOpen) {
-        for (const id of fold.eventIds) next.delete(id);
-      } else {
-        next.add(fold.key);
+      // Every event of the run holds it open: it stays open when its first one leaves the rows.
+      for (const id of fold.eventIds) {
+        if (isOpen) next.delete(id);
+        else next.add(id);
       }
       return next;
     });
@@ -233,48 +233,19 @@ export const forgetFormedFoldHeights = (rendered: RenderedRoomRows, view: Member
  * joins an open run when the event between them decrypts into one without a row, and the joined
  * run stays open. Those rows would push the reader's rows down by their height
  * (`exposedFoldRowsPx`), which the offset ledger takes instead, as it takes the height of the rows
- * a page of history mounts above the reader. This is that height for the render of `now.view`,
- * the first time it is asked for those folds (`pricedRef`): React can render them again before
- * it commits them.
+ * a page of history mounts above the reader. This is that height for a render of `now.view`,
+ * until the list has rendered those folds. It is the render's own (the ledger's
+ * `exposedRoomRowsPx`): nothing is kept of a render that React does not commit.
  */
-export const takeExposedFoldRowsPx = (
-  pricedRef: MutableRefObject<MembershipFoldView>,
+export const exposedFoldRowsPxOfRender = (
   rendered: RenderedRoomRows,
   now: Parameters<typeof exposedFoldRowsPx>[1],
   /** As the list prices the row at a place of `now.windowRows` that it has no measured height for. */
   estimateSize: (index: number) => number
 ): number => {
-  if (rendered.view === now.view || pricedRef.current === now.view) return 0;
-  pricedRef.current = now.view;
+  if (rendered.view === now.view) return 0;
   const measured = rendered.list?.itemSizeCache;
   return exposedFoldRowsPx(rendered, now, (id, index) => measured?.get(id) ?? estimateSize(index));
-};
-
-/** Before the list lays out a render's rows: `takeExposedFoldRowsPx`, into the offset ledger. */
-export const useExposedFoldRowsHeld = ({
-  renderedRef,
-  view,
-  rows,
-  windowRows,
-  pinnedIds,
-  estimateSize,
-  pendingRoomFoldPxRef,
-}: {
-  renderedRef: MutableRefObject<RenderedRoomRows>;
-  view: MembershipFoldView;
-  rows: RoomRowProjection;
-  windowRows: readonly MatrixEvent[];
-  pinnedIds: ReadonlySet<string>;
-  estimateSize: (index: number) => number;
-  pendingRoomFoldPxRef: MutableRefObject<number>;
-}) => {
-  const pricedRef = useRef(view);
-  pendingRoomFoldPxRef.current += takeExposedFoldRowsPx(
-    pricedRef,
-    renderedRef.current,
-    { view, foldedRows: rows.foldedRows, windowRows, pinnedIds },
-    estimateSize
-  );
 };
 
 /**

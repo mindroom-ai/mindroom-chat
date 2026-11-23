@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import { StrictMode, createElement, useRef } from 'react';
+import { createElement, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, MatrixEventEvent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import {
   forgetFormedFoldHeights,
   readReaderTop,
   readRenderedRoomRows,
-  useExposedFoldRowsHeld,
+  exposedFoldRowsPxOfRender,
   useMembershipFolds,
   useRoomRowWindow,
 } from './useMembershipFolds';
@@ -177,6 +177,29 @@ describe('useMembershipFolds', () => {
     act(() => hook.current().toggle(extendedFold));
     expect(hook.current().view.breaks.get('$m1')?.open).toBe(false);
     expect(ids(hook.current().rows.rows)).toEqual(['$before', '$m1', '$after']);
+  });
+
+  it('keeps a run open when its first event leaves the rows', () => {
+    const run = ['a', 'b', 'c', 'd', 'e'].map((name, index) =>
+      joinEvent(`$m${index + 1}`, `@${name}:x`)
+    );
+    const after = msgEvent('$after');
+    const hook = mountHook({ events: [...run, after] });
+    act(() => hook.current().toggle(hook.current().view.breaks.get('$m1')!.fold));
+    expect(hook.current().view.breaks.get('$m1')?.open).toBe(true);
+
+    // The first join is redacted, and hidden events are not shown: the four left are a run
+    // with its break at the second, open as the reader left it.
+    hook.rerender({ events: [...run.slice(1), after] });
+    expect(hook.current().view.breaks.get('$m2')?.open).toBe(true);
+    expect(ids(hook.current().rows.rows)).toEqual(['$m2', '$m3', '$m4', '$m5', '$after']);
+
+    // Closed, it stays closed when the next one leaves.
+    act(() => hook.current().toggle(hook.current().view.breaks.get('$m2')!.fold));
+    expect(ids(hook.current().rows.rows)).toEqual(['$m2', '$after']);
+    hook.rerender({ events: [...run.slice(2), after] });
+    expect(hook.current().view.breaks.get('$m3')?.open).toBe(false);
+    expect(ids(hook.current().rows.rows)).toEqual(['$m3', '$after']);
   });
 
   it('produces an empty view and the loaded rows when disabled (thread timeline)', () => {
@@ -523,7 +546,7 @@ describe('the heights a fold takes over from the rows it holds', () => {
   });
 });
 
-describe('useExposedFoldRowsHeld', () => {
+describe('exposedFoldRowsPxOfRender', () => {
   const run = [
     joinEvent('$m1', '@a:x'),
     joinEvent('$m2', '@b:x'),
@@ -531,60 +554,48 @@ describe('useExposedFoldRowsHeld', () => {
     joinEvent('$m4', '@d:x'),
   ];
   const loaded = [...run, msgEvent('$msg0'), msgEvent('$msg1'), msgEvent('$msg2')];
-  const viewOf = (pinned: string[], open = false) =>
-    viewMembershipFolds(
-      planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set(pinned) }),
-      () => open
-    );
-  const project = (view: ReturnType<typeof viewOf>) =>
+  const closed = viewMembershipFolds(
+    planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set() }),
+    () => false
+  );
+  const project = (view: typeof closed) =>
     projectRoomRows(
       loaded,
       loaded.map((event, absoluteIndex) => ({ event, absoluteIndex })),
       view
     );
-
-  it('gives the ledger the height once for a set of folds, however often they render', () => {
-    // The last render: the closed fold's break, 42 px high, above the three messages in view.
-    const closed = viewOf([]);
-    const renderedRef = {
-      current: {
-        sizes: new Map([['$m1', 42]]),
-        view: closed,
-        rows: project(closed).rows,
-        list: { itemSizeCache: new Map() },
-        place: { foldEnds: new Map([['$m1', 42]]), readerTop: () => 42 },
-      },
+  const now = (view: typeof closed) => {
+    const rows = project(view);
+    return {
+      view,
+      foldedRows: rows.foldedRows,
+      windowRows: rows.rows,
+      pinnedIds: new Set<string>(),
     };
-    const pendingRoomFoldPxRef = { current: 7 };
-    function Probe({ view }: { view: ReturnType<typeof viewOf> }) {
-      const rows = project(view);
-      useExposedFoldRowsHeld({
-        renderedRef,
-        view,
-        rows,
-        windowRows: rows.rows,
-        pinnedIds: new Set(),
-        estimateSize: () => 30,
-        pendingRoomFoldPxRef,
-      });
-      return null;
-    }
-    const element = (view: ReturnType<typeof viewOf>) =>
-      createElement(StrictMode, null, createElement(Probe, { view }));
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(element(closed));
-    });
-    expect(pendingRoomFoldPxRef.current).toBe(7);
+  };
 
-    // The run is too short to fold now (as when it lost events): its four events are rows. The
-    // ledger gets their height, less the break's, on top of what a page of history left there.
+  it("is a render's own height for the folds the list has not rendered yet", () => {
+    // The last render: the closed fold's break, 42 px high, above the three messages in view.
+    const rendered = {
+      sizes: new Map([['$m1', 42]]),
+      view: closed,
+      rows: project(closed).rows,
+      // The list measured the fold's row, which is the first join's row again.
+      list: { itemSizeCache: new Map([['$m1', 42]]) },
+      place: { foldEnds: new Map([['$m1', 42]]), readerTop: () => 42 },
+    };
+    expect(exposedFoldRowsPxOfRender(rendered, now(closed), () => 30)).toBe(0);
+
+    // The run is too short to fold now (as when it lost events): its four events are rows, the
+    // first at the height the list has for it and the others at the estimate.
     const apart = viewMembershipFolds([], () => false);
-    act(() => renderer?.update(element(apart)));
-    expect(pendingRoomFoldPxRef.current).toBe(7 + 4 * 30 - 42);
-    // Rendered twice by React and once more before the list is read again: taken once.
-    act(() => renderer?.update(element(apart)));
-    expect(pendingRoomFoldPxRef.current).toBe(7 + 4 * 30 - 42);
-    act(() => renderer?.unmount());
+    expect(exposedFoldRowsPxOfRender(rendered, now(apart), () => 30)).toBe(3 * 30);
+    // Asked again by a render that follows one React did not commit: the same, and nothing of
+    // the last render is written.
+    expect(exposedFoldRowsPxOfRender(rendered, now(apart), () => 30)).toBe(3 * 30);
+    expect(rendered.sizes).toEqual(new Map([['$m1', 42]]));
+    expect(rendered.list.itemSizeCache).toEqual(new Map([['$m1', 42]]));
+    // Nothing once the list rendered those folds.
+    expect(exposedFoldRowsPxOfRender({ ...rendered, view: apart }, now(apart), () => 30)).toBe(0);
   });
 });

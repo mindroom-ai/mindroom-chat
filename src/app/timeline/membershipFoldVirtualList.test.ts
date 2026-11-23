@@ -16,9 +16,9 @@ import {
 import { timelineRowSizing } from './roomTimelineRows';
 import {
   NO_RENDERED_ROOM_ROWS,
+  exposedFoldRowsPxOfRender,
   forgetFormedFoldHeights,
   readRenderedRoomRows,
-  takeExposedFoldRowsPx,
 } from './useMembershipFolds';
 
 // The room's virtual list with folded membership runs, against the real virtual-core, its
@@ -85,6 +85,8 @@ const joins = (prefix: string, count: number) =>
  * row a fold formed at, and hands the list its sizes and keys; `commit` mounts the list's rows,
  * which measure, and reads the list as it rendered, as the timeline does after each commit. The
  * offset ledger is the scroll position here: the height it takes moves the reader with the rows.
+ * What a render has it take is that render's own until it commits: the next render starts from
+ * the last commit again.
  *
  * `leadingPx` of other content (the room's intro) is above the list in the scroll area, and bars
  * cover `insetPx` of the scroll area's top. The list knows of neither: it takes the scroll
@@ -103,6 +105,8 @@ const roomList = (initial: {
   const pinnedIds = new Set<string>();
   /** The height the ledger took for rows that came out of a closed fold above the view. */
   let ledgerPx = 0;
+  /** What the last render has it take, until that render commits. */
+  let renderPx = 0;
   /** A fold's break as it measures: taller once its label wraps. */
   let breakPx = BREAK_PX;
   const element = {
@@ -123,7 +127,6 @@ const roomList = (initial: {
   // The folds are the same object from render to render until the loaded rows, an opened fold
   // or a pin changes, as the timeline memoizes them.
   let view: MembershipFoldView | undefined;
-  const pricedRef: { current: MembershipFoldView } = { current: { breaks: new Map() } };
 
   const virtualizer = new Virtualizer<HTMLDivElement, Element>({
     count: 0,
@@ -153,7 +156,7 @@ const roomList = (initial: {
     },
   });
 
-  const render = () => {
+  const render = (exposing = true) => {
     view ??= viewMembershipFolds(
       planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds }),
       (fold) => fold.eventIds.some((id) => openIds.has(id))
@@ -182,15 +185,16 @@ const roomList = (initial: {
       membershipFoldsRef,
       renderedRoomRowsRef,
     });
-    const exposedPx = takeExposedFoldRowsPx(
-      pricedRef,
-      renderedRoomRowsRef.current,
-      { view, foldedRows: projection.foldedRows, windowRows, pinnedIds },
-      estimateSize
-    );
-    if (exposedPx !== 0) {
-      ledgerPx += exposedPx;
-      element.scrollTop += exposedPx;
+    const exposedPx = exposing
+      ? exposedFoldRowsPxOfRender(
+          renderedRoomRowsRef.current,
+          { view, foldedRows: projection.foldedRows, windowRows, pinnedIds },
+          estimateSize
+        )
+      : renderPx;
+    if (exposedPx !== renderPx) {
+      element.scrollTop += exposedPx - renderPx;
+      renderPx = exposedPx;
       reportOffset(element.scrollTop, false);
     }
     virtualizer.setOptions({
@@ -222,12 +226,16 @@ const roomList = (initial: {
       virtualizer.elementsCache.set(id, row as unknown as Element);
       virtualizer.resizeItem(index, tilePx(event));
     });
-    render();
+    // The ledger keeps what the committed render had it take.
+    ledgerPx += renderPx;
+    renderPx = 0;
+    render(false);
     renderedRoomRowsRef.current = readRenderedRoomRows(
       virtualizer,
       windowRows,
       membershipFoldsRef.current,
-      () => element.scrollTop + insetPx - leadingPx
+      // The rows are where the last commit painted them: a later render moved nothing yet.
+      () => element.scrollTop - renderPx + insetPx - leadingPx
     );
   };
 
@@ -268,6 +276,13 @@ const roomList = (initial: {
       stateRange = getRangeWithoutRow(stateRange, index);
       view = undefined;
     },
+    /** An event lands among the loaded rows, before the event `id`, inside the state's window. */
+    insertBefore: (id: string, event: MatrixEvent) => {
+      const index = loaded.findIndex((row) => row.getId() === id);
+      loaded = [...loaded.slice(0, index), event, ...loaded.slice(index)];
+      stateRange = { start: stateRange.start, end: stateRange.end + 1 };
+      view = undefined;
+    },
     /** A page of history: its rows before the loaded ones, the state's window on the same rows. */
     prependHistory: (older: MatrixEvent[]) => {
       loaded = [...older, ...loaded];
@@ -292,7 +307,7 @@ const roomList = (initial: {
       pinnedIds.add(id);
       view = undefined;
     },
-    ledgerPx: () => ledgerPx,
+    ledgerPx: () => ledgerPx + renderPx,
     wrapBreak: (px: number) => {
       breakPx = px;
     },
@@ -566,6 +581,40 @@ describe("the reader's rows as a page of history lands at a fold", () => {
       expect(list.ledgerPx()).toBe(2 * rowPx - BREAK_PX);
       list.commit();
       expect(list.screenTop(readingAt)).toBe(-10);
+      expect(list.scrollWrites).toEqual([]);
+    }
+  );
+
+  // The classic view restores a thread reply from history between the third and fourth event of
+  // a closed fold of five: the first three are a fold still, and the last two rows of their own.
+  it.each([
+    ['comfortable', false, 28.5],
+    ['compact', true, 96],
+  ] as const)(
+    'keeps them still for the events a row inside a closed fold parts from it, in the %s layout',
+    (_layout, compact, rowPx) => {
+      const loaded = [...joins('m', 5), ...below];
+      const list = roomList({ loaded, stateRange: { start: 0, end: loaded.length }, compact });
+      readDownTo(list, readingAt);
+      expect(list.windowIds().slice(0, 2)).toEqual(['$m0', '$b0']);
+      expect(list.screenTop(readingAt)).toBe(-10);
+
+      list.insertBefore('$m3', message('$reply'));
+      list.render();
+      expect(list.windowIds().slice(0, 5)).toEqual(['$m0', '$reply', '$m3', '$m4', '$b0']);
+      // The fold keeps its break, at the height it had, and the ledger takes the two rows.
+      const sizes = list.sizes();
+      expect(sizes[0]).toBe(BREAK_PX);
+      expect(sizes.slice(2, 4)).toEqual([rowPx, rowPx]);
+      expect(list.ledgerPx()).toBe(2 * rowPx);
+      // The reply is a row the room gained, not one the fold held: its height is not the fold's
+      // to take.
+      expect(list.screenTop(readingAt)).toBe(-10 + (sizes[1] ?? 0));
+      list.render();
+      expect(list.ledgerPx()).toBe(2 * rowPx);
+      list.commit();
+      expect(list.ledgerPx()).toBe(2 * rowPx);
+      expect(list.screenTop(readingAt)).toBe(-10 + (sizes[1] ?? 0));
       expect(list.scrollWrites).toEqual([]);
     }
   );

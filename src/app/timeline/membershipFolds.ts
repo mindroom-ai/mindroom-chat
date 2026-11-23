@@ -374,6 +374,11 @@ export const foldFormedOverRows = (
  * offset ledger takes that height, as it takes the rows a page of history mounts above the
  * reader, and the reader's rows stay where they are.
  *
+ * A row that lands inside the run parts it instead (the classic view restores a thread reply
+ * between two of its events): the fold with its first event keeps the break, at its height, and
+ * the events it no longer holds are rows, or another fold's row. Those are counted, and the
+ * break is not taken off.
+ *
  * Above the view is where the reader sees it (`RenderedListPlace`), not where the list's own
  * range has it: a break that showed, or part of it, opens down from where it is, and one under
  * the bars over the list is above.
@@ -399,33 +404,40 @@ export const exposedFoldRowsPx = (
   // The last row of that render which is a row still: the rows before it kept their place.
   let lastKept = rows.length - 1;
   while (lastKept >= 0 && !nowIds.has(rows[lastKept]?.getId())) lastKept -= 1;
-  // The folds that came apart, by the ID of each event they held.
+  // The events that a fold above the view no longer holds, each with that fold, and the folds
+  // among them whose break is gone.
   let exposed: Map<string, MembershipFold> | undefined;
+  const apart = new Set<MembershipFold>();
   for (let index = 0; index < lastKept; index += 1) {
     const key = rows[index]?.getId() ?? '';
     const was = before.breaks.get(key);
     const end = place.foldEnds.get(key);
-    // Still the row of a closed fold, or held by one: `heldFoldHeight` keeps the rows still.
-    if (was && !was.open && end !== undefined && end <= readerTop && !now.foldedRows.has(key)) {
+    if (was && !was.open && end !== undefined && end <= readerTop) {
       const { fold } = was;
+      // The closed fold that holds its first event now has its break, at its height
+      // (`heldFoldHeight`), and keeps still the events it holds.
+      const keptRow = now.foldedRows.get(key);
       const is = now.view.breaks.get(key);
       const openedByReader = !!is?.open && is.fold.spanIds.length === fold.spanIds.length;
       if (!openedByReader && !fold.spanIds.some((id) => now.pinnedIds.has(id))) {
-        exposed ??= new Map();
-        for (const id of fold.spanIds) exposed.set(id, fold);
+        if (keptRow === undefined) apart.add(fold);
+        for (const id of fold.spanIds) {
+          if (keptRow === undefined || now.foldedRows.get(id) !== keptRow) {
+            exposed ??= new Map();
+            exposed.set(id, fold);
+          }
+        }
       }
     }
   }
   if (!exposed) return 0;
   let px = 0;
-  const here = new Set<MembershipFold>();
   now.windowRows.forEach((event, index) => {
     const id = event.getId() ?? '';
     const fold = exposed?.get(id);
     if (!fold) return;
     // The break is gone from above the rows of its events that are left.
-    if (!here.has(fold)) px -= sizes.get(fold.key) ?? 0;
-    here.add(fold);
+    if (apart.delete(fold)) px -= sizes.get(fold.key) ?? 0;
     px += priceRow(id, index);
   });
   return px;

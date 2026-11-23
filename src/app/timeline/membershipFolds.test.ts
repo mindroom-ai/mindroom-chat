@@ -669,6 +669,32 @@ describe('exposedFoldRowsPx', () => {
     expect(exposed(rendered(3), withoutAny)).toBe(0);
   });
 
+  it('counts the events that a row inside a closed fold parts from it, and leaves its break', () => {
+    const at = (events: MatrixEvent[], id: string) =>
+      events.findIndex((event) => event.getId() === id);
+    const reply = messageEvent('$reply');
+    // Between the third join and the fourth: three are a fold still, with the break at the
+    // first, and the fourth is a row. The reply is a row the room gained.
+    const parted = [...loaded];
+    parted.splice(at(parted, '$m4'), 0, reply);
+    expect(exposed(rendered(3), parted)).toBe(30);
+    // Of six joins, the last three are a fold of their own: its break is one row more.
+    const six = [...loaded];
+    six.splice(at(six, '$msg1'), 0, joinEvent('$m5', '@e:x'), joinEvent('$m6', '@f:x'));
+    const halved = [...six];
+    halved.splice(at(halved, '$m4'), 0, reply);
+    expect(exposed(rendered(3, six), halved)).toBe(30);
+    // In view, they open down from the break.
+    expect(exposed(rendered(1), parted)).toBe(0);
+    // A fold that lost an event after its first and holds the rest still shows no row more.
+    expect(
+      exposed(
+        rendered(3),
+        loaded.filter((event) => event.getId() !== '$m3')
+      )
+    ).toBe(0);
+  });
+
   it('is nothing when other rows replaced the ones the fold stood among', () => {
     const other = [messageEvent('$other0'), messageEvent('$other1'), messageEvent('$other2')];
     expect(exposed(rendered(3), other)).toBe(0);
