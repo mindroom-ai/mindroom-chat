@@ -101,32 +101,42 @@ export const restoreTimelineBulkExpansionAnchor = (
  */
 export const useTimelineBulkExpansionAnchor = (
   baseline: boolean,
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement>,
+  enabled = true
 ): (() => void) => {
   const previousBaselineRef = useRef(baseline);
   const generationRef = useRef(0);
   const anchorRef = useRef<TimelineBulkExpansionAnchor>();
 
   const restoreAnchor = useCallback(() => {
+    if (!enabled) return;
     const scrollElement = scrollRef.current;
     const anchor = anchorRef.current;
     if (!scrollElement || !anchor) return;
 
     restoreTimelineBulkExpansionAnchor(scrollElement, anchor);
-  }, [scrollRef]);
+  }, [enabled, scrollRef]);
 
   useLayoutEffect(() => {
     if (previousBaselineRef.current === baseline) return;
     previousBaselineRef.current = baseline;
+    if (!enabled) {
+      anchorRef.current = undefined;
+      return;
+    }
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
 
     generationRef.current += 1;
     const generation = generationRef.current;
     anchorRef.current = captureTimelineBulkExpansionAnchor(scrollElement, generation);
-  }, [baseline, scrollRef]);
+  }, [baseline, enabled, scrollRef]);
 
   useEffect(() => {
+    if (!enabled) {
+      anchorRef.current = undefined;
+      return undefined;
+    }
     const anchor = anchorRef.current;
     if (!anchor || typeof requestAnimationFrame === 'undefined') return undefined;
     const generation = anchor.generation;
@@ -158,7 +168,7 @@ export const useTimelineBulkExpansionAnchor = (
       scrollElement?.removeEventListener('touchstart', cancelForUserIntent);
       scrollElement?.removeEventListener('pointerdown', cancelForUserIntent);
     };
-  }, [baseline, restoreAnchor, scrollRef]);
+  }, [baseline, enabled, restoreAnchor, scrollRef]);
 
   return restoreAnchor;
 };

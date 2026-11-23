@@ -27,9 +27,11 @@ export const useFollowContentGrowth = (
   roomId: string,
   // Rows that shrank in the frame the growth shows, which the list still holds room for until
   // React renders it: the end it follows to is that much higher.
-  pendingListShrinkPx: () => number = () => 0
+  pendingListShrinkPx: () => number = () => 0,
+  enabled = true
 ): void => {
   useEffect(() => {
+    if (!enabled) return undefined;
     const scrollElement = getScrollElement();
     const content = contentRef.current;
     if (!scrollElement || !content) return undefined;
@@ -83,6 +85,7 @@ export const useFollowContentGrowth = (
     getScrollElement,
     isViewportAtBottomNow,
     liveReplies,
+    enabled,
     pendingListShrinkPx,
     roomId,
   ]);

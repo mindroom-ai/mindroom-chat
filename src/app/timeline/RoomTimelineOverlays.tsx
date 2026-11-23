@@ -289,3 +289,131 @@ export function ThreadLoadingLines({
     </>
   );
 }
+
+const SKELETON_ROWS = [
+  { nameW: '24%', line1W: '76%', line2W: '52%' },
+  { nameW: '18%', line1W: '64%', line2W: '82%' },
+  { nameW: '28%', line1W: '72%', line2W: '44%' },
+  { nameW: '22%', line1W: '80%', line2W: '60%' },
+  { nameW: '20%', line1W: '68%', line2W: '48%' },
+  { nameW: '26%', line1W: '74%', line2W: '56%' },
+  { nameW: '19%', line1W: '62%', line2W: '70%' },
+  { nameW: '25%', line1W: '78%', line2W: '40%' },
+] as const;
+
+/**
+ * Occupies the positive headroom reserve above row 0 with the existing `ThreadLoadingLines`
+ * plus sticky skeleton placeholders so landing anywhere inside the reserve (Home, thumb drag,
+ * or fast fling) never displays blank space.
+ */
+export function ThreadHeadroomReserve({
+  headroomPx,
+  topInset,
+  loadError,
+  showLoadOlder,
+  paginatingBack,
+  loading,
+  onLoadOlder,
+}: {
+  headroomPx: number;
+  topInset: string;
+  loadError: boolean;
+  showLoadOlder: boolean;
+  paginatingBack: boolean;
+  loading: boolean;
+  onLoadOlder: () => void;
+}) {
+  if (headroomPx <= 0) return null;
+  const rounded = Math.round(headroomPx);
+  return (
+    <div
+      data-testid="thread-headroom-reserve"
+      data-headroom-px={rounded}
+      aria-busy={showLoadOlder || paginatingBack || loading || undefined}
+      style={{
+        position: 'absolute',
+        top: 0,
+        insetInline: 0,
+        height: headroomPx,
+        pointerEvents: 'none',
+      }}
+    >
+      <div
+        data-headroom-skeleton="true"
+        style={{
+          position: 'sticky',
+          top: topInset,
+          maxHeight: '100%',
+          minHeight: `min(${rounded}px, 100vh)`,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          gap: config.space.S300,
+          padding: `${config.space.S400} ${config.space.S400}`,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ pointerEvents: 'auto' }}>
+          <ThreadLoadingLines
+            loadError={loadError}
+            showLoadOlder={showLoadOlder}
+            paginatingBack={paginatingBack}
+            loading={loading}
+            onLoadOlder={onLoadOlder}
+          />
+        </div>
+        {SKELETON_ROWS.map((row, idx) => (
+          <div
+            key={idx}
+            aria-hidden="true"
+            data-headroom-skeleton-row="true"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: config.space.S300,
+              padding: `${config.space.S200} 0`,
+              opacity: 0.45,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: 'var(--bg-surface-hover, rgba(128, 128, 128, 0.22))',
+              }}
+            />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div
+                style={{
+                  width: row.nameW,
+                  height: 12,
+                  borderRadius: 6,
+                  background: 'var(--bg-surface-hover, rgba(128, 128, 128, 0.25))',
+                }}
+              />
+              <div
+                style={{
+                  width: row.line1W,
+                  height: 14,
+                  borderRadius: 6,
+                  background: 'var(--bg-surface-hover, rgba(128, 128, 128, 0.2))',
+                }}
+              />
+              <div
+                style={{
+                  width: row.line2W,
+                  height: 14,
+                  borderRadius: 6,
+                  background: 'var(--bg-surface-hover, rgba(128, 128, 128, 0.16))',
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

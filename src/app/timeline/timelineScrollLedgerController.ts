@@ -18,8 +18,18 @@ import {
   type Range,
   type ReactVirtualizer,
 } from '@tanstack/react-virtual';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { threadScrollRange } from './threadScrollRange';
 import { NOOP_THREAD_SCROLL_TO_FN } from './threadScrollWriter';
+import type { ScrollToBottomState } from './roomFocusScrollController';
+import {
+  computeHeadroomRenderSnapshot,
+  computePaintedItemEnd,
+  createThreadScrollOwnerState,
+  type PendingThreadScrollFact,
+  type ThreadScrollOwnerState,
+} from './threadScrollHeadroom';
+import { useThreadScrollOwnerCommit } from './useThreadScrollOwner';
 import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
@@ -91,6 +101,23 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
   threadScrollOwnerEnabled?: boolean;
+  headroomOwner?: {
+    enabled: boolean;
+    owner: ThreadScrollOwnerState;
+    expectedThreadEvents: number;
+    hasMoreHistory: boolean;
+    rawHasMoreHistory: boolean;
+    threadUserScrolled: boolean;
+    threadOpenedAtLatest: boolean;
+    threadLatestOpenPending: boolean;
+    atLiveEndRef?: MutableRefObject<boolean>;
+    scrollToBottomRef?: MutableRefObject<ScrollToBottomState>;
+    isThreadOpenBottomPinSuppressed?: () => boolean;
+    requestThreadOpenBottomPin?: () => boolean;
+    shouldApplyThreadBottomPin?: (count: number) => boolean;
+    setAtBottom?: (atBottom: boolean) => void;
+    footerProbeRef?: RefObject<HTMLElement>;
+  };
   threadInitialRenderMode: ThreadInitialRenderMode;
   /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
   threadRowPricing?: unknown;
@@ -110,6 +137,9 @@ export type TimelineScrollLedgerController = {
   endSettleDiscardWatch: () => void;
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
+  headroomPxAtRender: number;
+  enqueueScrollFact: (fact: PendingThreadScrollFact) => void;
+  resizeRow: (index: number, nextSize: number) => void;
   measureElement: (node: Element | null) => void;
   leadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
@@ -229,12 +259,15 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadScrollOwnerEnabled = false,
+  headroomOwner,
   threadInitialRenderMode,
   threadRowPricing,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
+  const ownerEnabled = !!threadId && !!(headroomOwner?.enabled ?? threadScrollOwnerEnabled);
+  const headroomState = headroomOwner?.owner;
   const virtualInnerRef = useRef<HTMLDivElement>(null);
   const compensationSettleArmedRef = useRef(false);
   // Bumped by the room/thread commit-time reset: an armed quiescence wait
@@ -247,6 +280,11 @@ export const useTimelineScrollLedgerController = ({
   // The reader's first visible thread row as of the last commit or scroll.
   // Rows that a later render adds above it are folded, whatever added them.
   const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>();
+  const threadLedgerViewRef = useRef<{
+    rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
+    listTop: number;
+    inset: number;
+  }>();
   const ledgerSettleWantedRef = useRef(false);
   // The part of the ledger that thread rows added above the reader brought with their own height,
   // until the next settle: a thread's list holds all its rows, so their fold lifts the list without
@@ -278,8 +316,31 @@ export const useTimelineScrollLedgerController = ({
   );
   // Thread prepend planning is pure. Its mutations are applied only after
   // React commits the render that consumed this plan.
+  // Under headroom ownership, if the reader is inside the reserve above row 0
+  // (`threadLedgerAnchorRef.current === undefined` with positive headroom), anchor at the
+  // earliest existing non-root reply so prepended older messages consume headroom and fill
+  // the reserve from the bottom up.
+  let effectiveThreadAnchor = resettingLedgerView ? undefined : threadLedgerAnchorRef.current;
+  if (
+    !effectiveThreadAnchor &&
+    ownerEnabled &&
+    !resettingLedgerView &&
+    headroomState &&
+    headroomState.committedHeadroomPx > 0 &&
+    threadId &&
+    threadLedgerViewRef.current?.rows.threadId === threadId
+  ) {
+    const viewRows = threadLedgerViewRef.current.rows;
+    for (let i = 0; i < viewRows.events.length; i += 1) {
+      const id = viewRows.events[i]?.getId();
+      if (id && id !== threadId) {
+        effectiveThreadAnchor = { ...viewRows, eventId: id, index: i };
+        break;
+      }
+    }
+  }
   const threadLedgerRenderPlan = planThreadLedgerRender({
-    anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
+    anchor: effectiveThreadAnchor,
     eventIndexMap: threadEventIndexMap,
     priceRow: priceThreadRowForLedger,
     pricing: threadRowPricing,
@@ -330,7 +391,18 @@ export const useTimelineScrollLedgerController = ({
       : pendingRoomFoldPxRef.current + exposedRoomRowsPx;
   // One immutable snapshot feeds virtualizer.scrollMargin, the inner margin,
   // and every tile top for this paint.
-  const ledgerPxAtRender = resettingLedgerView
+  const headroomSnapshot = headroomState
+    ? computeHeadroomRenderSnapshot(headroomState, {
+        ownerEnabled,
+        resettingLedgerView,
+        prependFoldPx: threadLedgerRenderPlan.foldPx,
+        leadingFoldPx,
+      })
+    : { headroomPxAtRender: 0, renderedResizeSeq: 0 };
+  const headroomPxAtRender = headroomSnapshot.headroomPxAtRender;
+  const ledgerPxAtRender = ownerEnabled
+    ? 0
+    : resettingLedgerView
     ? 0
     : scrollCompensationPxRef.current +
       threadLedgerRenderPlan.foldPx +
@@ -350,6 +422,12 @@ export const useTimelineScrollLedgerController = ({
   });
   useLayoutEffect(() => {
     if (resettingLedgerView) return;
+    if (ownerEnabled) {
+      if (virtualInnerRef.current && virtualInnerRef.current.style.marginTop !== '') {
+        virtualInnerRef.current.style.marginTop = '';
+      }
+      return;
+    }
 
     const foldPx =
       threadLedgerRenderPlan.foldPx + leadingFoldPx + roomFoldPxAtRender + roomLedgerFoldPx;
@@ -370,6 +448,7 @@ export const useTimelineScrollLedgerController = ({
   }, [
     anchoringRoomRows,
     ledgerViewKey,
+    ownerEnabled,
     pendingRoomFoldPxRef,
     resettingLedgerView,
     roomFoldPxAtRender,
@@ -493,8 +572,8 @@ export const useTimelineScrollLedgerController = ({
     observeElementRect: observeTimelineRect,
     observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
-    ...(threadId && threadScrollOwnerEnabled ? { scrollToFn: NOOP_THREAD_SCROLL_TO_FN } : {}),
-    scrollMargin: -ledgerPxAtRender,
+    ...(ownerEnabled ? { scrollToFn: NOOP_THREAD_SCROLL_TO_FN } : {}),
+    scrollMargin: ownerEnabled ? headroomPxAtRender : -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
     getItemKey,
@@ -522,11 +601,6 @@ export const useTimelineScrollLedgerController = ({
   // virtual-core offset scrollTop + inset - listTop. A settle shifts
   // scrollTop and scrollMargin together, keeping it valid. Above the first
   // row there is no anchor.
-  const threadLedgerViewRef = useRef<{
-    rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
-    listTop: number;
-    inset: number;
-  }>();
   const readerTopOffset = useCallback((scrollTop: number) => {
     const view = threadLedgerViewRef.current;
     return view ? scrollTop + view.inset - view.listTop : undefined;
@@ -541,14 +615,24 @@ export const useTimelineScrollLedgerController = ({
     (scrollTop: number) => {
       const view = threadLedgerViewRef.current;
       const offset = readerTopOffset(scrollTop);
+      let pendingDelta = 0;
+      if (ownerEnabled && headroomState) {
+        for (let i = 0; i < headroomState.aboveResizeQueue.length; i += 1) {
+          pendingDelta += headroomState.aboveResizeQueue[i]!.delta;
+        }
+      }
+      const queryOffset = offset === undefined ? undefined : offset + pendingDelta;
       const item =
-        offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
-      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+        queryOffset === undefined
+          ? undefined
+          : virtualizerRef.current.getVirtualItemForOffset(queryOffset);
+      const index =
+        item && queryOffset !== undefined && item.start <= queryOffset ? item.index : undefined;
       const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
       threadLedgerAnchorRef.current =
         view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
     },
-    [readerTopOffset]
+    [headroomState, ownerEnabled, readerTopOffset]
   );
   // The room's rows, where the list sits in the scroll content and the headers' inset, as for a
   // thread's rows above; the reader's row is recorded at every commit and scroll.
@@ -628,11 +712,20 @@ export const useTimelineScrollLedgerController = ({
     if (leading && threadId && leading.style.minHeight !== heldPx) leading.style.minHeight = heldPx;
     leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
     if (leadingHeld && leadingPx !== leadingRenderPx) {
-      // Applied by a synchronous re-render, before this commit paints.
-      scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
-      if (threadId) rowFoldPxRef.current += leadingPx - leadingRenderPx;
-      ledgerSettleWantedRef.current = true;
-      setLedgerCommitTick((tick) => tick + 1);
+      if (ownerEnabled && headroomState) {
+        headroomState.nextResizeSeq += 1;
+        headroomState.aboveResizeQueue.push({
+          seq: headroomState.nextResizeSeq,
+          delta: leadingPx - leadingRenderPx,
+        });
+        headroomState.bumpCommitTick();
+      } else {
+        // Applied by a synchronous re-render, before this commit paints.
+        scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
+        if (threadId) rowFoldPxRef.current += leadingPx - leadingRenderPx;
+        ledgerSettleWantedRef.current = true;
+        setLedgerCommitTick((tick) => tick + 1);
+      }
     }
     if (!threadId) {
       threadLedgerViewRef.current = undefined;
@@ -664,6 +757,37 @@ export const useTimelineScrollLedgerController = ({
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
   });
+  const fallbackOwnerRef = useRef<ThreadScrollOwnerState | undefined>(undefined);
+  if (!fallbackOwnerRef.current) {
+    fallbackOwnerRef.current = createThreadScrollOwnerState([]);
+  }
+  const { enqueueAboveResize, enqueueScrollFact, resizeRow } = useThreadScrollOwnerCommit({
+    owner: headroomState ?? fallbackOwnerRef.current,
+    snapshot: headroomSnapshot,
+    ownerEnabled,
+    resettingLedgerView,
+    threadId,
+    threadEvents: threadEvents as MatrixEvent[],
+    expectedThreadEvents: headroomOwner?.expectedThreadEvents ?? 0,
+    hasMoreHistory: headroomOwner?.hasMoreHistory ?? false,
+    rawHasMoreHistory: headroomOwner?.rawHasMoreHistory ?? false,
+    threadUserScrolled: headroomOwner?.threadUserScrolled ?? false,
+    threadOpenedAtLatest: headroomOwner?.threadOpenedAtLatest ?? false,
+    threadLatestOpenPending: headroomOwner?.threadLatestOpenPending ?? false,
+    atLiveEndRef: headroomOwner?.atLiveEndRef,
+    scrollToBottomRef: headroomOwner?.scrollToBottomRef,
+    isThreadOpenBottomPinSuppressed: headroomOwner?.isThreadOpenBottomPinSuppressed,
+    requestThreadOpenBottomPin: headroomOwner?.requestThreadOpenBottomPin,
+    shouldApplyThreadBottomPin: headroomOwner?.shouldApplyThreadBottomPin,
+    setAtBottom: headroomOwner?.setAtBottom,
+    footerProbeRef: headroomOwner?.footerProbeRef,
+    getScrollElement,
+    virtualInnerRef,
+    virtualizerRef,
+    anchorRef: threadLedgerAnchorRef,
+    sizeCacheRef: ledgerFoldSizeCacheRef,
+    onAfterScrollWrite: anchorThreadLedgerAt,
+  });
   const roomLeadingShown = !threadId && !!leadingKey;
   useEffect(() => {
     const scrollElement = getScrollElement();
@@ -674,10 +798,13 @@ export const useTimelineScrollLedgerController = ({
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement || !threadId) return undefined;
-    const onScroll = () => anchorThreadLedgerAt(scrollElement.scrollTop);
+    const onScroll = () => {
+      if (headroomState?.pendingReconcileAfterWrite) return;
+      anchorThreadLedgerAt(scrollElement.scrollTop);
+    };
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
-  }, [anchorThreadLedgerAt, getScrollElement, threadId]);
+  }, [anchorThreadLedgerAt, getScrollElement, headroomState, threadId]);
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
@@ -720,13 +847,18 @@ export const useTimelineScrollLedgerController = ({
       if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
         return;
       if (scrollTop <= 0) return;
+      if (ownerEnabled && headroomState) {
+        enqueueAboveResize(deltaPx);
+        headroomState.bumpCommitTick();
+        return;
+      }
       scrollElement.scrollTop = scrollTop + deltaPx;
       // As after a settle: this write is not a discarded settle's reversal,
       // and its scroll event must not read as the reader's direction.
       settleDiscardWatchRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
     },
-    [getScrollElement, threadId]
+    [enqueueAboveResize, getScrollElement, headroomState, ownerEnabled, threadId]
   );
 
   const settledScrollTopRef = useRef<number | undefined>(undefined);
@@ -834,7 +966,7 @@ export const useTimelineScrollLedgerController = ({
   // The part of those that kept the reader at the list's end, which moved no row.
   const unrenderedEndCorrectionPxRef = useRef(0);
   const measurementCorrectionPxRef = useRef(0);
-  const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement);
+  const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement, !ownerEnabled);
   const handleAppliedCorrection = useCallback(
     (deltaPx: number, atEnd: boolean) => {
       noteAppliedCorrection(deltaPx);
@@ -896,7 +1028,7 @@ export const useTimelineScrollLedgerController = ({
   // stop both reversed a live native frame and killed Safari momentum.
   useEffect(() => {
     const scrollElement = getScrollElement();
-    if (!scrollElement) return undefined;
+    if (!scrollElement || ownerEnabled) return undefined;
     ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
     const onLedgerBoundaryTouchStart = () => {
       // iOS can move the compositor without delivering scroll events. Start
@@ -1056,6 +1188,7 @@ export const useTimelineScrollLedgerController = ({
   }, [
     getScrollElement,
     handleDroppedCorrection,
+    ownerEnabled,
     pendingRoomFoldPxRef,
     settleScrollCompensation,
     threadId,
@@ -1065,7 +1198,7 @@ export const useTimelineScrollLedgerController = ({
   const commitLedgerMargin = () => {
     const inner = virtualInnerRef.current;
     if (!inner) return;
-    const marginTop = ledgerPxAtRender === 0 ? '' : `${-ledgerPxAtRender}px`;
+    const marginTop = ownerEnabled || ledgerPxAtRender === 0 ? '' : `${-ledgerPxAtRender}px`;
     if (inner.style.marginTop !== marginTop) inner.style.marginTop = marginTop;
   };
   // Height mutations can shrink the physical scroll range. Commit the paired
@@ -1122,7 +1255,32 @@ export const useTimelineScrollLedgerController = ({
           deltaPx
         ),
     });
-    return (...args: Parameters<typeof decide>): boolean => {
+    return (
+      ...args: Parameters<
+        NonNullable<typeof virtualizer.shouldAdjustScrollPositionOnItemSizeChange>
+      >
+    ): boolean => {
+      if (ownerEnabled) {
+        const [item, delta, instance] = args;
+        const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
+        const readerTop = readerTopOffset(liveTop) ?? liveTop;
+        const paintedItemEnd = headroomState
+          ? computePaintedItemEnd({
+              item,
+              aboveResizeQueue: headroomState.aboveResizeQueue,
+              measurementsCache: instance.measurementsCache,
+            })
+          : item.end;
+        if (paintedItemEnd <= readerTop && delta !== 0) {
+          enqueueAboveResize(delta, {
+            index: item.index,
+            key: item.key,
+            oldSize: item.size,
+          });
+        }
+        renderRowMoveBeforePaint();
+        return false;
+      }
       dropped = false;
       if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const apply = decide(...args);
@@ -1145,7 +1303,10 @@ export const useTimelineScrollLedgerController = ({
     isAutomaticFillActive,
     handleAppliedCorrection,
     handleDroppedCorrection,
+    enqueueAboveResize,
+    headroomState,
     itemCount,
+    ownerEnabled,
     readerTopOffset,
     renderRowMoveBeforePaint,
     unrenderedCorrectionPx,
@@ -1210,6 +1371,9 @@ export const useTimelineScrollLedgerController = ({
     endSettleDiscardWatch,
     holdThreadBannerResize,
     ledgerPxAtRender,
+    headroomPxAtRender,
+    enqueueScrollFact,
+    resizeRow,
     measureElement,
     readRowFoldPx,
     takeSettledScrollTop,

@@ -458,17 +458,31 @@ export const useThreadAutoPaginateBack = ({
   showLoadOlder: boolean;
   hasUserScrollIntent: boolean;
   paginateBack: () => Promise<unknown>;
+  ownerEnabled?: boolean;
+  headroomPx?: number;
+  hasHeldEvents?: boolean;
 }) => {
-  const { threadId } = state;
+  const {
+    threadId,
+    ownerEnabled = false,
+    headroomPx = 0,
+    hasHeldEvents = false,
+    paginatingBack,
+    showLoadOlder,
+    hasUserScrollIntent,
+  } = state;
   const autoPaginateRef = useLatestRef(state);
   useEffect(() => {
     if (!scrollElement || !threadId) return undefined;
     const checkTop = () => {
       const current = autoPaginateRef.current;
+      const reservePx = current.headroomPx ?? 0;
+      const inReserve =
+        !!current.ownerEnabled && reservePx > 0 && scrollElement.scrollTop < reservePx;
       const shouldPaginate = shouldAutoPaginateThreadBack({
         threadId: current.threadId,
-        firstRenderedIndex: virtualizerRef.current.getVirtualItems()[0]?.index,
-        paginatingBack: current.paginatingBack,
+        firstRenderedIndex: inReserve ? 0 : virtualizerRef.current.getVirtualItems()[0]?.index,
+        paginatingBack: current.paginatingBack || !!current.hasHeldEvents,
         showLoadOlder: current.showLoadOlder,
         hasUserScrollIntent: current.hasUserScrollIntent,
         triggerRows: THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
@@ -484,4 +498,35 @@ export const useThreadAutoPaginateBack = ({
     events.forEach((type) => scrollElement.addEventListener(type, checkTop, { passive: true }));
     return () => events.forEach((type) => scrollElement.removeEventListener(type, checkTop));
   }, [autoPaginateRef, scrollElement, threadId, virtualizerRef]);
+
+  // When the reader lands inside the headroom reserve (Home / thumb-to-top / fast fling) while
+  // history is still incomplete, keep fetching pages after each completion without another scroll.
+  useEffect(() => {
+    if (
+      !ownerEnabled ||
+      !scrollElement ||
+      !threadId ||
+      !showLoadOlder ||
+      paginatingBack ||
+      hasHeldEvents ||
+      !hasUserScrollIntent ||
+      headroomPx <= 0
+    ) {
+      return;
+    }
+    if (scrollElement.scrollTop < headroomPx) {
+      countCacheProbe('threadAutoPaginateBackFired');
+      void autoPaginateRef.current.paginateBack();
+    }
+  }, [
+    autoPaginateRef,
+    hasHeldEvents,
+    hasUserScrollIntent,
+    headroomPx,
+    ownerEnabled,
+    paginatingBack,
+    scrollElement,
+    showLoadOlder,
+    threadId,
+  ]);
 };

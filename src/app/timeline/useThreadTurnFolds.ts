@@ -237,10 +237,12 @@ export const useTurnBreakRowMeasurements = (
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   events: readonly MatrixEvent[],
   view: ThreadTurnFoldView,
-  estimate: (index: number) => number
+  estimate: (index: number) => number,
+  resizeRow?: (index: number, size: number) => void
 ) => {
   const previous = useRef<ThreadTurnFoldView['breaks']>(new Map());
   useLayoutEffect(() => {
+    const resize = resizeRow ?? ((idx: number, size: number) => virtualizer.resizeItem(idx, size));
     const before = previous.current;
     previous.current = view.breaks;
     events.forEach((event, index) => {
@@ -248,8 +250,8 @@ export const useTurnBreakRowMeasurements = (
       const changed = id && view.breaks.get(id)?.open !== before.get(id)?.open;
       // A row unmounted in this commit can still be in the cache, detached.
       if (changed && !virtualizer.elementsCache.get(id)?.isConnected) {
-        virtualizer.resizeItem(index, estimate(index));
+        resize(index, estimate(index));
       }
     });
-  }, [virtualizer, events, view, estimate]);
+  }, [virtualizer, events, view, estimate, resizeRow]);
 };

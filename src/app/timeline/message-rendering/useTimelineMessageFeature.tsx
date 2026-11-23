@@ -125,6 +125,7 @@ type UseTimelineMessageFeatureOptions = TimelineSettings & {
   threadId?: string;
   scrollRef: RefObject<HTMLDivElement>;
   showThreadRepliesInRoom: boolean;
+  bulkExpansionAnchorEnabled?: boolean;
 };
 
 /**
@@ -389,6 +390,7 @@ export const useTimelineMessageFeature = ({
   threadId,
   scrollRef,
   showThreadRepliesInRoom,
+  bulkExpansionAnchorEnabled = true,
   hideActivity,
   messageLayout,
   messageSpacing,
@@ -402,7 +404,11 @@ export const useTimelineMessageFeature = ({
   const liveExpansionIds = liveExpansion.ids;
   const manualExpansionState = useRef(new Map<string, boolean>()).current;
   const [expandAll, setExpandAll] = useState(false);
-  const restoreExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
+  const restoreExpansionAnchor = useTimelineBulkExpansionAnchor(
+    expandAll,
+    scrollRef,
+    bulkExpansionAnchorEnabled
+  );
   const toggleExpandAll = useCallback(() => {
     // The new baseline replaces every choice made for a single message.
     manualExpansionState.clear();

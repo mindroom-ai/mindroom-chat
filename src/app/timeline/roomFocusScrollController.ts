@@ -94,6 +94,7 @@ export type RoomFocusScrollControllerOptions = {
   /** The row of each loaded event that a closed fold of the room's rows holds, by event ID. */
   foldedRows?: ReadonlyMap<string, number>;
   threadId?: string;
+  threadScrollOwnerEnabled?: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadLatestOpenPending: boolean;
   threadOpenedAtLatest: boolean;
@@ -415,6 +416,7 @@ const useThreadOpeningPin = ({
   setAtBottom,
   threadEventsLength,
   threadId,
+  threadScrollOwnerEnabled = false,
   threadInitialRenderMode,
   threadLatestOpenPending,
   threadOpenedAtLatest,
@@ -428,6 +430,7 @@ const useThreadOpeningPin = ({
   | 'setAtBottom'
   | 'threadEventsLength'
   | 'threadId'
+  | 'threadScrollOwnerEnabled'
   | 'threadInitialRenderMode'
   | 'threadLatestOpenPending'
   | 'threadOpenedAtLatest'
@@ -439,7 +442,7 @@ const useThreadOpeningPin = ({
   // position: a view above it was moved up by something else than the rows growing.
   const pinnedPositionRef = useRef<{ top: number; correction: number }>();
   useLayoutEffect(() => {
-    if (!threadId) return;
+    if (!threadId || threadScrollOwnerEnabled) return;
     const pinned = shouldPinThreadToBottomOnOpen({
       suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
       threadId,
@@ -466,6 +469,7 @@ const useThreadOpeningPin = ({
     setAtBottom,
     threadEventsLength,
     threadId,
+    threadScrollOwnerEnabled,
     threadInitialRenderMode,
     threadLatestOpenPending,
     threadOpenedAtLatest,
@@ -476,6 +480,7 @@ const useThreadOpeningPin = ({
   // measurement pins it again, as long as the opening pin holds and nothing else moved the view
   // up (a script or assistive technology scrolls without the gestures that end the pin).
   useLayoutEffect(() => {
+    if (threadScrollOwnerEnabled) return;
     if (pinnedInCommitRef.current) {
       pinnedInCommitRef.current = false;
       return;
@@ -626,9 +631,16 @@ const useBottomPinRequests = ({
   scrollRef,
   scrollToBottomRef,
   shouldApplyThreadBottomPin,
+  threadId,
+  threadScrollOwnerEnabled = false,
 }: Pick<
   Options,
-  'latestAtTopRef' | 'scrollRef' | 'scrollToBottomRef' | 'shouldApplyThreadBottomPin'
+  | 'latestAtTopRef'
+  | 'scrollRef'
+  | 'scrollToBottomRef'
+  | 'shouldApplyThreadBottomPin'
+  | 'threadId'
+  | 'threadScrollOwnerEnabled'
 >) => {
   const seenCountRef = useRef(scrollToBottomRef.current.count);
   const guardRef = useLatestRef(shouldApplyThreadBottomPin);
@@ -636,6 +648,7 @@ const useBottomPinRequests = ({
     const { count, smooth } = scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
+    if (threadId && threadScrollOwnerEnabled) return;
     if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;

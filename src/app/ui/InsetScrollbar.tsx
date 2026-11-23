@@ -127,8 +127,10 @@ export function InsetScrollbar({
       track.setPointerCapture(event.pointerId);
       const unblock = blockSelection(() => {
         drag = undefined;
+        delete scroll.dataset.scrollbarDragging;
       });
       drag = { pointerId: event.pointerId, grabOffset, unblock };
+      scroll.dataset.scrollbarDragging = 'true';
       moveTo(event.clientY, grabOffset);
       reveal();
     };
@@ -139,6 +141,7 @@ export function InsetScrollbar({
       if (drag?.pointerId !== event.pointerId) return;
       drag.unblock();
       drag = undefined;
+      delete scroll.dataset.scrollbarDragging;
       if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
       reveal();
     };
@@ -174,6 +177,7 @@ export function InsetScrollbar({
     track.addEventListener('keydown', onKeyDown);
     update();
     return () => {
+      delete scroll.dataset.scrollbarDragging;
       drag?.unblock();
       observer?.disconnect();
       cancelAnimationFrame(frame);

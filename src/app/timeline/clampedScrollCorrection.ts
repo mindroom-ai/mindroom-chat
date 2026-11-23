@@ -24,12 +24,14 @@ type Pending = {
  * Returns the callback for each correction virtual-core applies, called before it writes it.
  */
 export const useClampedCorrectionFinish = (
-  getScrollElement: () => HTMLElement | null
+  getScrollElement: () => HTMLElement | null,
+  enabled = true
 ): ((deltaPx: number) => void) => {
   const pendingRef = useRef<Pending>();
 
   const noteAppliedCorrection = useCallback(
     (deltaPx: number) => {
+      if (!enabled) return;
       const scrollElement = getScrollElement();
       if (!scrollElement || isIOSWebKitDevice()) return;
       const end = scrollElement.scrollHeight - scrollElement.clientHeight;
@@ -42,10 +44,14 @@ export const useClampedCorrectionFinish = (
         commits: 0,
       };
     },
-    [getScrollElement]
+    [enabled, getScrollElement]
   );
 
   useLayoutEffect(() => {
+    if (!enabled) {
+      pendingRef.current = undefined;
+      return;
+    }
     const pending = pendingRef.current;
     const scrollElement = getScrollElement();
     if (!pending || !scrollElement) return;
