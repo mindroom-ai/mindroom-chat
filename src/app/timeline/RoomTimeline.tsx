@@ -1320,6 +1320,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
     showThreadLoadOlder,
+    threadUserScrolled,
     threadInitialRenderMode,
     threadRowPricing,
     leadingKey: threadId
@@ -1506,9 +1507,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadFilteredEventsRef: roomRowsRef,
     foldedRows: roomProjection.foldedRows,
     threadId,
-    expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
-    showThreadLoadOlder,
-    threadUserScrolled,
     threadInitialRenderMode,
     threadLatestOpenPending,
     threadOpenedAtLatest,

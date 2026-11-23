@@ -47,15 +47,13 @@ const OPEN_SETUPS: Setup[] = [
   { engine: 'webkit', viewport: 'desktop' },
   { engine: 'webkit', viewport: 'phone' },
 ];
-type ScrollSetup = Setup & { protoMode?: "auto" | "zero" | "over" };
+type ScrollSetup = Setup & { protoMode: "auto-trim-near-top" | "auto-trim-now" | "zero" };
 const SCROLL_SETUPS: ScrollSetup[] = [
-  { engine: "chromium", viewport: "desktop", protoMode: "auto" },
-  { engine: "webkit", viewport: "desktop", protoMode: "auto" },
-  { engine: "webkit", viewport: "phone", protoMode: "auto" },
+  { engine: "chromium", viewport: "desktop", protoMode: "auto-trim-near-top" },
+  { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-near-top" },
+  { engine: "webkit", viewport: "phone", protoMode: "auto-trim-near-top" },
+  { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-now" },
   { engine: "webkit", viewport: "desktop", protoMode: "zero" },
-  { engine: "webkit", viewport: "desktop", protoMode: "over" },
-  { engine: "webkit", viewport: "phone", protoMode: "zero" },
-  { engine: "webkit", viewport: "phone", protoMode: "over" },
 ];
 const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
   desktop: { viewport: { width: 1440, height: 900 } },
@@ -462,13 +460,12 @@ test.describe('thread timeline jumps reproducers', () => {
   });
 
   SCROLL_SETUPS.forEach((setup) => {
-    const mode = setup.protoMode ?? "auto";
+    const mode = setup.protoMode;
     test(`${setup.engine} ${setup.viewport} [${mode}]: fast upward wheel scrolling through realistic history does not jump`, async ({
       baseURL,
     }) => {
       const fixture = requireFixture(setup);
-      const runSetup = setup.viewport === "phone" ? { ...setup, viewport: "phone" as const } : setup;
-      await openAndRun(runSetup, baseURL, fixture, async (page) => {
+      await openAndRun(setup, baseURL, fixture, async (page) => {
         await page.addInitScript((m) => window.localStorage.setItem("__protoHeadroom", m), mode);
         await delayMediaAndRelations(page, 350, 650);
         const card = await gotoThreadCard(page, fixture);

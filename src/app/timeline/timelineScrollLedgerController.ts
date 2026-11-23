@@ -91,6 +91,7 @@ export type TimelineScrollLedgerControllerOptions = {
   threadId?: string;
   expectedThreadEvents?: number;
   showThreadLoadOlder?: boolean;
+  threadUserScrolled?: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
   threadRowPricing?: unknown;
@@ -110,7 +111,6 @@ export type TimelineScrollLedgerController = {
   endSettleDiscardWatch: () => void;
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
-  headroomPxAtRender: number;
   headroomPxAtRender: number;
   measureElement: (node: Element | null) => void;
   leadingRef: RefObject<HTMLDivElement>;
@@ -232,6 +232,7 @@ export const useTimelineScrollLedgerController = ({
   threadId,
   expectedThreadEvents = 0,
   showThreadLoadOlder = false,
+  threadUserScrolled = false,
   threadInitialRenderMode,
   threadRowPricing,
   leadingKey = '',
@@ -245,11 +246,6 @@ export const useTimelineScrollLedgerController = ({
   const pendingHeadroomScrollWriteRef = useRef(0);
   const protoLastWheelAtRef = useRef(0);
   const protoScrollOffsetOverrideRef = useRef<number | undefined>(undefined);
-  const useProtoHeadroom = !!threadId;
-  const headroomPxRef = useRef(0);
-  const headroomInitRef = useRef(false);
-  const pendingAboveResizePxRef = useRef(0);
-  const pendingHeadroomScrollWriteRef = useRef(0);
   const virtualInnerRef = useRef<HTMLDivElement>(null);
   const compensationSettleArmedRef = useRef(false);
   // Bumped by the room/thread commit-time reset: an armed quiescence wait
@@ -348,14 +344,19 @@ export const useTimelineScrollLedgerController = ({
   let headroomPxAtRender = 0;
   let headroomScrollDeltaAtRender = 0;
   let initHeadroomNow = false;
+  const protoMode =
+    useProtoHeadroom && typeof window !== "undefined"
+      ? window.localStorage?.getItem("__protoHeadroom") ?? "auto-trim-near-top"
+      : "auto-trim-near-top";
   if (useProtoHeadroom && !resettingLedgerView) {
     let baseHeadroom = headroomPxRef.current;
-    if (!headroomInitRef.current && threadEvents.length > 0) {
-      const mode = typeof window !== "undefined" ? window.localStorage?.getItem("__protoHeadroom") : null;
-      const unloaded = showThreadLoadOlder ? Math.max(0, expectedThreadEvents - threadEvents.length) : 0;
-      if (mode === "zero") baseHeadroom = 0;
-      else if (mode === "over") baseHeadroom = unloaded * 140 + 3000;
-      else baseHeadroom = unloaded * 140;
+    if (!headroomInitRef.current && showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
+      const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
+      if (protoMode === "zero") {
+        baseHeadroom = 0;
+      } else {
+        baseHeadroom = Math.max(unloaded * 260, 24_000);
+      }
       initHeadroomNow = true;
     }
     const deltaAbove = threadLedgerRenderPlan.foldPx + leadingFoldPx + pendingAboveResizePxRef.current;
@@ -367,10 +368,28 @@ export const useTimelineScrollLedgerController = ({
       headroomPxAtRender = 0;
       headroomScrollDeltaAtRender = -rawNext;
     }
-    // Final correction when history completes and unused headroom remains
     if (!showThreadLoadOlder && headroomPxAtRender > 0 && threadEvents.length > 0) {
-      headroomScrollDeltaAtRender -= headroomPxAtRender;
-      headroomPxAtRender = 0;
+      const scroller = getScrollElement();
+      const scrollTopNow = scroller?.scrollTop ?? 0;
+      const viewH = scroller?.clientHeight ?? 900;
+      const nearTop = scrollTopNow <= headroomPxAtRender + viewH * 1.5;
+      const idleWheel = Date.now() - protoLastWheelAtRef.current >= 400;
+      const shouldTrim =
+        !threadUserScrolled ||
+        protoMode === "auto-trim-now" ||
+        nearTop ||
+        idleWheel;
+      if (shouldTrim) {
+        headroomScrollDeltaAtRender -= headroomPxAtRender;
+        headroomPxAtRender = 0;
+      }
+    }
+    const scroller = getScrollElement();
+    if (scroller && (headroomScrollDeltaAtRender !== 0 || initHeadroomNow)) {
+      const deltaForOffset = initHeadroomNow ? baseHeadroom + headroomScrollDeltaAtRender : headroomScrollDeltaAtRender;
+      protoScrollOffsetOverrideRef.current = Math.max(0, scroller.scrollTop + deltaForOffset);
+    } else {
+      protoScrollOffsetOverrideRef.current = undefined;
     }
   }
   const ledgerPxAtRender = useProtoHeadroom
@@ -400,6 +419,7 @@ export const useTimelineScrollLedgerController = ({
       headroomInitRef.current = false;
       pendingAboveResizePxRef.current = 0;
       pendingHeadroomScrollWriteRef.current = 0;
+      protoScrollOffsetOverrideRef.current = undefined;
       return;
     }
     if (initHeadroomNow) headroomInitRef.current = true;
@@ -411,6 +431,7 @@ export const useTimelineScrollLedgerController = ({
     if (!useProtoHeadroom || resettingLedgerView) return;
     const scrollDelta = pendingHeadroomScrollWriteRef.current;
     pendingHeadroomScrollWriteRef.current = 0;
+    protoScrollOffsetOverrideRef.current = undefined;
     const scrollElement = getScrollElement();
     if (scrollDelta !== 0 && scrollElement) {
       const next = Math.max(0, scrollElement.scrollTop + scrollDelta);
@@ -418,6 +439,36 @@ export const useTimelineScrollLedgerController = ({
       virtualizerRef.current.scrollOffset = next;
     }
   });
+  useEffect(() => {
+    if (!useProtoHeadroom) return undefined;
+    const scrollElement = getScrollElement();
+    if (!scrollElement) return undefined;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    const checkTrim = () => {
+      if (!showThreadLoadOlder && headroomPxRef.current > 0) {
+        setLedgerCommitTick((t) => t + 1);
+      }
+    };
+    const onWheel = () => {
+      protoLastWheelAtRef.current = Date.now();
+      if (idleTimer !== undefined) clearTimeout(idleTimer);
+      idleTimer = setTimeout(checkTrim, 420);
+    };
+    const onScroll = () => {
+      if (!showThreadLoadOlder && headroomPxRef.current > 0) {
+        if (scrollElement.scrollTop <= headroomPxRef.current + scrollElement.clientHeight * 1.5) {
+          setLedgerCommitTick((t) => t + 1);
+        }
+      }
+    };
+    scrollElement.addEventListener("wheel", onWheel, { passive: true, capture: true });
+    scrollElement.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (idleTimer !== undefined) clearTimeout(idleTimer);
+      scrollElement.removeEventListener("wheel", onWheel, true);
+      scrollElement.removeEventListener("scroll", onScroll);
+    };
+  }, [getScrollElement, showThreadLoadOlder, useProtoHeadroom]);
   useLayoutEffect(() => {
     if (resettingLedgerView || useProtoHeadroom) return;
 
@@ -1210,16 +1261,6 @@ export const useTimelineScrollLedgerController = ({
         renderRowMoveBeforePaint();
         return false;
       }
-      if (useProtoHeadroom) {
-        const [item, delta, instance] = args;
-        const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
-        const readerTop = readerTopOffset(liveTop) ?? liveTop;
-        if (item.end <= readerTop && delta !== 0) {
-          pendingAboveResizePxRef.current += delta;
-        }
-        renderRowMoveBeforePaint();
-        return false;
-      }
       dropped = false;
       if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const apply = decide(...args);
@@ -1308,7 +1349,6 @@ export const useTimelineScrollLedgerController = ({
     endSettleDiscardWatch,
     holdThreadBannerResize,
     ledgerPxAtRender,
-    headroomPxAtRender,
     headroomPxAtRender,
     measureElement,
     readRowFoldPx,
