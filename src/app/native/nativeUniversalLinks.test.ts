@@ -4,10 +4,13 @@ import { resolve } from 'node:path';
 import React from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createStore, Provider } from 'jotai';
+import { createBrowserRouter, createHashRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMatrixToRoom, getMatrixToRoomEvent } from '../matrix/matrix-to';
+import { MembersOverlayFollowsNavigation, phoneDrawerOpenAtom } from '../members/useMembersDrawer';
+import { nextPhoneNavDrawerOpen } from '../navigation/phoneNavDrawer';
 import {
   getActivityRoomPath,
   getConnectPath,
@@ -21,11 +24,14 @@ import {
 } from '../routes/pathUtils';
 import {
   currentHistoryLocation,
+  OPENED_FROM_OUTSIDE_STATE,
   previousHistoryPathname,
   useHistoryStackRecorder,
 } from '../routes/historyStack';
 import {
+  createRouterAppPathNavigator,
   getAppPathFromUniversalLink,
+  moveWaitingUniversalLinkAfterHash,
   registerNativeAppUrlCallbacks,
   setNativeAppPathNavigator,
 } from './nativeSso';
@@ -49,30 +55,74 @@ type AasaDocument = {
   };
 };
 
+/** An AASA pattern as a whole-path match: `*` is any run of characters, `?` any one. */
 const aasaWildcardToRegExp = (pattern: string, caseSensitive: boolean): RegExp => {
   const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   const regexSource = `^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`;
-  return new RegExp(regexSource, caseSensitive ? '' : 'i');
+  return new RegExp(regexSource, caseSensitive ? 's' : 'is');
+};
+
+const decodeAasaPath = (pathname: string): string | undefined => {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return undefined;
+  }
 };
 
 /**
- * Evaluates Apple AASA component matching rules for path patterns.
- * Apple defaults `percentEncoded: true` and `caseSensitive: true`, and stops on the first match.
+ * Whether Apple opens `href` in the app: the first component whose path pattern matches decides,
+ * and an `exclude` one keeps the link on the web. A component matches the path as the link has
+ * it and with letter case (`percentEncoded` and `caseSensitive`, both true by default); with
+ * `percentEncoded: false` it matches the path with its percent-encoding undone, and with
+ * `caseSensitive: false` in any letter case.
  */
 const matchesAasaComponents = (components: readonly AasaComponent[], href: string): boolean => {
-  const parsed = new URL(href);
+  const { pathname } = new URL(href);
   for (const component of components) {
     const pattern = component['/'];
     if (pattern === undefined) continue;
     const percentEncoded = component.percentEncoded ?? true;
     const caseSensitive = component.caseSensitive ?? true;
-    const candidatePath = percentEncoded ? parsed.pathname : decodeURIComponent(parsed.pathname);
-    if (aasaWildcardToRegExp(pattern, caseSensitive).test(candidatePath)) {
+    const candidatePath = percentEncoded ? pathname : decodeAasaPath(pathname);
+    if (
+      candidatePath !== undefined &&
+      aasaWildcardToRegExp(pattern, caseSensitive).test(candidatePath)
+    ) {
       return !(component.exclude ?? false);
     }
   }
   return false;
 };
+
+type TestRouter = ReturnType<typeof createBrowserRouter>;
+
+/** A signed-in page, as far as these tests go: it records its history entry. */
+function Recorder() {
+  useHistoryStackRecorder('@reader:example.org');
+  return null;
+}
+
+/** As `AppRouter` does: the router, and its way to open Universal Links while it is mounted. */
+function RouterHarness({ router }: { router: TestRouter }) {
+  React.useLayoutEffect(
+    () => setNativeAppPathNavigator(createRouterAppPathNavigator(router)),
+    [router]
+  );
+  return React.createElement(RouterProvider, { router });
+}
+
+/** As `createRouter` makes a hash router: started on a Universal Link that waits for one. */
+const createStartedHashRouter = (
+  routes: Parameters<typeof createHashRouter>[0],
+  basename?: string
+): TestRouter => {
+  moveWaitingUniversalLinkAfterHash(basename);
+  return createHashRouter(routes, basename === undefined ? {} : { basename });
+};
+
+const shownPath = (router: TestRouter): string =>
+  `${router.state.location.pathname}${router.state.location.search}`;
 
 describe('native Universal Links', () => {
   let openUrl: (event: { url?: string }) => void;
@@ -173,6 +223,10 @@ describe('native Universal Links', () => {
         withSearchParam(getSpaceLobbyPath('!space:example.org'), { viaServers: 'example.org' }),
       ],
       [
+        'https://chat.mindroom.chat/%21space:example.org/Lobby/',
+        getSpaceLobbyPath('!space:example.org'),
+      ],
+      [
         'https://chat.mindroom.chat/!space:example.org/!harbor:example.org?via=example.org',
         withSearchParam(getSpaceRoomPath('!space:example.org', '!harbor:example.org'), {
           viaServers: 'example.org',
@@ -202,40 +256,53 @@ describe('native Universal Links', () => {
     }
   });
 
-  it('navigates successive warm Universal Links through a mounted React Router and keeps historyStack accurate', async () => {
-    window.history.replaceState(null, '', '/home/');
+  describe('with a mounted router', () => {
+    let renderer: ReactTestRenderer | undefined;
 
-    function Recorder() {
-      useHistoryStackRecorder('@reader:example.org');
-      return null;
-    }
+    const mount = async (element: React.ReactElement) => {
+      await act(async () => {
+        renderer = create(element);
+      });
+    };
+    const harness = (router: TestRouter) => React.createElement(RouterHarness, { router });
+    const open = async (url: string) => {
+      await act(async () => {
+        openUrl({ url });
+      });
+    };
 
-    const router = createBrowserRouter([
-      {
-        path: '*',
-        element: React.createElement(Recorder),
-      },
-    ]);
-    const unregister = setNativeAppPathNavigator((appPath, options) => {
-      void router.navigate(appPath, { replace: true, state: options.state });
+    afterEach(() => {
+      act(() => renderer?.unmount());
+      renderer = undefined;
     });
 
-    let renderer: ReactTestRenderer | undefined;
-    try {
-      await act(async () => {
-        renderer = create(React.createElement(RouterProvider, { router }));
-      });
+    it('pushes successive warm Universal Links, closing phone overlays and starting historyStack over', async () => {
+      window.history.replaceState(null, '', '/home/');
+      const store = createStore();
+      const membersOut = { '@reader:example.org': true };
+      store.set(phoneDrawerOpenAtom, membersOut);
+      function Page() {
+        useHistoryStackRecorder('@reader:example.org');
+        return React.createElement(MembersOverlayFollowsNavigation);
+      }
+      const router = createBrowserRouter([{ path: '*', element: React.createElement(Page) }]);
+      await mount(React.createElement(Provider, { store }, harness(router)));
       await register();
 
-      await act(async () => {
-        openUrl({ url: 'https://chat.mindroom.chat/home/!alpha:example.org' });
-      });
+      await open('https://chat.mindroom.chat/home/!alpha:example.org');
+      // A push: the drawer's rule and the members' both keep an overlay out through a replace.
+      expect(router.state.historyAction).toBe('PUSH');
+      expect(router.state.location.state).toEqual(OPENED_FROM_OUTSIDE_STATE);
+      expect(nextPhoneNavDrawerOpen(true, false, router.state.historyAction, false)).toBe(false);
+      expect(store.get(phoneDrawerOpenAtom)).toEqual({});
       expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!alpha:example.org'));
       expect(previousHistoryPathname()).toBeUndefined();
 
-      await act(async () => {
-        openUrl({ url: 'https://chat.mindroom.chat/activity/!beta:example.org?threadId=$root' });
-      });
+      store.set(phoneDrawerOpenAtom, membersOut);
+      await open('https://chat.mindroom.chat/activity/!beta:example.org?threadId=$root');
+      expect(router.state.historyAction).toBe('PUSH');
+      expect(nextPhoneNavDrawerOpen(true, false, router.state.historyAction, false)).toBe(false);
+      expect(store.get(phoneDrawerOpenAtom)).toEqual({});
       expect(currentHistoryLocation()?.pathname).toBe(getActivityRoomPath('!beta:example.org'));
       expect(currentHistoryLocation()?.search).toBe('?threadId=%24root');
       expect(previousHistoryPathname()).toBeUndefined();
@@ -245,10 +312,146 @@ describe('native Universal Links', () => {
       });
       expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!gamma:example.org'));
       expect(previousHistoryPathname()).toBe(getActivityRoomPath('!beta:example.org'));
-    } finally {
-      unregister();
-      act(() => renderer?.unmount());
-    }
+    });
+
+    it('starts a browser router on a cold Universal Link without navigating again', async () => {
+      await register('https://chat.mindroom.chat/home/!alpha:example.org?via=example.org');
+      const appPath = withSearchParam(getHomeRoomPath('!alpha:example.org'), {
+        viaServers: 'example.org',
+      });
+      expect(window.location.pathname + window.location.search).toBe(appPath);
+
+      const router = createBrowserRouter([{ path: '*', element: React.createElement(Recorder) }]);
+      const navigate = vi.spyOn(router, 'navigate');
+      await mount(harness(router));
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(shownPath(router)).toBe(appPath);
+    });
+
+    it.each([
+      [undefined, ''],
+      ['/app/', '/app'],
+    ])('starts a hash router (basename %s) on a cold Universal Link', async (basename, prefix) => {
+      window.history.replaceState(null, '', '/');
+      await register(
+        'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org&focusEvent=1'
+      );
+      const roomPath = getSpaceRoomPath('!harbor:example.org', '$entry-1');
+      const appPath = withSearchParam(roomPath, { viaServers: 'example.org', focusEvent: '1' });
+      // Until a router is mounted the link stands in the address, where a browser router starts.
+      expect(window.location.pathname + window.location.search).toBe(appPath);
+
+      // `/` redirects as the app's root route does: where a hash router would start without the
+      // link, and from where that redirect would win over a navigation to the link.
+      const router = createStartedHashRouter(
+        [
+          { path: '/', element: React.createElement(Navigate, { to: '/home/', replace: true }) },
+          { path: '*', element: React.createElement(Recorder) },
+        ],
+        basename
+      );
+      const navigate = vi.spyOn(router, 'navigate');
+      await mount(harness(router));
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(shownPath(router)).toBe(`${prefix}${appPath}`);
+      // The route is after `#` alone: the document's own path is the one the app was loaded at.
+      expect(window.location.pathname + window.location.search).toBe('/');
+      expect(window.location.hash).toBe(`#${prefix}${appPath}`);
+
+      // A link that arrives now is a push, inside the router's basename.
+      await register();
+      await open('https://chat.mindroom.chat/home/!alpha:example.org');
+      expect(router.state.historyAction).toBe('PUSH');
+      expect(window.location.pathname + window.location.search).toBe('/');
+      expect(window.location.hash).toBe(`#${prefix}${getHomeRoomPath('!alpha:example.org')}`);
+      expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!alpha:example.org'));
+      expect(previousHistoryPathname()).toBeUndefined();
+    });
+
+    it('replaces the first page of a router that did not start on the waiting link', async () => {
+      window.history.replaceState(null, '', '/#/home/');
+      const router = createHashRouter([{ path: '*', element: React.createElement(Recorder) }]);
+      await mount(React.createElement(RouterProvider, { router }));
+      // The link is written to the document's path, which this router does not route by.
+      await act(async () => {
+        await register('https://chat.mindroom.chat/home/!alpha:example.org');
+      });
+      expect(shownPath(router)).not.toBe(getHomeRoomPath('!alpha:example.org'));
+
+      await act(async () => {
+        setNativeAppPathNavigator(createRouterAppPathNavigator(router));
+      });
+
+      expect(router.state.historyAction).toBe('REPLACE');
+      expect(router.state.location.state).toEqual(OPENED_FROM_OUTSIDE_STATE);
+      expect(shownPath(router)).toBe(getHomeRoomPath('!alpha:example.org'));
+      expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!alpha:example.org'));
+      expect(previousHistoryPathname()).toBeUndefined();
+    });
+
+    it('routes a warm SSO callback under a hash router without doubling the hash', async () => {
+      window.history.replaceState(null, '', '/#/home/');
+      const router = createStartedHashRouter([
+        { path: '*', element: React.createElement(Recorder) },
+      ]);
+      const navigate = vi.spyOn(router, 'navigate');
+      await mount(harness(router));
+      await register();
+      expect(shownPath(router)).toBe('/home/');
+
+      await open('mindroom://auth/#/login/mindroom.chat?loginToken=abc123');
+
+      // Through the address, which the router reads after `#`; its own navigate would add a `#`.
+      expect(navigate).not.toHaveBeenCalled();
+      expect(window.location.pathname + window.location.search).toBe('/');
+      expect(window.location.hash).toBe('#/login/mindroom.chat?loginToken=abc123');
+      expect(window.location.href).not.toContain('#/#');
+      expect(router.state.location.pathname).toBe('/login/mindroom.chat');
+      expect(router.state.location.search).toBe('?loginToken=abc123');
+      expect(Browser.close).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('hands a waiting cold link to the next navigator once, and to none after a reset or an SSO callback', async () => {
+    const navigator = vi.fn();
+    const alpha = 'https://chat.mindroom.chat/home/!alpha:example.org';
+    await register(alpha);
+    // A newer link takes the place of the one that waits.
+    openUrl({ url: 'https://chat.mindroom.chat/home/!beta:example.org' });
+    setNativeAppPathNavigator(navigator);
+    expect(navigator).toHaveBeenCalledTimes(1);
+    expect(navigator).toHaveBeenCalledWith(getHomeRoomPath('!beta:example.org'), {
+      state: OPENED_FROM_OUTSIDE_STATE,
+      replace: true,
+    });
+
+    // Handed over once: a navigator named later gets nothing, and a link that arrives is a push.
+    setNativeAppPathNavigator(undefined);
+    setNativeAppPathNavigator(navigator);
+    expect(navigator).toHaveBeenCalledTimes(1);
+    openUrl({ url: 'https://chat.mindroom.chat/home/!gamma:example.org' });
+    expect(navigator).toHaveBeenLastCalledWith(getHomeRoomPath('!gamma:example.org'), {
+      state: OPENED_FROM_OUTSIDE_STATE,
+      replace: false,
+    });
+
+    navigator.mockClear();
+    setNativeAppPathNavigator(undefined);
+    openUrl({ url: alpha });
+    setNativeAppPathNavigator(undefined);
+    setNativeAppPathNavigator(navigator);
+    expect(navigator).not.toHaveBeenCalled();
+
+    setNativeAppPathNavigator(undefined);
+    openUrl({ url: alpha });
+    openUrl({ url: 'mindroom://auth/login/example.org?loginToken=abc123' });
+    setNativeAppPathNavigator(navigator);
+    expect(navigator).not.toHaveBeenCalled();
+    expect(window.location.pathname + window.location.search).toBe(
+      '/login/example.org?loginToken=abc123'
+    );
   });
 
   it('sanitizes via, viaServers, threadId, and focusEvent query parameters', () => {
@@ -298,7 +501,10 @@ describe('native Universal Links', () => {
     'https://chat.mindroom.chat/!',
     'https://chat.mindroom.chat/home/!harbor:example.org/not-an-event',
     'https://chat.mindroom.chat/!space:example.org/search',
+    'https://chat.mindroom.chat/!space:example.org/Search/',
+    'https://chat.mindroom.chat/%23space:example.org/se%61rch',
     'https://chat.mindroom.chat/!space:example.org/lobby/$entry-1',
+    'https://chat.mindroom.chat/!space:example.org/Lobby/$entry-1',
     'https://chat.mindroom.chat/!space:example.org/!harbor:example.org/$entry-1/extra',
     'https://chat.mindroom.chat/home/!harbor:example.org/$entry-1/extra',
   ])(
@@ -341,7 +547,12 @@ describe('native Universal Links', () => {
       'https://chat.mindroom.chat/%23field-notes:remote.example.org',
       'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org',
       'https://chat.mindroom.chat/!space:example.org/lobby',
+      'https://chat.mindroom.chat/!space:example.org/Lobby',
+      'https://chat.mindroom.chat/%21space:example.org/LOBBY/',
       'https://chat.mindroom.chat/!space:example.org/!harbor:example.org',
+      // A room whose address only holds the word is no search page.
+      'https://chat.mindroom.chat/!space:example.org/%23search:example.org',
+      'https://chat.mindroom.chat/%23search:example.org',
       'https://chat.mindroom.chat/!space:example.org/!harbor:example.org/$entry-1',
       'https://chat.mindroom.chat/home/!harbor:example.org',
       'https://chat.mindroom.chat/home/%21harbor:example.org/$entry-1',
@@ -381,10 +592,16 @@ describe('native Universal Links', () => {
       '/connect/child',
       '/CONNECT',
       '/HOME/!harbor:example.org',
+      // A space's search page, in any letter case and percent-encoding of the path.
       '/!space:example.org/search',
       '/!space:example.org/search/',
+      '/!space:example.org/Search/',
+      '/!space:example.org/SEARCH',
+      '/!space:example.org/%73earch/',
       '/%21space:example.org/search/',
+      '/%21space:example.org/Search/',
       '/%23space:example.org/search/',
+      '/%23space:example.org/se%61rch/',
     ];
 
     for (const path of excludedPaths) {

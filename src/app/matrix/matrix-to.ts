@@ -67,6 +67,16 @@ type Permalink = {
   viaServers: string[];
 };
 
+/** How strictly a link into this app is read. */
+type ParsePermalinkOptions = {
+  /**
+   * Reads the room or event of an app link that carries query parameters besides `via` (a
+   * `threadId`, a tracking tag), and the servers of the app's own `viaServers` parameter. Off by
+   * default: a mention pill shows only a room or an event, and would drop what else the link says.
+   */
+  allowExtraParams?: boolean;
+};
+
 const safeDecode = (value: string): string | undefined => {
   try {
     return decodeURIComponent(value);
@@ -75,12 +85,25 @@ const safeDecode = (value: string): string | undefined => {
   }
 };
 
-const fromPathAndQuery = (path: string, query: string): Permalink | undefined => {
+const fromPathAndQuery = (
+  path: string,
+  query: string,
+  readRouteServers = false
+): Permalink | undefined => {
   const segments = path.split('/').filter((segment) => segment !== '');
   if (segments.length === 0 || segments.length > 2) return undefined;
   const [identifier, eventId] = segments.map(safeDecode);
   if (!identifier || (segments.length === 2 && !eventId)) return undefined;
-  const viaServers = new URLSearchParams(query).getAll('via').filter((server) => server !== '');
+  const params = new URLSearchParams(query);
+  const via = params.getAll('via');
+  // The app's own routes name the servers in one `viaServers` parameter, separated by commas.
+  const routeServers = readRouteServers
+    ? params
+        .getAll('viaServers')
+        .flatMap((servers) => servers.split(','))
+        .filter((server) => !via.includes(server))
+    : [];
+  const viaServers = [...via, ...routeServers].filter((server) => server !== '');
   return { identifier, eventId, viaServers };
 };
 
@@ -107,7 +130,10 @@ const fromMatrixUri = (href: string): Permalink | undefined => {
   };
 };
 
-const parsePermalink = (href: string): Permalink | undefined => {
+const parsePermalink = (
+  href: string,
+  { allowExtraParams = false }: ParsePermalinkOptions = {}
+): Permalink | undefined => {
   if (href.startsWith('matrix:')) return fromMatrixUri(href);
   let url: URL;
   try {
@@ -128,7 +154,9 @@ const parsePermalink = (href: string): Permalink | undefined => {
   if (!isCurrentOrigin && !isNativeWebOrigin) return undefined;
   // Links carrying extra app routing params (such as `threadId` or `focusEvent`) cannot be
   // represented by a room/event mention pill without losing those params.
-  if ([...url.searchParams.keys()].some((key) => key !== 'via')) return undefined;
+  if (!allowExtraParams && [...url.searchParams.keys()].some((key) => key !== 'via')) {
+    return undefined;
+  }
 
   let relativePath: string | undefined;
   if (isCurrentOrigin) {
@@ -143,7 +171,7 @@ const parsePermalink = (href: string): Permalink | undefined => {
   }
   if (relativePath === undefined) return undefined;
 
-  const permalink = fromPathAndQuery(relativePath, url.search.slice(1));
+  const permalink = fromPathAndQuery(relativePath, url.search.slice(1), allowExtraParams);
   // App links name a room or a user first, and any second segment must be an event ID so space
   // sub-routes such as `/!space:example.org/lobby` are not misread as event permalinks.
   if (!permalink || !/^[!#@]/.test(permalink.identifier)) return undefined;
@@ -163,15 +191,21 @@ export const parseMatrixToUser = (href: string): string | undefined => {
 };
 
 /** The room a permalink points at, when it does not point at an event in it. */
-export const parseMatrixToRoom = (href: string): MatrixToRoom | undefined => {
-  const permalink = parsePermalink(href);
+export const parseMatrixToRoom = (
+  href: string,
+  options?: ParsePermalinkOptions
+): MatrixToRoom | undefined => {
+  const permalink = parsePermalink(href, options);
   if (!permalink || !/^[!#]/.test(permalink.identifier) || permalink.eventId) return undefined;
   return { roomIdOrAlias: permalink.identifier, viaServers: permalink.viaServers };
 };
 
 /** The event a permalink points at. */
-export const parseMatrixToRoomEvent = (href: string): MatrixToRoomEvent | undefined => {
-  const permalink = parsePermalink(href);
+export const parseMatrixToRoomEvent = (
+  href: string,
+  options?: ParsePermalinkOptions
+): MatrixToRoomEvent | undefined => {
+  const permalink = parsePermalink(href, options);
   if (!permalink?.eventId || !/^[!#]/.test(permalink.identifier)) return undefined;
   return {
     roomIdOrAlias: permalink.identifier,

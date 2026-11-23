@@ -6,12 +6,16 @@
         "components": [
           { "/": "/connect", "comment": "Local MindRoom pairing" },
           { "/": "/connect/" },
-          { "/": "/!*/search", "exclude": true, "comment": "Space search routes stay on web" },
-          { "/": "/!*/search/", "exclude": true },
-          { "/": "/%21*/search", "exclude": true },
-          { "/": "/%21*/search/", "exclude": true },
-          { "/": "/%23*/search", "exclude": true },
-          { "/": "/%23*/search/", "exclude": true },
+          {
+            "/": "/!*/search",
+            "exclude": true,
+            "caseSensitive": false,
+            "percentEncoded": false,
+            "comment": "Space search routes stay on web, in any letter case or percent-encoding"
+          },
+          { "/": "/!*/search/", "exclude": true, "caseSensitive": false, "percentEncoded": false },
+          { "/": "/#*/search", "exclude": true, "caseSensitive": false, "percentEncoded": false },
+          { "/": "/#*/search/", "exclude": true, "caseSensitive": false, "percentEncoded": false },
           { "/": "/!*", "comment": "Shared room, space, and message permalinks" },
           { "/": "/%21*" },
           { "/": "/%23*" },

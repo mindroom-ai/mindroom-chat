@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { type DirectoryRoom, filterDirectoryRooms, parseJoinAddress } from './joinAddress';
 
@@ -41,6 +42,41 @@ describe('parseJoinAddress', () => {
       roomIdOrAlias: '!abc123:example.org',
       eventId: '$event1',
       viaServers: ['example.org'],
+    });
+  });
+
+  it('reads a link into the app whose query says more than its routing servers', () => {
+    [window.location.origin, 'https://chat.mindroom.chat'].forEach((origin) => {
+      expect(
+        parseJoinAddress(`${origin}/!abc123:example.org?via=example.org&utm_source=share`),
+        origin
+      ).toEqual({ roomIdOrAlias: '!abc123:example.org', viaServers: ['example.org'] });
+      expect(
+        parseJoinAddress(
+          `${origin}/!abc123:example.org/$event1?via=example.org&via=other.net&threadId=$root1&focusEvent=1`
+        ),
+        origin
+      ).toEqual({
+        roomIdOrAlias: '!abc123:example.org',
+        eventId: '$event1',
+        viaServers: ['example.org', 'other.net'],
+      });
+      expect(parseJoinAddress(`${origin}/%23lounge:example.org?threadId=$root1`), origin).toEqual({
+        roomIdOrAlias: '#lounge:example.org',
+        viaServers: [],
+      });
+      // The address the app itself shows for a room names its servers in `viaServers`.
+      expect(
+        parseJoinAddress(
+          `${origin}/!abc123:example.org/?viaServers=example.org%2Cother.net&via=example.org`
+        ),
+        origin
+      ).toEqual({ roomIdOrAlias: '!abc123:example.org', viaServers: ['example.org', 'other.net'] });
+      // A space's own page is still no room or event to join.
+      expect(
+        parseJoinAddress(`${origin}/!space:example.org/lobby?utm_source=share`),
+        origin
+      ).toBeUndefined();
     });
   });
 

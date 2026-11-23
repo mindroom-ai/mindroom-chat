@@ -1,5 +1,6 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import type { createBrowserRouter } from 'react-router-dom';
 import { isRoomAlias, isRoomId } from '../lib/matrixIds';
 import { OPENED_FROM_OUTSIDE_STATE } from '../routes/historyStack';
 import {
@@ -39,21 +40,83 @@ type NativeAppUrlPlugin = {
   getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
-type NativeAppPathNavigator = (appPath: string, options: { state?: unknown }) => void;
+/**
+ * Opens a Universal Link's app path (router-relative, such as `/!room:example.org/`) in the mounted
+ * router. `replace` is false for a link that arrives while the app shows a page, and true for one
+ * that arrived before the router was there.
+ */
+type NativeAppPathNavigator = (
+  appPath: string,
+  options: { state?: unknown; replace: boolean }
+) => void;
+
+/** A Universal Link that arrived before a router was mounted, and the address it replaced. */
+type PendingUniversalLink = { appPath: string; state: unknown; addressBefore: string };
+
+type AppRouter = ReturnType<typeof createBrowserRouter>;
 
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
 let activeNativeAppNavigator: NativeAppPathNavigator | undefined;
+let pendingUniversalLink: PendingUniversalLink | undefined;
 
+/**
+ * Names how the mounted router opens Universal Links (`undefined` when none is mounted), and hands
+ * it the link that arrived before it, as a replace. Until then that link stands in the address as
+ * the document's path, where a browser router starts on it. Any link still waiting is dropped.
+ * Returns what takes the navigator away again.
+ */
 export const setNativeAppPathNavigator = (
   navigator: NativeAppPathNavigator | undefined
 ): (() => void) => {
   activeNativeAppNavigator = navigator;
+  const pending = pendingUniversalLink;
+  pendingUniversalLink = undefined;
+  if (navigator && pending) {
+    navigator(pending.appPath, { state: pending.state, replace: true });
+  }
   return () => {
     if (activeNativeAppNavigator === navigator) {
       activeNativeAppNavigator = undefined;
     }
   };
 };
+
+/**
+ * For a router that routes after `#` (under `basename`), before it is created: a link that waits
+ * in the address as the document's path, which that router never reads, moves after `#` of the
+ * address the app was loaded at. The router then starts on the link, as a browser router does.
+ * Navigating there once the router is mounted would come too early: the redirect of the page it
+ * started on (`/`) navigates after it, and wins.
+ */
+export const moveWaitingUniversalLinkAfterHash = (basename = '/'): void => {
+  const pending = pendingUniversalLink;
+  if (!pending) return;
+  const [documentAddress = ''] = pending.addressBefore.split('#');
+  try {
+    window.history.replaceState(
+      null,
+      '',
+      `${documentAddress}#${basename.replace(/\/+$/, '')}${pending.appPath}`
+    );
+    pendingUniversalLink = undefined;
+  } catch {
+    // The link keeps waiting, for the mounted router's navigator.
+  }
+};
+
+/**
+ * How `router` opens Universal Links, for `setNativeAppPathNavigator`. A link that arrives while
+ * the app shows a page is a push, as a tapped notification is: a replace would pass for the page
+ * cleaning up its own address, and leave a phone's drawer and members over the new page. A link
+ * from before the router replaces its first page, unless the router started on it already.
+ */
+export const createRouterAppPathNavigator =
+  (router: Pick<AppRouter, 'navigate' | 'state'>): NativeAppPathNavigator =>
+  (appPath, { replace, state }) => {
+    const { pathname, search } = router.state.location;
+    if (replace && `${pathname}${search}` === appPath) return;
+    void router.navigate(appPath, { replace, state });
+  };
 
 type NativeAppleCredential = {
   url?: string;
@@ -135,11 +198,8 @@ export const isIOSStandaloneWebApp = (): boolean => {
   return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
 };
 
-const navigateNativeAppPath = (appPath: string, state?: unknown): void => {
-  if (activeNativeAppNavigator) {
-    activeNativeAppNavigator(appPath, { state });
-    return;
-  }
+/** Puts `appPath` in the address and tells whichever router listens to it. */
+const writeAppPathToAddress = (appPath: string): void => {
   try {
     window.history.replaceState(null, '', appPath);
     window.dispatchEvent(createPopStateNavigationEvent());
@@ -148,12 +208,37 @@ const navigateNativeAppPath = (appPath: string, state?: unknown): void => {
   }
 };
 
+const currentAddress = (): string =>
+  `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+/** Opens a Universal Link's app path: in the mounted router, or in the address until one mounts. */
+const openUniversalLinkPath = (appPath: string): void => {
+  if (activeNativeAppNavigator) {
+    activeNativeAppNavigator(appPath, { state: OPENED_FROM_OUTSIDE_STATE, replace: false });
+    return;
+  }
+  pendingUniversalLink = {
+    appPath,
+    state: OPENED_FROM_OUTSIDE_STATE,
+    // Of the first link still waiting: a later one replaces that link's path, not the app's own.
+    addressBefore: pendingUniversalLink?.addressBefore ?? currentAddress(),
+  };
+  writeAppPathToAddress(appPath);
+};
+
+/**
+ * Opens the page a sign-in callback names. Always through the address, never the mounted router's
+ * `navigate`: with a hash router the callback carries its route after `#` (`/#/login/...`), which
+ * that router would put after a second `#`.
+ */
 export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
   const appPath = getAppPathFromNativeSsoUrl(incomingUrl);
   if (!appPath || typeof window === 'undefined') return false;
 
   Promise.resolve(Browser.close()).catch(() => undefined);
-  navigateNativeAppPath(appPath);
+  // The callback is the newer address: a link still waiting for a router must not replace it.
+  pendingUniversalLink = undefined;
+  writeAppPathToAddress(appPath);
 
   return true;
 };
@@ -165,10 +250,12 @@ const SECTION_ROOM_PATH_BUILDERS: Record<
   string,
   (roomIdOrAlias: string, eventId?: string) => string
 > = {
-  home: getHomeRoomPath,
-  direct: getDirectRoomPath,
-  threads: getThreadsRoomPath,
-  activity: getActivityRoomPath,
+  // Each names its path builder when a link arrives, not when this module loads: the module is
+  // loaded wherever the app asks which platform it runs on.
+  home: (roomIdOrAlias, eventId) => getHomeRoomPath(roomIdOrAlias, eventId),
+  direct: (roomIdOrAlias, eventId) => getDirectRoomPath(roomIdOrAlias, eventId),
+  threads: (roomIdOrAlias, eventId) => getThreadsRoomPath(roomIdOrAlias, eventId),
+  activity: (roomIdOrAlias, eventId) => getActivityRoomPath(roomIdOrAlias, eventId),
 };
 
 const decodeUniversalLinkSegment = (segment: string): string | undefined => {
@@ -233,7 +320,8 @@ const resolveUniversalLinkBaseRoute = (
     if (isEventId(second)) {
       return { basePath: getSpaceRoomPath(first, second), isLobby: false };
     }
-    if (second === 'lobby') {
+    // The lobby in any letter case, at the one address the app's own links to it use.
+    if (second.toLowerCase() === 'lobby') {
       return { basePath: getSpaceLobbyPath(first), isLobby: true };
     }
     if (isRoomOrAlias(second)) {
@@ -318,7 +406,7 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     if (routeNativeSsoCallback(url)) return true;
     const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
-      navigateNativeAppPath(appPath, OPENED_FROM_OUTSIDE_STATE);
+      openUniversalLinkPath(appPath);
       return true;
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.

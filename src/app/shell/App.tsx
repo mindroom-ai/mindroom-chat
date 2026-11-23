@@ -20,7 +20,7 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
-import { setNativeAppPathNavigator } from '../native/nativeSso';
+import { createRouterAppPathNavigator, setNativeAppPathNavigator } from '../native/nativeSso';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -68,15 +68,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
-  // Native Universal Links and callbacks navigate through the mounted router so history keys and
-  // outside-origin state stay in sync.
-  useLayoutEffect(
-    () =>
-      setNativeAppPathNavigator((appPath, options) => {
-        void router.navigate(appPath, { replace: true, state: options.state });
-      }),
-    [router]
-  );
+  // Universal Links the native app is opened with navigate through this router, so the pages
+  // know they were opened from outside and a phone's drawer and members close for them.
+  useLayoutEffect(() => setNativeAppPathNavigator(createRouterAppPathNavigator(router)), [router]);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
   // (UnreadTitle, a passive effect) starts from it.
   const { pageTitle } = deploymentBranding(clientConfig);

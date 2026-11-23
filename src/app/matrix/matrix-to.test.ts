@@ -178,6 +178,29 @@ describe('matrix-to link helpers', () => {
     });
   });
 
+  it('reads an app link with other query parameters only when asked to', () => {
+    [window.location.origin, NATIVE_APP_WEB_ORIGIN].forEach((origin) => {
+      const eventHref = `${origin}/!harbor:example.org/$entry-1?via=example.org&threadId=$root-1`;
+      const roomHref = `${origin}/!harbor:example.org?utm_source=share&viaServers=example.org,relay.example.org`;
+
+      // A pill shows a room or an event alone: it would drop the thread the link opens.
+      expect(testMatrixTo(eventHref), origin).toBe(false);
+      expect(parseMatrixToRoomEvent(eventHref), origin).toBeUndefined();
+      expect(parseMatrixToRoom(roomHref), origin).toBeUndefined();
+
+      expect(parseMatrixToRoomEvent(eventHref, { allowExtraParams: true }), origin).toEqual({
+        roomIdOrAlias: '!harbor:example.org',
+        eventId: '$entry-1',
+        viaServers: ['example.org'],
+      });
+      expect(parseMatrixToRoom(eventHref, { allowExtraParams: true }), origin).toBeUndefined();
+      expect(parseMatrixToRoom(roomHref, { allowExtraParams: true }), origin).toEqual({
+        roomIdOrAlias: '!harbor:example.org',
+        viaServers: ['example.org', 'relay.example.org'],
+      });
+    });
+  });
+
   it.each([
     'http://chat.mindroom.chat/!harbor:example.org',
     'http://chat.mindroom.chat/!harbor:example.org/$entry-1',

@@ -1,6 +1,7 @@
 import parse from 'html-dom-parser';
 import { ChildNode, Element as DomElement, isTag, isText } from 'domhandler';
 import { Descendant } from 'slate';
+import { isUserId } from '../lib/matrixIds';
 import { parseMatrixToRoom, parseMatrixToRoomEvent, parseMatrixToUser } from '../matrix/matrix-to';
 import { escapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import {
@@ -60,12 +61,15 @@ function getText(node: ChildNode): string {
 const isBlockNode = (node: ChildNode): boolean =>
   isTag(node) && (BLOCK_TAGS.has(node.name) || isEditorMathBlockElement(node));
 
-/** Reads a user, room, or event permalink; other links stay links. */
+/**
+ * Reads a user, room, or event permalink; other links stay links. So does a link to a user that
+ * is no user ID, such as `/@room`: as a mention it would notify the whole room.
+ */
 const parseMatrixToLink = (
   href: string
 ): { id: string; eventId?: string; viaServers?: string[] } | undefined => {
   const userId = parseMatrixToUser(href);
-  if (userId) return { id: userId };
+  if (userId) return isUserId(userId) ? { id: userId } : undefined;
 
   const eventLink = parseMatrixToRoomEvent(href);
   if (eventLink) {
@@ -161,9 +165,10 @@ function parseInline(node: ChildNode, marks: Marks, markdown: boolean): InlineCo
           createMentionElement(
             permalink.id,
             text || permalink.id,
-            permalink.id === '@room',
+            false,
             permalink.eventId,
-            permalink.viaServers
+            permalink.viaServers,
+            href
           ),
         ];
       }

@@ -25,13 +25,17 @@ export const createEmoticonElement = (key: string, shortcode: string): EmoticonE
   children: emptyChildren(),
 });
 
-/** A mention pill; permalinks to an event carry its ID and the `via` servers to reach it. */
+/**
+ * A mention pill; permalinks to an event carry its ID and the `via` servers to reach it. One read
+ * back from a sent message keeps the link it had there (`href`).
+ */
 export const createMentionElement = (
   targetId: string,
   label: string,
   highlight: boolean,
   eventId?: string,
-  via?: string[]
+  via?: string[],
+  href?: string
 ): MentionElement => ({
   type: BlockType.Mention,
   id: targetId,
@@ -39,6 +43,7 @@ export const createMentionElement = (
   highlight,
   ...(eventId === undefined ? {} : { eventId }),
   ...(via === undefined ? {} : { viaServers: via }),
+  ...(href === undefined ? {} : { href }),
   children: emptyChildren(),
 });
 

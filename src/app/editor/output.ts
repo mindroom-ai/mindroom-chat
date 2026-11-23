@@ -39,7 +39,12 @@ const LINE_BREAK = '<br/>';
 
 const isMxcUri = (value: string): boolean => value.startsWith('mxc://');
 
+/**
+ * The link a mention is sent with: the one it had in the message it was read back from, so an
+ * edit never rewrites a link for the origin or platform it is edited on; a new one otherwise.
+ */
 const getMentionHref = (mention: MentionElement): string => {
+  if (mention.href !== undefined) return mention.href;
   if (mention.id.startsWith('@')) return getMatrixToUser(mention.id);
   if (mention.eventId) return getMatrixToRoomEvent(mention.id, mention.eventId, mention.viaServers);
   return getMatrixToRoom(mention.id, mention.viaServers);

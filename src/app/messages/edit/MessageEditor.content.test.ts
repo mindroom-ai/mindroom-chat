@@ -23,8 +23,41 @@ const resave = (content: Record<string, unknown>, markdown = true) =>
     ME
   );
 
+const HTML = 'org.matrix.custom.html';
+
+/** A sent message whose text is `html`. */
+const sentHtml = (body: string, html: string) => ({
+  msgtype: 'm.text',
+  body,
+  format: HTML,
+  formatted_body: html,
+});
+
+/** What a message that mentions the event sends, composed where the test runs. */
+const composedEventMention = () =>
+  getEditedContent(
+    editorWith([
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'see ' },
+          createMentionElement('!harbor:example.org', 'Message in #Harbor', false, '$entry-1', [
+            'example.org',
+          ]),
+          { text: '' },
+        ],
+      },
+    ]),
+    true,
+    'm.text',
+    ME
+  )!;
+
 describe('the content of an edit', () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('keeps the message type it is given', () => {
     const editor = editorWith([{ type: 'paragraph', children: [{ text: 'waves again' }] }]);
@@ -185,11 +218,23 @@ describe('the content of an edit', () => {
       'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org'
     );
 
+    // Read back, each mention keeps the link it was sent with.
     const reopened = getEditorDocument(original, true);
     expect(reopened).toEqual([
       {
         type: 'paragraph',
-        children: [{ text: 'see ' }, roomMention, { text: ' and ' }, messageMention],
+        children: [
+          { text: 'see ' },
+          {
+            ...roomMention,
+            href: 'https://chat.mindroom.chat/!harbor:example.org?via=example.org&via=relay.example.org',
+          },
+          { text: ' and ' },
+          {
+            ...messageMention,
+            href: 'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org',
+          },
+        ],
       },
     ]);
     expect(isUnchanged(original, resave(original)!)).toBe(true);
@@ -238,9 +283,128 @@ describe('the content of an edit', () => {
     expect(reopened).toEqual([
       {
         type: 'paragraph',
-        children: [{ text: 'check ' }, aliasMention, { text: ' and ' }, messageMention],
+        children: [
+          { text: 'check ' },
+          {
+            ...aliasMention,
+            href: `${window.location.origin}/%23field-notes:remote.example.org`,
+          },
+          { text: ' and ' },
+          {
+            ...messageMention,
+            href: `${window.location.origin}/!harbor:example.org/$entry-2?via=example.org`,
+          },
+        ],
       },
     ]);
     expect(isUnchanged(original, resave(original)!)).toBe(true);
   });
+
+  it('sends the Universal Link of a mention again as it was, on another web origin', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    vi.stubGlobal('location', {
+      protocol: 'https:',
+      origin: 'https://team.example',
+      href: 'https://team.example/home/',
+    });
+    const href =
+      'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org&via=relay.example.org';
+    const original = sentHtml(
+      'see Message in #Harbor',
+      `see <a href="${href.replace(/&/g, '&amp;')}">Message in #Harbor</a>`
+    );
+
+    expect(getEditorDocument(original, true)).toEqual([
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'see ' },
+          createMentionElement(
+            '!harbor:example.org',
+            'Message in #Harbor',
+            false,
+            '$entry-1',
+            ['example.org', 'relay.example.org'],
+            href
+          ),
+        ],
+      },
+    ]);
+    const saved = resave(original)!;
+    expect(saved.formatted_body).toBe(original.formatted_body);
+    expect(isUnchanged(original, saved)).toBe(true);
+
+    // A mention made here links to this origin, as before.
+    expect(composedEventMention().formatted_body).toBe(
+      'see <a href="https://team.example/!harbor:example.org/$entry-1?via=example.org">Message in #Harbor</a>'
+    );
+  });
+
+  it('sends the older matrix.to links of mentions again as they were, in the native app', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const eventHref = 'https://matrix.to/#/!harbor:example.org/$entry-1?via=example.org';
+    const escapedRoomHref = 'https://matrix.to/#/%21harbor%3Aexample.org?via=example.org';
+    const userHref = 'https://matrix.to/#/@ada:example.org';
+    const original = sentHtml(
+      'see Message in #Harbor in #Harbor, Ada',
+      `see <a href="${eventHref}">Message in #Harbor</a> in <a href="${escapedRoomHref}">#Harbor</a>, <a href="${userHref}">Ada</a>`
+    );
+
+    expect(getEditorDocument(original, true)).toEqual([
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'see ' },
+          createMentionElement(
+            '!harbor:example.org',
+            'Message in #Harbor',
+            false,
+            '$entry-1',
+            ['example.org'],
+            eventHref
+          ),
+          { text: ' in ' },
+          createMentionElement(
+            '!harbor:example.org',
+            '#Harbor',
+            false,
+            undefined,
+            ['example.org'],
+            escapedRoomHref
+          ),
+          { text: ', ' },
+          createMentionElement('@ada:example.org', 'Ada', false, undefined, undefined, userHref),
+        ],
+      },
+    ]);
+    const saved = resave(original)!;
+    expect(saved.formatted_body).toBe(original.formatted_body);
+    expect(saved['m.mentions']).toEqual({ user_ids: ['@ada:example.org'] });
+    expect(isUnchanged(original, saved)).toBe(true);
+
+    // A mention made here is a Universal Link, as before.
+    expect(composedEventMention().formatted_body).toBe(
+      'see <a href="https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org">Message in #Harbor</a>'
+    );
+  });
+
+  it.each(['https://chat.mindroom.chat/@room', 'https://matrix.to/#/@room'])(
+    'keeps a link to %s a link, which notifies nobody',
+    (href) => {
+      const original = sentHtml('see Room', `see <a href="${href}">Room</a>`);
+
+      expect(getEditorDocument(original, false)).toEqual([
+        {
+          type: 'paragraph',
+          children: [{ text: 'see ' }, { type: 'link', href, children: [{ text: 'Room' }] }],
+        },
+      ]);
+      [true, false].forEach((markdown) => {
+        const saved = resave(original, markdown)!;
+        expect(saved['m.mentions']).toEqual({});
+        expect(saved.body).toContain('Room');
+        expect(saved.formatted_body).toContain(`href="${href}">Room</a>`);
+      });
+    }
+  );
 });
