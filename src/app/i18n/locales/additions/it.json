@@ -507,14 +507,11 @@
         "resize": "Ridimensiona il pannello della chiamata",
         "screenOf": "Schermo di {{name}}",
         "fullScreen": "Schermo intero",
-        "startAppShare": "Condividi questa app",
-        "stopAppShare": "Interrompi la condivisione di questa app",
         "screenShareStoppedInBackground": "La condivisione dello schermo si è interrotta quando hai lasciato l’app.",
         "shareAgain": "Condividi di nuovo",
         "microphoneStopped": "Il tuo microfono si è interrotto.",
         "cameraStopped": "La tua fotocamera si è interrotta.",
-        "turnBackOn": "Riattiva",
-        "dismissNotice": "Chiudi"
+        "turnBackOn": "Riattiva"
       },
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
@@ -817,6 +814,12 @@
       "copyCommand": "Copia il comando",
       "copyFailed": "Copia non riuscita",
       "keywords": "mac, macos, desktop, app, applicazione, scarica, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Condividi questa app",
+        "stopAppShare": "Interrompi la condivisione di questa app"
+      }
     }
   },
   "mindroomUi": {

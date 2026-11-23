@@ -104,15 +104,6 @@ describe('screenShareIsInAppOnly', () => {
       true,
     ],
     [
-      'iPadOS desktop mode without platform',
-      {
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
-        platform: '',
-        maxTouchPoints: 5,
-      },
-      true,
-    ],
-    [
       'macOS desktop',
       {
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',

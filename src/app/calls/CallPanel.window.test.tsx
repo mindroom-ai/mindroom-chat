@@ -1320,7 +1320,7 @@ describe('in-app screen share and stopped-device notices', () => {
     expect(screen.getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
     press('Share again');
     expect(setScreenShare).toHaveBeenCalledWith(true);
-    press('Dismiss');
+    press('Dismiss notice');
     expect(dismissScreenShareNotice).toHaveBeenCalledOnce();
   });
 
@@ -1330,7 +1330,8 @@ describe('in-app screen share and stopped-device notices', () => {
       ...calls.state!,
       microphone: false,
       camera: false,
-      stoppedInputs: ['microphone', 'camera'],
+      microphoneStopped: true,
+      cameraStopped: true,
     };
     renderPanel({ frame: frame(true) });
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
@@ -1347,7 +1348,7 @@ describe('in-app screen share and stopped-device notices', () => {
     fireEvent.click(turnOnButtons[1]!);
     expect(setCamera).toHaveBeenCalledWith(true);
 
-    const dismissButtons = screen.getAllByRole('button', { name: 'Dismiss' });
+    const dismissButtons = screen.getAllByRole('button', { name: 'Dismiss notice' });
     fireEvent.click(dismissButtons[0]!);
     expect(dismissStoppedInput).toHaveBeenCalledWith('microphone');
   });

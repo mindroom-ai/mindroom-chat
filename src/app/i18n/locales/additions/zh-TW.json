@@ -487,14 +487,11 @@
         "resize": "調整通話面板大小",
         "screenOf": "{{name}} 的螢幕",
         "fullScreen": "全螢幕",
-        "startAppShare": "分享此應用程式",
-        "stopAppShare": "停止分享此應用程式",
         "screenShareStoppedInBackground": "離開應用程式時螢幕分享已停止。",
         "shareAgain": "再次分享",
         "microphoneStopped": "你的麥克風已停止。",
         "cameraStopped": "你的攝影機已停止。",
-        "turnBackOn": "重新開啟",
-        "dismissNotice": "關閉"
+        "turnBackOn": "重新開啟"
       },
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
@@ -791,6 +788,12 @@
       "copyCommand": "複製指令",
       "copyFailed": "複製失敗",
       "keywords": "mac, macos, 桌面, 應用程式, 下載, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "分享此應用程式",
+        "stopAppShare": "停止分享此應用程式"
+      }
     }
   },
   "mindroomUi": {

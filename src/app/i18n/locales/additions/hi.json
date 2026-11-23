@@ -497,14 +497,11 @@
         "resize": "कॉल पैनल का आकार बदलें",
         "screenOf": "{{name}} की स्क्रीन",
         "fullScreen": "पूर्ण स्क्रीन",
-        "startAppShare": "यह ऐप शेयर करें",
-        "stopAppShare": "यह ऐप शेयर करना बंद करें",
         "screenShareStoppedInBackground": "ऐप छोड़ने पर स्क्रीन शेयरिंग बंद हो गई।",
         "shareAgain": "फिर से शेयर करें",
         "microphoneStopped": "आपका माइक्रोफ़ोन बंद हो गया।",
         "cameraStopped": "आपका कैमरा बंद हो गया।",
-        "turnBackOn": "फिर से चालू करें",
-        "dismissNotice": "बंद करें"
+        "turnBackOn": "फिर से चालू करें"
       },
       "problems": {
         "service": "कॉल सेवा तक नहीं पहुँचा जा सका। बाद में फिर से कोशिश करें।",
@@ -804,6 +801,12 @@
       "copyCommand": "कमांड कॉपी करें",
       "copyFailed": "कॉपी नहीं हो सका",
       "keywords": "mac, macos, डेस्कटॉप, ऐप, डाउनलोड, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "यह ऐप शेयर करें",
+        "stopAppShare": "यह ऐप शेयर करना बंद करें"
+      }
     }
   },
   "mindroomUi": {

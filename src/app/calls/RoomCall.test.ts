@@ -134,7 +134,7 @@ vi.mock('livekit-client', async () => {
       Kind: { Audio: 'audio', Video: 'video' },
       Source: { Camera: 'camera', Microphone: 'microphone', ScreenShare: 'screen_share' },
     },
-    TrackEvent: { Restarted: 'restarted', Ended: 'ended' },
+    TrackEvent: { Restarted: 'restarted' },
     Room: FakeMediaRoom,
     isBrowserSupported: () => fakes.browserSupported,
     isE2EESupported: () => true,
@@ -2384,7 +2384,7 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     vi.unstubAllGlobals();
   });
 
-  it('stops screen share when hidden on iOS, raises notice on return without auto-restarting, and dismisses on share or leave', async () => {
+  it('mutes then unpublishes screen share when hidden on iOS, raises notice without auto-restarting, and dismisses on share or leave', async () => {
     vi.stubGlobal('navigator', IPHONE_NAV);
     const { call } = setup();
     await call.join();
@@ -2393,10 +2393,14 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     await call.setScreenShare(true);
     expect(call.getState().screenShare).toBe(true);
     expect(call.getState().screenShareStoppedInBackground).toBeFalsy();
+    const sharePub = publicationOf(media, 'screen_share');
+    const muteSpy = vi.spyOn(sharePub, 'mute');
 
     setVisibility('hidden');
+    // Mute is fired synchronously before awaiting unpublish (covers WebKit suspending early).
+    expect(muteSpy).toHaveBeenCalledOnce();
     await settle();
-    expect(media.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false, undefined);
+    expect(media.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false);
     expect(call.getState()).toMatchObject({
       screenShare: false,
       screenShareStoppedInBackground: true,
@@ -2426,6 +2430,37 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState().screenShareStoppedInBackground).toBe(false);
   });
 
+  it('stops a screen-share start that hid before resolving, even after returning visible', async () => {
+    vi.stubGlobal('navigator', IPHONE_NAV);
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+
+    const starting = pending<void>();
+    media.localParticipant.setScreenShareEnabled.mockImplementationOnce(async () => {
+      await starting.promise;
+      const pub = inputPublication('screen_share');
+      media.localParticipant.trackPublications.set('screen_share', pub);
+      (
+        media.localParticipant as unknown as { isScreenShareEnabled: boolean }
+      ).isScreenShareEnabled = true;
+    });
+
+    const sharePromise = call.setScreenShare(true);
+    setVisibility('hidden');
+    setVisibility('visible');
+
+    starting.resolve();
+    await sharePromise;
+    await settle();
+
+    expect(media.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false);
+    expect(call.getState()).toMatchObject({
+      screenShare: false,
+      screenShareStoppedInBackground: true,
+    });
+  });
+
   it('does not stop screen share when hidden on desktop', async () => {
     vi.stubGlobal('navigator', DESKTOP_NAV);
     const { call } = setup();
@@ -2441,23 +2476,53 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState().screenShareStoppedInBackground).toBeFalsy();
   });
 
-  it('flips screenShare to false when the local screen-share track ends on any platform', async () => {
+  it('flips screenShare off when LiveKit unpublishes the local screen-share track after track ended', async () => {
     vi.stubGlobal('navigator', DESKTOP_NAV);
     const { call } = setup();
     await call.join();
     const media = onlyMediaRoom();
 
     await call.setScreenShare(true);
-    expect(call.getState().screenShare).toBe(true);
-    expect(call.getState().participants[0]?.screen).toBeDefined();
-
-    // Even before LiveKit unpublishes the publication, a native track `ended` flips state off.
     const pub = publicationOf(media, 'screen_share');
-    pub.track.mediaStreamTrack.readyState = 'ended';
-    pub.track.mediaStreamTrack.dispatchEvent(new Event('ended'));
+    expect(call.getState().screenShare).toBe(true);
+    expect(call.getState().participants[0]?.screen).toBe(pub.track);
+
+    // Models LiveKit's handleTrackEnded -> unpublishTrack -> LocalTrackUnpublished path.
+    media.localParticipant.trackPublications.delete('screen_share');
+    (media.localParticipant as unknown as { isScreenShareEnabled: boolean }).isScreenShareEnabled =
+      false;
+    media.emit('LocalTrackUnpublished', pub);
 
     expect(call.getState().screenShare).toBe(false);
     expect(call.getState().participants[0]?.screen).toBeUndefined();
+  });
+
+  it('clears a remote screen tile when TrackUnsubscribed fires before LiveKit clears publication.track', async () => {
+    const { call, session } = setup();
+    session.memberships.push(membership('@bob:calls.test', 'BOBDEV'));
+    await call.join();
+    const media = onlyMediaRoom();
+    const screenTrack = { kind: 'video', detach: () => [] };
+    const screenPub: { isMuted: boolean; track?: typeof screenTrack } = {
+      isMuted: false,
+      track: screenTrack,
+    };
+    media.remoteParticipants.set('@bob:calls.test:BOBDEV', {
+      identity: '@bob:calls.test:BOBDEV',
+      isSpeaking: false,
+      isMicrophoneEnabled: true,
+      audioTrackPublications: new Map(),
+      getTrackPublication: (source: string) => (source === 'screen_share' ? screenPub : undefined),
+    });
+    media.emit('ParticipantConnected', { identity: '@bob:calls.test:BOBDEV' });
+    expect(call.getState().participants[1]?.screen).toBe(screenTrack);
+
+    // LiveKit 2.24.1 emits TrackUnsubscribed synchronously before clearing publication.track.
+    media.emit('TrackUnsubscribed', screenTrack);
+    screenPub.track = undefined;
+
+    await Promise.resolve();
+    expect(call.getState().participants[1]?.screen).toBeUndefined();
   });
 
   it('warns and turns microphone off when its track ends without user action, and clears on turn-back-on or restart', async () => {
@@ -2472,7 +2537,7 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState()).toMatchObject({
       microphone: false,
       microphoneTrack: undefined,
-      stoppedInputs: ['microphone'],
+      microphoneStopped: true,
     });
     expect(call.getState().participants[0]?.microphone).toBe(false);
 
@@ -2487,21 +2552,85 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(muteSpy).toHaveBeenCalledOnce();
     expect(call.getState()).toMatchObject({
       microphone: true,
-      stoppedInputs: undefined,
+      microphoneStopped: false,
       problem: undefined,
     });
 
     // LiveKit automatic restart also clears a dead-device warning without user clicks.
     pub.track.mediaStreamTrack.readyState = 'ended';
     pub.track.mediaStreamTrack.dispatchEvent(new Event('ended'));
-    expect(call.getState().stoppedInputs).toEqual(['microphone']);
+    expect(call.getState().microphoneStopped).toBe(true);
 
     pub.track.mediaStreamTrack = inputTrack('mic-auto-recovered');
     media.emit('LocalTrackPublished', pub);
     expect(call.getState()).toMatchObject({
       microphone: true,
-      stoppedInputs: undefined,
+      microphoneStopped: false,
     });
+  });
+
+  it('keeps dead-microphone warning across background disconnect and rejoin, and lets Turn back on work on the new room', async () => {
+    const { call, session } = setup({ microphone: true });
+    await call.join();
+    const first = onlyMediaRoom();
+    const pub = publicationOf(first, 'microphone');
+
+    setVisibility('hidden');
+    pub.track.mediaStreamTrack.readyState = 'ended';
+    pub.track.mediaStreamTrack.dispatchEvent(new Event('ended'));
+    expect(call.getState()).toMatchObject({ microphone: false, microphoneStopped: true });
+
+    first.emit('Disconnected');
+    await settle();
+    expect(call.getState()).toMatchObject({
+      phase: 'reconnecting',
+      microphone: false,
+      microphoneStopped: true,
+    });
+
+    setVisibility('visible');
+    session.setMemberships([]);
+    await settle();
+    await settle();
+
+    expect(mediaRooms()).toHaveLength(2);
+    expect(call.getState()).toMatchObject({
+      phase: 'connected',
+      microphone: false,
+      microphoneStopped: true,
+    });
+
+    const second = defined(mediaRooms()[1], 'rejoined media room');
+    await call.setMicrophone(true);
+    expect(second.localParticipant.setMicrophoneEnabled).toHaveBeenLastCalledWith(true);
+    expect(call.getState()).toMatchObject({
+      microphone: true,
+      microphoneStopped: false,
+    });
+  });
+
+  it('dismissing a stopped-input notice hides only the notice so LiveKit auto-recovery still works', async () => {
+    const { call } = setup({ microphone: true });
+    await call.join();
+    const media = onlyMediaRoom();
+    const pub = publicationOf(media, 'microphone');
+
+    pub.track.mediaStreamTrack.readyState = 'ended';
+    pub.track.mediaStreamTrack.dispatchEvent(new Event('ended'));
+    expect(call.getState()).toMatchObject({ microphone: false, microphoneStopped: true });
+
+    call.dismissStoppedInput('microphone');
+    expect(call.getState()).toMatchObject({ microphone: false, microphoneStopped: false });
+
+    // A refresh while the track is still dead keeps microphone off.
+    media.emit('ActiveSpeakersChanged');
+    expect(call.getState()).toMatchObject({ microphone: false, microphoneStopped: false });
+
+    // Once LiveKit auto-recovers with a live track, it is not muted back off.
+    pub.track.mediaStreamTrack = inputTrack('mic-recovered-after-dismiss');
+    media.emit('LocalTrackPublished', pub);
+    expect(pub.isMuted).toBe(false);
+    expect(call.getState()).toMatchObject({ microphone: true, microphoneStopped: false });
   });
 
   it('warns and turns camera off when its track ends without user action', async () => {
@@ -2515,7 +2644,7 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
 
     expect(call.getState()).toMatchObject({
       camera: false,
-      stoppedInputs: ['camera'],
+      cameraStopped: true,
     });
     expect(call.getState().participants[0]?.video).toBeUndefined();
   });
@@ -2537,9 +2666,10 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState()).toMatchObject({
       microphone: false,
       camera: false,
-      stoppedInputs: undefined,
       problem: undefined,
     });
+    expect(call.getState().microphoneStopped).toBeFalsy();
+    expect(call.getState().cameraStopped).toBeFalsy();
   });
 
   it('does not warn during the background rejoin teardown', async () => {
@@ -2561,8 +2691,9 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
 
     expect(call.getState()).toMatchObject({
       phase: 'reconnecting',
-      stoppedInputs: undefined,
       problem: undefined,
     });
+    expect(call.getState().microphoneStopped).toBeFalsy();
+    expect(call.getState().cameraStopped).toBeFalsy();
   });
 });

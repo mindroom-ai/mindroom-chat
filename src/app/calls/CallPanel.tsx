@@ -96,6 +96,47 @@ function Notice({
   );
 }
 
+function ActionNotice({
+  message,
+  actionLabel,
+  onAction,
+  onDismiss,
+}: {
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Notice
+      action={
+        <Box gap="100" alignItems="Center">
+          <Button size="300" radii="300" variant="Warning" fill="Solid" onClick={onAction}>
+            <Text size="B300">{actionLabel}</Text>
+          </Button>
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Warning"
+            aria-label={t('mindroomUi.notices.dismiss')}
+            onClick={onDismiss}
+          >
+            <Icon size="100" src={Icons.Cross} />
+          </IconButton>
+        </Box>
+      }
+    >
+      {message}
+    </Notice>
+  );
+}
+
+const SHARE_LABEL_KEYS = {
+  app: ['featureUi.call.controls.startAppShare', 'featureUi.call.controls.stopAppShare'],
+  screen: ['featureUi.call.controls.startScreenshare', 'featureUi.call.controls.stopScreenshare'],
+} as const;
+
 /** Whether the primary pointer is a finger, which the bar's call controls are bigger for. */
 const coarsePointer = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
 
@@ -239,16 +280,9 @@ function JoinedCall({
     ? t('featureUi.call.controls.turnOffMicrophone')
     : t('featureUi.call.controls.turnOnMicrophone');
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
-  let screenShareLabel: string;
-  if (screenShareIsInAppOnly()) {
-    screenShareLabel = state.screenShare
-      ? t('featureUi.calls.panel.stopAppShare')
-      : t('featureUi.calls.panel.startAppShare');
-  } else {
-    screenShareLabel = state.screenShare
-      ? t('featureUi.call.controls.stopScreenshare')
-      : t('featureUi.call.controls.startScreenshare');
-  }
+  const screenShareLabel = t(
+    SHARE_LABEL_KEYS[screenShareIsInAppOnly() ? 'app' : 'screen'][state.screenShare ? 1 : 0]
+  );
   const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
   const leaveLabel = t('featureUi.call.callControls.end');
   const barControlSize = coarsePointer() ? '400' : '300';
@@ -343,14 +377,12 @@ function JoinedCall({
   const stageArea =
     stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
-  const stoppedInputStatus =
-    !finished && state.stoppedInputs?.[0]
-      ? t(
-          state.stoppedInputs[0] === 'microphone'
-            ? 'featureUi.calls.panel.microphoneStopped'
-            : 'featureUi.calls.panel.cameraStopped'
-        )
-      : undefined;
+  let stoppedInputStatus: string | undefined;
+  if (!finished && state.microphoneStopped) {
+    stoppedInputStatus = t('featureUi.calls.panel.microphoneStopped');
+  } else if (!finished && state.cameraStopped) {
+    stoppedInputStatus = t('featureUi.calls.panel.cameraStopped');
+  }
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,
     // A finished call stays until it is closed: a failed one answers every new start busy till
@@ -434,69 +466,29 @@ function JoinedCall({
         </Notice>
       )}
       {!finished && state.screenShareStoppedInBackground && (
-        <Notice
-          action={
-            <Box gap="100" alignItems="Center">
-              <Button
-                size="300"
-                radii="300"
-                variant="Warning"
-                fill="Solid"
-                onClick={() => void call.setScreenShare(true)}
-              >
-                <Text size="B300">{t('featureUi.calls.panel.shareAgain')}</Text>
-              </Button>
-              <IconButton
-                size="300"
-                radii="300"
-                variant="Warning"
-                aria-label={t('featureUi.calls.panel.dismissNotice')}
-                onClick={() => call.dismissScreenShareNotice()}
-              >
-                <Icon size="100" src={Icons.Cross} />
-              </IconButton>
-            </Box>
-          }
-        >
-          {t('featureUi.calls.panel.screenShareStoppedInBackground')}
-        </Notice>
+        <ActionNotice
+          message={t('featureUi.calls.panel.screenShareStoppedInBackground')}
+          actionLabel={t('featureUi.calls.panel.shareAgain')}
+          onAction={() => void call.setScreenShare(true)}
+          onDismiss={() => call.dismissScreenShareNotice()}
+        />
       )}
-      {!finished &&
-        state.stoppedInputs?.map((kind) => (
-          <Notice
-            key={kind}
-            action={
-              <Box gap="100" alignItems="Center">
-                <Button
-                  size="300"
-                  radii="300"
-                  variant="Warning"
-                  fill="Solid"
-                  onClick={() =>
-                    void (kind === 'microphone' ? call.setMicrophone(true) : call.setCamera(true))
-                  }
-                >
-                  <Text size="B300">{t('featureUi.calls.panel.turnBackOn')}</Text>
-                </Button>
-                <IconButton
-                  size="300"
-                  radii="300"
-                  variant="Warning"
-                  aria-label={t('featureUi.calls.panel.dismissNotice')}
-                  onClick={() => call.dismissStoppedInput(kind)}
-                >
-                  <Icon size="100" src={Icons.Cross} />
-                </IconButton>
-              </Box>
-            }
-          >
-            {t(
-              kind === 'microphone'
-                ? 'featureUi.calls.panel.microphoneStopped'
-                : 'featureUi.calls.panel.cameraStopped'
-            )}
-          </Notice>
-        ))}
+      {!finished && state.microphoneStopped && (
+        <ActionNotice
+          message={t('featureUi.calls.panel.microphoneStopped')}
+          actionLabel={t('featureUi.calls.panel.turnBackOn')}
+          onAction={() => void call.setMicrophone(true)}
+          onDismiss={() => call.dismissStoppedInput('microphone')}
+        />
+      )}
+      {!finished && state.cameraStopped && (
+        <ActionNotice
+          message={t('featureUi.calls.panel.cameraStopped')}
+          actionLabel={t('featureUi.calls.panel.turnBackOn')}
+          onAction={() => void call.setCamera(true)}
+          onDismiss={() => call.dismissStoppedInput('camera')}
+        />
+      )}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

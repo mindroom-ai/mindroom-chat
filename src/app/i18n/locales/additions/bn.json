@@ -497,14 +497,11 @@
         "resize": "কল প্যানেলের আকার বদলান",
         "screenOf": "{{name}}-এর স্ক্রিন",
         "fullScreen": "পূর্ণ স্ক্রিন",
-        "startAppShare": "এই অ্যাপ শেয়ার করুন",
-        "stopAppShare": "এই অ্যাপ শেয়ার করা বন্ধ করুন",
         "screenShareStoppedInBackground": "অ্যাপ ছেড়ে যাওয়ায় স্ক্রিন শেয়ারিং বন্ধ হয়ে গেছে।",
         "shareAgain": "আবার শেয়ার করুন",
         "microphoneStopped": "আপনার মাইক্রোফোন বন্ধ হয়ে গেছে।",
         "cameraStopped": "আপনার ক্যামেরা বন্ধ হয়ে গেছে।",
-        "turnBackOn": "আবার চালু করুন",
-        "dismissNotice": "বাতিল করুন"
+        "turnBackOn": "আবার চালু করুন"
       },
       "problems": {
         "service": "কল পরিষেবায় পৌঁছানো যায়নি। পরে আবার চেষ্টা করুন।",
@@ -804,6 +801,12 @@
       "copyCommand": "কমান্ড কপি করুন",
       "copyFailed": "কপি করা যায়নি",
       "keywords": "mac, macos, ডেস্কটপ, অ্যাপ, ডাউনলোড, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "এই অ্যাপ শেয়ার করুন",
+        "stopAppShare": "এই অ্যাপ শেয়ার করা বন্ধ করুন"
+      }
     }
   },
   "mindroomUi": {

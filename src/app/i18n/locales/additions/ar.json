@@ -537,14 +537,11 @@
         "resize": "تغيير حجم لوحة المكالمة",
         "screenOf": "شاشة ⁨{{name}}⁩",
         "fullScreen": "ملء الشاشة",
-        "startAppShare": "مشاركة هذا التطبيق",
-        "stopAppShare": "إيقاف مشاركة هذا التطبيق",
         "screenShareStoppedInBackground": "توقفت مشاركة الشاشة عند مغادرتك التطبيق.",
         "shareAgain": "المشاركة مرة أخرى",
         "microphoneStopped": "توقف الميكروفون.",
         "cameraStopped": "توقفت الكاميرا.",
-        "turnBackOn": "تشغيل مرة أخرى",
-        "dismissNotice": "إغلاق"
+        "turnBackOn": "تشغيل مرة أخرى"
       },
       "problems": {
         "service": "تعذر الوصول إلى خدمة المكالمات. حاول لاحقًا.",
@@ -856,6 +853,12 @@
       "copyCommand": "نسخ الأمر",
       "copyFailed": "تعذّر النسخ",
       "keywords": "mac, macos, سطح المكتب, تطبيق, تنزيل, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "مشاركة هذا التطبيق",
+        "stopAppShare": "إيقاف مشاركة هذا التطبيق"
+      }
     }
   },
   "mindroomUi": {

@@ -487,14 +487,11 @@
         "resize": "Ubah ukuran panel panggilan",
         "screenOf": "Layar {{name}}",
         "fullScreen": "Layar penuh",
-        "startAppShare": "Bagikan aplikasi ini",
-        "stopAppShare": "Berhenti membagikan aplikasi ini",
         "screenShareStoppedInBackground": "Berbagi layar berhenti saat Anda meninggalkan aplikasi.",
         "shareAgain": "Bagikan lagi",
         "microphoneStopped": "Mikrofon Anda berhenti.",
         "cameraStopped": "Kamera Anda berhenti.",
-        "turnBackOn": "Nyalakan lagi",
-        "dismissNotice": "Tutup"
+        "turnBackOn": "Nyalakan lagi"
       },
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
@@ -791,6 +788,12 @@
       "copyCommand": "Salin perintah",
       "copyFailed": "Gagal menyalin",
       "keywords": "mac, macos, desktop, aplikasi, unduh, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Bagikan aplikasi ini",
+        "stopAppShare": "Berhenti membagikan aplikasi ini"
+      }
     }
   },
   "mindroomUi": {

@@ -52,12 +52,7 @@ export type CallProblem =
 export type CallDeviceKind = 'audioinput' | 'videoinput' | 'audiooutput';
 export type CallDevices = Partial<Record<CallDeviceKind, string>>;
 
-export type CallInputKind = 'microphone' | 'camera';
-
-const INPUT_KINDS: readonly CallInputKind[] = ['microphone', 'camera'];
-
-const sameStoppedInputs = (a?: readonly CallInputKind[], b?: readonly CallInputKind[]) =>
-  a?.length === b?.length && (a ?? []).every((kind, index) => kind === b?.[index]);
+type InputKind = 'microphone' | 'camera';
 
 const unmutedInputTrack = (publication: LocalTrackPublication | undefined) =>
   publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
@@ -113,8 +108,10 @@ export type CallState = {
   screenShare: boolean;
   /** Screen sharing was stopped when an in-app-only platform (iOS) went to the background. */
   screenShareStoppedInBackground?: boolean;
-  /** Local inputs whose track ended without user action and have not recovered yet. */
-  stoppedInputs?: readonly CallInputKind[];
+  /** Local microphone track ended without user action and has not recovered (nor been dismissed). */
+  microphoneStopped?: boolean;
+  /** Local camera track ended without user action and has not recovered (nor been dismissed). */
+  cameraStopped?: boolean;
   /** Whether others are heard; off mutes every remote voice on this device. */
   sound: boolean;
   /** The browser blocked playback until the next click. */
@@ -203,23 +200,23 @@ export class RoomCall {
 
   private state: CallState;
 
-  private readonly captureFailures = new Set<CallInputKind>();
+  private readonly captureFailures = new Set<InputKind>();
 
-  private readonly stoppedInputs = new Set<CallInputKind>();
+  /** Inputs whose track ended without user action, and whether the warning notice is still shown. */
+  private readonly stoppedInputs = new Map<InputKind, 'shown' | 'dismissed'>();
 
   private readonly selectionFailures = new Set<CallDeviceKind>();
 
-  private readonly requestedInputs: Record<CallInputKind, boolean>;
+  private readonly requestedInputs: Record<InputKind, boolean>;
 
-  private readonly inputTracks: Partial<Record<CallInputKind, MediaStreamTrack>> = {};
+  private readonly inputTracks: Partial<Record<InputKind, MediaStreamTrack>> = {};
 
-  private readonly unmutedInputs: Partial<Record<CallInputKind, MediaStreamTrack>> = {};
+  private readonly unmutedInputs: Partial<Record<InputKind, MediaStreamTrack>> = {};
 
-  private screenShareTrack?: MediaStreamTrack;
+  /** A screen-share start in flight; `hid` records if an in-app-only page hid before it settled. */
+  private screenShareStart?: { hid: boolean };
 
-  private endedScreenShareTrack?: MediaStreamTrack;
-
-  private readonly toggleOps: Record<CallInputKind, number> = { microphone: 0, camera: 0 };
+  private readonly toggleOps: Record<InputKind, number> = { microphone: 0, camera: 0 };
 
   private readonly switchOps: Record<CallDeviceKind, number> = {
     audioinput: 0,
@@ -329,12 +326,7 @@ export class RoomCall {
     void this.refreshState();
   };
 
-  private readStoppedInputs(): readonly CallInputKind[] | undefined {
-    if (this.stoppedInputs.size === 0) return undefined;
-    return INPUT_KINDS.filter((kind) => this.stoppedInputs.has(kind));
-  }
-
-  private refreshState(reapplyOff?: CallInputKind): Promise<void> | undefined {
+  private refreshState(reapplyOff?: InputKind): Promise<void> | undefined {
     if (this.stopped) return undefined;
     const mic = this.refreshInput('microphone', reapplyOff === 'microphone');
     const cam = this.refreshInput('camera', reapplyOff === 'camera');
@@ -344,25 +336,21 @@ export class RoomCall {
     if (problem === undefined || problem === 'device') {
       problem = this.captureFailures.size || this.selectionFailures.size ? 'device' : undefined;
     }
-    const media = this.media;
-    const screenPublication = media?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-    const screenTrack = screenPublication?.track?.mediaStreamTrack;
-    this.watchScreenShareTrack(screenTrack);
     const participants = this.readParticipants(microphone);
+    const media = this.media;
     const audioBlocked =
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
-    // Sharing also ends from the browser's own "Stop sharing" control or a system track `ended`.
-    const screenShare =
-      !!media?.localParticipant.isScreenShareEnabled &&
-      screenTrack?.readyState !== 'ended' &&
-      (screenTrack === undefined || screenTrack !== this.endedScreenShareTrack);
-    const stoppedInputs = this.readStoppedInputs();
+    // Sharing also ends from the browser's own "Stop sharing" control.
+    const screenShare = !!media?.localParticipant.isScreenShareEnabled;
+    const microphoneStopped = this.stoppedInputs.get('microphone') === 'shown';
+    const cameraStopped = this.stoppedInputs.get('camera') === 'shown';
     const microphoneTrack = this.readMicrophoneTrack();
     if (
       !sameParticipants(participants, this.state.participants) ||
       audioBlocked !== this.state.audioBlocked ||
       screenShare !== this.state.screenShare ||
-      !sameStoppedInputs(stoppedInputs, this.state.stoppedInputs) ||
+      microphoneStopped !== !!this.state.microphoneStopped ||
+      cameraStopped !== !!this.state.cameraStopped ||
       microphoneTrack !== this.state.microphoneTrack ||
       microphone !== this.state.microphone ||
       camera !== this.state.camera ||
@@ -372,7 +360,8 @@ export class RoomCall {
         participants,
         audioBlocked,
         screenShare,
-        stoppedInputs,
+        microphoneStopped,
+        cameraStopped,
         microphoneTrack,
         microphone,
         camera,
@@ -383,32 +372,18 @@ export class RoomCall {
     return reapplyOff === 'microphone' ? mic.muting : cam.muting;
   }
 
-  private readonly inputEndedHandlers: Record<CallInputKind, () => void> = {
+  private readonly inputEndedHandlers: Record<InputKind, () => void> = {
     microphone: () => this.onInputTrackEnded('microphone'),
     camera: () => this.onInputTrackEnded('camera'),
   };
 
-  private onInputTrackEnded(kind: CallInputKind, track = this.inputTracks[kind]) {
+  private onInputTrackEnded(kind: InputKind) {
     if (this.stopped || this.rejoin || !this.requestedInputs[kind]) return;
-    if (track && this.inputTracks[kind] && this.inputTracks[kind] !== track) return;
-    this.stoppedInputs.add(kind);
+    this.stoppedInputs.set(kind, 'shown');
     this.refresh();
   }
 
-  private onScreenShareTrackEnded = () => {
-    this.endedScreenShareTrack = this.screenShareTrack;
-    this.refresh();
-  };
-
-  private watchScreenShareTrack(track?: MediaStreamTrack) {
-    if (this.screenShareTrack === track) return;
-    this.screenShareTrack?.removeEventListener('ended', this.onScreenShareTrackEnded);
-    this.screenShareTrack = track;
-    if (track && track !== this.endedScreenShareTrack) this.endedScreenShareTrack = undefined;
-    track?.addEventListener('ended', this.onScreenShareTrackEnded);
-  }
-
-  private watchInputTrack(kind: CallInputKind, track?: MediaStreamTrack) {
+  private watchInputTrack(kind: InputKind, track?: MediaStreamTrack) {
     const previous = this.inputTracks[kind];
     if (previous === track) return;
     previous?.removeEventListener('mute', this.refresh);
@@ -422,7 +397,7 @@ export class RoomCall {
   }
 
   private refreshInput(
-    kind: CallInputKind,
+    kind: InputKind,
     reapplyOff: boolean
   ): {
     enabled: boolean;
@@ -465,30 +440,14 @@ export class RoomCall {
     return publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
   }
 
-  private onTrackEnded = (track?: {
-    source?: Track.Source;
-    mediaStreamTrack?: MediaStreamTrack;
-  }) => {
-    if (track?.source === Track.Source.Microphone) {
-      this.onInputTrackEnded('microphone', track.mediaStreamTrack);
-    } else if (track?.source === Track.Source.Camera) {
-      this.onInputTrackEnded('camera', track.mediaStreamTrack);
-    } else {
-      if (track?.mediaStreamTrack) this.endedScreenShareTrack = track.mediaStreamTrack;
-      this.refresh();
-    }
-  };
-
   /** LiveKit opens a microphone again in the same track when it ended, with a new media track. */
   private onLocalTrackPublished = (publication: LocalTrackPublication) => {
     publication.track?.on(TrackEvent.Restarted, this.refresh);
-    publication.track?.on(TrackEvent.Ended, this.onTrackEnded);
     this.refresh();
   };
 
   private onLocalTrackUnpublished = (publication: LocalTrackPublication) => {
     publication.track?.off(TrackEvent.Restarted, this.refresh);
-    publication.track?.off(TrackEvent.Ended, this.onTrackEnded);
     this.refresh();
   };
 
@@ -509,12 +468,6 @@ export class RoomCall {
         if (!publication || publication.isMuted) return undefined;
         if (local && source === Track.Source.Camera && this.stoppedInputs.has('camera')) {
           return undefined;
-        }
-        if (local && source === Track.Source.ScreenShare) {
-          const track = publication.track?.mediaStreamTrack;
-          if (track?.readyState === 'ended' || (track && track === this.endedScreenShareTrack)) {
-            return undefined;
-          }
         }
         return publication.track as CallVideoTrack | undefined;
       };
@@ -595,6 +548,8 @@ export class RoomCall {
     [RoomEvent.TrackUnsubscribed]: (track) => {
       this.detachAudio(track);
       this.refresh();
+      // LiveKit 2.24.1 emits TrackUnsubscribed before clearing `publication.track`.
+      queueMicrotask(this.refresh);
     },
     [RoomEvent.ParticipantConnected]: (participant) => {
       this.keyPeers.add(participant.identity);
@@ -652,12 +607,26 @@ export class RoomCall {
     return current();
   }
 
+  private stopScreenShareInBackground() {
+    const participant = this.media?.localParticipant;
+    // Signal mute before SDP renegotiation (unpublish), in case WebKit suspends the page first.
+    void participant
+      ?.getTrackPublication(Track.Source.ScreenShare)
+      ?.mute()
+      .catch(() => undefined);
+    this.update({ screenShare: false, screenShareStoppedInBackground: true });
+    void this.setScreenShare(false);
+  }
+
   private onVisibilityChange = () => {
     if (isPageHidden()) {
       // In-app capture (iOS WebKit) sends black frames once the app leaves the foreground.
-      if (!this.stopped && !this.rejoin && screenShareIsInAppOnly() && this.state.screenShare) {
-        this.update({ screenShare: false, screenShareStoppedInBackground: true });
-        void this.setScreenShare(false);
+      if (!this.stopped && !this.rejoin && screenShareIsInAppOnly()) {
+        if (this.screenShareStart) {
+          this.screenShareStart.hid = true;
+        } else if (this.state.screenShare || this.media?.localParticipant.isScreenShareEnabled) {
+          this.stopScreenShareInBackground();
+        }
       }
       return;
     }
@@ -974,26 +943,30 @@ export class RoomCall {
     const cameraOp = this.toggleOps.camera;
     // A rejoin opens no input in the background, and nothing opens on media that was let go.
     if (rejoin && !(await this.shown(media))) return;
-    await this.setMicrophone(this.requestedInputs.microphone);
+    // Keep a dead-microphone warning across rejoin instead of clearing it with an internal off.
+    if (this.requestedInputs.microphone || !this.stoppedInputs.has('microphone')) {
+      await this.setMicrophone(this.requestedInputs.microphone);
+    }
     if (rejoin ? !(await this.shown(media)) : this.media !== media) return;
     if (this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
       await this.setCamera(true);
     }
   }
 
-  private inputPublication(kind: CallInputKind): LocalTrackPublication | undefined {
+  private inputPublication(kind: InputKind): LocalTrackPublication | undefined {
     const source = kind === 'microphone' ? Track.Source.Microphone : Track.Source.Camera;
     return this.media?.localParticipant.getTrackPublication(source);
   }
 
-  private async setInputEnabled(kind: CallInputKind, on: boolean) {
+  private async setInputEnabled(kind: InputKind, on: boolean) {
     if (this.stopped) return;
     const op = (this.toggleOps[kind] += 1);
     const wasStopped = this.stoppedInputs.delete(kind);
     this.requestedInputs[kind] = on;
+    const stoppedKey = kind === 'microphone' ? 'microphoneStopped' : 'cameraStopped';
     this.update({
       [kind]: on,
-      ...(wasStopped ? { stoppedInputs: this.readStoppedInputs() } : {}),
+      ...(wasStopped ? { [stoppedKey]: false } : {}),
     });
     const media = this.media;
     if (!media || this.state.phase === 'connecting' || this.rejoin) return;
@@ -1044,26 +1017,35 @@ export class RoomCall {
    * the browser offers it). Closing the browser's picker leaves sharing off without a problem.
    */
   async setScreenShare(on: boolean) {
-    const participant = this.media?.localParticipant;
+    const media = this.media;
+    const participant = media?.localParticipant;
     if (!participant || this.state.phase === 'connecting' || this.rejoin) return;
-    if (on && this.state.screenShareStoppedInBackground) {
-      this.update({ screenShareStoppedInBackground: false });
+    if (on) {
+      if (this.state.screenShareStoppedInBackground) {
+        this.update({ screenShareStoppedInBackground: false });
+      }
+      const start = { hid: false };
+      this.screenShareStart = start;
+      await participant
+        .setScreenShareEnabled(true, {
+          audio: true,
+          // The system's sound would carry the call back to the others, and this tab its own panel.
+          systemAudio: 'exclude',
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include',
+          contentHint: 'detail',
+        })
+        .catch(() => undefined);
+      if (this.screenShareStart === start) this.screenShareStart = undefined;
+      if (this.media !== media) return;
+      if (start.hid && participant.isScreenShareEnabled) {
+        this.stopScreenShareInBackground();
+        return;
+      }
+      this.refresh();
+      return;
     }
-    await participant
-      .setScreenShareEnabled(
-        on,
-        on
-          ? {
-              audio: true,
-              // The system's sound would carry the call back to the others, and this tab its own panel.
-              systemAudio: 'exclude',
-              selfBrowserSurface: 'exclude',
-              surfaceSwitching: 'include',
-              contentHint: 'detail',
-            }
-          : undefined
-      )
-      .catch(() => undefined);
+    await participant.setScreenShareEnabled(false).catch(() => undefined);
     this.refresh();
   }
 
@@ -1073,10 +1055,11 @@ export class RoomCall {
     }
   }
 
-  dismissStoppedInput(kind: CallInputKind) {
-    if (!this.stoppedInputs.delete(kind)) return;
-    this.requestedInputs[kind] = false;
-    this.update({ stoppedInputs: this.readStoppedInputs() });
+  /** Hides the stopped-input notice without changing input intent (auto-recovery still works). */
+  dismissStoppedInput(kind: InputKind) {
+    if (this.stoppedInputs.get(kind) !== 'shown') return;
+    this.stoppedInputs.set(kind, 'dismissed');
+    this.update(kind === 'microphone' ? { microphoneStopped: false } : { cameraStopped: false });
   }
 
   setSound(on: boolean) {
@@ -1125,13 +1108,15 @@ export class RoomCall {
     if (
       this.state.microphoneTrack ||
       this.state.screenShareStoppedInBackground ||
-      this.state.stoppedInputs ||
+      this.state.microphoneStopped ||
+      this.state.cameraStopped ||
       !sameParticipants(participants, this.state.participants)
     ) {
       this.update({
         microphoneTrack: undefined,
         screenShareStoppedInBackground: false,
-        stoppedInputs: undefined,
+        microphoneStopped: false,
+        cameraStopped: false,
         participants,
       });
     }
@@ -1164,12 +1149,10 @@ export class RoomCall {
     this.media = undefined;
     this.watchInputTrack('microphone');
     this.watchInputTrack('camera');
-    this.watchScreenShareTrack();
-    this.endedScreenShareTrack = undefined;
+    this.screenShareStart = undefined;
     if (media) this.watchMedia(media, 'off');
     media?.localParticipant.trackPublications.forEach((publication) => {
       publication.track?.off(TrackEvent.Restarted, this.refresh);
-      publication.track?.off(TrackEvent.Ended, this.onTrackEnded);
     });
     this.audioHost?.remove();
     this.audioHost = undefined;
