@@ -108,14 +108,21 @@ struct StatusPill: View {
     let background: Color
     var showSpinner: Bool = false
     var systemImage: String? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 3) {
             if showSpinner {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(foreground)
-                    .frame(width: 10, height: 10)
+                if reduceMotion {
+                    Circle()
+                        .fill(foreground)
+                        .frame(width: 6, height: 6)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(foreground)
+                        .frame(width: 10, height: 10)
+                }
             } else if let systemImage {
                 Image(systemName: systemImage)
                     .font(.caption2.weight(.bold))
