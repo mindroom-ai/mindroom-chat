@@ -76,29 +76,35 @@ export const useWindowKeepsNewestRow = ({
  * state counts into a closed fold shows the fold whole: a page of history brought earlier events
  * of the run the window starts with, or a fold closed over a window's edge. The state then
  * follows the window shown, so what counts on from it (a live row grown in at its end) counts
- * from the rows on screen.
+ * from the rows on screen, and a fold that opens has its rows in the window.
+ *
+ * The window shown is the state's, or the newest rows where the state's no longer fits the rows
+ * (`getVisibleTimelineRange`: a row left the room's rows): the state follows from either.
  */
 export const useWindowHoldsWholeFolds = ({
   timeline,
+  roomWindow,
   stateRange,
   loadedRange,
   setTimeline,
 }: {
   timeline: Timeline;
+  /** The room's own window is shown: not a thread's rows, nor a filtered overview's. */
+  roomWindow: boolean;
   /** The window the state counts, in loaded rows, and the loaded rows of the window shown. */
   stateRange: ItemRange;
   loadedRange: ItemRange;
   setTimeline: SetTimeline;
 }) => {
   useLayoutEffect(() => {
-    // A window the state does not hold (a thread's, a filtered overview's, a placed one) is not
-    // the state's to follow.
-    if (stateRange !== timeline.range || loadedRange === stateRange) return;
-    const shown = timeline.range;
+    // The window shown is the state's own object while it holds the same rows.
+    if (!roomWindow || loadedRange === stateRange) return;
+    // Unless the state moved meanwhile (the classic view placed its window): it shows next.
+    const stored = timeline.range;
     setTimeline((current) =>
-      current.range === shown ? { ...current, range: loadedRange } : current
+      current.range === stored ? { ...current, range: loadedRange } : current
     );
-  }, [loadedRange, setTimeline, stateRange, timeline.range]);
+  }, [loadedRange, roomWindow, setTimeline, stateRange, timeline.range]);
 };
 
 /**

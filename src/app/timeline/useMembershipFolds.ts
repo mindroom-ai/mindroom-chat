@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type RefObject,
 } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
@@ -13,6 +14,7 @@ import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes
 import type { TimelineEventEntry } from '../event-store/timeline/roomTimelineEvents';
 import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
 import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
   exposedFoldRowsPx,
@@ -24,6 +26,7 @@ import {
   viewMembershipFolds,
   type MembershipFold,
   type MembershipFoldView,
+  type RenderedListPlace,
   type RenderedRoomRows,
   type RoomRowProjection,
 } from './membershipFolds';
@@ -142,8 +145,24 @@ export const NO_RENDERED_ROOM_ROWS: RenderedRoomRows = {
 type RoomList = Virtualizer<HTMLDivElement, Element>;
 type RowSizeSource = Pick<
   RoomList,
-  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement' | 'range'
+  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement' | 'scrollElement'
 > & { options: Pick<RoomList['options'], 'measureElement'> };
+
+/**
+ * How far down the list the reader's view starts (`RenderedListPlace`), as the list is painted
+ * now: the first row's top is the top of `inner`, the element that holds the rows, whatever leads
+ * it in the scroll area and wherever the offset ledger has it, and the view starts below the bars
+ * over the scroll area.
+ */
+export const readReaderTop = (
+  scrollElement: Element | null | undefined,
+  inner: Element | null
+): number | undefined =>
+  scrollElement && inner?.isConnected
+    ? scrollElement.getBoundingClientRect().top +
+      readTopInset(scrollElement) -
+      inner.getBoundingClientRect().top
+    : undefined;
 
 /**
  * The room's list as it rendered: the height it gives each row of its window, and its folds.
@@ -153,16 +172,24 @@ type RowSizeSource = Pick<
  * event's row or another fold's break, which reports no new size when the break is as high. The
  * list notes a measured height only when it differs from the one the row had, so a fold as high
  * as the rows it replaced is noted here as measured.
+ *
+ * Each closed fold's row is noted with where it ends, for the day its rows come out of it above
+ * the reader (`exposedFoldRowsPx`, which asks `readerTop` then).
  */
 export const readRenderedRoomRows = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[],
-  view: MembershipFoldView
+  view: MembershipFoldView,
+  readerTop: RenderedListPlace['readerTop'] = () => undefined
 ): RenderedRoomRows => {
   const sizes = new Map<string, number>();
+  const foldEnds = new Map<string, number>();
+  const listStart = virtualizer.measurementsCache[0]?.start ?? 0;
   windowRows.forEach((event, index) => {
     const id = event.getId();
     if (!id) return;
+    const end = view.breaks.get(id)?.open === false && virtualizer.measurementsCache[index]?.end;
+    if (typeof end === 'number') foldEnds.set(id, end - listStart);
     let size = virtualizer.itemSizeCache.get(id);
     if (size === undefined) {
       size = virtualizer.measurementsCache[index]?.size;
@@ -181,7 +208,7 @@ export const readRenderedRoomRows = (
     }
     sizes.set(id, size);
   });
-  return { sizes, view, rows: windowRows, list: virtualizer };
+  return { sizes, view, rows: windowRows, list: virtualizer, place: { foldEnds, readerTop } };
 };
 
 /**
@@ -258,16 +285,20 @@ export const useExposedFoldRowsHeld = ({
  * which the row estimate reads from `renderedRef`), so no row moves when it takes their place,
  * and its own height then reaches the list as any row's new size does. The list is read after
  * each commit that shows the room's rows (`windowRows`); in an open thread it lists the thread's.
+ * `innerRef` is the element that holds the rows (`readReaderTop`).
  */
 export const useMembershipFoldRowSizes = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[] | undefined,
   view: MembershipFoldView,
-  renderedRef: MutableRefObject<RenderedRoomRows>
+  renderedRef: MutableRefObject<RenderedRoomRows>,
+  innerRef: RefObject<Element>
 ) => {
   useLayoutEffect(() => {
     renderedRef.current = windowRows
-      ? readRenderedRoomRows(virtualizer, windowRows, view)
+      ? readRenderedRoomRows(virtualizer, windowRows, view, () =>
+          readReaderTop(virtualizer.scrollElement, innerRef.current)
+        )
       : NO_RENDERED_ROOM_ROWS;
   });
 };

@@ -1120,7 +1120,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => roomRows.slice(activeTimelineRange.start, activeTimelineRange.end),
     [activeTimelineRange.end, activeTimelineRange.start, roomRows]
   );
-  useWindowHoldsWholeFolds({ timeline, stateRange, loadedRange, setTimeline });
+  useWindowHoldsWholeFolds({
+    timeline,
+    roomWindow: !threadId && !threadIndex.roomThreadFilterActive,
+    stateRange,
+    loadedRange,
+    setTimeline,
+  });
   useWindowKeepsNewestRow({
     activeTimelineRange: loadedRange,
     eventId,
@@ -1358,7 +1364,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     virtualizer,
     threadId ? undefined : roomWindowRows,
     membershipFolds.view,
-    renderedRoomRowsRef
+    renderedRoomRowsRef,
+    ledger.virtualInnerRef
   );
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list

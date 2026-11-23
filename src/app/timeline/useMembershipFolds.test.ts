@@ -13,6 +13,7 @@ import {
 } from './membershipFolds';
 import {
   forgetFormedFoldHeights,
+  readReaderTop,
   readRenderedRoomRows,
   useExposedFoldRowsHeld,
   useMembershipFolds,
@@ -351,7 +352,9 @@ describe('the heights a fold takes over from the rows it holds', () => {
   const list = (
     sizes: number[],
     measured: Record<string, number>,
-    mounted: Record<string, number> = {}
+    mounted: Record<string, number> = {},
+    /** Where the list counts its first row from. */
+    listStart = 0
   ) => {
     const remeasured: string[] = [];
     const elements = new Map(
@@ -359,7 +362,12 @@ describe('the heights a fold takes over from the rows it holds', () => {
     );
     const virtualizer = {
       itemSizeCache: new Map<string | number | bigint, number>(Object.entries(measured)),
-      measurementsCache: sizes.map((size) => ({ size })),
+      // Each row ends where the rows down to it add up to.
+      measurementsCache: sizes.map((size, index) => ({
+        size,
+        start: sizes.slice(0, index).reduce((px, rowPx) => px + rowPx, listStart),
+        end: sizes.slice(0, index + 1).reduce((px, rowPx) => px + rowPx, listStart),
+      })),
       elementsCache: elements,
       options: { measureElement: (element: Element) => mounted[element.id] ?? 0 },
       // As the list measures a row: it notes a height that differs from the row's.
@@ -425,6 +433,46 @@ describe('the heights a fold takes over from the rows it holds', () => {
     const unmounted = list([60, 50], { $msg: 50 });
     expect(readRenderedRoomRows(unmounted.virtualizer, rows, view).sizes.get('$m3')).toBe(60);
     expect(unmounted.cache.has('$m3')).toBe(false);
+  });
+
+  it('notes where each closed fold ends, down from the top of the first row', () => {
+    const readerTop = () => 300;
+    // An open fold's rows are rows already: none to come out of it.
+    const open = readRenderedRoomRows(
+      list([72, 30, 30, 50], {}).virtualizer,
+      [m3, m4, m5, msg],
+      viewOf([m3, m4, m5, msg], true),
+      readerTop
+    );
+    expect(open.place).toEqual({ foldEnds: new Map(), readerTop });
+    // The offset ledger has the list count its rows from 75 px above its top.
+    const folded = list([50, 42, 50], { $m3: 42 }, {}, -75);
+    const rendered = readRenderedRoomRows(
+      folded.virtualizer,
+      [msg, m3, msgEvent('$after')],
+      viewOf([msg, m3, m4, m5, msgEvent('$after')]),
+      readerTop
+    );
+    expect(rendered.place).toEqual({ foldEnds: new Map([['$m3', 92]]), readerTop });
+  });
+
+  it("reads where the reader's view starts from the list as it is painted", () => {
+    const rect = (top: number) => () => ({ top } as DOMRect);
+    const scroller = document.createElement('div');
+    const inner = document.createElement('div');
+    scroller.append(inner);
+    document.body.append(scroller);
+    // Bars cover 56 px of the scroll area, whose top is 10 px down the page. Scrolled 400 px
+    // down, with 180 px of the room's intro before the list, 220 px of the list are passed.
+    scroller.style.scrollPaddingTop = '56px';
+    scroller.getBoundingClientRect = rect(10);
+    inner.getBoundingClientRect = rect(10 - 400 + 180);
+    expect(readReaderTop(scroller, inner)).toBe(220 + 56);
+    expect(readReaderTop(null, inner)).toBeUndefined();
+    expect(readReaderTop(scroller, null)).toBeUndefined();
+    // A list that left the page is nowhere.
+    scroller.remove();
+    expect(readReaderTop(scroller, inner)).toBeUndefined();
   });
 
   it('has the list measure a mounted closed fold that is not as high as the rows it took over', () => {
@@ -503,7 +551,8 @@ describe('useExposedFoldRowsHeld', () => {
         sizes: new Map([['$m1', 42]]),
         view: closed,
         rows: project(closed).rows,
-        list: { itemSizeCache: new Map(), range: { startIndex: 1, endIndex: 3 } },
+        list: { itemSizeCache: new Map() },
+        place: { foldEnds: new Map([['$m1', 42]]), readerTop: () => 42 },
       },
     };
     const pendingRoomFoldPxRef = { current: 7 };

@@ -262,7 +262,7 @@ function RoomWindow({
       handles.foldedPx += foldPx;
     }
   });
-  useWindowHoldsWholeFolds({ timeline, stateRange, loadedRange, setTimeline });
+  useWindowHoldsWholeFolds({ timeline, roomWindow: true, stateRange, loadedRange, setTimeline });
   useWindowKeepsNewestRow({
     activeTimelineRange: loadedRange,
     eventId,
@@ -411,6 +411,31 @@ describe('the room window paginator over a closed fold', () => {
     // where it was.
     expect(scroller.screenTop('$b20')).toBe(readerTop);
     expect(handles.stateRange?.start).toBe(21);
+  });
+
+  // A row leaves the loaded rows (a redacted message, with hidden events not shown), so the
+  // window the state holds ends past them and the newest rows are shown in its place.
+  it('opens a fold whole in a window that was fitted to fewer rows', () => {
+    const long = [...joins('j', 380), ...messages('b', 21)];
+    room = mountRoomWindow(long, { start: 201, end: 401 }, { windowLimit: 200 });
+    const { scroller, handles, windowIds } = room;
+    // The newest 200 rows start inside the fold, which shows whole: the state follows.
+    expect(windowIds()).toEqual(['$j0', ...long.slice(380).map((event) => event.getId())]);
+    expect(handles.stateRange).toEqual({ start: 0, end: 401 });
+
+    const shorter = long.filter((event) => event.getId() !== '$b10');
+    room.renderWith(shorter);
+    expect(windowIds()).toHaveLength(21);
+    expect(windowIds()[0]).toBe('$j0');
+    // The state holds the rows of the window shown, not one that no longer fits them.
+    expect(handles.stateRange).toEqual({ start: 0, end: 400 });
+
+    // Opened, the fold's first event has the break that closes it again, and is in the window
+    // with every event after it.
+    act(() => handles.toggle?.('$j0'));
+    expect(scroller.shown.current.view.breaks.get('$j0')?.open).toBe(true);
+    expect(windowIds()).toEqual(shorter.map((event) => event.getId()));
+    expect(handles.stateRange).toEqual({ start: 0, end: 400 });
   });
 
   it("keeps the rows after a fold at the window's end when it opens and closes", () => {

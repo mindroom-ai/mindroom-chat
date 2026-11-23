@@ -565,17 +565,36 @@ describe('exposedFoldRowsPx', () => {
       events.map((event, absoluteIndex) => ({ event, absoluteIndex })),
       view
     );
-  /** The last render of `events`, with the row at `firstInView` the first one in view. */
-  const rendered = (firstInView: number, events = loaded) => {
+  /**
+   * The last render of `events`, each fold's break 42 px high and each other row 50, with the row
+   * at `firstInView` at the top of the scroll area: `leadingPx` of other content is above the
+   * list there, and bars cover `insetPx` of its top.
+   */
+  const rendered = (
+    firstInView: number,
+    events = loaded,
+    { leadingPx = 0, insetPx = 0, scrolledPx = 0 } = {}
+  ) => {
     const view = viewOf(events);
     const { rows } = project(events, view);
+    const sizes = new Map(
+      rows.map((event) => [event.getId() ?? '', view.breaks.has(event.getId() ?? '') ? 42 : 50])
+    );
+    const foldEnds = new Map<string, number>();
+    let end = 0;
+    let scrollTop = leadingPx + scrolledPx;
+    rows.forEach((event, index) => {
+      const id = event.getId() ?? '';
+      if (index < firstInView) scrollTop += sizes.get(id) ?? 0;
+      end += sizes.get(id) ?? 0;
+      if (view.breaks.has(id)) foldEnds.set(id, end);
+    });
     return {
-      sizes: new Map(
-        rows.map((event) => [event.getId() ?? '', view.breaks.has(event.getId() ?? '') ? 42 : 50])
-      ),
+      sizes,
       view,
       rows,
-      list: { itemSizeCache: new Map(), range: { startIndex: firstInView, endIndex: rows.length } },
+      list: { itemSizeCache: new Map() },
+      place: { foldEnds, readerTop: () => scrollTop + insetPx - leadingPx },
     };
   };
   /** What a render of `events` with these rules takes, each row priced at 30 px. */
@@ -594,11 +613,28 @@ describe('exposedFoldRowsPx', () => {
 
   it('is the height of the rows of a closed fold above the view that came apart, less its break', () => {
     expect(exposed(rendered(3), loaded, tooShort)).toBe(4 * 30 - 42);
+    // The view starts where the break ends.
+    expect(exposed(rendered(2), loaded, tooShort)).toBe(4 * 30 - 42);
   });
 
   it('is nothing while the fold is in view or below it', () => {
     expect(exposed(rendered(1), loaded, tooShort)).toBe(0);
     expect(exposed(rendered(0), loaded, tooShort)).toBe(0);
+    // Its last pixel shows.
+    expect(exposed(rendered(2, loaded, { scrolledPx: -1 }), loaded, tooShort)).toBe(0);
+  });
+
+  it('takes the view to start below the content that leads the list and the bars over it', () => {
+    // 200 px of the room's intro lead the list. Scrolled 150 px down, the break shows whole,
+    // though by the scroll offset alone the list counts its row and the next as passed.
+    const leading = { leadingPx: 200 };
+    expect(exposed(rendered(0, loaded, { ...leading, scrolledPx: -50 }), loaded, tooShort)).toBe(0);
+    expect(exposed(rendered(1, loaded, leading), loaded, tooShort)).toBe(0);
+    expect(exposed(rendered(2, loaded, leading), loaded, tooShort)).toBe(4 * 30 - 42);
+    // Bars cover 60 px of the scroll area: a break under them is above the view.
+    const bars = { insetPx: 60 };
+    expect(exposed(rendered(1, loaded, bars), loaded, tooShort)).toBe(4 * 30 - 42);
+    expect(exposed(rendered(1, loaded, { ...bars, scrolledPx: -19 }), loaded, tooShort)).toBe(0);
   });
 
   it('is nothing for a fold that is still closed, alone or inside a longer one', () => {
@@ -621,9 +657,23 @@ describe('exposedFoldRowsPx', () => {
     );
   });
 
+  it('counts the rows left of a fold whose first event is no row any more', () => {
+    // The first join is gone from the loaded rows: three are left, a fold at the second.
+    const withoutFirst = loaded.filter((event) => event.getId() !== '$m1');
+    expect(exposed(rendered(3), withoutFirst)).toBe(30 - 42);
+    // The second too: the two left are rows.
+    const withoutTwo = withoutFirst.filter((event) => event.getId() !== '$m2');
+    expect(exposed(rendered(3), withoutTwo)).toBe(2 * 30 - 42);
+    // None is left: no row of the fold to price.
+    const withoutAny = loaded.filter((event) => event.getType() !== 'm.room.member');
+    expect(exposed(rendered(3), withoutAny)).toBe(0);
+  });
+
   it('is nothing when other rows replaced the ones the fold stood among', () => {
     const other = [messageEvent('$other0'), messageEvent('$other1'), messageEvent('$other2')];
     expect(exposed(rendered(3), other)).toBe(0);
+    // Events of the fold are rows of the window, but no row that came after it is.
+    expect(exposed(rendered(3), [messageEvent('$msg0'), ...joins, ...other], tooShort)).toBe(0);
   });
 
   it('is nothing without a list that rendered', () => {
