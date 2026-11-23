@@ -1883,6 +1883,20 @@ vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => {
   return { useRoomBackgroundJobs: () => snapshot };
 });
 vi.mock('../../matrix/hooks/useRoomActiveRuns', () => {
-  const snapshot = { runs: [], threads: new Set<string>() };
-  return { useRoomActiveRuns: () => snapshot };
+  let cachedKey = '';
+  let cachedSnapshot = { runs: [], threads: new Set<string>() };
+  return {
+    useRoomActiveRuns: () => {
+      const activeIds: string[] = [];
+      for (const [id, active] of threadStreamingStateMock) {
+        if (active) activeIds.push(id);
+      }
+      const key = activeIds.join('\0');
+      if (key !== cachedKey) {
+        cachedKey = key;
+        cachedSnapshot = { runs: [], threads: new Set(activeIds) };
+      }
+      return cachedSnapshot;
+    },
+  };
 });
