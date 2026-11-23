@@ -7,6 +7,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   INVITE_SERVER_SEARCH_LIMIT,
   userDirectoryCacheAtom,
+  type ServerUserDirectoryUser,
   type UserDirectoryCacheState,
 } from './userDirectoryCache';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
@@ -79,13 +80,15 @@ const originalWindow = globalThis.window;
 function SearchHarness({
   room,
   query,
+  predicate,
   onRender,
 }: {
   room: Pick<Room, 'getMember'> | undefined;
   query: string;
+  predicate?: (user: ServerUserDirectoryUser) => boolean;
   onRender: (state: SearchHarnessState) => void;
 }) {
-  const result = useInviteUserSearch(room as Room | undefined, query);
+  const result = useInviteUserSearch(room as Room | undefined, query, predicate);
   onRender(result);
   return null;
 }
@@ -95,7 +98,8 @@ const searchHarnessTree = (
   mx: MockMatrixClient,
   room: Pick<Room, 'getMember'> | undefined,
   query: string,
-  onRender: (state: SearchHarnessState) => void
+  onRender: (state: SearchHarnessState) => void,
+  predicate?: (user: ServerUserDirectoryUser) => boolean
 ) =>
   React.createElement(
     Provider,
@@ -106,6 +110,7 @@ const searchHarnessTree = (
       React.createElement(SearchHarness, {
         room,
         query,
+        predicate,
         onRender,
       })
     )
@@ -117,6 +122,7 @@ const renderSearch = ({
   room = makeRoom(),
   query,
   cacheState,
+  predicate,
 }: {
   store?: ReturnType<typeof createStore>;
   mx?: MockMatrixClient;
@@ -124,6 +130,7 @@ const renderSearch = ({
   room?: Pick<Room, 'getMember'> | null;
   query: string;
   cacheState?: UserDirectoryCacheState;
+  predicate?: (user: ServerUserDirectoryUser) => boolean;
 }) => {
   if (cacheState) store.set(userDirectoryCacheAtom, cacheState);
 
@@ -137,7 +144,7 @@ const renderSearch = ({
   };
 
   act(() => {
-    renderer = create(searchHarnessTree(store, mx, resolvedRoom, query, onRender));
+    renderer = create(searchHarnessTree(store, mx, resolvedRoom, query, onRender, predicate));
   });
 
   return {
@@ -918,5 +925,48 @@ describe('useInviteUserSearch', () => {
     expect(view.getResult().suggestions.map((user) => user.userId)).not.toContain(
       '@marco:example.org'
     );
+  });
+
+  it('applies predicate before ranking, the 8-item cap, and the server-fallback threshold', async () => {
+    const mx = makeMx();
+    vi.mocked(mx.searchUserDirectory).mockResolvedValue({
+      limited: false,
+      results: [{ user_id: '@mindroom_alpha_server:example.org', display_name: 'Alpha Bot' }],
+    });
+    const tenPeople: ServerUserDirectoryUser[] = Array.from({ length: 10 }, (_, index) => ({
+      userId: `@alpha_${String(index).padStart(2, '0')}:example.org`,
+      displayName: `Alpha Person ${String(index).padStart(2, '0')}`,
+    }));
+    const localAgent: ServerUserDirectoryUser = {
+      userId: '@mindroom_ops:example.org',
+      displayName: 'Operations Alpha',
+    };
+    const isAgent = (user: ServerUserDirectoryUser) => user.userId.startsWith('@mindroom_');
+
+    const view = renderSearch({
+      mx,
+      query: 'alpha',
+      cacheState: readyCache([...tenPeople, localAgent]),
+      predicate: isAgent,
+    });
+
+    // Local agent is not crowded out by the 10 higher-ranked people.
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual([
+      '@mindroom_ops:example.org',
+    ]);
+
+    // Only 1 strong agent match exists locally (< 3), so server fallback still runs.
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+      await flushMicrotasks();
+    });
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith({
+      term: 'alpha',
+      limit: INVITE_SERVER_SEARCH_LIMIT,
+    });
+    expect(view.getResult().suggestions.map((user) => user.userId)).toEqual([
+      '@mindroom_alpha_server:example.org',
+      '@mindroom_ops:example.org',
+    ]);
   });
 });

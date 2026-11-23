@@ -47,15 +47,18 @@ const inviteTwoInOneDialog = async (page: Page, name: string) => {
   // A 1280 px window leaves the room too narrow to read beside the members: they start closed.
   await page.getByRole('button', { name: 'Show Members', exact: true }).click({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Invite people' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Invite' });
+  const dialog = page.getByRole('dialog', { name: /^Invite/ });
   await expect(dialog).toBeVisible();
-  const field = dialog.getByRole('combobox');
+  const field = dialog.getByRole('searchbox');
 
   const invite = async (userId: string) => {
     await field.fill(userId);
     // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
     await field.press('Enter');
-    await expect(dialog.getByRole('status')).toContainText(userId, { timeout: 15_000 });
+    // The sheet has a second status region, for hints about the typed ID.
+    await expect(dialog.getByRole('status').filter({ hasText: userId })).toHaveCount(1, {
+      timeout: 15_000,
+    });
   };
   await invite(first.userId);
   // Still open, with an empty field that has the focus for the next person.

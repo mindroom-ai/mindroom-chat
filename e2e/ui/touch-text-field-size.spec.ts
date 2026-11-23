@@ -110,7 +110,7 @@ const sizes = async (
     await expect(entry).toBeVisible({ timeout: 60_000 });
     await entry.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Invite', exact: true }).first().click();
-    const search = page.getByRole('dialog', { name: 'Invite', exact: true }).getByRole('combobox');
+    const search = page.getByRole('dialog', { name: /^Invite/ }).getByRole('searchbox');
     await expect(search).toBeVisible();
     found.inviteSearch = await fontSize(search);
     await shot(page, `${name}-invite`);

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
@@ -13,13 +12,9 @@ import {
 } from '../helpers/matrix';
 
 /**
- * ISSUE-217 live verification: the invite autocomplete menu portals past host
- * clipping on every InviteUserPrompt host surface, and ISSUE-216 ranking
- * surfaces the intended agent for its short name.
- *
- * The test creates its own users and room hierarchy and scopes the user
- * directory to those users, so it can run against a fresh disposable
- * homeserver account on a shared homeserver.
+ * Multi-surface live verification: InviteUserPrompt opens cleanly as an inline
+ * directory sheet on every host surface (no clipped pop-out menu), and ISSUE-216
+ * ranking surfaces the intended agent for its short name.
  */
 
 const hasCredentials = !!process.env.E2E_USERNAME;
@@ -104,7 +99,7 @@ const seedPortalFixture = async (
   );
   const agentHubId = await createPrivateRoom(homeserver, viewer.accessToken, {
     name: `Portal agent directory ${runId}`,
-    topic: 'Directory fixture for invite autocomplete coverage.',
+    topic: 'Directory fixture for invite coverage.',
     invite: agents.map((agent) => agent.account.userId),
   });
   await Promise.all(
@@ -116,15 +111,15 @@ const seedPortalFixture = async (
   const childName = `Space Child Room ${runId}`;
   await createPrivateRoom(homeserver, viewer.accessToken, {
     name: roomName,
-    topic: 'Invite autocomplete portal fixture.',
+    topic: 'Invite directory fixture.',
   });
   const spaceId = await createPrivateSpace(homeserver, viewer.accessToken, {
     name: spaceName,
-    topic: 'Invite autocomplete portal hierarchy fixture.',
+    topic: 'Invite directory hierarchy fixture.',
   });
   const childId = await createPrivateRoom(homeserver, viewer.accessToken, {
     name: childName,
-    topic: 'Child room for invite autocomplete portal coverage.',
+    topic: 'Child room for invite directory coverage.',
   });
   await addRoomToSpace(homeserver, viewer.accessToken, spaceId, childId);
 
@@ -132,73 +127,44 @@ const seedPortalFixture = async (
   return { roomName, spaceName, spaceId, childName, runId, mindUserId };
 };
 
-const inviteInput = (page: Page) => page.locator('[name="userIdInput"]');
-// The listbox id carries a per-instance useId() suffix; match on the prefix.
-const inviteMenu = (page: Page) => page.locator('[id^="invite-autocomplete-listbox"]');
-const inviteForm = (page: Page) => page.locator('form:has([name="userIdInput"])');
+async function verifyInviteDirectorySheet(page: Page, surface: string, mindUserId: string) {
+  const dialog = page.getByRole('dialog', { name: /^Invite/ });
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
 
-async function verifyPortaledInviteMenu(page: Page, surface: string, mindUserId: string) {
-  const field = inviteInput(page);
-  await expect(field).toBeVisible({ timeout: 15_000 });
-
+  const field = dialog.getByRole('searchbox');
+  await expect(field).toBeVisible();
   await field.fill('mind');
-  const menu = inviteMenu(page);
-  await expect(menu).toBeVisible({ timeout: 15_000 });
-  await expect.poll(() => page.locator('[role="option"]').count()).toBeGreaterThan(1);
 
-  // ISSUE-216: an exact display-name identity ranks before the generated
-  // shared-prefix fleet.
-  const firstOption = page.locator('[role="option"]').first();
-  await expect(firstOption).toHaveAttribute('aria-label', `Mind, ${mindUserId}`);
+  const rows = dialog.locator('li');
+  await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThan(1);
 
-  // ISSUE-217: the menu extends below the dialog content (the old clipping
-  // boundary) while staying inside the viewport.
-  const menuBox = await menu.boundingBox();
-  const formBox = await inviteForm(page).boundingBox();
+  // ISSUE-216: an exact display-name identity ranks before the generated shared-prefix fleet.
+  const firstRow = rows.first();
+  await expect(firstRow).toContainText('Mind');
+  await expect(firstRow).toContainText(mindUserId);
+
+  // Dialog stays cleanly within the viewport without a portaled floating listbox.
+  const dialogBox = await dialog.boundingBox();
   const viewport = page.viewportSize();
-  expect(menuBox, 'menu bounding box').not.toBeNull();
-  expect(formBox, 'form bounding box').not.toBeNull();
-  expect(menuBox!.y + menuBox!.height).toBeGreaterThan(formBox!.y + formBox!.height);
-  expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
+  expect(dialogBox, 'dialog bounding box').not.toBeNull();
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 
-  await expectFloatingNavHeader(menu.locator('header'), { inheritsPanelTint: true });
-  await expect(menu.getByRole('scrollbar', { includeHidden: true })).toHaveAttribute(
-    'tabindex',
-    '-1'
-  );
   await page.screenshot({ path: `${SHOT_DIR}/${surface}.png` });
 
-  // Clicking a portaled option commits it without closing the dialog.
-  await firstOption.click();
-  await expect(field).toHaveValue(mindUserId);
-  await expect(inviteForm(page)).toBeVisible();
-  await expect(menu).toBeHidden();
-
-  // Escape closes only the menu; the dialog survives. (Escape never closes
-  // the dialog while focus is in the input - pre-existing stopPropagation
-  // behavior for editable elements.)
-  await field.fill('sarro');
-  await expect(menu).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(menu).toBeHidden();
-  await expect(inviteForm(page)).toBeVisible();
-
-  // A backdrop click dismisses the dialog itself.
+  // Backdrop click dismisses the dialog cleanly.
   await page.mouse.click(viewport!.width - 8, viewport!.height - 8);
-  await expect(inviteForm(page)).toBeHidden();
+  await expect(dialog).toBeHidden();
 }
 
-test.describe('ISSUE-217 invite menu portal', () => {
+test.describe('Invite directory sheet surfaces', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
-  test('menu escapes host clipping on each invite surface', async ({ page }) => {
+  test('opens cleanly and ranks matches on each invite surface', async ({ page }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const viewer = await loginToMatrix(homeserver, username, password);
     const fixture = await seedPortalFixture(homeserver, viewer);
 
-    // Tuwunel returns the first `limit` directory matches to finish, not the
-    // best, so other runs' users can crowd out this run's Mind. Searching for
-    // runId (in every fixture MXID) returns only this run's users.
     await page.route('**/user_directory/search', (route) =>
       route.continue({
         postData: JSON.stringify({ ...route.request().postDataJSON(), search_term: fixture.runId }),
@@ -213,8 +179,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
     await test.step('room-nav-item context menu', async () => {
       await roomLink.click({ button: 'right' });
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'room-nav-item', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'room-nav-item', fixture.mindUserId);
     });
 
     await test.step('members drawer invite entry', async () => {
@@ -222,16 +187,14 @@ test.describe('ISSUE-217 invite menu portal', () => {
       const drawerInvite = page.locator('[aria-label="Invite people"]');
       await expect(drawerInvite).toBeVisible({ timeout: 30_000 });
       await drawerInvite.click();
-      await verifyPortaledInviteMenu(page, 'members-drawer', fixture.mindUserId);
+      await verifyInviteDirectorySheet(page, 'members-drawer', fixture.mindUserId);
     });
 
     await test.step('mindroom room header menu', async () => {
-      // The vertical-dots "More Options" trigger is the last room-header button.
       const roomHeader = page.locator(`header:has-text("${fixture.roomName}")`).first();
       await roomHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'mindroom-room-header', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'mindroom-room-header', fixture.mindUserId);
     });
 
     await test.step('space tabs context menu', async () => {
@@ -239,8 +202,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
       await expect(spaceTab).toBeVisible({ timeout: 30_000 });
       await spaceTab.click({ button: 'right' });
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'space-tabs', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'space-tabs', fixture.mindUserId);
     });
 
     await test.step('space page panel menu', async () => {
@@ -250,8 +212,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
       await expect(panelHeader).toBeVisible({ timeout: 30_000 });
       await panelHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'space-page-menu', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'space-page-menu', fixture.mindUserId);
     });
 
     await test.step('lobby header menu', async () => {
@@ -261,8 +222,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
       const lobbyHeader = lobbyMembers.locator('xpath=ancestor::header[1]');
       await lobbyHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'lobby-header', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'lobby-header', fixture.mindUserId);
     });
 
     await test.step('hierarchy item menu', async () => {
@@ -274,8 +234,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
         .last();
       await rowOptions.click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'hierarchy-item', fixture.mindUserId);
-      await page.keyboard.press('Escape');
+      await verifyInviteDirectorySheet(page, 'hierarchy-item', fixture.mindUserId);
     });
   });
 });

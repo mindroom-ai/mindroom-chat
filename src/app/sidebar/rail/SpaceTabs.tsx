@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,6 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
-import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
@@ -68,6 +67,12 @@ import {
 import * as css from './SpaceTabs.css';
 import { MenuEntry } from '../../ui/MenuEntry';
 import { revealDirectionControls } from '../../ui/directional';
+
+const InviteUserPrompt = lazy(() =>
+  import('../../members/invite/InviteUserPrompt').then((module) => ({
+    default: module.InviteUserPrompt,
+  }))
+);
 
 type DropAt = 'above' | 'below' | 'child';
 const DROP_AT: Record<SidebarInstructionType, DropAt> = {
@@ -257,7 +262,11 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
             />
           )}
         </SidebarContextMenu>
-        {inviting && <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />}
+        {inviting && (
+          <Suspense fallback={null}>
+            <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />
+          </Suspense>
+        )}
       </SidebarItem>
     </div>
   );

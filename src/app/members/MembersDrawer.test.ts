@@ -302,7 +302,7 @@ describe('MembersDrawer', () => {
     vi.clearAllMocks();
   });
 
-  it('opens the standard invite prompt from the member drawer header invite button', () => {
+  it('opens the standard invite prompt from the member drawer header invite button', async () => {
     let renderer: ReactTestRenderer | undefined;
 
     act(() => {
@@ -312,7 +312,7 @@ describe('MembersDrawer', () => {
     const inviteButton = renderer?.root.findByProps({ 'aria-label': 'Invite people' });
     expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-user-prompt' })).toHaveLength(0);
 
-    act(() => {
+    await act(async () => {
       inviteButton?.props.onClick();
     });
 
