@@ -5105,6 +5105,20 @@ describe('RoomInput main-room next-thread model pick', () => {
         'm.mentions': { user_ids: ['@mindroom_helper:example.org'] },
       });
       expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
+
+      // Message commands like /me are sent literally as m.text with the agent mention.
+      editorOutputState.emptyEditor = false;
+      editorOutputState.plainText = '/me returns 401. Why?';
+      customEditorState.editor!.children = [
+        { type: 'paragraph', children: [{ text: '/me returns 401. Why?' }] },
+      ];
+      await submitComposer();
+      expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+      expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
+        msgtype: 'm.text',
+        body: '/me returns 401. Why?',
+        'm.mentions': { user_ids: ['@mindroom_helper:example.org'] },
+      });
       renderer.unmount();
     } finally {
       forgetSpy.mockRestore();

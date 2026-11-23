@@ -101,7 +101,7 @@ const useHomeAskPendingNotice = (open: OpenFn): ReactNode => {
   const [failed, setFailed] = useState<{ room: Room; event: MatrixEvent }>();
   useEffect(() => {
     const r = pending?.state === 'echo' ? mx.getRoom(pending.roomId) : null;
-    const e = pending?.eventId ? r?.findEventById(pending.eventId) : undefined;
+    const e = pending?.state === 'echo' ? r?.findEventById(pending.eventId) : undefined;
     setFailed(r && e && isFailedLocalEchoEvent(e) ? { room: r, event: e } : undefined);
     if (pending?.state === 'echo' && !e) store.set(pendingAtom, undefined);
   }, [mx, pending, pendingAtom, store]);

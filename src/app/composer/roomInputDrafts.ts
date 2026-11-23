@@ -237,12 +237,10 @@ export const homeAskDestinationAtomFamily = atomFamily((userId: string) => {
  * It outlives Home's page, which can close and open again meanwhile.
  */
 export type HomeAskPending = {
-  state: 'sending' | 'echo';
   roomId: string;
   agentId: string;
   isDirect: boolean;
-  eventId?: string;
-};
+} & ({ state: 'sending' } | { state: 'echo'; eventId: string });
 export const homeAskPendingAtomFamily = atomFamily((_userId: string) =>
   atom<HomeAskPending | undefined>(undefined)
 );

@@ -90,13 +90,16 @@ function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
  */
 export function HomeRecentThreads() {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
   const navigate = useNavigate();
   const index = useAtomValue(crossRoomThreadIndexAtom);
   const archived = useAtomValue(archivedRoomsAtom);
   const visible = useMemo(
     () =>
-      Array.from(index.entries.values()).filter((entry) => isRoomVisible(entry.roomId, archived)),
-    [archived, index.entries]
+      Array.from(index.entries.values()).filter(
+        (entry) => !!mx.getRoom(entry.roomId) && isRoomVisible(entry.roomId, archived)
+      ),
+    [archived, index.entries, mx]
   );
   // Renewed when a snooze ends, so its thread is listed again then, as in the sidebar.
   const now = useSnoozeNow(useMemo(() => visible.map((entry) => entry.snoozedUntilTs), [visible]));

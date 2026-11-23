@@ -187,6 +187,23 @@ describe('composeTextMessage', () => {
     );
   });
 
+  it('sends /me, /notice, and /plain literally when parseCommands is false', () => {
+    const asText = (text: string) =>
+      composeTextMessage(editorWith([line({ text })]), true, ME, undefined, false);
+    expect(asText('/me returns 401. Why?')).toEqual({
+      msgtype: MsgType.Text,
+      body: '/me returns 401. Why?',
+      'm.mentions': {},
+    });
+    expect(asText('/notice check')).toMatchObject({ msgtype: MsgType.Text, body: '/notice check' });
+    expect(asText('/plain **bold**')).toMatchObject({
+      msgtype: MsgType.Text,
+      body: '/plain **bold**',
+      formatted_body: '/plain <strong data-md="**">bold</strong>',
+    });
+    expect(holdsNoText(editorWith([line({ text: '/me' })]), false)).toBe(false);
+  });
+
   it('takes the configured extra link schemes in Markdown links, never forbidden ones', () => {
     const document = [
       line({

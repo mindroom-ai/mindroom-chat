@@ -318,7 +318,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
-    const [noText, setNoText] = useState(() => holdsNoText(editor));
+    const parseCommands = !ask;
+    const [noText, setNoText] = useState(() => holdsNoText(editor, parseCommands));
     // Whether it shows nothing typed, for its layout: a lone `/me` is no text to send but shows.
     const [empty, setEmpty] = useState(() => isEmptyEditor(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
@@ -526,13 +527,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editor,
           isMarkdown,
           mx.getUserId() ?? undefined,
-          linkSchemes
+          linkSchemes,
+          parseCommands
         );
         if (!content) return undefined;
         const addressed = askedAgent ? withMention(content, askedAgent) : content;
         return { ...addressed, [MID_TURN_MODE_KEY]: mode };
       },
-      [askedAgent, editor, isMarkdown, linkSchemes, mx]
+      [askedAgent, editor, isMarkdown, linkSchemes, mx, parseCommands]
     );
 
     // A command that acts sends nothing: the composer empties while it runs and gets the text
@@ -721,13 +723,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       saveDraft();
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
-      setNoText(holdsNoText(editor));
+      setNoText(holdsNoText(editor, parseCommands));
       setEmpty(empty);
       // An empty editor holds no query. The query follows key releases, and a reset (a send by
       // tap, a cleared draft) comes without one, which would leave it naming text that is gone.
       if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
-    }, [attachments, editor, saveDraft, sendTypingStatus, store, textKey]);
+    }, [attachments, editor, parseCommands, saveDraft, sendTypingStatus, store, textKey]);
 
     // Home's ask field takes text only: of a paste, the plain text, split in lines as Slate
     // pastes it, never a file or a paste chip copied from a room's composer.
