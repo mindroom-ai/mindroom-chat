@@ -3,7 +3,6 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -46,7 +45,10 @@ import {
 } from './approvalActions';
 import { useApprovalActions } from './useApprovalActions';
 import { hydrateThreadApprovalEvents, mergeThreadApprovalEvents } from './threadApprovalEvents';
-import { collectThreadApprovals, ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
+import {
+  collectThreadApprovals,
+  ThreadApprovalRecord,
+} from '../matrix/protocol/threadApprovalModel';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 
 export type ThreadApprovals = {
@@ -119,6 +121,8 @@ function ActiveThreadApprovalProvider({
       threadId
     )
   );
+  // The ref is the source of truth and `history` mirrors it: change it only through `ingest`.
+  const historyRef = useRef(history);
   const events = history.events;
   const [loading, setLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState<ThreadApprovalHistoryError>();
@@ -158,14 +162,7 @@ function ActiveThreadApprovalProvider({
         isUndecryptedApprovalCandidate(event)
     );
   }, [events, ignoredUsers, room]);
-  const error =
-    discoveryError ??
-    repairError ??
-    (unreadableHistory ? 'undecryptable' : undefined);
-  const retainedEventsRef = useRef(events);
-  useLayoutEffect(() => {
-    retainedEventsRef.current = events;
-  }, [events]);
+  const error = discoveryError ?? repairError ?? (unreadableHistory ? 'undecryptable' : undefined);
   const send = useCallback(
     (content: ApprovalResponseContent) =>
       mx.sendEvent(room.roomId, MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT as any, content),
@@ -184,9 +181,16 @@ function ActiveThreadApprovalProvider({
   const refresh = useCallback(() => setRequest(({ revision }) => ({ revision: revision + 1 })), []);
   const ingest = useCallback(
     (incoming: readonly MatrixEvent[], fromBackfill = false) => {
-      setHistory((old) =>
-        mergeThreadApprovalEvents(old, incoming, room.roomId, threadId, fromBackfill)
+      const next = mergeThreadApprovalEvents(
+        historyRef.current,
+        incoming,
+        room.roomId,
+        threadId,
+        fromBackfill
       );
+      if (next === historyRef.current) return;
+      historyRef.current = next;
+      setHistory(next);
     },
     [room.roomId, threadId]
   );
@@ -265,7 +269,7 @@ function ActiveThreadApprovalProvider({
     fetching.current = true;
     setLoading(true);
     void enqueueThreadApprovalBackfill(mx, scheduler, room.roomId, threadId, request.origins, [
-      ...retainedEventsRef.current.values(),
+      ...historyRef.current.events.values(),
     ])
       .then((result) => {
         if (!active) return;

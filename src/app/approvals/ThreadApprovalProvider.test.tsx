@@ -39,8 +39,11 @@ vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: mocks.backfill,
   useSyncEngine: () => ({ scheduler, persist }),
 }));
+let liveArrive: ((event: MatrixEvent) => void) | undefined;
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({
-  useLiveEventArrive: () => undefined,
+  useLiveEventArrive: (_room: Room, onArrive: (event: MatrixEvent) => void) => {
+    liveArrive = onArrive;
+  },
 }));
 let current: ThreadApprovals;
 let renderer: ReactTestRenderer;
@@ -86,6 +89,7 @@ beforeEach(() => {
     }));
   mocks.abort.mockReset();
   mocks.persist.mockReset();
+  liveArrive = undefined;
   ignored = [];
   mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
   room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -945,6 +949,35 @@ describe('thread approval provider rescans', () => {
     await burst(ThreadEvent.NewReply);
     expect(rescans).toHaveBeenCalledTimes(2);
     expect(recordIds()).toEqual(['$approval', '$second']);
+  });
+
+  it('skips state updates on no-op live events and rescans while still ingesting real approvals', async () => {
+    const onRender = vi.fn();
+    const message = (id: string) =>
+      new MatrixEvent({ ...event(id).event, type: 'm.room.message', content: { body: id } });
+    vi.spyOn(room, 'getThread').mockReturnValue({ events: [message('$existing')] } as never);
+    await act(async () => {
+      renderer = create(
+        <React.Profiler id="approvals" onRender={onRender}>
+          <ThreadApprovalProvider room={room} threadId="$thread">
+            <Probe />
+          </ThreadApprovalProvider>
+        </React.Profiler>
+      );
+    });
+    onRender.mockClear();
+
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) liveArrive!(message(`$live-${i}`));
+      room.emit(ThreadEvent.Update, {} as never);
+      await nextTask();
+    });
+    expect(onRender).not.toHaveBeenCalled();
+
+    await act(async () => {
+      liveArrive!(event());
+    });
+    expect(recordIds()).toEqual(['$approval']);
   });
 
   it('drops a queued rescan when the provider unmounts', async () => {
