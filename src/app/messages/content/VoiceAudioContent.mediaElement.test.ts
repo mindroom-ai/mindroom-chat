@@ -262,7 +262,7 @@ describe('VoiceAudioContent shared media element', () => {
 
     // Playback advances while Voice A is unmounted, and rate/volume changes apply immediately.
     Object.defineProperty(audio, 'duration', { configurable: true, value: 12 });
-    Object.defineProperty(audio, 'currentTime', { configurable: true, value: 5 });
+    audio.currentTime = 5;
     act(() => {
       audio.dispatchEvent(new Event('loadedmetadata'));
       store.set(voiceMessagePlaybackRateAtom, 1.5);
@@ -345,7 +345,7 @@ describe('VoiceAudioContent shared media element', () => {
 
     const idleRendersBeforeTimeUpdate = idleRenders;
     const audio = getSharedAudio()!;
-    Object.defineProperty(audio, 'currentTime', { configurable: true, value: 3 });
+    audio.currentTime = 3;
     act(() => {
       audio.dispatchEvent(new Event('timeupdate'));
     });

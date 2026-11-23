@@ -1,4 +1,4 @@
-import type { MatrixClient } from 'matrix-js-sdk';
+import { RoomEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventAttachmentOwner } from '../../../matrix/protocol/eventAttachments';
@@ -136,7 +136,7 @@ describe('VoiceAudioPlaybackController', () => {
   });
 
   afterEach(() => {
-    controller.stop();
+    controller.reset();
     stopVoiceAudioPlayback();
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -459,8 +459,213 @@ describe('VoiceAudioPlaybackController', () => {
 
     controller.stopIfActive(idA);
     expect(controller.getSnapshot(idA).status).toBe('idle');
+    expect(controller.getSnapshot(idA).currentTime).toBe(0);
     expect(fakeAudio.getAttribute('src')).toBeNull();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
+  });
+
+  it('stops playback, revokes blob URL, removes listener, and forgets position when the active event or revision is redacted', async () => {
+    const redactionListeners = new Set<(event: MatrixEvent) => void>();
+    const room = {
+      on: vi.fn((event: RoomEvent, listener: (ev: MatrixEvent) => void) => {
+        if (event === RoomEvent.Redaction) redactionListeners.add(listener);
+      }),
+      removeListener: vi.fn((event: RoomEvent, listener: (ev: MatrixEvent) => void) => {
+        if (event === RoomEvent.Redaction) redactionListeners.delete(listener);
+      }),
+    };
+    const roomMx = { getRoom: vi.fn(() => room) } as unknown as MatrixClient;
+    const emitRedaction = (event: {
+      event?: { redacts?: string };
+      content?: { redacts?: string };
+    }) => {
+      const matrixEvent = {
+        event: event.event ?? {},
+        getContent: () => event.content ?? {},
+      } as unknown as MatrixEvent;
+      [...redactionListeners].forEach((listener) => listener(matrixEvent));
+    };
+
+    const editedSource: AudioContentSource = {
+      ...sourceA,
+      owner: {
+        roomId: '!room:example.org',
+        eventId: '$a',
+        revisionTs: 1000,
+        revisionId: '$a-edit',
+      },
+    };
+    const idEdited = getAudioContentSourceIdentity(editedSource);
+
+    // 1. Top-level event.redacts matching owner.eventId.
+    controller.togglePlay(roomMx, editedSource, defaultOptions);
+    await flushMicrotasks();
+    fakeAudio.duration = 12;
+    fakeAudio.readyState = 1;
+    fakeAudio.currentTime = 4;
+    fakeAudio.dispatchEvent(new Event('loadedmetadata'));
+    expect(redactionListeners.size).toBe(1);
+
+    // Unrelated redaction is ignored.
+    emitRedaction({ event: { redacts: '$other' } });
+    expect(fakeAudio.paused).toBe(false);
+    expect(controller.getSnapshot(idEdited).playing).toBe(true);
+
+    // Matching owner.eventId stops, revokes, forgets position, and detaches room listener.
+    emitRedaction({ event: { redacts: '$a' } });
+    expect(fakeAudio.paused).toBe(true);
+    expect(fakeAudio.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
+    expect(redactionListeners.size).toBe(0);
+    expect(controller.getSnapshot(idEdited)).toMatchObject({
+      status: 'idle',
+      currentTime: 0,
+      browserDuration: undefined,
+      engaged: false,
+    });
+
+    // 2. Room v11 content.redacts matching owner.revisionId.
+    controller.togglePlay(roomMx, editedSource, defaultOptions);
+    await flushMicrotasks();
+    fakeAudio.currentTime = 3;
+    fakeAudio.dispatchEvent(new Event('timeupdate'));
+    expect(redactionListeners.size).toBe(1);
+
+    emitRedaction({ content: { redacts: '$a-edit' } });
+    expect(fakeAudio.paused).toBe(true);
+    expect(fakeAudio.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-2');
+    expect(redactionListeners.size).toBe(0);
+    expect(controller.getSnapshot(idEdited)).toMatchObject({
+      status: 'idle',
+      currentTime: 0,
+      engaged: false,
+    });
+  });
+
+  it('preserves paused position and measured duration across clip switches, resumes at that timestamp, and clears on reset', async () => {
+    const idA = getAudioContentSourceIdentity(sourceA);
+    const idB = getAudioContentSourceIdentity(sourceB);
+
+    controller.togglePlay(mx, sourceA, defaultOptions);
+    await flushMicrotasks();
+    fakeAudio.duration = 12;
+    fakeAudio.readyState = 1;
+    fakeAudio.currentTime = 4.5;
+    fakeAudio.dispatchEvent(new Event('loadedmetadata'));
+    controller.togglePlay(mx, sourceA, defaultOptions); // pause at 4.5s
+
+    // Switch to clip B: clip A revokes its blob URL but remembers paused position & browserDuration.
+    controller.togglePlay(mx, sourceB, defaultOptions);
+    await flushMicrotasks();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
+
+    const rememberedA = controller.getSnapshot(idA);
+    expect(rememberedA).toMatchObject({
+      status: 'idle',
+      playing: false,
+      currentTime: 4.5,
+      browserDuration: 12,
+      engaged: true,
+      src: undefined,
+    });
+
+    // Clip A's snapshot reference stays stable and unnotified while clip B advances.
+    const listenerA = vi.fn();
+    const unsubA = controller.subscribe(idA, listenerA);
+    fakeAudio.currentTime = 2;
+    fakeAudio.dispatchEvent(new Event('timeupdate'));
+    expect(listenerA).not.toHaveBeenCalled();
+    expect(controller.getSnapshot(idA)).toBe(rememberedA);
+
+    // Resuming clip A preserves 4.5s while loading and seeks to 4.5s on loadedmetadata.
+    controller.togglePlay(mx, sourceA, defaultOptions);
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'loading',
+      currentTime: 4.5,
+      browserDuration: 12,
+      engaged: true,
+    });
+    expect(controller.getLiveProgress(idA, 10)).toBeCloseTo(4.5 / 12);
+
+    await flushMicrotasks();
+    fakeAudio.duration = 12;
+    fakeAudio.readyState = 1;
+    fakeAudio.dispatchEvent(new Event('loadedmetadata'));
+    expect(fakeAudio.currentTime).toBe(4.5);
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'ready',
+      playing: true,
+      currentTime: 4.5,
+      browserDuration: 12,
+    });
+
+    // Switch back to clip B so clip A is remembered again, then reset() (account sign-out/switch).
+    controller.togglePlay(mx, sourceB, defaultOptions);
+    await flushMicrotasks();
+    expect(controller.getSnapshot(idA).currentTime).toBe(4.5);
+
+    listenerA.mockClear();
+    controller.reset();
+    expect(listenerA).toHaveBeenCalledTimes(1);
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'idle',
+      currentTime: 0,
+      browserDuration: undefined,
+      engaged: false,
+    });
+    expect(controller.getSnapshot(idB).status).toBe('idle');
+    unsubA();
+  });
+
+  it('releases offscreen audio on ended while keeping browserDuration, and keeps subscribed audio loaded for instant replay', async () => {
+    const idA = getAudioContentSourceIdentity(sourceA);
+    const idB = getAudioContentSourceIdentity(sourceB);
+
+    // 1. Subscribed clip stays loaded on ended so replay does not re-download.
+    const unsubA = controller.subscribe(idA, vi.fn());
+    controller.togglePlay(mx, sourceA, defaultOptions);
+    await flushMicrotasks();
+    fakeAudio.duration = 9;
+    fakeAudio.readyState = 1;
+    fakeAudio.currentTime = 9;
+    fakeAudio.dispatchEvent(new Event('ended'));
+
+    expect(fakeAudio.getAttribute('src')).toBe('blob:voice-1');
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'ready',
+      playing: false,
+      browserDuration: 9,
+    });
+
+    // Switching away from an already-ended clip remembers duration with currentTime 0 (not 9).
+    controller.togglePlay(mx, sourceB, defaultOptions);
+    await flushMicrotasks();
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'idle',
+      currentTime: 0,
+      browserDuration: 9,
+      engaged: false,
+    });
+    unsubA();
+
+    // 2. Unsubscribed (offscreen) clip releases blob URL and detaches src immediately on ended.
+    fakeAudio.duration = 11;
+    fakeAudio.readyState = 1;
+    fakeAudio.currentTime = 11;
+    fakeAudio.dispatchEvent(new Event('ended'));
+
+    expect(fakeAudio.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-2');
+    expect(controller.getSnapshot(idB)).toMatchObject({
+      status: 'idle',
+      playing: false,
+      currentTime: 0,
+      browserDuration: 11,
+      engaged: false,
+      src: undefined,
+    });
   });
 });
 
