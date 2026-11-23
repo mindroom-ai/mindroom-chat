@@ -313,6 +313,34 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('always shows diagnostics and keeps recorders in the Electron desktop app', async () => {
+    mocks.isNativeIOS.mockReturnValue(false);
+    let debugMode = false;
+    mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
+    mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
+      debugMode = enabled;
+      return true;
+    });
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      renderer = create(<About requestClose={vi.fn()} />);
+      const debugSwitch = () =>
+        renderer!.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
+      expect(diagnosticsTile(renderer)).toBeDefined();
+      expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+
+      await act(async () => {
+        debugSwitch().props.onChange({ target: { checked: true } });
+      });
+      expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(true, { keepRecorders: true });
+      expect(diagnosticsTile(renderer)).toBeDefined();
+    } finally {
+      renderer?.unmount();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
   it('allows only one native save flow at a time', async () => {
     let resolveSave: ((saved: boolean) => void) | undefined;
     const savePending = new Promise<boolean>((resolve) => {

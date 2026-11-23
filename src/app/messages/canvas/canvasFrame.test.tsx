@@ -19,6 +19,7 @@ const setDesktop = (enabled: boolean): void => {
     startSignIn: async () => ({ ok: true, value: '' }),
     openSignIn: async () => ({ ok: true, value: undefined }),
     showMainWindow: async () => ({ ok: true, value: undefined }),
+    setBadge: () => undefined,
     screenShare: false,
     appUrl: {
       addListener: async () => ({ remove: () => undefined }),

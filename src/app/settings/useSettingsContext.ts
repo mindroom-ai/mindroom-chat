@@ -1,4 +1,4 @@
-import { isBundledApp } from '../lib/nativeShell';
+import { isBundledApp, isDesktopApp } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -26,7 +26,7 @@ export const useSettingsContext = (): SettingsContext => {
   return {
     native: isBundledApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeIOS() || getDebugModeEnabled(),
+    diagnostics: isNativeIOS() || isDesktopApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

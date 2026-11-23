@@ -18,6 +18,7 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
+import { desktopBridge } from '../lib/nativeShell';
 import { isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
@@ -141,6 +142,9 @@ function RingAlerts({
       silent: true,
     });
     note.onclick = () => {
+      void desktopBridge()
+        ?.showMainWindow()
+        ?.catch(() => undefined);
       window.focus();
       note.close();
       latest.current.onOpen();

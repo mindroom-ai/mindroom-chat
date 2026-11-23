@@ -45,6 +45,10 @@ on:
       - src/app/shell/App.tsx
       - src/app/theme/usePageZoom.ts
       - src/app/calls/callSupport.ts
+      - src/app/calls/IncomingCalls.tsx
+      - src/app/notifications/**
+      - src/app/settings/pages/About.tsx
+      - src/app/settings/useSettingsContext.ts
       - index.html
       - public/*.html
       - scripts/frame-headers.json

@@ -23,6 +23,7 @@ describe('watchDesktopWindowHidden', () => {
       startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
       openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
       showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      setBadge: vi.fn(),
       screenShare: false,
       appUrl: {
         addListener: vi.fn(async () => undefined),

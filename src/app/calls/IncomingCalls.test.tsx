@@ -19,6 +19,7 @@ const calls = vi.hoisted(() => ({
   nativeIOS: false,
   stopRingtone: vi.fn(),
   startRingtone: vi.fn(),
+  navigateRoom: vi.fn(),
   members: [{ userId: '@maya:calls.test' }] as { userId: string }[],
 }));
 const client = vi.hoisted(() => ({
@@ -31,7 +32,7 @@ const client = vi.hoisted(() => ({
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../navigation/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({ navigateRoom: vi.fn() }),
+  useRoomNavigate: () => ({ navigateRoom: calls.navigateRoom }),
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Maya' }));
 vi.mock('../preferences/useSetting', () => ({ useSetting: () => [calls.settings] }));
@@ -306,5 +307,43 @@ describe('IncomingCalls ring alerts', () => {
     expect(calls.startRingtone).toHaveBeenCalledTimes(1);
     expect(notifications).toHaveLength(1);
     act(() => directRenderer.unmount());
+  });
+
+  it('shows the desktop main window and opens the room when a call notification is clicked', () => {
+    calls.settings = true;
+    const shown: { onclick: (() => void) | null; close: ReturnType<typeof vi.fn> }[] = [];
+    class ClickableNotification {
+      static permission = 'granted';
+
+      onclick: (() => void) | null = null;
+
+      close = vi.fn();
+
+      constructor() {
+        shown.push(this);
+      }
+    }
+    const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
+    vi.stubGlobal('Notification', ClickableNotification);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    vi.spyOn(window, 'focus').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { showMainWindow },
+    });
+    const store = createStore();
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
+    let directRenderer: ReactTestRenderer | undefined;
+    try {
+      directRenderer = mountAndRing(store, '$desktop-ring');
+      expect(shown).toHaveLength(1);
+      act(() => shown[0]?.onclick?.());
+      expect(showMainWindow).toHaveBeenCalledOnce();
+      expect(shown[0]?.close).toHaveBeenCalled();
+      expect(calls.navigateRoom).toHaveBeenCalledWith(ROOM_ID);
+    } finally {
+      act(() => directRenderer?.unmount());
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

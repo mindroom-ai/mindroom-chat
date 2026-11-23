@@ -78,6 +78,7 @@ const makeBridge = (screenShare: boolean): DesktopBridge => ({
   startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
   openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
   showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+  setBadge: vi.fn(),
   screenShare,
   appUrl: {
     addListener: vi.fn(async () => undefined),

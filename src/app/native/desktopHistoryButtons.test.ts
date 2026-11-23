@@ -9,6 +9,7 @@ const makeDesktopBridge = (): DesktopBridge => ({
   startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
   openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
   showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+  setBadge: vi.fn(),
   screenShare: false,
   appUrl: {
     addListener: vi.fn(async () => undefined),
@@ -30,7 +31,10 @@ afterEach(() => {
 
 describe('walkHistoryOnMouseButtons', () => {
   it('walks back on button 3 mouseup, forward on button 4 mouseup, and cancels mousedown/auxclick', () => {
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: makeDesktopBridge() });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: makeDesktopBridge(),
+    });
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const forwardSpy = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
     const stop = walkHistoryOnMouseButtons(window);
@@ -66,7 +70,10 @@ describe('walkHistoryOnMouseButtons', () => {
   });
 
   it('ignores mouse buttons 0, 1, 2, and others', () => {
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: makeDesktopBridge() });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: makeDesktopBridge(),
+    });
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const forwardSpy = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
     const stop = walkHistoryOnMouseButtons(window);
@@ -91,7 +98,10 @@ describe('walkHistoryOnMouseButtons', () => {
     expect(backSpy).not.toHaveBeenCalled();
     stopWeb();
 
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: makeDesktopBridge() });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: makeDesktopBridge(),
+    });
     window.history.pushState({}, '', '/quick-capture/');
     const stopQc = walkHistoryOnMouseButtons(window);
     expect(dispatchMouse('mouseup', 3).defaultPrevented).toBe(false);
@@ -100,7 +110,10 @@ describe('walkHistoryOnMouseButtons', () => {
   });
 
   it('removes listeners on cleanup', () => {
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: makeDesktopBridge() });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: makeDesktopBridge(),
+    });
     const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const stop = walkHistoryOnMouseButtons(window);
     stop();

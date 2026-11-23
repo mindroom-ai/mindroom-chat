@@ -75,7 +75,9 @@ describe('InviteNotifications', () => {
   let notificationMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    notificationMock = vi.fn(() => ({ close: vi.fn() }));
+    notificationMock = vi.fn(function () {
+      return { close: vi.fn() };
+    });
     Object.defineProperty(notificationMock, 'permission', {
       configurable: true,
       value: 'granted',

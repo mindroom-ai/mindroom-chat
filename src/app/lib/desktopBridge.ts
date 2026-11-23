@@ -37,6 +37,7 @@ export type DesktopBridge = {
   startSignIn: (request: DesktopSignInRequest) => Promise<DesktopResult<string>>;
   openSignIn: (url: string) => Promise<DesktopResult<void>>;
   showMainWindow: () => Promise<DesktopResult<void>>;
+  setBadge: (count: number) => void;
   screenShare: boolean;
   appUrl: AppUrlPlugin;
   update?: DesktopUpdateBridge;

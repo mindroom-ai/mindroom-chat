@@ -202,21 +202,35 @@ describe('application bootstrap', () => {
     expect(mocks.forgetAvatars).toHaveBeenCalledTimes(deletes);
   });
 
-  it("leaves the recorders to the main web view in the quick capture widget's", async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
-    const originalUrl = window.location.href;
-    window.history.replaceState(null, '', '/quick-capture/');
-    try {
-      await import('./index');
-    } finally {
-      window.history.replaceState(null, '', originalUrl);
-    }
+  it.each([
+    ['native iOS', true, false],
+    ['desktop app', false, true],
+  ])(
+    "leaves the recorders to the main web view in the quick capture widget's (%s)",
+    async (_label, nativeIOS, desktop) => {
+      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+      if (desktop) {
+        Object.defineProperty(window, 'mindroomDesktop', {
+          configurable: true,
+          value: { onShellEvent: vi.fn(() => vi.fn()) },
+        });
+      }
+      const originalUrl = window.location.href;
+      window.history.replaceState(null, '', '/quick-capture/');
+      try {
+        await import('./index');
+      } finally {
+        window.history.replaceState(null, '', originalUrl);
+        Reflect.deleteProperty(window, 'mindroomDesktop');
+        delete document.documentElement.dataset.shell;
+      }
 
-    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
-    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
-    expect(mocks.startMemorySampler).not.toHaveBeenCalled();
-    expect(mocks.createRoot).toHaveBeenCalledOnce();
-  });
+      expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+      expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+      expect(mocks.startMemorySampler).not.toHaveBeenCalled();
+      expect(mocks.createRoot).toHaveBeenCalledOnce();
+    }
+  );
 
   it('continues boot when recorder route classification throws', async () => {
     mocks.isNativeIOS.mockReturnValue(true);
@@ -294,6 +308,7 @@ describe('application bootstrap', () => {
       startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
       openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
       showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      setBadge: vi.fn(),
       screenShare: false,
       appUrl: {
         addListener: vi.fn(async () => ({ remove: vi.fn() })),
@@ -313,6 +328,9 @@ describe('application bootstrap', () => {
       expect(persist).toHaveBeenCalledOnce();
       expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
       expect(mocks.registerNativeAppUrlCallbacks).toHaveBeenCalledWith(bridge.appUrl);
+      expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+      expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+      expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
       listeners[0]?.({ type: 'fullscreen', value: true });
       expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
     } finally {

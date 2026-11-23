@@ -56,6 +56,7 @@ const telemetry = isTest
       blockedUrls: [] as string[],
       networkPermissions: [] as string[],
       externalOpens: [] as string[],
+      badgeCounts: [] as number[],
     }
   : undefined;
 if (telemetry) {
@@ -253,6 +254,23 @@ void app.whenReady().then(() => {
     (args) => (args.length === 0 ? true : undefined),
     async () => {
       focusMainWindow();
+      return { ok: true, value: undefined };
+    }
+  );
+  handle(
+    'desktop:set-badge',
+    mainOwners,
+    (args): number | undefined =>
+      args.length === 1 && typeof args[0] === 'number' && Number.isFinite(args[0]) && args[0] >= 0
+        ? args[0]
+        : undefined,
+    async (count) => {
+      const n = Math.max(0, Math.floor(count));
+      app.setBadgeCount(n);
+      if (process.platform === 'darwin' && app.dock) {
+        app.dock.setBadge(n > 0 ? (n > 99 ? '99+' : String(n)) : '');
+      }
+      telemetry?.badgeCounts.push(n);
       return { ok: true, value: undefined };
     }
   );

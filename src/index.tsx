@@ -68,11 +68,14 @@ const runSafely = (label: string, step: () => void): void => {
 };
 
 const startDiagnostics = (): void => {
-  // The flight recorder and deep tracing exist for the iOS app, where crashes leave no console,
-  // and for a browser that has debug mode on. They record the main web view: the quick capture
-  // widget's, beside it on the Mac, shares their storage and would take its live session for one
-  // that ended unexpectedly.
-  if ((isNativeIOS() || getDebugModeEnabled()) && !isQuickCapturePath(window.location.pathname)) {
+  // The flight recorder and deep tracing exist for the iOS and desktop apps, where crashes leave
+  // no console, and for a browser that has debug mode on. They record the main web view: the quick
+  // capture widget's, beside it on the Mac, shares their storage and would take its live session
+  // for one that ended unexpectedly.
+  if (
+    (isNativeIOS() || isDesktopApp() || getDebugModeEnabled()) &&
+    !isQuickCapturePath(window.location.pathname)
+  ) {
     runSafely('flight recorder', startFlightRecorder);
     runSafely('deep trace recorder', () => {
       initializeDeepTraceRecorder();

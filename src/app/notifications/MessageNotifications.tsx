@@ -33,6 +33,7 @@ import {
   getLocalizedThreadMessagePreviewText,
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
+import { desktopBridge } from '../lib/nativeShell';
 import { playChime } from './playChime';
 import { raiseOnce } from './notifiedOnce';
 import {
@@ -121,6 +122,9 @@ const showNotice = (client: MatrixClient, notice: MessageNotice, settings: Notif
       silent: true,
     });
     note.onclick = () => {
+      void desktopBridge()
+        ?.showMainWindow()
+        ?.catch(() => undefined);
       window.focus();
       note.close();
       settings.open(notice);

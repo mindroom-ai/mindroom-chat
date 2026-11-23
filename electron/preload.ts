@@ -60,6 +60,9 @@ const bridge = {
   startSignIn: (request) => ipcRenderer.invoke('desktop:start-sign-in', request),
   openSignIn: (url) => ipcRenderer.invoke('desktop:open-sign-in', url),
   showMainWindow: () => ipcRenderer.invoke('desktop:show-main-window'),
+  setBadge: (count) => {
+    void ipcRenderer.invoke('desktop:set-badge', count).catch(() => undefined);
+  },
   screenShare: process.argv.includes('--mindroom-screen-share=1'),
   appUrl: {
     // A sign-in return never comes this way: main holds it until the listener below takes it.

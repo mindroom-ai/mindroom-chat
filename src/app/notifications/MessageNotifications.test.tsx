@@ -594,4 +594,31 @@ describe('MessageNotificationsFeature', () => {
     expect(FakeNotification.shown).toHaveLength(1);
     expect(playChime).not.toHaveBeenCalled();
   });
+
+  it('shows the desktop main window when a notification is clicked', () => {
+    const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { showMainWindow },
+    });
+    try {
+      render('/home/');
+      arrive(
+        message({
+          msgtype: 'm.text',
+          body: 'Ping from desktop',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        })
+      );
+
+      const note = defined(FakeNotification.shown[0], 'a notification');
+      act(() => note.onclick?.());
+
+      expect(showMainWindow).toHaveBeenCalledOnce();
+      expect(note.close).toHaveBeenCalled();
+      expect(navigation.thread).toHaveBeenCalledWith(ROOM, '$root');
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import InviteSound from '../../../public/sound/invite.ogg';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -8,6 +9,8 @@ import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useSetting } from '../preferences/useSetting';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import { settingsAtom } from '../preferences/settings';
+import { desktopBridge } from '../lib/nativeShell';
+import { getActivityInvitesPath } from '../routes/pathUtils';
 import { playChime } from './playChime';
 import { forgetNotified, raiseOnce } from './notifiedOnce';
 import { MESSAGE_NOTIFY_MAX_AGE_MS } from './messageNotificationRules';
@@ -32,6 +35,13 @@ const invitedRoomIds = (mx: MatrixClient): string[] =>
 export function InviteNotifications() {
   const client = useMatrixClient();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const openInvites = useRef(() => {
+    void navigate(getActivityInvitesPath());
+  });
+  openInvites.current = () => {
+    void navigate(getActivityInvitesPath());
+  };
   const invites = useAtomValue(allInvitesAtom);
   const setInvites = useSetAtom(allInvitesAtom);
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
@@ -77,11 +87,18 @@ export function InviteNotifications() {
         if (notificationSounds) playChime(InviteSound).catch(() => undefined);
         const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
         if (showNotifications && SystemNotification?.permission === 'granted') {
-          // eslint-disable-next-line no-new
-          new SystemNotification(t('mindroomUi.notifications.invitation.title'), {
+          const note = new SystemNotification(t('mindroomUi.notifications.invitation.title'), {
             body: t('mindroomUi.notifications.invitation.body', { count: claimed.length }),
             silent: true,
           });
+          note.onclick = () => {
+            void desktopBridge()
+              ?.showMainWindow()
+              ?.catch(() => undefined);
+            window.focus();
+            note.close();
+            openInvites.current();
+          };
         }
       },
       MESSAGE_NOTIFY_MAX_AGE_MS
