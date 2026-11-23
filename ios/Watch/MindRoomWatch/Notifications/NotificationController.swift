@@ -48,8 +48,11 @@ struct NotificationView: View {
             }
         // A message whose text cannot be read (no key for it yet) keeps the push's own text, with Reply.
         case let .message(sender, text, _, _) where !text.isEmpty:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(agentName(sender)).font(.caption.bold()).foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 5) {
+                    AgentMonogram(name: agentName(sender))
+                    Text(agentName(sender)).font(.caption.bold()).foregroundStyle(WatchTheme.tealBright)
+                }
                 Text(text)
             }
         case .message, nil:

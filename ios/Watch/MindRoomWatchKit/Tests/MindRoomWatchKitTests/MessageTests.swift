@@ -60,9 +60,46 @@ final class RunStateTests: XCTestCase {
         XCTAssertEqual(RunState.of(message(["body": "x", "io.mindroom.stream_status": "cancelled"]), latestEdit: nil), .stopped)
     }
 
-    func testUnknownVersionAndPlainMessagesAreNone() {
+    func testUnknownVersionAndPlainMessagesAreNone() throws {
         XCTAssertEqual(RunState.of(message(["body": "x", "io.mindroom.ai_run": ["version": 2, "status": "completed"]]), latestEdit: nil), .none)
         XCTAssertEqual(RunState.of(message(["body": "x"]), latestEdit: nil), .none)
+
+        // Fractional and boolean ai_run.version values decoded from JSON must be rejected.
+        func decode(_ raw: String) throws -> JSON {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? JSON)
+        }
+        let fractional = try decode(#"""
+        {"type":"m.room.message","event_id":"$f","origin_server_ts":1,"sender":"@mindroom_code:x",
+         "content":{"body":"done","io.mindroom.ai_run":{"version":1.5,"status":"completed"}}}
+        """#)
+        XCTAssertEqual(RunState.of(fractional, latestEdit: nil), .none)
+        let boolean = try decode(#"""
+        {"type":"m.room.message","event_id":"$b","origin_server_ts":1,"sender":"@mindroom_code:x",
+         "content":{"body":"done","io.mindroom.ai_run":{"version":true,"status":"completed"}}}
+        """#)
+        XCTAssertEqual(RunState.of(boolean, latestEdit: nil), .none)
+    }
+
+    func testExplicitStreamStatusTakesPrecedenceOverStaleAiRun() {
+        let staleCompleted: JSON = ["version": 1, "status": "completed"]
+        // Regenerated reply: stale ai_run=completed with live stream_status (string, record, or edit wrapper).
+        XCTAssertEqual(RunState.of(message(["body": "…", "io.mindroom.ai_run": staleCompleted, "io.mindroom.stream_status": "streaming"]), latestEdit: nil), .streaming)
+        XCTAssertEqual(RunState.of(message(["body": "…", "io.mindroom.ai_run": staleCompleted, "io.mindroom.stream_status": ["state": "streaming"] as JSON]), latestEdit: nil), .streaming)
+        var wrapped = edit(of: "$m", ["body": "partial", "io.mindroom.ai_run": staleCompleted])
+        wrapped["content"] = (wrapped["content"] as? JSON ?? [:]).merging(["io.mindroom.stream_status": ["state": "streaming"] as JSON]) { $1 }
+        XCTAssertEqual(RunState.of(message(["body": "…"]), latestEdit: wrapped), .streaming)
+
+        // Stopped stream_status overrides stale ai_run=completed.
+        XCTAssertEqual(RunState.of(message(["body": "…", "io.mindroom.ai_run": staleCompleted, "io.mindroom.stream_status": "cancelled"]), latestEdit: nil), .stopped)
+        XCTAssertEqual(RunState.of(message(["body": "…", "io.mindroom.ai_run": staleCompleted, "io.mindroom.stream_status": ["status": "cancelled"] as JSON]), latestEdit: nil), .stopped)
+
+        // Paused/unknown stream_status does not inherit stale ai_run=completed.
+        XCTAssertEqual(RunState.of(message(["body": "…", "io.mindroom.ai_run": staleCompleted, "io.mindroom.stream_status": "approval_pending"]), latestEdit: nil), .none)
+
+        // Success aliases finish when ai_run is absent, while ai_run=error stays stopped.
+        XCTAssertEqual(RunState.of(message(["body": "ok", "io.mindroom.stream_status": "complete"]), latestEdit: nil), .finished)
+        XCTAssertEqual(RunState.of(message(["body": "ok", "io.mindroom.stream_status": "done"]), latestEdit: nil), .finished)
+        XCTAssertEqual(RunState.of(message(["body": "err", "io.mindroom.ai_run": ["version": 1, "status": "error"] as JSON, "io.mindroom.stream_status": "completed"]), latestEdit: nil), .stopped)
     }
 }
 

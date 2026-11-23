@@ -22,6 +22,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                   running: states.filter { $0 == .running }.count, updatedAt: date)
     }
 
+    /// The counts the home screen says above its sections. A send that failed needs the person there, as it
+    /// is in the "Needs you" section (`groupThreadRows`); the complications count only what an agent waits for.
+    public static func home(roomName: String, states: [ThreadRowState], at date: Date) -> WidgetSnapshot {
+        WidgetSnapshot(roomName: roomName, needsYou: states.filter { $0 == .needsYou || $0 == .failed }.count,
+                       running: states.filter { $0 == .running }.count, updatedAt: date)
+    }
+
     public var summary: String {
         var parts: [String] = []
         if needsYou > 0 {
