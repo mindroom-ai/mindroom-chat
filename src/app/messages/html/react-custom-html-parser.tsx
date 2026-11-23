@@ -787,25 +787,30 @@ export const getReactCustomHtmlParser = (
           const { href } = attribs;
           stripLinkTextBidi(children);
           const content = domToReact(children, parserOptions);
+          const hasSpoiler = containsSpoiler(children);
           if (href && testMatrixTo(href)) {
-            // A link whose text is its own URL has nothing to say beyond where it leads.
-            const ownText = textContent(children).trim() !== href;
+            const trimmedText = textContent(children).trim();
+            // A link whose text is its own URL has nothing to say beyond where it leads,
+            // unless a spoiler hides it.
+            const ownText = trimmedText !== href || hasSpoiler;
+            const keepRoomLabel =
+              ownText &&
+              ('data-md' in attribs ||
+                hasSpoiler ||
+                !children.every(isText) ||
+                !/^[#!]/.test(trimmedText));
             const mention = renderMatrixMention(
               mx,
               roomId,
               href,
               makeMentionCustomProps(params.handleMentionClick),
               ownText ? content : undefined,
-              // A label typed as Markdown, or one that hides a spoiler, is not a room's mention.
-              'data-md' in attribs || containsSpoiler(children)
+              keepRoomLabel
             );
             if (mention) return mention;
           }
           return (
-            <CheckedMessageLink
-              {...props}
-              showFavicon={!!params.showLinkFavicons && !containsSpoiler(children)}
-            >
+            <CheckedMessageLink {...props} showFavicon={!!params.showLinkFavicons && !hasSpoiler}>
               {content}
             </CheckedMessageLink>
           );

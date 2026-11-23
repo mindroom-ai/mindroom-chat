@@ -52,7 +52,7 @@ import {
   THREADS_ROOM_PATH,
 } from '../routes/paths';
 import { getAppBasePath } from '../lib/basePath';
-import { moveWaitingUniversalLinkAfterHash } from '../native/nativeSso';
+import { moveWaitingUniversalLinkAfterHash } from '../native/nativeUniversalLinks';
 import { markPageStartup } from '../lib/startupTimeline';
 import { AuthLayout } from '../account/auth/AuthLayout';
 import { Login } from '../account/auth/login/Login';

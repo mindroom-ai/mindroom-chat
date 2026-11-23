@@ -20,7 +20,10 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
-import { createRouterAppPathNavigator, setNativeAppPathNavigator } from '../native/nativeSso';
+import {
+  createRouterAppPathNavigator,
+  setNativeAppPathNavigator,
+} from '../native/nativeUniversalLinks';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';

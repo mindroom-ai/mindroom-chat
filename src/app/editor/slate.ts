@@ -22,11 +22,6 @@ export type MentionElement = {
   highlight: boolean;
   eventId?: string;
   viaServers?: string[];
-  /**
-   * The link a mention read back from a sent message had, which an edit sends again as it was.
-   * A mention made in the composer has none: its link is made when it is sent.
-   */
-  href?: string;
   children: FormattedText[];
 };
 

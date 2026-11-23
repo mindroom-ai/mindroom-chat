@@ -116,7 +116,7 @@ describe('links to messages', () => {
     expect(textOf(root)).toBe(`see ${href}`);
   });
 
-  it('keep an authored label and its spoiler on a link to a room, which still opens in the app', () => {
+  it('preserves authored labels and spoilers on room links while keeping mentions as pills', () => {
     const href = `https://chat.mindroom.chat/${ROOM_ID}?via=example.org`;
     const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts: LINKIFY_OPTS });
     const spoilers = (root: ReactTestRenderer) =>
@@ -124,28 +124,49 @@ describe('links to messages', () => {
         (node) => node.type === 'span' && node.props['data-mx-spoiler'] !== undefined
       );
 
-    // A link typed as Markdown, and an anchor of another client around a spoiler.
-    ['<a data-md href', '<a href'].forEach((anchorStart) => {
-      const root = render(
-        parse(`see ${anchorStart}="${href}"><span data-mx-spoiler>the berth plan</span></a>`, opts)
-      );
+    for (const label of [href, '#Harbor operations', '#harbor:example.org']) {
+      const root = render(parse(`see <a href="${href}">${label}</a>`, opts));
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(textOf(root)).toBe('see #Harbor operations');
+      expect(anchor.props.className).toBe('Mention');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+    }
+
+    for (const [html, expectedText] of [
+      [`<a href="${href}"><span data-mx-spoiler>${href}</span></a>`, `see ${href}`],
+      [
+        `<a data-md href="${href}"><span data-mx-spoiler>the berth plan</span></a>`,
+        'see the berth plan',
+      ],
+    ] as const) {
+      const root = render(parse(`see ${html}`, opts));
       const anchor = root.root.find((node) => node.type === 'a');
       expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
       expect(anchor.props['data-mention-via']).toBe('example.org');
       expect(anchor.props.className).toBeUndefined();
       expect(spoilers(root)).toHaveLength(1);
-      expect(textOf(root)).toBe('see the berth plan');
-    });
-    const labelled = render(parse(`see <a data-md href="${href}">the berth plan</a>`, opts));
-    expect(textOf(labelled)).toBe('see the berth plan');
-    expect(labelled.root.find((node) => node.type === 'a').props['data-mention-id']).toBe(ROOM_ID);
+      expect(textOf(root)).toBe(expectedText);
+      expect(textOf(root)).not.toContain('#Harbor operations');
+    }
 
-    // A mention of the room and its bare URL are still pills that name the room.
-    ['#Harbor', href].forEach((text) => {
-      const root = render(parse(`see <a href="${href}">${text}</a>`, opts));
-      expect(textOf(root)).toBe('see #Harbor operations');
-      expect(root.root.find((node) => node.type === 'a').props.className).toBe('Mention');
-    });
+    const rich = render(
+      parse(`see <a href="${href}"><strong>join the incident call</strong></a>`, opts)
+    );
+    expect(rich.root.find((node) => node.type === 'a').props['data-mention-id']).toBe(ROOM_ID);
+    expect(rich.root.find((node) => node.type === 'strong').children).toEqual([
+      'join the incident call',
+    ]);
+
+    for (const [html, expectedText] of [
+      [`<a href="${href}">join the incident call</a>`, 'see join the incident call'],
+      [`<a href="${href}" data-md>#custom</a>`, 'see #custom'],
+    ] as const) {
+      const root = render(parse(`see ${html}`, opts));
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+      expect(anchor.props.className).toBeUndefined();
+      expect(textOf(root)).toBe(expectedText);
+    }
   });
 
   it('say thread for a thread root or a reply the client knows', () => {
