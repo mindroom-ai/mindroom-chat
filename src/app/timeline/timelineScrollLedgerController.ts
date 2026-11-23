@@ -249,18 +249,19 @@ export const useTimelineScrollLedgerController = ({
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
   const ownerEnabled = !!threadId && !!headroomOwner?.enabled;
+  const headroomGate = headroomOwner?.gate;
   const headroomHasMoreHistoryRef = useRef(!!headroomOwner?.hasMoreHistory);
   headroomHasMoreHistoryRef.current = !!headroomOwner?.hasMoreHistory;
   const enqueueHeadroomAboveResize = useCallback(
     (delta: number) => {
-      if (!ownerEnabled || !headroomOwner || delta === 0) return;
-      headroomOwner.gate.nextResizeSeq += 1;
-      headroomOwner.gate.aboveResizeQueue.push({
-        seq: headroomOwner.gate.nextResizeSeq,
+      if (!ownerEnabled || !headroomGate || delta === 0) return;
+      headroomGate.nextResizeSeq += 1;
+      headroomGate.aboveResizeQueue.push({
+        seq: headroomGate.nextResizeSeq,
         delta,
       });
     },
-    [headroomOwner, ownerEnabled]
+    [headroomGate, ownerEnabled]
   );
   const virtualInnerRef = useRef<HTMLDivElement>(null);
   const compensationSettleArmedRef = useRef(false);
@@ -841,9 +842,9 @@ export const useTimelineScrollLedgerController = ({
       if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
         return;
       if (scrollTop <= 0) return;
-      if (ownerEnabled && headroomOwner) {
+      if (ownerEnabled && headroomGate) {
         enqueueHeadroomAboveResize(deltaPx);
-        headroomOwner.gate.bumpCommitTick();
+        headroomGate.bumpCommitTick();
         return;
       }
       scrollElement.scrollTop = scrollTop + deltaPx;
@@ -852,7 +853,7 @@ export const useTimelineScrollLedgerController = ({
       settleDiscardWatchRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
     },
-    [enqueueHeadroomAboveResize, getScrollElement, headroomOwner, ownerEnabled, threadId]
+    [enqueueHeadroomAboveResize, getScrollElement, headroomGate, ownerEnabled, threadId]
   );
 
   const settledScrollTopRef = useRef<number | undefined>(undefined);
@@ -1286,12 +1287,11 @@ export const useTimelineScrollLedgerController = ({
     isAutomaticFillActive,
     handleAppliedCorrection,
     handleDroppedCorrection,
-    itemCount,
-    readerTopOffset,
-    renderRowMoveBeforePaint,
     enqueueHeadroomAboveResize,
+    itemCount,
     ownerEnabled,
     readerTopOffset,
+    renderRowMoveBeforePaint,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
     virtualizer,

@@ -227,6 +227,9 @@ const openAndRun = async (
         });
   try {
     const context = await browser.newContext({ ...VIEWPORTS[setup.viewport], baseURL });
+    if (process.env.MR_THREAD_SCROLL_OWNER === '1') {
+      await context.addInitScript(() => window.localStorage.setItem('mr.threadScrollOwner', '1'));
+    }
     const page = await context.newPage();
     await page.addInitScript(installThreadJumpProbe);
     if (beforeLogin) await beforeLogin(page);

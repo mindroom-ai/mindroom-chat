@@ -88,6 +88,19 @@ const playwrightConfig = defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
+    ...(process.env.MR_THREAD_SCROLL_OWNER === '1'
+      ? {
+          storageState: {
+            cookies: [],
+            origins: [
+              {
+                origin: baseURL,
+                localStorage: [{ name: 'mr.threadScrollOwner', value: '1' }],
+              },
+            ],
+          },
+        }
+      : {}),
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
