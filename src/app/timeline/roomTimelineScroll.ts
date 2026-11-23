@@ -570,10 +570,8 @@ export const useTimelineRowJumps = ({
   paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
   virtualizerRef: MutableRefObject<
-    Pick<
-      Virtualizer<HTMLDivElement, Element>,
-      'scrollToIndex' | 'getOffsetForIndex' | 'scrollOffset'
-    >
+    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'> &
+      Partial<Pick<Virtualizer<HTMLDivElement, Element>, 'getOffsetForIndex' | 'scrollOffset'>>
   >;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   onJump: () => void;
@@ -719,7 +717,7 @@ export const useTimelineRowJumps = ({
       jumped();
       if (ownerEnabled) {
         const scrollElement = rowsRef.current.getScrollElement();
-        const offset = virtualizerRef.current.getOffsetForIndex(index, 'center');
+        const offset = virtualizerRef.current.getOffsetForIndex?.(index, 'center');
         if (scrollElement && offset) {
           scrollElement.scrollTop = offset[0];
           virtualizerRef.current.scrollOffset = scrollElement.scrollTop;

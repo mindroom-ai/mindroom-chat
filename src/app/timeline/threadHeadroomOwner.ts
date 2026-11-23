@@ -164,8 +164,8 @@ export const estimatePrependedHeight = ({
   sizeCache,
   avgRowHeight,
 }: {
-  rawEvents: readonly MatrixEvent[];
-  presentedEvents: readonly MatrixEvent[];
+  rawEvents: MatrixEvent[];
+  presentedEvents: MatrixEvent[];
   anchor: ThreadLedgerAnchor | undefined;
   threadId: string | undefined;
   sizeCache: ReadonlyMap<unknown, number> | undefined;
@@ -202,8 +202,8 @@ export type ThreadHeadroomGateHandle = {
   lastAvgRowHeight: number;
   sizeCache: ReadonlyMap<unknown, number> | undefined;
   anchorRef: React.MutableRefObject<ThreadLedgerAnchor | undefined> | undefined;
-  presentedEvents: readonly MatrixEvent[];
-  heldRawEvents: readonly MatrixEvent[] | undefined;
+  presentedEvents: MatrixEvent[];
+  heldRawEvents: MatrixEvent[] | undefined;
   heldPrependEstimatePx: number;
   pendingReleaseAfterTopUp: boolean;
   aboveResizeQueue: ResizeQueueEntry[];
@@ -238,7 +238,7 @@ const resetGateForView = (
   gate: ThreadHeadroomGateHandle,
   viewKey: string,
   ownerEnabled: boolean,
-  initialEvents: readonly MatrixEvent[]
+  initialEvents: MatrixEvent[]
 ) => {
   gate.viewKey = viewKey;
   gate.committedHeadroomPx = 0;
@@ -282,11 +282,11 @@ export const useThreadHeadroomEventsGate = ({
   viewKey: string;
   threadId: string | undefined;
   ownerEnabled: boolean;
-  rawThreadEvents: readonly MatrixEvent[];
+  rawThreadEvents: MatrixEvent[];
   threadUserScrolled: boolean;
 }): {
   gate: ThreadHeadroomGateHandle;
-  presentedThreadEvents: readonly MatrixEvent[];
+  presentedThreadEvents: MatrixEvent[];
   hasHeldThreadEvents: boolean;
 } => {
   const [, setCommitTick] = useState(0);
@@ -436,7 +436,7 @@ export type UseThreadHeadroomCommitOptions = {
   ownerEnabled: boolean;
   resettingLedgerView: boolean;
   threadId: string | undefined;
-  threadEvents: readonly MatrixEvent[];
+  threadEvents: MatrixEvent[];
   expectedThreadEvents: number;
   hasMoreHistory: boolean;
   rawHasMoreHistory: boolean;

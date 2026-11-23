@@ -1,4 +1,9 @@
 import {
+  computeHeadroomRenderSnapshot,
+  useThreadHeadroomCommit,
+  type ThreadHeadroomGateHandle,
+} from './threadHeadroomOwner';
+import {
   useCallback,
   useEffect,
   useInsertionEffect,
@@ -752,7 +757,7 @@ export const useTimelineScrollLedgerController = ({
     ownerEnabled,
     resettingLedgerView,
     threadId,
-    threadEvents: threadEvents as readonly import('matrix-js-sdk').MatrixEvent[],
+    threadEvents: threadEvents as import('matrix-js-sdk').MatrixEvent[],
     expectedThreadEvents: headroomOwner?.expectedThreadEvents ?? 0,
     hasMoreHistory: headroomOwner?.hasMoreHistory ?? false,
     rawHasMoreHistory: headroomOwner?.rawHasMoreHistory ?? false,
