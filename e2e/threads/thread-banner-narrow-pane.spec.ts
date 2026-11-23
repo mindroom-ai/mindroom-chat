@@ -69,7 +69,7 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
     msgtype: 'm.text',
     body: TITLE,
   });
-  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+  const replyId = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Example reply in the thread.',
     'm.relates_to': {
@@ -77,6 +77,22 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
       event_id: rootId,
       is_falling_back: true,
       'm.in_reply_to': { event_id: rootId },
+    },
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.notice',
+    body: TITLE,
+    'io.mindroom.thread_summary': {
+      version: 1,
+      summary: TITLE,
+      generated_at: Date.now(),
+      message_count: 2,
+    },
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: rootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: replyId },
     },
   });
   for (const tag of TAGS) {
@@ -115,7 +131,7 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   await expect(narrow.getByRole('button', { name: /^(Pin|Unpin) thread$/ })).toHaveCount(0);
 
   // The whole title, wrapping, with the buttons stacked beside it.
-  const title = narrow.locator('[data-thread-context-root-title="true"]');
+  const title = narrow.locator('[data-thread-context-summary="true"]');
   await expect(title).toHaveText(TITLE);
   const lines = await title.evaluate((element) => {
     const lineHeight = parseFloat(getComputedStyle(element).lineHeight);

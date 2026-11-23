@@ -245,6 +245,26 @@ export const PhoneTitle = style({
   },
 });
 
+// An unsummarized thread falls back to its first message, which is already in the timeline right
+// below the banner: clamp it to two lines on compact banners (one in a keyboard's short area).
+export const PhoneRootTitle = style({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  overflow: 'hidden',
+  minWidth: 0,
+  flex: '1 1 100%',
+  fontWeight: config.fontWeight.W500,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  textOverflow: 'ellipsis',
+  '@container': {
+    [`${roomArea} (max-height: 15rem)`]: {
+      WebkitLineClamp: 1,
+    },
+  },
+});
+
 // The thread title is the one thing in this bar that differs per thread, so
 // it carries the weight the "Thread View" eyebrow used to take.
 export const SummaryText = style({

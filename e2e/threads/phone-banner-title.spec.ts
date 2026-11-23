@@ -551,8 +551,8 @@ const expectWholeTitle = async (page: Page, expected: string, width: number, bou
 };
 
 /**
- * A first message of several paragraphs titles the thread: the title scrolls in itself, a reply
- * shows between the card and the composer, and the composer takes a tap.
+ * A first message of several paragraphs titles the thread: clamped to two lines without scrolling,
+ * a reply shows between the card and the composer, and the composer takes a tap.
  */
 const checkWall = async (page: Page, world: World, viewport: Size, name: string) => {
   await page.goto(threadUrl(world, world.wall));
@@ -564,43 +564,31 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
     content: '[data-testid="client-sync-status"] { display: none !important; }',
   });
   await shot(page, `wall-${name}`);
-  // The whole first message is the title: nothing of it is cut.
+  // The full first message stays in the DOM/tooltip while clamped visually to two lines.
   const whole = (await rootTitle.textContent()) ?? '';
   expect(whole.length).toBeGreaterThan(600);
   expect(whole.endsWith(WALL_END)).toBe(true);
-  // Taller than its bound, it scrolls in itself, and at least three lines of it show.
+  // Clamped to at most two lines with hidden overflow and no internal scroll.
   const sizes = await rootTitle.evaluate((element) => ({
     scroll: element.scrollHeight,
     shown: element.clientHeight,
     line: parseFloat(getComputedStyle(element).lineHeight),
     overflow: getComputedStyle(element).overflowY,
+    focusable: element.hasAttribute('tabindex'),
   }));
-  expect(sizes.overflow).toBe('auto');
+  expect(sizes.overflow).toBe('hidden');
+  expect(sizes.focusable).toBe(false);
   expect(sizes.scroll).toBeGreaterThan(sizes.shown + sizes.line);
-  expect(sizes.shown).toBeGreaterThanOrEqual(3 * sizes.line - 1);
+  expect(sizes.shown).toBeLessThanOrEqual(2.5 * sizes.line);
   const card = await boxOf(banner(page));
   const foot = await boxOf(composer(page));
-  expect(card.bottom - card.top).toBeLessThan((viewport.height - card.top) * 0.6);
-  // A reply shows in full between the card and the composer. A 320 by 568 phone at 150% has
-  // room for the card's three lines of title and the end of the reply: its last lines show.
+  expect(card.bottom - card.top).toBeLessThan((viewport.height - card.top) * 0.45);
+  // A reply shows in full between the card and the composer.
   const replyBox = (await reply.boundingBox())!;
   if (viewport.height >= 600) expect(replyBox.y).toBeGreaterThanOrEqual(card.bottom);
   else expect(replyBox.y + replyBox.height).toBeGreaterThan(card.bottom + 2 * 20);
   expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
   await expectRowOnScreen(page, viewport.width, false);
-  // The title's last line is reached by scrolling the title, not the page.
-  await rootTitle.evaluate((element) => element.scrollTo(0, element.scrollHeight));
-  const lastLine = await rootTitle.evaluate((element) => {
-    const text = element.firstChild as Text;
-    const range = document.createRange();
-    range.setStart(text, text.length - 1);
-    range.setEnd(text, text.length);
-    const { top, bottom } = range.getBoundingClientRect();
-    const frame = element.getBoundingClientRect();
-    return { top, bottom, frameTop: frame.top, frameBottom: frame.bottom };
-  });
-  expect(lastLine.top).toBeGreaterThanOrEqual(lastLine.frameTop - 1);
-  expect(lastLine.bottom).toBeLessThanOrEqual(lastLine.frameBottom + 1);
   // The composer takes a tap.
   await composer(page).tap();
   await expect(composer(page)).toBeFocused();
@@ -820,15 +808,22 @@ test('in WebKit: at 150% Page Zoom on a 320 px phone the title shows whole and t
   );
 });
 
-/** A first message of six paragraphs stacks the buttons beside it; a short title does not. */
+/** A tall AI summary stacks the buttons beside it; a clamped first message and a short title do not. */
 const checkEndButtons = async (page: Page, world: World) => {
+  await openThread(page, world, 'long');
+  if (WITH_MARKER) {
+    await expect(banner(page).getByRole('button', { name: /pull request/i })).toBeVisible();
+  }
+  await expectRowOnScreen(page, page.viewportSize()!.width, true);
+  await expectEndButtons(page, '[data-thread-context-summary]', true);
+
   await page.goto(threadUrl(world, world.wall));
   const rootTitle = '[data-thread-context-root-title]';
   await expect(banner(page).locator(rootTitle)).toBeVisible({ timeout: 90_000 });
   await expect(banner(page).getByRole('button', { name: 'Thread options' })).toBeVisible();
   await page.waitForTimeout(500);
   await expectRowOnScreen(page, page.viewportSize()!.width, false);
-  await expectEndButtons(page, rootTitle, true);
+  await expectEndButtons(page, rootTitle, false);
 
   await openThread(page, world, 'short');
   await expectRowOnScreen(page, page.viewportSize()!.width, false);

@@ -183,6 +183,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   NarrowPhoneTitleRow: 'NarrowPhoneTitleRow',
   StackedPhoneTitleRow: 'StackedPhoneTitleRow',
   OverflowChip: 'OverflowChip',
+  PhoneRootTitle: 'PhoneRootTitle',
   PhoneTitle: 'PhoneTitle',
   PhoneTitleRow: 'PhoneTitleRow',
   ResolutionByline: 'ResolutionByline',
@@ -1018,10 +1019,10 @@ describe('ThreadContextBanner rendering', () => {
       screenSize = ScreenSize.Mobile;
       const phone = renderBanner();
       expect(rootTitle(phone).props).toMatchObject({
-        className: 'PhoneTitle',
-        tabIndex: 0,
+        className: 'PhoneRootTitle',
         truncate: false,
       });
+      expect(rootTitle(phone).props.tabIndex).toBeUndefined();
       expect(text(rootTitle(phone))).toBe(body);
       phone.unmount();
 
