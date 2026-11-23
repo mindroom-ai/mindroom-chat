@@ -13,6 +13,8 @@ export type ThreadLedgerAnchor = {
   index: number;
   events: readonly ThreadLedgerEvent[];
   priceRow: (eventId: string, index: number) => number;
+  /** What priced the rows besides their events (hidden rows, folded turns), by identity. */
+  pricing?: unknown;
 };
 
 export type ThreadLedgerFoldProbe =
@@ -28,37 +30,39 @@ type PlanThreadLedgerRenderArgs = {
   anchor: ThreadLedgerAnchor | undefined;
   eventIndexMap: ReadonlyMap<string, number>;
   priceRow: (eventId: string, index: number) => number;
+  /** As `ThreadLedgerAnchor.pricing`, of this render. */
+  pricing?: unknown;
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
 };
 
-const sameRowsAbove = (
-  previous: readonly ThreadLedgerEvent[],
-  next: readonly ThreadLedgerEvent[],
-  boundaryIndex: number
-): boolean => {
-  for (let index = 0; index < boundaryIndex; index += 1) {
-    if (previous[index]?.getId() !== next[index]?.getId()) return false;
-  }
-  return true;
-};
-
 /**
- * Derive how far rows added above the reader push the reader down, so the
- * ledger can fold that height and keep the reader's rows in place. This holds
- * for every change to the thread's rows (Load Older, the opening history chain,
- * reconciled or recovered pages), like native scroll anchoring, which the
- * thread scroller disables. Pure: React may abandon this render plan, and the
- * caller applies it only from the commit phase.
+ * Derive how far the rows above the reader push the reader down, so the
+ * ledger can fold that height and keep the reader's rows in place: what they
+ * are priced at in this render, less what they were priced at in the render
+ * the reader's row was recorded in. This holds for every change to the
+ * thread's rows (Load Older, the opening history chain, reconciled or
+ * recovered pages) and to their prices (a row that folds away with its turn
+ * before it was ever measured), like native scroll anchoring, which the
+ * thread scroller disables. A measured row has the same price in both, its
+ * size: the measurement correction keeps the reader when it changes. Pure:
+ * React may abandon this render plan, and the caller applies it only from the
+ * commit phase.
  */
 export const planThreadLedgerRender = ({
   anchor,
   eventIndexMap,
   priceRow,
+  pricing,
   threadEvents,
   threadId,
 }: PlanThreadLedgerRenderArgs): ThreadLedgerRenderPlan => {
-  if (!anchor || !threadId || anchor.threadId !== threadId || anchor.events === threadEvents) {
+  if (
+    !anchor ||
+    !threadId ||
+    anchor.threadId !== threadId ||
+    (anchor.events === threadEvents && anchor.pricing === pricing)
+  ) {
     return { foldPx: 0 };
   }
 
@@ -76,33 +80,16 @@ export const planThreadLedgerRender = ({
     if (boundaryIndex === undefined) return { foldPx: 0, probe: 'threadPrependFoldAnchorLost' };
     probe = 'threadPrependFoldAnchorFallback';
   }
-  const result = (foldPx: number): ThreadLedgerRenderPlan =>
-    probe ? { foldPx, probe } : { foldPx };
-
-  // The common case on a streaming thread: an edit or reply landed below.
-  if (
-    boundaryIndex === previousIndex &&
-    sameRowsAbove(anchor.events, threadEvents, boundaryIndex)
-  ) {
-    return result(0);
-  }
-
   // The root is not folded: the reader sees it arrive. A fork's parent rows above it are.
-  const previousAbove = new Map<string, number>();
-  for (let index = 0; index < previousIndex; index += 1) {
-    const eventId = anchor.events[index]?.getId();
-    if (eventId && eventId !== threadId) previousAbove.set(eventId, index);
-  }
   let foldPx = 0;
   for (let index = 0; index < boundaryIndex; index += 1) {
     const eventId = threadEvents[index]?.getId();
-    if (eventId && eventId !== threadId && !previousAbove.delete(eventId)) {
-      foldPx += priceRow(eventId, index);
-    }
+    if (eventId && eventId !== threadId) foldPx += priceRow(eventId, index);
   }
   // Rows that left the space above the reader take their committed height with them.
-  previousAbove.forEach((index, eventId) => {
-    foldPx -= anchor.priceRow(eventId, index);
-  });
-  return result(foldPx);
+  for (let index = 0; index < previousIndex; index += 1) {
+    const eventId = anchor.events[index]?.getId();
+    if (eventId && eventId !== threadId) foldPx -= anchor.priceRow(eventId, index);
+  }
+  return probe ? { foldPx, probe } : { foldPx };
 };

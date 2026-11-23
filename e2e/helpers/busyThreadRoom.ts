@@ -94,7 +94,7 @@ export const wait = (ms: number) =>
   });
 
 /** A `width` x `height` PNG with a colour gradient, so pictures and avatars have real bytes to decode. */
-const png = (width: number, height: number, hue: number): Buffer => {
+export const png = (width: number, height: number, hue: number): Buffer => {
   const chunk = (type: string, data: Buffer) => {
     const length = Buffer.alloc(4);
     length.writeUInt32BE(data.length);

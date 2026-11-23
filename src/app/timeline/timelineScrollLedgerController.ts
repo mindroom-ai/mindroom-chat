@@ -90,6 +90,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
+  /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
+  threadRowPricing?: unknown;
   /**
    * What the timeline renders above its rows: a thread's lines between its banner and its rows,
    * or the room's start (the room intro) and the line above its rows.
@@ -119,6 +121,11 @@ export type TimelineScrollLedgerController = {
    * width changed: the render that shows them may give the list its new height before the paint.
    */
   unrenderedRewrap: () => boolean;
+  /**
+   * Whether a size that is not rendered yet came from the rows' observer: the render that shows it
+   * before the paint then runs in the browser's ResizeObserver loop.
+   */
+  unrenderedInRowReport: () => boolean;
   /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
   /**
@@ -220,6 +227,7 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadInitialRenderMode,
+  threadRowPricing,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -249,7 +257,10 @@ export const useTimelineScrollLedgerController = ({
   // room's read as shrink, and the end clamp pulled a reader at the newest row up by them while
   // a splitter's drag wrapped the rows above anew. They wait in `droppedRowFoldPxRef`
   // until the render that paints their margin, so the margin and this part change together.
-  // The content above a thread's rows is left out: it is outside the list.
+  // The content above a thread's rows (Load Older, a load error) counts too. It is outside the
+  // list, and its margin lifts the list by what it pushed it down: the list's end stays where it
+  // was. Left out, a Load Older line that showed as a thread opened read as 40 px of shrink, the
+  // end clamp pulled the reader that far above the end, and the opening pin put them back.
   const rowFoldPxRef = useRef(0);
   const droppedRowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
@@ -268,6 +279,7 @@ export const useTimelineScrollLedgerController = ({
     anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
     eventIndexMap: threadEventIndexMap,
     priceRow: priceThreadRowForLedger,
+    pricing: threadRowPricing,
     threadEvents,
     threadId,
   });
@@ -343,7 +355,10 @@ export const useTimelineScrollLedgerController = ({
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
       rowFoldPxRef.current +=
-        threadLedgerRenderPlan.foldPx + roomLedgerAddedPx + roomFoldPxAtRender;
+        threadLedgerRenderPlan.foldPx +
+        roomLedgerAddedPx +
+        roomFoldPxAtRender +
+        (threadId ? leadingFoldPx : 0);
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -358,6 +373,7 @@ export const useTimelineScrollLedgerController = ({
     roomLedgerAddedPx,
     roomLedgerFoldPx,
     leadingFoldPx,
+    threadId,
     threadLedgerRenderPlan,
   ]);
 
@@ -596,11 +612,21 @@ export const useTimelineScrollLedgerController = ({
         scrollElement.getBoundingClientRect().top + readTopInset(scrollElement);
   }, [getScrollElement]);
   useLayoutEffect(() => {
-    const leadingPx = leadingRef.current?.offsetHeight ?? 0;
+    const leading = leadingRef.current;
+    const leadingPx = leading?.offsetHeight ?? 0;
+    // A thread's leading content keeps the height measured here as its minimum until a commit
+    // that changes what it shows lets go of it with the margin. WebKit lays out for the room
+    // area's container query before it resolves the styles a commit changed inside the area,
+    // with the box of a removed node already gone: a Load Older line taken out met that layout
+    // without the margin that pairs it, and a reader at the end was clamped by its height, which
+    // the fold took again.
+    const heldPx = `${leadingPx}px`;
+    if (leading && threadId && leading.style.minHeight !== heldPx) leading.style.minHeight = heldPx;
     leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
     if (leadingHeld && leadingPx !== leadingRenderPx) {
       // Applied by a synchronous re-render, before this commit paints.
       scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
+      if (threadId) rowFoldPxRef.current += leadingPx - leadingRenderPx;
       ledgerSettleWantedRef.current = true;
       setLedgerCommitTick((tick) => tick + 1);
     }
@@ -618,7 +644,12 @@ export const useTimelineScrollLedgerController = ({
       return;
     }
     threadLedgerViewRef.current = {
-      rows: { threadId, events: threadEvents, priceRow: priceThreadRowForLedger },
+      rows: {
+        threadId,
+        events: threadEvents,
+        priceRow: priceThreadRowForLedger,
+        pricing: threadRowPricing,
+      },
       // A row at virtual-core offset s paints at inner.top + s + ledger.
       listTop:
         scrollElement.scrollTop -
@@ -838,10 +869,15 @@ export const useTimelineScrollLedgerController = ({
   }, []);
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
   const unrenderedRewrap = useCallback(() => unrenderedRewrapRef.current, []);
+  // Whether the rows' observer reported a size since the last commit. A row measured as it
+  // mounts (`createScrollMountMeasurement`) is sized outside of the observer's report.
+  const unrenderedInRowReportRef = useRef(false);
+  const unrenderedInRowReport = useCallback(() => unrenderedInRowReportRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
     unrenderedEndCorrectionPxRef.current = 0;
     unrenderedRowMoveRef.current = false;
+    unrenderedInRowReportRef.current = false;
     // The render that showed the rows wrapped anew has committed: a later one asks again.
     unrenderedRewrapRef.current = false;
   });
@@ -1031,8 +1067,13 @@ export const useTimelineScrollLedgerController = ({
   // Height mutations can shrink the physical scroll range. Commit the paired
   // margin before child refs or layout effects read geometry and force native
   // clamping. Run on every accepted commit: settlement may have cleared an
-  // otherwise equal margin snapshot imperatively.
-  useInsertionEffect(commitLedgerMargin);
+  // otherwise equal margin snapshot imperatively. Leading content that changes lets go of the
+  // height it held with the margin, one change of styles, and is measured anew.
+  useInsertionEffect(() => {
+    commitLedgerMargin();
+    const leading = leadingRef.current;
+    if (leading && leadingKey !== committedLeading.key) leading.style.minHeight = '';
+  });
   useLayoutEffect(() => {
     // The inner ref is unattached during the initial insertion effect.
     commitLedgerMargin();
@@ -1079,6 +1120,7 @@ export const useTimelineScrollLedgerController = ({
     });
     return (...args: Parameters<typeof decide>): boolean => {
       dropped = false;
+      if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const apply = decide(...args);
       // An applied correction renders before the paint already, and the offset ledger moves
       // the rows of a dropped one in its own commit; the newest row moves no row after it, but
@@ -1171,6 +1213,7 @@ export const useTimelineScrollLedgerController = ({
     unrenderedCorrectionPx,
     unrenderedRowMove,
     unrenderedRewrap,
+    unrenderedInRowReport,
     virtualInnerRef,
     virtualizer,
     readMeasurementCorrectionPx,

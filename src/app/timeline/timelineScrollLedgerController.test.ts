@@ -538,7 +538,19 @@ describe('useTimelineScrollLedgerController', () => {
   describe('content between the banner and the rows', () => {
     const root = event('$root');
     const first = event('$first');
-    const leading = { offsetHeight: 48 };
+    // The minimum height it holds at each measurement of a commit.
+    const heldAtMeasure: string[] = [];
+    const leadingBox = { offsetHeight: 48 };
+    const leading = {
+      get offsetHeight() {
+        heldAtMeasure.push(leading.style.minHeight);
+        return leadingBox.offsetHeight;
+      },
+      set offsetHeight(px: number) {
+        leadingBox.offsetHeight = px;
+      },
+      style: { minHeight: '' },
+    };
     const listTopRef = { current: 0 };
     const scroller = {
       getBoundingClientRect: () => ({ top: 100 }),
@@ -569,6 +581,7 @@ describe('useTimelineScrollLedgerController', () => {
     // Row measurement refs fire inside the commit, before the parent's layout effects.
     let measureInCommit: (() => void) | undefined;
     let holdBanner: (deltaPx: number, scrollTop: number) => void = () => undefined;
+    let readRowFoldPx = () => 0;
     const MeasuredRow = () => {
       useLayoutEffect(() => measureInCommit?.());
       return null;
@@ -599,6 +612,7 @@ describe('useTimelineScrollLedgerController', () => {
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
       holdBanner = controller.holdThreadBannerResize;
+      readRowFoldPx = controller.readRowFoldPx;
       return React.createElement(MeasuredRow);
     };
     let renderer: ReturnType<typeof create>;
@@ -635,6 +649,23 @@ describe('useTimelineScrollLedgerController', () => {
       // A load error appears.
       show('error', 40);
       expect(latestLedgerPx()).toBe(-56);
+      // It lies above the list, whose end it leaves where it is: none of that margin is room the
+      // list will give up, and the end clamp reads no shrink in it.
+      expect(readRowFoldPx()).toBe(-56);
+    });
+
+    it('holds its measured height until a commit that changes it lets go with the margin', () => {
+      show('older', 48);
+      // WebKit's layout for the room area's container query meets a line taken out before the
+      // margin that pairs it: the height held from the last commit keeps the scroll range.
+      expect(leading.style.minHeight).toBe('48px');
+      heldAtMeasure.length = 0;
+      show('older', 48);
+      expect(heldAtMeasure).toEqual(['48px']);
+      heldAtMeasure.length = 0;
+      show('', 0);
+      expect(heldAtMeasure).toEqual(['']);
+      expect(leading.style.minHeight).toBe('0px');
     });
 
     it('lets a reader looking at it see it go', () => {
@@ -745,6 +776,7 @@ describe("the room's start above its rows", () => {
       return leadingBox.offsetHeight;
     },
     getBoundingClientRect: () => ({ bottom: leadingBox.bottom }),
+    style: { minHeight: '' },
   };
   const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
   let ledgerPx = 0;
