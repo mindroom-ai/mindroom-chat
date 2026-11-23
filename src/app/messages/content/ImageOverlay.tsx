@@ -102,7 +102,11 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
   useImageViewerOpenFlag(open);
   if (!open) return null;
   return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
+    <Overlay
+      open
+      data-image-viewer-overlay=""
+      backdrop={<OverlayBackdrop data-image-viewer-backdrop="" />}
+    >
       <OverlayCenter className={centerClassName}>
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
           <Modal

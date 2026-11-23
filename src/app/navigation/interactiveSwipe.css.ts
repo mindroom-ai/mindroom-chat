@@ -9,6 +9,6 @@ globalStyle('[data-swiping]', {
 // Casts an iOS-style side edge shadow on the upper surface during an interactive swipe without
 // bleeding onto top/bottom bars.
 globalStyle('[data-swipe-shadow]', {
-  boxShadow: '0 0 24px rgb(0 0 0 / 0.24)',
+  boxShadow: '0 0 24px rgb(0 0 0 / 0.24) !important',
   clipPath: 'inset(0 -48px)',
 });
