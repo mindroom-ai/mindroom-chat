@@ -797,8 +797,8 @@ export const getReactCustomHtmlParser = (
               ownText &&
               ('data-md' in attribs ||
                 hasSpoiler ||
-                !children.every(isText) ||
-                !/^[#!]/.test(trimmedText));
+                (!href.startsWith('https://matrix.to/') &&
+                  (!children.every(isText) || !/^[#!]/.test(trimmedText))));
             const mention = renderMatrixMention(
               mx,
               roomId,

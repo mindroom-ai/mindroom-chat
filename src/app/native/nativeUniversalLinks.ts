@@ -200,9 +200,14 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
 
   const viaServers = readSafeViaServers(url.searchParams);
   const rawThreadId = url.searchParams.get('threadId');
+  const threadId =
+    !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const rawForkAt = url.searchParams.get('forkAt');
+  const forkAt = threadId && rawForkAt && isEventId(rawForkAt) ? rawForkAt : undefined;
   return withSearchParam(route.basePath, {
     viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
-    threadId: !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined,
+    threadId,
+    forkAt,
     focusEvent: !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
   });
 };

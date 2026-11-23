@@ -169,6 +169,16 @@ describe('links to messages', () => {
     }
   });
 
+  it('still renders the destination alias for unmarked matrix.to room mentions', () => {
+    const href = 'https://matrix.to/#/%23desk%E2%80%AEksed:example.org';
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts: LINKIFY_OPTS });
+    const root = render(parse(`check <a href="${href}">desk</a>`, opts));
+    const anchor = root.root.find((node) => node.type === 'a');
+    expect(anchor.props.className).toBe('Mention');
+    expect(anchor.props['data-mention-id']).toBe('#desk\u202eksed:example.org');
+    expect(textOf(root)).toBe('check #desk<U+202E>ksed:example.org');
+  });
+
   it('say thread for a thread root or a reply the client knows', () => {
     expect(textOf(render(mention(LINK(ROOM_ID, ROOT_ID))))).toBe('Thread in #Harbor operations');
     expect(textOf(render(mention(LINK(ROOM_ID, REPLY_ID))))).toBe('Thread in #Harbor operations');

@@ -125,6 +125,13 @@ describe('native Universal Links', () => {
         }),
       ],
       [`/home/${R}/$e1?threadId=$r1`, q(paths.getHomeRoomPath(R, '$e1'), { threadId: '$r1' })],
+      [
+        `/home/${R}?threadId=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), { threadId: '$root', forkAt: '$point' }),
+      ],
+      [`/home/${R}?forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?threadId=bad&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?threadId=$root&forkAt=bad`, q(paths.getHomeRoomPath(R), { threadId: '$root' })],
       ['/direct/%23dm:example.org/$e2', paths.getDirectRoomPath('#dm:example.org', '$e2')],
       [
         `/threads/${R}?threadId=$r2&focusEvent=1`,
@@ -132,7 +139,7 @@ describe('native Universal Links', () => {
       ],
       [`/activity/${R}/$e3`, paths.getActivityRoomPath(R, '$e3')],
       [
-        `/${S}/Lobby/?via=example.org&threadId=$r1&focusEvent=1#h`,
+        `/${S}/Lobby/?via=example.org&threadId=$r1&forkAt=$point&focusEvent=1#h`,
         q(paths.getSpaceLobbyPath(S), { viaServers: 'example.org' }),
       ],
       [`/${S}/%23n:example.org/$e4`, paths.getSpaceRoomPath(S, '#n:example.org', '$e4')],
