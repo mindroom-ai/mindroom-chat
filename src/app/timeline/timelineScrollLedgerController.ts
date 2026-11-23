@@ -581,7 +581,16 @@ export const useTimelineScrollLedgerController = ({
         scrollElement.getBoundingClientRect().top + readTopInset(scrollElement);
   }, [getScrollElement]);
   useLayoutEffect(() => {
-    const leadingPx = leadingRef.current?.offsetHeight ?? 0;
+    const leading = leadingRef.current;
+    const leadingPx = leading?.offsetHeight ?? 0;
+    // A thread's leading content keeps the height measured here as its minimum until a commit
+    // that changes what it shows lets go of it with the margin. WebKit lays out for the room
+    // area's container query before it resolves the styles a commit changed inside the area,
+    // with the box of a removed node already gone: a Load Older line taken out met that layout
+    // without the margin that pairs it, and a reader at the end was clamped by its height, which
+    // the fold took again.
+    const heldPx = `${leadingPx}px`;
+    if (leading && threadId && leading.style.minHeight !== heldPx) leading.style.minHeight = heldPx;
     leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
     if (leadingHeld && leadingPx !== leadingRenderPx) {
       // Applied by a synchronous re-render, before this commit paints.
@@ -1034,8 +1043,13 @@ export const useTimelineScrollLedgerController = ({
   // Height mutations can shrink the physical scroll range. Commit the paired
   // margin before child refs or layout effects read geometry and force native
   // clamping. Run on every accepted commit: settlement may have cleared an
-  // otherwise equal margin snapshot imperatively.
-  useInsertionEffect(commitLedgerMargin);
+  // otherwise equal margin snapshot imperatively. Leading content that changes lets go of the
+  // height it held with the margin, one change of styles, and is measured anew.
+  useInsertionEffect(() => {
+    commitLedgerMargin();
+    const leading = leadingRef.current;
+    if (leading && leadingKey !== committedLeading.key) leading.style.minHeight = '';
+  });
   useLayoutEffect(() => {
     // The inner ref is unattached during the initial insertion effect.
     commitLedgerMargin();
