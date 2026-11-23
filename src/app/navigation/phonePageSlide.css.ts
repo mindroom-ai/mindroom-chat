@@ -9,8 +9,11 @@ import { motion } from '../ui/styles/Motion.css';
 
 const STAGE = '[data-phone-stage]';
 const COPY = '[data-page-slide-copy]';
+const PREVIEW = '[data-swipe-preview]';
+const DIM = '[data-swipe-dim]';
+const HOLD_SHIELD = '[data-swipe-hold-shield]';
 // What slides: all of the layout but the top bar, which stays above every page.
-const SLIDES = ':not([data-phone-top-bar], [data-page-slide-copy])';
+const SLIDES = `:not([data-phone-top-bar], [data-page-slide-copy], ${PREVIEW}, ${DIM}, ${HOLD_SHIELD})`;
 const forward = "html[data-page-slide='forward']";
 const back = "html[data-page-slide='back']";
 const playing = (selector: string) => `${forward} ${selector}, ${back} ${selector}`;
@@ -27,6 +30,7 @@ globalStyle(playing(`${STAGE}::after`), {
 // Nothing that slides shows outside the layout or makes it scroll, and the copy's place under or
 // over the layout's own layers (the drawer) is counted inside it.
 globalStyle(playing(STAGE), { overflow: 'clip', isolation: 'isolate' });
+globalStyle(`${STAGE}[data-swipe-stage]`, { overflow: 'clip', isolation: 'isolate' });
 // The copy fills the layout as the layout fills its own place (`position` is set on it, over
 // the layout's own).
 globalStyle(COPY, { inset: 0, pointerEvents: 'none' });
@@ -36,6 +40,52 @@ globalStyle(`${back} ${COPY}`, { zIndex: 2 });
 globalStyle(`${COPY} > * *`, {
   animationDelay: '-100s !important',
   animationPlayState: 'paused !important',
+});
+
+// Interactive finger-following thread <-> room swipe preview and dim veil layers.
+globalStyle(PREVIEW, {
+  position: 'absolute',
+  inset: 0,
+  pointerEvents: 'none',
+});
+globalStyle(`${PREVIEW}[data-swipe-backdrop]`, {
+  insetBlockStart: 0,
+  backgroundColor: 'var(--app-bg-color)',
+});
+globalStyle("[data-swipe-preview='under'], [data-swipe-preview='backdrop']", {
+  zIndex: -1,
+});
+globalStyle("[data-swipe-preview='over'], [data-swipe-preview='over-backdrop']", {
+  zIndex: 2,
+});
+globalStyle("[data-swipe-preview='hold']", {
+  zIndex: 2,
+});
+// Blocks taps below the top bar from the release of an interactive thread swipe, while it settles
+// and while its async handoff awaits route commit, so taps on what moves or on the settled
+// preview cannot activate controls in the page underneath.
+globalStyle(HOLD_SHIELD, {
+  position: 'absolute',
+  insetInline: 0,
+  insetBlockEnd: 0,
+  insetBlockStart: 0,
+  zIndex: 3,
+  pointerEvents: 'auto',
+});
+
+globalStyle(DIM, {
+  position: 'absolute',
+  insetInline: 0,
+  insetBlockEnd: 0,
+  insetBlockStart: 0,
+  backgroundColor: 'rgb(0 0 0)',
+  pointerEvents: 'none',
+});
+globalStyle("[data-swipe-dim='back']", {
+  zIndex: -1,
+});
+globalStyle("[data-swipe-dim='forward']", {
+  zIndex: 1,
 });
 
 // The end edge is the right one, or the left where lines run right to left.

@@ -943,6 +943,8 @@ describe('InviteUserPrompt', () => {
     });
     const alert = notice!.root.findByProps({ role: 'alert' });
     expect(alert).toBeDefined();
+    // Marked as a notice that moves into what covers the page (sidebar/PhoneNavDrawer.tsx).
+    expect(alert.props['data-cover-notice']).toBe('');
     const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss notice' });
     act(() => {
       dismiss.props.onClick();

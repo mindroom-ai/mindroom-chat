@@ -16,10 +16,12 @@ export function ModeratorGrantErrorNotice() {
   const slot = coverSlot ?? pageSlot;
 
   if (!failure) return null;
+  // `data-cover-notice`: it moves into what covers the page (sidebar/PhoneNavDrawer.tsx).
   const card = (
     <Surface
       variant="Critical"
       role="alert"
+      data-cover-notice=""
       style={{ ...noticeCard, maxInlineSize: toRem(440), flexShrink: 0 }}
     >
       <Box alignItems="Center" gap="200">
