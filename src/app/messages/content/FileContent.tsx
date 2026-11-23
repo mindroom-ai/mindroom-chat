@@ -59,32 +59,38 @@ const isPdfFileMimeType = (mimeType: unknown): boolean =>
 const browserShowsPdfInline = (): boolean =>
   typeof navigator === 'undefined' || navigator.pdfViewerEnabled !== false;
 
-const LANGUAGE_BY_EXTENSION: Record<string, string> = {
-  json: 'json',
-  js: 'javascript',
-  mjs: 'javascript',
-  ts: 'typescript',
-  tsx: 'typescript',
-  py: 'python',
-  md: 'markdown',
-  yaml: 'yaml',
-  yml: 'yaml',
-  html: 'html',
-  xml: 'xml',
-  css: 'css',
-  sh: 'bash',
-  sql: 'sql',
-  toml: 'toml',
-};
+const LANGUAGE_BY_EXTENSION = new Map<string, string>([
+  ['json', 'json'],
+  ['js', 'javascript'],
+  ['mjs', 'javascript'],
+  ['ts', 'typescript'],
+  ['tsx', 'typescript'],
+  ['py', 'python'],
+  ['md', 'markdown'],
+  ['yaml', 'yaml'],
+  ['yml', 'yaml'],
+  ['html', 'html'],
+  ['xml', 'xml'],
+  ['css', 'css'],
+  ['sh', 'bash'],
+  ['sql', 'sql'],
+  ['toml', 'toml'],
+]);
 
 /** Highlighting language for the text viewer, from the file name and type. */
-const getFileLanguageName = (fileName: string, mimeType: string): string => {
-  const fromExtension = LANGUAGE_BY_EXTENSION[getFileNameExt(fileName).toLowerCase()];
+export const getFileLanguageName = (fileName: string, mimeType: string): string => {
+  const fromExtension = LANGUAGE_BY_EXTENSION.get(getFileNameExt(fileName).toLowerCase());
   if (fromExtension) return fromExtension;
   const base = getMimeTypeBase(mimeType);
   if (base.endsWith('json')) return 'json';
   if (base.endsWith('xml')) return 'xml';
   if (base.endsWith('yaml')) return 'yaml';
+  if (base.endsWith('javascript')) return 'javascript';
+  if (base.endsWith('typescript')) return 'typescript';
+  if (base.endsWith('sql')) return 'sql';
+  if (base.endsWith('python')) return 'python';
+  if (base === 'text/css') return 'css';
+  if (base === 'text/html') return 'html';
   return 'plaintext';
 };
 

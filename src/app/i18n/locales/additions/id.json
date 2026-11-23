@@ -111,6 +111,37 @@
     "textViewer": {
       "close": "Tutup"
     },
+    "eventSourceViewer": {
+      "metaEventId": "Acara",
+      "metaType": "Jenis",
+      "metaSender": "Pengirim",
+      "metaTime": "Waktu",
+      "badgeEdited": "Diedit",
+      "badgeEncrypted": "Terenkripsi",
+      "documentTabsLabel": "Versi acara",
+      "tabEvent": "Acara",
+      "tabOriginal": "Asli",
+      "tabLatestEdit": "Editan terbaru",
+      "tabDecrypted": "Terdekripsi",
+      "tabDecryptionError": "Dekripsi gagal",
+      "tabEncrypted": "Terenkripsi",
+      "collapseAll": "Ciutkan",
+      "expandAll": "Luaskan",
+      "foldStrings": "Lipat string",
+      "rawJson": "Mentah",
+      "filterPlaceholder": "Filter kunci atau nilai…",
+      "noMatches": "Tidak ada kecocokan untuk “{{query}}”",
+      "copyField": "Salin {{field}}",
+      "copyValue": "Salin nilai",
+      "expandNode": "Luaskan {{name}}",
+      "collapseNode": "Ciutkan {{name}}",
+      "expandString": "Luaskan string",
+      "collapseString": "Ciutkan string",
+      "matchCount_other": "{{count}} cocok",
+      "keyCount_other": "{{count}} kunci",
+      "itemCount_other": "{{count}} item",
+      "charCount_other": "{{count}} karakter"
+    },
     "invites": {
       "actionFailed": "Terjadi kesalahan. Coba lagi."
     },

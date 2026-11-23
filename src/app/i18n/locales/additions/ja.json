@@ -111,6 +111,37 @@
     "textViewer": {
       "close": "閉じる"
     },
+    "eventSourceViewer": {
+      "metaEventId": "イベント",
+      "metaType": "種類",
+      "metaSender": "送信者",
+      "metaTime": "時刻",
+      "badgeEdited": "編集済み",
+      "badgeEncrypted": "暗号化済み",
+      "documentTabsLabel": "イベントバージョン",
+      "tabEvent": "イベント",
+      "tabOriginal": "元データ",
+      "tabLatestEdit": "最新の編集",
+      "tabDecrypted": "復号済み",
+      "tabDecryptionError": "復号失敗",
+      "tabEncrypted": "暗号化済み",
+      "collapseAll": "折りたたむ",
+      "expandAll": "展開",
+      "foldStrings": "文字列を折りたたむ",
+      "rawJson": "生データ",
+      "filterPlaceholder": "キーまたは値を絞り込む…",
+      "noMatches": "「{{query}}」に一致する項目はありません",
+      "copyField": "{{field}} をコピー",
+      "copyValue": "値をコピー",
+      "expandNode": "{{name}} を展開",
+      "collapseNode": "{{name}} を折りたたむ",
+      "expandString": "文字列を展開",
+      "collapseString": "文字列を折りたたむ",
+      "matchCount_other": "{{count}} 件一致",
+      "keyCount_other": "{{count}} 個のキー",
+      "itemCount_other": "{{count}} 件の項目",
+      "charCount_other": "{{count}} 文字"
+    },
     "invites": {
       "actionFailed": "問題が発生しました。もう一度試してください。"
     },
