@@ -1361,7 +1361,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                 ) ?? 0
               : 0) + 1,
             (room.getThread(threadId)?.length ?? 0) + 1,
-            (threadIndex.threadRecordMap.get(threadId)?.replyCount ?? 0) + 1
+            threadIndex.threadRecordMap.get(threadId)?.presentation.messageCount ?? 0
           )
         : 0,
       hasMoreHistory:

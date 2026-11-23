@@ -57,7 +57,7 @@ export type ResizeQueueEntry = {
 
 export type PendingAbsoluteScroll =
   | { kind: 'offset'; target: number; reason: 'trim' | 'topup' | 'held-release' | 'open-init' }
-  | { kind: 'bottom'; reason: 'open-init' };
+  | { kind: 'bottom'; reason: 'trim' | 'topup' | 'held-release' | 'open-init' };
 
 export type HeadroomOwnerStats = {
   ownerEnabled: boolean;
