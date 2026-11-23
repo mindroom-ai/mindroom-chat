@@ -2,11 +2,17 @@ import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { AppUrlPlugin } from '../lib/desktopBridge';
 import { desktopBridge, isDesktopApp } from '../lib/nativeShell';
-import { getConnectPath } from '../routes/pathUtils';
+import {
+  clearPendingUniversalLink,
+  getAppPathFromUniversalLink,
+  openUniversalLinkPath,
+  writeAppPathToAddress,
+} from './nativeUniversalLinks';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
 const SUPPORTED_NATIVE_APP_PLATFORMS = new Set(['android', 'ios']);
+const LAUNCH_REPEAT_WINDOW_MS = 2000;
 type StandaloneNavigator = Navigator & { standalone?: boolean };
 type MindRoomAuthPlugin = {
   authenticate(options: {
@@ -58,9 +64,6 @@ const getMindRoomAuthPlugin = (): MindRoomAuthPlugin => {
   return mindRoomAuthPlugin;
 };
 
-const createPopStateNavigationEvent = (): Event =>
-  typeof PopStateEvent === 'function' ? new PopStateEvent('popstate') : new Event('popstate');
-
 export const buildNativeSsoRedirectUrl = (webRedirectUrl: string): string => {
   const parsed = new URL(webRedirectUrl);
   return `${NATIVE_SSO_SCHEME}://${NATIVE_SSO_HOST}${parsed.pathname}${parsed.search}${parsed.hash}`;
@@ -104,41 +107,20 @@ export const isIOSStandaloneWebApp = (): boolean => {
   return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
 };
 
-const navigateNativeAppPath = (appPath: string): void => {
-  try {
-    window.history.replaceState(null, '', appPath);
-    window.dispatchEvent(createPopStateNavigationEvent());
-  } catch {
-    window.location.replace(appPath);
-  }
-};
-
+/**
+ * Opens the page a sign-in callback names. Always through the address, never the mounted router's
+ * `navigate`: with a hash router the callback carries its route after `#` (`/#/login/...`), which
+ * that router would put after a second `#`.
+ */
 export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
   const appPath = getAppPathFromNativeSsoUrl(incomingUrl);
   if (!appPath || typeof window === 'undefined') return false;
 
   Promise.resolve(Browser.close()).catch(() => undefined);
-  navigateNativeAppPath(appPath);
+  clearPendingUniversalLink();
+  writeAppPathToAddress(appPath);
 
   return true;
-};
-
-const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
-  let url: URL;
-  try {
-    url = new URL(incomingUrl);
-  } catch {
-    return undefined;
-  }
-  if (
-    url.origin !== 'https://chat.mindroom.chat' ||
-    url.username ||
-    url.password ||
-    (url.pathname !== '/connect' && url.pathname !== '/connect/')
-  ) {
-    return undefined;
-  }
-  return getConnectPath(url.searchParams.get('code') ?? undefined);
 };
 
 // Capacitor keeps returning the last opened URL from `getLaunchUrl()` after the
@@ -157,29 +139,54 @@ const isPageReload = (): boolean => {
 
 export const registerNativeAppUrlCallbacks = (nativeApp: AppUrlPlugin): void => {
   let handledOpenUrl = false;
-  const handleNativeAppUrl = (url: string): boolean => {
-    if (routeNativeSsoCallback(url)) return true;
-    const appPath = getAppPathFromPairingUrl(url);
+  // Capacitor may replay the launch Universal Link on `appUrlOpen` right after `getLaunchUrl()`.
+  let launchUrlToRepeat: string | undefined;
+  let launchRepeatTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearLaunchRepeat = (): void => {
+    launchUrlToRepeat = undefined;
+    if (launchRepeatTimer !== undefined) {
+      clearTimeout(launchRepeatTimer);
+      launchRepeatTimer = undefined;
+    }
+  };
+
+  const handleNativeAppUrl = (url: string): 'sso' | 'universal' | undefined => {
+    if (routeNativeSsoCallback(url)) return 'sso';
+    const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
-      navigateNativeAppPath(appPath);
-      return true;
+      openUniversalLinkPath(appPath);
+      return 'universal';
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
     // eslint-disable-next-line no-console
     console.warn('[MindRoom] Ignored unsupported app URL');
-    return false;
+    return undefined;
   };
 
   nativeApp
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url && !handledOpenUrl && !isPageReload()) handleNativeAppUrl(url);
+      if (url && !handledOpenUrl && !isPageReload() && handleNativeAppUrl(url) === 'universal') {
+        clearLaunchRepeat();
+        launchUrlToRepeat = url;
+        launchRepeatTimer = setTimeout(() => {
+          launchUrlToRepeat = undefined;
+          launchRepeatTimer = undefined;
+        }, LAUNCH_REPEAT_WINDOW_MS);
+      }
     })
     .catch(() => undefined);
 
   nativeApp
     .addListener('appUrlOpen', (event) => {
+      if (event.url && event.url === launchUrlToRepeat) {
+        clearLaunchRepeat();
+        handledOpenUrl = true;
+        return;
+      }
+      clearLaunchRepeat();
       if (event.url && handleNativeAppUrl(event.url)) handledOpenUrl = true;
     })
     .catch(() => undefined);

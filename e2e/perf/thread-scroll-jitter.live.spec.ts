@@ -8,6 +8,7 @@ import {
   type CDPSession,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, expectCompactCardCount } from '../helpers/compactCards';
 import {
   buildBusyThreadRoom,
   instrumentScrolling,
@@ -174,12 +175,10 @@ test.describe('thread scroll jitter', () => {
                   });
                   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
                   if (view === 'compact') {
-                    const cards = page.locator(
-                      '[data-compact-room-view="true"] [data-scroll-anchor]'
-                    );
-                    await expect
-                      .poll(() => cards.count(), { timeout: 180_000 })
-                      .toBeGreaterThanOrEqual(THREADS);
+                    // The list mounts a window of its cards: ready once all are measured.
+                    await expectCompactCardCount(page.locator(COMPACT_VIEW), THREADS, {
+                      atLeast: true,
+                    });
                   } else {
                     await expect(page.locator('[data-message-item]').first()).toBeVisible({
                       timeout: 120_000,

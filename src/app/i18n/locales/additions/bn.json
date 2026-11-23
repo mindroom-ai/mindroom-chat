@@ -93,13 +93,32 @@
       "wheelZoomHint": "জুম করতে {{key}} + স্ক্রল"
     },
     "inviteUserPrompt": {
-      "close": "বন্ধ করুন",
       "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।",
-      "giveRoleRights": "{{role}}-এর অধিকার দিন",
       "giveRoleRightsHelp": "ভয়েস ট্রান্সক্রিপ্ট ভাঁজ করতে এবং সময়সূচি ও রুমের সেটিংস পরিচালনা করতে এই রুমে {{role}}-এর অধিকার প্রয়োজন।",
       "roleFailed": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে, তবে {{role}}-এর অধিকার দেওয়া যায়নি: {{error}}",
       "roleRequirementChanged": "এই রুমে এখন {{role}}-এর অধিকার প্রয়োজন।",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "{{room}}-এ আমন্ত্রণ জানান",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "সম্পন্ন",
+      "searchPlaceholder": "মানুষ, এজেন্ট বা @user:server খুঁজুন",
+      "filterLabel": "ধরন অনুযায়ী ফিল্টার করুন",
+      "filterAll": "সব",
+      "filterPeople": "মানুষ",
+      "filterAgents": "এজেন্ট",
+      "recentAndDirect": "সাম্প্রতিক ও সরাসরি",
+      "directory": "ডিরেক্টরি",
+      "externalUserId": "বাহ্যিক Matrix আইডি",
+      "noMatches": "কোনো মিল পাওয়া যায়নি। সরাসরি আমন্ত্রণ জানাতে সম্পূর্ণ @user:server আইডি লিখুন।",
+      "emptyDirectory": "এখনো আমন্ত্রণ জানানোর মতো কোনো ব্যবহারকারী নেই। সরাসরি আমন্ত্রণ জানাতে সম্পূর্ণ @user:server আইডি লিখুন।",
+      "addNote": "+ আমন্ত্রণ নোট যোগ করুন",
+      "hideNote": "− আমন্ত্রণ নোট লুকান",
+      "notePlaceholder": "আপনার আমন্ত্রণে একটি নোট যোগ করুন...",
+      "giveRoleRightsAgents": "আমন্ত্রিত এজেন্টদের {{role}}-এর অধিকার দিন",
+      "alreadyInRoom": "ইতিমধ্যেই এই রুমে আছেন",
+      "alreadyInvited": "ইতিমধ্যেই আমন্ত্রিত",
+      "bannedFromRoom": "এই রুম থেকে নিষিদ্ধ",
+      "retryUser": "{{user}}-কে আবার আমন্ত্রণ জানান"
     },
     "joinAddressPrompt": {
       "close": "বন্ধ করুন",
@@ -113,6 +132,41 @@
     },
     "textViewer": {
       "close": "বন্ধ করুন"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "ইভেন্ট",
+      "metaType": "ধরন",
+      "metaSender": "প্রেরক",
+      "metaTime": "সময়",
+      "badgeEdited": "সম্পাদিত",
+      "badgeEncrypted": "এনক্রিপ্টেড",
+      "documentTabsLabel": "ইভেন্ট সংস্করণ",
+      "tabEvent": "ইভেন্ট",
+      "tabOriginal": "মূল",
+      "tabLatestEdit": "সর্বশেষ সম্পাদনা",
+      "tabDecrypted": "ডিক্রিপ্টেড",
+      "tabDecryptionError": "ডিক্রিপশন ব্যর্থ",
+      "tabEncrypted": "এনক্রিপ্টেড",
+      "collapseAll": "সংকুচিত করুন",
+      "expandAll": "প্রসারিত করুন",
+      "foldStrings": "স্ট্রিং ভাঁজ করুন",
+      "rawJson": "মূল JSON",
+      "filterPlaceholder": "কী বা মান ফিল্টার করুন…",
+      "noMatches": "“{{query}}”-এর জন্য কোনো মিল নেই",
+      "copyField": "{{field}} কপি করুন",
+      "copyValue": "মান কপি করুন",
+      "expandNode": "{{name}} প্রসারিত করুন",
+      "collapseNode": "{{name}} সংকুচিত করুন",
+      "expandString": "স্ট্রিং প্রসারিত করুন",
+      "collapseString": "স্ট্রিং সংকুচিত করুন",
+      "matchCount_one": "{{count}}টি মিল",
+      "matchCount_other": "{{count}}টি মিল",
+      "keyCount_one": "{{count}}টি কী",
+      "keyCount_other": "{{count}}টি কী",
+      "itemCount_one": "{{count}}টি আইটেম",
+      "itemCount_other": "{{count}}টি আইটেম",
+      "charCount_one": "{{count}} অক্ষর",
+      "charCount_other": "{{count}} অক্ষর"
     },
     "invites": {
       "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
@@ -258,9 +312,6 @@
       "newIntro": "একটি নতুন রিকভারি পাসওয়ার্ড বেছে নিন। পুরনোটি আর কাজ করবে না।",
       "notCached": "এই সেশনে সব এনক্রিপশন কী নেই। আপনার রিকভারি পাসওয়ার্ড বা অন্য ডিভাইস দিয়ে এটি যাচাই করুন, তারপর আবার চেষ্টা করুন।",
       "incompleteError": "নতুন রিকভারি পাসওয়ার্ড এখনও সব এনক্রিপশন কী কভার করে না। আবার চেষ্টা করুন।",
-      "nudgeTitle": "আপনার বার্তা সুরক্ষিত করুন",
-      "nudgeBody": "একটি রিকভারি পাসওয়ার্ড সেট করুন, যাতে এই ব্রাউজার পরিষ্কার করার পরে বা নতুন ডিভাইসে সাইন ইন করার পরেও আপনার এনক্রিপ্টেড চ্যাট পড়তে পারেন।",
-      "nudgeButton": "রিকভারি পাসওয়ার্ড সেট করুন",
       "unlockWithPassword": "রিকভারি পাসওয়ার্ড দিয়ে আনলক করুন",
       "resetLoss": "এই ডিভাইস এখন যে বার্তাগুলো পড়তে পারে না সেগুলো অপাঠ্যই থাকবে। আপনার অন্য সেশনগুলো আবার যাচাই করতে হবে।",
       "setupCheckFailed": "আপনার এনক্রিপশন সেটআপ যাচাই করা যায়নি।",
@@ -1754,6 +1805,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "আরও {{count}}টি থ্রেড",
+    "moreThreads_other": "আরও {{count}}টি থ্রেড",
     "forMe": "আমার জন্য",
     "forMeHint": "শুধু সেই থ্রেডগুলো দেখান যেগুলোতে আপনি অংশ নেন, কোনো এজেন্ট আপনার হয়ে পোস্ট করেছে, বা আপনি পিন করেছেন",
     "roomForMeHint": "শুধু সেই থ্রেডগুলো দেখান যেগুলোতে আপনি অংশ নেন বা কোনো এজেন্ট আপনার হয়ে পোস্ট করেছে",
@@ -1819,5 +1872,40 @@
     "cancellationSent": "বাতিলের অনুরোধ পাঠানো হয়েছে",
     "editDraftBusy": "এই সময়সূচী সম্পাদনা করার আগে আপনার বর্তমান খসড়া মুছুন।",
     "copyFailed": "কপি করা যায়নি। বিস্তারিত অংশ থেকে টাস্ক আইডি নির্বাচন করুন।"
+  },
+  "home": {
+    "greeting": {
+      "morning": "সুপ্রভাত, {{name}}",
+      "afternoon": "শুভ অপরাহ্ন, {{name}}",
+      "evening": "শুভ সন্ধ্যা, {{name}}"
+    },
+    "ask": {
+      "placeholder": "{{name}}-কে যেকোনো কিছু জিজ্ঞাসা করুন…",
+      "chooseAgent": "কে উত্তর দেবে বেছে নিন",
+      "agentChoice": "{{name}} উত্তর দেবে",
+      "chooseRoom": "থ্রেড কোথায় শুরু হবে বেছে নিন",
+      "roomChoice": "{{room}}-এ",
+      "inRoom": "<avatar/>{{room}}-এ",
+      "directChat": "সরাসরি চ্যাট",
+      "startsDirectChat": "{{name}}-এর সাথে চ্যাট শুরু করে",
+      "startingDirectChat": "{{name}}-এর সাথে চ্যাট শুরু হচ্ছে…",
+      "directChatFailed": "{{name}}-এর সাথে চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।",
+      "waitingForAgent": "{{name}} চ্যাটে যোগ দেওয়ার অপেক্ষায়…",
+      "notSent": "{{room}}-এ {{agent}}-কে পাঠানো হয়নি",
+      "chooseAgain": "এই পছন্দটি আর কাজ করে না। আপনার লেখা রাখা আছে: কে উত্তর দেবে বা কোথায়, বেছে নিন।"
+    },
+    "recent": {
+      "title": "সাম্প্রতিক থ্রেড",
+      "allThreads": "সব থ্রেড",
+      "unread": "অপঠিত"
+    },
+    "recovery": {
+      "action": "রিকভারি পাসওয়ার্ড সেট করুন",
+      "text": "নতুন ডিভাইসেও এনক্রিপ্ট করা চ্যাটে অ্যাক্সেস রাখুন।"
+    },
+    "device": {
+      "action": "এই ডিভাইস যাচাই করুন",
+      "text": "ততক্ষণ এটি আপনার এনক্রিপ্ট করা চ্যাট পড়তে পারবে না।"
+    }
   }
 }

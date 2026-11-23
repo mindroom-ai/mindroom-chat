@@ -2,8 +2,12 @@ import { useTranslation } from 'react-i18next';
 import { type CSSProperties, type ReactNode } from 'react';
 import { Box, Chip, color, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { discardFailedLocalEcho, isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
+import {
+  discardFailedLocalEcho,
+  isFailedLocalEchoEvent,
+} from '../matrix/protocol/pendingLocalEcho';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
 
@@ -13,13 +17,31 @@ type FailedSendActionsProps = {
   style?: CSSProperties;
   /** Replaces the default "Not sent" text, for example to name the message. */
   message?: ReactNode;
+  /**
+   * Whether the message can still go where it was sent, asked as it shows and again at the press:
+   * while it says no, Delete is offered alone.
+   */
+  canRetry?: () => boolean;
 };
 
-export function FailedSendActions({ room, event, style, message }: FailedSendActionsProps) {
+export function FailedSendActions({
+  room,
+  event,
+  style,
+  message,
+  canRetry,
+}: FailedSendActionsProps) {
   const mx = useMatrixClient();
   const { t } = useTranslation();
+  const [, refresh] = useForceUpdate();
+  const retryOffered = canRetry?.() ?? true;
   const handleRetry = (): void => {
     if (!isFailedLocalEchoEvent(event)) return;
+    // Refused at the press, Retry goes.
+    if (canRetry?.() === false) {
+      refresh();
+      return;
+    }
     // The SDK reuses the transaction ID, so the server drops a copy that already arrived.
     // A failed retry marks the event unsent again, which brings these actions back.
     mx.resendEvent(event, room).catch(() => undefined);
@@ -35,16 +57,18 @@ export function FailedSendActions({ room, event, style, message }: FailedSendAct
         <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
           {message ?? t('mindroomUi.messages.pendingSendIndicator.notSent')}
         </Text>
-        <Chip
-          as="button"
-          type="button"
-          variant="Critical"
-          radii="Pill"
-          outlined
-          onClick={handleRetry}
-        >
-          <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
-        </Chip>
+        {retryOffered && (
+          <Chip
+            as="button"
+            type="button"
+            variant="Critical"
+            radii="Pill"
+            outlined
+            onClick={handleRetry}
+          >
+            <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
+          </Chip>
+        )}
         <Chip
           as="button"
           type="button"

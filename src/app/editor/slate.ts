@@ -22,6 +22,7 @@ export type MentionElement = {
   highlight: boolean;
   eventId?: string;
   viaServers?: string[];
+  href?: string;
   children: FormattedText[];
 };
 

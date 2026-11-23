@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + desplazar para hacer zoom"
     },
     "inviteUserPrompt": {
-      "close": "Cerrar",
       "invited": "Se invitó a {{user}}.",
-      "giveRoleRights": "Dar permisos de {{role}}",
       "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
       "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
       "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invitar a {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Listo",
+      "searchPlaceholder": "Buscar personas, agentes o @user:server",
+      "filterLabel": "Filtrar por tipo",
+      "filterAll": "Todos",
+      "filterPeople": "Personas",
+      "filterAgents": "Agentes",
+      "recentAndDirect": "Recientes y directos",
+      "directory": "Directorio",
+      "externalUserId": "ID externo de Matrix",
+      "noMatches": "No hay usuarios coincidentes. Introduce un ID @user:server completo para invitar directamente.",
+      "emptyDirectory": "Todavía no hay usuarios para invitar. Introduce un ID @user:server completo para invitar directamente.",
+      "addNote": "+ Añadir nota de invitación",
+      "hideNote": "− Ocultar nota de invitación",
+      "notePlaceholder": "Añade una nota a tu invitación...",
+      "giveRoleRightsAgents": "Dar permisos de {{role}} a los agentes invitados",
+      "alreadyInRoom": "Ya está en esta sala",
+      "alreadyInvited": "Ya invitado",
+      "bannedFromRoom": "Vetado en esta sala",
+      "retryUser": "Reintentar invitar a {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -116,6 +135,45 @@
     },
     "textViewer": {
       "close": "Cerrar"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Evento",
+      "metaType": "Tipo",
+      "metaSender": "Remitente",
+      "metaTime": "Hora",
+      "badgeEdited": "Editado",
+      "badgeEncrypted": "Cifrado",
+      "documentTabsLabel": "Versiones del evento",
+      "tabEvent": "Evento",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Última edición",
+      "tabDecrypted": "Descifrado",
+      "tabDecryptionError": "Error de descifrado",
+      "tabEncrypted": "Cifrado",
+      "collapseAll": "Contraer",
+      "expandAll": "Expandir",
+      "foldStrings": "Plegar cadenas",
+      "rawJson": "Sin formato",
+      "filterPlaceholder": "Filtrar claves o valores…",
+      "noMatches": "Sin coincidencias para «{{query}}»",
+      "copyField": "Copiar {{field}}",
+      "copyValue": "Copiar valor",
+      "expandNode": "Expandir {{name}}",
+      "collapseNode": "Contraer {{name}}",
+      "expandString": "Expandir cadena",
+      "collapseString": "Contraer cadena",
+      "matchCount_one": "{{count}} coincidencia",
+      "matchCount_many": "{{count}} coincidencias",
+      "matchCount_other": "{{count}} coincidencias",
+      "keyCount_one": "{{count}} clave",
+      "keyCount_many": "{{count}} claves",
+      "keyCount_other": "{{count}} claves",
+      "itemCount_one": "{{count}} elemento",
+      "itemCount_many": "{{count}} elementos",
+      "itemCount_other": "{{count}} elementos",
+      "charCount_one": "{{count}} carácter",
+      "charCount_many": "{{count}} caracteres",
+      "charCount_other": "{{count}} caracteres"
     },
     "invites": {
       "actionFailed": "Algo salió mal. Inténtalo de nuevo."
@@ -262,9 +320,6 @@
       "newIntro": "Elige una nueva contraseña de recuperación. La anterior dejará de funcionar.",
       "notCached": "Esta sesión no tiene todas las claves de cifrado. Verifícala con tu contraseña de recuperación o con otro dispositivo y vuelve a intentarlo.",
       "incompleteError": "La nueva contraseña de recuperación aún no cubre todas las claves de cifrado. Inténtalo de nuevo.",
-      "nudgeTitle": "Protege tus mensajes",
-      "nudgeBody": "Establece una contraseña de recuperación para poder seguir leyendo tus chats cifrados después de borrar este navegador o iniciar sesión en un dispositivo nuevo.",
-      "nudgeButton": "Configurar contraseña de recuperación",
       "unlockWithPassword": "Desbloquear con la contraseña de recuperación",
       "resetLoss": "Los mensajes que este dispositivo no puede leer ahora seguirán siendo ilegibles. Tus otras sesiones tendrán que verificarse de nuevo.",
       "setupCheckFailed": "No se pudo comprobar la configuración de tu cifrado.",
@@ -1804,6 +1859,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} hilo más",
+    "moreThreads_many": "{{count}} de hilos más",
+    "moreThreads_other": "{{count}} hilos más",
     "forMe": "Para mí",
     "forMeHint": "Solo los hilos en los que participas, en los que un agente publicó por ti o que has fijado",
     "roomForMeHint": "Solo los hilos en los que participas o en los que un agente publicó por ti",
@@ -1873,5 +1931,40 @@
     "cancellationSent": "Cancelación enviada",
     "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
     "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Buenos días, {{name}}",
+      "afternoon": "Buenas tardes, {{name}}",
+      "evening": "Buenas noches, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Pregunta a {{name}} lo que quieras…",
+      "chooseAgent": "Elegir quién responde",
+      "agentChoice": "Responde {{name}}",
+      "chooseRoom": "Elegir dónde empieza el hilo",
+      "roomChoice": "En {{room}}",
+      "inRoom": "en <avatar/>{{room}}",
+      "directChat": "Chat directo",
+      "startsDirectChat": "Inicia un chat con {{name}}",
+      "startingDirectChat": "Iniciando un chat con {{name}}…",
+      "directChatFailed": "No se pudo iniciar un chat con {{name}}. Inténtalo de nuevo.",
+      "waitingForAgent": "Esperando a que {{name}} se una al chat…",
+      "notSent": "No enviado a {{agent}} en {{room}}",
+      "chooseAgain": "Esa elección ya no funciona. Tu texto se conserva: elige quién responde o dónde."
+    },
+    "recent": {
+      "title": "Hilos recientes",
+      "allThreads": "Todos los hilos",
+      "unread": "No leído"
+    },
+    "recovery": {
+      "action": "Configurar una contraseña de recuperación",
+      "text": "Conserva el acceso a los chats cifrados en un dispositivo nuevo."
+    },
+    "device": {
+      "action": "Verificar este dispositivo",
+      "text": "Hasta entonces no puede leer tus chats cifrados."
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectCompactCardCount } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -21,6 +22,8 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 const THREAD_COUNT = Number(process.env.PERF_THREAD_COUNT ?? 150);
 const EDIT_COUNT = Number(process.env.PERF_EDIT_COUNT ?? 40);
 const EDIT_INTERVAL_MS = Number(process.env.PERF_EDIT_INTERVAL_MS ?? 50);
+// Five blocks of twelve: more than any window at the top of the list.
+const MOST_MOUNTED_CARDS = 60;
 
 test.describe('PERF: compact room view with many threads', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -65,7 +68,8 @@ test.describe('PERF: compact room view with many threads', () => {
 
     const openStart = Date.now();
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
-    await page.waitForSelector('[data-compact-room-view]', { timeout: 60_000 });
+    const view = page.locator('[data-compact-room-view]');
+    await expectCompactCardCount(view, THREAD_COUNT, { atLeast: true, timeout: 60_000 });
     await page.waitForTimeout(3_000);
     const openMs = Date.now() - openStart;
 
@@ -123,6 +127,8 @@ test.describe('PERF: compact room view with many threads', () => {
       contentType: 'application/json',
     });
 
-    expect(state.cards).toBeGreaterThanOrEqual(THREAD_COUNT);
+    expect(state.cards).toBeGreaterThan(0);
+    // The settled list mounts a window: the blocks on the screen and one more on each side.
+    expect(state.cards).toBeLessThanOrEqual(Math.min(THREAD_COUNT, MOST_MOUNTED_CARDS));
   });
 });

@@ -22,6 +22,10 @@ import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
 import { watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
+import {
+  createRouterAppPathNavigator,
+  setNativeAppPathNavigator,
+} from '../native/nativeUniversalLinks';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -70,6 +74,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
+  // Universal Links the native app is opened with navigate through this router, so the pages
+  // know they were opened from outside and a phone's drawer and members close for them.
+  useLayoutEffect(() => setNativeAppPathNavigator(createRouterAppPathNavigator(router)), [router]);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
   // (UnreadTitle, a passive effect) starts from it.
   const { pageTitle } = deploymentBranding(clientConfig);

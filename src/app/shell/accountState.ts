@@ -64,6 +64,7 @@ import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
 import { detachedGrantErrorAtom } from '../members/invite/moderatorInvite';
 import { userDirectoryCacheAtom } from '../members/userDirectoryCache';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
+import { stopVoiceAudioPlayback } from '../messages/content/voice/voiceAudioPlayback';
 
 type Store = ReturnType<typeof useStore>;
 
@@ -107,6 +108,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
   () => clearPhoneSwipePreviews(),
+  () => stopVoiceAudioPlayback(),
   // What the pages were showing: the call and its panel (and its focus hand-off), transcription,
   // the Sub-agents panel, agent-call failures, and open dialogs and overlays.
   forgetCallState,

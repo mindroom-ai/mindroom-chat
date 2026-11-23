@@ -48,14 +48,19 @@ export const useCompactHistoryAtEnd = ({
     let pages = 0;
     let inFlight = false;
     let alive = true;
+    let retry = 0;
     let lastScrollTop = view.scrollTop;
 
     const loadIfAtEnd = () => {
       const state = stateRef.current;
       if (!alive || inFlight || pages <= 0) return;
       if (!state.canPaginateBack && !state.hasMoreCachedBack) return;
-      // While cards still mount, the view ends before the cards do.
-      if (view.hasAttribute('data-cards-pending') || !isNearCardsEnd(view)) return;
+      // While cards still mount, the view ends before the cards do: a shown list looks again on
+      // the next frame, as the cards a page brought are measured without the reader moving.
+      const pending = view.hasAttribute('data-cards-pending');
+      cancelAnimationFrame(retry);
+      if (pending && view.clientHeight) retry = requestAnimationFrame(loadIfAtEnd);
+      if (pending || !isNearCardsEnd(view)) return;
       inFlight = true;
       pages -= 1;
       state

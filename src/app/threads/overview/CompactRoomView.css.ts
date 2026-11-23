@@ -77,6 +77,15 @@ const focusRing = {
   outlineOffset: '1px',
 };
 
+export const Spacer = style({
+  all: 'unset',
+  flexShrink: 0,
+  overflowAnchor: 'none',
+  transitionProperty: 'none',
+  pointerEvents: 'none', // A press goes through to the list, and cannot leave the focus here.
+  selectors: { '&:focus-visible': { ...focusRing, outlineOffset: '-2px' } },
+});
+
 export const Card = style([
   DefaultReset,
   {

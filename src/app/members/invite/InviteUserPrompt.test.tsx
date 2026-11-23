@@ -1,47 +1,38 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { config, toRem } from 'folds';
+import { RoomEvent, RoomMemberEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { userDirectoryCacheAtom, type UserDirectoryCacheState } from '../userDirectoryCache';
-import { detachedGrantErrorAtom } from './moderatorInvite';
+import { MINDROOM_ROUTER_STATE_EVENT } from '../../matrix/protocol/routerBinding';
+import {
+  userDirectoryCacheAtom,
+  type ServerUserDirectoryUser,
+  type UserDirectoryCacheState,
+} from '../userDirectoryCache';
+import {
+  detachedGrantErrorAtom,
+  evaluateRoomModeratorGrant,
+  grantRoomModeratorRights,
+} from './moderatorInvite';
 import { ModeratorGrantErrorNotice } from './ModeratorGrantErrorNotice';
 import { InviteUserPrompt } from './InviteUserPrompt';
 
-const directUsersMock = vi.hoisted(() => ({
-  users: [] as string[],
-}));
+const directUsersMock = vi.hoisted(() => ({ users: [] as string[] }));
 
-type WindowKeyHandler = (event: KeyboardEvent) => void;
-const windowListeners = new Map<string, Set<WindowKeyHandler>>();
-
-vi.mock('../../ui/page/PageScroll', () => ({
-  PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
-    React.createElement('div', null, header, children),
-}));
 vi.mock('folds', async () => {
   const actual = await vi.importActual<typeof import('folds')>('folds');
-  const Wrapper = ({ children }: { children?: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children);
-
+  const Wrapper = ({ children, className }: { children?: React.ReactNode; className?: string }) =>
+    React.createElement('div', { className }, children);
   return {
     ...actual,
     Overlay: ({ children, backdrop }: { children?: React.ReactNode; backdrop?: React.ReactNode }) =>
       React.createElement(React.Fragment, null, backdrop, children),
     OverlayBackdrop: Wrapper,
-    OverlayCenter: Wrapper,
-    PopOut: ({
-      anchor,
-      content,
-      children,
-    }: {
-      anchor?: unknown;
-      content?: React.ReactNode;
-      children?: React.ReactNode;
-    }) => React.createElement('div', { 'data-popout': true }, children, anchor ? content : null),
+    OverlayCenter: ({ children, className }: { children?: React.ReactNode; className?: string }) =>
+      React.createElement('div', { 'data-overlay-center': true, className }, children),
   };
 });
 
@@ -50,16 +41,35 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('./InviteAutocompleteMenu.css', () => ({
-  InviteAutocompleteMenuRoot: 'InviteAutocompleteMenuRoot',
-  InviteAutocompletePopOut: 'InviteAutocompletePopOut',
-  InviteAutocompleteMenuContainer: 'InviteAutocompleteMenuContainer',
-  InviteAutocompleteMenu: 'InviteAutocompleteMenu',
-  InviteAutocompleteMenuHeader: 'InviteAutocompleteMenuHeader',
-  InviteAutocompleteOption: 'InviteAutocompleteOption',
-  InviteAutocompleteIdentity: 'InviteAutocompleteIdentity',
-  InviteAutocompleteDisplayName: 'InviteAutocompleteDisplayName',
-  InviteAutocompleteUserId: 'InviteAutocompleteUserId',
+vi.mock('./InviteUserPrompt.css', () => ({
+  ViewportCenter: 'InviteViewportCenter',
+  Dialog: 'InviteDialog',
+  TitleBar: 'InviteTitleBar',
+  Controls: 'InviteControls',
+  SearchField: 'InviteSearchField',
+  FilterChip: 'InviteFilterChip',
+  Body: 'InviteBody',
+  GrantAlert: 'InviteGrantAlert',
+  ListArea: 'InviteListArea',
+  SectionHeader: 'InviteSectionHeader',
+  List: 'InviteList',
+  Row: 'InviteRow',
+  WrapText: 'InviteWrapText',
+  RowError: 'InviteRowError',
+  RowAction: 'InviteRowAction',
+  RowActionSent: 'InviteRowActionSent',
+  CenteredHint: 'InviteCenteredHint',
+  EmptyState: 'InviteEmptyState',
+  Footer: 'InviteFooter',
+  NoteToggle: 'InviteNoteToggle',
+  ModeratorLabel: 'InviteModeratorLabel',
+  VisuallyHidden: 'InviteVisuallyHidden',
+}));
+
+vi.mock('../../ui/Modal500.css', () => ({
+  SafeOverlayCenter: 'SafeOverlayCenter',
+  PhoneOverlayCenter: 'PhoneOverlayCenter',
+  PhoneModal: 'PhoneModal',
 }));
 
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
@@ -75,10 +85,6 @@ vi.mock('../../avatars/UserAvatar', () => ({
     React.createElement('span', { 'data-user-id': userId, 'data-src': src, 'data-alt': alt }),
 }));
 
-vi.mock('../../ui/styles/Text.css', () => ({
-  BreakWord: 'BreakWord',
-}));
-
 type MockMatrixClient = Pick<
   MatrixClient,
   | 'baseUrl'
@@ -87,34 +93,46 @@ type MockMatrixClient = Pick<
   | 'mxcUrlToHttp'
   | 'searchUserDirectory'
   | 'invite'
-  | 'setPowerLevel'
+  | 'getStateEvent'
+  | 'sendStateEvent'
   | 'getRoom'
   | 'on'
   | 'removeListener'
 >;
 
-const readyCache = (): UserDirectoryCacheState => ({
-  users: [
-    {
-      userId: '@suggestion:example.org',
-      displayName: '@alice:example.org',
-    },
-  ],
-  status: 'ready',
-  fetchedAt: Date.now(),
+const defaultCacheUsers = (): ServerUserDirectoryUser[] => [
+  { userId: '@maya:example.org', displayName: 'Maya Chen' },
+  { userId: '@liam:example.org', displayName: 'Liam Park' },
+  { userId: '@mindroom_coder:example.org', displayName: 'Coder' },
+  { userId: '@mindroom_helper:example.org', displayName: 'Helper' },
+];
+
+const readyCache = (
+  users: ServerUserDirectoryUser[] = defaultCacheUsers(),
+  status: UserDirectoryCacheState['status'] = 'ready'
+): UserDirectoryCacheState => ({
+  users,
+  status,
+  fetchedAt: status === 'ready' ? Date.now() : 0,
   limited: false,
   isBootstrapOnly: false,
   ownerKey: '@me:example.org|https://example.org',
 });
 
+type MockMember = { userId: string; membership: string };
+type EventListener = (...args: unknown[]) => void;
+type PowerLevelsHolder = { state: { powerLevels: Record<string, unknown> } };
+
 type RoomOptions = {
+  name?: string;
   isSpace?: boolean;
   roomVersion?: string;
   powerLevels?: Record<string, unknown>;
-  powerLevelTags?: Record<string, unknown>;
   createContent?: Record<string, unknown>;
   createSender?: string;
-  members?: { userId: string; membership: string }[];
+  members?: MockMember[];
+  joinedCount?: number;
+  invitedCount?: number;
   membersLoaded?: boolean;
   loadMembersIfNeeded?: () => Promise<boolean>;
 };
@@ -131,7 +149,10 @@ const makeStateEvent = (content: Record<string, unknown>, sender?: string) => ({
   getSender: () => sender,
 });
 
-type EventListener = (...args: unknown[]) => void;
+const settle = () =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
 
 const makeMx = (getRoom: (roomId: string) => Room | null) => {
   const listeners = new Map<string, Set<EventListener>>();
@@ -143,12 +164,20 @@ const makeMx = (getRoom: (roomId: string) => Room | null) => {
     getSafeUserId: vi.fn(() => '@me:example.org'),
     getHomeserverUrl: vi.fn(() => 'https://example.org'),
     mxcUrlToHttp: vi.fn((mxcUrl: string) => `https://example.org/media/${mxcUrl}`),
-    searchUserDirectory: vi.fn(async () => ({
-      limited: false,
-      results: [],
-    })),
+    searchUserDirectory: vi.fn(async () => ({ limited: false, results: [] })),
     invite: vi.fn(async () => undefined) as unknown as MockMatrixClient['invite'],
-    setPowerLevel: vi.fn(async () => undefined) as unknown as MockMatrixClient['setPowerLevel'],
+    getStateEvent: vi.fn(async (roomId: string) => {
+      const room = getRoom(roomId) as unknown as PowerLevelsHolder | null;
+      if (!room) throw Object.assign(new Error('Not found'), { errcode: 'M_NOT_FOUND' });
+      return structuredClone(room.state.powerLevels);
+    }),
+    sendStateEvent: vi.fn(
+      async (roomId: string, _eventType: string, content: Record<string, unknown>) => {
+        const room = getRoom(roomId) as unknown as PowerLevelsHolder | null;
+        if (room) room.state.powerLevels = structuredClone(content);
+        return { event_id: '$power_levels' };
+      }
+    ) as unknown as MockMatrixClient['sendStateEvent'],
     getRoom: vi.fn(getRoom),
     on: vi.fn((event: string, listener: EventListener) => {
       const set = listeners.get(event) ?? new Set<EventListener>();
@@ -167,17 +196,32 @@ const makeMx = (getRoom: (roomId: string) => Room | null) => {
 
 const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
   const state = {
-    members: [...(options.members ?? [])],
+    members: [...(options.members ?? [])] as MockMember[],
     membersLoaded: options.membersLoaded ?? true,
     powerLevels: options.powerLevels ?? defaultPowerLevels(),
+    joinedCount: options.joinedCount ?? 2,
+    invitedCount: options.invitedCount ?? 0,
   };
   const createEvent = options.createContent
     ? makeStateEvent(options.createContent, options.createSender)
     : undefined;
+  const roomListeners = new Map<string, Set<EventListener>>();
   return {
     roomId: '!room:example.org',
+    name: options.name ?? 'Design Review',
     client: mx,
     state,
+    on: vi.fn((event: string, listener: EventListener) => {
+      const set = roomListeners.get(event) ?? new Set<EventListener>();
+      set.add(listener);
+      roomListeners.set(event, set);
+    }),
+    removeListener: vi.fn((event: string, listener: EventListener) => {
+      roomListeners.get(event)?.delete(listener);
+    }),
+    emit: (event: string, ...args: unknown[]) => {
+      roomListeners.get(event)?.forEach((listener) => listener(...args));
+    },
     isSpaceRoom: () => options.isSpace ?? false,
     getVersion: () =>
       options.roomVersion ??
@@ -185,7 +229,9 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
         ? options.createContent.room_version
         : '12'),
     membersLoaded: () => state.membersLoaded,
-    getMember: (userId: string) => state.members.find((member) => member.userId === userId) ?? null,
+    getJoinedMemberCount: () => state.joinedCount,
+    getInvitedMemberCount: () => state.invitedCount,
+    getMember: (userId: string) => state.members.find((e) => e.userId === userId) ?? null,
     getMembers: vi.fn(() => state.members),
     loadMembersIfNeeded: vi.fn(options.loadMembersIfNeeded ?? (async () => true)),
     getLiveTimeline: () => ({
@@ -193,9 +239,6 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
         getStateEvents: (eventType: string) => {
           if (eventType === 'm.room.power_levels') return makeStateEvent(state.powerLevels);
           if (eventType === 'm.room.create') return createEvent;
-          if (eventType === 'io.mindroom.power_level_tags' && options.powerLevelTags) {
-            return makeStateEvent(options.powerLevelTags);
-          }
           return undefined;
         },
       }),
@@ -203,753 +246,667 @@ const makeRoom = (mx: MockMatrixClient, options: RoomOptions = {}) => {
   };
 };
 
-const anchorRect = {
-  x: 24,
-  y: 100,
-  width: 320,
-  height: 40,
-  top: 100,
-  bottom: 140,
-  left: 24,
-  right: 344,
-};
-
 const focusInput = vi.fn();
+const rowFocusElements: Array<{ focus: ReturnType<typeof vi.fn> }> = [];
 
-const createNodeMock = (element: React.ReactElement) => {
-  const className = typeof element.props.className === 'string' ? element.props.className : '';
-  if (className.includes('InviteAutocompleteMenuRoot')) {
-    return { getBoundingClientRect: () => anchorRect };
-  }
-  if (element.type === 'input') return { focus: focusInput };
-  return null;
+type RenderOptions = RoomOptions & {
+  screenSize?: ScreenSize;
+  cache?: UserDirectoryCacheState;
+  requestClose?: () => void;
 };
 
-const renderPrompt = (options: RoomOptions = {}) => {
-  const store = createStore();
-  const roomRef: { current: Room | null } = { current: null };
-  const mx = makeMx((roomId) => (roomId === roomRef.current?.roomId ? roomRef.current : null));
+const renderPrompt = (options: RenderOptions = {}) => {
+  let roomRef: ReturnType<typeof makeRoom> | null = null;
+  const mx = makeMx((roomId) =>
+    roomRef && roomRef.roomId === roomId ? (roomRef as unknown as Room) : null
+  );
   const room = makeRoom(mx, options);
-  roomRef.current = room as unknown as Room;
-  store.set(userDirectoryCacheAtom, readyCache());
+  roomRef = room;
+  const store = createStore();
+  store.set(userDirectoryCacheAtom, options.cache ?? readyCache());
+  const requestClose = options.requestClose ?? vi.fn();
 
   let renderer: ReactTestRenderer;
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <MatrixClientProvider value={mx as MatrixClient}>
-          <InviteUserPrompt room={room as unknown as Room} requestClose={vi.fn()} />
-        </MatrixClientProvider>
+        <ScreenSizeProvider value={options.screenSize ?? ScreenSize.Desktop}>
+          <MatrixClientProvider value={mx as unknown as MatrixClient}>
+            <InviteUserPrompt room={room as unknown as Room} requestClose={requestClose} />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
       </Provider>,
-      { createNodeMock }
+      {
+        createNodeMock: (element) => {
+          if (element.type === 'input' && element.props.type === 'search') {
+            return { focus: focusInput };
+          }
+          if (element.type === 'div' && element.props.className === 'InviteListArea') {
+            return { querySelectorAll: () => rowFocusElements };
+          }
+          return null;
+        },
+      }
     );
   });
 
-  return {
-    renderer: renderer!,
-    mx,
-    room,
-    store,
+  return { renderer: renderer!, mx, room, store, requestClose };
+};
+
+const extractText = (node: ReactTestInstance): string => {
+  const parts: string[] = [];
+  const walk = (child: ReactTestInstance | string) => {
+    if (typeof child === 'string') parts.push(child);
+    else child.children.forEach(walk);
   };
+  walk(node);
+  return parts.join('');
 };
 
-const getInput = (renderer: ReactTestRenderer) => renderer.root.findByProps({ role: 'combobox' });
+const getDialog = (r: ReactTestRenderer) =>
+  r.root.find((n) => typeof n.type === 'string' && n.props.role === 'dialog');
+const getSearchInput = (r: ReactTestRenderer) =>
+  r.root.find((n) => n.type === 'input' && n.props.type === 'search');
+const getRows = (r: ReactTestRenderer) =>
+  r.root.findAll((n) => n.type === 'li' && n.props.className === 'InviteRow');
+const getRowByText = (r: ReactTestRenderer, needle: string) => {
+  const row = getRows(r).find((n) => extractText(n).includes(needle));
+  if (!row) throw new Error(`Row containing "${needle}" not found`);
+  return row;
+};
+const getRowAction = (row: ReactTestInstance) =>
+  row.find((n) => n.type === 'button' && 'data-invite-row-action' in n.props);
+const getButtonByText = (r: ReactTestRenderer, label: string) => {
+  const btn = r.root.findAllByType('button').find((n) => extractText(n) === label);
+  if (!btn) throw new Error(`Button "${label}" not found`);
+  return btn;
+};
+const getCheckbox = (r: ReactTestRenderer) =>
+  r.root.find((n) => n.type === 'input' && n.props.type === 'checkbox');
+const getAlerts = (r: ReactTestRenderer) =>
+  r.root.findAll((n) => typeof n.type === 'string' && n.props.role === 'alert');
+const getStatusTexts = (r: ReactTestRenderer) =>
+  r.root
+    .findAll((n) => typeof n.type === 'string' && n.props.role === 'status')
+    .map((n) => extractText(n))
+    .filter(Boolean);
 
-const getForm = (renderer: ReactTestRenderer) => renderer.root.find((node) => node.type === 'form');
-
-const getDialog = (renderer: ReactTestRenderer) =>
-  renderer.root.find(
-    (node) =>
-      node.type === 'div' &&
-      node.props.style?.width === '100%' &&
-      typeof node.props.style?.maxWidth === 'string'
-  );
-
-const getOptions = (renderer: ReactTestRenderer) =>
-  renderer.root.findAll((node) => node.type === 'button' && node.props.role === 'option');
-
-const typeUserId = (renderer: ReactTestRenderer, value: string) => {
+const typeSearch = (r: ReactTestRenderer, value: string) => {
   act(() => {
-    getInput(renderer).props.onFocus();
-    getInput(renderer).props.onChange({
-      currentTarget: { value },
-    });
+    getSearchInput(r).props.onChange({ target: { value } });
   });
 };
 
-const keyDown = (renderer: ReactTestRenderer, key: string) => {
+const pressKey = (node: ReactTestInstance, key: string, extra: Record<string, unknown> = {}) => {
   const preventDefault = vi.fn();
-  const stopPropagation = vi.fn();
-  const keyboardEvent = {
-    key,
-    altKey: false,
-    ctrlKey: false,
-    metaKey: false,
-    shiftKey: false,
-    preventDefault,
-    stopPropagation,
-  } as unknown as KeyboardEvent;
-
   act(() => {
-    getInput(renderer).props.onKeyDown(keyboardEvent);
-    windowListeners.get('keydown')?.forEach((handler) => handler(keyboardEvent));
+    node.props.onKeyDown({ key, preventDefault, ...extra });
   });
-
-  return { preventDefault, stopPropagation };
-};
-
-const submitInvite = async (renderer: ReactTestRenderer) => {
-  const preventDefault = vi.fn();
-
-  await act(async () => {
-    getForm(renderer).props.onSubmit({
-      preventDefault,
-      target: {
-        reasonInput: {
-          value: '',
-        },
-      },
-    });
-    await Promise.resolve();
-  });
-
   return preventDefault;
 };
 
-const originalWindow = globalThis.window;
-const originalDocument = globalThis.document;
+const click = (node: ReactTestInstance) => {
+  act(() => {
+    node.props.onClick?.();
+  });
+};
+
+const clickAsync = async (button: ReactTestInstance) => {
+  await act(async () => {
+    button.props.onClick?.();
+    await settle();
+  });
+};
+
+const openNoteAndType = (r: ReactTestRenderer, text: string) => {
+  const toggle = r.root.find((n) => n.type === 'button' && 'aria-expanded' in n.props);
+  if (!toggle.props['aria-expanded']) click(toggle);
+  const input = r.root.find(
+    (n) => n.type === 'input' && n.props.type !== 'search' && n.props.type !== 'checkbox'
+  );
+  act(() => {
+    input.props.onChange({ target: { value: text } });
+  });
+  return input;
+};
+
+const emitMembership = (
+  mx: ReturnType<typeof makeMx>,
+  room: ReturnType<typeof makeRoom>,
+  userId: string,
+  membership: string,
+  roomId = room.roomId
+) => {
+  if (roomId === room.roomId) {
+    room.state.members = [
+      ...room.state.members.filter((m) => m.userId !== userId),
+      { userId, membership },
+    ];
+  }
+  act(() => {
+    mx.emit(
+      RoomMemberEvent.Membership,
+      { getRoomId: () => roomId },
+      { roomId, userId, membership }
+    );
+  });
+};
 
 beforeEach(() => {
-  windowListeners.clear();
   directUsersMock.users = [];
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: {
-      documentElement: { clientHeight: 768 },
-    },
-  });
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: {
-      setTimeout: globalThis.setTimeout,
-      clearTimeout: globalThis.clearTimeout,
-      performance: {
-        now: vi.fn(() => 0),
-      },
-      location: { protocol: 'https:' },
-      addEventListener: vi.fn((type: string, handler: WindowKeyHandler) => {
-        const handlers = windowListeners.get(type) ?? new Set<WindowKeyHandler>();
-        handlers.add(handler);
-        windowListeners.set(type, handlers);
-      }),
-      removeEventListener: vi.fn((type: string, handler: WindowKeyHandler) => {
-        windowListeners.get(type)?.delete(handler);
-      }),
-    },
-  });
+  focusInput.mockReset();
+  rowFocusElements.length = 0;
 });
 
 afterEach(() => {
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: originalWindow,
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
+  it('returns grant level for an admin in a v10+ non-Space room and forbidden otherwise', () => {
+    const levels = {
+      users: { '@me:example.org': 100 },
+      users_default: 0,
+      state_default: 50,
+      events: { 'm.room.power_levels': 100 },
+    };
+    const creators = new Set<string>();
+    const normalRoom = { isSpaceRoom: () => false, getVersion: () => '11' };
+
+    expect(evaluateRoomModeratorGrant(normalRoom, '@me:example.org', levels, creators)).toEqual({
+      kind: 'grant',
+      level: 50,
+    });
+    expect(
+      evaluateRoomModeratorGrant(
+        { isSpaceRoom: () => true, getVersion: () => '11' },
+        '@me:example.org',
+        levels,
+        creators
+      )
+    ).toEqual({ kind: 'forbidden' });
+    expect(
+      evaluateRoomModeratorGrant(
+        { isSpaceRoom: () => false, getVersion: () => '9' },
+        '@me:example.org',
+        levels,
+        creators
+      )
+    ).toEqual({ kind: 'forbidden' });
+    expect(evaluateRoomModeratorGrant(normalRoom, '@member:example.org', levels, creators)).toEqual(
+      { kind: 'forbidden' }
+    );
   });
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: originalDocument,
+
+  it('serializes concurrent room grants and merges against live server power levels before /sync', async () => {
+    let liveLevels: Record<string, unknown> = {
+      users: { '@me:example.org': 100 },
+      users_default: 0,
+      state_default: 50,
+      events: { 'm.room.power_levels': 100 },
+    };
+    let releaseFirstWrite!: () => void;
+    let firstWriteCount = 0;
+    const client = {
+      getSafeUserId: () => '@me:example.org',
+      getStateEvent: vi.fn(async () => structuredClone(liveLevels)),
+      sendStateEvent: vi.fn(
+        async (_roomId: string, _type: string, content: Record<string, unknown>) => {
+          firstWriteCount += 1;
+          if (firstWriteCount === 1) {
+            await new Promise<void>((resolve) => {
+              releaseFirstWrite = resolve;
+            });
+          }
+          liveLevels = structuredClone(content);
+          return { event_id: `$ev${firstWriteCount}` };
+        }
+      ),
+    } as unknown as MatrixClient;
+    const room = {
+      roomId: '!r:example.org',
+      isSpaceRoom: () => false,
+      getVersion: () => '11',
+      getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => undefined }) }),
+    } as unknown as Room;
+
+    const first = grantRoomModeratorRights(client, room, '@mindroom_coder:example.org', 50);
+    const second = grantRoomModeratorRights(client, room, '@mindroom_helper:example.org', 50);
+    await settle();
+    expect(client.getStateEvent).toHaveBeenCalledTimes(1);
+
+    releaseFirstWrite();
+    expect(await Promise.all([first, second])).toEqual([null, null]);
+    expect(liveLevels.users).toEqual({
+      '@me:example.org': 100,
+      '@mindroom_coder:example.org': 50,
+      '@mindroom_helper:example.org': 50,
+    });
+  });
+
+  it('skips writing if already satisfied and rejects if required level rose above ceiling', async () => {
+    const liveLevels: Record<string, unknown> = {
+      users: { '@me:example.org': 100, '@mindroom_coder:example.org': 50 },
+      events: { 'm.room.power_levels': 100, [MINDROOM_ROUTER_STATE_EVENT]: 75 },
+    };
+    const client = {
+      getSafeUserId: () => '@me:example.org',
+      getStateEvent: vi.fn(async () => structuredClone(liveLevels)),
+      sendStateEvent: vi.fn(async () => ({ event_id: '$ev' })),
+    } as unknown as MatrixClient;
+    const room = {
+      roomId: '!r:example.org',
+      isSpaceRoom: () => false,
+      getVersion: () => '11',
+      getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => undefined }) }),
+    } as unknown as Room;
+
+    expect(
+      await grantRoomModeratorRights(client, room, '@mindroom_helper:example.org', 50)
+    ).toEqual({
+      kind: 'levelRaised',
+      level: 75,
+    });
+    expect(client.sendStateEvent).not.toHaveBeenCalled();
+
+    (liveLevels.users as Record<string, number>)['@mindroom_coder:example.org'] = 75;
+    expect(
+      await grantRoomModeratorRights(client, room, '@mindroom_coder:example.org', 50)
+    ).toBeNull();
+    expect(client.sendStateEvent).not.toHaveBeenCalled();
   });
 });
 
-describe('InviteUserPrompt', () => {
-  it('uses a wider responsive dialog so invite matches have room to breathe', () => {
+describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
+  it('frames desktop and phone dialogs, shows live room header & counts, and closes on Done', () => {
+    const requestClose = vi.fn();
+    const { renderer, mx, room } = renderPrompt({
+      screenSize: ScreenSize.Mobile,
+      name: 'Design Review',
+      joinedCount: 3,
+      invitedCount: 1,
+      requestClose,
+    });
+
+    const center = renderer.root.find((n) => n.props['data-overlay-center']);
+    expect(center.props.className).toContain('PhoneOverlayCenter');
+    expect(center.props.className).toContain('InviteViewportCenter');
+    expect(getDialog(renderer).props.className).toContain('PhoneModal');
+    expect(extractText(renderer.root.findByType('h2'))).toContain('Design Review');
+    expect(extractText(getDialog(renderer))).toContain('3 Members · 1 Invited');
+
+    room.state.joinedCount = 4;
+    room.state.invitedCount = 0;
+    act(() => room.emit(RoomEvent.Summary));
+    expect(extractText(getDialog(renderer))).toContain('4 Members');
+    expect(extractText(getDialog(renderer))).not.toContain('Invited');
+
+    // Membership event for another room does not affect state.
+    emitMembership(mx, room, '@maya:example.org', 'join', '!other:example.org');
+    expect(getRows(renderer).some((r) => extractText(r).includes('Maya Chen'))).toBe(true);
+
+    click(getButtonByText(renderer, 'Done'));
+    expect(requestClose).toHaveBeenCalledTimes(1);
+
+    const desktop = renderPrompt({ screenSize: ScreenSize.Desktop, name: '   ' });
+    expect(extractText(desktop.renderer.root.findByType('h2'))).toBe('Invite');
+    expect(
+      desktop.renderer.root.find((n) => n.props['data-overlay-center']).props.className
+    ).toContain('SafeOverlayCenter');
+  });
+
+  it('shows browsable Recent & Direct and Directory sections, filters People/Agents, and keeps consent visible', () => {
+    directUsersMock.users = ['@maya:example.org'];
     const { renderer } = renderPrompt();
 
-    expect(getDialog(renderer).props.style).toMatchObject({
-      width: '100%',
-      maxWidth: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(680)})`,
-    });
+    const headings = renderer.root.findAllByType('h3').map(extractText);
+    expect(headings).toEqual(['Recent & Direct', 'Directory']);
+    expect(getRows(renderer)).toHaveLength(4);
+
+    click(getButtonByText(renderer, 'Agents'));
+    expect(
+      getRows(renderer)
+        .map(extractText)
+        .every((t) => t.includes('Agent'))
+    ).toBe(true);
+    expect(getRows(renderer)).toHaveLength(2);
+
+    click(getButtonByText(renderer, 'People'));
+    expect(getRows(renderer)).toHaveLength(2);
+    expect(getCheckbox(renderer)).toBeDefined();
+
+    // Typing a listed agent MXID on the People tab still resolves its directory display name.
+    typeSearch(renderer, '@mindroom_coder:example.org');
+    expect(extractText(getRowByText(renderer, 'Coder'))).not.toContain('External Matrix ID');
   });
 
-  it.each([
-    { key: 'Enter', closesSuggestions: false },
-    { key: 'Tab', closesSuggestions: true },
-  ])(
-    'submits a typed valid MXID after $key even when suggestions are open',
-    async ({ key, closesSuggestions }) => {
-      const { renderer, mx, room } = renderPrompt();
+  it('filters by People/Agents before limiting search results so people never crowd out agents', () => {
+    const users: ServerUserDirectoryUser[] = [
+      ...Array.from({ length: 10 }, (_, i) => ({
+        userId: `@alpha_${i}:example.org`,
+        displayName: `Alpha Person ${i}`,
+      })),
+      { userId: '@mindroom_alpha:example.org', displayName: 'Alpha Agent' },
+    ];
+    const { renderer } = renderPrompt({ cache: readyCache(users) });
 
-      typeUserId(renderer, '@alice:example.org');
-      expect(getOptions(renderer)).toHaveLength(1);
-
-      const { preventDefault: keyPreventDefault } = keyDown(renderer, key);
-
-      expect(keyPreventDefault).not.toHaveBeenCalled();
-      expect(getOptions(renderer)).toHaveLength(closesSuggestions ? 0 : 1);
-
-      const submitPreventDefault = await submitInvite(renderer);
-
-      expect(submitPreventDefault).toHaveBeenCalled();
-      expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@alice:example.org', undefined);
-      expect(mx.invite).not.toHaveBeenCalledWith(room.roomId, '@suggestion:example.org', undefined);
-    }
-  );
-
-  const findModeratorCheckbox = (renderer: ReactTestRenderer) =>
-    renderer.root.findAll((node) => node.type === 'input' && node.props.type === 'checkbox')[0];
-
-  const textContent = (renderer: ReactTestRenderer, role: string) =>
-    renderer.root
-      .findAll((node) => typeof node.type === 'string' && node.props.role === role)
-      .map((node) =>
-        Array.isArray(node.children) ? node.children.join('') : String(node.children)
-      )
-      .join(' ');
-
-  it('defaults moderator rights ON for a MindRoom agent when none holds moderator power, and invites before granting', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    const calls: string[] = [];
-    vi.mocked(mx.invite).mockImplementation(async () => {
-      calls.push('invite');
-      return {} as never;
-    });
-    vi.mocked(mx.setPowerLevel).mockImplementation(async () => {
-      calls.push('setPowerLevel');
-      return {} as never;
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const checkbox = findModeratorCheckbox(renderer);
-    expect(checkbox).toBeDefined();
-    expect(checkbox?.props.checked).toBe(true);
-
-    await submitInvite(renderer);
-
-    expect(calls).toEqual(['invite', 'setPowerLevel']);
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    click(getButtonByText(renderer, 'Agents'));
+    typeSearch(renderer, 'alpha');
+    expect(getRows(renderer)).toHaveLength(1);
+    expect(extractText(getRows(renderer)[0]!)).toContain('Alpha Agent');
   });
 
-  it('defaults moderator rights OFF when a MindRoom agent in the room already holds moderator power', async () => {
-    const { renderer, mx, room } = renderPrompt({
-      members: [{ userId: '@mindroom_steward:example.org', membership: 'join' }],
-      powerLevels: {
-        users: { '@me:example.org': 100, '@mindroom_steward:example.org': 50 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100 },
-      },
+  it('caps browse rows at 100 and wraps unlisted external Matrix IDs instead of truncating', () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      userId: `@user_${i}:example.org`,
+      displayName: `User ${String(i).padStart(3, '0')}`,
+    }));
+    const { renderer } = renderPrompt({ cache: readyCache(many) });
+    expect(getRows(renderer)).toHaveLength(100);
+
+    const externalId = '@very.long.external.user.name:another-server.example.org';
+    typeSearch(renderer, externalId);
+    const row = getRowByText(renderer, externalId);
+    expect(extractText(row)).toContain('External Matrix ID');
+    const nameNode = row.find((n) => n.type === 'span' && extractText(n) === externalId);
+    expect(nameNode.props.className).toContain('InviteWrapText');
+  });
+
+  it('shows hints for already-joined, already-invited, banned, and invalid Enter queries', () => {
+    const { renderer } = renderPrompt({
+      members: [
+        { userId: '@joined:example.org', membership: 'join' },
+        { userId: '@invited:example.org', membership: 'invite' },
+        { userId: '@banned:example.org', membership: 'ban' },
+      ],
     });
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const checkbox = findModeratorCheckbox(renderer);
-    expect(checkbox).toBeDefined();
-    expect(checkbox?.props.checked).toBe(false);
+    typeSearch(renderer, '@joined:example.org');
+    expect(getStatusTexts(renderer)).toContain('Already in this room');
 
-    await submitInvite(renderer);
+    typeSearch(renderer, '@invited:example.org');
+    expect(getStatusTexts(renderer)).toContain('Already invited');
 
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
+    typeSearch(renderer, '@banned:example.org');
+    expect(getStatusTexts(renderer)).toContain('Banned from this room');
+
+    // Plain search with matches does not trigger invalid-ID hint on Enter.
+    typeSearch(renderer, 'Maya');
+    pressKey(getSearchInput(renderer), 'Enter');
+    expect(getStatusTexts(renderer)).toEqual([]);
+
+    // Invalid MXID triggers hint, cleared on filter switch.
+    typeSearch(renderer, '@not-a-mxid');
+    pressKey(getSearchInput(renderer), 'Enter');
+    expect(getStatusTexts(renderer).some((t) => t.toLowerCase().includes('valid'))).toBe(true);
+    click(getButtonByText(renderer, 'People'));
+    expect(getStatusTexts(renderer)).toEqual([]);
   });
 
-  it('skips setPowerLevel when the user unchecks the moderator checkbox', async () => {
-    const { renderer, mx, room } = renderPrompt();
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const checkbox = findModeratorCheckbox(renderer);
-    expect(checkbox?.props.checked).toBe(true);
-    act(() => {
-      checkbox?.props.onClick();
-    });
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
-
-    await submitInvite(renderer);
-
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-  });
-
-  it('uses the room router state power level when higher than 50', async () => {
-    const { renderer, mx, room } = renderPrompt({
-      powerLevels: {
-        users: { '@me:example.org': 100 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
-      },
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-
-    await submitInvite(renderer);
-
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 75);
-  });
-
-  it.each([
-    { label: 'human user', target: '@alice:example.org', options: {} },
-    { label: 'owner account', target: '@mindroom_router:example.org', options: {} },
-    { label: 'foreign-server agent', target: '@mindroom_helper:other.org', options: {} },
-    { label: 'Space room', target: '@mindroom_helper:example.org', options: { isSpace: true } },
-    {
-      label: 'viewer cannot change power levels',
-      target: '@mindroom_helper:example.org',
-      options: {
-        powerLevels: {
-          users: { '@me:example.org': 50 },
-          users_default: 0,
-          state_default: 50,
-          events: { 'm.room.power_levels': 100 },
-        },
-      },
-    },
-    {
-      label: 'target already holds moderator power',
-      target: '@mindroom_helper:example.org',
-      options: {
-        powerLevels: {
-          users: { '@me:example.org': 100, '@mindroom_helper:example.org': 50 },
-          users_default: 0,
-          state_default: 50,
-          events: { 'm.room.power_levels': 100 },
-        },
-      },
-    },
-    {
-      label: 'viewer can send power_levels but sits below grant level',
-      target: '@mindroom_helper:example.org',
-      options: {
-        powerLevels: {
-          users: { '@me:example.org': 50 },
-          users_default: 0,
-          state_default: 50,
-          events: { 'm.room.power_levels': 50, 'io.mindroom.router': 75 },
-        },
-      },
-    },
-  ])('hides the moderator checkbox for $label', ({ target, options }) => {
-    const { renderer } = renderPrompt(options);
-    typeUserId(renderer, target);
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
-  });
-
-  it('keeps the invite and shows a non-blocking error when granting moderator rights fails', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
-
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
-    expect(getInput(renderer).props.value).toBe('');
-    expect(textContent(renderer, 'status')).toBe('');
-    expect(textContent(renderer, 'alert')).toContain('Invited @mindroom_helper:example.org');
-    expect(textContent(renderer, 'alert')).toContain('Forbidden');
-  });
-
-  it('returns focus to the user ID field after an invite whose grant fails', async () => {
+  it('supports ArrowDown/ArrowUp focus nav, Clear button, Enter-to-invite pinning, and IME guard', async () => {
     const { renderer, mx } = renderPrompt();
-    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
-    focusInput.mockClear();
+    const firstBtn = { focus: vi.fn() };
+    const secondBtn = { focus: vi.fn() };
+    rowFocusElements.push(firstBtn, secondBtn);
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
+    const mockDoc = { activeElement: null as unknown };
+    vi.stubGlobal('document', mockDoc);
+    pressKey(getSearchInput(renderer), 'ArrowDown');
+    expect(firstBtn.focus).toHaveBeenCalledTimes(1);
+
+    mockDoc.activeElement = firstBtn;
+    pressKey(getSearchInput(renderer), 'ArrowDown');
+    expect(secondBtn.focus).toHaveBeenCalledTimes(1);
+
+    mockDoc.activeElement = firstBtn;
+    pressKey(getSearchInput(renderer), 'ArrowUp');
+    expect(focusInput).toHaveBeenCalledTimes(1);
+
+    // IME composition ignores Enter and ArrowDown.
+    typeSearch(renderer, '@guest:example.org');
+    pressKey(getSearchInput(renderer), 'Enter', { nativeEvent: { isComposing: true } });
+    expect(mx.invite).not.toHaveBeenCalled();
+
+    // Clear button clears search and focuses input.
+    const clearBtn = renderer.root.find(
+      (n) => n.type === 'button' && n.props['aria-label'] === 'Clear'
+    );
+    click(clearBtn);
+    expect(getSearchInput(renderer).props.value).toBe('');
+    expect(focusInput).toHaveBeenCalledTimes(2);
+
+    // Enter invites eligible MXID, clears search, pins row newest-first, and focuses input.
+    typeSearch(renderer, '@guest1:example.org');
     await act(async () => {
-      await Promise.resolve();
+      pressKey(getSearchInput(renderer), 'Enter');
+      await settle();
     });
-
-    expect(textContent(renderer, 'alert')).toContain('Forbidden');
-    expect(focusInput).toHaveBeenCalled();
+    expect(mx.invite).toHaveBeenCalledWith('!room:example.org', '@guest1:example.org', undefined);
+    expect(getSearchInput(renderer).props.value).toBe('');
+    expect(extractText(getRows(renderer)[0]!)).toContain('@guest1:example.org');
   });
 
-  it.each([
-    { label: 'human target', target: '@alice:example.org', options: {} },
-    { label: 'Space room', target: '@mindroom_helper:example.org', options: { isSpace: true } },
-    {
-      label: 'viewer who cannot grant',
-      target: '@mindroom_helper:example.org',
-      options: {
-        powerLevels: {
-          users: { '@me:example.org': 50 },
-          users_default: 0,
-          state_default: 50,
-          events: { 'm.room.power_levels': 100 },
-        },
-      },
-    },
-  ])('does not load or scan room members for $label', ({ target, options }) => {
-    const { renderer, room } = renderPrompt({ membersLoaded: false, ...options });
-    typeUserId(renderer, target);
-    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
-    expect(room.getMembers).not.toHaveBeenCalled();
+  it('keeps invited rows in place on sync, re-enables on leave/knock, and handles Retry + carry-over', async () => {
+    const { renderer, mx, room } = renderPrompt();
+    const mayaBtn = getRowAction(getRowByText(renderer, 'Maya Chen'));
+    await clickAsync(mayaBtn);
+
+    expect(extractText(getRowAction(getRowByText(renderer, 'Maya Chen')))).toBe('Invited');
+    expect(getStatusTexts(renderer)).toContain('Invited @maya:example.org.');
+
+    // Syncing invite membership keeps the row in place.
+    emitMembership(mx, room, '@maya:example.org', 'invite');
+    expect(extractText(getRowAction(getRowByText(renderer, 'Maya Chen')))).toBe('Invited');
+
+    // Leave/knock clears invited state so the user can be re-invited.
+    emitMembership(mx, room, '@maya:example.org', 'leave');
+    expect(extractText(getRowAction(getRowByText(renderer, 'Maya Chen')))).toBe('Invite');
+
+    // Invite failure shows Retry and carries over across filter switches, while sent invites stay behind.
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
+    await clickAsync(getRowAction(getRowByText(renderer, 'Liam Park')));
+    expect(extractText(getRowAction(getRowByText(renderer, 'Liam Park')))).toBe('Retry');
+
+    await clickAsync(getRowAction(getRowByText(renderer, 'Maya Chen')));
+    click(getButtonByText(renderer, 'Agents'));
+    expect(getRows(renderer).some((r) => extractText(r).includes('Liam Park'))).toBe(true);
+    expect(getRows(renderer).some((r) => extractText(r).includes('Maya Chen'))).toBe(false);
+
+    // Retry succeeds; if instead user joins externally, failed attempt drops automatically.
+    await clickAsync(getRowAction(getRowByText(renderer, 'Liam Park')));
+    expect(extractText(getRowAction(getRowByText(renderer, 'Liam Park')))).toBe('Invited');
+
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Oops'));
+    await clickAsync(getRowAction(getRowByText(renderer, 'Coder')));
+    expect(extractText(getRowAction(getRowByText(renderer, 'Coder')))).toBe('Retry');
+    emitMembership(mx, room, '@mindroom_coder:example.org', 'join');
+    expect(getRows(renderer).some((r) => extractText(r).includes('Coder'))).toBe(false);
   });
 
-  it('loads members lazily on eligible agent target, takes one snapshot after loading, and flips ON', async () => {
-    let resolveLoad: (loaded: boolean) => void = () => undefined;
-    const loadPromise = new Promise<boolean>((resolve) => {
-      resolveLoad = resolve;
+  it('consumes invite note immediately on submit, skips when collapsed, and preserves on Retry', async () => {
+    const { renderer, mx } = renderPrompt();
+    openNoteAndType(renderer, 'Welcome aboard');
+
+    // Collapsing skips sending the note.
+    const toggle = renderer.root.find((n) => n.type === 'button' && 'aria-expanded' in n.props);
+    click(toggle);
+    await clickAsync(getRowAction(getRowByText(renderer, 'Maya Chen')));
+    expect(mx.invite).toHaveBeenCalledWith('!room:example.org', '@maya:example.org', undefined);
+
+    // Re-open, fail Liam with note -> note clears immediately; newer draft is untouched by Retry.
+    click(toggle);
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Temporary'));
+    await clickAsync(getRowAction(getRowByText(renderer, 'Liam Park')));
+    expect(mx.invite).toHaveBeenLastCalledWith(
+      '!room:example.org',
+      '@liam:example.org',
+      'Welcome aboard'
+    );
+
+    const freshNote = openNoteAndType(renderer, 'For someone else');
+    expect(freshNote.props.value).toBe('For someone else');
+
+    // Retry sends original note and leaves the new draft intact.
+    await clickAsync(getRowAction(getRowByText(renderer, 'Liam Park')));
+    expect(mx.invite).toHaveBeenLastCalledWith(
+      '!room:example.org',
+      '@liam:example.org',
+      'Welcome aboard'
+    );
+    expect(freshNote.props.value).toBe('For someone else');
+
+    // Rapid back-to-back invites before re-render only attach the draft to the first invite.
+    act(() => {
+      getRowAction(getRowByText(renderer, 'Coder')).props.onClick();
+      getRowAction(getRowByText(renderer, 'Helper')).props.onClick();
     });
+    await act(async () => {
+      await settle();
+    });
+    expect(mx.invite).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_coder:example.org',
+      'For someone else'
+    );
+    expect(mx.invite).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_helper:example.org',
+      undefined
+    );
+  });
+
+  it('shows directory failure alert with Retry above any cached rows', async () => {
+    const { renderer, mx } = renderPrompt({
+      cache: readyCache(defaultCacheUsers(), 'error'),
+    });
+    expect(getAlerts(renderer)).toHaveLength(1);
+    expect(getRows(renderer)).toHaveLength(4);
+    await clickAsync(getButtonByText(renderer, 'Retry'));
+    expect(mx.searchUserDirectory).toHaveBeenCalled();
+  });
+
+  it('hydrates room members lazily, defaults moderator checkbox accurately, and skips ineligible targets', async () => {
+    let finishLoad!: () => void;
+    const loadMembersIfNeeded = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishLoad = () => resolve(true);
+        })
+    );
     const { renderer, mx, room } = renderPrompt({
       membersLoaded: false,
-      loadMembersIfNeeded: () => loadPromise,
+      loadMembersIfNeeded,
     });
 
-    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
-    expect(room.getMembers).not.toHaveBeenCalled();
+    expect(loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    // Unchecked until members finish loading.
+    expect(getCheckbox(renderer).props.checked).toBe(false);
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(room.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
-
-    // Out-of-band membership events during hydration must not scan the roster repeatedly.
-    act(() => {
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
-    });
-    expect(room.getMembers).not.toHaveBeenCalled();
-
-    // Resolving loadMembersIfNeeded settles the default with a single snapshot.
     room.state.membersLoaded = true;
     await act(async () => {
-      resolveLoad(true);
-      await Promise.resolve();
+      finishLoad();
+      await settle();
     });
-    expect(room.getMembers).toHaveBeenCalledTimes(1);
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-  });
+    expect(getCheckbox(renderer).props.checked).toBe(true);
 
-  it('allows explicit opt-in while room members are still loading', async () => {
-    const { renderer, mx, room } = renderPrompt({
-      membersLoaded: false,
-      loadMembersIfNeeded: () => new Promise<boolean>(() => undefined),
-    });
+    // Inviting a human never writes power levels.
+    await clickAsync(getRowAction(getRowByText(renderer, 'Maya Chen')));
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const checkbox = findModeratorCheckbox(renderer);
-    expect(checkbox?.props.checked).toBe(false);
-    act(() => {
-      checkbox?.props.onClick();
-    });
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-
-    await submitInvite(renderer);
-
-    expect(mx.invite).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', undefined);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
-  });
-
-  it('derives the default from live state once a previous grant syncs and that agent leaves', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.setPowerLevel).mockImplementationOnce(async () => {
-      room.state.members = [{ userId: '@mindroom_first:example.org', membership: 'invite' }];
-      room.state.powerLevels = {
-        ...room.state.powerLevels,
-        users: { '@me:example.org': 100, '@mindroom_first:example.org': 50 },
-      };
-      mx.emit('RoomState.events', {
-        getRoomId: () => room.roomId,
-        getType: () => 'm.room.power_levels',
-        getStateKey: () => '',
-        getId: () => '$pl1',
-        getContent: () => room.state.powerLevels,
-      });
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
-      return { event_id: '$pl1' };
-    });
-
-    typeUserId(renderer, '@mindroom_first:example.org');
-    await submitInvite(renderer);
-
-    // First agent is invited with power 50 -> second agent defaults OFF.
-    typeUserId(renderer, '@mindroom_second:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
-
-    // First agent declines/leaves -> live state has no moderator agent -> default flips back ON.
-    act(() => {
-      room.state.members = [{ userId: '@mindroom_first:example.org', membership: 'leave' }];
-      mx.emit('RoomMember.membership', undefined, { roomId: room.roomId });
-    });
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-  });
-
-  it('finishes the submitted grant even when the dialog closes while invite is pending', async () => {
-    let finishInvite: () => void = () => undefined;
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(
-      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
+    // Inviting an eligible agent invites first and grants level 50.
+    await clickAsync(getRowAction(getRowByText(renderer, 'Coder')));
+    expect(mx.invite).toHaveBeenCalledWith(
+      '!room:example.org',
+      '@mindroom_coder:example.org',
+      undefined
+    );
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      'm.room.power_levels',
+      expect.objectContaining({
+        users: expect.objectContaining({ '@mindroom_coder:example.org': 50 }),
+      }),
+      ''
     );
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    act(() => {
-      getForm(renderer).props.onSubmit({
-        preventDefault: vi.fn(),
-        target: { reasonInput: { value: '' } },
-      });
-    });
+    // Unchecking skips grant on subsequent agent invite.
+    click(getCheckbox(renderer));
+    expect(getCheckbox(renderer).props.checked).toBe(false);
+    await clickAsync(getRowAction(getRowByText(renderer, 'Helper')));
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
 
-    // User closes the dialog while invite is in flight.
-    act(() => {
-      renderer.unmount();
-    });
-
-    await act(async () => {
-      finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
-  });
-
-  it('re-reads live power levels before writing and skips setPowerLevel if target was already promoted', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(async () => {
-      // Another admin promotes the target to 75 while invite is in flight.
-      room.state.powerLevels = {
-        ...room.state.powerLevels,
-        users: { '@me:example.org': 100, '@mindroom_helper:example.org': 75 },
-      };
-      return {} as never;
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
-
-    expect(mx.invite).toHaveBeenCalledTimes(1);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-  });
-
-  it('allows a room v12 creator with no explicit user power entry to grant moderator rights', async () => {
-    const { renderer, mx, room } = renderPrompt({
-      createContent: { room_version: '12' },
-      createSender: '@me:example.org',
+    // Defaults OFF when an agent moderator already exists; supports v12 creator with no users entry.
+    const existingMod = renderPrompt({
+      members: [{ userId: '@mindroom_coder:example.org', membership: 'join' }],
       powerLevels: {
-        users: {},
-        users_default: 0,
-        state_default: 50,
+        users: { '@me:example.org': 100, '@mindroom_coder:example.org': 50 },
         events: { 'm.room.power_levels': 100 },
       },
     });
+    expect(getCheckbox(existingMod.renderer).props.checked).toBe(false);
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-    await submitInvite(renderer);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
+    const v12Creator = renderPrompt({
+      createContent: { room_version: '12' },
+      createSender: '@me:example.org',
+      powerLevels: { users: {}, events: { 'm.room.power_levels': 100 } },
+    });
+    expect(getCheckbox(v12Creator.renderer).props.checked).toBe(true);
   });
 
-  it('names Admin (100) in the checkbox label and help when the grant level is 100', () => {
-    const { renderer } = renderPrompt({
-      powerLevels: {
-        users: { '@me:example.org': 100 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
-      },
-    });
+  it('shows dismissible inline grant alert when open and detached shell notice when closed', async () => {
+    const { renderer, mx } = renderPrompt();
+    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('Denied'));
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const allText = renderer.root
-      .findAll((node) => typeof node.children?.[0] === 'string')
-      .map((node) => node.children.join(''))
-      .join(' ');
-    expect(allText).toContain('Give Admin (100) rights');
-    expect(allText).toContain('This room requires Admin (100) rights');
-    expect(allText).not.toContain('Give Moderator rights');
-  });
+    await clickAsync(getRowAction(getRowByText(renderer, 'Coder')));
+    expect(extractText(getRowAction(getRowByText(renderer, 'Coder')))).toBe('Invited');
+    expect(getAlerts(renderer)).toHaveLength(1);
+    expect(extractText(getAlerts(renderer)[0]!)).toContain('Denied');
 
-  it('shows the numeric level when a custom level-100 tag is named Moderator, including on requirement rise', async () => {
-    const { renderer } = renderPrompt({
-      powerLevelTags: { '100': { name: 'Moderator' } },
-      powerLevels: {
-        users: { '@me:example.org': 100 },
-        users_default: 0,
-        state_default: 50,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
-      },
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    const allText = renderer.root
-      .findAll((node) => typeof node.children?.[0] === 'string')
-      .map((node) => node.children.join(''))
-      .join(' ');
-    expect(allText).toContain('Give Moderator (100) rights');
-    expect(allText).toContain('This room requires Moderator (100) rights');
-
-    const rising = renderPrompt({
-      powerLevelTags: { '100': { name: 'Moderator' } },
-    });
-    vi.mocked(rising.mx.invite).mockImplementationOnce(async () => {
-      rising.room.state.powerLevels = {
-        ...rising.room.state.powerLevels,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
-      };
-      return {} as never;
-    });
-    typeUserId(rising.renderer, '@mindroom_helper:example.org');
-    await submitInvite(rising.renderer);
-    expect(rising.mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(textContent(rising.renderer, 'alert')).toContain(
-      'This room now requires Moderator (100) rights.'
+    const dismissBtn = renderer.root.find(
+      (n) => n.type === 'button' && n.props['aria-label'] === 'Dismiss notice'
     );
-  });
+    click(dismissBtn);
+    expect(getAlerts(renderer)).toHaveLength(0);
 
-  it('keys the checkbox override to the trimmed target ID', () => {
-    const { renderer } = renderPrompt();
-
-    typeUserId(renderer, '@mindroom_first:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-    act(() => {
-      findModeratorCheckbox(renderer)?.props.onClick();
-    });
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(false);
-
-    // Pasting a different eligible agent ID resets to default (ON).
-    typeUserId(renderer, '@mindroom_second:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-  });
-
-  it('publishes a non-blocking detached notice when a grant fails after the dialog closed', async () => {
-    let finishInvite: () => void = () => undefined;
-    const { renderer, mx, store } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(
-      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
+    // Close while invite is pending; failed grant sets detachedGrantErrorAtom and ModeratorGrantErrorNotice dismisses it.
+    let resolveInvite!: () => void;
+    const closed = renderPrompt();
+    vi.mocked(closed.mx.invite).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveInvite = () => resolve({});
+        })
     );
-    vi.mocked(mx.setPowerLevel).mockRejectedValueOnce(new Error('Forbidden'));
+    vi.mocked(closed.mx.sendStateEvent).mockRejectedValueOnce(new Error('Server error'));
 
-    typeUserId(renderer, '@mindroom_helper:example.org');
     act(() => {
-      getForm(renderer).props.onSubmit({
-        preventDefault: vi.fn(),
-        target: { reasonInput: { value: '' } },
-      });
+      getRowAction(getRowByText(closed.renderer, 'Helper')).props.onClick();
     });
-    act(() => {
-      renderer.unmount();
-    });
-
+    act(() => closed.renderer.unmount());
     await act(async () => {
-      finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
+      resolveInvite();
+      await settle();
     });
 
-    expect(store.get(detachedGrantErrorAtom)?.message).toBe(
-      'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden'
-    );
-  });
+    expect(closed.store.get(detachedGrantErrorAtom)?.message).toContain('Server error');
 
-  it('writes nothing and reports a changed requirement if the router level rises while invite is in flight', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(async () => {
-      room.state.powerLevels = {
-        ...room.state.powerLevels,
-        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
-      };
-      return {} as never;
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
-
-    expect(mx.invite).toHaveBeenCalledTimes(1);
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(textContent(renderer, 'alert')).toContain('Team 75');
-  });
-
-  it('reports a changed requirement in a detached notice if the router level rises after the dialog closes', async () => {
-    let finishInvite: () => void = () => undefined;
-    const { renderer, mx, room, store } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(
-      () => new Promise((resolve) => (finishInvite = () => resolve({} as never)))
-    );
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    act(() => {
-      getForm(renderer).props.onSubmit({
-        preventDefault: vi.fn(),
-        target: { reasonInput: { value: '' } },
-      });
-    });
-    act(() => {
-      renderer.unmount();
-    });
-
-    room.state.powerLevels = {
-      ...room.state.powerLevels,
-      events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
-    };
-    await act(async () => {
-      finishInvite();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(store.get(detachedGrantErrorAtom)?.message).toContain('@mindroom_helper:example.org');
-    expect(store.get(detachedGrantErrorAtom)?.message).toContain('Admin');
-  });
-
-  it('uses the localized forbidden error if viewer loses permission while invite is in flight', async () => {
-    const { renderer, mx, room } = renderPrompt();
-    vi.mocked(mx.invite).mockImplementationOnce(async () => {
-      room.state.powerLevels = {
-        ...room.state.powerLevels,
-        users: { '@me:example.org': 0 },
-      };
-      return {} as never;
-    });
-
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    await submitInvite(renderer);
-
-    expect(mx.setPowerLevel).not.toHaveBeenCalled();
-    expect(textContent(renderer, 'alert')).toContain("You don't have permission to do this.");
-  });
-
-  it.each([
-    { label: 'v9 room', roomVersion: '9' },
-    { label: 'unknown non-numeric room version', roomVersion: 'org.example.unstable' },
-  ])('hides the moderator checkbox and skips member loading for a $label', ({ roomVersion }) => {
-    const { renderer, room } = renderPrompt({ roomVersion, membersLoaded: false });
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)).toBeUndefined();
-    expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
-    expect(room.getMembers).not.toHaveBeenCalled();
-  });
-
-  it('offers moderator rights in a v10 room', async () => {
-    const { renderer, mx, room } = renderPrompt({ roomVersion: '10' });
-    typeUserId(renderer, '@mindroom_helper:example.org');
-    expect(findModeratorCheckbox(renderer)?.props.checked).toBe(true);
-    await submitInvite(renderer);
-    expect(mx.setPowerLevel).toHaveBeenCalledWith(room.roomId, '@mindroom_helper:example.org', 50);
-  });
-
-  it('renders and dismisses a detached grant failure notice', () => {
-    const store = createStore();
-    store.set(detachedGrantErrorAtom, {
-      message:
-        'Invited @mindroom_helper:example.org, but could not give Moderator rights: Forbidden',
-    });
-    let notice: ReactTestRenderer;
+    let notice!: ReactTestRenderer;
     act(() => {
       notice = create(
-        <Provider store={store}>
+        <Provider store={closed.store}>
           <ModeratorGrantErrorNotice />
         </Provider>
       );
     });
-    const alert = notice!.root.findByProps({ role: 'alert' });
-    expect(alert).toBeDefined();
+    expect(extractText(notice.root)).toContain('Server error');
+    const alert = notice.root.findByProps({ role: 'alert' });
     // Marked as a notice that moves into what covers the page (sidebar/PhoneNavDrawer.tsx).
     expect(alert.props['data-cover-notice']).toBe('');
-    const dismiss = notice!.root.findByProps({ 'aria-label': 'Dismiss notice' });
+    const dismiss = notice.root.findByProps({ 'aria-label': 'Dismiss notice' });
     act(() => {
       dismiss.props.onClick();
     });
-    expect(store.get(detachedGrantErrorAtom)).toBeUndefined();
-    expect(notice!.toJSON()).toBeNull();
+    expect(closed.store.get(detachedGrantErrorAtom)).toBeUndefined();
   });
 });

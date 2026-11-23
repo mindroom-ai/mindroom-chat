@@ -90,13 +90,32 @@
       "wheelZoomHint": "{{key}} + 捲動以縮放"
     },
     "inviteUserPrompt": {
-      "close": "關閉",
       "invited": "已邀請 {{user}}。",
-      "giveRoleRights": "授予{{role}}權限",
       "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
       "roleFailed": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}",
       "roleRequirementChanged": "此聊天室現在需要{{role}}權限。",
-      "roleWithLevel": "{{role}}（{{level}}）"
+      "roleWithLevel": "{{role}}（{{level}}）",
+      "inviteToRoom": "邀請加入 {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "完成",
+      "searchPlaceholder": "搜尋成員、代理或 @user:server",
+      "filterLabel": "依類型篩選",
+      "filterAll": "全部",
+      "filterPeople": "成員",
+      "filterAgents": "代理",
+      "recentAndDirect": "最近與私訊",
+      "directory": "使用者目錄",
+      "externalUserId": "外部 Matrix ID",
+      "noMatches": "沒有相符的使用者。輸入完整的 @user:server ID 即可直接邀請。",
+      "emptyDirectory": "目前沒有可邀請的使用者。輸入完整的 @user:server ID 即可直接邀請。",
+      "addNote": "+ 新增邀請備註",
+      "hideNote": "− 隱藏邀請備註",
+      "notePlaceholder": "為你的邀請新增備註...",
+      "giveRoleRightsAgents": "為受邀代理授予{{role}}權限",
+      "alreadyInRoom": "已在此聊天室中",
+      "alreadyInvited": "已邀請",
+      "bannedFromRoom": "已被此聊天室封鎖",
+      "retryUser": "重試邀請 {{user}}"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -110,6 +129,37 @@
     },
     "textViewer": {
       "close": "關閉"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "事件",
+      "metaType": "類型",
+      "metaSender": "傳送者",
+      "metaTime": "時間",
+      "badgeEdited": "已編輯",
+      "badgeEncrypted": "已加密",
+      "documentTabsLabel": "事件版本",
+      "tabEvent": "事件",
+      "tabOriginal": "原始",
+      "tabLatestEdit": "最新編輯",
+      "tabDecrypted": "已解密",
+      "tabDecryptionError": "解密失敗",
+      "tabEncrypted": "已加密",
+      "collapseAll": "摺疊",
+      "expandAll": "展開",
+      "foldStrings": "摺疊長文字",
+      "rawJson": "原始",
+      "filterPlaceholder": "篩選鍵或值…",
+      "noMatches": "找不到「{{query}}」的相符項目",
+      "copyField": "複製 {{field}}",
+      "copyValue": "複製值",
+      "expandNode": "展開 {{name}}",
+      "collapseNode": "摺疊 {{name}}",
+      "expandString": "展開文字",
+      "collapseString": "摺疊文字",
+      "matchCount_other": "{{count}} 個相符項目",
+      "keyCount_other": "{{count}} 個鍵",
+      "itemCount_other": "{{count}} 個項目",
+      "charCount_other": "{{count}} 個字元"
     },
     "invites": {
       "actionFailed": "發生錯誤，請再試一次。"
@@ -254,9 +304,6 @@
       "newIntro": "請選擇新的復原密碼。舊密碼將失效。",
       "notCached": "此工作階段未持有所有加密金鑰。請用復原密碼或其他裝置驗證它，然後再試一次。",
       "incompleteError": "新的復原密碼尚未涵蓋所有加密金鑰。請重試。",
-      "nudgeTitle": "保護你的訊息",
-      "nudgeBody": "設定復原密碼，這樣在清除此瀏覽器資料或在新裝置上登入後，你仍然可以閱讀加密聊天。",
-      "nudgeButton": "設定復原密碼",
       "unlockWithPassword": "使用復原密碼解鎖",
       "resetLoss": "此裝置目前無法讀取的訊息將維持無法讀取。你的其他工作階段需要重新驗證。",
       "setupCheckFailed": "無法檢查你的加密設定。",
@@ -1704,6 +1751,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "另有 {{count}} 個討論串",
     "forMe": "與我相關",
     "forMeHint": "只顯示你參與過、代理程式代你發過訊息或你已釘選的討論串",
     "roomForMeHint": "只顯示你參與過或代理程式代你發過訊息的討論串",
@@ -1765,5 +1813,40 @@
     "cancellationSent": "已傳送取消請求",
     "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
     "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
+  },
+  "home": {
+    "greeting": {
+      "morning": "早安，{{name}}",
+      "afternoon": "午安，{{name}}",
+      "evening": "晚安，{{name}}"
+    },
+    "ask": {
+      "placeholder": "向 {{name}} 提出任何問題…",
+      "chooseAgent": "選擇由誰回答",
+      "agentChoice": "由 {{name}} 回答",
+      "chooseRoom": "選擇討論串從哪裡開始",
+      "roomChoice": "在 {{room}}",
+      "inRoom": "在 <avatar/>{{room}}",
+      "directChat": "私訊",
+      "startsDirectChat": "開始與 {{name}} 的對話",
+      "startingDirectChat": "正在開始與 {{name}} 的對話…",
+      "directChatFailed": "無法開始與 {{name}} 的對話。請再試一次。",
+      "waitingForAgent": "正在等待 {{name}} 加入聊天…",
+      "notSent": "未在 {{room}} 傳送給 {{agent}}",
+      "chooseAgain": "此選擇已無法使用。你的文字已保留：請重新選擇由誰回答或在哪裡提問。"
+    },
+    "recent": {
+      "title": "最近的討論串",
+      "allThreads": "所有討論串",
+      "unread": "未讀"
+    },
+    "recovery": {
+      "action": "設定復原密碼",
+      "text": "在新裝置上也能存取加密對話。"
+    },
+    "device": {
+      "action": "驗證此裝置",
+      "text": "在那之前，它無法讀取你的加密對話。"
+    }
   }
 }

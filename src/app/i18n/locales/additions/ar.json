@@ -105,13 +105,32 @@
       "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
-      "close": "إغلاق",
       "invited": "تمت دعوة ⁨{{user}}⁩.",
-      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
       "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
       "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
-      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)"
+      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)",
+      "inviteToRoom": "دعوة إلى ⁨{{room}}⁩",
+      "memberSummary": "⁨{{members}}⁩ · ⁨{{invited}}⁩",
+      "done": "تم",
+      "searchPlaceholder": "ابحث عن الأشخاص أو الوكلاء أو ⁦@user:server⁩",
+      "filterLabel": "تصفية حسب النوع",
+      "filterAll": "الكل",
+      "filterPeople": "الأشخاص",
+      "filterAgents": "الوكلاء",
+      "recentAndDirect": "الأخيرة والمباشرة",
+      "directory": "الدليل",
+      "externalUserId": "معرّف Matrix خارجي",
+      "noMatches": "لا يوجد مستخدمون مطابقون. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "emptyDirectory": "لا يوجد مستخدمون لدعوتهم بعد. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "addNote": "+ إضافة ملاحظة دعوة",
+      "hideNote": "− إخفاء ملاحظة الدعوة",
+      "notePlaceholder": "أضف ملاحظة إلى دعوتك...",
+      "giveRoleRightsAgents": "منح الوكلاء المدعوين صلاحيات ⁨{{role}}⁩",
+      "alreadyInRoom": "موجود بالفعل في هذه الغرفة",
+      "alreadyInvited": "تمت دعوته بالفعل",
+      "bannedFromRoom": "محظور من هذه الغرفة",
+      "retryUser": "إعادة محاولة دعوة ⁨{{user}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -125,6 +144,57 @@
     },
     "textViewer": {
       "close": "إغلاق"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "الحدث",
+      "metaType": "النوع",
+      "metaSender": "المرسل",
+      "metaTime": "الوقت",
+      "badgeEdited": "معدّل",
+      "badgeEncrypted": "مشفّر",
+      "documentTabsLabel": "إصدارات الحدث",
+      "tabEvent": "الحدث",
+      "tabOriginal": "الأصلي",
+      "tabLatestEdit": "آخر تعديل",
+      "tabDecrypted": "مفكوك التشفير",
+      "tabDecryptionError": "فشل فك التشفير",
+      "tabEncrypted": "مشفّر",
+      "collapseAll": "طي",
+      "expandAll": "توسيع",
+      "foldStrings": "طي النصوص",
+      "rawJson": "خام",
+      "filterPlaceholder": "تصفية المفاتيح أو القيم…",
+      "noMatches": "لا توجد تطابقات لـ «⁨{{query}}⁩»",
+      "copyField": "نسخ ⁨{{field}}⁩",
+      "copyValue": "نسخ القيمة",
+      "expandNode": "توسيع ⁨{{name}}⁩",
+      "collapseNode": "طي ⁨{{name}}⁩",
+      "expandString": "توسيع النص",
+      "collapseString": "طي النص",
+      "matchCount_zero": "⁨{{count}}⁩ تطابقات",
+      "matchCount_one": "تطابق واحد (⁨{{count}}⁩)",
+      "matchCount_two": "تطابقان (⁨{{count}}⁩)",
+      "matchCount_few": "⁨{{count}}⁩ تطابقات",
+      "matchCount_many": "⁨{{count}}⁩ تطابقًا",
+      "matchCount_other": "⁨{{count}}⁩ تطابق",
+      "keyCount_zero": "⁨{{count}}⁩ مفاتيح",
+      "keyCount_one": "مفتاح واحد (⁨{{count}}⁩)",
+      "keyCount_two": "مفتاحان (⁨{{count}}⁩)",
+      "keyCount_few": "⁨{{count}}⁩ مفاتيح",
+      "keyCount_many": "⁨{{count}}⁩ مفتاحًا",
+      "keyCount_other": "⁨{{count}}⁩ مفتاح",
+      "itemCount_zero": "⁨{{count}}⁩ عناصر",
+      "itemCount_one": "عنصر واحد (⁨{{count}}⁩)",
+      "itemCount_two": "عنصران (⁨{{count}}⁩)",
+      "itemCount_few": "⁨{{count}}⁩ عناصر",
+      "itemCount_many": "⁨{{count}}⁩ عنصرًا",
+      "itemCount_other": "⁨{{count}}⁩ عنصر",
+      "charCount_zero": "⁨{{count}}⁩ أحرف",
+      "charCount_one": "حرف واحد (⁨{{count}}⁩)",
+      "charCount_two": "حرفان (⁨{{count}}⁩)",
+      "charCount_few": "⁨{{count}}⁩ أحرف",
+      "charCount_many": "⁨{{count}}⁩ حرفًا",
+      "charCount_other": "⁨{{count}}⁩ حرف"
     },
     "invites": {
       "actionFailed": "حدث خطأ ما. حاول مرة أخرى."
@@ -274,9 +344,6 @@
       "newIntro": "اختر كلمة مرور استرداد جديدة. ستتوقف القديمة عن العمل.",
       "notCached": "لا تملك هذه الجلسة كل مفاتيح التشفير. تحقّق منها بكلمة مرور الاسترداد أو بجهاز آخر، ثم حاول مرة أخرى.",
       "incompleteError": "كلمة مرور الاسترداد الجديدة لا تغطي كل مفاتيح التشفير بعد. حاول مرة أخرى.",
-      "nudgeTitle": "احمِ رسائلك",
-      "nudgeBody": "عيّن كلمة مرور للاسترداد لتظل قادرًا على قراءة محادثاتك المشفرة بعد مسح بيانات هذا المتصفح أو تسجيل الدخول على جهاز جديد.",
-      "nudgeButton": "إعداد كلمة مرور الاسترداد",
       "unlockWithPassword": "فتح القفل بكلمة مرور الاسترداد",
       "resetLoss": "الرسائل التي لا يستطيع هذا الجهاز قراءتها الآن ستبقى غير مقروءة. ستحتاج جلساتك الأخرى إلى التحقق مرة أخرى.",
       "setupCheckFailed": "تعذّر التحقق من إعداد التشفير لديك.",
@@ -1954,6 +2021,12 @@
     }
   },
   "threadNav": {
+    "moreThreads_zero": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_one": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_two": "سلسلتا محادثة أخريان (⁨{{count}}⁩)",
+    "moreThreads_few": "⁨{{count}}⁩ سلاسل محادثة أخرى",
+    "moreThreads_many": "⁨{{count}}⁩ سلسلة محادثة أخرى",
+    "moreThreads_other": "⁨{{count}}⁩ سلسلة محادثة أخرى",
     "forMe": "لي",
     "forMeHint": "سلاسل المحادثات التي تشارك فيها، أو التي نشر فيها وكيل بالنيابة عنك، أو التي ثبّتها أنت فقط",
     "roomForMeHint": "سلاسل المحادثات التي تشارك فيها أو التي نشر فيها وكيل بالنيابة عنك فقط",
@@ -2035,5 +2108,40 @@
     "cancellationSent": "تم إرسال الإلغاء",
     "editDraftBusy": "امسح المسودة الحالية قبل تعديل هذه المهمة المجدولة.",
     "copyFailed": "تعذر النسخ. حدد معرف المهمة في التفاصيل."
+  },
+  "home": {
+    "greeting": {
+      "morning": "صباح الخير، ⁨{{name}}⁩",
+      "afternoon": "مساء الخير، ⁨{{name}}⁩",
+      "evening": "مساء الخير، ⁨{{name}}⁩"
+    },
+    "ask": {
+      "placeholder": "اسأل ⁨{{name}}⁩ عن أي شيء…",
+      "chooseAgent": "اختر من يجيب",
+      "agentChoice": "يجيب ⁨{{name}}⁩",
+      "chooseRoom": "اختر أين تبدأ سلسلة الرسائل",
+      "roomChoice": "في ⁨{{room}}⁩",
+      "inRoom": "في <avatar/>⁨{{room}}⁩",
+      "directChat": "محادثة مباشرة",
+      "startsDirectChat": "تبدأ محادثة مع ⁨{{name}}⁩",
+      "startingDirectChat": "جارٍ بدء محادثة مع ⁨{{name}}⁩…",
+      "directChatFailed": "تعذّر بدء محادثة مع ⁨{{name}}⁩. حاول مرة أخرى.",
+      "waitingForAgent": "بانتظار انضمام ⁨{{name}}⁩ إلى المحادثة…",
+      "notSent": "لم تُرسل إلى ⁨{{agent}}⁩ في ⁨{{room}}⁩",
+      "chooseAgain": "لم يعد هذا الاختيار متاحًا. نصك محفوظ: اختر من يجيب أو أين."
+    },
+    "recent": {
+      "title": "سلاسل الرسائل الأخيرة",
+      "allThreads": "كل سلاسل الرسائل",
+      "unread": "غير مقروءة"
+    },
+    "recovery": {
+      "action": "إعداد كلمة مرور الاسترداد",
+      "text": "احتفظ بإمكانية الوصول إلى المحادثات المشفرة على جهاز جديد."
+    },
+    "device": {
+      "action": "تحقق من هذا الجهاز",
+      "text": "حتى ذلك الحين لا يمكنه قراءة محادثاتك المشفرة."
+    }
   }
 }
