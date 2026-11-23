@@ -134,14 +134,28 @@ const client = (rooms: Room[], direct: unknown = {}) =>
     getAccountData: () => ({ getContent: () => direct }),
   } as unknown as MatrixClient);
 
-/** A thread of the index whose newest message is `lastSenderId`'s, at `ts`. */
-const thread = (roomId: string, lastSenderId: string, ts: number, threadRootId = '$unloaded') =>
+/**
+ * A thread of the index whose newest message is `lastSenderId`'s, at `ts`; `preview` is what the
+ * index made of that message, when it is not its text.
+ */
+const thread = (
+  roomId: string,
+  lastSenderId: string,
+  ts: number,
+  threadRootId = '$unloaded',
+  preview?: string
+) =>
   ({
     roomId,
     threadRootId,
     lastActivityTs: ts,
     threadRecord: {
-      presentation: { lastSenderId, latestReplyTs: ts, replyParticipantIds: [HELPER] },
+      presentation: {
+        lastSenderId,
+        latestReplyTs: ts,
+        latestReplyPreviewLocalization: preview && { kind: preview },
+        replyParticipantIds: [HELPER],
+      },
     },
   } as unknown as CrossRoomThreadIndexEntry);
 
@@ -359,6 +373,23 @@ describe('readHomeAgents', () => {
     expect(decrypted).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
     // A message that is read counts.
     const [read] = readHomeAgents(client(lobby(false)), ids(lobby(false)), []);
+    expect(read).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 500 });
+  });
+
+  it("counts no thread's reply that the index could not decrypt either", () => {
+    const rooms = [
+      room('!lobby', {
+        agents: [HELPER],
+        threads: { $root: [{ sender: HELPER, ts: 500, failed: true }] },
+      }),
+      room('!eng', { agents: [HELPER], messages: [[HELPER, 200]] }),
+    ];
+    const encrypted = [thread('!lobby', HELPER, 500, '$root', 'encrypted')];
+    const [undecrypted] = readHomeAgents(client(rooms), ids(rooms), encrypted);
+    expect(undecrypted).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+    // A reply the index could read counts by it, as one of a thread that is not loaded.
+    const image = [thread('!lobby', HELPER, 500, '$root', 'image')];
+    const [read] = readHomeAgents(client(rooms), ids(rooms), image);
     expect(read).toMatchObject({ defaultRoomId: '!lobby', lastUsedTs: 500 });
   });
 
@@ -590,6 +621,43 @@ describe('startDirectChat', () => {
     });
     await expect(startDirectChat(fresh, HELPER)).resolves.toBe('!made');
     expect(other.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads a chat `m.direct` lists only while the members of another load', async () => {
+    // `m.direct` lists `listed`, Scout in none of them, and the chat Scout is in only once the
+    // first room's members are loading.
+    const listing = (listed: string[]) => {
+      const direct = { [SCOUT]: listed };
+      let joined = false;
+      const first = Object.assign(room('!dm-first', { count: 2 }), {
+        loadMembersIfNeeded: vi.fn(async () => {
+          direct[SCOUT] = [...listed, '!dm-late'];
+          return true;
+        }),
+      });
+      const late = Object.assign(room('!dm-late', { count: 2 }), {
+        getMember: (userId: string) => (joined && userId === SCOUT ? { membership: 'join' } : null),
+        loadMembersIfNeeded: vi.fn(async () => {
+          joined = true;
+          return true;
+        }),
+      });
+      const invited = room('!dm-invited', { members: { [SCOUT]: 'invite' }, count: 1 });
+      const mx = Object.assign(client([first, late, invited], direct), {
+        createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+        setAccountData: vi.fn(async () => undefined),
+      });
+      return { mx, first, late };
+    };
+    // Neither a second chat is made beside it, nor is an invitation listed before it taken.
+    const alone = listing(['!dm-first']);
+    await expect(startDirectChat(alone.mx, SCOUT)).resolves.toBe('!dm-late');
+    expect(alone.mx.createRoom).not.toHaveBeenCalled();
+    expect(alone.first.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(alone.late.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    const withInvitation = listing(['!dm-first', '!dm-invited']);
+    await expect(startDirectChat(withInvitation.mx, SCOUT)).resolves.toBe('!dm-late');
+    expect(withInvitation.mx.createRoom).not.toHaveBeenCalled();
   });
 
   it('makes no chat while the members of a listed one do not load, and can be tried again', async () => {

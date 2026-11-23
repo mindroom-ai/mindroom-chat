@@ -156,7 +156,7 @@ const answerKey = (roomId: string, senderId: string): string => `${roomId}\0${se
  * kept from before is), or the reply the thread index says ends a thread. Someone else's later
  * message in a thread it answered in does not count. The index's time moves with an edit of that
  * reply, so it counts only for a sender none of whose answers in the thread the client has:
- * those count by when they were sent.
+ * those count by when they were sent. Nor does it count for a reply the index could not decrypt.
  */
 const readLastAnswers = (
   rooms: Iterable<Room>,
@@ -186,9 +186,11 @@ const readLastAnswers = (
     });
   }
   for (const { roomId, threadRootId, threadRecord } of threads) {
-    const { lastSenderId, latestReplyTs } = threadRecord.presentation;
+    const { lastSenderId, latestReplyTs, latestReplyPreviewLocalization } =
+      threadRecord.presentation;
     const known = !!lastSenderId && inThread.has(answerKey(threadRootId, lastSenderId));
-    if (roomIds.has(roomId) && lastSenderId && !known) {
+    const unread = latestReplyPreviewLocalization?.kind === 'encrypted';
+    if (roomIds.has(roomId) && lastSenderId && !known && !unread) {
       note(roomId, lastSenderId, latestReplyTs ?? 0);
     }
   }
@@ -278,23 +280,30 @@ const directStarts = new WeakMap<
 
 /**
  * The direct chat `m.direct` lists with `agentId`, read once the members of each listed room of
- * two whose members the client has yet to load are loaded: the agent may be in one. Of several,
- * it is the one `readHomeAgents` takes (`pickDirect`). It fails when none is found and the
- * members of one did not load: that one may be the chat.
+ * two whose members the client has yet to load are loaded: the agent may be in one, also in one
+ * `m.direct` lists only while the others load. Of several, it is the one `readHomeAgents` takes
+ * (`pickDirect`). It fails when none is found and the members of one did not load: that one may
+ * be the chat.
  */
 const loadDirect = async (
   mx: MatrixClient,
   agentId: string,
   threads: Iterable<CrossRoomThreadIndexEntry>
 ): Promise<string | undefined> => {
-  const unloaded = listedDirectRooms(mx, agentId).filter((room) =>
-    isDirectRoomWith(room, agentId, [undefined])
-  );
+  const tried = new Set<Room>();
   let failed = false;
   const fail = () => {
     failed = true;
   };
-  await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(fail)));
+  for (;;) {
+    const unloaded = listedDirectRooms(mx, agentId).filter(
+      (room) => !tried.has(room) && isDirectRoomWith(room, agentId, [undefined])
+    );
+    if (unloaded.length === 0) break;
+    unloaded.forEach((room) => tried.add(room));
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(fail)));
+  }
   // Loaded, the agent is in a listed chat or in none; one that did not load may still be it.
   const directs = { ...readDirects(mx, agentId), unloaded: failed };
   const answers = readLastAnswers(directs.joined, threads);
@@ -341,6 +350,8 @@ export const startDirectChat = (
     })
     .finally(() => {
       known.start = undefined;
+      // Only a room made and not listed yet is kept, for the retry.
+      if (!known.made) directStarts.get(mx)?.delete(agentId);
     });
   return known.start;
 };

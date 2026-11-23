@@ -917,6 +917,37 @@ describe('HomeAsk', () => {
     expect(storedDestination()).toEqual({ agentId: QUILL, roomId: '!dm-newer', isDirect: true });
   });
 
+  it('waits for a start begun before the page closed with nothing typed too', async () => {
+    const actual = await vi.importActual<typeof import('./homeAgents')>('./homeAgents');
+    vi.mocked(startDirectChat).mockImplementation(actual.startDirectChat);
+    const older = unloadedChat('!dm-older', 200);
+    const newer = unloadedChat('!dm-newer', 500);
+    const mx = makeClient([older.room, newer.room], { [QUILL]: ['!dm-older', '!dm-newer'] });
+    const store = createStore();
+    const first = renderAsk(mx, [quillAgent], store);
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+    await act(async () => older.load());
+    first.refresh([chatting('!dm-older')]);
+    first.unmount();
+
+    // Opened again with no draft before the newer chat's members load: the older chat, Quill's
+    // direct chat for now, gets no composer while the start is under way.
+    const again = renderAsk(mx, [chatting('!dm-older')], store);
+    expect(screen.queryByTestId('room-input')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Starting/ }).getAttribute('aria-busy')).toBe(
+      'true'
+    );
+
+    await act(async () => {
+      newer.load();
+      await vi.mocked(startDirectChat).mock.results[0]?.value;
+    });
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
+    again.refresh([chatting('!dm-newer')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
+    expect(ask()?.isDirect).toBe(true);
+  });
+
   it('keeps the first text for where the field was, as an answer moves the agents with it', () => {
     const mx = makeClient([
       makeRoom('!dm', 'Helper', [HELPER], 2),

@@ -223,7 +223,14 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
       if (sent?.state === 'sending') {
         return { agentId: sent.agentId, roomId: sent.roomId, isDirect: sent.isDirect };
       }
-      if (store.get(draftAtom).length === 0) return undefined;
+      if (store.get(draftAtom).length === 0) {
+        // Nothing typed: the field goes with the agents, but waits still for a direct chat that
+        // was being started as the page closed, rather than show the first chat that loads.
+        const kept = store.get(destinationAtom);
+        return kept?.isDirect && kept.roomId === null && pendingDirectStart(mx, kept.agentId)
+          ? kept
+          : undefined;
+      }
       // A kept Home draft without its destination requires an explicit choice rather than sending
       // to whatever room is default now.
       return store.get(destinationAtom) ?? { agentId: '', roomId: null };
