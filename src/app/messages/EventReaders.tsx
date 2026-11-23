@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Box, Icon, Icons, Text, config } from 'folds';
 import { type Room, RoomEvent } from 'matrix-js-sdk';
-import { Header, IconButton, MenuItem } from '../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../ui/DialogChrome';
+import { Header, MenuItem } from '../ui/glass/GlassPrimitives';
 import { PageScroll } from '../ui/page/PageScroll';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -73,14 +74,7 @@ export function EventReaders({ room, eventId, readers: known, requestClose }: Ev
             <Box grow="Yes">
               <Text size="H4">{t('sharedUi.eventReaders.seenBy')}</Text>
             </Box>
-            <IconButton
-              size="300"
-              radii="300"
-              onClick={requestClose}
-              aria-label={t('sharedUi.eventReaders.close')}
-            >
-              <Icon src={Icons.Cross} />
-            </IconButton>
+            <DialogCloseButton label={t('sharedUi.eventReaders.close')} onClick={requestClose} />
           </Header>
         }
       >

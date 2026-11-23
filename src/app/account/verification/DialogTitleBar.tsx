@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, IconButton, Icons, config } from 'folds';
+import { Box, config } from 'folds';
+import { DialogCloseButton } from '../../ui/DialogChrome';
 import { Header } from '../../ui/glass/GlassPrimitives';
 
 const TITLE_BAR_STYLE = {
@@ -22,14 +23,7 @@ export function DialogTitleBar({ onClose, children }: DialogTitleBarProps) {
     <Header size="500" style={TITLE_BAR_STYLE}>
       <Box grow="Yes">{children}</Box>
       {onClose && (
-        <IconButton
-          size="300"
-          radii="300"
-          aria-label={t('sharedUi.deviceVerification.close')}
-          onClick={onClose}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        <DialogCloseButton label={t('sharedUi.deviceVerification.close')} onClick={onClose} />
       )}
     </Header>
   );

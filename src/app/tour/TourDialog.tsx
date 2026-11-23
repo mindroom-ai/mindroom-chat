@@ -10,12 +10,13 @@ import {
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Icons, Text } from 'folds';
+import { Button, Icon, Icons, Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { TourLevel } from '../navigation/tourState';
 import { ThreadStreamingDot } from '../threads/ThreadStreamingDot';
 import { documentIsRightToLeft } from '../ui/directional';
+import { DialogCloseButton } from '../ui/DialogChrome';
 import { Modal500 } from '../ui/Modal500';
 import * as css from './TourDialog.css';
 import { prefersReducedMotion } from './tourMotion';
@@ -207,16 +208,11 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
               {t('tour.dialog.stepOf', { current: index + 1, total: steps.length })}
             </Text>
           </div>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('tour.dialog.close')}
+          <DialogCloseButton
+            label={t('tour.dialog.close')}
             data-tour-action="close"
             onClick={dismiss}
-          >
-            <Icon src={Icons.Cross} size="100" />
-          </IconButton>
+          />
         </div>
 
         <TourStage

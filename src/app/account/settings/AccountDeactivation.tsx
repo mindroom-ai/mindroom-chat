@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config } from 'folds';
+import { Box, Button, Spinner, Switch, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../../ui/DialogChrome';
+import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
 import { SettingTile } from '../../ui/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
@@ -47,9 +48,7 @@ function ConfirmDeactivation({ busy, error, onCancel, onConfirm }: ConfirmProps)
             {t(`${KEY}.deleteDeactivateAccount`)}
           </Text>
         </Box>
-        <IconButton size="300" radii="300" onClick={onCancel} aria-label={t(`${KEY}.cancel`)}>
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        <DialogCloseButton label={t(`${KEY}.cancel`)} onClick={onCancel} />
       </Header>
       <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
         <Text size="T300">{t(`${KEY}.thisWillRequestAccountDeactivationOnYour`)}</Text>

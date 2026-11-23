@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  config,
-} from 'folds';
+import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
+import { DialogCloseButton } from '../ui/DialogChrome';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
@@ -316,9 +307,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       <Text as="h2" id={titleId} size="H4" truncate style={MENU_TITLE_STYLE}>
         {dialogTitle.label}
       </Text>
-      <IconButton variant="Background" aria-label={closeLabel} onClick={requestClose}>
-        <Icon src={Icons.Cross} />
-      </IconButton>
+      <DialogCloseButton label={closeLabel} onClick={requestClose} />
     </PageNavHeader>
   );
   // The menu scrolls beneath the search field; Logout stays below the list.

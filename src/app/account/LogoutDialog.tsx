@@ -2,7 +2,8 @@ import { CSSProperties, forwardRef, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../ui/DialogChrome';
+import { Dialog, Header } from '../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
 import { createSessionRequestClient, logoutStoredSession } from './lifecycle/initMatrix';
@@ -114,14 +115,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
             {t('sharedUi.logoutDialog.logout')}
           </Text>
         </Box>
-        <IconButton
-          size="300"
-          radii="300"
-          onClick={handleClose}
-          aria-label={t('sharedUi.logoutDialog.cancel')}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        <DialogCloseButton label={t('sharedUi.logoutDialog.cancel')} onClick={handleClose} />
       </Header>
       <Box direction="Column" gap="400" style={{ padding: config.space.S400, paddingTop: 0 }}>
         {risk !== 'none' && (

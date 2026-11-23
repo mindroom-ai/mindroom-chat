@@ -6,20 +6,11 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import {
-  Box,
-  config,
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  PopOutContainerProvider,
-  Text,
-} from 'folds';
+import { Box, config, Overlay, OverlayBackdrop, PopOutContainerProvider, Text } from 'folds';
 import { FocusScope, mergeProps, useDialog, useModalOverlay } from 'react-aria';
 import { observeLayerHost } from '../lib/overlayFocus';
 import { holdModalSheet } from '../lib/portalOverlay';
+import { DialogCloseButton } from './DialogChrome';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
 import * as css from './BottomSheet.css';
@@ -102,14 +93,7 @@ export function BottomSheet({
                     <Box grow="Yes">
                       <Text size="H4">{title}</Text>
                     </Box>
-                    <IconButton
-                      aria-label={closeLabel}
-                      size="300"
-                      radii="300"
-                      onClick={requestClose}
-                    >
-                      <Icon src={Icons.Cross} />
-                    </IconButton>
+                    <DialogCloseButton label={closeLabel} onClick={requestClose} />
                   </Header>
                 }
               >
