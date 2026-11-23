@@ -17,6 +17,7 @@ import {
   getAiRunContextLabel,
   getAiRunTokenCountParts,
   getAiRunTokenParts,
+  isFlaggedAiRunStatus,
 } from '../agent-run/aiRunDisplay';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 import * as segmented from '../../ui/styles/Segmented.css';
@@ -392,10 +393,10 @@ const STATUS_LABEL_KEYS = {
   cancelled: 'mindroomUi.messages.mindroomReplyDetails.stopped',
 } as const;
 
-const isFlaggedStatus = (status: string | undefined): status is keyof typeof STATUS_LABEL_KEYS =>
-  status === 'error' || status === 'cancelled';
-
-/** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
+/**
+ * What a MindRoom reply ran on, what it and the conversation cost, and what it used.
+ * Keep any new rendered section in sync with `hasRenderableAiRunDetails` in `../agent-run/aiRunDisplay.ts`.
+ */
 export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: string }) {
   const { t } = useTranslation();
   const modelLabel = getAiRunCompactModelLabel(info);
@@ -404,7 +405,7 @@ export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: str
 
   return (
     <div className={css.Body}>
-      {(modelLabel || isFlaggedStatus(status)) && (
+      {(modelLabel || isFlaggedAiRunStatus(status)) && (
         <div className={css.Lead}>
           {modelLabel && (
             <span className={css.Tile}>
@@ -423,7 +424,7 @@ export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: str
               </Text>
             )}
           </div>
-          {isFlaggedStatus(status) && (
+          {isFlaggedAiRunStatus(status) && (
             <span className={css.Status[status]}>{t(STATUS_LABEL_KEYS[status])}</span>
           )}
         </div>

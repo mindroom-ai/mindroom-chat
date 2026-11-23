@@ -6,6 +6,7 @@ import {
   TERMINAL_STREAM_STATUSES,
   getAiRunInfo,
   hasTerminalStreamMetadata,
+  readOwnStreamStatus,
   readStreamStatus,
 } from '../../matrix/protocol/aiRun';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
@@ -76,12 +77,24 @@ export const isEventStreaming = (
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
 ): boolean => {
   const content = getPreferredEventContent(mEvent, timelineSet);
+  const streamStatus = readStreamStatus(content);
+  // A status the shown edit carries itself takes precedence over a run status of 'streaming',
+  // which a stop or error note borrows; a status it borrowed from an older edit does not, so an
+  // older finish or approval pause does not veto a retry that says by its run status that it
+  // streams (`readOwnStreamStatus`).
+  const ownStreamStatus = readOwnStreamStatus(content);
+  if (ownStreamStatus === 'approval_pending') {
+    return false;
+  }
+
   const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
-  if (aiRunStatus === 'streaming') {
+  if (
+    aiRunStatus === 'streaming' &&
+    !(ownStreamStatus && TERMINAL_STREAM_STATUSES.has(ownStreamStatus))
+  ) {
     return true;
   }
 
-  const streamStatus = readStreamStatus(content);
   // hasTerminalStreamMetadata owns the ai_run terminal set (which
   // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
   // stream statuses; the local check only adds the record-form fallback.
@@ -95,11 +108,15 @@ export const isEventStreaming = (
     !!getFinishingEdit(mEvent) ||
     hasStreamEnded(mEvent);
 
-  if (hasStopReaction(relations) && !terminalMetadata) {
+  if (streamStatus === 'approval_pending' || terminalMetadata) {
+    return false;
+  }
+
+  if (hasStopReaction(relations)) {
     return true;
   }
 
-  return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus) && !terminalMetadata;
+  return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus);
 };
 
 const getThreadStreamingSnapshot = (
