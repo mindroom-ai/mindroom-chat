@@ -945,9 +945,9 @@ test.describe('thread timeline jumps reproducers', () => {
           url.pathname.endsWith(`/relations/${encodedRoot}`) ||
           url.pathname.endsWith(`/relations/${fixture.longThreadRootId}`);
         if (isThreadTimelineRelations) {
-          url.searchParams.set('limit', '25');
-          // Hold page 1 slightly past first reveal (like a phone slide finishing before the
-          // first 450 ms /relations response arrives) and delay every subsequent page by 450 ms.
+          // 20 events per page (~15 pages for 296 events): page 1 overlaps the 20 newest
+          // replies already in /sync while adding the backward cursor (`showThreadLoadOlder`).
+          url.searchParams.set('limit', '20');
           await wait(url.searchParams.has('from') ? 450 : 900);
           const response = await route.fetch({ url: url.toString() });
           const body = await response.text();
