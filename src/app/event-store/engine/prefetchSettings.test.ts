@@ -193,7 +193,7 @@ describe('MindRoom local settings storage', () => {
       __setCacheStoreByteBudgetForTests,
       getCacheStoreByteBudget,
       sanitizeCacheStoreByteBudget,
-    } = await import('../cache/db');
+    } = await import('../cache/db/cacheStoreSchema');
     const { prefetchSettingsAtom } = await import('./prefetchSettings');
 
     expect(getCacheStoreByteBudget()).toBe(2 * DEFAULT_BUDGET);
@@ -226,7 +226,7 @@ describe('MindRoom local settings storage', () => {
   });
 
   it('syncs cross-tab storage updates before subscribers and keeps them on writes', async () => {
-    const { getCacheStoreByteBudget } = await import('../cache/db');
+    const { getCacheStoreByteBudget } = await import('../cache/db/cacheStoreSchema');
     const { MINDROOM_SETTINGS_STORAGE_KEY } = await import('./prefetchSettingsStorage');
     const { prefetchSettingsAtom } = await import('./prefetchSettings');
 
@@ -289,6 +289,7 @@ describe('MindRoom local settings storage', () => {
     );
     window.dispatchEvent(new StorageEvent('storage', { key: MINDROOM_SETTINGS_STORAGE_KEY }));
     expect(observedBudgets).toHaveLength(2);
+    expect(getCacheStoreByteBudget()).toBe(4 * DEFAULT_BUDGET);
 
     const remount = store.sub(prefetchSettingsAtom, () => undefined);
     remount();
