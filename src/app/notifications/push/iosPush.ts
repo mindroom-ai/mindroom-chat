@@ -8,7 +8,11 @@ import {
   listSessions,
   type StoredSession,
 } from '../../matrix/session/sessions';
-import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+import { cloudflareAccessAllowsPush, hasCloudflareAccess } from '../../native/cloudflareAccess';
+import {
+  isNativeNotificationsAvailable,
+  reconcileNativeNotificationAccounts,
+} from '../../native/nativeNotifications';
 
 /**
  * The notification category of every push. The Apple Watch app shows its own long look for it
@@ -40,6 +44,8 @@ type MatrixPusherClient = Pick<MatrixClient, 'setPusher' | 'getHomeserverUrl'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
 
+export type IOSPushFormat = 'event_id_only' | 'full';
+
 export type IOSPushConfig = {
   appId: string;
   gatewayUrl: string;
@@ -47,7 +53,7 @@ export type IOSPushConfig = {
   deviceDisplayName: string;
   profileTag?: string;
   append: boolean;
-  format: 'event_id_only' | 'full';
+  format: IOSPushFormat;
   lang: string;
 };
 
@@ -179,16 +185,22 @@ export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
   };
 };
 
+/** Reads the account's stored push tag without generating one if absent. */
+export const getStoredIOSPushProfileTag = (sessionId?: string): string | undefined => {
+  const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
+  return trimConfigValue(readStorage(storageKey));
+};
+
 /**
  * The account's random push tag on this device. It is the pusher's `profile_tag` unless the
  * deployment configures one, and every push of the account carries it under
  * `IOS_PUSH_ACCOUNT_KEY`.
  */
 export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
-  const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
-  const stored = trimConfigValue(readStorage(storageKey));
+  const stored = getStoredIOSPushProfileTag(sessionId);
   if (stored) return stored;
 
+  const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
   const generated = generateProfileTag();
   writeStorage(storageKey, generated);
   return generated;
@@ -202,6 +214,17 @@ export const findIOSPushAccount = (accountTag: string): StoredSession | undefine
         readStorage(getSessionScopedStorageKey(session.sessionId, PUSH_PROFILE_TAG_STORAGE_KEY))
       ) === accountTag
   );
+
+/**
+ * The format the account's pushes really have. A private server behind Cloudflare Access gets
+ * `event_id_only` whatever the deployment configures, so that no message leaves it through the
+ * public gateway.
+ */
+export const resolveEffectiveIOSPushFormat = (
+  pushConfig: Pick<IOSPushConfig, 'format'>,
+  homeserverUrl?: string
+): IOSPushFormat =>
+  homeserverUrl && hasCloudflareAccess(homeserverUrl) ? 'event_id_only' : pushConfig.format;
 
 export const resolveIOSPushConfig = (
   clientConfig: ClientConfig,
@@ -332,13 +355,70 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
   writeStorage(storageKey, token);
 };
 
-export const clearIOSPushState = (sessionId?: string) => {
+/**
+ * The tags of the accounts that may share with the notification extension: signed in on this
+ * device, with push turned on, on a server that allows pushes. With the deployment's
+ * configuration, also only the accounts whose pushes name their sender (`full`). A caller
+ * without it (the sign-in pages, a sign-out) leaves those to the next caller that has it.
+ */
+export const getAllowedNativeNotificationAccountTags = (clientConfig?: ClientConfig): string[] =>
+  listSessions().flatMap((session) => {
+    // Read first: resolving the push configuration makes a tag for an account without one.
+    const accountTag = getStoredIOSPushProfileTag(session.sessionId);
+    if (!accountTag || !getIOSPushEnabled(session.sessionId)) return [];
+    if (!cloudflareAccessAllowsPush(session.baseUrl)) return [];
+    if (clientConfig) {
+      const pushConfig = resolveIOSPushConfig(clientConfig, session.sessionId);
+      if (!pushConfig) return [];
+      if (resolveEffectiveIOSPushFormat(pushConfig, session.baseUrl) !== 'full') return [];
+    }
+    return [accountTag];
+  });
+
+/**
+ * Makes what the app shares with the notification extension follow the accounts on this device:
+ * an account that is signed out, has push turned off, or may not show rich notifications is
+ * removed there, with its avatars and what Siri keeps of it. It only ever removes; an account is
+ * shared by `syncNativeNotificationAccount`.
+ *
+ * Nothing is noted down for a removal that fails or is cut off: the next call (when the app
+ * starts or becomes active, and whenever an account changes) removes what is left. Never rejects.
+ */
+export const reconcileIOSPushNativeState = async (options?: {
+  clientConfig?: ClientConfig;
+  permission?: NativePushPermission;
+}): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
+  try {
+    // Signed out, nothing is shared, whatever iOS and the deployment allow.
+    if (listSessions().length === 0) {
+      await reconcileNativeNotificationAccounts([]);
+      return;
+    }
+    const permission = options?.permission ?? (await checkIOSPushPermission());
+    // iOS allows or denies notifications to the whole app, so to every account.
+    await reconcileNativeNotificationAccounts(
+      permission === 'granted' ? getAllowedNativeNotificationAccountTags(options?.clientConfig) : []
+    );
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[ios-push] could not reconcile the notification accounts', error);
+  }
+};
+
+/**
+ * Removes the account's push state. Resolves once the app has answered the removal of what the
+ * account shares with the notification extension, so that a sign-out does not reload under it.
+ */
+export const clearIOSPushState = async (sessionId?: string): Promise<void> => {
   const storageKeys = [
     resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
     resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId),
     resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId),
   ];
   storageKeys.forEach(removeStorage);
+  // Without its stored tag the account is not among the allowed ones any more.
+  await reconcileIOSPushNativeState();
 };
 
 /** Each account's last pusher write, so its writes reach the homeserver in the order they start. */
@@ -381,7 +461,7 @@ const setIOSPushPusher = async (
 
   // A private server's pushes carry only event and room IDs (and the account's random tag) past
   // the public gateway.
-  const format = hasCloudflareAccess(mx.getHomeserverUrl()) ? 'event_id_only' : pushConfig.format;
+  const format = resolveEffectiveIOSPushFormat(pushConfig, mx.getHomeserverUrl());
   await mx.setPusher(
     buildIOSPushPusherRequest(
       normalizedToken,

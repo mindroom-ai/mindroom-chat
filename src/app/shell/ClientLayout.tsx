@@ -3,13 +3,14 @@ import { Box } from 'folds';
 import { useAtomValue } from 'jotai';
 import { UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { rememberDirectoryViaServers } from '../matrix/directoryViaServers';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { getActiveSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { resolveSessionRestorePath } from '../routes/sessionRouteRestore';
 import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
-  resolveCanonicalizedPathname,
+  resolveCanonicalizedRoute,
 } from '../navigation/clientRouteRestore';
 import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
@@ -99,13 +100,18 @@ export function ClientLayout({
   useEffect(() => {
     if (!sessionId || !hasAlias) return undefined;
     let cancelled = false;
-    resolveCanonicalizedPathname(mx, pathname)
-      .then((resolved) => {
+    resolveCanonicalizedRoute(mx, pathname)
+      .then(({ pathname: resolved, directoryVia }) => {
         if (cancelled) return;
         setResolvedAliasPath(pathname);
         // A navigation since, which the page may not show yet, keeps its own address: a link's
         // redirect into its thread, or a step back to the entry the page load started on.
         if (router && router.state.location.key !== key) return;
+        // Commit directory hints only once this visit is confirmed current, so an abandoned
+        // alias lookup resolving late cannot overwrite the active room's routing servers.
+        directoryVia.forEach(({ roomId, servers }) =>
+          rememberDirectoryViaServers(mx, roomId, servers)
+        );
         // The same visit under the room's own address: what the entry says of it stays.
         if (resolved !== pathname) {
           void navigate(`${resolved}${search}${hash}`, { replace: true, state });

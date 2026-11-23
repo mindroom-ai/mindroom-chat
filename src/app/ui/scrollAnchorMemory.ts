@@ -115,6 +115,8 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
+  /** Optional handoff for a window that waits for the first write. */
+  progress?: { placed?: boolean; left?: boolean; onWrite?: () => void };
 };
 
 /**
@@ -132,6 +134,7 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
+  progress,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -146,7 +149,7 @@ export function useScrollAnchorMemory({
     if (restoreRef.current?.memoryKey !== memoryKey) {
       restoreRef.current = {
         memoryKey,
-        snapshot: memory.get(memoryKey),
+        snapshot: progress?.placed ? undefined : memory.get(memoryKey),
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
@@ -157,6 +160,7 @@ export function useScrollAnchorMemory({
     let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
+      if (progress) progress.placed = progress.left = true;
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
@@ -187,6 +191,8 @@ export function useScrollAnchorMemory({
       state.placedRows = placement.rows;
       state.rowOrder = rowOrder;
       state.lastAppliedScrollTop = view.scrollTop;
+      if (progress) progress.placed = true;
+      progress?.onWrite?.();
     };
     restore();
     if (!state.snapshot) return undefined;
@@ -199,7 +205,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [contentRef, memory, memoryKey, progress, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;

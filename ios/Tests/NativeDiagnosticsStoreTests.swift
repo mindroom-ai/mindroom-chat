@@ -374,4 +374,77 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
         XCTAssertFalse(exported.contains("capacitor://"))
         XCTAssertFalse(exported.contains("localizedDescription"))
     }
+
+    func testTerminationReasonStateRoundTripsAndCountsAsNonEmpty() throws {
+        XCTAssertTrue(MindRoomDiagnosticState().isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(terminationReason: "memory").isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(availableMemoryBytes: 1_024).isEmpty)
+        XCTAssertFalse(MindRoomDiagnosticState(msSinceMemoryWarning: 50).isEmpty)
+
+        let directory = try temporaryDirectory()
+        let firstStore = makeStore(directory: directory, sessionId: firstSession)
+        firstStore.record(
+            name: .webViewTerminationReason,
+            data: MindRoomDiagnosticState(
+                terminationReason: "memory",
+                availableMemoryBytes: 1_024,
+                msSinceMemoryWarning: 50
+            )
+        )
+        _ = firstStore.read()
+
+        let snapshot = makeStore(directory: directory, sessionId: secondSession).read()
+        let event = try XCTUnwrap(snapshot.events.first)
+        XCTAssertEqual(event.name, .webViewTerminationReason)
+        XCTAssertEqual(event.data?.terminationReason, "memory")
+        XCTAssertEqual(event.data?.availableMemoryBytes, 1_024)
+        XCTAssertEqual(event.data?.msSinceMemoryWarning, 50)
+    }
+
+    func testMalformedPersistedTerminationReasonIsRejectedAndValidationBoundsHold() throws {
+        XCTAssertTrue(MindRoomDiagnosticState(terminationReason: "unknown(7)").isValid)
+        XCTAssertTrue(MindRoomDiagnosticState(terminationReason: "unknown(-1)").isValid)
+        XCTAssertFalse(MindRoomDiagnosticState(terminationReason: "secret-token").isValid)
+        XCTAssertFalse(MindRoomDiagnosticState(terminationReason: "unknown(12345678901234567890)").isValid)
+        XCTAssertFalse(MindRoomDiagnosticState(availableMemoryBytes: -1).isValid)
+        XCTAssertFalse(MindRoomDiagnosticState(msSinceMemoryWarning: -1).isValid)
+
+        let directory = try temporaryDirectory()
+        let firstStore = makeStore(directory: directory, sessionId: firstSession)
+        firstStore.record(
+            name: .webViewTerminationReason,
+            data: MindRoomDiagnosticState(terminationReason: "memory")
+        )
+        _ = firstStore.read()
+
+        let historyFile = try XCTUnwrap(
+            FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }
+                .first { $0.pathExtension == "json" }
+        )
+        var history = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: historyFile)) as? [String: Any]
+        )
+        var events = try XCTUnwrap(history["events"] as? [[String: Any]])
+        var data = try XCTUnwrap(events[0]["data"] as? [String: Any])
+        data["terminationReason"] = "secret-token"
+        events[0]["data"] = data
+        history["events"] = events
+        try JSONSerialization.data(withJSONObject: history).write(to: historyFile, options: .atomic)
+
+        let reopenedStore = makeStore(directory: directory, sessionId: secondSession)
+        let corruptSnapshot = reopenedStore.read()
+        let corruptExport = String(decoding: try JSONEncoder().encode(corruptSnapshot), as: UTF8.self)
+
+        XCTAssertEqual(corruptSnapshot.status, .corrupt)
+        XCTAssertTrue(corruptSnapshot.events.isEmpty)
+        XCTAssertFalse(corruptExport.contains("secret-token"))
+
+        reopenedStore.record(name: .appLaunch)
+        let afterLaunchSnapshot = reopenedStore.read()
+        let afterLaunchExport = String(decoding: try JSONEncoder().encode(afterLaunchSnapshot), as: UTF8.self)
+
+        XCTAssertEqual(afterLaunchSnapshot.events.map(\.name), [.appLaunch])
+        XCTAssertFalse(afterLaunchExport.contains("secret-token"))
+    }
 }

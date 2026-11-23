@@ -109,7 +109,10 @@ export const clearUserUiState = async (userId: string): Promise<void> => {
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCompactRoomSectionsStore(userId);
-  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
+  removeStorageItemSafe(
+    getSafeLocalStorage(),
+    `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`
+  );
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);
   clearRecentThreadsStore(userId);
@@ -144,9 +147,9 @@ export const clearSessionUiState = (sessionId: string): void => {
   clearThreadSummarySharedState(sessionId);
 };
 
-export const clearSessionNativeState = (sessionId: string): void => {
+/** Resolves once the app has answered the removal of the session's native state. */
+export const clearSessionNativeState = (sessionId: string): Promise<void> =>
   clearIOSPushState(sessionId);
-};
 
 export const clearInMemoryCaches = (): void => {
   revokeAllCacheStoreWrites();

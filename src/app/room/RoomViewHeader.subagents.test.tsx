@@ -1077,11 +1077,11 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         } else {
           actInDom(() => {
             fireEvent.touchStart(member, { touches: [{ clientX: 100, clientY: 50 }] });
-            fireEvent.touchMove(member, { touches: [{ clientX: 170, clientY: 50 }] });
-            fireEvent.touchEnd(member);
+            fireEvent.touchMove(member, { touches: [{ clientX: 200, clientY: 50 }] });
+            fireEvent.touchEnd(member, { changedTouches: [{ clientX: 200, clientY: 50 }] });
           });
         }
-        expect(member.isConnected).toBe(false);
+        await vi.waitFor(() => expect(member.isConnected).toBe(false));
         const target =
           dismiss === 'scrim click'
             ? outside

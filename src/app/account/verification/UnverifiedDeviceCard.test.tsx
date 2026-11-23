@@ -48,7 +48,7 @@ describe('UnverifiedDeviceCard', () => {
   it('opens the security settings as before when there is nothing to unlock with', async () => {
     const store = renderCard({ kind: 'other' });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Verify this device' }));
     });
     expect(store.get(settingsModalAtom)).toEqual({ initialPage: SettingsPages.PrivacyPage });
     expect(store.get(recoveryDialogAtom)).toBeUndefined();

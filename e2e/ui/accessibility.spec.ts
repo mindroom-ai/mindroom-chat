@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
+import { AXE_PATH, axeFindings } from '../helpers/axe';
 import {
   createPrivateRoom,
   joinRoom,
@@ -27,8 +28,6 @@ const ROOM_TOPIC = 'Where the keyboard gets tried';
 const THREAD_ROOM_NAME = `Release Desk ${RUN}`;
 const THREAD_ROOT = 'Is the release checklist done?';
 const THREAD_REPLY = 'Every item on the checklist is ticked.';
-// axe-core comes with eslint-plugin-jsx-a11y; the axe test is skipped if it is ever gone.
-const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
 
 const register = (name: string): Promise<MatrixSession & { username: string }> =>
   registerDisposableUser(`a11y_${name}_${RUN}`, PASSWORD);
@@ -147,29 +146,6 @@ const knownFindings = (code: string) => [
     )}| [^>]*\\.\\.\\.>$)`
   ),
 ];
-
-/** Critical and serious axe-core findings on the page, as `rule: element` lines. */
-const axeFindings = async (page: Page): Promise<string[]> => {
-  await page.addScriptTag({ path: AXE_PATH });
-  return page.evaluate(async () => {
-    type AxeResult = {
-      violations: {
-        id: string;
-        impact: string | null;
-        nodes: { target: string[]; html: string }[];
-      }[];
-    };
-    const { axe } = window as unknown as {
-      axe: { run: (context: Document) => Promise<AxeResult> };
-    };
-    const result = await axe.run(document);
-    return result.violations
-      .filter((violation) => violation.impact === 'critical' || violation.impact === 'serious')
-      .flatMap((violation) =>
-        violation.nodes.map((node) => `${violation.id}: ${node.html.slice(0, 300)}`)
-      );
-  });
-};
 
 /** Horizontal paddings of an element, in pixels. */
 const sidePaddings = (locator: Locator) =>

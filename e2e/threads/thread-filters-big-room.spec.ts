@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, expectCompactCardCount, walkCompactCards } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -231,17 +232,29 @@ const shownRootIds = (cards: Locator) =>
 
 const sorted = (ids: string[]) => [...ids].sort();
 
-/** The cards shown are exactly `expected`, pinned ones included, and the count chip says so. */
+/**
+ * The cards shown are exactly `expected`, pinned ones included, and the count chip says so. The
+ * list mounts a window of its cards: its count says how many it has, and a walk through it which.
+ */
 const expectShown = async (page: Page, room: SeededRoom, expected: string[], label: string) => {
-  const cards = page.locator('[data-compact-room-view] [data-thread-root-id]');
+  const view = page.locator(COMPACT_VIEW);
   const pinnedCards = page.locator('[data-pinned-threads] [data-thread-root-id]');
   const pinnedRoots = new Set(PINNED.map((index) => room.rootIds[index]!));
+  if (expected.length === 0) {
+    await expect(view.locator('[data-thread-root-id]'), label).toHaveCount(0, { timeout: 30_000 });
+  } else {
+    await expectCompactCardCount(view, expected.length, { timeout: 30_000 });
+    await expect
+      .poll(async () => sorted(await walkCompactCards(view)), { message: label, timeout: 60_000 })
+      .toEqual(sorted(expected));
+    // The pinned cards lead the list.
+    await view.evaluate((scroller) => {
+      scroller.scrollTop = 0;
+    });
+  }
   await expect
-    .poll(async () => sorted(await shownRootIds(cards)), { message: label, timeout: 30_000 })
-    .toEqual(sorted(expected));
-  expect(sorted(await shownRootIds(pinnedCards)), `${label}: pinned`).toEqual(
-    sorted(expected.filter((id) => pinnedRoots.has(id)))
-  );
+    .poll(async () => sorted(await shownRootIds(pinnedCards)), { message: `${label}: pinned` })
+    .toEqual(sorted(expected.filter((id) => pinnedRoots.has(id))));
   await expect(
     page.locator('[data-room-thread-overview] [data-thread-count]').first(),
     `${label}: count`
@@ -272,7 +285,7 @@ const listedCounts = (panel: Locator) =>
 
 /** Everything the spec checks, on a signed-in page that shows the seeded room. */
 const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
-  const cards = page.locator('[data-compact-room-view] [data-thread-root-id]');
+  const view = page.locator(COMPACT_VIEW);
   const overview = page.locator('[data-room-thread-overview]');
   await expect(overview).toBeVisible({ timeout: 180_000 });
   // The advanced filters, whichever mode the account's setting starts in.
@@ -283,7 +296,7 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   }).toPass({ timeout: 30_000 });
   // Compact opens with resolved threads hidden; every thread shows once the filter is off.
   await showResolvedThreads(page);
-  await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
+  await expectCompactCardCount(view, THREAD_COUNT);
 
   // Workflow tabs: the pinned threads follow the same rules as the others. A pinned thread stays open
   // (THR-18), so its resolved tag does not count while it is pinned.
@@ -356,9 +369,11 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   for (const index of [10, 11]) {
     const plan = PLANS[index]!;
     const expected = [...new Set([...[...plan.replies].reverse(), plan.root])].slice(0, 3);
-    const card = page.locator(
-      `[data-compact-room-view] [data-thread-root-id="${room.rootIds[index]}"]`
-    );
+    const selector = `[data-thread-root-id="${room.rootIds[index]}"]`;
+    const card = view.locator(selector);
+    // The card is mounted once the list is scrolled to it.
+    // eslint-disable-next-line no-await-in-loop
+    await walkCompactCards(view, selector);
     // eslint-disable-next-line no-await-in-loop
     await expect
       .poll(

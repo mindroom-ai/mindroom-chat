@@ -20,6 +20,11 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
+import {
+  createRouterAppPathNavigator,
+  setNativeAppPathNavigator,
+} from '../native/nativeUniversalLinks';
+import { useReconcileNativeNotifications } from '../notifications/push/useReconcileNativeNotifications';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -67,6 +72,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
+  // Universal Links the native app is opened with navigate through this router, so the pages
+  // know they were opened from outside and a phone's drawer and members close for them.
+  useLayoutEffect(() => setNativeAppPathNavigator(createRouterAppPathNavigator(router)), [router]);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
   // (UnreadTitle, a passive effect) starts from it.
   const { pageTitle } = deploymentBranding(clientConfig);
@@ -92,6 +100,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
 function App() {
   // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
   useMobileKeyboardViewportFix();
+  // What a signed-out account still shares with the iOS notification extension is removed, also
+  // on the sign-in pages.
+  useReconcileNativeNotifications();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);

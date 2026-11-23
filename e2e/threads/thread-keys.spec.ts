@@ -1,5 +1,7 @@
+import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { AXE_PATH, axeFindings } from '../helpers/axe';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -8,6 +10,8 @@ import {
 } from '../helpers/disposableAccounts';
 import { sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Into a thread and out of it by keyboard, in a Compact room against the disposable homeserver of
 // `just hs-up` (or a slot of scripts/e2e-slot.sh). Alt and the right arrow goes one level in (the
@@ -65,12 +69,14 @@ const openOrchard = async (
 ): Promise<string[]> => {
   const me = await registerDisposableUser(`thread_keys_${tag}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, me.accessToken, { name: 'Orchard' });
+  const roots: string[] = [];
   for (const topic of topics) {
     // eslint-disable-next-line no-await-in-loop
     const rootId = await sendRoomMessage(HOMESERVER, me.accessToken, roomId, {
       msgtype: 'm.text',
       body: topic,
     });
+    roots.push(rootId);
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(HOMESERVER, me.accessToken, roomId, {
       msgtype: 'm.text',
@@ -92,8 +98,18 @@ const openOrchard = async (
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await setRoomCompact(page, true);
-  await expect(cards(page)).toHaveCount(topics.length, { timeout: 30_000 });
-  return cardOrder(page);
+  const view = page.locator(COMPACT_VIEW);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(topics.length), {
+    timeout: 30_000,
+  });
+  const mounted = await cardOrder(page);
+  if (mounted.length === topics.length) return mounted;
+  const order = await walkCompactCards(view, roots);
+  expect(order).toHaveLength(topics.length);
+  await view.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  return order;
 };
 
 test('the keyboard goes into a thread and out again, and between the cards', async ({ page }) => {
@@ -276,12 +292,142 @@ test('beside its thread, the keys reach the cards and open the next thread', asy
   await expect.poll(() => openThread(page)).toBe(third);
 });
 
+/** The control that has the focus in the cards: its card and name, and whether it shows. */
+const focusedStop = (page: Page) =>
+  page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null;
+    const view = active?.closest('[data-compact-room-view]');
+    if (!active || !view || active.getAttribute('role') === 'scrollbar') return undefined;
+    if (active.hasAttribute('data-compact-spacer')) return 'a spacer kept the focus';
+    const box = active.getBoundingClientRect();
+    const area = view.getBoundingClientRect();
+    const control = active.dataset.threadRootId ? 'card' : active.getAttribute('aria-label');
+    const id = active.closest<HTMLElement>('[data-scroll-anchor]')?.dataset.scrollAnchor;
+    const shown = box.bottom > area.top && box.top < area.bottom;
+    const place = `${Math.round(box.top)}..${Math.round(box.bottom)} of ${Math.round(area.bottom)}`;
+    return `${id} ${control}${shown ? '' : `, out of view at ${place}, ${view.scrollTop}`}`;
+  });
+
+/** The stops `key` (Tab or Shift+Tab) makes from the focused control until it leaves the cards. */
+const tabStops = async (page: Page, key: string): Promise<string[]> => {
+  const stops: string[] = [];
+  for (let press = 0; press < 400; press += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press(key);
+    // eslint-disable-next-line no-await-in-loop
+    const stop = await focusedStop(page);
+    if (stop === undefined) break;
+    stops.push(stop);
+  }
+  return stops;
+};
+
+// Tab and Shift+Tab are the browser's own in a list that mounts a window of its cards: every
+// card is a stop in the page's order, forwards from its button and backwards from its last
+// control, as when every card is mounted. `tab` is the browser's key for every control: Safari
+// tabs past buttons without Option.
+const checkTabOrder = async (page: Page, tag: string, tab = 'Tab') => {
+  const back = `Shift+${tab}`;
+  const topics = Array.from({ length: 60 }, (_, index) => `Row ${index + 1} of the orchard`);
+  const order = await openOrchard(page, tag, 1280, topics);
+  const view = page.locator(COMPACT_VIEW);
+  const scrollTo = (top: number) =>
+    view.evaluate(async (scroller, to) => {
+      scroller.scrollTop = to < 0 ? scroller.scrollHeight : to;
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+    }, top);
+  await expect(view).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
+  const [first, second] = [order[0] ?? '', order[1] ?? ''];
+  const last = order.at(-1) ?? '';
+  await expect(card(page, last)).toHaveCount(0);
+  await card(page, first).focus();
+  const forward = [`${first} card`, ...(await tabStops(page, tab))];
+  expect([...new Set(forward.map((stop) => stop.split(' ')[0]))]).toEqual(order);
+  expect(forward.filter((stop) => /spacer|out of view/.test(stop))).toEqual([]);
+  // Each card has the same controls: its button, then at least its menu.
+  expect(forward.length % order.length).toBe(0);
+  const controls = forward.length / order.length;
+  expect(controls).toBeGreaterThanOrEqual(2);
+  // Past the last card, then back: the same stops in reverse, each card entered at its end.
+  expect(await view.getByRole('scrollbar').evaluate((bar) => bar === document.activeElement)).toBe(
+    true
+  );
+  expect(await tabStops(page, back)).toEqual([...forward].reverse());
+
+  // From the first card's last control, with the list scrolled to its end: only that card is
+  // left of the first cards, and the next stop of the page is the spacer after it.
+  await card(page, first).focus();
+  for (let press = 1; press < controls; press += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press(tab);
+  }
+  await scrollTo(-1);
+  await expect(card(page, second)).toHaveCount(0);
+  await page.keyboard.press(tab);
+  expect(await focusedStop(page)).toBe(`${second} card`);
+  // From the scrollbar, with the list back at its top: the last card is entered at its end.
+  await scrollTo(-1);
+  await view.getByRole('scrollbar').focus();
+  await scrollTo(0);
+  await expect(card(page, last)).toHaveCount(0);
+  await page.keyboard.press(back);
+  expect(await focusedStop(page)).toBe(forward.at(-1));
+};
+
+test('Tab and Shift+Tab stop at every card of a long list, in both directions', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await checkTabOrder(page, 'tab');
+});
+
+test('Tab and Shift+Tab stop at every card of a long list, in both directions (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  await onWebKitPage({ baseURL }, (page) => checkTabOrder(page, 'tabw', MAC ? 'Alt+Tab' : 'Tab'));
+});
+
+test('the cards a long list has not mounted are a named button that shows them', async ({
+  page,
+}) => {
+  test.skip(!fs.existsSync(AXE_PATH), 'axe-core is not installed');
+  test.setTimeout(240_000);
+  const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
+  const order = await openOrchard(page, 'axe', 1280, topics);
+  // At the top, the list mounts its first 24 cards: one button stands for the other six.
+  const spacer = page.locator(`${COMPACT_VIEW} [data-compact-spacer]`);
+  await expect(spacer).toHaveCount(1);
+  await expect(spacer).toHaveAccessibleName('6 more threads');
+  // No critical or serious finding names it (aria-hidden-focus, button-name), in any rule.
+  const findings = await axeFindings(page);
+  expect(findings.filter((finding) => finding.includes('data-compact-spacer'))).toEqual([]);
+  expect(findings.filter((finding) => /^(aria-hidden-focus|button-name):/.test(finding))).toEqual(
+    []
+  );
+  // A screen reader activates it without moving the focus to it: its first card takes the focus.
+  await spacer.evaluate((button: HTMLElement) => button.click());
+  await expect(card(page, order[24] ?? '')).toBeFocused();
+  await expect(card(page, order[24] ?? '')).toBeInViewport();
+});
+
 test('a thread left far down a long list hands the focus to its card', async ({ page }) => {
   test.setTimeout(240_000);
   // More cards than the list mounts at first on the way back from a thread.
   const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
   const order = await openOrchard(page, 'long', 1280, topics);
   const deep = order[27] ?? '';
+  const first = order[0] ?? '';
+  const last = order.at(-1) ?? '';
+  await expect(card(page, last)).toHaveCount(0);
+  await card(page, first).focus();
+  await page.keyboard.press('End');
+  await expect(card(page, last)).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(card(page, first)).toBeFocused();
 
   // Opened by its address, as from a link: the list has no place of the reader's to open on.
   const address = new URL(page.url());
@@ -293,4 +439,24 @@ test('a thread left far down a long list hands the focus to its card', async ({ 
   await page.keyboard.press('Alt+ArrowLeft');
   await expect(banner(page)).toHaveCount(0);
   await expect(card(page, deep)).toBeFocused();
+
+  // With the thread open beside a scrolled-away list, Alt+ArrowLeft reveals its card in view.
+  await page.setViewportSize({ width: 1600, height: 800 });
+  await expect(page.locator(COMPACT_VIEW)).toHaveAttribute('data-compact-card-count', '30', {
+    timeout: 30_000,
+  });
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
+    .click();
+  await page.locator(COMPACT_VIEW).evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(card(page, deep)).not.toBeInViewport();
+  await page.getByTestId('thread-column').getByRole('textbox').last().click();
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect(card(page, deep)).toBeFocused();
+  await expect(card(page, deep)).toBeInViewport();
 });

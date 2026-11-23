@@ -10,6 +10,8 @@ type InsetScrollbarProps = {
   className: string;
   /** Composite widgets retain their own arrow-key focus order. */
   tabIndex?: 0 | -1;
+  /** Runs before End reads the extent: a list that mounts a window of its rows shows its end. */
+  beforeEnd?: () => void;
 };
 
 /** Keep native scrolling, with an indicator bounded by the unobscured viewport. */
@@ -19,10 +21,14 @@ export function InsetScrollbar({
   label,
   className,
   tabIndex = 0,
+  beforeEnd,
 }: InsetScrollbarProps) {
   const id = useId();
   const trackRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
+  // Read at the key: a change of it must not reinstall the listeners under a drag.
+  const beforeEndRef = useRef(beforeEnd);
+  beforeEndRef.current = beforeEnd;
 
   // Ancestor scroll refs are attached after child layout effects.
   useEffect(() => {
@@ -123,6 +129,8 @@ export function InsetScrollbar({
       reveal();
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === 'End') beforeEndRef.current?.();
       const { maximum } = geometry();
       const page = track.clientHeight;
       const positions: Record<string, number> = {
@@ -134,7 +142,7 @@ export function InsetScrollbar({
         End: maximum,
       };
       const position = positions[event.key];
-      if (position === undefined || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (position === undefined) return;
       event.preventDefault();
       scroll.scrollTop = position;
       reveal();

@@ -87,7 +87,13 @@ export function LiveVoiceRecordingIndicator() {
       </span>
       {shown &&
         createPortal(
-          <div className={css.Pill} aria-live="off" data-testid="live-voice-recording-indicator">
+          // `data-cover-notice`: it moves into what covers the page (sidebar/PhoneNavDrawer.tsx).
+          <div
+            className={css.Pill}
+            aria-live="off"
+            data-testid="live-voice-recording-indicator"
+            data-cover-notice=""
+          >
             <span className={css.Dot({ paused })} aria-hidden />
             <Text className={css.Label} size="B300">
               {label}

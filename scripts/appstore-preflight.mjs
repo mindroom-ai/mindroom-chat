@@ -16,6 +16,9 @@
 //   minimum.
 // - The watch app's Info.plist has no WKBackgroundModes.
 //
+// And the Notification Service Extension must share the App's version/build numbers, use the
+// notification service extension point, and have INSendMessageIntent declared in the main app.
+//
 // `node scripts/appstore-preflight.mjs [checkout]` checks the checkout (default: this one),
 // prints the versions it accepted and exits 1 with every problem it found otherwise.
 import { readFileSync } from 'node:fs';
@@ -25,8 +28,11 @@ import { getSingleAppTargetBuildSettingValue } from './ios-xcode-project.mjs';
 
 export const XCODE_PROJECT_PATH = 'ios/App/App.xcodeproj/project.pbxproj';
 export const WATCH_INFO_PLIST_PATH = 'ios/Watch/MindRoomWatch/Info.plist';
+export const NOTIFICATION_SERVICE_INFO_PLIST_PATH =
+  'ios/NotificationService/MindRoomNotificationService/Info.plist';
 
 const WATCH_TARGETS = ['MindRoomWatch', 'MindRoomWatchWidgets'];
+const NOTIFICATION_SERVICE_TARGET = 'MindRoomNotificationService';
 
 const APPLE_VERSION = /^\d+\.\d+\.\d+$/;
 const BUILD_NUMBER = /^[1-9]\d*$/;
@@ -123,6 +129,83 @@ export const watchAppUploadProblems = ({ projectText, watchInfoPlistText }) => {
   return problems;
 };
 
+/**
+ * Every reason App Store Connect or iOS refuses Communication Notifications / the Notification
+ * Service Extension; empty when valid.
+ * @param {{ projectText: string; infoPlistText: string; notificationServiceInfoPlistText: string }} input
+ * @returns {string[]}
+ */
+export const notificationServiceUploadProblems = ({
+  projectText,
+  infoPlistText,
+  notificationServiceInfoPlistText,
+}) => {
+  /** @type {string[]} */
+  const problems = [];
+
+  const appMarketingVersion = readSetting(projectText, 'MARKETING_VERSION', problems);
+  const serviceMarketingVersion = readSetting(
+    projectText,
+    'MARKETING_VERSION',
+    problems,
+    NOTIFICATION_SERVICE_TARGET
+  );
+  if (
+    appMarketingVersion !== undefined &&
+    serviceMarketingVersion !== undefined &&
+    serviceMarketingVersion !== appMarketingVersion
+  ) {
+    problems.push(
+      `Target ${NOTIFICATION_SERVICE_TARGET} MARKETING_VERSION (${serviceMarketingVersion}) must match App (${appMarketingVersion}).`
+    );
+  }
+
+  const appBuildNumber = readSetting(projectText, 'CURRENT_PROJECT_VERSION', problems);
+  const serviceBuildNumber = readSetting(
+    projectText,
+    'CURRENT_PROJECT_VERSION',
+    problems,
+    NOTIFICATION_SERVICE_TARGET
+  );
+  if (
+    appBuildNumber !== undefined &&
+    serviceBuildNumber !== undefined &&
+    serviceBuildNumber !== appBuildNumber
+  ) {
+    problems.push(
+      `Target ${NOTIFICATION_SERVICE_TARGET} CURRENT_PROJECT_VERSION (${serviceBuildNumber}) must match App (${appBuildNumber}).`
+    );
+  }
+
+  Object.entries({
+    CFBundleShortVersionString: 'MARKETING_VERSION',
+    CFBundleVersion: 'CURRENT_PROJECT_VERSION',
+  }).forEach(([key, setting]) => {
+    const value = plistString(notificationServiceInfoPlistText, key);
+    if (value !== `$(${setting})`) {
+      problems.push(
+        `${NOTIFICATION_SERVICE_TARGET} Info.plist ${key} must be $(${setting}), got '${value ?? '(missing)'}'.`
+      );
+    }
+  });
+
+  const extensionPoint = plistString(notificationServiceInfoPlistText, 'NSExtensionPointIdentifier');
+  if (extensionPoint !== 'com.apple.usernotifications.service') {
+    problems.push(
+      `${NOTIFICATION_SERVICE_TARGET} Info.plist NSExtensionPointIdentifier must be com.apple.usernotifications.service, got '${extensionPoint ?? '(missing)'}'.`
+    );
+  }
+
+  const strippedAppInfoPlist = infoPlistText.replace(/<!--[\s\S]*?-->/g, '');
+  if (!strippedAppInfoPlist.includes('<string>INSendMessageIntent</string>')) {
+    problems.push(
+      'App Info.plist NSUserActivityTypes must include INSendMessageIntent for Communication Notifications.'
+    );
+  }
+
+  return problems;
+};
+
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const root = path.resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)));
@@ -136,6 +219,11 @@ if (isMain) {
   const problems = [
     ...appStoreVersionProblems({ projectText, infoPlistText }),
     ...watchAppUploadProblems({ projectText, watchInfoPlistText: read(WATCH_INFO_PLIST_PATH) }),
+    ...notificationServiceUploadProblems({
+      projectText,
+      infoPlistText,
+      notificationServiceInfoPlistText: read(NOTIFICATION_SERVICE_INFO_PLIST_PATH),
+    }),
   ];
   if (problems.length > 0) {
     process.stderr.write(

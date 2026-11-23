@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { chromium, expect, test, type Browser, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectCompactCardCount } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -362,9 +363,8 @@ test.describe('busy room typing', () => {
         await page.goto(`/home/${encodeURIComponent(roomId)}`);
         const view = page.locator('[data-compact-room-view="true"]');
         await expect(view).toBeVisible({ timeout: 120_000 });
-        await expect
-          .poll(() => view.locator('[data-thread-root-id]').count(), { timeout: 180_000 })
-          .toBeGreaterThanOrEqual(HISTORY_THREADS);
+        // The list mounts a window of its cards: it is ready once it has measured them all.
+        await expectCompactCardCount(view, HISTORY_THREADS, { atLeast: true });
         const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
         await composer.click();
 
@@ -432,7 +432,7 @@ test.describe('busy room typing', () => {
             (window as unknown as { __cardInserts: { inserted: number } }).__cardInserts.inserted
         );
         await load.stop();
-        const cards = await view.locator('[data-thread-root-id]').count();
+        const cards = Number(await view.getAttribute('data-compact-card-count'));
 
         const result = {
           engine,

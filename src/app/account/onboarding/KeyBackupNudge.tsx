@@ -1,15 +1,13 @@
 import { useTranslation } from 'react-i18next';
-import { Box, Button, Icon, Icons, Text, color } from 'folds';
+import { Icons } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { recoveryDialogAtom } from '../encryption/recoveryDialog';
 import { useRecoveryState } from '../encryption/recoveryState';
-import { WelcomeCardStyle } from './welcomeCard';
+import { WelcomeNotice } from './WelcomeNotice';
 
-const KEY = 'sharedUi.recoveryPassword';
-
-function KeyBackupNudgeCard() {
+function KeyBackupNudgeRow() {
   const { t } = useTranslation();
   const setRecoveryDialog = useSetAtom(recoveryDialogAtom);
   const state = useRecoveryState();
@@ -19,29 +17,12 @@ function KeyBackupNudgeCard() {
   if (state.kind !== 'none') return null;
 
   return (
-    <Box direction="Column" gap="200" style={WelcomeCardStyle}>
-      <Box alignItems="Center" gap="200">
-        <Icon size="100" src={Icons.ShieldLock} style={{ color: color.Success.Main }} />
-        <Text as="span" size="L400">
-          {t(`${KEY}.nudgeTitle`)}
-        </Text>
-      </Box>
-      <Text as="span" size="T200" priority="300">
-        {t(`${KEY}.nudgeBody`)}
-      </Text>
-      <Button
-        fill="Soft"
-        onClick={() => setRecoveryDialog('setup')}
-        before={<Icon size="200" src={Icons.ShieldLock} />}
-        style={{ justifyContent: 'flex-start' }}
-        outlined
-        radii="300"
-      >
-        <Text as="span" size="B300">
-          {t(`${KEY}.nudgeButton`)}
-        </Text>
-      </Button>
-    </Box>
+    <WelcomeNotice
+      icon={Icons.Shield}
+      action={t('home.recovery.action')}
+      onAction={() => setRecoveryDialog('setup')}
+      text={t('home.recovery.text')}
+    />
   );
 }
 
@@ -59,5 +40,5 @@ export function KeyBackupNudge() {
 
   if (encryptionDisabled || !crypto) return null;
 
-  return <KeyBackupNudgeCard />;
+  return <KeyBackupNudgeRow />;
 }

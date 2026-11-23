@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 5;
@@ -39,7 +39,8 @@ export const useZoom = (
   step: number,
   min = ZOOM_MIN,
   max = ZOOM_MAX,
-  onZoomAround?: ZoomAround
+  onZoomAround?: ZoomAround,
+  touchTarget?: HTMLElement | RefObject<HTMLElement> | null
 ) => {
   const [zoom, setZoomState] = useState(1);
   const [isZooming, setIsZooming] = useState(false);
@@ -76,6 +77,8 @@ export const useZoom = (
 
   useEffect(() => {
     if (!target) return undefined;
+    const touchListenerTarget =
+      (touchTarget && 'current' in touchTarget ? touchTarget.current : touchTarget) ?? target;
     let pinch: { distance: number; zoom: number; centre: ZoomOffset } | undefined;
     const touchCentre = (touches: TouchList): ZoomOffset => {
       const [first, second] = [touches[0]!, touches[1]!];
@@ -117,19 +120,19 @@ export const useZoom = (
       );
     };
 
-    target.addEventListener('touchstart', handleTouchStart, { passive: true });
-    target.addEventListener('touchmove', handleTouchMove, { passive: false });
-    target.addEventListener('touchend', handleTouchEnd);
-    target.addEventListener('touchcancel', handleTouchEnd);
+    touchListenerTarget.addEventListener('touchstart', handleTouchStart, { passive: true });
+    touchListenerTarget.addEventListener('touchmove', handleTouchMove, { passive: false });
+    touchListenerTarget.addEventListener('touchend', handleTouchEnd);
+    touchListenerTarget.addEventListener('touchcancel', handleTouchEnd);
     target.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
-      target.removeEventListener('touchstart', handleTouchStart);
-      target.removeEventListener('touchmove', handleTouchMove);
-      target.removeEventListener('touchend', handleTouchEnd);
-      target.removeEventListener('touchcancel', handleTouchEnd);
+      touchListenerTarget.removeEventListener('touchstart', handleTouchStart);
+      touchListenerTarget.removeEventListener('touchmove', handleTouchMove);
+      touchListenerTarget.removeEventListener('touchend', handleTouchEnd);
+      touchListenerTarget.removeEventListener('touchcancel', handleTouchEnd);
       target.removeEventListener('wheel', handleWheel);
     };
-  }, [target, setZoom, step]);
+  }, [target, touchTarget, setZoom, step]);
 
   return { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming, aimed };
 };

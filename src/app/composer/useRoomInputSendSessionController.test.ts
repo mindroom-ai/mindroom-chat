@@ -1864,6 +1864,77 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
       ['two', 'steer'],
     ]);
   });
+
+  it('attaches io.mindroom.mid_turn to standalone uploads', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('harbour-map.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'steer' });
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      body: 'harbour-map.png',
+      [MID_TURN_MODE_KEY]: 'steer',
+    });
+  });
+
+  it('attaches io.mindroom.mid_turn to every event in an [upload, text] bundle', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('chart.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'Check this chart', [MID_TURN_MODE_KEY]: 'queue' },
+      });
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent.map((content) => [content.body, content[MID_TURN_MODE_KEY]])).toEqual([
+      ['chart.pdf', 'queue'],
+      ['Check this chart', 'queue'],
+    ]);
+  });
+
+  it('preserves io.mindroom.mid_turn on ordinary retry and lets an explicit menu pick override it', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('retry-photo.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    mx.sendMessage
+      .mockRejectedValueOnce(new Error('first transient failure'))
+      .mockRejectedValueOnce(new Error('second transient failure'));
+
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'steer', explicitMidTurnMode: true });
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    // An ordinary click passes the default mode with explicitMidTurnMode: false -> keeps steer.
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'auto', explicitMidTurnMode: false });
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    // An explicit menu pick on retry overrides steer with queue.
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'queue', explicitMidTurnMode: true });
+    });
+    expect(api.hasActiveSendSession()).toBe(false);
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual([
+      'steer',
+      'steer',
+      'queue',
+    ]);
+  });
 });
 
 describe('openedThreadParkKey', () => {

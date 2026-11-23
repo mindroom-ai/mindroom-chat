@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MESSAGE_COMMANDS } from '../editor/messageCommand';
 import { createMentionElement, withInlineElements } from '../editor/utils';
 import { Command } from './commands/useCommands';
-import { composeTextMessage, holdsNoText } from './composeTextMessage';
+import { composeTextMessage, holdsNoText, withMention } from './composeTextMessage';
 import { htmlToEditorInput } from '../editor/input';
 
 const ME = '@me:example.org';
@@ -187,6 +187,23 @@ describe('composeTextMessage', () => {
     );
   });
 
+  it('sends /me, /notice, and /plain literally when parseCommands is false', () => {
+    const asText = (text: string) =>
+      composeTextMessage(editorWith([line({ text })]), true, ME, undefined, false);
+    expect(asText('/me returns 401. Why?')).toEqual({
+      msgtype: MsgType.Text,
+      body: '/me returns 401. Why?',
+      'm.mentions': {},
+    });
+    expect(asText('/notice check')).toMatchObject({ msgtype: MsgType.Text, body: '/notice check' });
+    expect(asText('/plain **bold**')).toMatchObject({
+      msgtype: MsgType.Text,
+      body: '/plain **bold**',
+      formatted_body: '/plain <strong data-md="**">bold</strong>',
+    });
+    expect(holdsNoText(editorWith([line({ text: '/me' })]), false)).toBe(false);
+  });
+
   it('takes the configured extra link schemes in Markdown links, never forbidden ones', () => {
     const document = [
       line({
@@ -242,4 +259,25 @@ describe('holdsNoText', () => {
 it('reads only message commands the composer offers', () => {
   const commands: readonly string[] = Object.values(Command);
   expect(MESSAGE_COMMANDS.filter((name) => !commands.includes(name))).toEqual([]);
+});
+
+describe('withMention', () => {
+  const AGENT = '@mindroom_helper:example.org';
+
+  it('adds the asked agent to the mentions the text makes', () => {
+    const content = compose([line({ text: 'What changed this week?' })]);
+    expect(withMention(content!, AGENT)['m.mentions']).toEqual({ user_ids: [AGENT] });
+  });
+
+  it('keeps other mentions and lists the agent once', () => {
+    const content = {
+      body: 'hi',
+      'm.mentions': { user_ids: ['@ada:example.org', AGENT], room: true },
+    };
+    expect(withMention(content, AGENT)).toBe(content);
+    expect(withMention(content, '@mindroom_scout:example.org')['m.mentions']).toEqual({
+      user_ids: ['@ada:example.org', AGENT, '@mindroom_scout:example.org'],
+      room: true,
+    });
+  });
 });

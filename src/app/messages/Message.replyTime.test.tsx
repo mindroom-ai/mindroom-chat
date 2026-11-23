@@ -39,7 +39,15 @@ importBeforeTests(loadMessage);
 const START = new Date(2026, 2, 5, 10, 4, 12).getTime();
 
 const PLAIN = { msgtype: 'm.text', body: 'Done' };
-const WITH_RUN = { ...PLAIN, 'io.mindroom.ai_run': { version: 1, status: 'completed' } };
+const WITH_RUN = {
+  ...PLAIN,
+  'io.mindroom.ai_run': {
+    version: 1,
+    status: 'completed',
+    model: { display_name: 'Model' },
+  },
+};
+const BARE_COMPLETED_RUN = { ...PLAIN, 'io.mindroom.ai_run': { version: 1, status: 'completed' } };
 
 const renderMessage = async (
   layout: MessageLayout,
@@ -196,5 +204,12 @@ describe("an agent reply's header time", () => {
     expect(time.hasAttribute('data-open')).toBe(true);
     const details = screen.getByRole('button', { name: 'Reply details' });
     expect(details.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the header and reply time for a bare completed ai_run while hiding the empty Reply details button', async () => {
+    const time = await renderMessage(MessageLayout.Modern, timing, BARE_COMPLETED_RUN, true);
+    expect(time).not.toBeNull();
+    expect(time.textContent).toBe('10:04 – 10:11 · 7m 12s');
+    expect(screen.queryByRole('button', { name: 'Reply details' })).toBeNull();
   });
 });

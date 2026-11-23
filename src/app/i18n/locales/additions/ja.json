@@ -90,13 +90,32 @@
       "wheelZoomHint": "{{key}} + スクロールでズーム"
     },
     "inviteUserPrompt": {
-      "close": "閉じる",
       "invited": "{{user}} を招待しました。",
-      "giveRoleRights": "{{role}} 権限を付与",
       "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
       "roleFailed": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}",
       "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。",
-      "roleWithLevel": "{{role}}（{{level}}）"
+      "roleWithLevel": "{{role}}（{{level}}）",
+      "inviteToRoom": "{{room}} に招待",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "完了",
+      "searchPlaceholder": "ユーザー、エージェント、または @user:server を検索",
+      "filterLabel": "種類で絞り込み",
+      "filterAll": "すべて",
+      "filterPeople": "ユーザー",
+      "filterAgents": "エージェント",
+      "recentAndDirect": "最近とダイレクト",
+      "directory": "ディレクトリ",
+      "externalUserId": "外部の Matrix ID",
+      "noMatches": "一致するユーザーが見つかりません。直接招待するには完全な @user:server ID を入力してください。",
+      "emptyDirectory": "招待できるユーザーはまだいません。直接招待するには完全な @user:server ID を入力してください。",
+      "addNote": "+ 招待メッセージを追加",
+      "hideNote": "− 招待メッセージを隠す",
+      "notePlaceholder": "招待にメッセージを追加...",
+      "giveRoleRightsAgents": "招待するエージェントに {{role}} 権限を付与",
+      "alreadyInRoom": "すでにこのルームに参加しています",
+      "alreadyInvited": "すでに招待済みです",
+      "bannedFromRoom": "このルームから禁止されています",
+      "retryUser": "{{user}} の招待を再試行"
     },
     "joinAddressPrompt": {
       "close": "閉じる",
@@ -110,6 +129,37 @@
     },
     "textViewer": {
       "close": "閉じる"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "イベント",
+      "metaType": "種類",
+      "metaSender": "送信者",
+      "metaTime": "時刻",
+      "badgeEdited": "編集済み",
+      "badgeEncrypted": "暗号化済み",
+      "documentTabsLabel": "イベントバージョン",
+      "tabEvent": "イベント",
+      "tabOriginal": "元データ",
+      "tabLatestEdit": "最新の編集",
+      "tabDecrypted": "復号済み",
+      "tabDecryptionError": "復号失敗",
+      "tabEncrypted": "暗号化済み",
+      "collapseAll": "折りたたむ",
+      "expandAll": "展開",
+      "foldStrings": "文字列を折りたたむ",
+      "rawJson": "生データ",
+      "filterPlaceholder": "キーまたは値を絞り込む…",
+      "noMatches": "「{{query}}」に一致する項目はありません",
+      "copyField": "{{field}} をコピー",
+      "copyValue": "値をコピー",
+      "expandNode": "{{name}} を展開",
+      "collapseNode": "{{name}} を折りたたむ",
+      "expandString": "文字列を展開",
+      "collapseString": "文字列を折りたたむ",
+      "matchCount_other": "{{count}} 件一致",
+      "keyCount_other": "{{count}} 個のキー",
+      "itemCount_other": "{{count}} 件の項目",
+      "charCount_other": "{{count}} 文字"
     },
     "invites": {
       "actionFailed": "問題が発生しました。もう一度試してください。"
@@ -254,9 +304,6 @@
       "newIntro": "新しいリカバリーパスワードを選んでください。古いものは使えなくなります。",
       "notCached": "このセッションにはすべての暗号鍵がありません。リカバリーパスワードか別のデバイスで検証してから、もう一度お試しください。",
       "incompleteError": "新しいリカバリーパスワードは、まだすべての暗号鍵を対象にしていません。もう一度お試しください。",
-      "nudgeTitle": "メッセージを守りましょう",
-      "nudgeBody": "リカバリーパスワードを設定すると、このブラウザーのデータを消去したり新しいデバイスでサインインしたりしても、暗号化されたチャットを読み続けられます。",
-      "nudgeButton": "リカバリーパスワードを設定",
       "unlockWithPassword": "リカバリーパスワードでロックを解除",
       "resetLoss": "このデバイスが現在読めないメッセージは、読めないままになります。ほかのセッションは再度確認が必要です。",
       "setupCheckFailed": "暗号化の設定を確認できませんでした。",
@@ -926,6 +973,20 @@
       "turnFold": {
         "earlier_other": "以前のメッセージ {{count}} 件",
         "hide_other": "{{count}} 件のメッセージを非表示"
+      },
+      "membershipFold": {
+        "summary_other": "ルームイベント {{count}} 件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "ルームイベント {{count}} 件を非表示",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人参加",
+        "left_other": "{{count}} 人退出",
+        "invited_other": "{{count}} 人招待",
+        "requested_other": "{{count}} 人参加リクエスト",
+        "kicked_other": "{{count}} 人強制退出",
+        "banned_other": "{{count}} 人BAN",
+        "unbanned_other": "{{count}} 人BAN解除",
+        "profileChanges_other": "プロフィール変更 {{count}} 件"
       },
       "questionCard": {
         "title": "質問",
@@ -1690,6 +1751,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "ほかに {{count}} 件のスレッド",
     "forMe": "自分向け",
     "forMeHint": "自分が参加しているスレッド、エージェントが自分の代わりに投稿したスレッド、または自分がピン留めしたスレッドのみ",
     "roomForMeHint": "自分が参加しているスレッド、またはエージェントが自分の代わりに投稿したスレッドのみ",
@@ -1751,5 +1813,40 @@
     "cancellationSent": "キャンセルを送信しました",
     "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
     "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
+  },
+  "home": {
+    "greeting": {
+      "morning": "おはようございます、{{name}}さん",
+      "afternoon": "こんにちは、{{name}}さん",
+      "evening": "こんばんは、{{name}}さん"
+    },
+    "ask": {
+      "placeholder": "{{name}} に何でも聞いてください…",
+      "chooseAgent": "回答する相手を選ぶ",
+      "agentChoice": "{{name}} が回答",
+      "chooseRoom": "スレッドを始める場所を選ぶ",
+      "roomChoice": "{{room}} で",
+      "inRoom": "<avatar/>{{room}} で",
+      "directChat": "ダイレクトチャット",
+      "startsDirectChat": "{{name}} とのチャットを始めます",
+      "startingDirectChat": "{{name}} とのチャットを開始しています…",
+      "directChatFailed": "{{name}} とのチャットを開始できませんでした。もう一度お試しください。",
+      "waitingForAgent": "{{name}} がチャットに参加するのを待っています…",
+      "notSent": "{{room}} で {{agent}} に送信されていません",
+      "chooseAgain": "その選択は使えなくなりました。入力した文章は残っています。回答者か場所を選び直してください。"
+    },
+    "recent": {
+      "title": "最近のスレッド",
+      "allThreads": "すべてのスレッド",
+      "unread": "未読"
+    },
+    "recovery": {
+      "action": "復元パスワードを設定",
+      "text": "新しいデバイスでも暗号化されたチャットにアクセスできるようにします。"
+    },
+    "device": {
+      "action": "このデバイスを確認",
+      "text": "それまでは暗号化されたチャットを読めません。"
+    }
   }
 }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SWIPE_PRIORITY } from '../../navigation/interactiveSwipe';
 import { ImageViewer } from './ImageViewer';
 
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
@@ -8,7 +9,13 @@ const saveFile = vi.hoisted(() => vi.fn(async () => true));
 vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
 const edgeSwipe = vi.hoisted(() => ({
   last: undefined as
-    | { enabled?: boolean; onSwipe: () => void; within?: { current: Element | null } }
+    | {
+        enabled?: boolean;
+        priority?: number;
+        onSwipe: () => void;
+        within?: { current: Element | null };
+        begin?: unknown;
+      }
     | undefined,
 }));
 vi.mock('../../navigation/useEdgeSwipe', () => ({
@@ -272,6 +279,32 @@ describe('ImageViewer paging', () => {
     expect(onStep).not.toHaveBeenCalled();
   });
 
+  it('keeps where a zoomed picture was dragged to when a pinch zooms it further', () => {
+    render(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
+    const area = imageArea();
+    const image = screen.getByRole('img');
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    const pointer = { pointerId: 1, pointerType: 'touch', button: 0 };
+    fireEvent.pointerDown(area, { ...pointer, clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(area, { ...pointer, clientX: 340, clientY: 230 });
+    fireEvent.pointerUp(area, { ...pointer, clientX: 340, clientY: 230 });
+    expect(image.style.transform).toBe('translate(40px, 30px) scale(2)');
+
+    // Two fingers spread from 100 px to 150 px apart around the same midpoint.
+    const pinch = (type: string, firstX: number, secondX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', {
+        value: [firstX, secondX].map((clientX) => ({ clientX, clientY: 200 })),
+      });
+      act(() => {
+        area.dispatchEvent(event);
+      });
+    };
+    pinch('touchstart', 100, 200);
+    pinch('touchmove', 75, 225);
+    expect(image.style.transform).toBe('translate(40px, 30px) scale(3)');
+  });
+
   it('goes back to fit when the picture changes', () => {
     const props = {
       alt: 'a.png',
@@ -312,7 +345,9 @@ describe('ImageViewer left-edge close', () => {
   it('closes with a swipe from the left edge of the area it is given, at fit', () => {
     const { requestClose } = mount(area);
     expect(edgeSwipe.last?.enabled).toBe(true);
+    expect(edgeSwipe.last?.priority).toBe(SWIPE_PRIORITY.OVERLAY);
     expect(edgeSwipe.last?.within).toBe(area);
+    expect(typeof edgeSwipe.last?.begin).toBe('function');
     act(() => edgeSwipe.last?.onSwipe());
     expect(requestClose).toHaveBeenCalledOnce();
   });
@@ -344,6 +379,30 @@ describe('ImageViewer left-edge close', () => {
     const { onStep } = mount(undefined);
     swipe(200, 200, 10);
     expect(onStep).toHaveBeenCalledWith(-1);
+  });
+
+  it('excludes the right-edge band in RTL when edge close is enabled, while paging elsewhere', () => {
+    const prevDir = document.documentElement.dir;
+    const prevWidth = window.innerWidth;
+    document.documentElement.dir = 'rtl';
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 400 });
+    try {
+      const { onStep } = mount(area);
+      // Right edge (logical start in RTL) is reserved for edge close.
+      swipe(200, 200, 390);
+      expect(onStep).not.toHaveBeenCalled();
+
+      // Physical left edge is NOT the start edge in RTL, so touch paging still works there.
+      swipe(200, 200, 10);
+      // Outside the right-edge band also pages.
+      swipe(200, 200, 350);
+      // Mouse swipe on the right edge still pages.
+      swipe(200, 200, 390, 'mouse');
+      expect(onStep.mock.calls).toEqual([[1], [-1], [-1]]);
+    } finally {
+      document.documentElement.dir = prevDir;
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: prevWidth });
+    }
   });
 });
 

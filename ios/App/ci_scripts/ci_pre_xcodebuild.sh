@@ -81,7 +81,7 @@ if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
     // Version only the products of this action, keeping the other platform unchanged.
     const targets = process.env.CI_PRODUCT_PLATFORM === 'macOS' && process.env.CI_XCODE_SCHEME === 'AppStoreMac'
       ? ['AppStoreMac', 'MindRoomMacSupport']
-      : ['App', 'MindRoomWatch', 'MindRoomWatchWidgets'];
+      : ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService'];
     let updated = original;
     for (const target of targets) {
       updated = replaceAppTargetBuildSetting(updated, 'MARKETING_VERSION', marketingVersion, target);

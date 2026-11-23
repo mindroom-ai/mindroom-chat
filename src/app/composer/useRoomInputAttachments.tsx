@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useAtomValue, useStore } from 'jotai';
+import { atom, useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Transforms, type Descendant, type Editor } from 'slate';
 import { moveCursor } from '../editor/utils';
@@ -44,7 +44,11 @@ import {
   getPasteIdFromFileName,
 } from '../matrix/protocol/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
-import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
+import {
+  hasSendableStagedFiles,
+  type AttachmentSnapshot,
+  type RoomInputAttachmentAccess,
+} from './roomInputAttachmentAccess';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import { buildDiagnosticsExport } from '../diagnostics/diagnosticsExport';
 import {
@@ -76,6 +80,8 @@ type RoomInputAttachments = {
   access: RoomInputAttachmentAccess;
   /** The upload board above the composer, or null without staged files. */
   board: ReactNode;
+  /** Whether at least one staged file has no prep or upload error and can be sent. */
+  hasSendableFiles: boolean;
   onPaste: (event: ClipboardEvent<HTMLElement>) => void;
   /** Drops paste attachments whose marker left the editor. */
   onEditorChange: () => void;
@@ -104,13 +110,13 @@ const isPasteItem = (item: TUploadItem): boolean => !!item.metadata.mindroomPast
 const pasteFileNameOf = (item: TUploadItem): string | undefined =>
   item.metadata.mindroomPasteAttachment?.fileName;
 
-/** The same array while it holds the same files, so observers built from it stay put. */
-const useStableFiles = (files: TUploadContent[]): TUploadContent[] => {
-  const previous = useRef(files);
+/** The same array while it holds the same items, so observers built from it stay put. */
+const useStableList = <T,>(items: T[]): T[] => {
+  const previous = useRef(items);
   const same =
-    previous.current.length === files.length &&
-    previous.current.every((file, index) => file === files[index]);
-  if (!same) previous.current = files;
+    previous.current.length === items.length &&
+    previous.current.every((item, index) => item === items[index]);
+  if (!same) previous.current = items;
   return previous.current;
 };
 
@@ -613,11 +619,23 @@ export const useRoomInputAttachments = ({
   const dropZoneVisible = dropZoneActive && !covered;
 
   // Rendering reads the owner map, so a staged list change re-renders through `roomItems`.
-  const visibleItems = roomItems.filter(ownedByCurrent);
-  const visibleFiles = useStableFiles(visibleItems.map((item) => item.file));
+  const visibleItems = useStableList(roomItems.filter(ownedByCurrent));
+  const visibleFiles = useMemo(() => visibleItems.map((item) => item.file), [visibleItems]);
   const observerAtom = useMemo(
     () => createUploadFamilyObserverAtom(roomUploadAtomFamily, visibleFiles),
     [visibleFiles]
+  );
+  const hasSendableFiles = useAtomValue(
+    useMemo(
+      () =>
+        atom((get) =>
+          hasSendableStagedFiles({
+            staged: visibleItems,
+            uploads: visibleItems.map((item) => get(roomUploadAtomFamily(item.file))),
+          })
+        ),
+      [visibleItems]
+    )
   );
 
   // "Remove all" on the board removes the board's files, and `remove` cancels those still
@@ -676,6 +694,7 @@ export const useRoomInputAttachments = ({
   return {
     access,
     board,
+    hasSendableFiles,
     onPaste,
     onEditorChange,
     pickFiles,

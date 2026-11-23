@@ -123,13 +123,22 @@ vi.mock('./ConversationCover', async () => {
 });
 vi.mock('../timeline/RoomTimeline', async () => {
   const { useLayoutEffect, useState } = await import('react');
+  const { compactCardNavigation, compactCardsIn, focusCompactCard } = await import(
+    '../threads/overview/compactCardKeys'
+  );
   // A Compact list shows its cards a pass after it mounts, in the same task (RoomTimeline).
   function Cards({ ids }: { ids: string[] }) {
     const [shown, setShown] = useState(false);
     useLayoutEffect(() => setShown(true), []);
     if (!shown) return null;
+    // As the list does, it tells the keys its order and how to focus one of its cards.
+    const register = (view: HTMLElement | null) => {
+      const focus = (id?: string) =>
+        focusCompactCard(compactCardsIn(view).find((card) => card.dataset.threadRootId === id));
+      if (view) compactCardNavigation.set(view, { ids, focus });
+    };
     return (
-      <div data-compact-room-view="true">
+      <div ref={register} data-compact-room-view="true">
         {ids.map((id) => (
           <button key={id} type="button" data-thread-root-id={id} aria-label={`Card ${id}`} />
         ))}

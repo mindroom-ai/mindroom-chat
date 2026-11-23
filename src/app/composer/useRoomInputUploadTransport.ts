@@ -2,7 +2,9 @@ import { useCallback, useMemo } from 'react';
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../matrix/protocol/threadModel';
+import { isMidTurnMode, type MidTurnMode } from '../preferences/midTurnModes';
 import {
   type PendingVoiceSendContext,
   type StagedList,
@@ -121,13 +123,15 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       context: PendingVoiceSendContext,
       item: TUploadItem,
       mxc: string,
-      rootModel?: ThreadModelContent
+      rootModel?: ThreadModelContent,
+      midTurnMode?: MidTurnMode
     ): Promise<string> => {
       const content: IContent = getAudioMsgContent(
         item,
         mxc,
         getVoiceMessageContentOptions(context.signalBridgedRoom)
       );
+      if (isMidTurnMode(midTurnMode)) content[MID_TURN_MODE_KEY] = midTurnMode;
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
       else if (rootModel) Object.assign(content, rootModel);

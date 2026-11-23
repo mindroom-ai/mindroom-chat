@@ -93,13 +93,32 @@
       "wheelZoomHint": "{{key}} + scrollen om te zoomen"
     },
     "inviteUserPrompt": {
-      "close": "Sluiten",
       "invited": "{{user}} is uitgenodigd.",
-      "giveRoleRights": "{{role}}-rechten geven",
       "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
       "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
       "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Uitnodigen voor {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Klaar",
+      "searchPlaceholder": "Zoek mensen, agents of @user:server",
+      "filterLabel": "Filteren op type",
+      "filterAll": "Alle",
+      "filterPeople": "Mensen",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Recent & Direct",
+      "directory": "Adresboek",
+      "externalUserId": "Externe Matrix-ID",
+      "noMatches": "Geen overeenkomende gebruikers. Voer een volledige @user:server-ID in om direct uit te nodigen.",
+      "emptyDirectory": "Nog geen gebruikers om uit te nodigen. Voer een volledige @user:server-ID in om direct uit te nodigen.",
+      "addNote": "+ Uitnodigingsbericht toevoegen",
+      "hideNote": "− Uitnodigingsbericht verbergen",
+      "notePlaceholder": "Voeg een bericht toe aan je uitnodiging...",
+      "giveRoleRightsAgents": "Uitgenodigde agents {{role}}-rechten geven",
+      "alreadyInRoom": "Al in deze ruimte",
+      "alreadyInvited": "Al uitgenodigd",
+      "bannedFromRoom": "Verbannen uit deze ruimte",
+      "retryUser": "Uitnodigen van {{user}} opnieuw proberen"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",
@@ -113,6 +132,41 @@
     },
     "textViewer": {
       "close": "Sluiten"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Gebeurtenis",
+      "metaType": "Type",
+      "metaSender": "Afzender",
+      "metaTime": "Tijd",
+      "badgeEdited": "Bewerkt",
+      "badgeEncrypted": "Versleuteld",
+      "documentTabsLabel": "Versies van gebeurtenis",
+      "tabEvent": "Gebeurtenis",
+      "tabOriginal": "Origineel",
+      "tabLatestEdit": "Laatste bewerking",
+      "tabDecrypted": "Ontsleuteld",
+      "tabDecryptionError": "Ontsleuteling mislukt",
+      "tabEncrypted": "Versleuteld",
+      "collapseAll": "Inklappen",
+      "expandAll": "Uitklappen",
+      "foldStrings": "Teksten inklappen",
+      "rawJson": "Ruw",
+      "filterPlaceholder": "Filter sleutels of waarden…",
+      "noMatches": "Geen resultaten voor “{{query}}”",
+      "copyField": "{{field}} kopiëren",
+      "copyValue": "Waarde kopiëren",
+      "expandNode": "{{name}} uitklappen",
+      "collapseNode": "{{name}} inklappen",
+      "expandString": "Tekst uitklappen",
+      "collapseString": "Tekst inklappen",
+      "matchCount_one": "{{count}} overeenkomst",
+      "matchCount_other": "{{count}} overeenkomsten",
+      "keyCount_one": "{{count}} sleutel",
+      "keyCount_other": "{{count}} sleutels",
+      "itemCount_one": "{{count}} item",
+      "itemCount_other": "{{count}} items",
+      "charCount_one": "{{count}} teken",
+      "charCount_other": "{{count}} tekens"
     },
     "invites": {
       "actionFailed": "Er ging iets mis. Probeer het opnieuw."
@@ -258,9 +312,6 @@
       "newIntro": "Kies een nieuw herstelwachtwoord. Het oude werkt dan niet meer.",
       "notCached": "Deze sessie heeft niet elke versleutelingssleutel. Verifieer haar met je herstelwachtwoord of een ander apparaat en probeer het dan opnieuw.",
       "incompleteError": "Het nieuwe herstelwachtwoord dekt nog niet elke versleutelingssleutel. Probeer het opnieuw.",
-      "nudgeTitle": "Bescherm je berichten",
-      "nudgeBody": "Stel een herstelwachtwoord in, zodat je je versleutelde chats nog kunt lezen nadat je deze browser hebt gewist of op een nieuw apparaat inlogt.",
-      "nudgeButton": "Herstelwachtwoord instellen",
       "unlockWithPassword": "Ontgrendelen met herstelwachtwoord",
       "resetLoss": "Berichten die dit apparaat nu niet kan lezen, blijven onleesbaar. Je andere sessies moeten opnieuw worden geverifieerd.",
       "setupCheckFailed": "Kon je versleutelingsinstelling niet controleren.",
@@ -943,6 +994,30 @@
         "earlier_other": "{{count}} eerdere berichten",
         "hide_one": "{{count}} bericht verbergen",
         "hide_other": "{{count}} berichten verbergen"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} kamergebeurtenis",
+        "summary_other": "{{count}} kamergebeurtenissen",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} kamergebeurtenis verbergen",
+        "hide_other": "{{count}} kamergebeurtenissen verbergen",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} lid geworden",
+        "joined_other": "{{count}} lid geworden",
+        "left_one": "{{count}} vertrokken",
+        "left_other": "{{count}} vertrokken",
+        "invited_one": "{{count}} uitgenodigd",
+        "invited_other": "{{count}} uitgenodigd",
+        "requested_one": "{{count}} lidmaatschapsverzoek",
+        "requested_other": "{{count}} lidmaatschapsverzoeken",
+        "kicked_one": "{{count}} verwijderd",
+        "kicked_other": "{{count}} verwijderd",
+        "banned_one": "{{count}} verbannen",
+        "banned_other": "{{count}} verbannen",
+        "unbanned_one": "{{count}} verbanning opgeheven",
+        "unbanned_other": "{{count}} verbanningen opgeheven",
+        "profileChanges_one": "{{count}} profielwijziging",
+        "profileChanges_other": "{{count}} profielwijzigingen"
       },
       "questionCard": {
         "title": "Vraag",
@@ -1730,6 +1805,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "Nog {{count}} thread",
+    "moreThreads_other": "Nog {{count}} threads",
     "forMe": "Voor mij",
     "forMeHint": "Alleen threads waaraan je deelneemt, waarin een agent namens jou heeft gepost of die je hebt vastgezet",
     "roomForMeHint": "Alleen threads waaraan je deelneemt of waarin een agent namens jou heeft gepost",
@@ -1795,5 +1872,40 @@
     "cancellationSent": "Annulering verzonden",
     "editDraftBusy": "Wis eerst je huidige concept voordat je deze planning bewerkt.",
     "copyFailed": "Kopiëren mislukt. Selecteer de taak-ID in Details."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Goedemorgen, {{name}}",
+      "afternoon": "Goedemiddag, {{name}}",
+      "evening": "Goedenavond, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Vraag {{name}} wat je wilt…",
+      "chooseAgent": "Kies wie antwoordt",
+      "agentChoice": "{{name}} antwoordt",
+      "chooseRoom": "Kies waar de thread begint",
+      "roomChoice": "In {{room}}",
+      "inRoom": "in <avatar/>{{room}}",
+      "directChat": "Direct gesprek",
+      "startsDirectChat": "Start een gesprek met {{name}}",
+      "startingDirectChat": "Gesprek met {{name}} starten…",
+      "directChatFailed": "Kan geen gesprek met {{name}} starten. Probeer het opnieuw.",
+      "waitingForAgent": "Wachten tot {{name}} de chat binnenkomt…",
+      "notSent": "Niet verstuurd naar {{agent}} in {{room}}",
+      "chooseAgain": "Die keuze werkt niet meer. Je tekst blijft bewaard: kies wie antwoordt, of waar."
+    },
+    "recent": {
+      "title": "Recente threads",
+      "allThreads": "Alle threads",
+      "unread": "Ongelezen"
+    },
+    "recovery": {
+      "action": "Stel een herstelwachtwoord in",
+      "text": "Houd op een nieuw apparaat toegang tot versleutelde gesprekken."
+    },
+    "device": {
+      "action": "Verifieer dit apparaat",
+      "text": "Tot die tijd kan het je versleutelde gesprekken niet lezen."
+    }
   }
 }

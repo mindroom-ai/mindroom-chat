@@ -1,0 +1,146 @@
+import { createVar, keyframes, style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
+import { motion } from '../../ui/styles/Motion.css';
+import { transition } from '../../ui/styles/transition';
+
+const arrowSlide = createVar();
+
+// Opacity alone: a menu that slid or grew in would move its rows under a pointer that is already
+// being tested against them.
+const menuEnter = keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+});
+
+export const MenuSurface = style({
+  inlineSize: toRem(236),
+  maxInlineSize: 'calc(100vw - 2rem)',
+  maxBlockSize:
+    'calc(100dvh - 1rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  animation: `${menuEnter} ${motion.duration.Fast} ${motion.easing.Decelerate}`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+    },
+  },
+});
+
+export const Header = style({
+  flexShrink: 0,
+  paddingBlock: `${toRem(8)} ${toRem(4)}`,
+  paddingInline: toRem(12),
+});
+
+export const Heading = style({
+  fontSize: toRem(11),
+  letterSpacing: '0.03em',
+  textTransform: 'uppercase',
+});
+
+export const AccountList = style({
+  flex: '1 1 auto',
+  minBlockSize: 0,
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: toRem(2),
+  paddingBlock: `${toRem(2)} ${toRem(6)}`,
+  paddingInline: config.space.S100,
+});
+
+export const AccountRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minBlockSize: toRem(44),
+  paddingBlock: toRem(6),
+  paddingInline: toRem(8),
+  borderRadius: config.radii.R300,
+  border: `${config.borderWidth.B300} solid transparent`,
+  backgroundColor: 'transparent',
+  color: color.Surface.OnContainer,
+  // The row never moves when highlighted: its box is what the pointer is tested against.
+  transition: transition(
+    ['background-color', 'border-color', 'color'],
+    motion.duration.Instant,
+    motion.easing.Standard
+  ),
+  selectors: {
+    '&[data-highlighted="true"]': {
+      backgroundColor: color.Primary.Container,
+      borderColor: color.Primary.ContainerLine,
+      color: color.Primary.OnContainer,
+    },
+  },
+});
+
+export const AvatarShrink = style({
+  flexShrink: 0,
+});
+
+export const TextColumn = style({
+  minInlineSize: 0,
+  flexGrow: 1,
+  textAlign: 'start',
+});
+
+export const TrailingArrow = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  color: color.Primary.Main,
+  opacity: 0,
+  vars: {
+    [arrowSlide]: toRem(-4),
+  },
+  transform: `translateX(${arrowSlide})`,
+  transition: transition(['opacity', 'transform'], motion.duration.Instant, motion.easing.Standard),
+  selectors: {
+    '[dir=rtl] &': {
+      vars: {
+        [arrowSlide]: toRem(4),
+      },
+    },
+    '&[data-highlighted="true"]': {
+      opacity: 1,
+      transform: 'translateX(0)',
+    },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transform: 'none',
+      selectors: {
+        '&[data-highlighted="true"]': {
+          transform: 'none',
+        },
+      },
+    },
+  },
+});
+
+export const TrailingArrowIcon = style({
+  selectors: {
+    '[dir=rtl] &': {
+      transform: 'scaleX(-1)',
+    },
+  },
+});
+
+export const HoldTrigger = style({
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  WebkitTouchCallout: 'none',
+  selectors: {
+    '&&[data-quick-switch-pressing="true"]': {
+      boxShadow: `0 0 0 ${toRem(2)} ${color.Primary.Main}`,
+      transition: transition(['box-shadow'], motion.duration.Instant, motion.easing.Standard),
+    },
+  },
+});

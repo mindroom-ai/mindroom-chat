@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AsyncStatus } from '../lib/hooks/useAsyncCallback';
+import { getDirectoryViaServers, rememberDirectoryViaServers } from '../matrix/directoryViaServers';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { RoomSummaryLoader, type RoomSummaryState } from './RoomSummaryLoader';
 
@@ -151,6 +152,100 @@ describe('RoomSummaryLoader', () => {
     expect(observedServers).toEqual(servers);
     act(() => renderer!.unmount());
     queryClient.clear();
+  });
+
+  describe('servers the room directory named', () => {
+    /** Loads the summary and gives the servers the loader hands to its children. */
+    const load = async (mx: MatrixClient, roomIdOrAlias: string, viaServers?: string[]) => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      let observedStatus: AsyncStatus | undefined;
+      let observedServers: string[] | undefined;
+      let renderer: ReactTestRenderer;
+
+      await act(async () => {
+        renderer = create(
+          <QueryClientProvider client={queryClient}>
+            <MatrixClientProvider value={mx}>
+              <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
+                {(state, _retry, servers) => {
+                  observedStatus = state.status;
+                  observedServers = servers;
+                  return null;
+                }}
+              </RoomSummaryLoader>
+            </MatrixClientProvider>
+          </QueryClientProvider>
+        );
+      });
+      await act(async () => {
+        await vi.waitFor(() => expect(observedStatus).toBe(AsyncStatus.Success));
+      });
+      act(() => renderer!.unmount());
+      queryClient.clear();
+      return observedServers;
+    };
+
+    it('asks for a room ID through the servers an earlier lookup of its alias gave', async () => {
+      const getRoomSummary = vi.fn(async () => summary);
+      const mx = { getRoomSummary } as unknown as MatrixClient;
+      rememberDirectoryViaServers(mx, summary.room_id, ['one.example.org', 'two.example.org']);
+
+      const servers = await load(mx, summary.room_id);
+
+      expect(getRoomSummary.mock.calls).toEqual([
+        [summary.room_id, ['one.example.org', 'two.example.org']],
+      ]);
+      expect(servers).toEqual(['one.example.org', 'two.example.org']);
+    });
+
+    it('asks for a room ID through the first five servers of a lookup that named 500', async () => {
+      const named = Array.from({ length: 500 }, (_, index) => `s${index}.example.org`);
+      const getRoomSummary = vi.fn(async () => summary);
+      const mx = { getRoomSummary } as unknown as MatrixClient;
+      rememberDirectoryViaServers(mx, summary.room_id, named);
+
+      const servers = await load(mx, summary.room_id);
+
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, named.slice(0, 5)]]);
+      expect(servers).toEqual(named.slice(0, 5));
+    });
+
+    it('asks through the servers the caller names, whatever the directory gave', async () => {
+      const getRoomSummary = vi.fn(async () => summary);
+      const mx = { getRoomSummary } as unknown as MatrixClient;
+      rememberDirectoryViaServers(mx, summary.room_id, ['one.example.org']);
+
+      const servers = await load(mx, summary.room_id, ['named.example.org']);
+
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, ['named.example.org']]]);
+      expect(servers).toEqual(['named.example.org']);
+    });
+
+    it('asks through no servers for a room ID the directory was never asked about', async () => {
+      const getRoomSummary = vi.fn(async () => summary);
+      const mx = { getRoomSummary } as unknown as MatrixClient;
+      rememberDirectoryViaServers(mx, '!other:remote.example.org', ['one.example.org']);
+
+      const servers = await load(mx, summary.room_id, []);
+
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, undefined]]);
+      expect(servers).toBeUndefined();
+    });
+
+    it('asks through every server a fresh lookup of an alias names, and keeps none', async () => {
+      const named = Array.from({ length: 12 }, (_, index) => `s${index}.example.org`);
+      const getRoomIdForAlias = vi.fn(async () => ({ room_id: summary.room_id, servers: named }));
+      const getRoomSummary = vi.fn(async (_roomId: string, _via?: string[]) => summary);
+      const mx = { getRoomIdForAlias, getRoomSummary } as unknown as MatrixClient;
+
+      const servers = await load(mx, '#private:remote.example.org');
+
+      // The directory's own list, the very one: nothing cuts or copies it.
+      expect(getRoomSummary.mock.calls).toEqual([[summary.room_id, named]]);
+      expect(getRoomSummary.mock.calls[0]?.[1]).toBe(named);
+      expect(servers).toBe(named);
+      expect(getDirectoryViaServers(mx, summary.room_id)).toBeUndefined();
+    });
   });
 
   it('reports a failed discovery instead of exposing an unknown access rule', async () => {

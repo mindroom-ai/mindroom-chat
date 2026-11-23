@@ -4,6 +4,7 @@ import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
 import { THREAD_MODEL_KEY } from './threadModel';
+import { hasToolPositions } from './toolPositions';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -176,7 +177,9 @@ export const withToolTraceFallback = (
 ): Record<string, unknown> => {
   if (content[TOOL_TRACE_TAG] !== undefined) return content;
 
-  const fallbackSource = fallbackSources.find((source) => source?.[TOOL_TRACE_TAG] !== undefined);
+  const fallbackSource = fallbackSources.find(
+    (source) => source?.[TOOL_TRACE_TAG] !== undefined && !hasToolPositions(source)
+  );
   if (!fallbackSource) return content;
 
   return {
@@ -240,9 +243,13 @@ const normalizeHydratedContent = (
   if (!newContentHasMessageShape) return hydratedContent;
 
   const normalizedContent: Record<string, unknown> = { ...newContent };
+  // A version-3 trace places its calls in the text of its own layer, and the fallback's text is
+  // not the replacement's: with `placeholder_body` it would stand in for all of the replacement.
+  const fallbackPositions = hasToolPositions(hydratedContent);
 
   Object.entries(hydratedContent).forEach(([key, value]) => {
     if (normalizedContent[key] !== undefined) return;
+    if (key === TOOL_TRACE_TAG && fallbackPositions) return;
     if (key === 'm.mentions' || key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.')) {
       normalizedContent[key] = value;
     }
@@ -267,9 +274,7 @@ const normalizeHydratedContent = (
   return normalizedContent;
 };
 
-export const getLongTextSource = (
-  content: Record<string, unknown>
-): LongTextSource | undefined => {
+export const getLongTextSource = (content: Record<string, unknown>): LongTextSource | undefined => {
   const candidates = getLongTextCandidates(content);
   for (const candidate of candidates) {
     const source = getLongTextSourceFromCandidate(candidate);

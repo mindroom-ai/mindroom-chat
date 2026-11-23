@@ -72,7 +72,7 @@ function IOSPushNotificationTile() {
           if (current === 'prompt') current = await requestIOSPushPermission();
           if (current !== 'granted') throw new Error('Notification permission was not granted.');
           setIOSPushEnabled(true, sessionId);
-          // Granting permission changes nothing NativeIOSPushFeature watches (on a fresh install
+          // Granting permission does not make NativeIOSPushFeature register (on a fresh install
           // push is already on), so register here; its listener sends the token as the pusher.
           await registerIOSPush();
           return;

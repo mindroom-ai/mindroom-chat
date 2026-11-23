@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + molette pour zoomer"
     },
     "inviteUserPrompt": {
-      "close": "Fermer",
       "invited": "{{user}} a été invité.",
-      "giveRoleRights": "Donner les droits {{role}}",
       "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
       "roleFailed": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}",
       "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Inviter dans {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Terminé",
+      "searchPlaceholder": "Rechercher des personnes, agents ou @user:server",
+      "filterLabel": "Filtrer par type",
+      "filterAll": "Tous",
+      "filterPeople": "Personnes",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Récents et directs",
+      "directory": "Annuaire",
+      "externalUserId": "Identifiant Matrix externe",
+      "noMatches": "Aucun utilisateur correspondant. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "emptyDirectory": "Aucun utilisateur à inviter pour le moment. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "addNote": "+ Ajouter une note d’invitation",
+      "hideNote": "− Masquer la note d’invitation",
+      "notePlaceholder": "Ajouter une note à votre invitation...",
+      "giveRoleRightsAgents": "Donner les droits {{role}} aux agents invités",
+      "alreadyInRoom": "Déjà dans ce salon",
+      "alreadyInvited": "Déjà invité",
+      "bannedFromRoom": "Banni de ce salon",
+      "retryUser": "Réessayer d’inviter {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Fermer",
@@ -116,6 +135,45 @@
     },
     "textViewer": {
       "close": "Fermer"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Événement",
+      "metaType": "Type",
+      "metaSender": "Expéditeur",
+      "metaTime": "Date",
+      "badgeEdited": "Modifié",
+      "badgeEncrypted": "Chiffré",
+      "documentTabsLabel": "Versions de l’événement",
+      "tabEvent": "Événement",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Dernière modification",
+      "tabDecrypted": "Déchiffré",
+      "tabDecryptionError": "Échec du déchiffrement",
+      "tabEncrypted": "Chiffré",
+      "collapseAll": "Replier",
+      "expandAll": "Déplier",
+      "foldStrings": "Replier les chaînes",
+      "rawJson": "Brut",
+      "filterPlaceholder": "Filtrer les clés ou valeurs…",
+      "noMatches": "Aucun résultat pour « {{query}} »",
+      "copyField": "Copier {{field}}",
+      "copyValue": "Copier la valeur",
+      "expandNode": "Déplier {{name}}",
+      "collapseNode": "Replier {{name}}",
+      "expandString": "Déplier la chaîne",
+      "collapseString": "Replier la chaîne",
+      "matchCount_one": "{{count}} résultat",
+      "matchCount_many": "{{count}} résultats",
+      "matchCount_other": "{{count}} résultats",
+      "keyCount_one": "{{count}} clé",
+      "keyCount_many": "{{count}} clés",
+      "keyCount_other": "{{count}} clés",
+      "itemCount_one": "{{count}} élément",
+      "itemCount_many": "{{count}} éléments",
+      "itemCount_other": "{{count}} éléments",
+      "charCount_one": "{{count}} caractère",
+      "charCount_many": "{{count}} caractères",
+      "charCount_other": "{{count}} caractères"
     },
     "invites": {
       "actionFailed": "Une erreur s’est produite. Réessayez."
@@ -262,9 +320,6 @@
       "newIntro": "Choisissez un nouveau mot de passe de récupération. L'ancien cessera de fonctionner.",
       "notCached": "Cette session ne détient pas toutes les clés de chiffrement. Vérifiez-la avec votre mot de passe de récupération ou un autre appareil, puis réessayez.",
       "incompleteError": "Le nouveau mot de passe de récupération ne couvre pas encore toutes les clés de chiffrement. Réessayez.",
-      "nudgeTitle": "Protégez vos messages",
-      "nudgeBody": "Définissez un mot de passe de récupération pour pouvoir continuer à lire vos discussions chiffrées après avoir vidé ce navigateur ou vous être connecté sur un nouvel appareil.",
-      "nudgeButton": "Configurer le mot de passe de récupération",
       "unlockWithPassword": "Déverrouiller avec le mot de passe de récupération",
       "resetLoss": "Les messages que cet appareil ne peut pas lire actuellement resteront illisibles. Vos autres sessions devront être vérifiées à nouveau.",
       "setupCheckFailed": "Impossible de vérifier votre configuration du chiffrement.",
@@ -960,6 +1015,40 @@
         "hide_one": "Masquer {{count}} message",
         "hide_many": "Masquer {{count}} messages",
         "hide_other": "Masquer {{count}} messages"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} événement du salon",
+        "summary_many": "{{count}} événements du salon",
+        "summary_other": "{{count}} événements du salon",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Masquer {{count}} événement du salon",
+        "hide_many": "Masquer {{count}} événements du salon",
+        "hide_other": "Masquer {{count}} événements du salon",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} a rejoint",
+        "joined_many": "{{count}} ont rejoint",
+        "joined_other": "{{count}} ont rejoint",
+        "left_one": "{{count}} a quitté",
+        "left_many": "{{count}} ont quitté",
+        "left_other": "{{count}} ont quitté",
+        "invited_one": "{{count}} invité",
+        "invited_many": "{{count}} invités",
+        "invited_other": "{{count}} invités",
+        "requested_one": "{{count}} a demandé à rejoindre",
+        "requested_many": "{{count}} ont demandé à rejoindre",
+        "requested_other": "{{count}} ont demandé à rejoindre",
+        "kicked_one": "{{count}} expulsé",
+        "kicked_many": "{{count}} expulsés",
+        "kicked_other": "{{count}} expulsés",
+        "banned_one": "{{count}} banni",
+        "banned_many": "{{count}} bannis",
+        "banned_other": "{{count}} bannis",
+        "unbanned_one": "{{count}} débanni",
+        "unbanned_many": "{{count}} débannis",
+        "unbanned_other": "{{count}} débannis",
+        "profileChanges_one": "{{count}} changement de profil",
+        "profileChanges_many": "{{count}} changements de profil",
+        "profileChanges_other": "{{count}} changements de profil"
       },
       "questionCard": {
         "title": "Question",
@@ -1770,6 +1859,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} autre fil",
+    "moreThreads_many": "{{count}} de fils supplémentaires",
+    "moreThreads_other": "{{count}} autres fils",
     "forMe": "Pour moi",
     "forMeHint": "Uniquement les fils auxquels vous participez, dans lesquels un agent a publié pour vous ou que vous avez épinglés",
     "roomForMeHint": "Uniquement les fils auxquels vous participez ou dans lesquels un agent a publié pour vous",
@@ -1839,5 +1931,40 @@
     "cancellationSent": "Annulation envoyée",
     "editDraftBusy": "Effacez votre brouillon actuel avant de modifier cette tâche planifiée.",
     "copyFailed": "Impossible de copier. Sélectionnez l'ID de la tâche dans Détails."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Bonjour, {{name}}",
+      "afternoon": "Bon après-midi, {{name}}",
+      "evening": "Bonsoir, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Demandez ce que vous voulez à {{name}}…",
+      "chooseAgent": "Choisir qui répond",
+      "agentChoice": "{{name}} répond",
+      "chooseRoom": "Choisir où commence le fil",
+      "roomChoice": "Dans {{room}}",
+      "inRoom": "dans <avatar/>{{room}}",
+      "directChat": "Discussion directe",
+      "startsDirectChat": "Démarre une discussion avec {{name}}",
+      "startingDirectChat": "Démarrage d’une discussion avec {{name}}…",
+      "directChatFailed": "Impossible de démarrer une discussion avec {{name}}. Réessayez.",
+      "waitingForAgent": "En attente de l’arrivée de {{name}} dans le chat…",
+      "notSent": "Non envoyé à {{agent}} dans {{room}}",
+      "chooseAgain": "Ce choix ne fonctionne plus. Votre texte est conservé : choisissez qui répond, ou où."
+    },
+    "recent": {
+      "title": "Fils récents",
+      "allThreads": "Tous les fils",
+      "unread": "Non lu"
+    },
+    "recovery": {
+      "action": "Définir un mot de passe de récupération",
+      "text": "Gardez l’accès à vos discussions chiffrées sur un nouvel appareil."
+    },
+    "device": {
+      "action": "Vérifier cet appareil",
+      "text": "D’ici là, il ne peut pas lire vos discussions chiffrées."
+    }
   }
 }

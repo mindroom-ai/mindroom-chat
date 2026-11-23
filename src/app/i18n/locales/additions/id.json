@@ -90,13 +90,32 @@
       "wheelZoomHint": "{{key}} + gulir untuk memperbesar"
     },
     "inviteUserPrompt": {
-      "close": "Tutup",
       "invited": "{{user}} telah diundang.",
-      "giveRoleRights": "Berikan hak {{role}}",
       "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
       "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
       "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Undang ke {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Selesai",
+      "searchPlaceholder": "Cari orang, agen, atau @user:server",
+      "filterLabel": "Filter menurut jenis",
+      "filterAll": "Semua",
+      "filterPeople": "Orang",
+      "filterAgents": "Agen",
+      "recentAndDirect": "Terbaru & Langsung",
+      "directory": "Direktori",
+      "externalUserId": "ID Matrix eksternal",
+      "noMatches": "Tidak ada pengguna yang cocok. Masukkan ID @user:server lengkap untuk mengundang langsung.",
+      "emptyDirectory": "Belum ada pengguna untuk diundang. Masukkan ID @user:server lengkap untuk mengundang langsung.",
+      "addNote": "+ Tambah catatan undangan",
+      "hideNote": "− Sembunyikan catatan undangan",
+      "notePlaceholder": "Tambahkan catatan pada undangan Anda...",
+      "giveRoleRightsAgents": "Berikan hak {{role}} kepada agen yang diundang",
+      "alreadyInRoom": "Sudah ada di ruangan ini",
+      "alreadyInvited": "Sudah diundang",
+      "bannedFromRoom": "Diblokir dari ruangan ini",
+      "retryUser": "Coba lagi mengundang {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -110,6 +129,37 @@
     },
     "textViewer": {
       "close": "Tutup"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Acara",
+      "metaType": "Jenis",
+      "metaSender": "Pengirim",
+      "metaTime": "Waktu",
+      "badgeEdited": "Diedit",
+      "badgeEncrypted": "Terenkripsi",
+      "documentTabsLabel": "Versi acara",
+      "tabEvent": "Acara",
+      "tabOriginal": "Asli",
+      "tabLatestEdit": "Editan terbaru",
+      "tabDecrypted": "Terdekripsi",
+      "tabDecryptionError": "Dekripsi gagal",
+      "tabEncrypted": "Terenkripsi",
+      "collapseAll": "Ciutkan",
+      "expandAll": "Luaskan",
+      "foldStrings": "Lipat string",
+      "rawJson": "Mentah",
+      "filterPlaceholder": "Filter kunci atau nilai…",
+      "noMatches": "Tidak ada kecocokan untuk “{{query}}”",
+      "copyField": "Salin {{field}}",
+      "copyValue": "Salin nilai",
+      "expandNode": "Luaskan {{name}}",
+      "collapseNode": "Ciutkan {{name}}",
+      "expandString": "Luaskan string",
+      "collapseString": "Ciutkan string",
+      "matchCount_other": "{{count}} cocok",
+      "keyCount_other": "{{count}} kunci",
+      "itemCount_other": "{{count}} item",
+      "charCount_other": "{{count}} karakter"
     },
     "invites": {
       "actionFailed": "Terjadi kesalahan. Coba lagi."
@@ -254,9 +304,6 @@
       "newIntro": "Pilih kata sandi pemulihan baru. Yang lama tidak akan berfungsi lagi.",
       "notCached": "Sesi ini tidak memiliki semua kunci enkripsi. Verifikasi sesi ini dengan kata sandi pemulihan Anda atau perangkat lain, lalu coba lagi.",
       "incompleteError": "Kata sandi pemulihan baru belum mencakup semua kunci enkripsi. Coba lagi.",
-      "nudgeTitle": "Lindungi pesan Anda",
-      "nudgeBody": "Atur kata sandi pemulihan agar Anda tetap bisa membaca obrolan terenkripsi setelah menghapus data browser ini atau masuk di perangkat baru.",
-      "nudgeButton": "Siapkan kata sandi pemulihan",
       "unlockWithPassword": "Buka kunci dengan kata sandi pemulihan",
       "resetLoss": "Pesan yang tidak bisa dibaca perangkat ini sekarang akan tetap tidak terbaca. Sesi Anda yang lain perlu diverifikasi lagi.",
       "setupCheckFailed": "Tidak dapat memeriksa pengaturan enkripsi Anda.",
@@ -926,6 +973,20 @@
       "turnFold": {
         "earlier_other": "{{count}} pesan sebelumnya",
         "hide_other": "Sembunyikan {{count}} pesan"
+      },
+      "membershipFold": {
+        "summary_other": "{{count}} peristiwa ruang",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "Sembunyikan {{count}} peristiwa ruang",
+        "listSeparator": ", ",
+        "joined_other": "{{count}} bergabung",
+        "left_other": "{{count}} keluar",
+        "invited_other": "{{count}} diundang",
+        "requested_other": "{{count}} meminta bergabung",
+        "kicked_other": "{{count}} dikeluarkan",
+        "banned_other": "{{count}} diblokir",
+        "unbanned_other": "{{count}} dibuka blokirnya",
+        "profileChanges_other": "{{count}} perubahan profil"
       },
       "questionCard": {
         "title": "Pertanyaan",
@@ -1690,6 +1751,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "{{count}} utas lagi",
     "forMe": "Untuk saya",
     "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
     "roomForMeHint": "Hanya utas yang Anda ikuti atau yang berisi pesan dari agen atas nama Anda",
@@ -1751,5 +1813,40 @@
     "cancellationSent": "Pembatalan dikirim",
     "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
     "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Selamat pagi, {{name}}",
+      "afternoon": "Selamat siang, {{name}}",
+      "evening": "Selamat malam, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Tanyakan apa saja kepada {{name}}…",
+      "chooseAgent": "Pilih siapa yang menjawab",
+      "agentChoice": "{{name}} menjawab",
+      "chooseRoom": "Pilih tempat utas dimulai",
+      "roomChoice": "Di {{room}}",
+      "inRoom": "di <avatar/>{{room}}",
+      "directChat": "Obrolan langsung",
+      "startsDirectChat": "Memulai obrolan dengan {{name}}",
+      "startingDirectChat": "Memulai obrolan dengan {{name}}…",
+      "directChatFailed": "Tidak dapat memulai obrolan dengan {{name}}. Coba lagi.",
+      "waitingForAgent": "Menunggu {{name}} bergabung ke obrolan…",
+      "notSent": "Tidak terkirim ke {{agent}} di {{room}}",
+      "chooseAgain": "Pilihan itu tidak berlaku lagi. Teks Anda tetap tersimpan: pilih siapa yang menjawab, atau di mana."
+    },
+    "recent": {
+      "title": "Utas terbaru",
+      "allThreads": "Semua utas",
+      "unread": "Belum dibaca"
+    },
+    "recovery": {
+      "action": "Atur kata sandi pemulihan",
+      "text": "Tetap dapat mengakses obrolan terenkripsi di perangkat baru."
+    },
+    "device": {
+      "action": "Verifikasi perangkat ini",
+      "text": "Sampai saat itu, perangkat ini tidak dapat membaca obrolan terenkripsi Anda."
+    }
   }
 }

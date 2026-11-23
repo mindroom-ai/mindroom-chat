@@ -93,13 +93,32 @@
       "wheelZoomHint": "{{key}} + scroll to zoom"
     },
     "inviteUserPrompt": {
-      "close": "Close",
       "invited": "Invited {{user}}.",
-      "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
       "roleRequirementChanged": "This room now requires {{role}} rights.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invite to {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Done",
+      "searchPlaceholder": "Search people, agents, or @user:server",
+      "filterLabel": "Filter by type",
+      "filterAll": "All",
+      "filterPeople": "People",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Recent & Direct",
+      "directory": "Directory",
+      "externalUserId": "External Matrix ID",
+      "noMatches": "No matching users. Enter a full @user:server ID to invite directly.",
+      "emptyDirectory": "No users to invite yet. Enter a full @user:server ID to invite directly.",
+      "addNote": "+ Add invite note",
+      "hideNote": "− Hide invite note",
+      "notePlaceholder": "Add a note to your invite...",
+      "giveRoleRightsAgents": "Give invited agents {{role}} rights",
+      "alreadyInRoom": "Already in this room",
+      "alreadyInvited": "Already invited",
+      "bannedFromRoom": "Banned from this room",
+      "retryUser": "Retry inviting {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -113,6 +132,41 @@
     },
     "textViewer": {
       "close": "Close"
+    },
+    "eventSourceViewer": {
+      "metaEventId": "Event",
+      "metaType": "Type",
+      "metaSender": "Sender",
+      "metaTime": "Time",
+      "badgeEdited": "Edited",
+      "badgeEncrypted": "Encrypted",
+      "documentTabsLabel": "Event versions",
+      "tabEvent": "Event",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Latest edit",
+      "tabDecrypted": "Decrypted",
+      "tabDecryptionError": "Decryption failed",
+      "tabEncrypted": "Encrypted",
+      "collapseAll": "Collapse",
+      "expandAll": "Expand",
+      "foldStrings": "Fold strings",
+      "rawJson": "Raw",
+      "filterPlaceholder": "Filter keys or values…",
+      "noMatches": "No matches for “{{query}}”",
+      "copyField": "Copy {{field}}",
+      "copyValue": "Copy value",
+      "expandNode": "Expand {{name}}",
+      "collapseNode": "Collapse {{name}}",
+      "expandString": "Expand string",
+      "collapseString": "Collapse string",
+      "matchCount_one": "{{count}} match",
+      "matchCount_other": "{{count}} matches",
+      "keyCount_one": "{{count}} key",
+      "keyCount_other": "{{count}} keys",
+      "itemCount_one": "{{count}} item",
+      "itemCount_other": "{{count}} items",
+      "charCount_one": "{{count}} char",
+      "charCount_other": "{{count}} chars"
     },
     "invites": {
       "actionFailed": "Something went wrong. Try again."
@@ -258,9 +312,6 @@
       "newIntro": "Choose a new recovery password. The old one stops working.",
       "notCached": "This session does not hold every encryption key. Verify it with your recovery password or another device, then try again.",
       "incompleteError": "The new recovery password does not cover every encryption key yet. Try again.",
-      "nudgeTitle": "Protect your messages",
-      "nudgeBody": "Set a recovery password so you can still read your encrypted chats after clearing this browser or signing in on a new device.",
-      "nudgeButton": "Set up recovery password",
       "unlockWithPassword": "Unlock with recovery password",
       "resetLoss": "Messages this device cannot read now stay unreadable. Your other sessions need to be verified again.",
       "setupCheckFailed": "Couldn't check your encryption setup.",
@@ -943,6 +994,30 @@
         "earlier_other": "{{count}} earlier messages",
         "hide_one": "Hide {{count}} message",
         "hide_other": "Hide {{count}} messages"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} room event",
+        "summary_other": "{{count}} room events",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Hide {{count}} room event",
+        "hide_other": "Hide {{count}} room events",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} joined",
+        "joined_other": "{{count}} joined",
+        "left_one": "{{count}} left",
+        "left_other": "{{count}} left",
+        "invited_one": "{{count}} invited",
+        "invited_other": "{{count}} invited",
+        "requested_one": "{{count}} requested to join",
+        "requested_other": "{{count}} requested to join",
+        "kicked_one": "{{count}} kicked",
+        "kicked_other": "{{count}} kicked",
+        "banned_one": "{{count}} banned",
+        "banned_other": "{{count}} banned",
+        "unbanned_one": "{{count}} unbanned",
+        "unbanned_other": "{{count}} unbanned",
+        "profileChanges_one": "{{count}} profile change",
+        "profileChanges_other": "{{count}} profile changes"
       },
       "questionCard": {
         "title": "Question",
@@ -1730,6 +1805,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} more thread",
+    "moreThreads_other": "{{count}} more threads",
     "forMe": "For me",
     "forMeHint": "Only threads you take part in, that an agent posted for you, or that you pinned",
     "roomForMeHint": "Only threads you take part in or that an agent posted for you",
@@ -1795,5 +1872,40 @@
     "cancellationSent": "Cancellation sent",
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Good morning, {{name}}",
+      "afternoon": "Good afternoon, {{name}}",
+      "evening": "Good evening, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Ask {{name}} anything…",
+      "chooseAgent": "Choose who answers",
+      "agentChoice": "{{name}} answers",
+      "chooseRoom": "Choose where the thread starts",
+      "roomChoice": "In {{room}}",
+      "inRoom": "in <avatar/>{{room}}",
+      "directChat": "Direct chat",
+      "startsDirectChat": "Starts a chat with {{name}}",
+      "startingDirectChat": "Starting a chat with {{name}}…",
+      "directChatFailed": "Could not start a chat with {{name}}. Try again.",
+      "waitingForAgent": "Waiting for {{name}} to join the chat…",
+      "notSent": "Not sent to {{agent}} in {{room}}",
+      "chooseAgain": "That choice no longer works. Your text is kept: choose who answers, or where."
+    },
+    "recent": {
+      "title": "Recent threads",
+      "allThreads": "All threads",
+      "unread": "Unread"
+    },
+    "recovery": {
+      "action": "Set up a recovery password",
+      "text": "Keep access to encrypted chats on a new device."
+    },
+    "device": {
+      "action": "Verify this device",
+      "text": "Until then it cannot read your encrypted chats."
+    }
   }
 }

@@ -3,12 +3,15 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useOpenUserRoomProfile } from '../navigation/useUserRoomProfileState';
 import { getCanonicalAliasRoomId, isRoomAlias, isRoomId, isUserId } from '../matrix/matrix';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { isJoinedRoom } from '../navigation/routeVisibility';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSpaceOptionally } from '../matrix/hooks/useSpace';
+import { getSpacePath, withSearchParam } from '../routes/pathUtils';
 
 const readMention = (pill: HTMLElement) => ({
   id: pill.getAttribute('data-mention-id'),
   eventId: pill.getAttribute('data-mention-event-id') ?? undefined,
+  viaServers: pill.getAttribute('data-mention-via')?.split(',').filter(Boolean),
 });
 
 /** An alias resolves only through a room the account knows; an unknown one gives `undefined`. */
@@ -18,13 +21,19 @@ const resolveMentionedRoom = (client: MatrixClient, mentionId: string): string |
 };
 
 /**
- * The click handler for mention pills, which carry the mentioned ID in `data-mention-id` (and an
- * event in `data-mention-event-id`): a user opens their profile in `roomId`; a room the account
- * has joined opens, at the event when one is given, and a space opens on its lobby.
+ * The click handler for mention pills, which carry the mentioned ID in `data-mention-id` (with an
+ * optional event in `data-mention-event-id` and routing servers in `data-mention-via`): a user
+ * opens their profile in `roomId`; a joined room opens directly (at the event when given, or on
+ * its lobby for a space without an event); and an unjoined or non-joined room navigates to its
+ * room route (using the known room ID when the client already has it, else the mentioned ID or
+ * alias) with `viaServers` intact so `RoomRoute` can resolve the alias and show the join preview.
+ * That route is in the section `roomPath` picks, so a room of the selected space stays beside the
+ * space's rooms; a space the client holds, such as one it is invited to, opens on its own space
+ * route when no event is linked.
  */
 export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLElement> => {
   const client = useMatrixClient();
-  const { navigateRoom, navigateSpace } = useRoomNavigate();
+  const { navigatePath, navigateRoom, navigateSpace, roomPath } = useRoomNavigate();
   const openProfile = useOpenUserRoomProfile();
   const spaceRoomId = useSpaceOptionally()?.roomId;
 
@@ -33,23 +42,43 @@ export const useMentionClickHandler = (roomId: string): MouseEventHandler<HTMLEl
       const pill = event.currentTarget;
       const mention = readMention(pill);
       if (!mention.id) return;
-      event.preventDefault();
 
       if (isUserId(mention.id)) {
+        event.preventDefault();
         // The card opens next to the pill that was clicked.
         openProfile(roomId, spaceRoomId, mention.id, pill.getBoundingClientRect());
         return;
       }
 
-      const mentionedRoomId = resolveMentionedRoom(client, mention.id);
-      if (!mentionedRoomId) return;
-      // A space the account knows opens as a space, on its lobby.
-      if (!mention.eventId && client.getRoom(mentionedRoomId)?.isSpaceRoom()) {
-        navigateSpace(mentionedRoomId);
+      if (!isRoomId(mention.id) && !isRoomAlias(mention.id)) return;
+      event.preventDefault();
+
+      const knownRoomId = resolveMentionedRoom(client, mention.id);
+      const knownRoom = knownRoomId ? client.getRoom(knownRoomId) : null;
+      if (knownRoom && isJoinedRoom(knownRoom)) {
+        // A joined space opens as a space, on its lobby, unless a specific event was linked.
+        if (!mention.eventId && knownRoom.isSpaceRoom()) {
+          navigateSpace(knownRoom.roomId);
+          return;
+        }
+        navigateRoom(knownRoom.roomId, mention.eventId);
         return;
       }
-      navigateRoom(mentionedRoomId, mention.eventId);
+
+      // The join page. A space the client holds opens on its own space route: `roomPath` would
+      // put it below a space above it, whose join page would then take these servers. A room
+      // opens in the section a joined room would: beside the selected space's rooms when it is
+      // one of them.
+      const targetPath =
+        !mention.eventId && knownRoom?.isSpaceRoom()
+          ? getSpacePath(knownRoom.roomId)
+          : roomPath(knownRoom?.roomId ?? mention.id, mention.eventId);
+      navigatePath(
+        withSearchParam(targetPath, {
+          viaServers: mention.viaServers?.length ? mention.viaServers.join(',') : undefined,
+        })
+      );
     },
-    [client, navigateRoom, navigateSpace, openProfile, roomId, spaceRoomId]
+    [client, navigatePath, navigateRoom, navigateSpace, openProfile, roomId, roomPath, spaceRoomId]
   );
 };

@@ -11,21 +11,13 @@ import {
   encryptAttachment,
   type EncryptedAttachmentInfo,
 } from 'browser-encrypt-attachment';
+import { isRoomAlias, isRoomId, isUserId } from '../lib/matrixIds';
 import type { IEncryptedFile, IImageInfo, IVideoInfo } from './types/common';
 import type { MDirectContent } from './types/accountData';
 import { Membership } from './types/room';
 
+export { isRoomAlias, isRoomId, isUserId };
 export { mxcUrlToHttp } from './mediaUrl';
-
-// Matrix identifiers (client-server specification, "Identifier Grammar"): a sigil, a localpart
-// without colons, then the server name, which may carry a port.
-const USER_ID = /^@[^:\s]+:\S+$/;
-const ROOM_ID = /^![^:\s]+(?::\S+)?$/;
-const ROOM_ALIAS = /^#[^:\s]+:\S+$/;
-
-export const isUserId = (id: string): boolean => USER_ID.test(id);
-export const isRoomId = (id: string): boolean => ROOM_ID.test(id);
-export const isRoomAlias = (id: string): boolean => ROOM_ALIAS.test(id);
 
 const splitIdentifier = (id: string): [string, string] | undefined => {
   const colon = id.indexOf(':');

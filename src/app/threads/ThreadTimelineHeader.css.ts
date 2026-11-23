@@ -16,8 +16,21 @@ const headerHeight = 'var(--room-thread-header-height, 0px)';
  * thread to show it, about 380 px in Chromium, which centers it, and 90 px in WebKit. The header
  * is stuck in view, so everything in it is revealed one header height further down, past the
  * padding, which needs no scrolling.
+ *
+ * Folds' `<Scroll size="300">` reserves an 8 px (`0.5rem` / `S200`) inline-end gutter when native
+ * scrollbars are hidden (`data-y-scrollbar-width="0"`), keeping message rows and hover toolbars
+ * clear of `InsetScrollbar`. Because `ThreadTimelineHeader` sits above `InsetScrollbar` (whose
+ * track starts below the header), reaching across that gutter makes the banner's inline-start and
+ * inline-end gaps symmetric (12 px / `S300` on both sides) and keeps `GapAbove` edge-to-edge in
+ * side-panel mode without introducing horizontal overflow (`scrollWidth === clientWidth`).
  */
-export const Header = style({});
+export const Header = style({
+  selectors: {
+    '[data-y-scrollbar-width="0"] &': {
+      marginInlineEnd: `calc(-1 * ${config.space.S200})`,
+    },
+  },
+});
 
 /**
  * Beside the room's messages no room header sits above the banner, so it keeps the gap it has at

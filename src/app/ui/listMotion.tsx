@@ -1,6 +1,5 @@
 import {
   PureComponent,
-  type ReactElement,
   type RefObject,
   useCallback,
   useEffect,
@@ -276,9 +275,9 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  */
 export const useListMotion = (
   listRef: RefObject<HTMLElement>,
-  order: string,
+  order?: string,
   offWindow?: ReadonlySet<string>
-): ReactElement => {
+) => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
   const offWindowRef = useRef(offWindow);
@@ -304,6 +303,8 @@ export const useListMotion = (
     const before = beforeRef.current;
     beforeRef.current = undefined;
     const list = listRef.current;
+    if (order === undefined)
+      runningRef.current.splice(0).forEach((animation) => animation.cancel());
     if (!before || !list) return;
     // A row that still shows where it did keeps its play. Started again, a glide the browser has
     // not begun shows its first frame: a Compact room's cards jumped back to where the last
@@ -384,5 +385,5 @@ export const useListMotion = (
     };
   }, [letGo, listRef]);
 
-  return <BeforeChange order={order} read={read} keep={keep} />;
+  return order === undefined ? null : <BeforeChange order={order} read={read} keep={keep} />;
 };
