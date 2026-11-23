@@ -1,6 +1,7 @@
 import { createDisplacementMap } from './displacement';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const RESIZE_SETTLE_MS = 150;
 const mapCache = new Map<string, { url: string; scale: number }>();
 const roots = new WeakMap<Document, SVGSVGElement>();
 let nextId = 0;
@@ -183,19 +184,33 @@ export const attachLiquidGlass = (
   let visible = false;
   let filter: ReturnType<typeof createFilter>;
   let dimensions = '';
+  let activeWidth = 0;
+  let activeHeight = 0;
   let mapFrame = 0;
+  let resizeTimer: number | undefined;
   let lightFrame = 0;
   let pointerX = 0;
   let pointerY = 0;
   const permitsTransparency = () => !preferences.slice(0, 3).some((query) => query.matches);
   const permitsMotion = () => permitsTransparency() && !preferences[3]!.matches;
 
+  const cancelResizeTimer = () => {
+    view.clearTimeout(resizeTimer);
+    resizeTimer = undefined;
+  };
   const clearFilter = () => {
+    if (mapFrame) {
+      view.cancelAnimationFrame(mapFrame);
+      mapFrame = 0;
+    }
+    if (!filter) return;
     element.style.removeProperty('--liquid-glass-filter');
     element.removeAttribute('data-liquid-glass');
-    filter?.remove();
+    filter.remove();
     filter = undefined;
     dimensions = '';
+    activeWidth = 0;
+    activeHeight = 0;
   };
   const clearLight = () => {
     view.cancelAnimationFrame(lightFrame);
@@ -234,6 +249,8 @@ export const attachLiquidGlass = (
       filter = nextFilter;
       if (!filter) return;
       dimensions = key;
+      activeWidth = width;
+      activeHeight = height;
       element.style.setProperty('--liquid-glass-filter', `url("#${filter.id}")`);
       element.setAttribute('data-liquid-glass', 'active');
     } catch {
@@ -244,11 +261,37 @@ export const attachLiquidGlass = (
     if (!mapFrame && supportsRefraction && !disposed)
       mapFrame = view.requestAnimationFrame(updateMap);
   };
+  const onResize = () => {
+    if (disposed || !visible || !permitsTransparency()) return;
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
+    if (width <= 0 || height <= 0) {
+      cancelResizeTimer();
+      clearFilter();
+      return;
+    }
+    if (resizeTimer === undefined && filter && width === activeWidth && height === activeHeight)
+      return;
+    if (!filter && resizeTimer === undefined) {
+      queueMap();
+      return;
+    }
+    clearFilter();
+    cancelResizeTimer();
+    resizeTimer = view.setTimeout(() => {
+      resizeTimer = undefined;
+      queueMap();
+    }, RESIZE_SETTLE_MS);
+  };
   const onPreferenceChange = () => {
     if (disposed) return;
-    if (!permitsTransparency()) clearFilter();
     if (!permitsMotion()) clearLight();
-    queueMap();
+    if (!permitsTransparency()) {
+      cancelResizeTimer();
+      clearFilter();
+      return;
+    }
+    if (resizeTimer === undefined) queueMap();
   };
   const onPointerMove = (event: PointerEvent) => {
     // Flat scrolling chrome must not move the light on its enclosing glass panel either.
@@ -271,13 +314,17 @@ export const attachLiquidGlass = (
       element.style.setProperty('--liquid-glass-light-y', `${y}%`);
     });
   };
-  const resizeObserver = supportsRefraction ? new ResizeObserver(queueMap) : undefined;
+  const resizeObserver = supportsRefraction ? new ResizeObserver(onResize) : undefined;
   const intersectionObserver = supportsRefraction
     ? new IntersectionObserver((entries) => {
         if (disposed) return;
         visible = entries.some((entry) => entry.isIntersecting);
-        if (visible) queueMap();
-        else clearFilter();
+        if (visible) {
+          if (resizeTimer === undefined) queueMap();
+        } else {
+          cancelResizeTimer();
+          clearFilter();
+        }
       })
     : undefined;
   resizeObserver?.observe(element);
@@ -289,7 +336,7 @@ export const attachLiquidGlass = (
 
   return () => {
     disposed = true;
-    view.cancelAnimationFrame(mapFrame);
+    cancelResizeTimer();
     clearLight();
     clearFilter();
     resizeObserver?.disconnect();

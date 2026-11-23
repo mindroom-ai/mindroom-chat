@@ -488,3 +488,22 @@ it('retains pressed, menu-protected, and dragged cards outside the window', () =
   layout.scroll(view, 4300);
   expect(dragged.isConnected).toBe(false);
 });
+
+it('coalesces rapid width changes until width settles before probing evicted cards', () => {
+  const onIds = vi.fn();
+  const { view } = mount({ onIds });
+  tick(12);
+  expect(spacerHeight(view)).toBe(7168.75);
+  const rendersBeforeResize = onIds.mock.calls.length;
+
+  for (const nextWidth of [370, 350, 330, 320]) {
+    width = nextWidth;
+    layout.resize();
+    tick(2);
+    expect(onIds.mock.calls.length).toBe(rendersBeforeResize);
+    expect(spacerHeight(view)).toBe(7168.75);
+  }
+
+  tick(12);
+  expect(spacerHeight(view)).toBe(10602.25);
+});

@@ -14,6 +14,7 @@ const ELLIPSIS = '…';
 // Canvas widths can run a pixel under the rendered text; keep the cut clear of the line's own
 // ellipsis.
 const FIT_SLACK_PX = 2;
+const RESIZE_SETTLE_MS = 100;
 
 /**
  * The longest start of `text` that `fits`, cut after a whole word, without the punctuation before
@@ -67,10 +68,18 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
   const [rowWidthChanges, rowWidthChanged] = useReducer((count: number) => count + 1, 0);
   const [fit, setFit] = useState<{ text: string; rowWidthChanges: number; shown: string }>();
   const fitted = enabled && fit?.text === text && fit.rowWidthChanges === rowWidthChanges;
+  const shown = fitted ? fit.shown : text;
+  const shownRef = useRef(shown);
+  const textRef = useRef(text);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  shownRef.current = shown;
+  textRef.current = text;
 
   useLayoutEffect(() => {
     const element = ref.current;
     if (!enabled || fitted || !element) return;
+    clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = undefined;
     // Text the line holds whole stays whole; only an overflowing line is cut.
     const overflows = element.scrollWidth > element.clientWidth;
     const width = overflows ? textWidth(element) : undefined;
@@ -85,18 +94,35 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
   useLayoutEffect(() => {
     // The row is as wide as the banner; the title's own width follows its text.
     const row = ref.current?.parentElement;
-    if (!row || typeof ResizeObserver === 'undefined') return undefined;
+    if (!enabled || !row || typeof ResizeObserver === 'undefined') return undefined;
     let rowWidth = row.clientWidth;
     const observer = new ResizeObserver(() => {
-      if (row.clientWidth === rowWidth) return;
-      rowWidth = row.clientWidth;
-      rowWidthChanged();
+      const nextWidth = row.clientWidth;
+      if (nextWidth === rowWidth) return;
+      if (
+        resizeTimerRef.current === undefined &&
+        shownRef.current === textRef.current &&
+        nextWidth > rowWidth
+      ) {
+        rowWidth = nextWidth;
+        return;
+      }
+      rowWidth = nextWidth;
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        resizeTimerRef.current = undefined;
+        rowWidthChanged();
+      }, RESIZE_SETTLE_MS);
     });
     observer.observe(row);
-    return () => observer.disconnect();
-  }, [ref]);
+    return () => {
+      observer.disconnect();
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = undefined;
+    };
+  }, [enabled, ref]);
 
-  return fitted ? fit.shown : text;
+  return shown;
 };
 
 /**
