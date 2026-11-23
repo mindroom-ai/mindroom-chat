@@ -203,6 +203,7 @@ import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './me
 import {
   NO_RENDERED_ROOM_ROWS,
   forgetFormedFoldHeights,
+  useExposedFoldRowsHeld,
   useMembershipFoldRowSizes,
   useMembershipFolds,
   useRoomRowWindow,
@@ -1224,6 +1225,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     turnFolds: turnFolds.view,
     membershipFoldsRef,
     renderedRoomRowsRef,
+  });
+  // Before the ledger takes this render's folds: the rows of a closed fold that came apart above
+  // the reader's view.
+  useExposedFoldRowsHeld({
+    renderedRef: renderedRoomRowsRef,
+    view: membershipFolds.view,
+    rows: roomProjection,
+    windowRows: roomWindowRows,
+    pinnedIds: membershipPinnedIds,
+    estimateSize,
+    pendingRoomFoldPxRef,
   });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;

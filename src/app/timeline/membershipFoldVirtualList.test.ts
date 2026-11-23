@@ -18,6 +18,7 @@ import {
   NO_RENDERED_ROOM_ROWS,
   forgetFormedFoldHeights,
   readRenderedRoomRows,
+  takeExposedFoldRowsPx,
 } from './useMembershipFolds';
 
 // The room's virtual list with folded membership runs, against the real virtual-core, its
@@ -82,11 +83,19 @@ const joins = (prefix: string, count: number) =>
  * The room's list as the timeline renders it. `render` lists the loaded rows with each closed
  * fold as one row, takes the state's window in those rows, has the list forget the height of a
  * row a fold formed at, and hands the list its sizes and keys; `commit` mounts the list's rows,
- * which measure, and reads the list as it rendered, as the timeline does after each commit.
+ * which measure, and reads the list as it rendered, as the timeline does after each commit. The
+ * offset ledger is the scroll position here: the height it takes moves the reader with the rows.
  */
-const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange }) => {
+const roomList = (initial: {
+  loaded: MatrixEvent[];
+  stateRange: TimelineRange;
+  compact?: boolean;
+}) => {
   let { loaded, stateRange } = initial;
   const openIds = new Set<string>();
+  const pinnedIds = new Set<string>();
+  /** The height the ledger took for rows that came out of a closed fold above the view. */
+  let ledgerPx = 0;
   /** A fold's break as it measures: taller once its label wraps. */
   let breakPx = BREAK_PX;
   const element = {
@@ -104,6 +113,10 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
   const renderedRoomRowsRef: { current: RenderedRoomRows } = { current: NO_RENDERED_ROOM_ROWS };
   let projection: RoomRowProjection;
   let windowRows: MatrixEvent[] = [];
+  // The folds are the same object from render to render until the loaded rows, an opened fold
+  // or a pin changes, as the timeline memoizes them.
+  let view: MembershipFoldView | undefined;
+  const pricedRef: { current: MembershipFoldView } = { current: { breaks: new Map() } };
 
   const virtualizer = new Virtualizer<HTMLDivElement, Element>({
     count: 0,
@@ -134,8 +147,8 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
   });
 
   const render = () => {
-    const view = viewMembershipFolds(
-      planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set() }),
+    view ??= viewMembershipFolds(
+      planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds }),
       (fold) => fold.eventIds.some((id) => openIds.has(id))
     );
     projection = projectRoomRows(
@@ -151,7 +164,7 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
     forgetFormedFoldHeights(renderedRoomRowsRef.current, view);
     const { estimateSize, getItemKey } = timelineRowSizing({
       threadId: undefined,
-      compactLayout: false,
+      compactLayout: !!initial.compact,
       showThreadRepliesInRoom: false,
       threadEvents: [],
       roomWindowRows: windowRows,
@@ -162,6 +175,17 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
       membershipFoldsRef,
       renderedRoomRowsRef,
     });
+    const exposedPx = takeExposedFoldRowsPx(
+      pricedRef,
+      renderedRoomRowsRef.current,
+      { view, foldedRows: projection.foldedRows, windowRows, pinnedIds },
+      estimateSize
+    );
+    if (exposedPx !== 0) {
+      ledgerPx += exposedPx;
+      element.scrollTop += exposedPx;
+      reportOffset(element.scrollTop, false);
+    }
     virtualizer.setOptions({
       ...virtualizer.options,
       count: windowRows.length,
@@ -233,13 +257,27 @@ const roomList = (initial: { loaded: MatrixEvent[]; stateRange: TimelineRange })
     prependHistory: (older: MatrixEvent[]) => {
       loaded = [...older, ...loaded];
       stateRange = { start: stateRange.start + older.length, end: stateRange.end + older.length };
+      view = undefined;
     },
     /** An event that decrypts in place: the same event of the loaded rows, as another type. */
     decrypt: (id: string, clear: MatrixEvent) => {
       loaded = loaded.map((event) => (event.getId() === id ? clear : event));
+      view = undefined;
     },
-    open: (id: string) => openIds.add(id),
-    close: (id: string) => openIds.delete(id),
+    open: (id: string) => {
+      openIds.add(id);
+      view = undefined;
+    },
+    close: (id: string) => {
+      openIds.delete(id);
+      view = undefined;
+    },
+    /** A jump to the event: its run stays unfolded. */
+    pin: (id: string) => {
+      pinnedIds.add(id);
+      view = undefined;
+    },
+    ledgerPx: () => ledgerPx,
     wrapBreak: (px: number) => {
       breakPx = px;
     },
@@ -485,5 +523,76 @@ describe("the reader's rows as a page of history lands at a fold", () => {
     expect(list.sizes()[0]).toBe(MEMBER_PX + BREAK_PX);
     list.commit();
     expect(list.sizes()[0]).toBe(BREAK_PX);
+  });
+
+  // An open run and a closed one with an undecrypted event between them: once it decrypts into an
+  // event that draws nothing, they are one run, which stays open as the reader left its first
+  // part. The closed run's events become rows above the reader.
+  describe.each([
+    ['comfortable', false],
+    ['compact', true],
+  ] as const)('with a closed fold that joins an open one, in the %s layout', (_layout, compact) => {
+    const loaded = [...joins('j', 3), undecrypted('$enc'), ...joins('k', 18), ...below];
+    const joined = [
+      ...['$j0', '$j1', '$j2', '$enc'],
+      ...Array.from({ length: 18 }, (_, index) => `$k${index}`),
+      '$b0',
+    ];
+    const mount = () => {
+      const list = roomList({ loaded, stateRange: { start: 0, end: loaded.length }, compact });
+      list.open('$j0');
+      readDownTo(list, readingAt);
+      expect(list.windowIds().slice(0, 6)).toEqual(['$j0', '$j1', '$j2', '$enc', '$k0', '$b0']);
+      expect(list.screenTop(readingAt)).toBe(-10);
+      return list;
+    };
+
+    it("keeps them still: the ledger takes the height of the fold's rows", () => {
+      const list = mount();
+      list.decrypt('$enc', callInvite('$enc'));
+      list.render();
+      expect(list.windowIds().slice(0, joined.length)).toEqual(joined);
+      // Seventeen rows the list has not measured are new above the reader: `$k0` keeps the
+      // height its row had as the break until it mounts.
+      const sizes = list.sizes();
+      const exposedPx = sizes.slice(5, 22).reduce<number>((px, size) => px + (size ?? 0), 0);
+      expect(sizes[4]).toBe(BREAK_PX);
+      expect(exposedPx).toBe(17 * (compact ? 96 : 28.5));
+      expect(list.ledgerPx()).toBe(exposedPx);
+      expect(list.screenTop(readingAt)).toBe(-10);
+      // Rendered again before it commits, the height is taken once.
+      list.render();
+      expect(list.ledgerPx()).toBe(exposedPx);
+      list.commit();
+      expect(list.screenTop(readingAt)).toBe(-10);
+      expect(list.ledgerPx()).toBe(exposedPx);
+      expect(list.scrollWrites).toEqual([]);
+
+      // The rows measure once they mount above the view: the correction keeps the reader's rows
+      // where they are.
+      list.scrollToRow('$b6');
+      const nearTop = list.screenTop('$b8');
+      list.commit();
+      expect(list.mountedIds()).toContain('$k17');
+      expect(list.isMeasured('$k17')).toBe(true);
+      expect(list.screenTop('$b8')).toBe(nearTop);
+    });
+
+    it('takes nothing for a fold that a jump to one of its events unfolds', () => {
+      const list = mount();
+      // The jump scrolls to the event's row.
+      list.pin('$k9');
+      list.render();
+      expect(list.windowIds().slice(4, 7)).toEqual(['$k0', '$k1', '$k2']);
+      expect(list.ledgerPx()).toBe(0);
+    });
+
+    it('takes nothing for a fold the reader opens', () => {
+      const list = mount();
+      list.open('$k0');
+      list.render();
+      expect(list.windowIds().slice(4, 7)).toEqual(['$k0', '$k1', '$k2']);
+      expect(list.ledgerPx()).toBe(0);
+    });
   });
 });

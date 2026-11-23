@@ -145,10 +145,11 @@ const fakeRoomScroller = () => {
   };
 };
 
-/** A loaded stretch of the room with its tokens and no neighbours. */
+/** A loaded stretch of the room with its tokens, its events and no neighbours. */
 const fakeTimeline = (token: string | null, newerToken: string | null = null) => {
   let backToken = token;
   let forwardToken = newerToken;
+  let events: MatrixEvent[] = [];
   return {
     getPaginationToken: (direction: Direction) =>
       direction === Direction.Backward ? backToken : forwardToken,
@@ -159,7 +160,10 @@ const fakeTimeline = (token: string | null, newerToken: string | null = null) =>
       forwardToken = next;
     },
     getNeighbouringTimeline: () => null,
-    getEvents: () => [],
+    getEvents: () => events,
+    setEvents: (next: MatrixEvent[]) => {
+      events = next;
+    },
   };
 };
 
@@ -533,6 +537,62 @@ describe('a page of newer events that all go into the closed fold the rows end w
     // That one fails and leaves its token: it is not asked for again by itself.
     await settle();
     expect(started).toEqual(['newer-1', 'newer-2']);
+    room.unmount();
+  });
+});
+
+describe("a page of history from the cache that keeps the room's back token", () => {
+  it('asks for the next page when the fold the rows start with took its events, and not after a page that loaded nothing', async () => {
+    // The cache holds pages without a token of their own: the room's back token stays as it is.
+    const chain = fakeTimeline('token-1');
+    let pages = 0;
+    const pending: (() => void)[] = [];
+    let running: Promise<void> | undefined;
+    const paginateRoom = () => {
+      if (!running) {
+        pages += 1;
+        running = new Promise<void>((resolve) => {
+          pending.push(resolve);
+        }).finally(() => {
+          running = undefined;
+        });
+      }
+      return running;
+    };
+    const settle = () =>
+      act(async () => {
+        pending.shift()?.();
+        await running;
+      });
+    // Eight loaded rows: three joins of a longer run, one row of the room's rows, and five
+    // messages. A short room, its back sentinel in view.
+    const first = [join('$m3'), join('$m4'), join('$m5'), ...messages('b', 5)];
+    chain.setEvents(first);
+    const room = mountRoomWindow(first, { start: 0, end: first.length }, { chain, paginateRoom });
+    const { handles, windowIds } = room;
+    expect(windowIds()).toEqual(['$m3', '$b0', '$b1', '$b2', '$b3', '$b4']);
+    act(() => handles.paginator?.retryPagination());
+    expect(pages).toBe(1);
+
+    // The cached page brings `$m1` and `$m2`: ten loaded rows, the same six rows of the room,
+    // and the same token.
+    const second = [join('$m1'), join('$m2'), ...first];
+    chain.setEvents(second);
+    room.renderWith(second, () =>
+      handles.setTimeline?.((current) => ({
+        ...current,
+        range: { start: current.range.start + 2, end: current.range.end + 2 },
+      }))
+    );
+    expect(windowIds()).toEqual(['$m1', '$b0', '$b1', '$b2', '$b3', '$b4']);
+    expect(chain.getPaginationToken(Direction.Backward)).toBe('token-1');
+    // The loaded rows reach further back: once the page settles, the next one loads.
+    await settle();
+    expect(pages).toBe(2);
+
+    // That one loads nothing and leaves the token: it is not asked for again by itself.
+    await settle();
+    expect(pages).toBe(2);
     room.unmount();
   });
 });

@@ -285,6 +285,7 @@ export const rowIndexOfLoaded = (
 /**
  * The rows that hold the loaded rows of `range`. A closed fold the range starts or ends inside
  * is in it whole: a page of history can bring earlier events of the run a window starts with.
+ * A range that ends past the loaded rows ends with the last row.
  */
 export const rowRangeOfLoaded = (
   projection: RoomRowProjection,
@@ -293,7 +294,8 @@ export const rowRangeOfLoaded = (
   if (!projection.loadedStarts) return range;
   const start = rowIndexOfLoaded(projection, Math.max(range.start, 0));
   if (range.end <= range.start) return { start, end: start };
-  return { start, end: rowIndexOfLoaded(projection, range.end - 1) + 1 };
+  const lastLoaded = Math.min(range.end, projection.loadedCount) - 1;
+  return { start, end: rowIndexOfLoaded(projection, lastLoaded) + 1 };
 };
 
 /** The loaded rows the rows of `range` stand for. */
@@ -321,13 +323,24 @@ export const heldFoldHeight = (sizes: FoldedRowSizes, fold: MembershipFold): num
   return px;
 };
 
-/** The room's list as it last rendered: what a fold that forms over its rows takes the place of. */
+/**
+ * The room's list as it last rendered: what a fold that forms over its rows takes the place of,
+ * and what the rows of a fold that comes apart take the place of.
+ */
 export type RenderedRoomRows = {
   sizes: FoldedRowSizes;
   /** The folds of that render. */
   view: MembershipFoldView;
-  /** The list's own record of the heights it measured, by row key, which it lays rows out by. */
-  measured?: Map<string | number | bigint, number>;
+  /** The rows of its window. */
+  rows?: readonly MatrixEvent[];
+  /**
+   * The list itself: its record of the heights it measured, by row key, which it lays rows out
+   * by, and the rows of the window it had in view when it last looked.
+   */
+  list?: {
+    itemSizeCache: Map<string | number | bigint, number>;
+    range: { startIndex: number; endIndex: number } | null;
+  };
 };
 
 /**
@@ -342,3 +355,60 @@ export const foldFormedOverRows = (
   !open &&
   before.breaks.get(fold.key)?.open !== true &&
   fold.spanIds.some((id) => id !== fold.key && sizes.has(id));
+
+/**
+ * How far a render moves the reader's rows down by listing, above the reader's view, the events
+ * of a fold that was closed as rows of their own: their height (`priceRow`, by a row's event ID
+ * and its place in `windowRows`), less the height of the break that stood for them. An event that
+ * decrypts into one without a row joins a closed run to an open one, which stays open, and a run
+ * that lost an event is too short to fold. The offset ledger takes that height, as it takes the
+ * rows a page of history mounts above the reader, and the reader's rows stay where they are.
+ *
+ * Not the rows of a fold the reader opened, which are theirs to see move, nor those of a fold a
+ * pinned event unfolded: a jump goes to that event. Nor anything for a fold whose first event is
+ * no row of this window: other rows replaced the ones it stood among.
+ */
+export const exposedFoldRowsPx = (
+  { rows, list, sizes, view: before }: RenderedRoomRows,
+  now: {
+    view: MembershipFoldView;
+    foldedRows: ReadonlyMap<string, number>;
+    windowRows: readonly MatrixEvent[];
+    pinnedIds: ReadonlySet<string>;
+  },
+  priceRow: (id: string, index: number) => number
+): number => {
+  const firstInView = list?.range?.startIndex;
+  if (!rows || firstInView === undefined || before === now.view) return 0;
+  // The folds that came apart, by the ID of each event they held.
+  let exposed: Map<string, MembershipFold> | undefined;
+  for (let index = 0; index < Math.min(firstInView, rows.length); index += 1) {
+    const key = rows[index]?.getId() ?? '';
+    const was = before.breaks.get(key);
+    // Still the row of a closed fold, or held by one: `heldFoldHeight` keeps the rows still.
+    if (was && !was.open && !now.foldedRows.has(key)) {
+      const { fold } = was;
+      const is = now.view.breaks.get(key);
+      const openedByReader = !!is?.open && is.fold.spanIds.length === fold.spanIds.length;
+      if (!openedByReader && !fold.spanIds.some((id) => now.pinnedIds.has(id))) {
+        exposed ??= new Map();
+        for (const id of fold.spanIds) exposed.set(id, fold);
+      }
+    }
+  }
+  if (!exposed) return 0;
+  let px = 0;
+  const here = new Set<MembershipFold>();
+  now.windowRows.forEach((event, index) => {
+    const id = event.getId() ?? '';
+    const fold = exposed?.get(id);
+    if (!fold) return;
+    if (id === fold.key) {
+      here.add(fold);
+      px -= sizes.get(id) ?? 0;
+    }
+    // A fold's first event is its first row.
+    if (here.has(fold)) px += priceRow(id, index);
+  });
+  return px;
+};

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
   MIN_FOLDED_MEMBERSHIP_EVENTS,
+  exposedFoldRowsPx,
   loadedRangeOfRows,
   planMembershipFolds,
   projectRoomRows,
@@ -475,6 +476,9 @@ describe('projectRoomRows', () => {
     expect(rowRangeOfLoaded(projection, { start: 0, end: 3 })).toEqual({ start: 0, end: 2 });
     expect(rowRangeOfLoaded(projection, { start: 6, end: 9 })).toEqual({ start: 2, end: 5 });
     expect(rowRangeOfLoaded(projection, { start: 0, end: 0 })).toEqual({ start: 0, end: 0 });
+    // A window that ends past the loaded rows (rows left the room since) ends with the last row.
+    expect(rowRangeOfLoaded(projection, { start: 6, end: 12 })).toEqual({ start: 2, end: 5 });
+    expect(rowRangeOfLoaded(projection, { start: 9, end: 12 })).toEqual({ start: 5, end: 5 });
     // And a window of rows stands for whole folds of loaded rows.
     expect(loadedRangeOfRows(projection, { start: 1, end: 5 })).toEqual({ start: 1, end: 9 });
     expect(loadedRangeOfRows(projection, { start: 0, end: 2 })).toEqual({ start: 0, end: 6 });
@@ -528,5 +532,104 @@ describe('projectRoomRows', () => {
       )
     );
     expect(pinned.rows.findIndex((event) => event.getId() === '$m3')).toBe(4);
+  });
+});
+
+describe('exposedFoldRowsPx', () => {
+  // The last render: a message, the break of a closed fold of four joins, and three messages.
+  const joins = [
+    joinEvent('$m1', '@a:x'),
+    joinEvent('$m2', '@b:x'),
+    joinEvent('$m3', '@c:x'),
+    joinEvent('$m4', '@d:x'),
+  ];
+  const loaded = [
+    messageEvent('$msg0'),
+    ...joins,
+    messageEvent('$msg1'),
+    messageEvent('$msg2'),
+    messageEvent('$msg3'),
+  ];
+  type Rules = { open?: boolean; pinned?: string[]; hidden?: string[] };
+  const viewOf = (events: MatrixEvent[], rules: Rules = {}) =>
+    viewMembershipFolds(
+      planMembershipFolds(events, {
+        isSkipped: (event) => !!rules.hidden?.includes(event.getId() ?? ''),
+        pinnedIds: new Set(rules.pinned),
+      }),
+      () => !!rules.open
+    );
+  const project = (events: MatrixEvent[], view: ReturnType<typeof viewOf>) =>
+    projectRoomRows(
+      events,
+      events.map((event, absoluteIndex) => ({ event, absoluteIndex })),
+      view
+    );
+  /** The last render of `events`, with the row at `firstInView` the first one in view. */
+  const rendered = (firstInView: number, events = loaded) => {
+    const view = viewOf(events);
+    const { rows } = project(events, view);
+    return {
+      sizes: new Map(
+        rows.map((event) => [event.getId() ?? '', view.breaks.has(event.getId() ?? '') ? 42 : 50])
+      ),
+      view,
+      rows,
+      list: { itemSizeCache: new Map(), range: { startIndex: firstInView, endIndex: rows.length } },
+    };
+  };
+  /** What a render of `events` with these rules takes, each row priced at 30 px. */
+  const exposed = (last: ReturnType<typeof rendered>, events: MatrixEvent[], rules: Rules = {}) => {
+    const view = viewOf(events, rules);
+    const { rows, foldedRows } = project(events, view);
+    return exposedFoldRowsPx(
+      last,
+      { view, foldedRows, windowRows: rows, pinnedIds: new Set(rules.pinned) },
+      () => 30
+    );
+  };
+  // Two of the four joins are hidden since: two are too few to fold, and each of the four
+  // events is a row of the list again.
+  const tooShort = { hidden: ['$m2', '$m3'] };
+
+  it('is the height of the rows of a closed fold above the view that came apart, less its break', () => {
+    expect(exposed(rendered(3), loaded, tooShort)).toBe(4 * 30 - 42);
+  });
+
+  it('is nothing while the fold is in view or below it', () => {
+    expect(exposed(rendered(1), loaded, tooShort)).toBe(0);
+    expect(exposed(rendered(0), loaded, tooShort)).toBe(0);
+  });
+
+  it('is nothing for a fold that is still closed, alone or inside a longer one', () => {
+    expect(exposed(rendered(3), loaded)).toBe(0);
+    // A join before the message that parted it from the run: with that message hidden, the fold
+    // at that join holds the run.
+    const longer = [joinEvent('$m0', '@z:x'), ...loaded];
+    expect(exposed(rendered(4, longer), longer, { hidden: ['$msg0'] })).toBe(0);
+  });
+
+  it('is nothing for a fold the reader opened or a pinned event unfolded', () => {
+    expect(exposed(rendered(3), loaded, { open: true })).toBe(0);
+    expect(exposed(rendered(3), loaded, { pinned: ['$m3'] })).toBe(0);
+  });
+
+  it('counts a fold that opens as it joins a longer run', () => {
+    const longer = [joinEvent('$m0', '@z:x'), ...loaded];
+    expect(exposed(rendered(4, longer), longer, { hidden: ['$msg0'], open: true })).toBe(
+      4 * 30 - 42
+    );
+  });
+
+  it('is nothing when other rows replaced the ones the fold stood among', () => {
+    const other = [messageEvent('$other0'), messageEvent('$other1'), messageEvent('$other2')];
+    expect(exposed(rendered(3), other)).toBe(0);
+  });
+
+  it('is nothing without a list that rendered', () => {
+    const view = viewOf(loaded, tooShort);
+    const { rows, foldedRows } = project(loaded, view);
+    const now = { view, foldedRows, windowRows: rows, pinnedIds: new Set<string>() };
+    expect(exposedFoldRowsPx({ sizes: new Map(), view: viewOf(loaded) }, now, () => 30)).toBe(0);
   });
 });

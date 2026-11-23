@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import { createElement, useRef } from 'react';
+import { StrictMode, createElement, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, MatrixEventEvent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -14,6 +14,7 @@ import {
 import {
   forgetFormedFoldHeights,
   readRenderedRoomRows,
+  useExposedFoldRowsHeld,
   useMembershipFolds,
   useRoomRowWindow,
 } from './useMembershipFolds';
@@ -385,7 +386,8 @@ describe('the heights a fold takes over from the rows it holds', () => {
       ['$msg', 50],
     ]);
     expect(rendered.view).toBe(EMPTY_MEMBERSHIP_FOLD_VIEW);
-    expect(rendered.measured).toBe(cache);
+    expect(rendered.list?.itemSizeCache).toBe(cache);
+    expect(rendered.rows).toEqual([m4, m5, msg]);
     // A fold that history made of these rows takes their place at their height.
     const fold = planMembershipFolds([m3, m4, m5], {
       isSkipped: () => false,
@@ -470,5 +472,70 @@ describe('the heights a fold takes over from the rows it holds', () => {
       forgetFormedFoldHeights(stillOpen.last, viewOf(joined, true));
       expect(stillOpen.cache.get('$m1')).toBe(30);
     });
+  });
+});
+
+describe('useExposedFoldRowsHeld', () => {
+  const run = [
+    joinEvent('$m1', '@a:x'),
+    joinEvent('$m2', '@b:x'),
+    joinEvent('$m3', '@c:x'),
+    joinEvent('$m4', '@d:x'),
+  ];
+  const loaded = [...run, msgEvent('$msg0'), msgEvent('$msg1'), msgEvent('$msg2')];
+  const viewOf = (pinned: string[], open = false) =>
+    viewMembershipFolds(
+      planMembershipFolds(loaded, { isSkipped: () => false, pinnedIds: new Set(pinned) }),
+      () => open
+    );
+  const project = (view: ReturnType<typeof viewOf>) =>
+    projectRoomRows(
+      loaded,
+      loaded.map((event, absoluteIndex) => ({ event, absoluteIndex })),
+      view
+    );
+
+  it('gives the ledger the height once for a set of folds, however often they render', () => {
+    // The last render: the closed fold's break, 42 px high, above the three messages in view.
+    const closed = viewOf([]);
+    const renderedRef = {
+      current: {
+        sizes: new Map([['$m1', 42]]),
+        view: closed,
+        rows: project(closed).rows,
+        list: { itemSizeCache: new Map(), range: { startIndex: 1, endIndex: 3 } },
+      },
+    };
+    const pendingRoomFoldPxRef = { current: 7 };
+    function Probe({ view }: { view: ReturnType<typeof viewOf> }) {
+      const rows = project(view);
+      useExposedFoldRowsHeld({
+        renderedRef,
+        view,
+        rows,
+        windowRows: rows.rows,
+        pinnedIds: new Set(),
+        estimateSize: () => 30,
+        pendingRoomFoldPxRef,
+      });
+      return null;
+    }
+    const element = (view: ReturnType<typeof viewOf>) =>
+      createElement(StrictMode, null, createElement(Probe, { view }));
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(element(closed));
+    });
+    expect(pendingRoomFoldPxRef.current).toBe(7);
+
+    // The run is too short to fold now (as when it lost events): its four events are rows. The
+    // ledger gets their height, less the break's, on top of what a page of history left there.
+    const apart = viewMembershipFolds([], () => false);
+    act(() => renderer?.update(element(apart)));
+    expect(pendingRoomFoldPxRef.current).toBe(7 + 4 * 30 - 42);
+    // Rendered twice by React and once more before the list is read again: taken once.
+    act(() => renderer?.update(element(apart)));
+    expect(pendingRoomFoldPxRef.current).toBe(7 + 4 * 30 - 42);
+    act(() => renderer?.unmount());
   });
 });

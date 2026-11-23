@@ -15,6 +15,7 @@ import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
+  exposedFoldRowsPx,
   foldFormedOverRows,
   loadedRangeOfRows,
   planMembershipFolds,
@@ -141,7 +142,7 @@ export const NO_RENDERED_ROOM_ROWS: RenderedRoomRows = {
 type RoomList = Virtualizer<HTMLDivElement, Element>;
 type RowSizeSource = Pick<
   RoomList,
-  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement'
+  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement' | 'range'
 > & { options: Pick<RoomList['options'], 'measureElement'> };
 
 /**
@@ -180,7 +181,7 @@ export const readRenderedRoomRows = (
     }
     sizes.set(id, size);
   });
-  return { sizes, view, measured: virtualizer.itemSizeCache };
+  return { sizes, view, rows: windowRows, list: virtualizer };
 };
 
 /**
@@ -193,11 +194,60 @@ export const readRenderedRoomRows = (
  * as a fold at a row the list never measured does, and takes its own height once it mounts.
  */
 export const forgetFormedFoldHeights = (rendered: RenderedRoomRows, view: MembershipFoldView) => {
-  const { measured } = rendered;
+  const measured = rendered.list?.itemSizeCache;
   if (!measured || rendered.view === view || rendered.sizes.size === 0) return;
   view.breaks.forEach((state, key) => {
     if (measured.has(key) && foldFormedOverRows(rendered, state)) measured.delete(key);
   });
+};
+
+/**
+ * A closed fold above the reader's view can come apart into rows of its own: the run it holds
+ * joins an open run when the event between them decrypts into one without a row, and the joined
+ * run stays open. Those rows would push the reader's rows down by their height
+ * (`exposedFoldRowsPx`), which the offset ledger takes instead, as it takes the height of the rows
+ * a page of history mounts above the reader. This is that height for the render of `now.view`,
+ * the first time it is asked for those folds (`pricedRef`): React can render them again before
+ * it commits them.
+ */
+export const takeExposedFoldRowsPx = (
+  pricedRef: MutableRefObject<MembershipFoldView>,
+  rendered: RenderedRoomRows,
+  now: Parameters<typeof exposedFoldRowsPx>[1],
+  /** As the list prices the row at a place of `now.windowRows` that it has no measured height for. */
+  estimateSize: (index: number) => number
+): number => {
+  if (rendered.view === now.view || pricedRef.current === now.view) return 0;
+  pricedRef.current = now.view;
+  const measured = rendered.list?.itemSizeCache;
+  return exposedFoldRowsPx(rendered, now, (id, index) => measured?.get(id) ?? estimateSize(index));
+};
+
+/** Before the list lays out a render's rows: `takeExposedFoldRowsPx`, into the offset ledger. */
+export const useExposedFoldRowsHeld = ({
+  renderedRef,
+  view,
+  rows,
+  windowRows,
+  pinnedIds,
+  estimateSize,
+  pendingRoomFoldPxRef,
+}: {
+  renderedRef: MutableRefObject<RenderedRoomRows>;
+  view: MembershipFoldView;
+  rows: RoomRowProjection;
+  windowRows: readonly MatrixEvent[];
+  pinnedIds: ReadonlySet<string>;
+  estimateSize: (index: number) => number;
+  pendingRoomFoldPxRef: MutableRefObject<number>;
+}) => {
+  const pricedRef = useRef(view);
+  pendingRoomFoldPxRef.current += takeExposedFoldRowsPx(
+    pricedRef,
+    renderedRef.current,
+    { view, foldedRows: rows.foldedRows, windowRows, pinnedIds },
+    estimateSize
+  );
 };
 
 /**
