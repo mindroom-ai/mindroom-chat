@@ -20,6 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
+import { invalidateEvictionVerdict } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -247,6 +248,10 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
   await deleteScaledPictures(blobs, unowned);
+  if (unowned.length) {
+    // Pruning is rare, so dropping every session's verdict avoids threading sessionId here.
+    transaction.addEventListener('complete', () => invalidateEvictionVerdict(), { once: true });
+  }
 };
 
 /** Only the canonical event transaction calls this after accepting the same raw revision. */
@@ -454,7 +459,10 @@ export const setRoomAttachmentPinned = async (
         lastActivityTs: previous?.lastActivityTs ?? 0,
       });
     };
-    transaction.oncomplete = () => resolve();
+    transaction.oncomplete = () => {
+      invalidateEvictionVerdict(sessionId);
+      resolve();
+    };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });

@@ -9,6 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import * as deepTrace from '../../../diagnostics/deepTrace';
 import { saveAttachmentOwner } from '../../cache/__tests__/attachmentFixtures';
 import { createSyncEngine } from '../syncEngine';
 import { createSessionId } from '../../../matrix/session/sessions';
@@ -31,10 +32,7 @@ import {
 } from '../../cache/db';
 import { reportCacheWriteError, resetCacheHealthForTesting } from '../../cache/cacheHealth';
 import { persistRoomChunkWithPreferLive } from '../../cache/eventRepository';
-import {
-  readRoomOfflineProgress,
-  updateRoomOfflineProgress,
-} from '../../cache/db/cacheStoreMeta';
+import { readRoomOfflineProgress, updateRoomOfflineProgress } from '../../cache/db/cacheStoreMeta';
 
 const roomId = '!opened:test';
 const raw = (id: string) => ({
@@ -728,6 +726,36 @@ it('retains text and distinguishes soft pressure from quota read-only', async ()
   await engine.offline.clear(roomId);
   engine.offline.download(roomId);
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('read-only'));
+});
+
+it('does not rerun eviction on repeated page admissions under a protected-pressure verdict', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  await noteRoomOpened(engine.sessionId, roomId);
+  __setCacheStoreByteBudgetForTests(1);
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => ({ scope: 'all-rooms' }),
+    onChanged: () => {},
+  });
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  try {
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction')).toHaveLength(1);
+    expect(control.controller.getSnapshot(roomId).status).toBe('space');
+  } finally {
+    trace.mockRestore();
+  }
 });
 it('hidden pages pause and logout revokes a pending page', async () => {
   const document = new EventTarget();
