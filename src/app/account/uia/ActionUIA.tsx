@@ -1,7 +1,8 @@
 import { FormEventHandler, ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthDict, AuthType, IAuthData, UIAFlow } from 'matrix-js-sdk';
-import { Box, Button, Icon, IconButton, Icons, Input, Text, color, config } from 'folds';
+import { Box, Button, Input, Text, color, config } from 'folds';
+import { DialogCloseButton } from '../../ui/DialogChrome';
 import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
 import { externalOpenProps, isDesktopApp } from '../../lib/nativeShell';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -240,14 +241,7 @@ export function ActionUIA(props: ActionUIAProps) {
         size="500"
       >
         <Box grow="Yes">{title && <Text size="H4">{title}</Text>}</Box>
-        <IconButton
-          size="300"
-          radii="300"
-          onClick={onCancel}
-          aria-label={t('sharedUi.dummyStage.cancel')}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        <DialogCloseButton label={t('sharedUi.dummyStage.cancel')} onClick={onCancel} />
       </Header>
       <Box direction="Column" style={{ padding: config.space.S400 }}>
         {body}

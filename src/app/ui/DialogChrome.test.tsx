@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createRef } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { Icon, Icons } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DialogCloseButton, SheetScrollArea } from './DialogChrome';
 
@@ -32,6 +33,50 @@ describe('DialogCloseButton', () => {
 
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards ref, iconSize, and button attributes', () => {
+    const buttonRef = createRef<HTMLButtonElement>();
+    const onClick = vi.fn();
+    const { container } = render(
+      <>
+        <DialogCloseButton
+          ref={buttonRef}
+          label="Close tour"
+          iconSize="100"
+          data-tour-action="close"
+          style={{ width: '2rem', height: '2rem' }}
+          disabled
+          onClick={onClick}
+        />
+        <span data-testid="ref-icon-100">
+          <Icon size="100" src={Icons.Cross} />
+        </span>
+        <span data-testid="ref-icon-200">
+          <Icon size="200" src={Icons.Cross} />
+        </span>
+      </>
+    );
+
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Close tour' });
+    expect(buttonRef.current).toBe(button);
+    expect(button.getAttribute('data-tour-action')).toBe('close');
+    expect(button.style.width).toBe('2rem');
+    expect(button.style.height).toBe('2rem');
+    expect(button.disabled).toBe(true);
+
+    const buttonIconClass = button.querySelector('svg')?.getAttribute('class');
+    const icon100Class = container
+      .querySelector('[data-testid="ref-icon-100"] svg')
+      ?.getAttribute('class');
+    const icon200Class = container
+      .querySelector('[data-testid="ref-icon-200"] svg')
+      ?.getAttribute('class');
+    expect(buttonIconClass).toBe(icon100Class);
+    expect(buttonIconClass).not.toBe(icon200Class);
+
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
   });
 });
 

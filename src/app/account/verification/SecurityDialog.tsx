@@ -1,7 +1,8 @@
 import { ReactNode, useId } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, Icons, Text, config } from 'folds';
-import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
+import { Box, Text, config } from 'folds';
+import { DialogCloseButton } from '../../ui/DialogChrome';
+import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
 
 type SecurityDialogProps = {
   title: string;
@@ -16,17 +17,6 @@ export function SecurityDialog({ title, onClose, role = 'dialog', children }: Se
   const { t } = useTranslation();
   const titleId = useId();
   const bodyId = useId();
-  const closeButton = (
-    <IconButton
-      onClick={onClose}
-      aria-label={t('sharedUi.deviceVerification.close')}
-      radii="300"
-      size="300"
-    >
-      <Icon src={Icons.Cross} />
-    </IconButton>
-  );
-
   return (
     <Dialog
       role={role}
@@ -40,7 +30,7 @@ export function SecurityDialog({ title, onClose, role = 'dialog', children }: Se
         <Text as="h2" id={titleId} size="H4" style={{ flexGrow: 1, margin: 0 }}>
           {title}
         </Text>
-        {closeButton}
+        <DialogCloseButton label={t('sharedUi.deviceVerification.close')} onClick={onClose} />
       </Header>
       <Box id={bodyId} direction="Column" gap="400" style={{ padding: config.space.S400 }}>
         {children}

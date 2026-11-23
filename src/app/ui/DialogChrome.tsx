@@ -1,4 +1,6 @@
 import {
+  forwardRef,
+  type ButtonHTMLAttributes,
   type HTMLAttributes,
   type MouseEventHandler,
   type MutableRefObject,
@@ -14,27 +16,33 @@ import { IconButton } from './glass/GlassPrimitives';
 import { InsetScrollbar } from './InsetScrollbar';
 import * as css from './DialogChrome.css';
 
-type DialogCloseButtonProps = {
+type DialogCloseButtonProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'children' | 'aria-label' | 'type' | 'onClick'
+> & {
   label: string;
   onClick: MouseEventHandler<HTMLButtonElement>;
-  className?: string;
+  iconSize?: '100' | '200';
 };
 
 /** Quiet Glass pill close button shared by sheet and dialog headers. */
-export function DialogCloseButton({ label, onClick, className }: DialogCloseButtonProps) {
-  return (
-    <IconButton
-      type="button"
-      size="300"
-      radii="Pill"
-      className={classNames(css.CloseTouchIcon, className)}
-      aria-label={label}
-      onClick={onClick}
-    >
-      <Icon size="200" src={Icons.Cross} />
-    </IconButton>
-  );
-}
+export const DialogCloseButton = forwardRef<HTMLButtonElement, DialogCloseButtonProps>(
+  function DialogCloseButton({ label, iconSize = '200', className, ...props }, ref) {
+    return (
+      <IconButton
+        {...props}
+        ref={ref}
+        type="button"
+        size="300"
+        radii="Pill"
+        className={classNames(css.CloseTouchIcon, className)}
+        aria-label={label}
+      >
+        <Icon size={iconSize} src={Icons.Cross} />
+      </IconButton>
+    );
+  }
+);
 
 type SheetScrollAreaProps = Pick<
   HTMLAttributes<HTMLDivElement>,

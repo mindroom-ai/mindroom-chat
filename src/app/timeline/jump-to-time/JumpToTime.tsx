@@ -6,8 +6,6 @@ import { EventType, type Room } from 'matrix-js-sdk';
 import {
   Box,
   Button,
-  Icon,
-  Icons,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,7 +15,8 @@ import {
   config,
   toRem,
 } from 'folds';
-import { Chip, Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../../ui/DialogChrome';
+import { Chip, Dialog, Header } from '../../ui/glass/GlassPrimitives';
 import { viewerTrapOptions } from '../../messages/content/viewerFrame';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -268,14 +267,10 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
               <Text id={HEADING_ID} size="H4" style={{ flexGrow: 1 }}>
                 {t('featureUi.room.jumpToTime.jumpToTime')}
               </Text>
-              <IconButton
-                aria-label={t('featureUi.room.jumpToTime.close')}
-                size="300"
-                radii="300"
+              <DialogCloseButton
+                label={t('featureUi.room.jumpToTime.close')}
                 onClick={() => requestClose()}
-              >
-                <Icon src={Icons.Cross} size="200" />
-              </IconButton>
+              />
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
               <Section title={t('featureUi.room.jumpToTime.preset')}>

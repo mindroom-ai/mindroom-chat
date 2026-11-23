@@ -5,9 +5,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Icon,
-  IconButton,
-  Icons,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -18,6 +15,7 @@ import {
 } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
+import { DialogCloseButton } from '../../ui/DialogChrome';
 import { Header, Modal } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { SettingTile } from '../../ui/SettingTile';
@@ -166,9 +164,7 @@ function RoomPacksChooser({ requestClose }: { requestClose: () => void }) {
           {t(`${GLOBAL}.roomPacks`)}
         </Text>
       </Box>
-      <IconButton size="300" radii="300" aria-label={t(`${GLOBAL}.close`)} onClick={requestClose}>
-        <Icon src={Icons.Cross} size="100" />
-      </IconButton>
+      <DialogCloseButton label={t(`${GLOBAL}.close`)} onClick={requestClose} />
     </Header>
   );
 

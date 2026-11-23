@@ -1,7 +1,8 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isBundledApp } from '../../lib/nativeShell';
-import { Box, Icon, IconButton, Icons, Line, Switch, Text, config } from 'folds';
+import { Box, Line, Switch, Text, config } from 'folds';
+import { DialogCloseButton, SheetScrollArea } from '../../ui/DialogChrome';
 import { Modal500 } from '../../ui/Modal500';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
@@ -52,8 +53,14 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal500 requestClose={onClose}>
-      <Box direction="Column" {...{ [HELP_DIALOG_ATTRIBUTE]: '' }}>
+      <Box
+        direction="Column"
+        grow="Yes"
+        style={{ minHeight: 0 }}
+        {...{ [HELP_DIALOG_ATTRIBUTE]: '' }}
+      >
         <Box
+          shrink="No"
           alignItems="Center"
           gap="200"
           style={{ padding: config.space.S400, paddingBlockEnd: config.space.S200 }}
@@ -63,17 +70,9 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
               {t('shortcuts.help.title')}
             </Text>
           </Box>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Surface"
-            aria-label={t('shortcuts.help.close')}
-            onClick={onClose}
-          >
-            <Icon src={Icons.Cross} size="100" />
-          </IconButton>
+          <DialogCloseButton label={t('shortcuts.help.close')} onClick={onClose} />
         </Box>
-        <div className={css.HelpScroll}>
+        <SheetScrollArea className={css.HelpScrollFrame}>
           <Box
             direction="Column"
             gap="400"
@@ -113,7 +112,7 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
               />
             </Box>
           </Box>
-        </div>
+        </SheetScrollArea>
       </Box>
     </Modal500>
   );

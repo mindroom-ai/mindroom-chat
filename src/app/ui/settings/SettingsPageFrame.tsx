@@ -1,6 +1,7 @@
 import { ReactNode, RefObject, createContext, useContext } from 'react';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { DialogCloseButton } from '../DialogChrome';
 import { Page, PageContent, PageHeader } from '../page/Page';
 import { PageScroll } from '../page/PageScroll';
 import { PhoneBackButton } from '../page/PhoneBackButton';
@@ -115,16 +116,12 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
   return (
     <PageHeader style={HEADER_STYLE}>
       <SettingsBreadcrumb title={title} />
-      <IconButton
-        size="300"
-        radii="300"
-        variant="Surface"
+      <DialogCloseButton
+        label={t('featureUi.settings.emojisStickers.globalPacks.close')}
         onClick={requestClose}
-        aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+        iconSize="100"
         style={CLOSE_STYLE}
-      >
-        <Icon size="100" src={Icons.Cross} />
-      </IconButton>
+      />
     </PageHeader>
   );
 }

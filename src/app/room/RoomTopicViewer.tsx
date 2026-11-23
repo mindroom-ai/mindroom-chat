@@ -1,18 +1,9 @@
 import { type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import {
-  Box,
-  Icon,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  config,
-  toRem,
-} from 'folds';
-import { Header, IconButton, Modal } from '../ui/glass/GlassPrimitives';
+import { Box, Overlay, OverlayBackdrop, OverlayCenter, Text, config, toRem } from 'folds';
+import { DialogCloseButton } from '../ui/DialogChrome';
+import { Header, Modal } from '../ui/glass/GlassPrimitives';
 import { PageScroll } from '../ui/page/PageScroll';
 import { headerDismissTrap } from '../ui/useHeaderPopup';
 import { TOPIC_TEXT_STYLE } from '../ui/styles/topicText';
@@ -51,9 +42,7 @@ export function RoomTopicViewer({ name, topic, requestClose }: RoomTopicViewerPr
           {name}
         </Text>
       </Box>
-      <IconButton aria-label={closeLabel} onClick={() => requestClose(true)} radii="300" size="300">
-        <Icon src={Icons.Cross} size="100" />
-      </IconButton>
+      <DialogCloseButton label={closeLabel} onClick={() => requestClose(true)} />
     </Header>
   );
 

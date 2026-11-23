@@ -16,6 +16,10 @@ export const TextViewerHeader = style({
   paddingInlineStart: config.space.S400,
   gap: config.space.S200,
   flexShrink: 0,
+  '@media': {
+    // Keep Copy All clear of DialogCloseButton's 15px coarse-pointer reach at reduced root font sizes.
+    '(pointer: coarse)': { gap: 'max(16px, 0.5rem)' },
+  },
 });
 
 // The code canvas fills the scroll area, gutter and empty space below short text included.

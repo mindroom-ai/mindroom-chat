@@ -5,8 +5,6 @@ import type { Options as FocusTrapOptions } from 'focus-trap';
 import {
   Box,
   Button,
-  Icon,
-  Icons,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,7 +15,8 @@ import {
   config,
   toRem,
 } from 'folds';
-import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../ui/DialogChrome';
+import { Dialog, Header } from '../ui/glass/GlassPrimitives';
 import { SettingTile } from '../ui/SettingTile';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useCallActions } from '../calls/callStore';
@@ -103,14 +102,10 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
                     : 'sharedUi.leaveRoomPrompt.leaveRoom'
                 )}
               </Text>
-              <IconButton
-                aria-label={t('sharedUi.leaveRoomPrompt.close')}
-                size="300"
-                radii="300"
+              <DialogCloseButton
+                label={t('sharedUi.leaveRoomPrompt.close')}
                 onClick={() => requestClose()}
-              >
-                <Icon src={Icons.Cross} size="200" />
-              </IconButton>
+              />
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
               <Text id={`${HEADING_ID}-question`} size="T300" priority="400">

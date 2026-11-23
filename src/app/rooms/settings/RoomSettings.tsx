@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { Box, Icon, IconButton, Icons, Text, config } from 'folds';
+import { Box, Icon, Icons, Text, config } from 'folds';
 import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { DialogCloseButton } from '../../ui/DialogChrome';
 import { MenuItem } from '../../ui/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../ui/page/Page';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
@@ -176,13 +177,10 @@ export function RoomSettings(props: {
         </Text>
       </Box>
       {phone && (
-        <IconButton
-          variant="Background"
-          aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+        <DialogCloseButton
+          label={t('featureUi.settings.emojisStickers.globalPacks.close')}
           onClick={requestClose}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        />
       )}
     </PageNavHeader>
   );

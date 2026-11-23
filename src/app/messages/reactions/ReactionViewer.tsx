@@ -3,7 +3,8 @@ import { Avatar, Box, Icon, Icons, Scroll, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
-import { Header, IconButton, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../../ui/DialogChrome';
+import { Header, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -105,14 +106,7 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
             </Text>
           )}
         </Box>
-        <IconButton
-          size="300"
-          radii="300"
-          onClick={requestClose}
-          aria-label={t('featureUi.room.membersDrawer.close')}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
+        <DialogCloseButton label={t('featureUi.room.membersDrawer.close')} onClick={requestClose} />
       </Header>
       {groups.length > 0 && (
         <Box grow="Yes" style={{ minHeight: 0 }}>
