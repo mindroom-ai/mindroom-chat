@@ -917,7 +917,9 @@ test.describe('thread timeline jumps reproducers', () => {
     const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
     await page.route('**/_matrix/client/v1/media/**', async (route) => {
       try {
-        await wait(350);
+        // Let images decode inside the ~150 ms unsettled window right after page 1 mounts
+        // <ThreadLoadingLines showLoadOlder /> (leadingRef grows 0 -> 40/54 px at t ~ 900 ms).
+        await wait(960);
         await route.continue();
       } catch {
         // Page closed while media request was delayed.
