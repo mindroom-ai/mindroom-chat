@@ -795,7 +795,8 @@ const openAndRun = async (
   setup: Setup,
   baseURL: string | undefined,
   fixture: FixtureWorld,
-  body: (page: Page) => Promise<void>
+  body: (page: Page) => Promise<void>,
+  beforeLogin?: (page: Page) => Promise<void>
 ) => {
   const browser =
     setup.engine === 'webkit'
@@ -808,6 +809,7 @@ const openAndRun = async (
     const context = await browser.newContext({ ...VIEWPORTS[setup.viewport], baseURL });
     const page = await context.newPage();
     await page.addInitScript(installThreadJumpProbe);
+    if (beforeLogin) await beforeLogin(page);
 
     await loginWithPassword(page, {
       homeserver: DISPOSABLE_HOMESERVER,
@@ -902,12 +904,17 @@ test.describe('thread timeline jumps reproducers', () => {
     });
   });
 
-  const setupColdThreadRoutes = async (page: Page, fixture: FixtureWorld) => {
-    const state = {
-      relationsPages: 0,
-      relationsDone: false,
-      allowRelations: false,
-    };
+  const createColdThreadState = () => ({
+    relationsPages: 0,
+    relationsDone: false,
+    allowMessages: false,
+  });
+
+  const setupColdThreadRoutes = async (
+    page: Page,
+    fixture: FixtureWorld,
+    state: ReturnType<typeof createColdThreadState>
+  ) => {
     const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
     await page.route('**/_matrix/client/v1/media/**', async (route) => {
       try {
@@ -917,11 +924,11 @@ test.describe('thread timeline jumps reproducers', () => {
         // Page closed while media request was delayed.
       }
     });
-    // Prevent background room /messages backfill from populating the thread's SDK timeline
-    // before the user opens the thread (keeps open cold at ~10 SDK events on both desktop and phone).
+    // Prevent background room /messages backfill (which starts right after login) from populating
+    // the thread's SDK timeline with 200 events before the user clicks the thread card.
     await page.route('**/_matrix/client/v3/rooms/*/messages**', async (route) => {
       try {
-        if (!state.allowRelations) {
+        if (!state.allowMessages) {
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -937,20 +944,17 @@ test.describe('thread timeline jumps reproducers', () => {
     await page.route('**/relations/**', async (route) => {
       try {
         const url = new URL(route.request().url());
-        const isTargetThread =
-          (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) &&
-          !url.pathname.includes('/m.replace') &&
-          !url.pathname.includes('/m.annotation');
-        if (isTargetThread) {
+        // Match only the thread timeline pagination stream `/relations/<rootId>` (not sub-streams
+        // like `/relations/<rootId>/m.thread/io.mindroom.tool_approval` or `/m.replace`).
+        const isThreadTimelineRelations =
+          url.pathname.endsWith(`/relations/${encodedRoot}`) ||
+          url.pathname.endsWith(`/relations/${fixture.longThreadRootId}`);
+        if (isThreadTimelineRelations) {
           url.searchParams.set('limit', '25');
           await wait(450);
           const response = await route.fetch({ url: url.toString() });
           const body = await response.text();
           state.relationsPages += 1;
-          if (state.relationsPages <= 2) {
-            // eslint-disable-next-line no-console
-            console.log(`[COLD-REL-URL #${state.relationsPages}]`, url.pathname + url.search);
-          }
           try {
             const parsed = JSON.parse(body) as { next_batch?: string };
             if (!parsed.next_batch) state.relationsDone = true;
@@ -965,7 +969,6 @@ test.describe('thread timeline jumps reproducers', () => {
         // Page closed while an in-flight background /relations request was delayed.
       }
     });
-    return state;
   };
 
   OPEN_SETUPS.forEach((setup) => {
@@ -979,23 +982,26 @@ test.describe('thread timeline jumps reproducers', () => {
       );
       const fixture = world!;
 
-      await openAndRun(setup, baseURL, fixture, async (page) => {
-        const net = await setupColdThreadRoutes(page, fixture);
+      const net = createColdThreadState();
+      await openAndRun(
+        setup,
+        baseURL,
+        fixture,
+        async (page) => {
+          await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+          const card = page.locator(
+            `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+          );
+          await expect(card).toBeVisible({ timeout: 30_000 });
 
-        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-        const card = page.locator(
-          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
-        );
-        await expect(card).toBeVisible({ timeout: 30_000 });
-
-        await page.evaluate(async () => {
-          await (
-            window as unknown as {
-              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
-            }
-          ).__threadJumpProbe.clearCacheStore();
-        });
-        net.allowRelations = true;
+          await page.evaluate(async () => {
+            await (
+              window as unknown as {
+                __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+              }
+            ).__threadJumpProbe.clearCacheStore();
+          });
+          net.allowMessages = true;
 
         await startProbe(page, 'open');
         await card.click();
@@ -1039,7 +1045,9 @@ test.describe('thread timeline jumps reproducers', () => {
           report.maxAnchorDriftPx,
           `anchor drift during cold open (pinned): ${summary}`
         ).toBeLessThanOrEqual(20);
-      });
+        },
+        (page) => setupColdThreadRoutes(page, fixture, net)
+      );
     });
 
     test(`${setup.engine} ${setup.viewport}: cold open reading mid-thread while 10+ slow /relations pages arrive does not jump`, async ({
@@ -1052,23 +1060,26 @@ test.describe('thread timeline jumps reproducers', () => {
       );
       const fixture = world!;
 
-      await openAndRun(setup, baseURL, fixture, async (page) => {
-        const net = await setupColdThreadRoutes(page, fixture);
+      const net = createColdThreadState();
+      await openAndRun(
+        setup,
+        baseURL,
+        fixture,
+        async (page) => {
+          await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+          const card = page.locator(
+            `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+          );
+          await expect(card).toBeVisible({ timeout: 30_000 });
 
-        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-        const card = page.locator(
-          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
-        );
-        await expect(card).toBeVisible({ timeout: 30_000 });
-
-        await page.evaluate(async () => {
-          await (
-            window as unknown as {
-              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
-            }
-          ).__threadJumpProbe.clearCacheStore();
-        });
-        net.allowRelations = true;
+          await page.evaluate(async () => {
+            await (
+              window as unknown as {
+                __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+              }
+            ).__threadJumpProbe.clearCacheStore();
+          });
+          net.allowMessages = true;
 
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
@@ -1136,7 +1147,9 @@ test.describe('thread timeline jumps reproducers', () => {
           report.maxAnchorDriftPx,
           `anchor drift during cold open (mid-thread): ${summary}`
         ).toBeLessThanOrEqual(20);
-      });
+        },
+        (page) => setupColdThreadRoutes(page, fixture, net)
+      );
     });
 
     test(`${setup.engine} ${setup.viewport}: cold open while reader scrolls/taps during 10+ slow /relations pages does not jump`, async ({
@@ -1149,23 +1162,26 @@ test.describe('thread timeline jumps reproducers', () => {
       );
       const fixture = world!;
 
-      await openAndRun(setup, baseURL, fixture, async (page) => {
-        const net = await setupColdThreadRoutes(page, fixture);
+      const net = createColdThreadState();
+      await openAndRun(
+        setup,
+        baseURL,
+        fixture,
+        async (page) => {
+          await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+          const card = page.locator(
+            `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+          );
+          await expect(card).toBeVisible({ timeout: 30_000 });
 
-        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-        const card = page.locator(
-          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
-        );
-        await expect(card).toBeVisible({ timeout: 30_000 });
-
-        await page.evaluate(async () => {
-          await (
-            window as unknown as {
-              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
-            }
-          ).__threadJumpProbe.clearCacheStore();
-        });
-        net.allowRelations = true;
+          await page.evaluate(async () => {
+            await (
+              window as unknown as {
+                __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+              }
+            ).__threadJumpProbe.clearCacheStore();
+          });
+          net.allowMessages = true;
 
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
@@ -1225,7 +1241,9 @@ test.describe('thread timeline jumps reproducers', () => {
           `unexplained row jump during cold load: ${summary}`
         ).toBeLessThanOrEqual(12);
         expect(report.maxSpreadPx, `row spread jump during cold load: ${summary}`).toBeLessThanOrEqual(4);
-      });
+        },
+        (page) => setupColdThreadRoutes(page, fixture, net)
+      );
     });
   });
 
