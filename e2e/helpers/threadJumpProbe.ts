@@ -58,18 +58,21 @@ type WindowWithProbe = {
 export const installThreadJumpProbe = () => {
   type RowSnap = { top: number; h: number };
   const cacheDbs = new Set<IDBDatabase>();
-  const origIdbTransaction = IDBDatabase.prototype.transaction;
-  IDBDatabase.prototype.transaction = function wrappedTransaction(
-    this: IDBDatabase,
-    storeNames: string | Iterable<string>,
-    mode?: IDBTransactionMode,
-    options?: IDBTransactionOptions
-  ) {
-    if (this.objectStoreNames.contains('events') && this.objectStoreNames.contains('meta')) {
-      cacheDbs.add(this);
-    }
-    return origIdbTransaction.call(this, storeNames, mode, options);
-  };
+  const origIdbTransaction =
+    typeof IDBDatabase !== 'undefined' ? IDBDatabase.prototype.transaction : undefined;
+  if (origIdbTransaction) {
+    IDBDatabase.prototype.transaction = function wrappedTransaction(
+      this: IDBDatabase,
+      storeNames: string | Iterable<string>,
+      mode?: IDBTransactionMode,
+      options?: IDBTransactionOptions
+    ) {
+      if (this.objectStoreNames.contains('events') && this.objectStoreNames.contains('meta')) {
+        cacheDbs.add(this);
+      }
+      return origIdbTransaction.call(this, storeNames, mode, options);
+    };
+  }
 
   const initialState = () => ({
     active: false,
@@ -113,6 +116,7 @@ export const installThreadJumpProbe = () => {
   const probe = {
     ...initialState(),
     async clearCacheStore(): Promise<number> {
+      if (!origIdbTransaction) return 0;
       let cleared = 0;
       for (const db of Array.from(cacheDbs)) {
         try {
@@ -144,12 +148,17 @@ export const installThreadJumpProbe = () => {
       return null;
     },
     flushSettledBurst(now: number) {
-      if (
-        this.mode === 'scrollUp' &&
-        !this.burstClamped &&
-        (this.burstWheelPx < 0 || this.burstRowPx !== 0)
-      ) {
-        const drift = this.burstRowPx + this.burstWheelPx;
+      if (this.mode === 'scrollUp' && (this.burstWheelPx < 0 || this.burstRowPx !== 0)) {
+        // Clamping at scrollTop=0 may excuse rows travelling less than the wheel asked,
+        // never more (overshoot) and never backward (net negative row travel).
+        const rawDrift = this.burstRowPx + this.burstWheelPx;
+        const drift = !this.burstClamped
+          ? rawDrift
+          : rawDrift > 0
+          ? rawDrift
+          : this.burstRowPx < 0
+          ? this.burstRowPx
+          : 0;
         if (Math.abs(drift) > this.maxUnexplainedPx) this.maxUnexplainedPx = Math.abs(drift);
         if (Math.abs(drift) >= 8 && this.jumps.length < 40) {
           this.jumps.push({
@@ -389,7 +398,7 @@ export const installThreadJumpProbe = () => {
           if (ds.length > 0) {
             if (!inTakeBack) {
               unexplained = median + movedPx;
-            } else if (!probe.burstClamped && probe.burstRowPx + probe.burstWheelPx > 0) {
+            } else if (probe.burstRowPx + probe.burstWheelPx > 0) {
               unexplained = probe.burstRowPx + probe.burstWheelPx;
             }
           }

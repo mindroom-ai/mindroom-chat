@@ -271,17 +271,7 @@ describe('useTimelineScrollLedgerController', () => {
     const listeners = new Map<string, EventListener>();
     const scrollElement = {
       addEventListener: vi.fn((type: string, listener: EventListener) => {
-        // The ledger listens for a scroll twice, in the capture phase and after it.
-        const earlier = type === 'scroll' ? listeners.get(type) : undefined;
-        listeners.set(
-          type,
-          earlier
-            ? (event) => {
-                earlier(event);
-                listener(event);
-              }
-            : listener
-        );
+        listeners.set(type, listener);
       }),
       removeEventListener: vi.fn(),
       getBoundingClientRect: () => ({ top: 0, bottom: 600 }),

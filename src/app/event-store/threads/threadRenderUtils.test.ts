@@ -592,63 +592,6 @@ describe('isDiscardedSettleWrite', () => {
       })
     ).toBe(false);
   });
-
-  it('judges the reassertion without the wheel that moved the offset with it', () => {
-    // WebKit on macOS: rows above shrank by 736 px while the reader wheeled up, the ledger settled
-    // from 5000 to 4264 between two bursts, and the next notch (240 px up) reached the scrolling
-    // thread before the write: the event lands at 5000 - 240, 496 px back from the settled offset.
-    const reasserted = {
-      px: -736,
-      preSettleScrollTop: 5000,
-      previousScrollTop: 4264,
-      currentScrollTop: 4760,
-    };
-    expect(isDiscardedSettleWrite(reasserted)).toBe(false);
-    expect(isDiscardedSettleWrite({ ...reasserted, wheeledPx: -240 })).toBe(true);
-    // A page of older replies settled 400 px down, and the same notch carried the reasserted
-    // offset 240 px past the pre-settle one.
-    expect(
-      isDiscardedSettleWrite({
-        px: 400,
-        preSettleScrollTop: 1000,
-        previousScrollTop: 1400,
-        currentScrollTop: 760,
-        wheeledPx: -240,
-      })
-    ).toBe(true);
-  });
-
-  it('leaves a move the wheel accounts for, and a wheel that counts lines', () => {
-    // The write held and the reader wheels on from the settled offset.
-    expect(
-      isDiscardedSettleWrite({
-        px: -736,
-        preSettleScrollTop: 5000,
-        previousScrollTop: 4264,
-        currentScrollTop: 4024,
-        wheeledPx: -240,
-      })
-    ).toBe(false);
-    // A notch back down after a 240 px settle up is the reader's own move.
-    expect(
-      isDiscardedSettleWrite({
-        px: -240,
-        preSettleScrollTop: 5000,
-        previousScrollTop: 4760,
-        currentScrollTop: 5000,
-        wheeledPx: 240,
-      })
-    ).toBe(false);
-    expect(
-      isDiscardedSettleWrite({
-        px: 512,
-        preSettleScrollTop: 1000,
-        previousScrollTop: 1512,
-        currentScrollTop: 1000,
-        wheeledPx: -Infinity,
-      })
-    ).toBe(true);
-  });
 });
 
 describe('shouldApplyMeasurementScrollCorrection', () => {

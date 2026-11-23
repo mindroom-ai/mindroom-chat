@@ -403,9 +403,6 @@ type DiscardedSettleWriteOpts = {
   previousScrollTop: number;
   // Offset of the scroll event under classification.
   currentScrollTop: number;
-  // How far the reader's wheel asked to scroll since the previous event, in px (a wheel that
-  // counts lines or pages: not finite, and left out).
-  wheeledPx?: number;
 };
 
 export const isDiscardedSettleWrite = ({
@@ -413,7 +410,6 @@ export const isDiscardedSettleWrite = ({
   preSettleScrollTop,
   previousScrollTop,
   currentScrollTop,
-  wheeledPx,
 }: DiscardedSettleWriteOpts): boolean => {
   // Rows folded in above a reader at the top: every scroll up brings the reader back there,
   // clamped at the top, and no reassertion can be told apart from that. Refolding it put the rows
@@ -424,15 +420,9 @@ export const isDiscardedSettleWrite = ({
   const delta = currentScrollTop - previousScrollTop;
   const againstFold = px > 0 ? delta < 0 : delta > 0;
   if (!againstFold) return false;
-  // WebKit scrolls a mouse wheel on its scrolling thread, the one that reasserts the offset: a
-  // wheel that starts before the settle's write reaches that thread lands the event at the
-  // pre-settle offset plus the wheel's travel. The compositor's part of the move is the rest (a
-  // notch of 240px up over a 736px fold moved the offset 496px back: under the ratio, taken for
-  // motion from the settled offset, and the fold was lost).
-  const wheelPx = wheeledPx !== undefined && Number.isFinite(wheeledPx) ? wheeledPx : 0;
-  if (Math.abs(delta - wheelPx) < SETTLE_DISCARD_DELTA_RATIO * Math.abs(px)) return false;
+  if (Math.abs(delta) < SETTLE_DISCARD_DELTA_RATIO * Math.abs(px)) return false;
   return (
-    Math.abs(currentScrollTop - wheelPx - preSettleScrollTop) <=
+    Math.abs(currentScrollTop - preSettleScrollTop) <=
     Math.max(SETTLE_DISCARD_PROXIMITY_MIN_PX, SETTLE_DISCARD_PROXIMITY_RATIO * Math.abs(px))
   );
 };

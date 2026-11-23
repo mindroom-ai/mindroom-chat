@@ -651,16 +651,23 @@ export const useTimelineScrollLedgerController = ({
   // momentum frame.
   const ledgerBoundaryScrollTopRef = useRef<number | undefined>(undefined);
 
-  // Restores the fold when the compositor discards a settle write and reasserts the pre-settle
-  // offset; under a wheel, keeps watching (`landsAt`) for a late WebKit replay of that write.
+  // Discard watchdog (PR #126, second mechanism): a settle write landing
+  // inside a touchless scroll session's pause (scrubber/trackpad — no
+  // touch events, so no gate can see the session) is DISCARDED by the
+  // compositor, which reasserts the pre-settle offset as one large scroll
+  // event 74-300ms later (matched-snapshot settles 491/617 in
+  // ride-trace-1783829722124 reverted this way; pinned in
+  // rideTraceReplay.test.ts). The session-aware quiescence waiter prevents
+  // most of these on scrollend-capable WebKit; this watchdog restores the
+  // fold to the ledger when a write is reverted anyway.
   const settleDiscardWatchRef = useRef<
     | {
         px: number;
+        /** The part of `px` that rows brought with their own height (`rowFoldPxRef`). */
         rowFoldPx: number;
         preSettleScrollTop: number;
         settledScrollTop: number;
         at: number;
-        landsAt?: number;
       }
     | undefined
   >(undefined);
@@ -796,21 +803,10 @@ export const useTimelineScrollLedgerController = ({
   const handleAppliedCorrection = useCallback(
     (deltaPx: number, atEnd: boolean) => {
       noteAppliedCorrection(deltaPx);
-      const scrollElement = getScrollElement();
-      if (scrollElement && !isIOSWebKitDevice()) {
-        const end = scrollElement.scrollHeight - scrollElement.clientHeight;
-        const target = scrollElement.scrollTop + deltaPx;
-        ledgerBoundaryScrollTopRef.current = Math.max(
-          0,
-          Number.isFinite(end) ? Math.min(target, end) : target
-        );
-      }
       // virtual-core writes this correction itself, so the view moves without the compositor: a
       // move back toward the pre-settle offset is no discarded settle any more (a row above that
       // grew and shrank again landed 8 px from it and had the settle folded in a second time).
-      if (settleDiscardWatchRef.current?.landsAt === undefined) {
-        settleDiscardWatchRef.current = undefined;
-      }
+      settleDiscardWatchRef.current = undefined;
       // Only upward movement can look like relinquished opening ownership. A downward growth
       // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
       measurementCorrectionPxRef.current += Math.min(0, deltaPx);
@@ -823,7 +819,7 @@ export const useTimelineScrollLedgerController = ({
       unrenderedCorrectionPxRef.current += deltaPx;
       if (atEnd) unrenderedEndCorrectionPxRef.current += deltaPx;
     },
-    [getScrollElement, noteAppliedCorrection]
+    [noteAppliedCorrection]
   );
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
   const unrenderedEndCorrectionPx = useCallback(() => unrenderedEndCorrectionPxRef.current, []);
@@ -876,23 +872,20 @@ export const useTimelineScrollLedgerController = ({
       // gesture's, never a late reassertion of a pre-settle offset.
       settleDiscardWatchRef.current = undefined;
     };
-    // Wheel delta accumulated since the last offset-changing scroll event (lines/pages -> ±Infinity).
+    // How far the reader's wheel asked to scroll since the last scroll event. A mouse wheel's
+    // notch moves about as far as a settle can: a move back toward the pre-settle offset that the
+    // wheel accounts for is the reader's, not the compositor reasserting it (a trackpad's momentum
+    // ticks are far shorter than such a reassertion). Lines and pages account for any move.
     let wheelPx = 0;
     const onLedgerBoundaryWheel = (event: WheelEvent) => {
       wheelPx += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * Infinity;
     };
-    // Capture-phase scroll handler: restores a discarded fold or absorbs a late WebKit replay
-    // synchronously before virtual-core's scroll listener mounts rows at the wrong offset.
-    let boundaryScroll:
-      | { currentScrollTop: number; scrollDirection: 'forward' | 'backward' | null }
-      | undefined;
-    const onLedgerScroll = () => {
-      boundaryScroll = undefined;
+    const onLedgerBoundaryScroll = () => {
       const currentScrollTop = scrollElement.scrollTop;
       const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
       const wheeledPx = wheelPx;
+      wheelPx = 0;
       const delta = currentScrollTop - previousScrollTop;
-      if (delta !== 0) wheelPx = 0;
       const wheeled =
         delta !== 0 &&
         Math.sign(wheeledPx) === Math.sign(delta) &&
@@ -912,57 +905,27 @@ export const useTimelineScrollLedgerController = ({
         if (Date.now() - watch.at > SETTLE_DISCARD_WINDOW_MS) {
           settleDiscardWatchRef.current = undefined;
         } else if (
-          watch.landsAt === undefined &&
           !wheeled &&
           isDiscardedSettleWrite({
             px: watch.px,
             preSettleScrollTop: watch.preSettleScrollTop,
             previousScrollTop,
             currentScrollTop,
-            wheeledPx,
           })
         ) {
-          // Compositor reasserted pre-settle offset: restore fold before paint, and keep watching
-          // under a wheel in case WebKit applies the settle write late.
-          watch.landsAt = watch.settledScrollTop;
-          if (wheeledPx === 0) settleDiscardWatchRef.current = undefined;
+          // The compositor reasserted the pre-settle offset: the settle's
+          // write is gone while its margin fold already reached the DOM.
+          // Restore the fold through the ordinary drop path (coherent
+          // commit + fresh true-rest wait); the position itself belongs to
+          // the still-live session. Skip the boundary evaluation for this
+          // event — its geometry is mid-restoration.
+          settleDiscardWatchRef.current = undefined;
           countCacheProbe('ledgerSettleWriteDiscarded');
+          // The rows' part comes back with the margin, in the render that paints it: without
+          // it the end clamp read that part of the restored margin as rows that shrank.
           droppedRowFoldPxRef.current += watch.rowFoldPx;
-          flushSync(() => handleDroppedCorrection(watch.px));
+          handleDroppedCorrection(watch.px);
           return;
-        } else if (watch.landsAt !== undefined) {
-          // Late WebKit replay: check wheel-adjusted landing before treating the net delta as
-          // pure wheel travel, matching either unclamped `landsAt` or clamped `end`.
-          const wheel = Number.isFinite(wheeledPx) ? wheeledPx : 0;
-          const target = currentScrollTop - wheel;
-          const movedPx = delta - wheel;
-          const slack = wheeled
-            ? SETTLE_DISCARD_HELD_SLACK_PX
-            : SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel);
-          if (
-            (!wheeled || Number.isFinite(wheeledPx)) &&
-            Math.abs(movedPx) > SETTLE_DISCARD_HELD_SLACK_PX &&
-            (Math.abs(target - watch.landsAt) <= slack ||
-              Math.abs(
-                target -
-                  Math.min(watch.landsAt, scrollElement.scrollHeight - scrollElement.clientHeight)
-              ) <= slack)
-          ) {
-            const rowFoldFor = (px: number) =>
-              Math.max(-1, Math.min(1, -px / watch.px)) * watch.rowFoldPx;
-            const rowFoldDelta = rowFoldFor(movedPx);
-            watch.landsAt = previousScrollTop;
-            droppedRowFoldPxRef.current += rowFoldDelta;
-            flushSync(() => handleDroppedCorrection(-movedPx));
-            // Fold any layout clamp of an unclamped offset before virtual-core reads the event.
-            const clampedPx = scrollElement.scrollTop - currentScrollTop;
-            if (clampedPx !== 0) {
-              ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
-              droppedRowFoldPxRef.current += rowFoldFor(movedPx + clampedPx) - rowFoldDelta;
-              flushSync(() => handleDroppedCorrection(-clampedPx));
-            }
-            return;
-          }
         } else if (
           Math.abs(currentScrollTop - watch.settledScrollTop) > SETTLE_DISCARD_HELD_SLACK_PX
         ) {
@@ -970,11 +933,6 @@ export const useTimelineScrollLedgerController = ({
           settleDiscardWatchRef.current = undefined;
         }
       }
-      boundaryScroll = { currentScrollTop, scrollDirection };
-    };
-    const onLedgerBoundaryScroll = () => {
-      if (!boundaryScroll) return;
-      const { currentScrollTop, scrollDirection } = boundaryScroll;
       const px = scrollCompensationPxRef.current;
       // Cheap early exit on the hot path (direction tracking above is just
       // scrollTop arithmetic; the common px=0 case still avoids rect reads).
@@ -1011,12 +969,10 @@ export const useTimelineScrollLedgerController = ({
       passive: true,
     });
     scrollElement.addEventListener('wheel', onLedgerBoundaryWheel, { passive: true });
-    scrollElement.addEventListener('scroll', onLedgerScroll, { capture: true, passive: true });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
     return () => {
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
       scrollElement.removeEventListener('wheel', onLedgerBoundaryWheel);
-      scrollElement.removeEventListener('scroll', onLedgerScroll, true);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
     };
   }, [
