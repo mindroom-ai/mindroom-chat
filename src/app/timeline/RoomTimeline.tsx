@@ -121,6 +121,10 @@ import type {
 } from '../threads/open/threadSessionTypes';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useThreadPrependViewport } from './useThreadPrependViewport';
+import {
+  isThreadScrollOwnerEnabled,
+  useThreadHeadroomEventsGate,
+} from './threadHeadroomOwner';
 import { useThreadOpenLifecycleController } from '../threads/open/threadOpenLifecycleController';
 import { useThreadSeedPrewarmController } from '../threads/open/threadSeedPrewarmController';
 import { useThreadGapRecovery } from '../threads/open/useThreadGapRecovery';
@@ -222,6 +226,7 @@ import {
   ExpandAllLine,
   FilterBarSlot,
   JumpToLatestAction,
+  ThreadHeadroomReserve,
   ThreadLoadingLines,
   footerProbeStyle,
   listTopSentinelStyle,
@@ -400,6 +405,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
   const showThreadRepliesInRoom = viewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
+  const ownerEnabled = !!threadId && isThreadScrollOwnerEnabled();
+  // A thread opened at its latest row stays pinned there until the reader scrolls. Whether the
+  // reader scrolled belongs to the open view; the render that switches views starts it over.
+  const readerScrolledRef = useViewScopedFlag(viewKey);
+  const threadUserScrolled = readerScrolledRef.current.value;
 
   // References the controllers share.
   const { scrollRef, scrollElement, attachScroll, getScrollElement } = useTimelineScrollElement();
@@ -438,7 +448,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     route
   );
   const backController = useThreadBackPaginationController();
-  const prependViewport = useThreadPrependViewport({ controller: backController, scrollRef });
+  const prependViewport = useThreadPrependViewport({ controller: backController, scrollRef, ownerEnabled });
 
   // The room's loaded timeline and the window of it that is mounted.
   const filterOpts = useMemo<RecalibrateFilterOpts>(
@@ -510,7 +520,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     forkAt,
   });
   const threadStateRef = useLatestRef(threadState);
-  const threadEvents = threadId ? threadState.threadEvents : EMPTY_EVENTS;
+  const rawThreadEvents = threadId ? threadState.threadEvents : EMPTY_EVENTS;
+  const {
+    gate: headroomGate,
+    presentedThreadEvents,
+    hasHeldThreadEvents,
+  } = useThreadHeadroomEventsGate({
+    viewKey,
+    threadId,
+    ownerEnabled,
+    rawThreadEvents,
+    threadUserScrolled,
+  });
+  const threadEvents = presentedThreadEvents;
   // Without a fork's prefix: the thread's own rows are what it loads, reads, counts and titles.
   const ownThreadEvents = threadId ? threadState.ownThreadEvents : EMPTY_EVENTS;
   const ownThreadEventsRef = useLatestRef(ownThreadEvents);
@@ -533,8 +555,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         : ownThreadEvents,
     [forkPoint, ownThreadEvents]
   );
-  const { threadEventIndexMapRef, threadInitialRenderMode } = threadState;
-  const threadEventIndexMap = threadState.threadEventIndexMap ?? threadEventIndexMapRef.current;
+  const { threadEventIndexMapRef: rawThreadEventIndexMapRef, threadInitialRenderMode } =
+    threadState;
+  const rawThreadEventIndexMap =
+    threadState.threadEventIndexMap ?? rawThreadEventIndexMapRef.current;
+  const threadEventIndexMap = useMemo(() => {
+    if (!hasHeldThreadEvents) return rawThreadEventIndexMap;
+    const map = new Map<string, number>();
+    threadEvents.forEach((event, index) => {
+      const id = event.getId();
+      if (id) map.set(id, index);
+    });
+    return map;
+  }, [hasHeldThreadEvents, rawThreadEventIndexMap, threadEvents]);
+  const threadEventIndexMapRef = useLatestRef(threadEventIndexMap);
   const threadTailLoaded = session.snapshot.history.tailLoaded;
   const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
 
@@ -762,12 +796,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     viewport: prependViewport,
   });
 
-  // A thread opened at its latest row stays pinned there until the reader scrolls. Whether the
-  // reader scrolled belongs to the open view; the render that switches views starts it over.
-  const readerScrolledRef = useViewScopedFlag(viewKey);
   const threadLatestOpenPending = !!threadId && openAtLatest.latestOpenPending;
   const threadOpenedAtLatest = !!threadId && openAtLatest.openedAtLatest;
-  const threadUserScrolled = readerScrolledRef.current.value;
 
   const feature = useTimelineMessageFeature({
     room,
@@ -1318,9 +1348,33 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEventIndexMap,
     threadEvents,
     threadId,
-    expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
-    showThreadLoadOlder: !!threadId && (showThreadLoadOlder || threadState.canPaginateThreadBack || threadHasMoreCachedBack || threadLatestOpenPending || !threadTailLoaded),
-    threadUserScrolled,
+    headroomOwner: {
+      enabled: ownerEnabled,
+      gate: headroomGate,
+      expectedThreadEvents: threadId
+        ? Math.max(
+            rawThreadEvents.length,
+            (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1
+          )
+        : 0,
+      hasMoreHistory:
+        !!threadId &&
+        (showThreadLoadOlder ||
+          threadState.canPaginateThreadBack ||
+          threadHasMoreCachedBack ||
+          threadLatestOpenPending ||
+          !threadTailLoaded ||
+          hasHeldThreadEvents),
+      rawHasMoreHistory:
+        !!threadId &&
+        (showThreadLoadOlder ||
+          threadState.canPaginateThreadBack ||
+          threadHasMoreCachedBack ||
+          threadLatestOpenPending ||
+          !threadTailLoaded),
+      threadUserScrolled,
+      threadOpenedAtLatest,
+    },
     threadInitialRenderMode,
     threadRowPricing,
     leadingKey: threadId
@@ -1375,7 +1429,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     renderedList?.height
       ? renderedList
       : undefined;
-  const listHeight = threadId
+  const listHeight = ownerEnabled
     ? ledger.headroomPxAtRender + virtualizer.getTotalSize()
     : heldList
     ? heldListHeight(heldList, ledger.ledgerPxAtRender)
@@ -1406,6 +1460,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEventIndexMapRef,
     onJump: ledger.endSettleDiscardWatch,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
+    ownerEnabled,
   });
   const cancelThreadBottomSettle = useCallback(
     () => backController.suppressOpenBottomPin(),
@@ -1723,7 +1778,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pendingListShrinkPx
   );
   // After the follow above and every other observer of the timeline (it is created last).
-  useListEndClamp(threadId ? null : scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
+  useListEndClamp(ownerEnabled ? null : scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
 
   // The compact overview: older history until zero-reply roots show up, root edits it lacks (the
   // Threads view's too, which lists the same roots), and a refresh of its threads when the page
@@ -1872,6 +1927,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     showLoadOlder: showThreadLoadOlder,
     hasUserScrollIntent: threadUserScrolled,
     paginateBack: threadPagination.paginateBack,
+    ownerEnabled,
+    headroomPx: ledger.headroomPxAtRender,
+    hasHeldEvents: hasHeldThreadEvents,
   });
 
   // Back from a thread shows the room's rows where the reader left them: once their row is among
@@ -2207,13 +2265,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.leadingRef}>
-                <ThreadLoadingLines
-                  loadError={threadLoadError}
-                  showLoadOlder={showThreadLoadOlder}
-                  paginatingBack={threadPaginatingBack}
-                  loading={threadLoading}
-                  onLoadOlder={handleLoadOlderThread}
-                />
+                {!(ownerEnabled && ledger.headroomPxAtRender > 0) && (
+                  <ThreadLoadingLines
+                    loadError={threadLoadError}
+                    showLoadOlder={showThreadLoadOlder}
+                    paginatingBack={threadPaginatingBack || hasHeldThreadEvents}
+                    loading={threadLoading}
+                    onLoadOlder={handleLoadOlderThread}
+                  />
+                )}
               </div>
             </>
           ) : (
@@ -2230,6 +2290,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   // This timeline's rows, for a row that looks for another (SecretRequestCard.tsx).
                   data-timeline-rows=""
                   data-thread-count={threadId ? threadEvents.length : undefined}
+                  data-headroom-px={
+                    ownerEnabled ? Math.round(ledger.headroomPxAtRender) : undefined
+                  }
                   data-testid={threadId ? undefined : 'room-virtual-inner'}
                   style={{
                     ...overlay.overviewInsetStop,
@@ -2239,6 +2302,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                       automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
                   }}
                 >
+                  {ownerEnabled && ledger.headroomPxAtRender > 0 && (
+                    <ThreadHeadroomReserve
+                      headroomPx={ledger.headroomPxAtRender}
+                      topInset={overlay.topInset}
+                      loadError={threadLoadError}
+                      showLoadOlder={showThreadLoadOlder}
+                      paginatingBack={threadPaginatingBack || hasHeldThreadEvents}
+                      loading={threadLoading}
+                      onLoadOlder={handleLoadOlderThread}
+                    />
+                  )}
                   {latestAtTop ? frontSentinel : backSentinel}
                   <InlineSecretRequestsContext.Provider value={secretRequestPlan}>
                     {tiles}

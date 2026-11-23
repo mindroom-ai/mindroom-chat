@@ -564,14 +564,21 @@ export const useTimelineRowJumps = ({
   threadEventIndexMapRef,
   onJump,
   rows,
+  ownerEnabled = false,
 }: {
   paginatorScrollToItem: ScrollToItem;
   paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
-  virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
+  virtualizerRef: MutableRefObject<
+    Pick<
+      Virtualizer<HTMLDivElement, Element>,
+      'scrollToIndex' | 'getOffsetForIndex' | 'scrollOffset'
+    >
+  >;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   onJump: () => void;
   rows: RoomRowLookup;
+  ownerEnabled?: boolean;
 }) => {
   const jumpCountRef = useRef(0);
   const rowsRef = useLatestRef(rows);
@@ -710,10 +717,19 @@ export const useTimelineRowJumps = ({
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
       jumped();
+      if (ownerEnabled) {
+        const scrollElement = rowsRef.current.getScrollElement();
+        const offset = virtualizerRef.current.getOffsetForIndex(index, 'center');
+        if (scrollElement && offset) {
+          scrollElement.scrollTop = offset[0];
+          virtualizerRef.current.scrollOffset = scrollElement.scrollTop;
+        }
+        return true;
+      }
       virtualizerRef.current.scrollToIndex(index, { align: 'center' });
       return true;
     },
-    [jumped, threadEventIndexMapRef, virtualizerRef]
+    [jumped, ownerEnabled, rowsRef, threadEventIndexMapRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };

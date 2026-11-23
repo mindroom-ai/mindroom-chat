@@ -89,9 +89,15 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEventIndexMap: ReadonlyMap<string, number>;
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
-  expectedThreadEvents?: number;
-  showThreadLoadOlder?: boolean;
-  threadUserScrolled?: boolean;
+  headroomOwner?: {
+    enabled: boolean;
+    gate: ThreadHeadroomGateHandle;
+    expectedThreadEvents: number;
+    hasMoreHistory: boolean;
+    rawHasMoreHistory: boolean;
+    threadUserScrolled: boolean;
+    threadOpenedAtLatest: boolean;
+  };
   threadInitialRenderMode: ThreadInitialRenderMode;
   /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
   threadRowPricing?: unknown;
@@ -230,22 +236,25 @@ export const useTimelineScrollLedgerController = ({
   threadEventIndexMap,
   threadEvents,
   threadId,
-  expectedThreadEvents = 0,
-  showThreadLoadOlder = false,
-  threadUserScrolled = false,
+  headroomOwner,
   threadInitialRenderMode,
   threadRowPricing,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
-  const useProtoHeadroom = !!threadId;
-  const headroomPxRef = useRef(0);
-  const headroomInitRef = useRef(false);
-  const pendingAboveResizePxRef = useRef(0);
-  const pendingHeadroomScrollWriteRef = useRef(0);
-  const protoLastWheelAtRef = useRef(0);
-  const protoScrollOffsetOverrideRef = useRef<number | undefined>(undefined);
+  const ownerEnabled = !!threadId && !!headroomOwner?.enabled;
+  const enqueueHeadroomAboveResize = useCallback(
+    (delta: number) => {
+      if (!ownerEnabled || !headroomOwner || delta === 0) return;
+      headroomOwner.gate.nextResizeSeq += 1;
+      headroomOwner.gate.aboveResizeQueue.push({
+        seq: headroomOwner.gate.nextResizeSeq,
+        delta,
+      });
+    },
+    [headroomOwner, ownerEnabled]
+  );
   const virtualInnerRef = useRef<HTMLDivElement>(null);
   const compensationSettleArmedRef = useRef(false);
   // Bumped by the room/thread commit-time reset: an armed quiescence wait
@@ -341,75 +350,16 @@ export const useTimelineScrollLedgerController = ({
       : pendingRoomFoldPxRef.current + exposedRoomRowsPx;
   // One immutable snapshot feeds virtualizer.scrollMargin, the inner margin,
   // and every tile top for this paint.
-  let headroomPxAtRender = 0;
-  let headroomScrollDeltaAtRender = 0;
-  let initHeadroomNow = false;
-  let initialHeadroomPx = 0;
-  const protoMode =
-    useProtoHeadroom && typeof window !== "undefined"
-      ? window.localStorage?.getItem("__protoHeadroom") ?? "auto-trim-near-top"
-      : "auto-trim-near-top";
-  if (useProtoHeadroom && !resettingLedgerView) {
-    let baseHeadroom = headroomPxRef.current;
-    if (showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
-      const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
-      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 260, 28_000);
-      if (!headroomInitRef.current || baseHeadroom < desired) {
-        baseHeadroom = desired;
-        initialHeadroomPx = desired;
-        initHeadroomNow = true;
-      }
-    }
-    const deltaAbove = threadLedgerRenderPlan.foldPx + leadingFoldPx + pendingAboveResizePxRef.current;
-    const rawNext = baseHeadroom - deltaAbove;
-    if (rawNext >= 0) {
-      headroomPxAtRender = rawNext;
-      headroomScrollDeltaAtRender = 0;
-    } else {
-      headroomPxAtRender = 0;
-      headroomScrollDeltaAtRender = -rawNext;
-    }
-    if (!showThreadLoadOlder && headroomPxAtRender > 0 && threadEvents.length > 0) {
-      const scroller = getScrollElement();
-      const scrollTopNow = scroller?.scrollTop ?? 0;
-      const viewH = scroller?.clientHeight ?? 900;
-      const nearTop = scrollTopNow <= headroomPxAtRender + viewH * 1.5;
-      const sinceWheel = Date.now() - protoLastWheelAtRef.current;
-      const idleWheel = sinceWheel >= 260;
-      const overtakeWheel = protoMode === "hard-b-overtaken" && sinceWheel >= 140;
-      const shouldTrim =
-        !threadUserScrolled ||
-        idleWheel;
-      if (shouldTrim) {
-        const anchorIdx = threadLedgerAnchorRef.current?.index ?? 0;
-        let unmeasuredAbove = 0;
-        if (threadUserScrolled && anchorIdx > 0) {
-          const cache = ledgerFoldSizeCacheRef.current;
-          for (let i = 0; i < anchorIdx; i += 1) {
-            const id = threadEvents[i]?.getId();
-            if (id && !cache?.has(id)) unmeasuredAbove += 1;
-          }
-        }
-        // Keep ~60px/unmeasured row above on narrow screens, 0 once all above are measured or at top
-        const viewW = scroller?.clientWidth ?? 1200;
-        const perUnmeasured = viewW < 600 ? 70 : 20;
-        const keepCushion = threadUserScrolled ? Math.min(headroomPxAtRender, unmeasuredAbove * perUnmeasured) : 0;
-        const trim = Math.min(headroomPxAtRender - keepCushion, scrollTopNow);
-        if (trim > 0) {
-          headroomScrollDeltaAtRender -= trim;
-          headroomPxAtRender -= trim;
-        }
-      }
-    }
-    const scroller = getScrollElement();
-    if (scroller && (headroomScrollDeltaAtRender !== 0 || initHeadroomNow)) {
-      const deltaForOffset = initHeadroomNow ? baseHeadroom + headroomScrollDeltaAtRender : headroomScrollDeltaAtRender;
-      protoScrollOffsetOverrideRef.current = Math.max(0, scroller.scrollTop + deltaForOffset);
-    } else {
-      protoScrollOffsetOverrideRef.current = undefined;
-    }
-  }
-  const ledgerPxAtRender = useProtoHeadroom
+  const headroomSnapshot = headroomOwner
+    ? computeHeadroomRenderSnapshot(headroomOwner.gate, {
+        ownerEnabled,
+        resettingLedgerView,
+        prependFoldPx: threadLedgerRenderPlan.foldPx,
+        leadingFoldPx,
+      })
+    : { headroomPxAtRender: 0, renderedResizeSeq: 0, zeroHeadroomDrift: false };
+  const headroomPxAtRender = headroomSnapshot.headroomPxAtRender;
+  const ledgerPxAtRender = ownerEnabled
     ? 0
     : resettingLedgerView
     ? 0
@@ -429,79 +379,14 @@ export const useTimelineScrollLedgerController = ({
     if (resettingLedgerView || anchoringRoomRows) return;
     pendingRoomFoldPxRef.current += exposedRoomRowsPx;
   });
-  useInsertionEffect(() => {
-    if (!useProtoHeadroom) return;
-    if (resettingLedgerView) {
-      headroomPxRef.current = 0;
-      headroomInitRef.current = false;
-      pendingAboveResizePxRef.current = 0;
-      pendingHeadroomScrollWriteRef.current = 0;
-      protoScrollOffsetOverrideRef.current = undefined;
+  useLayoutEffect(() => {
+    if (resettingLedgerView) return;
+    if (ownerEnabled) {
+      if (virtualInnerRef.current && virtualInnerRef.current.style.marginTop !== '') {
+        virtualInnerRef.current.style.marginTop = '';
+      }
       return;
     }
-    if (initHeadroomNow) {
-      headroomInitRef.current = true;
-      (window as any).__protoHeadroomStats = { init: initialHeadroomPx, writes: 0, lastHeadroom: headroomPxAtRender };
-    }
-    headroomPxRef.current = headroomPxAtRender;
-    if ((window as any).__protoHeadroomStats) {
-      (window as any).__protoHeadroomStats.lastHeadroom = headroomPxAtRender;
-    }
-    pendingAboveResizePxRef.current = 0;
-    pendingHeadroomScrollWriteRef.current += headroomScrollDeltaAtRender;
-  });
-  useLayoutEffect(() => {
-    if (!useProtoHeadroom || resettingLedgerView) return;
-    const scrollDelta = pendingHeadroomScrollWriteRef.current;
-    pendingHeadroomScrollWriteRef.current = 0;
-    protoScrollOffsetOverrideRef.current = undefined;
-    const scrollElement = getScrollElement();
-    if (scrollDelta !== 0 && scrollElement) {
-      const st = (window as any).__protoHeadroomStats;
-      if (st) {
-        st.writes += 1;
-        st.deltas = [...(st.deltas ?? []), Math.round(scrollDelta)];
-      }
-      const next = Math.max(0, scrollElement.scrollTop + scrollDelta);
-      if (protoMode === "trim-takeover") {
-        scrollElement.style.overflowY = "hidden";
-        void scrollElement.offsetHeight;
-        scrollElement.scrollTop = next;
-        requestAnimationFrame(() => requestAnimationFrame(() => { scrollElement.style.overflowY = ""; }));
-      } else {
-        scrollElement.scrollTop = next;
-      }
-      virtualizerRef.current.scrollOffset = next;
-    }
-  });
-  useEffect(() => {
-    if (!useProtoHeadroom) return undefined;
-    const scrollElement = getScrollElement();
-    if (!scrollElement) return undefined;
-    let idleTimer: ReturnType<typeof setTimeout> | undefined;
-    const checkTrim = () => {
-      if (!showThreadLoadOlder && headroomPxRef.current > 0) {
-        setLedgerCommitTick((t) => t + 1);
-      }
-    };
-    const onWheel = () => {
-      protoLastWheelAtRef.current = Date.now();
-      if (idleTimer !== undefined) clearTimeout(idleTimer);
-      idleTimer = setTimeout(checkTrim, 270);
-    };
-    const onScroll = () => {
-      // Never trim mid-burst; idleTimer handles final trim after wheel quiet.
-    };
-    scrollElement.addEventListener("wheel", onWheel, { passive: true, capture: true });
-    scrollElement.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      if (idleTimer !== undefined) clearTimeout(idleTimer);
-      scrollElement.removeEventListener("wheel", onWheel, true);
-      scrollElement.removeEventListener("scroll", onScroll);
-    };
-  }, [getScrollElement, showThreadLoadOlder, useProtoHeadroom]);
-  useLayoutEffect(() => {
-    if (resettingLedgerView || useProtoHeadroom) return;
 
     const foldPx =
       threadLedgerRenderPlan.foldPx + leadingFoldPx + roomFoldPxAtRender + roomLedgerFoldPx;
@@ -645,15 +530,12 @@ export const useTimelineScrollLedgerController = ({
     observeElementRect: observeTimelineRect,
     observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
-    ...(useProtoHeadroom ? { scrollToFn: () => {} } : {}),
-    scrollMargin: useProtoHeadroom ? headroomPxAtRender : -ledgerPxAtRender,
+    ...(ownerEnabled ? { scrollToFn: () => {} } : {}),
+    scrollMargin: ownerEnabled ? headroomPxAtRender : -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
     getItemKey,
   });
-  if (useProtoHeadroom && protoScrollOffsetOverrideRef.current !== undefined) {
-    virtualizer.scrollOffset = protoScrollOffsetOverrideRef.current;
-  }
   const virtualizerRef = useRef(virtualizer);
   const measureElement = useMemo(
     () => createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)),
@@ -783,10 +665,11 @@ export const useTimelineScrollLedgerController = ({
     if (leading && threadId && leading.style.minHeight !== heldPx) leading.style.minHeight = heldPx;
     leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
     if (leadingHeld && leadingPx !== leadingRenderPx) {
-      if (useProtoHeadroom) {
-        pendingAboveResizePxRef.current += leadingPx - leadingRenderPx;
-        setLedgerCommitTick((tick) => tick + 1);
+      if (ownerEnabled && headroomOwner) {
+        enqueueHeadroomAboveResize(leadingPx - leadingRenderPx);
+        headroomOwner.gate.bumpCommitTick();
       } else {
+        // Applied by a synchronous re-render, before this commit paints.
         scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
         if (threadId) rowFoldPxRef.current += leadingPx - leadingRenderPx;
         ledgerSettleWantedRef.current = true;
@@ -822,6 +705,64 @@ export const useTimelineScrollLedgerController = ({
       inset: readTopInset(scrollElement),
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
+  });
+  const fallbackGateRef = useRef<ThreadHeadroomGateHandle | undefined>(undefined);
+  if (!fallbackGateRef.current) {
+    fallbackGateRef.current = {
+      viewKey: '',
+      committedHeadroomPx: 0,
+      headroomInitialized: false,
+      initialTestCapApplied: false,
+      lastAvgRowHeight: 260,
+      sizeCache: undefined,
+      anchorRef: undefined,
+      presentedEvents: [],
+      heldRawEvents: undefined,
+      heldPrependEstimatePx: 0,
+      pendingReleaseAfterTopUp: false,
+      aboveResizeQueue: [],
+      nextResizeSeq: 0,
+      pendingAbsoluteScroll: undefined,
+      idleIntentQueued: false,
+      lastActivityAt: 0,
+      lastScrollEventAt: 0,
+      scrollSessionLive: false,
+      sampledScrollTop: 0,
+      lastProgrammaticScrollTop: undefined,
+      lastProgrammaticWriteAt: 0,
+      stats: {
+        ownerEnabled: false,
+        initBudget: 0,
+        writes: 0,
+        trims: 0,
+        topUps: 0,
+        heldPages: 0,
+        releasedHeldPages: 0,
+        zeroHeadroomGrowthDrifts: 0,
+        lastHeadroom: 0,
+        lastAvgRowHeight: 260,
+        deltas: [],
+      },
+      bumpCommitTick: () => undefined,
+    };
+  }
+  useThreadHeadroomCommit({
+    gate: headroomOwner?.gate ?? fallbackGateRef.current,
+    snapshot: headroomSnapshot,
+    ownerEnabled,
+    resettingLedgerView,
+    threadId,
+    threadEvents: threadEvents as readonly import('matrix-js-sdk').MatrixEvent[],
+    expectedThreadEvents: headroomOwner?.expectedThreadEvents ?? 0,
+    hasMoreHistory: headroomOwner?.hasMoreHistory ?? false,
+    rawHasMoreHistory: headroomOwner?.rawHasMoreHistory ?? false,
+    threadUserScrolled: headroomOwner?.threadUserScrolled ?? false,
+    threadOpenedAtLatest: headroomOwner?.threadOpenedAtLatest ?? false,
+    getScrollElement,
+    virtualizerRef,
+    anchorRef: threadLedgerAnchorRef,
+    sizeCacheRef: ledgerFoldSizeCacheRef as React.MutableRefObject<Map<unknown, number> | undefined>,
+    onAfterScrollWrite: anchorThreadLedgerAt,
   });
   const roomLeadingShown = !threadId && !!leadingKey;
   useEffect(() => {
@@ -879,13 +820,18 @@ export const useTimelineScrollLedgerController = ({
       if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
         return;
       if (scrollTop <= 0) return;
+      if (ownerEnabled && headroomOwner) {
+        enqueueHeadroomAboveResize(deltaPx);
+        headroomOwner.gate.bumpCommitTick();
+        return;
+      }
       scrollElement.scrollTop = scrollTop + deltaPx;
       // As after a settle: this write is not a discarded settle's reversal,
       // and its scroll event must not read as the reader's direction.
       settleDiscardWatchRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
     },
-    [getScrollElement, threadId]
+    [enqueueHeadroomAboveResize, getScrollElement, headroomOwner, ownerEnabled, threadId]
   );
 
   const settledScrollTopRef = useRef<number | undefined>(undefined);
@@ -1193,6 +1139,11 @@ export const useTimelineScrollLedgerController = ({
       }
       const top = scrollElement.scrollTop;
       ledgerBoundaryScrollTopRef.current = top;
+      if (ownerEnabled && headroomOwner && !headroomOwner.hasMoreHistory && headroomOwner.gate.committedHeadroomPx > 0) {
+        headroomOwner.gate.committedHeadroomPx = 0;
+        virtualizerRef.current.scrollOffset = top;
+        headroomOwner.gate.bumpCommitTick();
+      }
       if (hadLedger) {
         virtualizerRef.current.scrollOffset = top;
         virtualizerRef.current.setOptions({ ...virtualizerRef.current.options, scrollMargin: 0 });
@@ -1282,12 +1233,12 @@ export const useTimelineScrollLedgerController = ({
         ),
     });
     return (...args: Parameters<typeof decide>): boolean => {
-      if (useProtoHeadroom) {
+      if (ownerEnabled) {
         const [item, delta, instance] = args;
         const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
         const readerTop = readerTopOffset(liveTop) ?? liveTop;
         if (item.end <= readerTop && delta !== 0) {
-          pendingAboveResizePxRef.current += delta;
+          enqueueHeadroomAboveResize(delta);
         }
         renderRowMoveBeforePaint();
         return false;
@@ -1317,9 +1268,11 @@ export const useTimelineScrollLedgerController = ({
     itemCount,
     readerTopOffset,
     renderRowMoveBeforePaint,
+    enqueueHeadroomAboveResize,
+    ownerEnabled,
+    readerTopOffset,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
-    useProtoHeadroom,
     virtualizer,
   ]);
 
