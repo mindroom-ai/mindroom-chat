@@ -7,6 +7,7 @@ import {
   flushAsyncWork,
   makeEvent,
   makeRoom,
+  scrollType,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
@@ -93,6 +94,48 @@ describe('RoomTimeline layout', () => {
     } finally {
       act(() => renderer?.unmount());
       matchMedia.mockRestore();
+    }
+  });
+
+  it('renders threadHeader directly inside ThreadTimelineHeader while keeping Scroll size="300"', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { ThreadTimelineHeader } = await import('../../threads/ThreadTimelineHeader');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const threadRoot = makeEvent('$thread-root');
+    threadRenderStateMock.threadEvents = [threadRoot];
+    const room = makeRoom({ liveEvents: [threadRoot] });
+    const threadHeader = React.createElement('section', {
+      'data-testid': 'example-thread-banner',
+    });
+
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            threadId: '$thread-root',
+            extraProps: { threadHeader },
+          })
+        );
+        await flushAsyncWork(1);
+      });
+
+      const header = renderer!.root.findByType(ThreadTimelineHeader);
+      expect(header.props.children).toBe(threadHeader);
+
+      const bannerNode = header.findByProps({ 'data-testid': 'example-thread-banner' });
+      const headerContent = bannerNode.parent;
+      expect(headerContent?.type).toBe('div');
+      expect(headerContent?.props.style?.display).toBe('flow-root');
+      expect(headerContent?.props.style?.paddingInlineEnd).toBeUndefined();
+      expect(headerContent?.props.style?.paddingRight).toBeUndefined();
+
+      // Keeps folds' 8px inline-end gutter on the scroller so message hover toolbars stay clear of InsetScrollbar.
+      const scroll = renderer!.root.findByType(scrollType);
+      expect(scroll.props.size).toBe('300');
+    } finally {
+      act(() => renderer?.unmount());
     }
   });
 });
