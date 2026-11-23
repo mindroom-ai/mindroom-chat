@@ -210,8 +210,12 @@ export const positionThreadForPrepend = async (page: Page) => {
   const readPosition = () =>
     page.locator('[data-e2e-scroller="1"]').evaluate((scroller) => {
       const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-index]'));
+      const headroom =
+        Number(scroller.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0) ||
+        0;
       return {
         top: scroller.scrollTop,
+        headroom,
         height: scroller.clientHeight,
         firstIndex: Math.min(...rows.map((row) => Number(row.dataset.index))),
         // A nonzero offset-ledger margin means dropped size corrections have not settled yet.
@@ -222,7 +226,7 @@ export const positionThreadForPrepend = async (page: Page) => {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (
       position.firstIndex <= THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS &&
-      position.top > position.height &&
+      position.top - position.headroom > position.height &&
       position.fold === 0
     ) {
       await page.waitForTimeout(200);

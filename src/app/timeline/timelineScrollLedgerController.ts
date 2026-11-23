@@ -1245,7 +1245,13 @@ export const useTimelineScrollLedgerController = ({
         const [item, delta, instance] = args;
         const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
         const readerTop = readerTopOffset(liveTop) ?? liveTop;
-        if (item.end <= readerTop && delta !== 0) {
+        let pendingAboveDelta = 0;
+        if (headroomGate) {
+          for (let i = 0; i < headroomGate.aboveResizeQueue.length; i += 1) {
+            pendingAboveDelta += headroomGate.aboveResizeQueue[i]!.delta;
+          }
+        }
+        if (item.end <= readerTop + pendingAboveDelta && delta !== 0) {
           enqueueHeadroomAboveResize(delta);
         }
         renderRowMoveBeforePaint();
@@ -1274,6 +1280,7 @@ export const useTimelineScrollLedgerController = ({
     handleAppliedCorrection,
     handleDroppedCorrection,
     enqueueHeadroomAboveResize,
+    headroomGate,
     itemCount,
     ownerEnabled,
     readerTopOffset,

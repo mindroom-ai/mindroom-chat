@@ -178,6 +178,17 @@ test.describe('thread open chain keeps an unpinned reader in place', () => {
     const anchorRow = page.locator(`[data-message-id="${anchor.eventId}"]`);
     await expect(anchorRow).toBeInViewport();
     const top = await anchorRow.evaluate((row) => row.getBoundingClientRect().top);
+    const diag2 = await page.evaluate(() => {
+      const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+      let s = inner?.parentElement ?? null;
+      while (s && !/^(auto|scroll)$/.test(getComputedStyle(s).overflowY)) s = s.parentElement;
+      return {
+        scrollTop: s?.scrollTop,
+        headroom: inner?.dataset.headroomPx,
+        stats: (window as Window & { __threadScrollOwnerStats?: unknown }).__threadScrollOwnerStats,
+      };
+    });
+    console.log('OPEN-CHAIN-DIAG-2', JSON.stringify({ beforeTop: anchor.top, afterTop: top, diff: top - anchor.top, diag2 }));
     expect(Math.abs(top - anchor.top)).toBeLessThanOrEqual(1);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-open-chain-wheel');
   });
@@ -232,11 +243,42 @@ test.describe('thread open chain keeps an unpinned reader in place', () => {
     await expect.poll(rested).toBe(true);
     expect(Math.abs(lastInto - 20)).toBeLessThanOrEqual(1);
     const rootTop = await root.evaluate((row) => row.getBoundingClientRect().top);
+    const diag3Before = await page.evaluate(() => {
+      const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+      let s = inner?.parentElement ?? null;
+      while (s && !/^(auto|scroll)$/.test(getComputedStyle(s).overflowY)) s = s.parentElement;
+      const leading = inner?.previousElementSibling as HTMLElement | null;
+      return {
+        scrollTop: s?.scrollTop,
+        scrollPaddingTop: s ? getComputedStyle(s).scrollPaddingTop : null,
+        headroom: inner?.dataset.headroomPx,
+        leadingH: leading?.offsetHeight,
+        innerTop: inner?.getBoundingClientRect().top,
+        scrollerTop: s?.getBoundingClientRect().top,
+        stats: (window as Window & { __threadScrollOwnerStats?: unknown }).__threadScrollOwnerStats,
+      };
+    });
 
     release();
     await waitForWholeThread(page);
 
     const top = await root.evaluate((row) => row.getBoundingClientRect().top);
+    const diag3After = await page.evaluate(() => {
+      const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+      let s = inner?.parentElement ?? null;
+      while (s && !/^(auto|scroll)$/.test(getComputedStyle(s).overflowY)) s = s.parentElement;
+      const leading = inner?.previousElementSibling as HTMLElement | null;
+      return {
+        scrollTop: s?.scrollTop,
+        scrollPaddingTop: s ? getComputedStyle(s).scrollPaddingTop : null,
+        headroom: inner?.dataset.headroomPx,
+        leadingH: leading?.offsetHeight,
+        innerTop: inner?.getBoundingClientRect().top,
+        scrollerTop: s?.getBoundingClientRect().top,
+        stats: (window as Window & { __threadScrollOwnerStats?: unknown }).__threadScrollOwnerStats,
+      };
+    });
+    console.log('OPEN-CHAIN-DIAG-3', JSON.stringify({ beforeTop: rootTop, afterTop: top, diff: top - rootTop, diag3Before, diag3After }));
     expect(Math.abs(top - rootTop)).toBeLessThanOrEqual(1);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-open-chain-root');
   });

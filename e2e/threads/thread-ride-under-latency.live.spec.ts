@@ -146,7 +146,8 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // mounting, so a start under 3120px fails.
     const cycleCount = 10;
     const stepsPerCycle = 8;
-    const stepPx = Math.min(90, (start.top - 720) / (cycleCount * stepsPerCycle));
+    const distFromLoadedTop = start.top - start.headroom;
+    const stepPx = Math.min(90, (distFromLoadedTop - 720) / (cycleCount * stepsPerCycle));
     expect(stepPx, `ride start ${start.top}px leaves too little room for a flick`).toBeGreaterThan(
       30
     );
@@ -286,8 +287,11 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
         candidate = candidate.parentElement;
       }
       if (!candidate) return;
+      const headroomPx =
+        Number(candidate.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0) ||
+        0;
       w.__driverDepth = (w.__driverDepth ?? 0) + 1;
-      candidate.scrollTop = 2_400;
+      candidate.scrollTop = headroomPx + 2_400;
       w.__driverDepth -= 1;
       await new Promise((resolve) => {
         setTimeout(resolve, 800);
