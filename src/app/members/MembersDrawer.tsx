@@ -2,6 +2,8 @@ import React, {
   ChangeEvent,
   CSSProperties,
   MouseEvent,
+  Suspense,
+  lazy,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -55,7 +57,6 @@ import { useAgentRoles } from './useAgentRoles';
 import { useOpenUserRoomProfile } from '../navigation/useUserRoomProfileState';
 import { MembershipFilterMenu } from './MembershipFilterMenu';
 import { MemberSortMenu } from './MemberSortMenu';
-import { InviteUserPrompt } from './invite/InviteUserPrompt';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { ContainerColor } from '../ui/styles/ContainerColor.css';
 import { useFloatingCards } from '../ui/page/floatingCards';
@@ -66,6 +67,10 @@ import { getMemberDisplayName } from '../matrix/room';
 import { JoinRequestItem } from './JoinRequestItem';
 import { MembersInviteSection } from './MembersInviteSection';
 import * as css from './MembersDrawer.css';
+
+const InviteUserPrompt = lazy(() =>
+  import('./invite/InviteUserPrompt').then((module) => ({ default: module.InviteUserPrompt }))
+);
 
 // Row heights of the list (see MembersDrawer.css.ts); the virtualizer measures the real ones.
 const GROUP_TITLE_HEIGHT = 32;
@@ -361,7 +366,11 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
       direction="Column"
       shrink="No"
     >
-      {inviteOpen && <InviteUserPrompt room={room} requestClose={() => setInviteOpen(false)} />}
+      {inviteOpen && (
+        <Suspense fallback={null}>
+          <InviteUserPrompt room={room} requestClose={() => setInviteOpen(false)} />
+        </Suspense>
+      )}
       <Box className={css.MemberDrawerContentBase} grow="Yes" direction="Column">
         <Box
           ref={scrollRef}

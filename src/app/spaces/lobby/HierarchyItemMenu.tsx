@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { Box, Icon, IconButton, Icons, Line, config, toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { IconSrc, RectCords } from 'folds';
@@ -7,7 +7,6 @@ import type { Options as FocusTrapOptions } from 'focus-trap';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Menu } from '../../ui/glass/GlassPrimitives';
-import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import type { HierarchyItem } from '../useSpaceHierarchy';
@@ -29,6 +28,12 @@ import {
 import { StateEvent } from '../../matrix/types/room';
 import { MenuEntry } from '../../ui/MenuEntry';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
+
+const InviteUserPrompt = lazy(() =>
+  import('../../members/invite/InviteUserPrompt').then((module) => ({
+    default: module.InviteUserPrompt,
+  }))
+);
 
 type HierarchyItemMenuProps = {
   item: HierarchyItem;
@@ -200,7 +205,9 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
         </IconButton>
       </PopOut>
       {dialog === 'invite' && joinedRoom && (
-        <InviteUserPrompt room={joinedRoom} requestClose={() => setDialog(undefined)} />
+        <Suspense fallback={null}>
+          <InviteUserPrompt room={joinedRoom} requestClose={() => setDialog(undefined)} />
+        </Suspense>
       )}
       {dialog === 'leave' && (
         <LeaveRoomPrompt
