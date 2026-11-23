@@ -12,7 +12,7 @@ import { getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { useRoomActiveRuns } from '../../matrix/hooks/useRoomActiveRuns';
 import type { ActiveRun } from '../../matrix/protocol/activeRunsContract';
-import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
+import { roomTrustedAgents, useAgentRoomState } from '../../matrix/protocol/agentRoomState';
 import {
   MINDROOM_BACKGROUND_JOBS_EVENT,
   parseBackgroundJobsStateEvent,
@@ -191,7 +191,9 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const myUserId = mx.getUserId();
   const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
   const streaming = useThreadStreamingSenders(room, threadId);
-  const isAgent = (userId: string) => isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined);
+  const trustedAgents = roomTrustedAgents(room);
+  const isAgent = (userId: string) =>
+    isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined) || trustedAgents.has(userId);
   const members = useRoomTypingMember(room.roomId).filter(
     (receipt) =>
       receipt.userId !== myUserId &&

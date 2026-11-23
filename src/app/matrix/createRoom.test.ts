@@ -1,8 +1,15 @@
-import { MatrixClient, MatrixError, MemoryStore, Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  MatrixClient,
+  MatrixError,
+  MatrixEvent,
+  MemoryStore,
+  Room,
+} from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { RoomType } from './types/room';
 import { CreateRoomAccess } from './createRoomTypes';
-import { createRoom, type CreateRoomData } from './createRoom';
+import { createRoom, ensureActiveRunsPowerLevel, type CreateRoomData } from './createRoom';
 
 describe('createRoom', () => {
   it.each([
@@ -128,5 +135,96 @@ describe('createRoom', () => {
 
     await expect(create()).rejects.toBe(failure);
     expect(forget).toHaveBeenCalledWith(NEW_ROOM);
+  });
+});
+
+describe('ensureActiveRunsPowerLevel', () => {
+  const ME = '@me:example.org';
+  const makeRoomWithLevels = async (
+    roomId: string,
+    powerLevels: Record<string, unknown>,
+    mx: ReturnType<typeof createClient>
+  ) => {
+    const room = new Room(roomId, mx, ME, { timelineSupport: true });
+    await room.addLiveEvents(
+      [
+        new MatrixEvent({
+          event_id: `$pl_${roomId}`,
+          room_id: roomId,
+          sender: ME,
+          state_key: '',
+          type: 'm.room.power_levels',
+          origin_server_ts: 1_000,
+          content: powerLevels,
+        }),
+      ],
+      { addToState: true }
+    );
+    return room;
+  };
+
+  it('upgrades an existing MindRoom room once per session when the viewer can edit power levels', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
+    const room = await makeRoomWithLevels(
+      '!upgrade:example.org',
+      {
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+      },
+      mx
+    );
+
+    await expect(ensureActiveRunsPowerLevel(mx, room)).resolves.toBe(true);
+    expect(sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!upgrade:example.org',
+      'm.room.power_levels',
+      {
+        users: { [ME]: 100 },
+        events: {
+          'io.mindroom.background_jobs': 0,
+          'm.room.power_levels': 100,
+          'io.mindroom.active_runs': 0,
+        },
+      },
+      ''
+    );
+
+    // Second call in the same client session is a no-op.
+    await expect(ensureActiveRunsPowerLevel(mx, room)).resolves.toBe(false);
+    expect(sendStateEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves explicit active_runs overrides, skips non-MindRoom rooms, and skips without permission', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
+
+    const overridden = await makeRoomWithLevels(
+      '!override:example.org',
+      {
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'io.mindroom.active_runs': 50 },
+      },
+      mx
+    );
+    const nonMindroom = await makeRoomWithLevels(
+      '!plain:example.org',
+      { users: { [ME]: 100 }, events: { 'm.room.power_levels': 100 } },
+      mx
+    );
+    const noPermission = await makeRoomWithLevels(
+      '!noperm:example.org',
+      {
+        users: { [ME]: 0, '@admin:example.org': 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+      },
+      mx
+    );
+
+    await expect(ensureActiveRunsPowerLevel(mx, overridden)).resolves.toBe(false);
+    await expect(ensureActiveRunsPowerLevel(mx, nonMindroom)).resolves.toBe(false);
+    await expect(ensureActiveRunsPowerLevel(mx, noPermission)).resolves.toBe(false);
+    expect(sendStateEvent).not.toHaveBeenCalled();
   });
 });

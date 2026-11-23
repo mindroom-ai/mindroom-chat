@@ -447,7 +447,6 @@ export const sendStateEvent = async (
   );
 };
 
-/** The content of a room's state event, or undefined while the room has none of that type and key. */
 /** Allows level-0 members (agents) to publish `io.mindroom.active_runs` state in `roomId`. */
 export const allowActiveRunsState = async (
   homeserver: string,
@@ -491,6 +490,7 @@ export const publishActiveRuns = async (
   );
 };
 
+/** The content of a room's state event, or undefined while the room has none of that type and key. */
 export const getStateEvent = async (
   homeserver: string,
   accessToken: string,

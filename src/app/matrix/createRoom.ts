@@ -14,6 +14,8 @@ import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
 import { addRoomIdToMDirect, creatorsSupported } from './matrix';
 import { CreateRoomAccess } from './createRoomTypes';
+import { getPowersLevelFromMatrixEvent, readPowerLevel } from './hooks/usePowerLevels';
+import { getRoomCreators } from './hooks/useRoomCreators';
 import { MINDROOM_AUTO_APPROVE_EVENT } from './protocol/autoApproveContract';
 import { MINDROOM_ACTIVE_RUNS_EVENT } from './protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from './protocol/backgroundJobsContract';
@@ -68,6 +70,69 @@ export const createRoomPowerLevelsOverride = (version?: string) => {
     [ROOM_THREAD_MODE_EVENT]: 0,
   };
   return { events };
+};
+
+/**
+ * Returns updated `m.room.power_levels` content with any missing `required` event levels added,
+ * preserving explicit overrides, or `undefined` when every required event type already has a level.
+ */
+export const mergeMissingEventPowerLevels = (
+  powerLevels: Record<string, unknown>,
+  required: Record<string, number>
+): Record<string, unknown> | undefined => {
+  const existing = (powerLevels.events as Record<string, unknown> | undefined) ?? {};
+  const missing = Object.entries(required).filter(([type]) => existing[type] === undefined);
+  if (missing.length === 0) return undefined;
+  return { ...powerLevels, events: { ...existing, ...Object.fromEntries(missing) } };
+};
+
+const activeRunsCheckedRooms = new WeakMap<MatrixClient, Set<string>>();
+
+/**
+ * Best-effort, once-per-room-per-session power-level migration for existing MindRoom rooms created
+ * before `io.mindroom.active_runs`: adds `io.mindroom.active_runs: 0` when the room already allows
+ * `io.mindroom.background_jobs: 0`, leaves explicit overrides alone, and runs only when the viewer
+ * can send `m.room.power_levels`.
+ */
+export const ensureActiveRunsPowerLevel = async (
+  mx: MatrixClient,
+  room: Room
+): Promise<boolean> => {
+  const checked = activeRunsCheckedRooms.get(mx);
+  if (checked?.has(room.roomId)) return false;
+  const powerLevelsEvent = room.currentState
+    ?.getStateEvents?.(StateEvent.RoomPowerLevels)
+    ?.find((event) => event.getStateKey() === '');
+  if (!powerLevelsEvent) return false;
+  if (checked) checked.add(room.roomId);
+  else activeRunsCheckedRooms.set(mx, new Set([room.roomId]));
+
+  const content = powerLevelsEvent.getContent();
+  if (content.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] !== 0) return false;
+  const nextLevels = mergeMissingEventPowerLevels(content, { [MINDROOM_ACTIVE_RUNS_EVENT]: 0 });
+  if (!nextLevels) return false;
+  const userId = mx.getUserId();
+  if (!userId) return false;
+  const parsed = getPowersLevelFromMatrixEvent(powerLevelsEvent);
+  const createEvent = room.currentState
+    ?.getStateEvents?.(StateEvent.RoomCreate)
+    ?.find((event) => event.getStateKey() === '');
+  const isCreator = createEvent ? getRoomCreators(createEvent).has(userId) : false;
+  const canEdit =
+    isCreator ||
+    readPowerLevel.user(parsed, userId) >= readPowerLevel.state(parsed, StateEvent.RoomPowerLevels);
+  if (!canEdit) return false;
+  try {
+    await mx.sendStateEvent(
+      room.roomId,
+      StateEvent.RoomPowerLevels as never,
+      nextLevels as never,
+      ''
+    );
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /**

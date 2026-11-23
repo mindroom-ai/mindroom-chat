@@ -38,6 +38,7 @@ import { RoomPanelEdgeSwipeContext } from '../navigation/roomPanelEdgeSwipeConte
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { MembersDrawer } from '../members/MembersDrawer';
+import { ensureActiveRunsPowerLevel } from '../matrix/createRoom';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
@@ -232,6 +233,9 @@ function RoomContent() {
     bumpRecentRoom(roomId);
   }, [roomId]);
   const client = useMatrixClient();
+  useEffect(() => {
+    void ensureActiveRunsPowerLevel(client, room);
+  }, [client, room]);
   const ownUserId = client.getSafeUserId();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const { t } = useTranslation();

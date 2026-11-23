@@ -8,13 +8,14 @@ import {
 } from 'matrix-js-sdk';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { isMindroomAgentUserIdForViewer } from '../protocol/agentIdentity';
+import { isAgentTrustStateEvent, roomTrustedAgents } from '../protocol/agentRoomState';
 import {
+  createExpiryTimer,
   MINDROOM_ACTIVE_RUNS_EVENT,
   roomActiveRuns,
   type RoomActiveRuns,
 } from '../protocol/activeRunsContract';
 
-const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const toValue = (room: Room | null): RoomActiveRuns => {
   const { runs, threads } = roomActiveRuns(room);
   return { runs, threads };
@@ -38,36 +39,34 @@ export const useRoomActiveRuns = (room: Room | null): RoomActiveRuns => {
 
   useEffect(() => {
     if (!room) return undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let armedExpiry: number | undefined;
     const sync = () => {
       const { runs, threads, nextExpiryTs } = roomActiveRuns(room);
-      if (nextExpiryTs !== armedExpiry || (nextExpiryTs !== undefined && !timer)) {
-        clearTimeout(timer);
-        armedExpiry = nextExpiryTs;
-        timer =
-          nextExpiryTs === undefined
-            ? undefined
-            : setTimeout(() => {
-                timer = armedExpiry = undefined;
-                sync();
-              }, Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_TIMEOUT_MS)));
-      }
+      expiryTimer.arm(nextExpiryTs);
       if (threads === valueRef.current.threads && runs === valueRef.current.runs) return;
       const next = { runs, threads };
       valueRef.current = next;
       setState({ room, value: next });
     };
-    const onState = (e: MatrixEvent) => e.getType() === MINDROOM_ACTIVE_RUNS_EVENT && sync();
-    const onMember = (_e: MatrixEvent, _s: RoomState, m: RoomMember) =>
-      isMindroomAgentUserIdForViewer(m.userId, room.myUserId) && sync();
+    const expiryTimer = createExpiryTimer(sync);
+    const onState = (e: MatrixEvent) => {
+      const type = e.getType();
+      if (type === MINDROOM_ACTIVE_RUNS_EVENT || isAgentTrustStateEvent(type)) sync();
+    };
+    const onMember = (_e: MatrixEvent, _s: RoomState, m: RoomMember) => {
+      if (
+        isMindroomAgentUserIdForViewer(m.userId, room.myUserId) ||
+        valueRef.current.runs.some((run) => run.agentId === m.userId) ||
+        roomTrustedAgents(room).has(m.userId)
+      )
+        sync();
+    };
     room.on(RoomStateEvent.Events, onState);
     room.on(RoomStateEvent.Members, onMember);
     room.on(RoomEvent.CurrentStateUpdated, sync);
     room.on(RoomEvent.Redaction, sync);
     sync();
     return () => {
-      clearTimeout(timer);
+      expiryTimer.clear();
       room.removeListener(RoomStateEvent.Events, onState);
       room.removeListener(RoomStateEvent.Members, onMember);
       room.removeListener(RoomEvent.CurrentStateUpdated, sync);

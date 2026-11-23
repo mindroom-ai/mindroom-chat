@@ -339,4 +339,58 @@ describe('roomActiveRuns', () => {
     );
     expect(roomActiveRuns(room, NOW + 2_000).threads.size).toBe(0);
   });
+
+  it('accepts active_runs from a custom-username agent vouched for by the room trusted roster', async () => {
+    const room = makeRoom();
+    const router = '@mindroom_router:example.org';
+    const jarvis = '@jarvis:example.org';
+    await room.addLiveEvents(
+      [
+        new MatrixEvent({
+          event_id: `$pl_${++nextId}`,
+          room_id: '!room:example.org',
+          sender: router,
+          state_key: '',
+          type: 'm.room.power_levels',
+          origin_server_ts: NOW - 10_000,
+          content: { users_default: 0, state_default: 50, users: { [router]: 100 } },
+        }),
+        membershipEvent(router, 'join'),
+        membershipEvent(jarvis, 'join'),
+        new MatrixEvent({
+          event_id: `$rt_${++nextId}`,
+          room_id: '!room:example.org',
+          sender: router,
+          state_key: '',
+          type: 'io.mindroom.router',
+          origin_server_ts: NOW - 5_000,
+          content: { user_id: router },
+        }),
+        new MatrixEvent({
+          event_id: `$ac_${++nextId}`,
+          room_id: '!room:example.org',
+          sender: router,
+          state_key: router,
+          type: 'io.mindroom.accounts',
+          origin_server_ts: NOW - 5_000,
+          content: { accounts: [jarvis] },
+        }),
+        activeRunsEvent({
+          sender: jarvis,
+          ts: NOW,
+          content: {
+            version: 1,
+            updated_at: NOW,
+            ttl_ms: 60_000,
+            threads: [{ thread_id: '$custom_agent_thread' }],
+          },
+        }),
+      ],
+      { addToState: true }
+    );
+
+    const snap = roomActiveRuns(room, NOW + 1_000);
+    expect(snap.runs).toEqual([{ agentId: jarvis, threadId: '$custom_agent_thread' }]);
+    expect(snap.threads.has('$custom_agent_thread')).toBe(true);
+  });
 });

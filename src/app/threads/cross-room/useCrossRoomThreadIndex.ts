@@ -4,7 +4,9 @@ import {
 } from '../../event-store/threads/threadScheduledStatus';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import { isAgentTrustStateEvent } from '../../matrix/protocol/agentRoomState';
 import {
+  createExpiryTimer,
   MINDROOM_ACTIVE_RUNS_EVENT,
   roomActiveRuns,
 } from '../../matrix/protocol/activeRunsContract';
@@ -50,7 +52,6 @@ import {
 import { matchesEnum } from '../../lib/matchesEnum';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
-const MAX_ACTIVE_RUNS_TIMEOUT_MS = 2 ** 31 - 1;
 
 type RoomListenerDisposer = () => void;
 
@@ -475,31 +476,36 @@ export const useCrossRoomThreadIndex = () => {
         }
       };
 
-      let activeRunsTimer: ReturnType<typeof setTimeout> | undefined;
-      let armedExpiryTs: number | undefined;
+      let prevActiveThreads: ReadonlySet<string> = new Set();
+      let prevExpiryTs: number | undefined;
       const syncActiveRuns = (reconcileEntries: boolean) => {
+        const lapsed = prevExpiryTs !== undefined && prevExpiryTs <= Date.now();
         const next = roomActiveRuns(room);
         const nextExpiryTs = next.threads.size > 0 ? next.nextExpiryTs : undefined;
-        if (nextExpiryTs !== armedExpiryTs || (nextExpiryTs !== undefined && !activeRunsTimer)) {
-          clearTimeout(activeRunsTimer);
-          armedExpiryTs = nextExpiryTs;
-          activeRunsTimer =
-            nextExpiryTs === undefined
-              ? undefined
-              : setTimeout(() => {
-                  activeRunsTimer = armedExpiryTs = undefined;
-                  if (roomDisposers.has(room.roomId)) syncActiveRuns(true);
-                }, Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_ACTIVE_RUNS_TIMEOUT_MS)));
+        prevExpiryTs = nextExpiryTs;
+        activeRunsTimer.arm(nextExpiryTs);
+        if (!reconcileEntries) {
+          prevActiveThreads = next.threads;
+          return;
         }
-        if (!reconcileEntries) return;
-        // Reconcile existing indexed entries only so active_runs never creates phantom 0-reply ones.
-        store.get(crossRoomThreadIndexAtom).entries.forEach((entry) => {
-          if (entry.roomId !== room.roomId) return;
-          if (entry.threadRecord.status.isStreaming !== next.threads.has(entry.threadRootId)) {
-            enqueueThread(room.roomId, entry.threadRootId);
+        if (next.threads === prevActiveThreads && !lapsed) return;
+        // Look up only the union of previous and next active thread IDs for this room.
+        const entries = store.get(crossRoomThreadIndexAtom).entries;
+        const reconcile = (id: string) => {
+          const entry = entries.get(getCrossRoomThreadIndexKey(room.roomId, id));
+          if (entry && entry.threadRecord.status.isStreaming !== next.threads.has(id)) {
+            enqueueThread(room.roomId, id);
           }
+        };
+        prevActiveThreads.forEach(reconcile);
+        next.threads.forEach((id) => {
+          if (!prevActiveThreads.has(id)) reconcile(id);
         });
+        prevActiveThreads = next.threads;
       };
+      const activeRunsTimer = createExpiryTimer(() => {
+        if (roomDisposers.has(room.roomId)) syncActiveRuns(true);
+      });
       syncActiveRuns(false);
       const handleActiveRunsRoomChange = () => syncActiveRuns(true);
       activeRunsRefreshers.set(room.roomId, handleActiveRunsRoomChange);
@@ -543,7 +549,7 @@ export const useCrossRoomThreadIndex = () => {
         : undefined;
 
       roomDisposers.set(room.roomId, () => {
-        clearTimeout(activeRunsTimer);
+        activeRunsTimer.clear();
         activeRunsRefreshers.delete(room.roomId);
         room.removeListener(RoomEvent.CurrentStateUpdated, handleActiveRunsRoomChange);
         room.removeListener(RoomEvent.Redaction, handleActiveRunsRoomChange);
@@ -662,12 +668,14 @@ export const useCrossRoomThreadIndex = () => {
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
       const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT;
       const activeRunsChanged = type === MINDROOM_ACTIVE_RUNS_EVENT;
+      const trustChanged = isAgentTrustStateEvent(type);
       const schedulesChanged = type === MINDROOM_SCHEDULED_TASK_EVENT;
       if (
         type !== MINDROOM_THREAD_TAGS_EVENT &&
         !pinsChanged &&
         !jobsChanged &&
         !activeRunsChanged &&
+        !trustChanged &&
         !schedulesChanged
       )
         return;
@@ -695,6 +703,9 @@ export const useCrossRoomThreadIndex = () => {
       } else if (jobsChanged) {
         refreshBackgroundJobs(room);
       } else if (activeRunsChanged) {
+        activeRunsRefreshers.get(room.roomId)?.();
+      } else if (trustChanged) {
+        refreshBackgroundJobs(room);
         activeRunsRefreshers.get(room.roomId)?.();
       } else if (pinsChanged) {
         handlePinChange(room);

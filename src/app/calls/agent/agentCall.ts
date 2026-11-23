@@ -4,6 +4,7 @@ import {
   createRoomCallState,
   createRoomEncryptionState,
   createRoomPowerLevelsOverride,
+  mergeMissingEventPowerLevels,
 } from '../../matrix/createRoom';
 import {
   RoomNotificationMode,
@@ -197,20 +198,11 @@ export const prepareAgentCallRoom = async (
   // A call room made before agents could publish background jobs and active runs gains those power
   // levels before the agent hears of the call, so its first writes are not refused; best effort.
   const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
-  const missingLevels = Object.entries(AGENT_JOBS_EVENT_LEVEL).filter(
-    ([type]) => powerLevels?.events?.[type] === undefined
-  );
-  if (powerLevels && missingLevels.length > 0) {
+  const nextLevels =
+    powerLevels && mergeMissingEventPowerLevels(powerLevels, AGENT_JOBS_EVENT_LEVEL);
+  if (nextLevels) {
     await mx
-      .sendStateEvent(
-        room.roomId,
-        StateEvent.RoomPowerLevels as never,
-        {
-          ...powerLevels,
-          events: { ...powerLevels.events, ...Object.fromEntries(missingLevels) },
-        } as never,
-        ''
-      )
+      .sendStateEvent(room.roomId, StateEvent.RoomPowerLevels as never, nextLevels as never, '')
       .catch(() => undefined);
   }
   await sendAgentCall(mx, room.roomId, agentUserId, origin);

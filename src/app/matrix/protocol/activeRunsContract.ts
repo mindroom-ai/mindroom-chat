@@ -12,6 +12,31 @@ export type ActiveRun = { agentId: string; threadId: string | null };
 export type RoomActiveRuns = { runs: ActiveRun[]; threads: ReadonlySet<string> };
 export type ActiveRunsSnapshot = RoomActiveRuns & { nextExpiryTs: number | undefined };
 
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
+/** Single-timer controller that arms a wake-up at `nextExpiryTs` without rescheduling when unchanged. */
+export const createExpiryTimer = (onExpire: () => void) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let armedExpiry: number | undefined;
+  const clear = () => {
+    clearTimeout(timer);
+    timer = armedExpiry = undefined;
+  };
+  const arm = (nextExpiryTs: number | undefined) => {
+    if (nextExpiryTs === armedExpiry && (nextExpiryTs === undefined || timer !== undefined)) return;
+    clearTimeout(timer);
+    armedExpiry = nextExpiryTs;
+    timer =
+      nextExpiryTs === undefined
+        ? undefined
+        : setTimeout(() => {
+            timer = armedExpiry = undefined;
+            onExpire();
+          }, Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_TIMEOUT_MS)));
+  };
+  return { arm, clear };
+};
+
 const EMPTY_SNAPSHOT: ActiveRunsSnapshot = {
   runs: [],
   threads: new Set(),

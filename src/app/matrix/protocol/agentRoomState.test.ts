@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { act, renderHook } from '@testing-library/react';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { selectAgentSelfState, useAgentRoomState } from './agentRoomState';
+import { agentRoomState, selectAgentSelfState, useAgentRoomState } from './agentRoomState';
+import { MINDROOM_ACCOUNTS_STATE_EVENT, MINDROOM_ROUTER_STATE_EVENT } from './routerBinding';
 
 const viewer = '@alice:example.org';
 const agent = '@mindroom_code:example.org';
@@ -42,5 +43,69 @@ describe('useAgentRoomState', () => {
   it('reads no state of a room the client does not know', () => {
     const { result } = renderHook(() => useAgentRoomState(null, TYPE, (events) => events.length));
     expect(result.current).toBe(0);
+  });
+
+  it('accepts a trusted custom-username roster agent and refreshes when roster or membership changes', async () => {
+    const router = '@mindroom_router:example.org';
+    const jarvis = '@jarvis:example.org';
+    const roomId = '!room:example.org';
+    const room = new Room(
+      roomId,
+      createClient({ baseUrl: 'http://localhost:1', userId: viewer, timelineSupport: true }),
+      viewer,
+      { timelineSupport: true }
+    );
+    let seq = 0;
+    const ev = (type: string, stateKey: string, sender: string, content: Record<string, unknown>) =>
+      new MatrixEvent({
+        event_id: `$ev_${++seq}`,
+        room_id: roomId,
+        type,
+        state_key: stateKey,
+        sender,
+        origin_server_ts: seq * 1_000,
+        content,
+      });
+
+    await room.addLiveEvents(
+      [
+        ev('m.room.power_levels', '', router, {
+          users_default: 0,
+          state_default: 50,
+          users: { [router]: 100 },
+        }),
+        ev('m.room.member', router, router, { membership: 'join' }),
+        ev('m.room.member', jarvis, jarvis, { membership: 'join' }),
+        ev(TYPE, jarvis, jarvis, { ok: true }),
+      ],
+      { addToState: true }
+    );
+
+    const { result } = renderHook(() =>
+      useAgentRoomState(room, TYPE, (events) => events.map((e) => e.getSender()))
+    );
+    // Without router + roster, non-mindroom_ account is untrusted.
+    expect(result.current).toEqual([]);
+    expect(agentRoomState(room, TYPE)).toEqual([]);
+
+    // Adding trusted router binding + accounts roster enables @jarvis:example.org immediately.
+    await act(async () => {
+      await room.addLiveEvents(
+        [
+          ev(MINDROOM_ROUTER_STATE_EVENT, '', router, { user_id: router }),
+          ev(MINDROOM_ACCOUNTS_STATE_EVENT, router, router, { accounts: [jarvis] }),
+        ],
+        { addToState: true }
+      );
+    });
+    expect(result.current).toEqual([jarvis]);
+
+    // When @jarvis leaves, its state is dropped immediately.
+    await act(async () => {
+      await room.addLiveEvents([ev('m.room.member', jarvis, jarvis, { membership: 'leave' })], {
+        addToState: true,
+      });
+    });
+    expect(result.current).toEqual([]);
   });
 });
