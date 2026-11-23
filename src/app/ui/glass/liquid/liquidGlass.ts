@@ -276,6 +276,8 @@ export const attachLiquidGlass = (
       queueMap();
       return;
     }
+    // Intentionally drop the SVG refraction filter during continuous resize so CSS native blur
+    // fills in without per-frame displacement-map PNG/GPU work, then rebuild once settled.
     clearFilter();
     cancelResizeTimer();
     resizeTimer = view.setTimeout(() => {
