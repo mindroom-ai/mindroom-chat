@@ -397,6 +397,8 @@ test.describe('Electron script policy and canvas frame', () => {
           }
         }, directUrl);
         expect(result, directUrl).toEqual({ rejected: true, code: 'ERR_BLOCKED_BY_CLIENT' });
+        // Let Chromium finish committing its async error page before the next direct loadURL.
+        await page.waitForTimeout(300);
       }
     } finally {
       await session.close();

@@ -256,16 +256,26 @@ test.describe('Electron desktop shell', () => {
         await page.evaluate((target: string) => {
           window.location.assign(target);
         }, targetUrl);
-        await page.waitForTimeout(150);
-        await page.waitForLoadState('domcontentloaded');
-        const state = await page.evaluate(() => ({
-          origin: window.location.origin,
-          title: document.title,
-          hasRobotsNoIndex: document.querySelector('meta[name="robots"]') !== null,
-        }));
-        expect(state.origin, targetUrl).toBe(APP_ORIGIN);
-        expect(state.title, targetUrl).not.toBe('PDF');
-        expect(state.hasRobotsNoIndex, targetUrl).toBe(false);
+        if (targetPath === '/index') {
+          await page.waitForURL(targetUrl, { waitUntil: 'domcontentloaded' });
+        } else {
+          await page.waitForTimeout(150);
+        }
+        await expect
+          .poll(async () =>
+            page
+              .evaluate(() => ({
+                origin: window.location.origin,
+                title: document.title,
+                hasRobotsNoIndex: document.querySelector('meta[name="robots"]') !== null,
+              }))
+              .catch(() => null)
+          )
+          .toEqual({
+            origin: APP_ORIGIN,
+            title: expect.not.stringMatching(/^PDF$/),
+            hasRobotsNoIndex: false,
+          });
       }
 
       // Exercise webRequest.onBeforeRequest directly by loading frame pages from main (bypasses will-navigate).
