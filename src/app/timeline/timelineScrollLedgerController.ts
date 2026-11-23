@@ -68,6 +68,12 @@ export type TimelineScrollLedgerControllerOptions = {
   itemCount: number;
   pendingRoomFoldPxRef: MutableRefObject<number>;
   /**
+   * The height of the rows this render lists above the reader's rows in place of a row the last
+   * commit showed there (the events of a membership fold that came apart). It folds with this
+   * render as a pending room fold does, to which it is added once the render commits.
+   */
+  exposedRoomRowsPx?: number;
+  /**
    * This render still shows the window the pending room fold was priced against: the rows it
    * prices are not mounted yet (a scroll renders the virtual list at once, before the window's
    * update), so the fold waits for the render that mounts them.
@@ -205,6 +211,7 @@ export const useTimelineScrollLedgerController = ({
   getScrollElement,
   itemCount,
   pendingRoomFoldPxRef,
+  exposedRoomRowsPx = 0,
   roomFoldHeld = false,
   roomFoldPriceRef,
   roomId,
@@ -300,9 +307,12 @@ export const useTimelineScrollLedgerController = ({
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
   // abandoned concurrent renders neither lose nor double-apply it. Anchored
-  // room rows price those rows themselves.
+  // room rows price those rows themselves. The rows a render itself lists
+  // above the reader are that render's value, pending only once it commits.
   const roomFoldPxAtRender =
-    resettingLedgerView || roomFoldHeld || anchoringRoomRows ? 0 : pendingRoomFoldPxRef.current;
+    resettingLedgerView || roomFoldHeld || anchoringRoomRows
+      ? 0
+      : pendingRoomFoldPxRef.current + exposedRoomRowsPx;
   // One immutable snapshot feeds virtualizer.scrollMargin, the inner margin,
   // and every tile top for this paint.
   const ledgerPxAtRender = resettingLedgerView
@@ -318,6 +328,11 @@ export const useTimelineScrollLedgerController = ({
     droppedRowFoldPxRef.current -= droppedRowFoldPxAtRender;
   });
 
+  // Before the fold below takes what this render folded: a held render leaves it pending.
+  useLayoutEffect(() => {
+    if (resettingLedgerView || anchoringRoomRows) return;
+    pendingRoomFoldPxRef.current += exposedRoomRowsPx;
+  });
   useLayoutEffect(() => {
     if (resettingLedgerView) return;
 
