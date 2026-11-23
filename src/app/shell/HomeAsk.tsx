@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { Avatar, Icons, Text } from 'folds';
+import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useAtomValue, useStore } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -231,7 +231,15 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
     goneAgent(selected.agentId);
   // A direct chat yet to be started is the agent's direct chat once it has one, and stays that
   // chat whichever the agent prefers later: the field shows no composer before it is held to it.
-  if (choice && choice.roomId === null && choice.isDirect && agent.direct) {
+  // Not while this field starts the chat: of several chats whose members load one by one, the
+  // first is the agent's direct chat for a moment, and the start says which it is.
+  if (
+    choice &&
+    choice.roomId === null &&
+    choice.isDirect &&
+    agent.direct &&
+    starts[choice.agentId] !== 'busy'
+  ) {
     setChoice({ agentId: choice.agentId, roomId: agent.direct.roomId, isDirect: true });
   }
   const { roomId } = selected;
@@ -258,9 +266,11 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   const room = roomId ? mx.getRoom(roomId) : null;
   // A room picked as the direct chat stays a choice only while it is one, not as a room of the
   // same ID that others have joined since: the agent's direct chat, or another chat of the two
-  // that was it when picked.
+  // that was it when picked. The chat yet to be started (null) is one until it has its room.
   const listed = isDirect
-    ? roomId === (direct?.roomId ?? null) || (!!room && isDirectRoomWith(room, agent.userId))
+    ? roomId === null ||
+      roomId === direct?.roomId ||
+      (!!room && isDirectRoomWith(room, agent.userId))
     : roomId !== null && agent.roomIds.includes(roomId);
   // A chat just started is among the choices once the client has it, and waits until the agent
   // joins even if the room arrives before `m.direct` syncs back, or before the agent's invitation
@@ -316,8 +326,8 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
     startDirectChat(mx, agentId, version, threads).then(
       (started) => {
         setStarts(({ [agentId]: done, ...others }) => others);
-        // A choice made meanwhile stands; the chat itself, shown already as `m.direct` lists it,
-        // is no other choice.
+        // A choice made meanwhile stands; the chat itself, picked meanwhile as `m.direct` lists
+        // it, is no other choice.
         const now = selection.current;
         if (now.agentId !== agentId || (now.roomId !== null && now.roomId !== started)) return;
         setFocusOnMount(true);
@@ -358,11 +368,18 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
       key={key}
       role="menuitemradio"
       aria-checked={checked}
+      // The chosen row shows it is, as a menu of choices does (ChoiceMenu).
+      fill={checked ? 'Soft' : 'None'}
       className={composerCss.ComposerMenuItem}
       label={label}
       description={description}
       icon={Icons.User}
-      after={badge}
+      after={
+        <Box as="span" alignItems="Center" gap="200">
+          {checked && <Icon size="50" src={Icons.Check} aria-hidden="true" />}
+          {badge}
+        </Box>
+      }
       onSelect={onSelect}
     />
   );
@@ -392,7 +409,12 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
               option.userId,
               option === agent,
               { label: option.name, badge: agentBadge(option) },
-              choose(() => pick('agent', destinationOf(option, option.defaultRoomId ?? null))),
+              // The agent the field is on, picked again, changes nothing: its room stays the
+              // one picked for it. Any other pick goes to the agent's default room.
+              choose(() => {
+                if (option === agent && valid) return;
+                pick('agent', destinationOf(option, option.defaultRoomId ?? null));
+              }),
               // Agents of one name are told apart by their IDs.
               agents.some((other) => other !== option && other.name === option.name)
                 ? revealDirectionControls(option.userId)

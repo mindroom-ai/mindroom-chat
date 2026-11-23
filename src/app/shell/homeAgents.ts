@@ -146,11 +146,12 @@ const answerKey = (roomId: string, senderId: string): string => `${roomId}\0${se
 /**
  * When each sender last answered in each of `rooms`, by `answerKey`, read in one pass: its newest
  * message the client has loaded there, the newest reply the server told of in one of the room's
- * threads (also before the thread's events are loaded, so an older reply that is loaded hides no
- * newer one; a title notice that followed it is not it, the reply kept from before is), or the
- * reply the thread index says ends a thread. Someone else's later message in a thread it answered
- * in does not count. The index's time moves with an edit of that reply, so it counts only for a
- * sender none of whose answers in the thread the client has: those count by when they were sent.
+ * threads (also before the thread's events are loaded or the thread index has it, so an older
+ * reply that is loaded hides no newer one; a title notice that followed it is not it, the reply
+ * kept from before is), or the reply the thread index says ends a thread. Someone else's later
+ * message in a thread it answered in does not count. The index's time moves with an edit of that
+ * reply, so it counts only for a sender none of whose answers in the thread the client has:
+ * those count by when they were sent.
  */
 const readLastAnswers = (
   rooms: Iterable<Room>,
@@ -161,30 +162,28 @@ const readLastAnswers = (
     const key = answerKey(roomId, senderId);
     if (ts > (newest.get(key) ?? 0)) newest.set(key, ts);
   };
-  const byId = new Map<string, Room>();
+  const roomIds = new Set<string>();
+  // The senders with an answer the client has in each thread, by `answerKey` of the thread.
+  const inThread = new Set<string>();
   for (const room of rooms) {
-    byId.set(room.roomId, room);
-    const read = (events: MatrixEvent[]) =>
+    roomIds.add(room.roomId);
+    const read = (events: MatrixEvent[], threadId?: string) =>
       events.forEach((event) => {
         const senderId = event.getSender();
-        if (senderId && isAnswer(event)) note(room.roomId, senderId, event.getTs());
+        if (!senderId || !isAnswer(event)) return;
+        note(room.roomId, senderId, event.getTs());
+        if (threadId) inThread.add(answerKey(threadId, senderId));
       });
     read(room.getLiveTimeline().getEvents());
-    room.getThreads().forEach((thread) => read(thread.events));
+    room.getThreads().forEach((thread) => {
+      const reply = getThreadSummaryReply(thread);
+      read(reply ? [...thread.events, reply] : thread.events, thread.id);
+    });
   }
   for (const { roomId, threadRootId, threadRecord } of threads) {
     const { lastSenderId, latestReplyTs } = threadRecord.presentation;
-    const room = byId.get(roomId);
-    if (room) {
-      const thread = room.getThread(threadRootId);
-      const reply = getThreadSummaryReply(thread);
-      const replySender = reply && isAnswer(reply) ? reply.getSender() : undefined;
-      if (reply && replySender) note(roomId, replySender, reply.getTs());
-      const known =
-        replySender === lastSenderId ||
-        thread?.events.some((event) => event.getSender() === lastSenderId && isAnswer(event));
-      if (lastSenderId && !known) note(roomId, lastSenderId, latestReplyTs ?? 0);
-    }
+    const known = !lastSenderId || inThread.has(answerKey(threadRootId, lastSenderId));
+    if (roomIds.has(roomId) && !known) note(roomId, lastSenderId, latestReplyTs ?? 0);
   }
   return newest;
 };

@@ -383,6 +383,19 @@ describe('readHomeAgents', () => {
     expect(helper).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
   });
 
+  it("counts a thread's newest reply before the index has the thread", () => {
+    const rooms = [
+      room('!lobby', { agents: [HELPER], messages: [[HELPER, 100]] }),
+      // Not loaded, and not in the index yet: the server told of Helper's reply.
+      room('!eng', {
+        agents: [HELPER],
+        threads: { $unopened: { loaded: [], latest: [HELPER, 200] } },
+      }),
+    ];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), []);
+    expect(helper).toMatchObject({ defaultRoomId: '!eng', lastUsedTs: 200 });
+  });
+
   it("counts a thread's newest reply for its sender when the index names someone else", () => {
     const rooms = [
       room('!lobby', {

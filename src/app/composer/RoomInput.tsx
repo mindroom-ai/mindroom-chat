@@ -358,7 +358,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       userId,
       onConfirmedRef: rootConfirmedRef,
     });
-    const saveDraft = useRoomInputDraft(editor, userId, roomId, draftThreadId, textKey);
+    const saveDraft = useRoomInputDraft(editor, textKey);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room, threadingEnabled ? threadId : undefined);

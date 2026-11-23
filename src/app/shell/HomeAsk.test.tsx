@@ -95,13 +95,14 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 /**
- * A room the account may post in; `members` and `joined`, how many are in it, can change, and
- * `echoes` are its messages the server has yet to confirm.
+ * A room the account may post in; `members` and `joined`, how many are in it, can change,
+ * `echoes` are its messages the server has yet to confirm, and `events` those it has loaded.
  */
 type FakeRoom = Room & {
   members: Record<string, string>;
   joined: number;
   echoes: Map<string, MatrixEvent>;
+  events: MatrixEvent[];
   alias: string | null;
 };
 const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joined = 3) => {
@@ -112,6 +113,7 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     members: Object.fromEntries(joinedAgents.map((agentId) => [agentId, 'join'])),
     joined,
     echoes: new Map<string, MatrixEvent>(),
+    events: [] as MatrixEvent[],
     alias: null as string | null,
     getCanonicalAlias: () => room.alias,
     findEventById: (eventId: string) => room.echoes.get(eventId),
@@ -127,15 +129,31 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
       getStateEvents: (_type: string, stateKey?: string) => (stateKey === undefined ? [] : null),
     },
     getLiveTimeline: () => ({
+      getEvents: () => room.events,
       getState: () => ({ getStateEvents: () => undefined }),
     }),
+    getThreads: () => [],
   };
   return room as unknown as FakeRoom;
 };
 
-const makeClient = (rooms: Room[]) => {
+/** A message `sender` sent at `ts`. */
+const message = (sender: string, ts: number) =>
+  ({
+    getSender: () => sender,
+    getTs: () => ts,
+    getType: () => 'm.room.message',
+    isRedacted: () => false,
+    isDecryptionFailure: () => false,
+    getRelation: () => null,
+    getContent: () => ({}),
+  } as unknown as MatrixEvent);
+
+/** A client with `rooms`; `direct` is what `m.direct` lists. */
+const makeClient = (rooms: Room[], direct: Record<string, string[]> = {}) => {
   const emitter = new EventEmitter();
   return Object.assign(emitter, {
+    getAccountData: () => ({ getContent: () => direct }),
     getSafeUserId: () => ME,
     getUserId: () => ME,
     getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
@@ -758,7 +776,99 @@ describe('HomeAsk', () => {
     expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
   });
 
-  it('focuses the chat it started also when `m.direct` lists it before the start is over', async () => {
+  it('keeps where the question goes when the agent it is for is picked again', () => {
+    const dm = makeRoom('!dm', 'Helper', [HELPER], 2);
+    const mx = makeClient([makeRoom('!eng', 'Engineering', [HELPER]), dm]);
+    const agent: HomeAgent = {
+      ...helperAgent,
+      roomIds: ['!eng'],
+      direct: { roomId: '!dm', waiting: false },
+    };
+    const store = createStore();
+    renderAsk(mx, [agent, quillAgent], store);
+    // Helper's questions go to Engineering: its direct chat is picked, and a draft written.
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Direct chat' }));
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+    });
+
+    // The agent picker shows Helper as the one chosen, with a check the others lack.
+    fireEvent.click(screen.getByRole('button', { name: 'Helper answers' }));
+    const chosen = screen.getByRole('menuitemradio', { name: 'Helper' });
+    expect(chosen.getAttribute('aria-checked')).toBe('true');
+    expect(chosen.querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('menuitemradio', { name: 'Quill' }).querySelector('svg')).toBeNull();
+
+    // Picked again, it moves nothing: the draft stays for the direct chat, as that.
+    fireEvent.click(chosen);
+    expect(screen.queryByRole('menuitemradio')).toBeNull();
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(ask()?.isDirect).toBe(true);
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!dm', isDirect: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Helper answers' }));
+
+    // Another agent picked, then Helper again, goes to Helper's default room.
+    fireEvent.click(screen.getByRole('button', { name: 'Helper answers' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Quill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quill answers' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Helper' }));
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+  });
+
+  it('opens the chat its start finds, not the first whose members load', async () => {
+    const actual = await vi.importActual<typeof import('./homeAgents')>('./homeAgents');
+    vi.mocked(startDirectChat).mockImplementation(actual.startDirectChat);
+    // Two chats `m.direct` lists, Quill's membership in neither loaded yet. Quill answered
+    // last in the second.
+    const chat = (roomId: string, answeredTs: number) => {
+      const room = makeRoom(roomId, 'Quill', [], 2);
+      room.events = [message(QUILL, answeredTs)];
+      let loaded!: (fromServer: boolean) => void;
+      const loading = new Promise<boolean>((resolve) => {
+        loaded = resolve;
+      });
+      Object.assign(room, { loadMembersIfNeeded: () => loading });
+      const load = () => {
+        room.members[QUILL] = 'join';
+        loaded(true);
+      };
+      return { room, load };
+    };
+    const older = chat('!dm-older', 200);
+    const newer = chat('!dm-newer', 500);
+    const mx = makeClient([older.room, newer.room], { [QUILL]: ['!dm-older', '!dm-newer'] });
+    const chatting = (roomId: string): HomeAgent => ({
+      ...quillAgent,
+      direct: { roomId, waiting: false },
+      defaultRoomId: roomId,
+    });
+    const { refresh } = renderAsk(mx, [quillAgent]);
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+
+    // The older chat's members load first. The agents are read again as they do
+    // (`useHomeAgents`, on `Members`): for now, that chat is Quill's direct chat.
+    await act(async () => older.load());
+    refresh([chatting('!dm-older')]);
+    expect(screen.queryByTestId('room-input')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Starting/ }).getAttribute('aria-busy')).toBe(
+      'true'
+    );
+
+    // The newer chat's load, and the start is over: it found the chat Quill last answered in.
+    await act(async () => {
+      newer.load();
+      await vi.mocked(startDirectChat).mock.results[0]?.value;
+    });
+    refresh([chatting('!dm-newer')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
+    expect(ask()?.isDirect).toBe(true);
+  });
+
+  it('focuses the chat it started once the start is over, also when `m.direct` lists it before', async () => {
     const focus = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
     try {
       const dm = makeRoom('!dm', 'Quill', [QUILL], 2);
@@ -770,11 +880,14 @@ describe('HomeAsk', () => {
       );
       const { refresh } = renderAsk(makeClient([dm]), [quillAgent]);
       fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
-      // `m.direct` lists the chat, Quill in it: the field is its composer already.
+      // `m.direct` lists the chat, Quill in it: the start may yet find another, so the field
+      // waits for it.
       refresh([{ ...quillAgent, direct: { roomId: '!dm', waiting: false }, defaultRoomId: '!dm' }]);
-      expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+      expect(screen.queryByTestId('room-input')).toBeNull();
+      expect(screen.queryByRole('alert')).toBeNull();
       expect(focus).not.toHaveBeenCalled();
       await act(async () => started('!dm'));
+      expect(lastRoomInputProps.current?.roomId).toBe('!dm');
       expect(focus).toHaveBeenCalledTimes(1);
     } finally {
       focus.mockRestore();

@@ -80,7 +80,7 @@ const openRestoredDraft = async () => {
   const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   const Harness = () => {
-    useRoomInputDraft(editor, USER, ROOM_ID);
+    useRoomInputDraft(editor, getRoomInputDraftKey(USER, ROOM_ID));
     feature = useRoomInputAttachments({
       mx: { cancelUpload: vi.fn() } as never,
       userId: USER,
@@ -160,7 +160,7 @@ describe('large pastes in a draft restored after a reload', () => {
     const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
     const homeDraftKey = getHomeAskDraftKey(USER);
     const HomeHarness = () => {
-      useRoomInputDraft(editor, USER, ROOM_ID, undefined, homeDraftKey);
+      useRoomInputDraft(editor, homeDraftKey);
       useRoomInputAttachments({
         mx: { cancelUpload: vi.fn() } as never,
         userId: USER,
