@@ -160,6 +160,19 @@ describe('nativeShell', () => {
       setDesktopBridge(makeBridge(true).bridge);
       hasFocusSpy.mockReturnValue(false);
       expect(isAppWindowFocused()).toBe(false);
+
+      hasFocusSpy.mockReturnValue(true);
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      expect(isAppWindowFocused()).toBe(false);
+
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: undefined,
+      });
+      expect(isAppWindowFocused()).toBe(true);
     } finally {
       hasFocusSpy.mockRestore();
       if (originalVisibility) {

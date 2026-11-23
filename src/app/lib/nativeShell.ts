@@ -16,7 +16,8 @@ export const isBundledApp = (): boolean => isDesktopApp() || isCapacitorApp();
 
 /** Whether the app window is both visible in the DOM and focused by the desktop shell. */
 export const isAppWindowFocused = (): boolean =>
-  document.visibilityState === 'visible' &&
+  typeof document !== 'undefined' &&
+  document.visibilityState !== 'hidden' &&
   document.hasFocus() &&
   (desktopBridge()?.isWindowFocused() ?? true);
 

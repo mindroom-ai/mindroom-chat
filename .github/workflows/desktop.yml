@@ -32,6 +32,7 @@ on:
       - scripts/macos-publish-appcast.sh
       - src/app/lib/desktopBridge.ts
       - src/app/lib/nativeShell.ts
+      - src/app/lib/hooks/useDocumentFocusChange.ts
       - src/app/native/**
       - src/app/quick-capture/**
       - src/app/composer/voice/liveVoiceRecording.ts
@@ -47,6 +48,9 @@ on:
       - src/app/calls/callSupport.ts
       - src/app/calls/IncomingCalls.tsx
       - src/app/notifications/**
+      - src/app/timeline/useReaderSees.ts
+      - src/app/timeline/timelineReadReceiptController.ts
+      - src/app/ui-actions/ChatUiActionProvider.tsx
       - src/app/settings/pages/About.tsx
       - src/app/settings/useSettingsContext.ts
       - index.html

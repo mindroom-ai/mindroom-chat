@@ -297,6 +297,7 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(quietId)));
 
     // 1. Message notification + Dock badge while main window is hidden.
+    const badgeBeforeFirst = (await lastBadgeCount(app)) ?? 0;
     await hideMainWindow(app);
     await sendRoomMessage(
       homeserver,
@@ -304,7 +305,9 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
       busyId,
       threadMention(rootId, reader.userId, 'check the release notes')
     );
-    await expect.poll(() => lastBadgeCount(app), { timeout: 30_000 }).toBeGreaterThan(0);
+    await expect
+      .poll(() => lastBadgeCount(app) ?? 0, { timeout: 30_000 })
+      .toBeGreaterThan(badgeBeforeFirst);
     if (process.platform === 'darwin') {
       await expect.poll(() => dockBadge(app), { timeout: 10_000 }).toMatch(/^[1-9]/);
     }
@@ -321,6 +324,48 @@ test('@homeserver badge follows unread count, notification clicks restore hidden
     await expect(page).toHaveURL(
       new RegExp(`${encodeURIComponent(busyId)}.*threadId=${encodeURIComponent(rootId)}`)
     );
+    await expect(page.getByText('check the release notes')).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(() => lastBadgeCount(app) ?? Number.POSITIVE_INFINITY, { timeout: 30_000 })
+      .toBeLessThanOrEqual(badgeBeforeFirst);
+
+    // 1b. Hiding the window while still viewing that open thread must not auto-mark a new reply read.
+    const badgeBeforeHiddenReply = (await lastBadgeCount(app)) ?? 0;
+    await hideMainWindow(app);
+    await expect
+      .poll(() => page.evaluate(() => window.mindroomDesktop?.isWindowFocused()))
+      .toBe(false);
+    await sendRoomMessage(
+      homeserver,
+      writer.accessToken,
+      busyId,
+      threadMention(rootId, reader.userId, 'reply while hidden on open thread')
+    );
+    await expect
+      .poll(
+        async () =>
+          (
+            await recordedNotes(page)
+          ).findIndex(
+            (n) => n.tag === busyId && (n.body ?? '').includes('reply while hidden on open thread')
+          ),
+        { timeout: 30_000 }
+      )
+      .toBeGreaterThanOrEqual(0);
+    await expect
+      .poll(() => lastBadgeCount(app) ?? 0, { timeout: 30_000 })
+      .toBeGreaterThan(badgeBeforeHiddenReply);
+    if (process.platform === 'darwin') {
+      await expect.poll(() => dockBadge(app), { timeout: 10_000 }).toMatch(/^[1-9]/);
+    }
+    await page.evaluate(() => window.mindroomDesktop?.showMainWindow());
+    await expect.poll(() => mainWindowVisible(app), { timeout: 15_000 }).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.mindroomDesktop?.isWindowFocused()))
+      .toBe(true);
+    await expect
+      .poll(() => lastBadgeCount(app) ?? Number.POSITIVE_INFINITY, { timeout: 30_000 })
+      .toBeLessThanOrEqual(badgeBeforeHiddenReply);
 
     // 2. Call ring notification click restores the hidden main window on the call room.
     await hideMainWindow(app);
