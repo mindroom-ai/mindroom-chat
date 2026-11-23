@@ -94,11 +94,7 @@ export {
   __resetEvictionForTests,
 } from './cacheEviction';
 
-export {
-  EVICTION_TARGET_UTILIZATION,
-  EVICTION_RECENT_OPEN_WINDOW_MS,
-  EVICTION_PROTECTED_VERDICT_TTL_MS,
-} from './cacheStoreSchema';
+export { EVICTION_TARGET_UTILIZATION, EVICTION_RECENT_OPEN_WINDOW_MS } from './cacheStoreSchema';
 
 export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreEncryptedRooms';
 

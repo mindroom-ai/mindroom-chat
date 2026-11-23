@@ -230,7 +230,11 @@ export const getCachedAttachmentMetadata = async (
 };
 
 /** Drop unshared bytes and keep shared-byte retention derived from validated owners. */
-const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterable<string>) => {
+const pruneAttachmentBytes = async (
+  sessionId: string,
+  transaction: IDBTransaction,
+  mxcUris: Iterable<string>
+) => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
@@ -248,10 +252,16 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
   await deleteScaledPictures(blobs, unowned);
+  if (unowned.length) {
+    transaction.addEventListener('complete', () => invalidateEvictionVerdict(sessionId), {
+      once: true,
+    });
+  }
 };
 
 /** Only the canonical event transaction calls this after accepting the same raw revision. */
 export const replaceCachedAttachmentReferences = async (
+  sessionId: string,
   transaction: IDBTransaction,
   message: EventAttachmentMessage
 ): Promise<void> => {
@@ -346,6 +356,7 @@ export const replaceCachedAttachmentReferences = async (
     } satisfies CachedAttachmentReferenceRecord);
   }
   await pruneAttachmentBytes(
+    sessionId,
     transaction,
     [...removed, ...entries].map((row) => row.mxcUri)
   );
@@ -353,6 +364,7 @@ export const replaceCachedAttachmentReferences = async (
 
 /** Keep the retired revision as a fence until a surviving canonical revision is admitted. */
 export const invalidateCachedAttachmentReferences = async (
+  sessionId: string,
   transaction: IDBTransaction,
   roomId: string,
   redactedIds: ReadonlySet<string>
@@ -378,6 +390,7 @@ export const invalidateCachedAttachmentReferences = async (
     });
   }
   await pruneAttachmentBytes(
+    sessionId,
     transaction,
     removed.map((row) => row.mxcUri)
   );
@@ -440,14 +453,12 @@ export const setRoomAttachmentPinned = async (
   const lease = captureCacheStoreWriteLease(sessionId, roomId);
   const db = await openCacheStore(sessionId);
   if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return;
-  let changed = false;
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
     const ledger = transaction.objectStore(ROOM_LEDGER_STORE);
     const request = ledger.get(roomId);
     request.onsuccess = () => {
       const previous = request.result as CachedRoomLedgerRecord | undefined;
-      changed = (previous?.pinned === true) !== pinned;
       ledger.put({
         ...previous,
         roomId,
@@ -458,7 +469,7 @@ export const setRoomAttachmentPinned = async (
       });
     };
     transaction.oncomplete = () => {
-      if (changed) invalidateEvictionVerdict(sessionId);
+      invalidateEvictionVerdict(sessionId);
       resolve();
     };
     transaction.onerror = () => reject(transaction.error);

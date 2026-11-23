@@ -30,7 +30,7 @@ import {
 type ProtectedVerdict = {
   result: EvictionResult;
   budget: number;
-  recordedAt: number;
+  expiresAt: number;
 };
 
 const protectedVerdictsBySession = new Map<string, ProtectedVerdict>();
@@ -211,44 +211,21 @@ export type EvictionResult = {
   underPressure: boolean;
 };
 
-const isRecentlyOpened = (lastOpenedTs: number | undefined): boolean =>
-  (lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS;
-
-/** Newest `lastOpenedTs` per room, without holding full meta payloads in memory. */
-const scanLastOpenedByRoom = (
-  metaStore: IDBObjectStore,
-  lastOpenedByRoom: Map<string, number>,
-  onDone?: () => void
-): void => {
-  const request = metaStore.openCursor();
-  request.onsuccess = () => {
-    const cursor = request.result;
-    if (!cursor) {
-      onDone?.();
-      return;
-    }
-    const row = cursor.value as CachedMetaRecord;
-    if (row.lastOpenedTs && row.lastOpenedTs > (lastOpenedByRoom.get(row.roomId) ?? 0)) {
-      lastOpenedByRoom.set(row.roomId, row.lastOpenedTs);
-    }
-    cursor.continue();
-  };
-};
+const isRecentlyOpened = (row: CachedMetaRecord): boolean =>
+  (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS;
 
 /** Focused, downloading, pinned and recently opened rooms keep their text and media under pressure. */
 const collectProtectedRoomIds = (
   sessionId: string,
   ledger: readonly CachedRoomLedgerRecord[],
-  lastOpenedByRoom: ReadonlyMap<string, number>
+  meta: readonly CachedMetaRecord[]
 ): Set<string> => {
   const protectedIds = new Set([
     ...protectedRoomIds,
     ...(downloadingRoomIdsBySession.get(sessionId) ?? []),
   ]);
   ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
-  lastOpenedByRoom.forEach((ts, roomId) => {
-    if (isRecentlyOpened(ts)) protectedIds.add(roomId);
-  });
+  meta.filter(isRecentlyOpened).forEach((row) => protectedIds.add(row.roomId));
   return protectedIds;
 };
 
@@ -263,7 +240,7 @@ const isRoomProtectedInStore = (db: IDBDatabase, roomId: string): Promise<boolea
     transaction.oncomplete = () =>
       resolve(
         (ledger.result as CachedRoomLedgerRecord | undefined)?.pinned === true ||
-          (meta.result as CachedMetaRecord[]).some((row) => isRecentlyOpened(row.lastOpenedTs))
+          (meta.result as CachedMetaRecord[]).some(isRecentlyOpened)
       );
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -312,14 +289,36 @@ const reclaimOptionalMedia = (
     const blobs = transaction.objectStore(ATTACHMENTS_STORE);
     const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
     const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
-    const lastOpenedByRoom = new Map<string, number>();
-    const ownersByMxcUri = new Map<string, CachedAttachmentReferenceRecord[]>();
+    const metaRequest = transaction.objectStore(META_STORE).getAll();
+    // Skip edited text messages whose reference carries an empty MXC URI.
+    const referencesRequest = refs
+      .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
+      .getAll(IDBKeyRange.lowerBound('', true));
     const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
+    const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
     let result: MediaPhaseResult;
-    const reclaim = async () => {
+    cursorRequest.onsuccess = async () => {
       try {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          const [lastAccessedAt, byteLength] = cursor.key as [number, number];
+          records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
+          cursor.continue();
+          return;
+        }
         const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
-        const protectedIds = collectProtectedRoomIds(sessionId, ledger, lastOpenedByRoom);
+        const references = referencesRequest.result as CachedAttachmentReferenceRecord[];
+        const protectedIds = collectProtectedRoomIds(
+          sessionId,
+          ledger,
+          metaRequest.result as CachedMetaRecord[]
+        );
+        const ownersByMxcUri = new Map<string, CachedAttachmentReferenceRecord[]>();
+        references.forEach((row) => {
+          const owners = ownersByMxcUri.get(row.mxcUri);
+          if (owners) owners.push(row);
+          else ownersByMxcUri.set(row.mxcUri, [row]);
+        });
         // A picture's scaled copy has its picture's owners.
         const ownersOf = (key: string) => ownersByMxcUri.get(attachmentOwnerUri(key)) ?? [];
         const ownedByProtectedRoom = (mxcUri: string) =>
@@ -366,40 +365,6 @@ const reclaimOptionalMedia = (
         reject(error);
       }
     };
-    let remaining = 4;
-    const onScanDone = () => {
-      remaining -= 1;
-      if (remaining === 0) void reclaim();
-    };
-    ledgerRequest.onsuccess = onScanDone;
-    scanLastOpenedByRoom(transaction.objectStore(META_STORE), lastOpenedByRoom, onScanDone);
-    // Skip edited text messages whose reference carries an empty MXC URI.
-    const refsCursor = refs
-      .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
-      .openCursor(IDBKeyRange.lowerBound('', true));
-    refsCursor.onsuccess = () => {
-      const cursor = refsCursor.result;
-      if (!cursor) {
-        onScanDone();
-        return;
-      }
-      const row = cursor.value as CachedAttachmentReferenceRecord;
-      const owners = ownersByMxcUri.get(row.mxcUri);
-      if (owners) owners.push(row);
-      else ownersByMxcUri.set(row.mxcUri, [row]);
-      cursor.continue();
-    };
-    const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor) {
-        onScanDone();
-        return;
-      }
-      const [lastAccessedAt, byteLength] = cursor.key as [number, number];
-      records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
-      cursor.continue();
-    };
     transaction.oncomplete = () => resolve(result);
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -418,8 +383,7 @@ const readRoomEvictionOrder = (sessionId: string, db: IDBDatabase): Promise<stri
       'readonly'
     );
     const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
-    const lastOpenedByRoom = new Map<string, number>();
-    scanLastOpenedByRoom(transaction.objectStore(META_STORE), lastOpenedByRoom);
+    const metaRequest = transaction.objectStore(META_STORE).getAll();
     const referencedRoomIds: string[] = [];
     const roomCursor = transaction
       .objectStore(ATTACHMENT_REFERENCES_STORE)
@@ -432,14 +396,22 @@ const readRoomEvictionOrder = (sessionId: string, db: IDBDatabase): Promise<stri
     };
     transaction.oncomplete = () => {
       const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
-      const protectedIds = collectProtectedRoomIds(sessionId, ledger, lastOpenedByRoom);
+      const meta = metaRequest.result as CachedMetaRecord[];
+      const protectedIds = collectProtectedRoomIds(sessionId, ledger, meta);
+      const lastOpenedTs = new Map<string, number>();
+      meta.forEach((row) =>
+        lastOpenedTs.set(
+          row.roomId,
+          Math.max(lastOpenedTs.get(row.roomId) ?? 0, row.lastOpenedTs ?? 0)
+        )
+      );
       const lastActivityTs = new Map(ledger.map((row) => [row.roomId, row.lastActivityTs]));
       resolve(
         [...new Set([...ledger.map((row) => row.roomId), ...referencedRoomIds])]
           .filter((roomId) => !protectedIds.has(roomId))
           .sort(
             (a, b) =>
-              (lastOpenedByRoom.get(a) ?? 0) - (lastOpenedByRoom.get(b) ?? 0) ||
+              (lastOpenedTs.get(a) ?? 0) - (lastOpenedTs.get(b) ?? 0) ||
               (lastActivityTs.get(a) ?? 0) - (lastActivityTs.get(b) ?? 0)
           )
       );
@@ -512,9 +484,9 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
   };
   if (media.protectedBytes > budget && verdictGeneration === generation) {
     protectedVerdictsBySession.set(sessionId, {
-      result,
+      result: { ...result, bytesBefore: result.bytesAfter, evictedMxcUris: [], evictedRoomIds: [] },
       budget,
-      recordedAt: Date.now(),
+      expiresAt: Date.now() + EVICTION_PROTECTED_VERDICT_TTL_MS,
     });
   }
   // An export showed only that eviction ran, not how full the cache was or why
@@ -542,12 +514,7 @@ export const runCacheEvictionIfOverBudget = (sessionId: string): Promise<Evictio
   if (running) return running;
   const verdict = protectedVerdictsBySession.get(sessionId);
   if (verdict) {
-    const elapsed = Date.now() - verdict.recordedAt;
-    if (
-      verdict.budget === getCacheStoreByteBudget() &&
-      elapsed >= 0 &&
-      elapsed < EVICTION_PROTECTED_VERDICT_TTL_MS
-    )
+    if (verdict.budget === getCacheStoreByteBudget() && Date.now() < verdict.expiresAt)
       return Promise.resolve(verdict.result);
     protectedVerdictsBySession.delete(sessionId);
   }

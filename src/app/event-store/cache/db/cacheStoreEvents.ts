@@ -90,6 +90,7 @@ const isRawLocalEchoEventId = (eventId: unknown): boolean =>
 
 /** Ownership is derived only from the revision accepted by this event transaction. */
 const saveAcceptedAttachmentOwner = (
+  sessionId: string,
   transaction: IDBTransaction,
   rawEvent: Partial<IEvent>,
   owners: readonly EventAttachmentMessage[]
@@ -102,7 +103,7 @@ const saveAcceptedAttachmentOwner = (
     (owner.revisionId ?? '') !== (revision.replacement?.eventId ?? '')
   )
     return;
-  void replaceCachedAttachmentReferences(transaction, owner).catch(() =>
+  void replaceCachedAttachmentReferences(sessionId, transaction, owner).catch(() =>
     abortTransaction(transaction)
   );
 };
@@ -290,6 +291,7 @@ const collectRedactedIdsWithoutMarker = async (
  * whose rows an earlier schema wrote is read whole, once, which lists its rows for the next time.
  */
 const runScrubRedactedRelationsTxn = async (
+  sessionId: string,
   db: IDBDatabase,
   roomId: string,
   redactedEventIds: ReadonlySet<string>,
@@ -308,9 +310,12 @@ const runScrubRedactedRelationsTxn = async (
       ],
       'readwrite'
     );
-    void invalidateCachedAttachmentReferences(transaction, roomId, redactedEventIds).catch(() =>
-      abortTransaction(transaction)
-    );
+    void invalidateCachedAttachmentReferences(
+      sessionId,
+      transaction,
+      roomId,
+      redactedEventIds
+    ).catch(() => abortTransaction(transaction));
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
@@ -860,7 +865,13 @@ export const saveRoomEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          sessionId,
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0) return true;
@@ -871,6 +882,7 @@ export const saveRoomEventsToCacheCommitted = async (
     }
 
     await runSaveRoomEventsTxn(
+      sessionId,
       db,
       roomId,
       normalizedEvents,
@@ -907,6 +919,7 @@ export const saveRoomEventsToCache = async (
  * (and finalize is guarded).
  */
 type SchedulePutsOptions = {
+  sessionId: string;
   eventStore: IDBObjectStore;
   embeddedStore: IDBObjectStore;
   ledger: LedgerTracker | undefined;
@@ -925,6 +938,7 @@ type SchedulePutsOptions = {
 };
 
 const scheduleEventPutsWithLedger = ({
+  sessionId,
   eventStore,
   embeddedStore,
   ledger,
@@ -986,7 +1000,7 @@ const scheduleEventPutsWithLedger = ({
         embeddedIdsOfEvent(previous?.rawEvent),
         embeddedIdsOfEvent(eventRecord.rawEvent)
       );
-      saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners);
+      saveAcceptedAttachmentOwner(sessionId, transaction, eventRecord.rawEvent, attachmentOwners);
       persistedEventIds[index] = rawEvent.event_id;
       maybeFinalizeLedger();
     };
@@ -995,6 +1009,7 @@ const scheduleEventPutsWithLedger = ({
 };
 
 const runSaveRoomEventsTxn = async (
+  sessionId: string,
   db: IDBDatabase,
   roomId: string,
   normalizedEvents: CachedRoomEvent[],
@@ -1076,6 +1091,7 @@ const runSaveRoomEventsTxn = async (
         // bootstrap sum reflects only the pre-write state.
         ledger.readBaseline(ledgerStore, eventStore, () => {
           scheduleEventPutsWithLedger({
+            sessionId,
             eventStore,
             embeddedStore,
             transaction,
@@ -1476,7 +1492,13 @@ export const saveThreadEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          sessionId,
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0 && !rootEvent) return true;
@@ -1485,6 +1507,7 @@ export const saveThreadEventsToCacheCommitted = async (
     countCacheProbe('threadMetaPuts');
 
     const changed = await runSaveThreadEventsTxn(
+      sessionId,
       db,
       roomId,
       threadId,
@@ -1519,6 +1542,7 @@ export const saveThreadEventsToCache = async (
 };
 
 const runSaveThreadEventsTxn = async (
+  sessionId: string,
   db: IDBDatabase,
   roomId: string,
   threadId: string,
@@ -1633,13 +1657,19 @@ const runSaveThreadEventsTxn = async (
               embeddedIdsOfRoot(nextMeta.rootEvent)
             );
             if (nextMeta.rootEvent)
-              saveAcceptedAttachmentOwner(transaction, nextMeta.rootEvent, attachmentOwners);
+              saveAcceptedAttachmentOwner(
+                sessionId,
+                transaction,
+                nextMeta.rootEvent,
+                attachmentOwners
+              );
           };
           metaRequest.onerror = () => reject(metaRequest.error);
         };
 
         const scheduleWrites = (): void =>
           scheduleEventPutsWithLedger({
+            sessionId,
             eventStore,
             embeddedStore,
             transaction,
