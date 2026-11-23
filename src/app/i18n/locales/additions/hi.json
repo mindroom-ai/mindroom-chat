@@ -563,7 +563,13 @@
         "shareAgain": "फिर से शेयर करें",
         "microphoneStopped": "आपका माइक्रोफ़ोन बंद हो गया।",
         "cameraStopped": "आपका कैमरा बंद हो गया।",
-        "turnBackOn": "फिर से चालू करें"
+        "turnBackOn": "फिर से चालू करें",
+        "nativeScreenShareConnecting": "स्क्रीन शेयर कनेक्ट हो रहा है…",
+        "nativeScreenShareFailed": "आपकी पूरी स्क्रीन शेयर नहीं हो सकी।",
+        "nativeScreenSharePickerTimedOut": "स्क्रीन शेयरिंग समय पर शुरू नहीं हुई।",
+        "nativeScreenShareStopped": "स्क्रीन शेयरिंग बंद हो गई।",
+        "nativeScreenShareSheetBody": "नोटिफ़िकेशन और अन्य ऐप्स सहित आपकी स्क्रीन पर दिखने वाली हर चीज़ कॉल में दिखाई देगी।",
+        "nativeScreenShareSheetCaption": "ऊपर दिए गए बटन पर टैप करें, फिर प्रसारण शुरू करें पर टैप करें।"
       },
       "problems": {
         "service": "कॉल सेवा तक नहीं पहुँचा जा सका। बाद में फिर से कोशिश करें।",
@@ -867,7 +873,9 @@
     "call": {
       "controls": {
         "startAppShare": "यह ऐप शेयर करें",
-        "stopAppShare": "यह ऐप शेयर करना बंद करें"
+        "stopAppShare": "यह ऐप शेयर करना बंद करें",
+        "startEntireScreenShare": "पूरी स्क्रीन शेयर करें",
+        "stopEntireScreenShare": "पूरी स्क्रीन शेयर करना बंद करें"
       }
     }
   },

@@ -549,7 +549,13 @@
         "shareAgain": "もう一度共有",
         "microphoneStopped": "マイクが停止しました。",
         "cameraStopped": "カメラが停止しました。",
-        "turnBackOn": "もう一度オンにする"
+        "turnBackOn": "もう一度オンにする",
+        "nativeScreenShareConnecting": "画面共有を接続中…",
+        "nativeScreenShareFailed": "画面全体を共有できませんでした。",
+        "nativeScreenSharePickerTimedOut": "画面共有が時間内に開始されませんでした。",
+        "nativeScreenShareStopped": "画面共有が停止しました。",
+        "nativeScreenShareSheetBody": "通知やほかのアプリを含め、画面上のすべてが通話に表示されます。",
+        "nativeScreenShareSheetCaption": "上のボタンをタップしてから、「ブロードキャストを開始」をタップしてください。"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
@@ -850,7 +856,9 @@
     "call": {
       "controls": {
         "startAppShare": "このアプリを共有",
-        "stopAppShare": "このアプリの共有を停止"
+        "stopAppShare": "このアプリの共有を停止",
+        "startEntireScreenShare": "画面全体を共有",
+        "stopEntireScreenShare": "画面全体の共有を停止"
       }
     }
   },

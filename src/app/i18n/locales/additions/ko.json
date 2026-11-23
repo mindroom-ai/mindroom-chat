@@ -549,7 +549,13 @@
         "shareAgain": "다시 공유",
         "microphoneStopped": "마이크가 중지되었습니다.",
         "cameraStopped": "카메라가 중지되었습니다.",
-        "turnBackOn": "다시 켜기"
+        "turnBackOn": "다시 켜기",
+        "nativeScreenShareConnecting": "화면 공유 연결 중…",
+        "nativeScreenShareFailed": "전체 화면을 공유할 수 없습니다.",
+        "nativeScreenSharePickerTimedOut": "화면 공유가 제시간에 시작되지 않았습니다.",
+        "nativeScreenShareStopped": "화면 공유가 중지되었습니다.",
+        "nativeScreenShareSheetBody": "알림과 다른 앱을 포함해 화면의 모든 내용이 통화에 표시됩니다.",
+        "nativeScreenShareSheetCaption": "위 버튼을 탭한 다음 방송 시작을 탭하세요."
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
@@ -850,7 +856,9 @@
     "call": {
       "controls": {
         "startAppShare": "이 앱 공유",
-        "stopAppShare": "이 앱 공유 중지"
+        "stopAppShare": "이 앱 공유 중지",
+        "startEntireScreenShare": "전체 화면 공유",
+        "stopEntireScreenShare": "전체 화면 공유 중지"
       }
     }
   },

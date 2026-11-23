@@ -74,12 +74,16 @@ vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => fai
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined }),
 }));
-const support = vi.hoisted(() => ({ inAppOnly: false }));
+const support = vi.hoisted(() => ({ inAppOnly: false, webShares: true, nativeShares: false }));
 vi.mock('./callSupport', () => ({
-  browserSharesScreens: () => true,
+  browserSharesScreens: () => support.webShares,
   browserSupportsCalls: () => true,
   screenShareIsInAppOnly: () => support.inAppOnly,
   useCallSupport: () => 'supported',
+}));
+vi.mock('./nativeScreenShare', () => ({
+  isNativeIos: () => false,
+  isNativeScreenShareAvailable: () => support.nativeShares,
 }));
 vi.mock('./callAccess', () => ({
   readCallAccess: () => ({ canJoin: true, canLetMembersIn: false }),
@@ -156,13 +160,17 @@ const joined = (participants: CallParticipant[]): CallState => ({
 const setMicrophone = vi.fn(async () => undefined);
 const setCamera = vi.fn(async () => undefined);
 const setScreenShare = vi.fn(async () => undefined);
+const setNativeScreenShare = vi.fn(async () => undefined);
 const dismissScreenShareNotice = vi.fn();
+const dismissNativeScreenShareStatus = vi.fn();
 const dismissStoppedInput = vi.fn();
 const callMethods = {
   setMicrophone,
   setCamera,
   setScreenShare,
+  setNativeScreenShare,
   dismissScreenShareNotice,
+  dismissNativeScreenShareStatus,
   dismissStoppedInput,
 };
 const roomCall = (participants: CallParticipant[]) => {
@@ -298,6 +306,8 @@ afterEach(() => {
   calls.members = [];
   failures.visible = undefined;
   support.inAppOnly = false;
+  support.webShares = true;
+  support.nativeShares = false;
 });
 
 describe('the call view title bar', () => {
@@ -1307,6 +1317,90 @@ describe('in-app screen share and stopped-device notices', () => {
     calls.state = { ...calls.state!, screenShare: true };
     rerender(panel());
     expect(button('Stop sharing this app')).toBeTruthy();
+  });
+
+  it('renders a screen-share menu when both options exist, a direct button for native-only, and stops whichever share is active', () => {
+    const expectedSheetStrings = {
+      title: 'Share entire screen',
+      body: 'Everything on your screen, including notifications and other apps, will be visible to the call.',
+      caption: 'Tap the button above, then tap Start Broadcast.',
+      cancel: 'Cancel',
+    };
+    support.inAppOnly = true;
+    support.webShares = true;
+    support.nativeShares = true;
+    roomCall([me, person('@bob:panel.test')]);
+    const { rerender } = renderPanel();
+
+    // Only one screen-share trigger button appears in the toolbar (no side-by-side duplicates).
+    expect(button('Share this app')).toBeNull();
+    expect(button('Share entire screen')).toBeNull();
+    const trigger = screen.getByRole('button', { name: 'Start Screenshare' });
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+
+    // Opening the menu renders PopOut with data-owns-focus and both share choices.
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const menu = screen.getByRole('menu', { name: 'Start Screenshare' });
+    expect(menu.closest('[data-owns-focus]')?.getAttribute('data-owns-focus')).toBe('');
+    expect(screen.getByRole('menuitem', { name: 'Share entire screen' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Share this app' })).toBeTruthy();
+
+    // Escape closes the menu.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('menu', { name: 'Start Screenshare' })).toBeNull();
+
+    // Picking "Share entire screen" closes the menu and starts native sharing with localized sheet strings.
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share entire screen' }));
+    expect(screen.queryByRole('menu', { name: 'Start Screenshare' })).toBeNull();
+    expect(setNativeScreenShare).toHaveBeenCalledWith(true, expectedSheetStrings);
+
+    // Picking "Share this app" closes the menu and starts web sharing.
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Share this app' }));
+    expect(screen.queryByRole('menu', { name: 'Start Screenshare' })).toBeNull();
+    expect(setScreenShare).toHaveBeenCalledWith(true);
+
+    // When web screen sharing is unavailable, render a direct button instead of a 1-item menu.
+    setNativeScreenShare.mockClear();
+    support.webShares = false;
+    rerender(panel());
+    expect(button('Start Screenshare')).toBeNull();
+    const directButton = screen.getByRole('button', { name: 'Share entire screen' });
+    expect(directButton.getAttribute('aria-haspopup')).toBeNull();
+    fireEvent.click(directButton);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(setNativeScreenShare).toHaveBeenCalledWith(true, expectedSheetStrings);
+
+    // While active, clicking the single button stops whichever share is running.
+    calls.state = { ...calls.state!, screenShare: true, nativeScreenShare: true };
+    rerender(panel());
+    press('Stop sharing entire screen');
+    expect(setNativeScreenShare).toHaveBeenCalledWith(false);
+  });
+
+  it('renders localized native screen-share status notices with dismiss only when not connecting', () => {
+    roomCall([me, person('@bob:panel.test')]);
+    calls.state = { ...calls.state!, nativeScreenShareStatus: 'connecting' };
+    const { rerender } = renderPanel();
+    expect(screen.getByText('Connecting screen share…')).toBeTruthy();
+    expect(button('Dismiss notice')).toBeNull();
+
+    const dismissible = [
+      ['failed', 'Could not share your entire screen.'],
+      ['picker_timeout', 'Screen sharing did not start in time.'],
+      ['stopped', 'Screen sharing stopped.'],
+    ] as const;
+    dismissible.forEach(([status, expectedText]) => {
+      dismissNativeScreenShareStatus.mockClear();
+      calls.state = { ...calls.state!, nativeScreenShareStatus: status };
+      rerender(panel());
+      expect(screen.getByText(expectedText)).toBeTruthy();
+      press('Dismiss notice');
+      expect(dismissNativeScreenShareStatus).toHaveBeenCalledOnce();
+    });
   });
 
   it('shows the stopped-share notice, disables Share again until connected, and dismisses', () => {

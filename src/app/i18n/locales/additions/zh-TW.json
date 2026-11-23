@@ -549,7 +549,13 @@
         "shareAgain": "再次分享",
         "microphoneStopped": "你的麥克風已停止。",
         "cameraStopped": "你的攝影機已停止。",
-        "turnBackOn": "重新開啟"
+        "turnBackOn": "重新開啟",
+        "nativeScreenShareConnecting": "正在連線螢幕分享…",
+        "nativeScreenShareFailed": "無法分享你的整個螢幕。",
+        "nativeScreenSharePickerTimedOut": "螢幕分享未能及時開始。",
+        "nativeScreenShareStopped": "螢幕分享已停止。",
+        "nativeScreenShareSheetBody": "你螢幕上的所有內容（包括通知和其他應用程式）都會在通話中顯示。",
+        "nativeScreenShareSheetCaption": "點一下上方按鈕，然後點一下「開始直播」。"
       },
       "problems": {
         "service": "無法連線至通話服務，請稍後再試。",
@@ -850,7 +856,9 @@
     "call": {
       "controls": {
         "startAppShare": "分享此應用程式",
-        "stopAppShare": "停止分享此應用程式"
+        "stopAppShare": "停止分享此應用程式",
+        "startEntireScreenShare": "分享整個螢幕",
+        "stopEntireScreenShare": "停止分享整個螢幕"
       }
     }
   },
