@@ -348,7 +348,7 @@ esac
   }, 20_000);
 });
 
-describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
+describe('workflow wiring (desktop.yml, release.yml)', () => {
   type Step = {
     id?: string;
     if?: string;
@@ -358,10 +358,9 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     with?: Record<string, unknown>;
   };
 
-  it('wires release.yml -> desktop.yml, pins desktop.yml release + feed guards, and keeps macos.yml unsigned PR-only', () => {
+  it('wires release.yml -> desktop.yml and pins desktop.yml release + feed guards', () => {
     const releaseText = read('.github/workflows/release.yml');
     const desktopText = read('.github/workflows/desktop.yml');
-    const macosText = read('.github/workflows/macos.yml');
 
     const release = parse(releaseText) as { jobs: { macos: { uses: string; secrets: string } } };
     expect(release.jobs.macos).toMatchObject({
@@ -432,15 +431,6 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     }
     expect(desktopText).not.toContain('PROVISIONING_PROFILE');
     expect(desktopText).not.toContain('provisionprofile');
-
-    const macos = parse(macosText) as {
-      on: Record<string, unknown>;
-      permissions: Record<string, string>;
-    };
-    expect(Object.keys(macos.on)).toEqual(['pull_request']);
-    expect(macos.permissions).toEqual({ contents: 'read' });
-    expect(macosText).not.toContain('--sign');
-    expect(macosText).not.toContain('gh release upload');
-    expect(macosText).not.toContain('macos-publish-appcast');
+    expect(existsSync(resolve('.github/workflows/macos.yml'))).toBe(false);
   });
 });
