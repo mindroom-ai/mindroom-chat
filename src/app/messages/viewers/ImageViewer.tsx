@@ -86,6 +86,8 @@ type ImageViewerProps = {
   onStep?: (delta: StepDelta) => void;
   /** On phones, the viewer's screen: a swipe from its left edge closes the viewer at fit. */
   edgeSwipeArea?: RefObject<Element>;
+  /** On phones, the overlay surface wrapping the viewer and backdrop so pinches spanning the exposed strip still zoom the image. */
+  pinchSurfaceRef?: RefObject<HTMLElement>;
 };
 
 // Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
@@ -179,6 +181,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       position,
       onStep,
       edgeSwipeArea,
+      pinchSurfaceRef,
       className,
       ...props
     },
@@ -202,7 +205,8 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           step,
           image ? { width: image.offsetWidth, height: image.offsetHeight } : undefined
         );
-      }
+      },
+      pinchSurfaceRef
     );
     const panning = usePan(zoom !== 1);
     const { pan, cursor, isPanning } = panning;

@@ -1154,15 +1154,6 @@ function RoomContent() {
                   data-phone-side-panel-host={mobile && behindPanel ? '' : undefined}
                 >
                   {sidePanel}
-                  {mobile &&
-                    behindPanel &&
-                    (shown?.id === 'canvas' || shown?.id === 'computer') && (
-                      <div
-                        className={swipeCss.EdgeCatcher}
-                        data-swipe-edge-catcher=""
-                        aria-hidden="true"
-                      />
-                    )}
                 </div>
               )}
             </RoomPanelEdgeSwipeContext.Provider>

@@ -111,6 +111,7 @@ let nextRegistrationId = 1;
 let settleCounter = 0;
 let activeGesture: ActiveGesture | null = null;
 let activeSettle: ActiveSettle | null = null;
+let activeBlockerObserver: MutationObserver | null = null;
 let clearPendingClickSuppressor: (() => void) | null = null;
 let interactivePhoneSlideClaimed = false;
 
@@ -345,7 +346,35 @@ const cleanupGestureImmediate = (gesture: ActiveGesture) => {
   }
 };
 
+const disconnectBlockerObserver = () => {
+  activeBlockerObserver?.disconnect();
+  activeBlockerObserver = null;
+};
+
+const connectBlockerObserver = () => {
+  disconnectBlockerObserver();
+  if (
+    typeof MutationObserver === 'undefined' ||
+    typeof document === 'undefined' ||
+    !document.body
+  ) {
+    return;
+  }
+  activeBlockerObserver = new MutationObserver(() => {
+    if (activeGesture && isEntryBlocked(activeGesture.entry, activeGesture.overlayScope)) {
+      abortActiveGesture();
+    }
+  });
+  activeBlockerObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['role', 'aria-modal', 'data-quick-account-menu', 'data-overlay-dismissed'],
+  });
+};
+
 const abortActiveGesture = () => {
+  disconnectBlockerObserver();
   if (!activeGesture) return;
   const gesture = activeGesture;
   activeGesture = null;
@@ -411,6 +440,7 @@ const startGesture = (
     rafId: null,
     pendingFrame: null,
   };
+  connectBlockerObserver();
 };
 
 const isTrackedTouchEnded = (
@@ -424,6 +454,20 @@ const isTrackedTouchEnded = (
     if (changed[i]?.identifier === touchIdentifier) return true;
   }
   return false;
+};
+
+const getTrackedChangedTouch = (
+  event: TouchEvent | undefined,
+  touchIdentifier: number | undefined
+): Touch | null => {
+  const changed = event?.changedTouches;
+  if (!changed || changed.length === 0) return null;
+  if (touchIdentifier === undefined) return changed[0] ?? null;
+  for (let i = 0; i < changed.length; i += 1) {
+    const touch = changed[i];
+    if (touch?.identifier === touchIdentifier) return touch;
+  }
+  return null;
 };
 
 const isEntryBlocked = (
@@ -518,7 +562,12 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
   }
 };
 
-const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: number) => {
+const handleActiveEnd = (
+  gesture: ActiveGesture,
+  isCancel: boolean,
+  endTimeMs: number,
+  liftTouch: Touch | null = null
+) => {
   if (activeGesture !== gesture) return;
 
   if (isCancel && !gesture.entry.cancelCommits) {
@@ -527,6 +576,7 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: n
   }
 
   activeGesture = null;
+  disconnectBlockerObserver();
   cancelScheduledAnimationFrame(gesture.rafId);
   gesture.rafId = null;
 
@@ -544,6 +594,19 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: n
       gesture.entry.onCommitRef.current();
     }
     return;
+  }
+
+  if (
+    !isCancel &&
+    liftTouch &&
+    Number.isFinite(liftTouch.clientX) &&
+    Number.isFinite(liftTouch.clientY)
+  ) {
+    gesture.tracker.move(liftTouch.clientX, liftTouch.clientY, endTimeMs, gesture.scene.extent);
+    gesture.pendingFrame = {
+      offset: gesture.tracker.offset,
+      progress: gesture.tracker.progress,
+    };
   }
 
   if (gesture.pendingFrame) {
@@ -667,7 +730,8 @@ const handleWindowTouchMove = (event: TouchEventWithFlag) => {
 const handleWindowTouchEnd = (event: TouchEvent) => {
   if (!activeGesture || activeGesture.entry.zone !== 'edge') return;
   if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-  handleActiveEnd(activeGesture, false, getEventTimeMs(event));
+  const liftTouch = getTrackedChangedTouch(event, activeGesture.touchIdentifier);
+  handleActiveEnd(activeGesture, false, getEventTimeMs(event), liftTouch);
 };
 
 const handleWindowTouchCancel = (event: TouchEvent) => {
@@ -876,7 +940,8 @@ export const useInteractiveSwipe = ({
     const onElementTouchEnd = (event: TouchEvent) => {
       if (!activeGesture || activeGesture.entry !== entry) return;
       if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-      handleActiveEnd(activeGesture, false, getEventTimeMs(event));
+      const liftTouch = getTrackedChangedTouch(event, activeGesture.touchIdentifier);
+      handleActiveEnd(activeGesture, false, getEventTimeMs(event), liftTouch);
     };
 
     const onElementTouchCancel = (event: TouchEvent) => {

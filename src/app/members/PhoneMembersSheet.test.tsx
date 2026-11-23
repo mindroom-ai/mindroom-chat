@@ -162,6 +162,7 @@ describe('PhoneMembersSheet', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  let lastTouches: Array<{ identifier: number; clientX: number; clientY: number }> = [];
   const dispatchTouch = (
     target: EventTarget,
     type: string,
@@ -169,10 +170,11 @@ describe('PhoneMembersSheet', () => {
     timeStamp: number
   ) => {
     const list = touches.map((touch) => ({ identifier: 1, ...touch }));
+    if (list.length > 0) lastTouches = list;
     const event = new Event(type, { bubbles: true, cancelable: true });
     Object.defineProperty(event, 'touches', { value: list });
     Object.defineProperty(event, 'changedTouches', {
-      value: list.length > 0 ? list : [{ identifier: 1, clientX: 0, clientY: 0 }],
+      value: list.length > 0 ? list : lastTouches,
     });
     Object.defineProperty(event, 'timeStamp', { value: timeStamp });
     target.dispatchEvent(event);

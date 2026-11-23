@@ -240,6 +240,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       const panel = panelRef.current;
       const scrim = scrimRef.current;
       if (!panel || !scrim) return null;
+      if (isPanelTransformTransitionRunning(panel)) return null;
 
       flushSync(() => setPeeking(true));
       const extent = panel.getBoundingClientRect().width;
@@ -433,10 +434,11 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
 
   return (
     <>
-      <div ref={sheetSlotRef} className={css.SheetSlot} />
+      <div ref={sheetSlotRef} className={css.SheetSlot} data-phone-overlay-layer="" />
       <div
         ref={scrimRef}
         className={css.Scrim}
+        data-phone-overlay-layer=""
         data-open={open || undefined}
         data-animate={animate || undefined}
         aria-hidden="true"
@@ -446,6 +448,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         ref={panelRef}
         id={PHONE_NAV_DRAWER_ID}
         className={css.Panel}
+        data-phone-overlay-layer=""
         data-open={open || undefined}
         data-animate={animate || undefined}
       >

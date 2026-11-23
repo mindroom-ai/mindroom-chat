@@ -370,6 +370,8 @@ describe('PhoneNavDrawer', () => {
   });
 });
 
+let lastDispatchedTouches: Array<{ identifier: number; clientX: number; clientY: number }> = [];
+
 const dispatchTouch = (
   target: EventTarget,
   type: string,
@@ -377,10 +379,11 @@ const dispatchTouch = (
   timeStamp: number
 ) => {
   const list = touches.map((touch) => ({ identifier: 1, ...touch }));
+  if (list.length > 0) lastDispatchedTouches = list;
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'touches', { value: list });
   Object.defineProperty(event, 'changedTouches', {
-    value: list.length > 0 ? list : [{ identifier: 1, clientX: 0, clientY: 0 }],
+    value: list.length > 0 ? list : lastDispatchedTouches,
   });
   Object.defineProperty(event, 'timeStamp', { value: timeStamp });
   target.dispatchEvent(event);
@@ -871,6 +874,55 @@ describe('PhoneNavDrawer interactive swipes', () => {
       });
       await flushMicrotasks();
       expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    } finally {
+      drawer.unmount();
+      raf.mockRestore();
+    }
+  });
+
+  it('falls back to discrete open without snapping when close transform transition is running', async () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const drawer = mountDomDrawer({ withList: true });
+    vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
+      width: 300,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(drawer.panel, 'getAnimations', {
+      configurable: true,
+      value: () => [
+        { transitionProperty: 'transform', playState: 'running', finished: Promise.resolve() },
+      ],
+    });
+
+    try {
+      domAct(() => {
+        dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+        dispatchTouch(window, 'touchmove', [{ clientX: 130, clientY: 200 }], 200);
+      });
+
+      // Running close transition is not interrupted by data-swiping, inline translate, or peeking.
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.panel.style.translate).toBe('');
+      expect(drawer.scrim.style.opacity).toBe('');
+      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
+
+      // Releasing past discrete threshold (>= 56 px) still opens cleanly.
+      domAct(() => {
+        dispatchTouch(window, 'touchend', [], 220);
+      });
+      await flushMicrotasks();
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
     } finally {
       drawer.unmount();
       raf.mockRestore();

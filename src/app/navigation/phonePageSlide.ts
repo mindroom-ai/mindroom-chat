@@ -23,6 +23,8 @@ export const PHONE_PAGE = 'data-phone-page';
 
 /** Marks the top bar in it (sidebar/PhoneTopBar.tsx), which no slide moves. */
 const PHONE_TOP_BAR = 'data-phone-top-bar';
+/** Marks overlay layers inside the stage (such as PhoneNavDrawer) that thread swipes must not slide. */
+const PHONE_OVERLAY_LAYER = 'data-phone-overlay-layer';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
 /** Marks the stage while an interactive thread <-> room swipe is active. */
@@ -82,7 +84,6 @@ type StoredPreviewKey = {
   roomId: string;
   threadId: string;
   width: number;
-  height: number;
 };
 
 type StoredPreview = {
@@ -117,6 +118,7 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
     (child): child is HTMLElement =>
       child instanceof HTMLElement &&
       !child.hasAttribute(PHONE_TOP_BAR) &&
+      !child.hasAttribute(PHONE_OVERLAY_LAYER) &&
       !child.hasAttribute(COPY) &&
       !child.hasAttribute(SWIPE_PREVIEW) &&
       !child.hasAttribute(SWIPE_DIM) &&
@@ -317,14 +319,26 @@ export const getCurrentPhoneLocationKey = (): string | undefined => currentPhone
 
 export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
 
+const handlePreviewResize = (): void => {
+  if (typeof window === 'undefined') return;
+  const width = window.innerWidth;
+  if (roomPreview && roomPreview.key.width !== width) {
+    roomPreview = undefined;
+  }
+  if (threadPreview && threadPreview.key.width !== width) {
+    threadPreview = undefined;
+  }
+  syncPreviewResizeListener();
+};
+
 const syncPreviewResizeListener = (): void => {
   if (typeof window === 'undefined') return;
   const hasPreview = roomPreview !== undefined || threadPreview !== undefined;
   if (hasPreview && !resizeListenerAttached) {
-    window.addEventListener('resize', clearPhoneSwipePreviews);
+    window.addEventListener('resize', handlePreviewResize);
     resizeListenerAttached = true;
   } else if (!hasPreview && resizeListenerAttached) {
-    window.removeEventListener('resize', clearPhoneSwipePreviews);
+    window.removeEventListener('resize', handlePreviewResize);
     resizeListenerAttached = false;
   }
 };
@@ -343,7 +357,6 @@ const storePhoneSwipePreview = (
       roomId: key.roomId,
       threadId: key.threadId,
       width: window.innerWidth,
-      height: window.innerHeight,
     },
   };
   if (kind === 'room') roomPreview = stored;
@@ -391,8 +404,8 @@ const getMatchingPreview = (
 ): StageSnapshot | undefined => {
   const entry = kind === 'room' ? roomPreview : threadPreview;
   if (!entry || typeof window === 'undefined') return undefined;
-  if (entry.key.width !== window.innerWidth || entry.key.height !== window.innerHeight) {
-    clearPhoneSwipePreviews();
+  if (entry.key.width !== window.innerWidth) {
+    handlePreviewResize();
     return undefined;
   }
   if (entry.key.sessionId !== key.sessionId) {

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
+import { usePinchToZoom } from '../../theme/usePinchToZoom';
 import { ImageOverlay } from './ImageOverlay';
 
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
@@ -41,7 +42,7 @@ const flushMicrotasks = async () => {
 const dispatchTouch = (
   target: EventTarget,
   type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel',
-  touches: Array<{ clientX: number; clientY: number; identifier?: number }>,
+  touches: Array<{ clientX: number; clientY: number; identifier?: number; target?: EventTarget }>,
   timeStamp: number,
   changedTouches = touches
 ) => {
@@ -51,7 +52,7 @@ const dispatchTouch = (
       identifier: point.identifier ?? index,
       clientX: point.clientX,
       clientY: point.clientY,
-      target,
+      target: point.target ?? target,
     }));
   Object.defineProperty(event, 'touches', { value: toList(touches) });
   Object.defineProperty(event, 'changedTouches', { value: toList(changedTouches) });
@@ -198,8 +199,13 @@ describe('ImageOverlay interactive edge close', () => {
 
   const mountViewer = ({
     onLowerBack,
+    onPageZoom,
     stayOpen = false,
-  }: { onLowerBack?: () => void; stayOpen?: boolean } = {}) => {
+  }: {
+    onLowerBack?: () => void;
+    onPageZoom?: (zoom: number) => void;
+    stayOpen?: boolean;
+  } = {}) => {
     const store = createStore();
     const onClose = vi.fn();
     const requestCloseSpy = vi.fn();
@@ -209,11 +215,17 @@ describe('ImageOverlay interactive edge close', () => {
       return null;
     }
 
+    function PagePinchHost() {
+      usePinchToZoom(100, (next) => onPageZoom?.(next));
+      return null;
+    }
+
     function Harness() {
       const [open, setOpen] = useState(true);
       return (
         <>
           <LowerPageSwipe />
+          {onPageZoom && <PagePinchHost />}
           {open && (
             <ImageOverlay
               src="blob:harbor"
@@ -569,5 +581,45 @@ describe('ImageOverlay interactive edge close', () => {
       [IMAGE_VIEWER_HISTORY_MARKER]: true,
     });
     higherDialog.remove();
+  });
+
+  it('zooms the image and ignores page zoom when a 2nd finger lands on the backdrop strip', () => {
+    const setPageZoom = vi.fn();
+    const { onClose, modal, backdrop } = mountViewer({ onPageZoom: setPageZoom });
+    const imageArea = screen.getByRole('img').parentElement!;
+
+    // Drag modal right from the left edge, exposing the backdrop strip on the left.
+    dispatchTouch(imageArea, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
+    dispatchTouch(imageArea, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
+    flushRaf();
+    expect(modal.style.translate).toBe('130px 0');
+
+    // 2nd finger lands on the exposed backdrop strip outside the translated Modal.
+    dispatchTouch(
+      backdrop,
+      'touchstart',
+      [
+        { clientX: 150, clientY: 200, identifier: 0, target: imageArea },
+        { clientX: 40, clientY: 200, identifier: 1, target: backdrop },
+      ],
+      210
+    );
+    expect(modal.style.translate).toBe('');
+
+    // Spread fingers (110 px -> 220 px => 200% image zoom): image zooms, page zoom stays untouched.
+    dispatchTouch(
+      backdrop,
+      'touchmove',
+      [
+        { clientX: 250, clientY: 200, identifier: 0, target: imageArea },
+        { clientX: 30, clientY: 200, identifier: 1, target: backdrop },
+      ],
+      250
+    );
+    flushRaf();
+
+    expect(setPageZoom).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '200%' })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

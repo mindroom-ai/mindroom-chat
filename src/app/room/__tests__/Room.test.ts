@@ -157,7 +157,6 @@ vi.mock('../../ui/panels/SidePanel.css', () => ({ Panel: 'panel', Header: 'heade
 vi.mock('../RoomSidePanelSwipe.css', () => ({
   PhoneSidePanelHost: 'phone-side-panel-host',
   PhoneSidePanelPassthrough: 'phone-side-panel-passthrough',
-  EdgeCatcher: 'edge-catcher',
   PanelSwipeBackdrop: 'panel-swipe-backdrop',
   PanelSwipeDim: 'panel-swipe-dim',
 }));

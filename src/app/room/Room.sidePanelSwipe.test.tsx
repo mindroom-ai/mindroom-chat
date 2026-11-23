@@ -271,7 +271,7 @@ describe('Room covering side panel interactive swipes on phones', () => {
   const getHost = (container: HTMLElement) =>
     container.querySelector<HTMLElement>('[data-phone-side-panel-host]');
 
-  it('renders edge catcher only for iframe-bearing panels (canvas and computer)', async () => {
+  it('never renders a blanket edge-catcher overlay over covering panels (including computer and canvas)', async () => {
     const { container } = renderPhoneRoom();
 
     // Plugin panel: no edge catcher.
@@ -279,15 +279,15 @@ describe('Room covering side panel interactive swipes on phones', () => {
     expect(getHost(container)).not.toBeNull();
     expect(container.querySelector('[data-swipe-edge-catcher]')).toBeNull();
 
-    // Computer panel: edge catcher present.
+    // Computer panel: no edge catcher blocking taps or touches over noVNC canvas.
     await act(async () => state.view?.onComputerToggle?.());
     expect(getHost(container)).not.toBeNull();
-    expect(container.querySelector('[data-swipe-edge-catcher]')).not.toBeNull();
+    expect(container.querySelector('[data-swipe-edge-catcher]')).toBeNull();
 
-    // Canvas panel: edge catcher present.
+    // Canvas panel: no edge catcher blocking taps or vertical scrolls over canvas controls.
     await act(async () => state.view?.onCanvasOpen?.('$canvas-1'));
     expect(getHost(container)).not.toBeNull();
-    expect(container.querySelector('[data-swipe-edge-catcher]')).not.toBeNull();
+    expect(container.querySelector('[data-swipe-edge-catcher]')).toBeNull();
 
     // Subagents panel: no edge catcher.
     await act(async () => store.set(subagentsPanelAtom, { roomId: ROOM_ID }));

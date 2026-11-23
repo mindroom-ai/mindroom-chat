@@ -451,7 +451,7 @@ describe('slidePhonePage', () => {
 
     // The drawer comes out at once, and the next change slides.
     const set = vi.fn();
-    movePhoneNavDrawer(true, set);
+    void movePhoneNavDrawer(true, set);
     expect(set).toHaveBeenCalledWith(true);
     slidePhonePage(() => showThread(true));
     expect(page.request).toHaveBeenCalledTimes(2);
@@ -764,7 +764,7 @@ describe('movePhoneNavDrawer', () => {
 
   it('brings the list out at once over the page, which stays put', () => {
     const page = browser();
-    movePhoneNavDrawer(true, set);
+    void movePhoneNavDrawer(true, set);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     // Nothing turns off the drawer's own slide, not even for a moment.
     expect(page.request).not.toHaveBeenCalled();
@@ -786,7 +786,7 @@ describe('movePhoneNavDrawer', () => {
     slidePhonePage(() => showThread(true));
     expect(root.dataset.pageSlide).toBe('');
     const drawer = noting();
-    movePhoneNavDrawer(true, drawer.set);
+    void movePhoneNavDrawer(true, drawer.set);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
     // The skipped slide's change runs, and it ends.
@@ -807,7 +807,7 @@ describe('movePhoneNavDrawer', () => {
     page.frame();
     expect(page.plays).toEqual(['forward']);
     const drawer = noting();
-    movePhoneNavDrawer(true, drawer.set);
+    void movePhoneNavDrawer(true, drawer.set);
     // The copy goes at once, with the slide.
     expect(copy()).toBeNull();
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
@@ -824,7 +824,7 @@ describe('movePhoneNavDrawer', () => {
   it('stays away when the phone layout goes before the slide it cut short is over', async () => {
     browser();
     slidePhonePage(() => showThread(true));
-    movePhoneNavDrawer(true, set);
+    void movePhoneNavDrawer(true, set);
     document.body.replaceChildren();
     // The skipped slide runs its change and ends.
     await new Promise((resolve) => {
@@ -837,7 +837,7 @@ describe('movePhoneNavDrawer', () => {
   it('puts the list away through slidePhonePage, where nothing slides from the list', async () => {
     const page = browser();
     showList(true);
-    movePhoneNavDrawer(false, set);
+    void movePhoneNavDrawer(false, set);
     // It waits for the frame with the navigation a tap on a link in the list starts.
     expect(page.request).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
@@ -1270,7 +1270,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
 
     // Release hold via nav drawer open (verifies movePhoneNavDrawer is never blocked by handoff).
     const setDrawer = vi.fn((open: boolean) => showList(open));
-    movePhoneNavDrawer(true, setDrawer);
+    void movePhoneNavDrawer(true, setDrawer);
     await vi.waitFor(() => expect(setDrawer).toHaveBeenCalledWith(true));
     expect(stage.querySelector('[data-swipe-preview="hold"]')).toBeNull();
     expect(pageMock.plays).toEqual([]);
@@ -1426,7 +1426,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     }
   });
 
-  it('binds roomPreview to the entered threadId and invalidates immediately on window resize', async () => {
+  it('binds roomPreview to the entered threadId, preserves it on height-only resize, and invalidates on width resize', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Room Overview');
     setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
@@ -1463,9 +1463,24 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     );
     t1Scene!.cleanup(false);
 
-    // Rotate away and back (window resize event fires, final dimensions unchanged): preview invalidated!
     const origWidth = window.innerWidth;
+    const origHeight = window.innerHeight;
     try {
+      // Height-only resize (e.g. Android soft keyboard): preview stays intact.
+      Object.defineProperty(window, 'innerHeight', { value: origHeight - 280, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      const afterKeyboardResize = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+        fromLocationKey: 'k-t1',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
+        'Room Overview'
+      );
+      afterKeyboardResize!.cleanup(false);
+
+      // Width resize (even if rotated back to original width): preview invalidated immediately!
       Object.defineProperty(window, 'innerWidth', { value: origWidth + 200, configurable: true });
       window.dispatchEvent(new Event('resize'));
       Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
@@ -1481,6 +1496,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       afterRotateBack!.cleanup(false);
     } finally {
       Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
     }
   });
 
@@ -1640,5 +1656,48 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       release();
     }
     expect(isInteractivePhoneSlideClaimed()).toBe(false);
+  });
+
+  it('skips [data-phone-overlay-layer] children during thread back and forward interactive drags', () => {
+    const { stage, page } = makeStage('Thread Content');
+    const drawerPanel = document.createElement('div');
+    drawerPanel.setAttribute('data-phone-overlay-layer', '');
+    const drawerScrim = document.createElement('div');
+    drawerScrim.setAttribute('data-phone-overlay-layer', '');
+    stage.append(drawerScrim, drawerPanel);
+
+    const backScene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(backScene).not.toBeNull();
+    backScene!.update(120, 0.3);
+
+    expect(page.hasAttribute('data-swiping')).toBe(true);
+    expect(page.style.translate).toBe('120px 0');
+    expect(drawerPanel.hasAttribute('data-swiping')).toBe(false);
+    expect(drawerPanel.style.translate).toBe('');
+    expect(drawerScrim.hasAttribute('data-swiping')).toBe(false);
+    expect(drawerScrim.style.translate).toBe('');
+    backScene!.cleanup(false);
+
+    const forwardScene = createThreadForwardSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-room',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(forwardScene).not.toBeNull();
+    forwardScene!.update(120, 0.3);
+
+    expect(page.hasAttribute('data-swiping')).toBe(true);
+    expect(page.style.translate).not.toBe('');
+    expect(drawerPanel.hasAttribute('data-swiping')).toBe(false);
+    expect(drawerPanel.style.translate).toBe('');
+    expect(drawerScrim.hasAttribute('data-swiping')).toBe(false);
+    expect(drawerScrim.style.translate).toBe('');
+    forwardScene!.cleanup(false);
   });
 });

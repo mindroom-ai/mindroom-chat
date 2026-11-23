@@ -105,6 +105,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
   const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
   // The whole modal, its safe-area padding too: on phones it is the viewer's screen.
   const screenRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const open = openWhileLoading || !!src;
   useViewerHistoryEntry(open, requestClose);
@@ -112,6 +113,8 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
   if (!open) return null;
   return (
     <Overlay
+      ref={overlayRef}
+      {...(phone ? PINCH_SURFACE : {})}
       open
       data-image-viewer-overlay=""
       backdrop={<OverlayBackdrop data-image-viewer-backdrop="" />}
@@ -134,7 +137,11 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
             style={modalStyle}
             onContextMenu={keepContextMenu}
           >
-            <ImageViewer {...viewer} edgeSwipeArea={phone ? screenRef : undefined} />
+            <ImageViewer
+              {...viewer}
+              edgeSwipeArea={phone ? screenRef : undefined}
+              pinchSurfaceRef={phone ? overlayRef : undefined}
+            />
           </Modal>
         </FocusTrap>
       </OverlayCenter>

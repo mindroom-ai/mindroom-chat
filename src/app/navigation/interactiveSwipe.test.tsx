@@ -1068,4 +1068,88 @@ describe('interactiveSwipe', () => {
     expect(onCommit).toHaveBeenCalledTimes(1);
     stage.remove();
   });
+
+  it('feeds touchend lift coordinates into the release decision so a reverse on lift cancels', async () => {
+    const mock = createMockScene(400);
+    const onCommit = vi.fn();
+
+    function LiftHarness() {
+      useInteractiveSwipe({
+        zone: 'edge',
+        edge: 'start',
+        direction: 'inward',
+        priority: SWIPE_PRIORITY.PAGE,
+        enabled: true,
+        onCommit,
+        begin: () => mock.scene,
+      });
+      return null;
+    }
+
+    render(<LiftHarness />);
+
+    act(() => {
+      window.dispatchEvent(
+        createTouchEvent('touchstart', [{ identifier: 1, clientX: 8, clientY: 300 }], 0)
+      );
+      window.dispatchEvent(
+        createTouchEvent('touchmove', [{ identifier: 1, clientX: 58, clientY: 300 }], 40)
+      );
+      window.dispatchEvent(
+        createTouchEvent('touchend', [], 60, [{ identifier: 1, clientX: 15, clientY: 300 }])
+      );
+    });
+    await flushMicrotasks();
+
+    expect(mock.settle).toHaveBeenCalledWith(false, expect.any(Number), 0);
+    expect(mock.commit).not.toHaveBeenCalled();
+    expect(mock.cleanup).toHaveBeenCalledWith(false);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stationary held drag immediately when a blocking dialog mounts without another touchmove', async () => {
+    const mock = createMockScene(400);
+    const onCommit = vi.fn();
+
+    function HeldHarness() {
+      useInteractiveSwipe({
+        zone: 'edge',
+        edge: 'start',
+        direction: 'inward',
+        priority: SWIPE_PRIORITY.PAGE,
+        enabled: true,
+        onCommit,
+        begin: () => mock.scene,
+      });
+      return null;
+    }
+
+    render(<HeldHarness />);
+
+    act(() => {
+      window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+      window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 220, clientY: 200 }], 40));
+    });
+    expect(mock.cleanup).not.toHaveBeenCalled();
+
+    // Append a blocking dialog while the finger is held stationary (no further touchmove).
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    document.body.append(dialog);
+
+    await flushMicrotasks();
+
+    expect(mock.cleanup).toHaveBeenCalledTimes(1);
+    expect(mock.cleanup).toHaveBeenCalledWith(false);
+
+    // Removing the dialog and lifting the finger afterwards must not commit.
+    dialog.remove();
+    act(() => {
+      window.dispatchEvent(createTouchEvent('touchend', [], 100));
+    });
+    await flushMicrotasks();
+
+    expect(mock.commit).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
 });

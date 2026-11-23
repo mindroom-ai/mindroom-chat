@@ -349,4 +349,74 @@ describe('SubagentsPanel interactive inner detail swipes', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onRoomClose).not.toHaveBeenCalled();
   });
+
+  it('unmounts the inert under-layer and skips stale back() when the open run changes mid-settle', async () => {
+    ingest('parent', meta('completed'), docs('Asked writer.'));
+    ingest(
+      'child',
+      meta('completed', { agent: 'writer', parent: 'parent', task: 'Write draft.' }),
+      docs('Draft ready.')
+    );
+    const { container, onClose, onRoomClose } = renderPanel(true);
+
+    const panel = container.querySelector<HTMLElement>('[data-testid="subagents-panel"]')!;
+    mockWidth(panel, 360);
+
+    act(() => container.querySelector<HTMLElement>('[data-subagent="parent"]')!.click());
+    act(() => container.querySelector<HTMLElement>('[data-subagent="child"]')!.click());
+
+    const finishers: Array<() => void> = [];
+    const origAnimate = HTMLElement.prototype.animate;
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value: () => {
+        let finish = () => {};
+        const finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        finishers.push(finish);
+        return { finished, cancel: vi.fn() } as unknown as Animation;
+      },
+    });
+
+    try {
+      // Drag child detail past commit threshold and release so settle(true) is pending.
+      act(() => {
+        dispatchEdgeTouch('touchstart', [{ clientX: 10, clientY: 200 }], 100);
+        dispatchEdgeTouch('touchmove', [{ clientX: 210, clientY: 200 }], 200);
+        vi.advanceTimersToNextFrame();
+        dispatchEdgeTouch('touchend', [], 220);
+      });
+      expect(finishers).toHaveLength(2);
+      expect(container.querySelector('[data-subagents-swipe-under]')).not.toBeNull();
+
+      // Navigate from child to parent mid-settle via the detail Back button so openId changes
+      // while a detail run (parent) remains open.
+      const detailLayer = container.querySelector<HTMLElement>('[data-subagents-swipe-detail]')!;
+      act(() => {
+        detailLayer.querySelector<HTMLButtonElement>('button[aria-label="Back"]')!.click();
+      });
+      expect(container.querySelector('header h2')?.textContent).toBe('Research Desk');
+
+      // Resolve the pending settle animations: stale commit() must NOT call back() again to the list,
+      // and cleanup() must unmount the inert under-layer preview.
+      act(() => {
+        finishers.forEach((finish) => finish());
+      });
+      await flushMicrotasks();
+
+      expect(container.querySelector('header h2')?.textContent).toBe('Research Desk');
+      expect(container.querySelector('[data-subagents-swipe-detail]')).not.toBeNull();
+      expect(container.querySelector('[data-subagents-swipe-under]')).toBeNull();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(onRoomClose).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        writable: true,
+        value: origAnimate,
+      });
+    }
+  });
 });

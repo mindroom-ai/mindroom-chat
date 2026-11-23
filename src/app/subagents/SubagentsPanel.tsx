@@ -201,7 +201,6 @@ export function SubagentsPanel({
       };
       applyPositions(0, 0);
 
-      let finished = false;
       const clearStyles = () => {
         delete detailEl.dataset.swiping;
         delete detailEl.dataset.swipeShadow;
@@ -244,19 +243,15 @@ export function SubagentsPanel({
         },
         commit() {
           if (openRef.current?.id !== startOpenId) return;
-          finished = true;
           flushSync(() => {
             setPeekingBack(false);
             backRef.current();
           });
           clearStyles();
         },
-        cleanup(committed) {
+        cleanup() {
           clearStyles();
-          if (!finished && !committed) {
-            finished = true;
-            setPeekingBack(false);
-          }
+          setPeekingBack(false);
         },
       };
     },
