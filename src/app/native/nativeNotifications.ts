@@ -11,9 +11,13 @@ export type NativeNotificationAccount = {
 export type NativeNotificationAvatarEntry = {
   roomId: string;
   sender: string;
-  mxcUrl: string | null;
+  mxcUrl: string;
 };
 
+/**
+ * All the avatars the account has now: the app removes every cached avatar of the account that
+ * is not among them, and downloads the ones it lacks.
+ */
 export type NativeNotificationAvatarSync = {
   accountTag: string;
   avatars: NativeNotificationAvatarEntry[];

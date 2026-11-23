@@ -99,7 +99,6 @@ describe('native notifications plugin', () => {
           sender: '@dev:mindroom.chat',
           mxcUrl: 'mxc://mindroom.chat/a2',
         },
-        { roomId: '!room:mindroom.chat', sender: '@none:mindroom.chat', mxcUrl: null },
       ],
     };
 

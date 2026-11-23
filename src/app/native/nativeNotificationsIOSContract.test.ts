@@ -24,6 +24,9 @@ const fetcherSource = kitSource('NotificationAvatarFetcher');
 const storeSource = kitSource('NotificationAvatarStore');
 const httpClientSource = kitSource('NotificationHTTPClient');
 const credentialStoreSource = kitSource('NotificationCredentialStore');
+const intentSource = kitSource('NotificationCommunicationIntent');
+const interactionSource = kitSource('NotificationInteractionCoordinator');
+const installMarkerSource = kitSource('NotificationInstallMarker');
 
 describe('MindRoomNotificationsPlugin and NotificationService native contract', () => {
   it('registers MindRoomNotifications with its Capacitor methods only on iOS (not Mac Catalyst)', () => {
@@ -52,7 +55,7 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(serviceSource).not.toContain('loadSingleAccount');
     expect(credentialStoreSource).not.toContain('loadSingleAccount');
     expect(serviceSource).toContain('let accountTag = payload.accountTag, !accountTag.isEmpty');
-    // Once before the avatar is read, once more before the donation.
+    // Once before the avatar is read, and again around the donation.
     expect(
       serviceSource.match(
         /KeychainNotificationCredentialStore\.shared\.load\(accountTag: accountTag\)/g
@@ -60,25 +63,90 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     ).toHaveLength(2);
   });
 
+  it('ignores a Keychain record that an earlier installation of the app left', () => {
+    // The Keychain outlives the app; the marker in the App Group container does not.
+    expect(installMarkerSource).toContain('.appendingPathComponent("Application Support"');
+    expect(installMarkerSource).not.toContain('"Caches"');
+    expect(credentialStoreSource).toMatch(
+      /installMarker\.readInstallId\(\),\s*!current\.isEmpty,\s*record\.installId == current/
+    );
+    expect(credentialStoreSource).toContain('installMarker: NotificationInstallMarker.shared');
+    // Only the app makes the marker, and no account is stored without one.
+    expect(serviceSource).not.toContain('getOrCreateInstallId');
+    expect(pluginSource).toMatch(
+      /NotificationInstallMarker\.shared\.getOrCreateInstallId\(\) else \{\s*return call\.reject\(/
+    );
+  });
+
+  it('fails a sync or a clear that the Keychain refused, so that it is tried again', () => {
+    expect(pluginSource).toMatch(
+      /guard coordinator\.saveAccount\([^{]*\) else \{\s*return call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)/
+    );
+    ['clearAccount(accountTag: accountTag)', 'clearAllAccounts()'].forEach((clear) => {
+      const start = pluginSource.indexOf(`if await coordinator.${clear} {`);
+      expect(start).toBeGreaterThan(-1);
+      expect(pluginSource.slice(start, start + 220)).toMatch(
+        /call\.resolve\(\)\s*\} else \{\s*call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)/
+      );
+    });
+    expect(credentialStoreSource).toContain(
+      'deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound'
+    );
+  });
+
   it('removes every account, and what Siri keeps of them, when asked to clear all', () => {
-    expect(credentialStoreSource).toContain('public func removeAll()');
-    const clearAll = pluginSource.slice(
-      pluginSource.indexOf('func clearAllAccounts() {'),
+    expect(credentialStoreSource).toContain('public func removeAll() -> Bool');
+    const removeAll = pluginSource.slice(
+      pluginSource.indexOf('private func removeAllAccounts() -> Bool {'),
       pluginSource.indexOf('private func currentGeneration')
     );
-    expect(clearAll).toContain('clearAllGeneration &+= 1');
-    expect(clearAll).toContain('KeychainNotificationCredentialStore.shared.removeAll()');
-    expect(clearAll).toContain('NotificationAvatarStore.shared.clearAll()');
-    expect(clearAll).toContain('INInteraction.deleteAll(completion: nil)');
-    expect(pluginSource).toContain('coordinator.clearAllAccounts()');
+    expect(removeAll).toContain('clearAllGeneration &+= 1');
+    expect(removeAll).toContain('KeychainNotificationCredentialStore.shared.removeAll()');
+    expect(removeAll).toContain('NotificationAvatarStore.shared.clearAll()');
+    // The call answers only after the interactions are deleted too.
+    expect(pluginSource).toMatch(
+      /let removed = removeAllAccounts\(\)\s*try\? await INInteraction\.deleteAll\(\)\s*return removed/
+    );
   });
 
   it('donates an interaction under its account, without the message text, and deletes it with the account', () => {
     expect(serviceSource).toContain('interaction.groupIdentifier = accountTag');
-    expect(serviceSource).toContain('content: nil,');
-    expect(serviceSource).not.toContain('content: mutableContent.body');
+    expect(serviceSource).toContain('interaction.identifier = interactionId');
+    expect(serviceSource).not.toContain('mutableContent.body,');
+    expect(intentSource.match(/content: nil,/g)).toHaveLength(2);
+    expect(intentSource).not.toMatch(/content: (?!nil)/);
     expect(pluginSource).toContain('import Intents');
-    expect(pluginSource).toContain('INInteraction.delete(with: accountTag, completion: nil)');
+    expect(pluginSource).toMatch(
+      /let removed = removeAccount\(accountTag\)[^}]*try\? await INInteraction\.delete\(with: accountTag\)\s*return removed/
+    );
+  });
+
+  it('takes back a donation whose account went away while it was made', () => {
+    expect(serviceSource).toContain('NotificationInteractionCoordinator.donateIfValid(');
+    expect(serviceSource).toContain('try? await INInteraction.delete(with: [interactionId])');
+    // The account is looked at before and after the donation, by its install and its sync.
+    expect(interactionSource.match(/guard isAccountStillValid\(\) else/g)).toHaveLength(2);
+    expect(serviceSource).toMatch(
+      /account\.isSameSync\(\s*as: KeychainNotificationCredentialStore\.shared\.load\(accountTag: accountTag\)\s*\)/
+    );
+    // The cancellation of the task is looked at only after that cleanup, and nothing is shown
+    // for a donation that was taken back.
+    const afterDonation = serviceSource.slice(serviceSource.indexOf('let donated = await'));
+    expect(afterDonation).toMatch(
+      /\n {8}\)\n\n[^\n]*\n {8}guard !Task\.isCancelled else \{ return \}\n\n {8}guard donated, let updated = try\? mutableContent\.updating\(from: intent\) else \{\s*slot\.deliver\(mutableContent\)/
+    );
+  });
+
+  it('shows a named room as a group of the sender and the user', () => {
+    expect(serviceSource).toContain('NotificationCommunicationIntent.makeSendMessageIntent(');
+    expect(serviceSource).toContain('accountUserId: account.userId');
+    expect(intentSource).toContain('#if canImport(Intents)');
+    expect(intentSource).toContain('recipients: [senderPerson, mePerson],');
+    expect(intentSource).toContain('speakableGroupName: INSpeakableString(spokenPhrase:');
+    expect(intentSource).toContain(
+      'intent.setImage(avatarImage, forParameterNamed: \\.speakableGroupName)'
+    );
+    expect(intentSource).toContain('recipients: nil,');
   });
 
   it('asks for the sender avatar of the room of the notification, not of the profile', () => {
@@ -94,15 +162,31 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
       /storeAvatar\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
     );
     expect(pluginSource).toMatch(
-      /removeAvatar\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
-    );
-    expect(pluginSource).toMatch(
       /cachedMxcUrl\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
     );
     expect(storeSource).toContain('sha256Hex("\\(room)\\0\\(sender)")');
     expect(serviceSource).toMatch(
       /cachedAvatar\(\s*accountTag: accountTag,\s*roomId: payload\.roomId,\s*sender: sender\s*\)/
     );
+  });
+
+  it('removes cached avatars that a sync no longer lists before it downloads any', () => {
+    expect(storeSource).toContain('public func reconcileAccount(');
+    // Each sync has a number of its own, so an earlier one stores nothing after it.
+    const scheduleSync = pluginSource.slice(
+      pluginSource.indexOf('func scheduleSync('),
+      pluginSource.indexOf('func clearAccount(')
+    );
+    expect(scheduleSync).toMatch(
+      /accountGenerations\[accountTag, default: 0\] &\+= 1\s*let generation = currentGeneration\(of: accountTag\)/
+    );
+    const sync = pluginSource.slice(pluginSource.indexOf('private func performAvatarSync('));
+    expect(sync.indexOf('reconcileIfCurrent(')).toBeGreaterThan(-1);
+    expect(sync.indexOf('reconcileIfCurrent(')).toBeLessThan(
+      sync.indexOf('downloadAndStoreAvatar(')
+    );
+    expect(pluginSource).toContain('NotificationAvatarStore.shared.reconcileAccount(');
+    expect(pluginSource).toContain('let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String)');
   });
 
   it('holds a notification back no longer than 3 seconds for an avatar that is not cached', () => {
@@ -122,6 +206,10 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     // The body is collected in the chunks the session delivers, never byte by byte.
     expect(fetcherSource).not.toContain('.bytes(for:');
     expect(httpClientSource).toContain('URLSessionDataDelegate');
+    // An image of several frames is never kept as it came.
+    expect(storeSource).toMatch(
+      /if CGImageSourceGetCount\(inspected\.source\) == 1,\s*max\(inspected\.width, inspected\.height\) <= maxStoredPixelSize\s*\{\s*return data/
+    );
   });
 
   it('configures Communication Notifications, App Group, and shared Keychain only on the right targets', () => {
@@ -165,9 +253,8 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(serviceSource).toContain('payload.isRing');
     expect(serviceSource).toContain('!payload.isGatewayFormatted');
     expect(serviceSource).toContain('NotificationMarkdown.strip');
-    expect(serviceSource).toContain('INSendMessageIntent');
+    expect(serviceSource).toContain('INInteraction(intent: intent, response: nil)');
     expect(serviceSource).toContain('interaction.direction = .incoming');
-    expect(serviceSource).toContain('recipients: nil');
     expect(serviceSource).toContain('DeliverySlot');
     expect(serviceSource).not.toContain('NotificationAvatarStore.shared.storeAvatar');
     expect(serviceSource).toContain('mutableContent.updating(from: intent)');

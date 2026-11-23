@@ -3,11 +3,15 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import {
   buildIOSPushPusherRequest,
   clearIOSPushState,
+  clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
   findIOSPushAccount,
+  flushPendingNativeNotificationClears,
+  forgetPendingNativeNotificationClear,
   getIOSPushEnabled,
   getStoredIOSPushToken,
   migrateLegacyIOSPushEnabled,
+  resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
   setIOSPushEnabled,
   upsertIOSPushPusher,
@@ -341,7 +345,7 @@ describe('resolveIOSPushConfig', () => {
     expect(storage.has('mindroom_ios_push_profile_tag::session-a')).toBe(true);
   });
 
-  it('clears native notification credentials and avatar cache using the stored profile tag', () => {
+  it('clears native notification credentials and avatar cache using the stored profile tag', async () => {
     vi.mocked(clearNativeNotificationAccount).mockClear();
     const storage = new Map<string, string>([
       ['mindroom_ios_push_token::session-b', 'token-b'],
@@ -359,15 +363,145 @@ describe('resolveIOSPushConfig', () => {
       configurable: true,
     });
 
-    clearIOSPushState('session-b');
+    await clearIOSPushState('session-b');
 
     expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
     expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-b');
     expect(storage.size).toBe(0);
 
     vi.mocked(clearNativeNotificationAccount).mockClear();
-    clearIOSPushState('session-b');
+    await clearIOSPushState('session-b');
     expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+  });
+
+  describe('a native clear that the app has to confirm', () => {
+    const PENDING_KEY = 'mindroom_ios_push_pending_native_clears';
+    const stubStorage = (entries: [string, string][]) => {
+      const storage = new Map<string, string>(entries);
+      Object.defineProperty(globalThis, 'window', {
+        value: {
+          localStorage: {
+            getItem: (key: string) => storage.get(key) ?? null,
+            setItem: (key: string, value: string) => storage.set(key, value),
+            removeItem: (key: string) => storage.delete(key),
+          },
+          dispatchEvent: () => true,
+        },
+        configurable: true,
+      });
+      return storage;
+    };
+
+    it('resolves only once the app has answered, with the tag noted down until then', async () => {
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      const storage = stubStorage([['mindroom_ios_push_profile_tag::session-c', 'tag-c']]);
+      let answer: () => void = () => undefined;
+      let notedAtCall: string | undefined;
+      let storedTagAtCall: string | undefined;
+      vi.mocked(clearNativeNotificationAccount).mockImplementationOnce(() => {
+        notedAtCall = storage.get(PENDING_KEY);
+        storedTagAtCall = storage.get('mindroom_ios_push_profile_tag::session-c');
+        return new Promise<void>((resolve) => {
+          answer = resolve;
+        });
+      });
+
+      let cleared = false;
+      const clearing = clearIOSPushState('session-c').then(() => {
+        cleared = true;
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Noted down before the app is asked, while the stored tag is still there.
+      expect(notedAtCall).toBe('["tag-c"]');
+      expect(storedTagAtCall).toBe('tag-c');
+      expect(cleared).toBe(false);
+      // The stored tag is gone at once; what remains names the account for another try.
+      expect(storage.has('mindroom_ios_push_profile_tag::session-c')).toBe(false);
+      expect(storage.get(PENDING_KEY)).toBe('["tag-c"]');
+
+      answer();
+      await clearing;
+      expect(cleared).toBe(true);
+      expect(storage.size).toBe(0);
+    });
+
+    it('keeps the tag of a clear the app refused, and clears it on a later try', async () => {
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const storage = stubStorage([
+        ['mindroom_ios_push_profile_tag::session-c', 'tag-c'],
+        [PENDING_KEY, '["tag-earlier"]'],
+      ]);
+      // The Keychain kept the record of tag-c; tag-earlier is cleared this time.
+      vi.mocked(clearNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
+
+      // A sign-out goes on all the same.
+      await expect(clearIOSPushState('session-c')).resolves.toBeUndefined();
+      expect(storage.has('mindroom_ios_push_profile_tag::session-c')).toBe(false);
+      expect(storage.get(PENDING_KEY)).toBe('["tag-earlier","tag-c"]');
+
+      // Still refused: nothing is lost.
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      vi.mocked(clearNativeNotificationAccount).mockImplementation(async (tag: string) => {
+        if (tag === 'tag-c') throw new Error('KEYCHAIN_ERROR');
+      });
+      await flushPendingNativeNotificationClears();
+      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-earlier');
+      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-c');
+      expect(storage.get(PENDING_KEY)).toBe('["tag-c"]');
+
+      // Confirmed at last.
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      vi.mocked(clearNativeNotificationAccount).mockImplementation(async () => undefined);
+      await flushPendingNativeNotificationClears();
+      expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
+      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-c');
+      expect(storage.has(PENDING_KEY)).toBe(false);
+
+      await flushPendingNativeNotificationClears();
+      expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
+      warn.mockRestore();
+    });
+
+    it('drops a noted clear of an account that shares again', async () => {
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const storage = stubStorage([]);
+      vi.mocked(clearNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
+      await clearNativeNotificationAccountWithRetry('tag-d');
+      expect(storage.get(PENDING_KEY)).toBe('["tag-d"]');
+
+      forgetPendingNativeNotificationClear('tag-d');
+      expect(storage.has(PENDING_KEY)).toBe(false);
+
+      vi.mocked(clearNativeNotificationAccount).mockClear();
+      await flushPendingNativeNotificationClears();
+      expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+});
+
+describe('resolveEffectiveIOSPushFormat', () => {
+  afterEach(() => {
+    vi.mocked(hasCloudflareAccess).mockReturnValue(false);
+  });
+
+  it('keeps the configured format, except behind Cloudflare Access', () => {
+    expect(resolveEffectiveIOSPushFormat({ format: 'full' }, 'https://matrix.example')).toBe(
+      'full'
+    );
+    expect(resolveEffectiveIOSPushFormat({ format: 'event_id_only' }, undefined)).toBe(
+      'event_id_only'
+    );
+    expect(resolveEffectiveIOSPushFormat({ format: 'full' }, undefined)).toBe('full');
+
+    vi.mocked(hasCloudflareAccess).mockReturnValue(true);
+    expect(resolveEffectiveIOSPushFormat({ format: 'full' }, 'https://private.example')).toBe(
+      'event_id_only'
+    );
   });
 });
 

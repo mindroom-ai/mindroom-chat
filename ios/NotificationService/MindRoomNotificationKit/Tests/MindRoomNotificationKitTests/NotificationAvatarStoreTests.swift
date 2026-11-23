@@ -108,6 +108,75 @@ final class NotificationAvatarStoreTests: XCTestCase {
         XCTAssertLessThanOrEqual(storedDims.height, NotificationAvatarStore.maxStoredPixelSize)
     }
 
+    func testFlattensAnImageOfSeveralFramesToOne() throws {
+        let store = NotificationAvatarStore(baseDirectory: tempDir)
+        XCTAssertEqual(TestImageFixtures.frameCount(of: TestImageFixtures.twoFrameGIF), 2)
+
+        // Small enough to be kept as it is, were it a single frame.
+        let flattened = try XCTUnwrap(NotificationAvatarStore.validatedImageData(TestImageFixtures.twoFrameGIF))
+        XCTAssertEqual(TestImageFixtures.frameCount(of: flattened), 1)
+
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", sender: "@anim:x", mxcUrl: "mxc://x/anim", data: TestImageFixtures.twoFrameGIF))
+        let stored = try XCTUnwrap(store.cachedAvatar(accountTag: "acct", sender: "@anim:x"))
+        XCTAssertEqual(TestImageFixtures.frameCount(of: stored), 1)
+
+        // A single frame of that size stays byte for byte.
+        XCTAssertEqual(NotificationAvatarStore.validatedImageData(TestImageFixtures.sampleGIF), TestImageFixtures.sampleGIF)
+    }
+
+    func testReconcileKeepsOnlyTheListedAvatarsOfTheirCurrentUrl() throws {
+        let store = NotificationAvatarStore(baseDirectory: tempDir)
+        let png = TestImageFixtures.samplePNG
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!a:x", sender: "@keep:x", mxcUrl: "mxc://x/keep", data: png))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!a:x", sender: "@changed:x", mxcUrl: "mxc://x/old", data: png))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!a:x", sender: "@removed:x", mxcUrl: "mxc://x/removed", data: png))
+        XCTAssertTrue(store.storeAvatar(accountTag: "acct", roomId: "!b:x", sender: "@capped:x", mxcUrl: "mxc://x/capped", data: png))
+
+        // Files the manifest never listed, as a write that was cut short leaves them.
+        let accountDirs = try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
+        XCTAssertEqual(accountDirs.count, 1)
+        let accountDir = try XCTUnwrap(accountDirs.first)
+        try png.write(to: accountDir.appendingPathComponent("unlisted.img"))
+        try png.write(to: accountDir.appendingPathComponent("leftover.tmp"))
+
+        XCTAssertTrue(store.storeAvatar(accountTag: "other", roomId: "!a:x", sender: "@removed:x", mxcUrl: "mxc://x/removed", data: png))
+
+        store.reconcileAccount(
+            accountTag: "acct",
+            desiredEntries: [
+                (roomId: "!a:x", sender: "@keep:x", mxcUrl: "mxc://x/keep"),
+                // Its avatar changed; the new one is not downloaded yet, and may never be.
+                (roomId: "!a:x", sender: "@changed:x", mxcUrl: "mxc://x/new"),
+                (roomId: "!a:x", sender: "@new:x", mxcUrl: "mxc://x/brand-new"),
+            ]
+        )
+
+        XCTAssertEqual(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: "@keep:x"), png)
+        XCTAssertEqual(store.cachedMxcUrl(accountTag: "acct", roomId: "!a:x", sender: "@keep:x"), "mxc://x/keep")
+        // Changed, removed, and dropped from the list (as by its cap): none of them is shown again.
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: "@changed:x"))
+        XCTAssertNil(store.cachedMxcUrl(accountTag: "acct", roomId: "!a:x", sender: "@changed:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: "@removed:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!b:x", sender: "@capped:x"))
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: "@new:x"))
+
+        // Only the manifest and the avatar that stays are left.
+        let remaining = try FileManager.default.contentsOfDirectory(at: accountDir, includingPropertiesForKeys: nil)
+        XCTAssertEqual(remaining.count, 2)
+        XCTAssertTrue(remaining.contains { $0.lastPathComponent == "manifest.json" })
+        XCTAssertFalse(remaining.contains { $0.lastPathComponent == "unlisted.img" })
+        XCTAssertFalse(remaining.contains { $0.lastPathComponent == "leftover.tmp" })
+
+        // Another account is not touched, and an account without a cache gets none.
+        XCTAssertEqual(store.cachedAvatar(accountTag: "other", roomId: "!a:x", sender: "@removed:x"), png)
+        store.reconcileAccount(accountTag: "never-cached", desiredEntries: [(roomId: "!a:x", sender: "@keep:x", mxcUrl: "mxc://x/keep")])
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil).count, 2)
+
+        // An empty list empties the account.
+        store.reconcileAccount(accountTag: "acct", desiredEntries: [])
+        XCTAssertNil(store.cachedAvatar(accountTag: "acct", roomId: "!a:x", sender: "@keep:x"))
+    }
+
     func testEvictsOldestEntriesBeyondLimit() {
         final class Clock: @unchecked Sendable {
             var current: Double = 100

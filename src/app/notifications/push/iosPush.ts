@@ -41,6 +41,8 @@ type MatrixPusherClient = Pick<MatrixClient, 'setPusher' | 'getHomeserverUrl'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
 
+export type IOSPushFormat = 'event_id_only' | 'full';
+
 export type IOSPushConfig = {
   appId: string;
   gatewayUrl: string;
@@ -48,7 +50,7 @@ export type IOSPushConfig = {
   deviceDisplayName: string;
   profileTag?: string;
   append: boolean;
-  format: 'event_id_only' | 'full';
+  format: IOSPushFormat;
   lang: string;
 };
 
@@ -56,6 +58,7 @@ export const IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX = 'mindroom_ios_push_';
 const PUSH_TOKEN_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}token`;
 const PUSH_PROFILE_TAG_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}profile_tag`;
 const PUSH_ENABLED_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}enabled`;
+const PENDING_NATIVE_CLEARS_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}pending_native_clears`;
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 export const IOS_PUSH_STATE_EVENT = 'mindroom-ios-push-state-changed';
 
@@ -210,6 +213,17 @@ export const findIOSPushAccount = (accountTag: string): StoredSession | undefine
       ) === accountTag
   );
 
+/**
+ * The format the account's pushes really have. A private server behind Cloudflare Access gets
+ * `event_id_only` whatever the deployment configures, so that no message leaves it through the
+ * public gateway.
+ */
+export const resolveEffectiveIOSPushFormat = (
+  pushConfig: Pick<IOSPushConfig, 'format'>,
+  homeserverUrl?: string
+): IOSPushFormat =>
+  homeserverUrl && hasCloudflareAccess(homeserverUrl) ? 'event_id_only' : pushConfig.format;
+
 export const resolveIOSPushConfig = (
   clientConfig: ClientConfig,
   sessionId?: string,
@@ -339,18 +353,80 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
   writeStorage(storageKey, token);
 };
 
-export const clearIOSPushState = (sessionId?: string) => {
-  const profileTagKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
+/** The account tags whose share with the notification extension is still to be removed. */
+const readPendingNativeClears = (): string[] => {
+  const stored = readStorage(PENDING_NATIVE_CLEARS_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
+  } catch {
+    return [];
+  }
+};
+
+const writePendingNativeClears = (accountTags: string[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (accountTags.length === 0) {
+      window.localStorage.removeItem(PENDING_NATIVE_CLEARS_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(PENDING_NATIVE_CLEARS_STORAGE_KEY, JSON.stringify(accountTags));
+    }
+  } catch {
+    // A clear that cannot be noted down is still attempted once.
+  }
+};
+
+/** Takes back a noted clear: the account shares with the notification extension again. */
+export const forgetPendingNativeNotificationClear = (accountTag: string): void => {
+  const pending = readPendingNativeClears();
+  if (!pending.includes(accountTag)) return;
+  writePendingNativeClears(pending.filter((tag) => tag !== accountTag));
+};
+
+/**
+ * Removes what the account shares with the notification extension (its Keychain record, its
+ * avatars, its donated interactions). The tag is noted down before the app is asked and struck
+ * off only once the app confirms: a clear that the Keychain refuses, or whose answer a reload
+ * cuts off, is tried again by `flushPendingNativeNotificationClears`. Never rejects.
+ */
+export const clearNativeNotificationAccountWithRetry = async (
+  accountTag: string
+): Promise<void> => {
+  const pending = readPendingNativeClears();
+  if (!pending.includes(accountTag)) writePendingNativeClears([...pending, accountTag]);
+  try {
+    await clearNativeNotificationAccount(accountTag);
+    forgetPendingNativeNotificationClear(accountTag);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[ios-push] could not clear a notification account; it stays noted', error);
+  }
+};
+
+/** Tries the clears again that are still noted down. */
+export const flushPendingNativeNotificationClears = async (): Promise<void> => {
+  await Promise.all(readPendingNativeClears().map(clearNativeNotificationAccountWithRetry));
+};
+
+/**
+ * Removes the account's push state. Resolves once the app has answered the removal of what the
+ * account shares with the notification extension, so that a sign-out does not reload under it.
+ */
+export const clearIOSPushState = async (sessionId?: string): Promise<void> => {
   const profileTag = getStoredIOSPushProfileTag(sessionId);
   const storageKeys = [
     resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
-    profileTagKey,
+    resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId),
     resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId),
   ];
+  // Started before the stored tag goes: the tag is the only name the app knows the account by,
+  // and this notes it down for another try.
+  const nativeClear = profileTag ? clearNativeNotificationAccountWithRetry(profileTag) : undefined;
   storageKeys.forEach(removeStorage);
-  if (profileTag) {
-    void clearNativeNotificationAccount(profileTag).catch(() => undefined);
-  }
+  await nativeClear;
 };
 
 /** Each account's last pusher write, so its writes reach the homeserver in the order they start. */
@@ -393,7 +469,7 @@ const setIOSPushPusher = async (
 
   // A private server's pushes carry only event and room IDs (and the account's random tag) past
   // the public gateway.
-  const format = hasCloudflareAccess(mx.getHomeserverUrl()) ? 'event_id_only' : pushConfig.format;
+  const format = resolveEffectiveIOSPushFormat(pushConfig, mx.getHomeserverUrl());
   await mx.setPusher(
     buildIOSPushPusherRequest(
       normalizedToken,

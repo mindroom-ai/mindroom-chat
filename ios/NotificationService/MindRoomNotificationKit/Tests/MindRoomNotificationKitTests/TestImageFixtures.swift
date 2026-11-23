@@ -9,6 +9,8 @@ enum TestImageFixtures {
     static let sampleGIF: Data = makeImage(width: 1, height: 1, type: UTType.gif.identifier as CFString)
     static let sampleWebP: Data = Data(base64Encoded: "UklGRh4AAABXRUJQVlA4TBEAAAAvAAAAAAfQ//73v/+BiOh/AAA=")!
     static let large512PNG: Data = makeImage(width: 512, height: 512, type: UTType.png.identifier as CFString)
+    /// A small animated GIF of two frames.
+    static let twoFrameGIF: Data = makeImage(width: 4, height: 4, type: UTType.gif.identifier as CFString, frames: 2)
     /// One pixel wider than `NotificationAvatarStore.maxImageDimension`.
     static let wide2049PNG: Data = makeImage(width: 2049, height: 1, type: UTType.png.identifier as CFString)
 
@@ -35,7 +37,12 @@ enum TestImageFixtures {
         return (width: w.intValue, height: h.intValue)
     }
 
-    private static func makeImage(width: Int, height: Int, type: CFString) -> Data {
+    static func frameCount(of data: Data) -> Int {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return 0 }
+        return CGImageSourceGetCount(source)
+    }
+
+    private static func makeImage(width: Int, height: Int, type: CFString, frames: Int = 1) -> Data {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         let context = CGContext(
@@ -51,8 +58,10 @@ enum TestImageFixtures {
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         let cgImage = context.makeImage()!
         let output = NSMutableData()
-        let destination = CGImageDestinationCreateWithData(output, type, 1, nil)!
-        CGImageDestinationAddImage(destination, cgImage, nil)
+        let destination = CGImageDestinationCreateWithData(output, type, frames, nil)!
+        for _ in 0..<frames {
+            CGImageDestinationAddImage(destination, cgImage, nil)
+        }
         CGImageDestinationFinalize(destination)
         return output as Data
     }

@@ -59,11 +59,14 @@ public final class NotificationAvatarStore: @unchecked Sendable {
     }
 
     /// Validates image bytes & dimensions and downsamples oversized images (> 256px) to a safe PNG thumbnail.
+    /// An image of several frames (an animated GIF) is flattened to its first frame at any size.
     public static func validatedImageData(_ data: Data) -> Data? {
         guard let inspected = inspectImage(data) else {
             return nil
         }
-        if max(inspected.width, inspected.height) <= maxStoredPixelSize {
+        if CGImageSourceGetCount(inspected.source) == 1,
+           max(inspected.width, inspected.height) <= maxStoredPixelSize
+        {
             return data
         }
 
@@ -189,6 +192,50 @@ public final class NotificationAvatarStore: @unchecked Sendable {
 
             var manifest = loadManifest(accountTag: accountTag)
             if manifest.removeValue(forKey: key) != nil {
+                try? saveManifest(manifest, accountTag: accountTag)
+            }
+        }
+    }
+
+    /// Makes the account's cache hold nothing but `desiredEntries`: an avatar whose member is
+    /// not among them (it left, removed its avatar, or fell out of the list's cap) and one that is
+    /// cached for another `mxcUrl` than the member has now are deleted. What is missing after
+    /// that is for the caller to download.
+    public func reconcileAccount(
+        accountTag: String,
+        desiredEntries: [(roomId: String?, sender: String, mxcUrl: String)]
+    ) {
+        guard !accountTag.isEmpty else { return }
+        var desiredByKey: [String: String] = [:]
+        for entry in desiredEntries {
+            desiredByKey[Self.entryKey(roomId: entry.roomId, sender: entry.sender)] = entry.mxcUrl
+        }
+        queue.sync {
+            let accountDir = accountDirectory(for: accountTag)
+            guard FileManager.default.fileExists(atPath: accountDir.path) else { return }
+
+            var manifest = loadManifest(accountTag: accountTag)
+            let staleKeys = manifest.filter { desiredByKey[$0.key] != $0.value.mxcUrl }.map(\.key)
+            for key in staleKeys {
+                manifest.removeValue(forKey: key)
+            }
+
+            // Every file but the manifest and the avatars it still lists goes: the stale ones,
+            // and any the manifest never listed.
+            let manifestName = manifestFileURL(accountTag: accountTag).lastPathComponent
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: accountDir,
+                includingPropertiesForKeys: nil
+            )) ?? []
+            for file in files where file.lastPathComponent != manifestName {
+                let isListed = file.pathExtension == "img"
+                    && manifest[file.deletingPathExtension().lastPathComponent] != nil
+                if !isListed {
+                    try? FileManager.default.removeItem(at: file)
+                }
+            }
+
+            if !staleKeys.isEmpty {
                 try? saveManifest(manifest, accountTag: accountTag)
             }
         }

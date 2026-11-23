@@ -15,25 +15,28 @@ import { OPENED_FROM_OUTSIDE_STATE } from '../../routes/historyStack';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
 import {
   cloudflareAccessAllowsPush,
-  hasCloudflareAccess,
   useCloudflareAccessSignInRequired,
 } from '../../native/cloudflareAccess';
 import {
   clearAllNativeNotificationAccounts,
-  clearNativeNotificationAccount,
+  isNativeNotificationsAvailable,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
   type NativeNotificationAvatarEntry,
 } from '../../native/nativeNotifications';
 import {
   checkIOSPushPermission,
+  clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
   findIOSPushAccount,
+  flushPendingNativeNotificationClears,
+  forgetPendingNativeNotificationClear,
   getOrCreateIOSPushProfileTag,
   getStoredIOSPushProfileTag,
   IOS_PUSH_ACCOUNT_KEY,
   isNativeIOSPlatform,
   registerIOSPush,
+  resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
   upsertIOSPushPusher,
   type NativePushPermission,
@@ -44,9 +47,12 @@ const MAX_NATIVE_NOTIFICATION_AVATARS = 200;
 const NATIVE_AVATAR_SYNC_DEBOUNCE_MS = 1000;
 
 /**
- * The avatars of the other members of the joined rooms, one entry for each room a member is in:
- * a member can have another avatar in each room. Rooms come by their latest activity and members
- * with an avatar before those without, so the cap keeps what the next notifications will show.
+ * The avatars of the other members of the joined rooms, one entry for each room a member has an
+ * avatar in: a member can have another avatar in each room. Rooms come by their latest activity,
+ * so the cap keeps what the next notifications will show.
+ *
+ * The list is all the app keeps: it removes every cached avatar that is not on it. A member
+ * without an avatar is therefore left out, as is one beyond the cap.
  *
  * Only the member's own avatar in the room counts. The SDK's `User.avatarUrl` is whichever room's
  * membership it saw last, so it would put one room's avatar on a room where the member has none.
@@ -57,12 +63,11 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
     .filter((room) => room.getMyMembership?.() === 'join')
     .map((room) => ({ room, lastActive: room.getLastActiveTimestamp?.() ?? 0 }))
     .sort((a, b) => b.lastActive - a.lastActive || a.room.roomId.localeCompare(b.room.roomId));
-  const withAvatar: NativeNotificationAvatarEntry[] = [];
-  const withoutAvatar: NativeNotificationAvatarEntry[] = [];
+  const avatars: NativeNotificationAvatarEntry[] = [];
 
   for (const { room } of rooms) {
-    // Once avatars alone fill the cap, a less active room adds nothing that is kept.
-    if (withAvatar.length >= MAX_NATIVE_NOTIFICATION_AVATARS) break;
+    // A less active room adds nothing that is kept once the cap is reached.
+    if (avatars.length >= MAX_NATIVE_NOTIFICATION_AVATARS) break;
     const members =
       room.getJoinedMembers?.() ??
       room.getMembers?.().filter((member) => member.membership === KnownMembership.Join) ??
@@ -70,14 +75,14 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
     const sortedMembers = [...members].sort((a, b) => a.userId.localeCompare(b.userId));
     for (const member of sortedMembers) {
       const sender = member.userId;
-      if (!sender || sender === ownUserId) continue;
-      const rawMxc = member.getMxcAvatarUrl?.() ?? null;
-      const mxcUrl = typeof rawMxc === 'string' && rawMxc.startsWith('mxc://') ? rawMxc : null;
-      (mxcUrl === null ? withoutAvatar : withAvatar).push({ roomId: room.roomId, sender, mxcUrl });
+      const mxcUrl = member.getMxcAvatarUrl?.();
+      if (sender && sender !== ownUserId && mxcUrl?.startsWith('mxc://')) {
+        avatars.push({ roomId: room.roomId, sender, mxcUrl });
+      }
     }
   }
 
-  return [...withAvatar, ...withoutAvatar].slice(0, MAX_NATIVE_NOTIFICATION_AVATARS);
+  return avatars.slice(0, MAX_NATIVE_NOTIFICATION_AVATARS);
 };
 
 /**
@@ -103,6 +108,9 @@ export function NativeIOSPushFeature() {
   const signInRequired = useCloudflareAccessSignInRequired(homeserverUrl);
   const pushAllowed = cloudflareAccessAllowsPush(homeserverUrl);
   const native = isNativeIOSPlatform();
+  // The notification extension is part of the iPhone and iPad app only: the Mac app registers
+  // for pushes as they do, but has no extension to share accounts and avatars with.
+  const nativeNotificationsAvailable = isNativeNotificationsAvailable();
   // Only the iOS app reads it: resolving it makes the account's push tag, which browsers never send.
   const pushConfig = native ? resolveIOSPushConfig(clientConfig, sessionId, language) : undefined;
   const configKey = pushConfig ? JSON.stringify(pushConfig) : undefined;
@@ -114,25 +122,29 @@ export function NativeIOSPushFeature() {
   );
   const [permission, setPermission] = useState<NativePushPermission>();
   // What a rich notification needs of the app itself: pushes that name their sender (an
-  // `event_id_only` push does not), turned on here and allowed by the server.
+  // `event_id_only` push does not, and a server behind Cloudflare Access gets no other), turned
+  // on here and allowed by the server.
   const richPushConfigured =
-    native && stableConfig?.format === 'full' && enabled && pushAllowed && Boolean(sessionId);
+    nativeNotificationsAvailable &&
+    stableConfig !== undefined &&
+    resolveEffectiveIOSPushFormat(stableConfig, homeserverUrl) === 'full' &&
+    enabled &&
+    pushAllowed &&
+    Boolean(sessionId);
   // Only then does the notification extension get the account and its members' avatars.
   const richPushEligible = richPushConfigured && !signInRequired && permission === 'granted';
   // Prefer `activeSession.accessToken` so rotated tokens published to the session store sync
   // immediately without waiting for `matrix-js-sdk` to update its internal field.
-  const notificationAccessToken =
-    homeserverUrl && !hasCloudflareAccess(homeserverUrl)
-      ? activeSession?.accessToken ?? mx.getAccessToken?.() ?? undefined
-      : undefined;
+  const notificationAccessToken = activeSession?.accessToken ?? mx.getAccessToken?.() ?? undefined;
   const latest = useLatestRef({ enabled, signInRequired, pushAllowed });
   const lastAvatarSnapshotRef = useRef<string | undefined>(undefined);
 
   // iOS grants and withdraws the permission outside the app's own state: in its prompt, and in
   // Settings while the app is in the background. Either way the app becomes active again after,
-  // so it is read then, and whenever something else that push depends on changes.
+  // so it is read then, and whenever something else that push depends on changes. The same
+  // moments try again the clears of accounts that the app could not confirm before.
   useEffect(() => {
-    if (!native) return undefined;
+    if (!nativeNotificationsAvailable) return undefined;
     let latestCheck = 0;
     const refreshPermission = () => {
       latestCheck += 1;
@@ -145,20 +157,24 @@ export function NativeIOSPushFeature() {
         () => undefined
       );
     };
-    refreshPermission();
+    const refresh = () => {
+      refreshPermission();
+      flushPendingNativeNotificationClears().catch(() => undefined);
+    };
+    refresh();
     const handle = NativeApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) refreshPermission();
+      if (isActive) refresh();
     });
     return () => {
       latestCheck += 1;
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [enabled, native, pushAllowed, sessionId, signInRequired, stableConfig]);
+  }, [enabled, nativeNotificationsAvailable, pushAllowed, sessionId, signInRequired, stableConfig]);
 
-  // Sync account metadata (and token when not behind Cloudflare Access) for the Notification
-  // Service Extension while rich notifications can show; clear native state once they cannot.
+  // Sync the account and its token for the Notification Service Extension while rich
+  // notifications can show; clear native state once they cannot.
   useEffect(() => {
-    if (!native || !sessionId) return;
+    if (!nativeNotificationsAvailable || !sessionId) return;
     if (!richPushEligible) {
       // The first permission check is still out: nothing says yet that the account must go.
       if (richPushConfigured && permission === undefined) return;
@@ -173,12 +189,8 @@ export function NativeIOSPushFeature() {
         return;
       }
       const storedTag = getStoredIOSPushProfileTag(sessionId);
-      if (storedTag) {
-        clearNativeNotificationAccount(storedTag).catch((error: unknown) => {
-          // eslint-disable-next-line no-console
-          console.warn('[ios-push] could not clear notification account', error);
-        });
-      }
+      // A clear that fails stays noted down and is tried again.
+      if (storedTag) clearNativeNotificationAccountWithRetry(storedTag).catch(() => undefined);
       return;
     }
     if (!homeserverUrl || !userId) return;
@@ -188,6 +200,8 @@ export function NativeIOSPushFeature() {
     // Sign-out removes the Keychain record of the stored tag. A tag that storage did not keep
     // (full, or blocked) would leave a record that nothing can find again.
     if (getStoredIOSPushProfileTag(sessionId) !== accountTag) return;
+    // The account shares again: a clear of it that is still noted down must not run later.
+    forgetPendingNativeNotificationClear(accountTag);
     syncNativeNotificationAccount({
       accountTag,
       homeserverUrl,
@@ -199,7 +213,7 @@ export function NativeIOSPushFeature() {
     });
   }, [
     homeserverUrl,
-    native,
+    nativeNotificationsAvailable,
     notificationAccessToken,
     permission,
     richPushConfigured,

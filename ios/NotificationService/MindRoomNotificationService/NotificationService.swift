@@ -202,53 +202,44 @@ class NotificationService: UNNotificationServiceExtension {
 
         guard !Task.isCancelled else { return }
 
-        // The app may have removed the account while the avatar was fetched (a sign-out, or
-        // notifications turned off): nothing of it is donated after that.
-        guard KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
+        let intent = NotificationCommunicationIntent.makeSendMessageIntent(
+            sender: sender,
+            senderDisplayName: senderDisplayName,
+            roomId: payload.roomId,
+            roomName: payload.effectiveRoomName(fallbackSubtitle: mutableContent.subtitle),
+            accountUserId: account.userId,
+            avatarData: avatarData
+        )
+
+        // The app may remove the account at any moment (a sign-out, or notifications turned
+        // off), also while the interaction is donated. Only a donation whose account is still
+        // the one this notification started with is kept and shown.
+        let donated = await NotificationInteractionCoordinator.donateIfValid(
+            isAccountStillValid: {
+                account.isSameSync(
+                    as: KeychainNotificationCredentialStore.shared.load(accountTag: accountTag)
+                )
+            },
+            donate: { interactionId in
+                let interaction = INInteraction(intent: intent, response: nil)
+                interaction.identifier = interactionId
+                interaction.direction = .incoming
+                // The app deletes an account's interactions by this group when the account goes.
+                interaction.groupIdentifier = accountTag
+                try await interaction.donate()
+            },
+            deleteInteraction: { interactionId in
+                try? await INInteraction.delete(with: [interactionId])
+            }
+        )
+
+        // Only now, so that a donation to take back is taken back when the time ran out too.
+        guard !Task.isCancelled else { return }
+
+        guard donated, let updated = try? mutableContent.updating(from: intent) else {
             slot.deliver(mutableContent)
             return
         }
-
-        let senderHandle = INPersonHandle(value: sender, type: .unknown)
-        let avatarImage = avatarData.map { INImage(imageData: $0) }
-        let senderPerson = INPerson(
-            personHandle: senderHandle,
-            nameComponents: nil,
-            displayName: senderDisplayName,
-            image: avatarImage,
-            contactIdentifier: nil,
-            customIdentifier: sender,
-            isMe: false,
-            suggestionType: .instantMessageAddress
-        )
-
-        // The alert shows the body of the notification itself, so the message text stays out of
-        // the interactions the system keeps.
-        let intent = INSendMessageIntent(
-            recipients: nil,
-            outgoingMessageType: .outgoingMessageText,
-            content: nil,
-            speakableGroupName: nil,
-            conversationIdentifier: payload.roomId,
-            serviceName: nil,
-            sender: senderPerson,
-            attachments: nil
-        )
-
-        let interaction = INInteraction(intent: intent, response: nil)
-        interaction.direction = .incoming
-        // The app deletes an account's interactions by this group when the account goes.
-        interaction.groupIdentifier = accountTag
-        try? await interaction.donate()
-
-        guard !Task.isCancelled else { return }
-
-        let finalContent: UNNotificationContent
-        if let updated = try? mutableContent.updating(from: intent) {
-            finalContent = updated
-        } else {
-            finalContent = mutableContent
-        }
-        slot.deliver(finalContent)
+        slot.deliver(updated)
     }
 }

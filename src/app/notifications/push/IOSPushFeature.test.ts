@@ -5,13 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import {
   clearAllNativeNotificationAccounts,
-  clearNativeNotificationAccount,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
 } from '../../native/nativeNotifications';
 import {
   checkIOSPushPermission,
+  clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
+  flushPendingNativeNotificationClears,
+  forgetPendingNativeNotificationClear,
   getOrCreateIOSPushProfileTag,
   registerIOSPush,
   setIOSPushEnabled,
@@ -63,6 +65,8 @@ const state = vi.hoisted(() => {
     pushAllowed: true,
     pushEnabled: true,
     hasCloudflareAccess: false,
+    // False on the Mac app, which has no notification extension.
+    nativeNotificationsAvailable: true,
     hasCompletedInitialSync: false,
     activeSession,
     // A permission check that has not answered yet.
@@ -82,7 +86,7 @@ const state = vi.hoisted(() => {
       getHomeserverUrl: () => 'https://private.example',
       getUserId: () => '@me:private.example',
       getAccessToken: () => 'mx-token-stale',
-      getRooms: () => state.rooms,
+      getRooms: vi.fn((): RoomStub[] => state.rooms),
       on: vi.fn((event: string, listener: () => void) => {
         const set = listeners.get(event) ?? new Set();
         set.add(listener);
@@ -133,8 +137,13 @@ vi.mock('./iosPush', () => ({
     if (!state.tagStorageFails) state.storedTags.set(key, tag);
     return tag;
   }),
+  clearNativeNotificationAccountWithRetry: vi.fn(async () => undefined),
+  flushPendingNativeNotificationClears: vi.fn(async () => undefined),
+  forgetPendingNativeNotificationClear: vi.fn(),
   isNativeIOSPlatform: () => true,
   registerIOSPush: vi.fn(async () => undefined),
+  resolveEffectiveIOSPushFormat: (pushConfig: { format: 'full' | 'event_id_only' }) =>
+    state.hasCloudflareAccess ? 'event_id_only' : pushConfig.format,
   resolveIOSPushConfig: () => state.pushConfig,
   setIOSPushEnabled: vi.fn(),
   upsertIOSPushPusher: vi.fn(async () => undefined),
@@ -148,7 +157,7 @@ vi.mock('../../native/cloudflareAccess', () => ({
 }));
 vi.mock('../../native/nativeNotifications', () => ({
   clearAllNativeNotificationAccounts: vi.fn(async () => undefined),
-  clearNativeNotificationAccount: vi.fn(async () => undefined),
+  isNativeNotificationsAvailable: () => state.nativeNotificationsAvailable,
   syncNativeNotificationAccount: vi.fn(async () => undefined),
   syncNativeNotificationAvatars: vi.fn(async () => undefined),
 }));
@@ -192,6 +201,7 @@ describe('NativeIOSPushFeature', () => {
       profileTag: 'shared-deployment-profile-tag',
     };
     state.hasCloudflareAccess = false;
+    state.nativeNotificationsAvailable = true;
     state.hasCompletedInitialSync = false;
     state.activeSession = { sessionId: 's1', accessToken: 'session-token-v1' };
     state.permission = 'granted';
@@ -284,13 +294,13 @@ describe('NativeIOSPushFeature', () => {
     // Disabling push for s2 clears only tag-s2 without touching tag-s1
     state.pushEnabled = false;
     await rerender(renderer);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s2');
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s2');
 
     renderer.unmount();
   });
 
-  it('re-syncs credentials when activeSession.accessToken rotates and omits token behind Cloudflare Access', async () => {
+  it('re-syncs credentials when activeSession.accessToken rotates', async () => {
     state.signInRequired = false;
     const renderer = await mount();
 
@@ -311,14 +321,70 @@ describe('NativeIOSPushFeature', () => {
       accessToken: 'session-token-v2',
     });
 
-    vi.mocked(syncNativeNotificationAccount).mockClear();
+    // The account shares again, so a clear of it that is still noted down is dropped.
+    expect(forgetPendingNativeNotificationClear).toHaveBeenCalledWith('tag-s1');
+    renderer.unmount();
+  });
+
+  it('shares nothing for a server behind Cloudflare Access, whose pushes are event_id_only whatever is configured', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.pushConfig = { appId: 'chat.example', format: 'full' };
     state.hasCloudflareAccess = true;
-    await rerender(renderer);
-    expect(syncNativeNotificationAccount).toHaveBeenCalledWith({
-      accountTag: 'tag-s1',
-      homeserverUrl: 'https://private.example',
-      userId: '@me:private.example',
-    });
+    state.storedTags.set('s1', 'tag-s1');
+
+    const renderer = await mount();
+
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    // What an earlier version of the app shared for the account goes.
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s1');
+    // The pusher itself is registered as before.
+    expect(registerIOSPush).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+  });
+
+  it('shares nothing where the app has no notification extension, and registers for pushes all the same', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.nativeNotificationsAvailable = false;
+    state.storedTags.set('s1', 'tag-s1');
+
+    const renderer = await mount();
+    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
+
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
+    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
+    expect(flushPendingNativeNotificationClears).not.toHaveBeenCalled();
+    // No room's members are gone through for avatars nobody would show.
+    expect(state.mx.getRooms).not.toHaveBeenCalled();
+    expect(state.onAppStateChange).toBeUndefined();
+
+    expect(registerIOSPush).toHaveBeenCalledTimes(1);
+    expect(upsertIOSPushPusher).toHaveBeenCalledWith(
+      state.mx,
+      expect.anything(),
+      'apns-token',
+      's1'
+    );
+    renderer.unmount();
+  });
+
+  it('tries the clears again that the app did not confirm, at the start and when the app becomes active', async () => {
+    state.signInRequired = false;
+
+    const renderer = await mount();
+    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(1);
+
+    await act(async () => state.onAppStateChange?.({ isActive: false }));
+    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(1);
+
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(2);
     renderer.unmount();
   });
 
@@ -332,7 +398,7 @@ describe('NativeIOSPushFeature', () => {
     const renderer = await mount();
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     expect(getOrCreateIOSPushProfileTag).not.toHaveBeenCalled();
 
     // Configure & enable push: syncs account and avatars
@@ -346,17 +412,17 @@ describe('NativeIOSPushFeature', () => {
     vi.mocked(syncNativeNotificationAvatars).mockClear();
     state.pushEnabled = false;
     await rerender(renderer);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s1');
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
     // Re-enable push: re-syncs both account and avatars (snapshot ref was reset on disable)
-    vi.mocked(clearNativeNotificationAccount).mockClear();
+    vi.mocked(clearNativeNotificationAccountWithRetry).mockClear();
     state.pushEnabled = true;
     await rerender(renderer);
     expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
@@ -372,7 +438,7 @@ describe('NativeIOSPushFeature', () => {
 
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s1');
     expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
     renderer.unmount();
   });
@@ -389,7 +455,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
     expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -412,20 +478,20 @@ describe('NativeIOSPushFeature', () => {
     // The switch in the app belongs to the active account: the other one keeps what it shares.
     state.pushEnabled = false;
     await rerender(renderer);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s2');
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s2');
     expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
 
     state.pushEnabled = true;
     await rerender(renderer);
-    vi.mocked(clearNativeNotificationAccount).mockClear();
+    vi.mocked(clearNativeNotificationAccountWithRetry).mockClear();
 
     // iOS Settings turn notifications off for the whole app, so for the account that is not
     // active too.
     state.permission = 'denied';
     await act(async () => state.onAppStateChange?.({ isActive: true }));
     expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -435,17 +501,17 @@ describe('NativeIOSPushFeature', () => {
     state.rooms = [agentRoom()];
     state.storedTags.set('s1', 'tag-s1');
     let answer: () => void = () => undefined;
-    state.permissionPending = new Promise((resolve) => {
+    state.permissionPending = new Promise<void>((resolve) => {
       answer = resolve;
     });
 
     const renderer = await mount();
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
     await act(async () => answer());
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     renderer.unmount();
@@ -462,15 +528,15 @@ describe('NativeIOSPushFeature', () => {
 
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s1');
 
     // Full pushes again: the account and its avatars are shared.
-    vi.mocked(clearNativeNotificationAccount).mockClear();
+    vi.mocked(clearNativeNotificationAccountWithRetry).mockClear();
     state.pushConfig = { appId: 'chat.example', format: 'full' };
     await rerender(renderer);
     expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -512,11 +578,11 @@ describe('NativeIOSPushFeature', () => {
     // Withdrawn in iOS Settings: the accounts and their avatars go.
     vi.mocked(syncNativeNotificationAccount).mockClear();
     vi.mocked(syncNativeNotificationAvatars).mockClear();
-    vi.mocked(clearNativeNotificationAccount).mockClear();
+    vi.mocked(clearNativeNotificationAccountWithRetry).mockClear();
     state.permission = 'denied';
     await act(async () => state.onAppStateChange?.({ isActive: true }));
     expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
@@ -540,7 +606,52 @@ describe('NativeIOSPushFeature', () => {
     expect(getOrCreateIOSPushProfileTag).toHaveBeenCalledWith('s1');
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('takes a member who removes the avatar off the list, also when 200 others still fill it', async () => {
+    vi.useFakeTimers();
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    let firstAvatar: string | null = 'mxc://private.example/member000';
+    const members = [
+      { ...joinedMember('@member000:private.example'), getMxcAvatarUrl: () => firstAvatar },
+      ...Array.from({ length: 200 }, (_, index) => {
+        const name = `member${String(index + 1).padStart(3, '0')}`;
+        return joinedMember(`@${name}:private.example`, `mxc://private.example/${name}`);
+      }),
+    ];
+    state.rooms = [
+      {
+        roomId: '!big:private.example',
+        getMyMembership: () => KnownMembership.Join,
+        getJoinedMembers: () => members,
+      },
+    ];
+
+    // 201 members have an avatar: the list holds the first 200, member000 among them.
+    const renderer = await mount();
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    const before = vi.mocked(syncNativeNotificationAvatars).mock.calls[0]?.[0].avatars ?? [];
+    expect(before).toHaveLength(200);
+    expect(before[0]?.sender).toBe('@member000:private.example');
+    expect(before[199]?.sender).toBe('@member199:private.example');
+
+    // member000 removes the avatar. The app drops every cached avatar that is not on the list,
+    // so the member must be gone from it although the list is as long as before.
+    vi.mocked(syncNativeNotificationAvatars).mockClear();
+    firstAvatar = null;
+    await act(async () => {
+      state.emit(RoomStateEvent.Members);
+      vi.advanceTimersByTime(1100);
+    });
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    const after = vi.mocked(syncNativeNotificationAvatars).mock.calls[0]?.[0].avatars ?? [];
+    expect(after).toHaveLength(200);
+    expect(after.some((avatar) => avatar.sender === '@member000:private.example')).toBe(false);
+    expect(after[199]?.sender).toBe('@member200:private.example');
+
     renderer.unmount();
   });
 
@@ -580,22 +691,17 @@ describe('NativeIOSPushFeature', () => {
     state.hasCompletedInitialSync = true;
     await rerender(renderer);
 
-    // The agent's avatar in room two is not its avatar in room one, where it has none.
+    // The agent has an avatar in room two only: in room one, as Bob, it is not listed.
     const agentInTwo = {
       roomId: '!two:private.example',
       sender: '@agent:private.example',
       mxcUrl: 'mxc://private.example/agent-v1',
     };
-    const agentInOne = {
-      roomId: '!one:private.example',
-      sender: '@agent:private.example',
-      mxcUrl: null,
-    };
     const bobInOne = { roomId: '!one:private.example', sender: '@bob:private.example' };
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [agentInTwo, agentInOne, { ...bobInOne, mxcUrl: null }],
+      avatars: [agentInTwo],
     });
 
     // Unchanged event should not re-invoke syncNativeNotificationAvatars
@@ -616,7 +722,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v1' }, agentInTwo, agentInOne],
+      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v1' }, agentInTwo],
     });
 
     // Avatar-only update emitted as RoomStateEvent.Members also triggers a debounced sync
@@ -629,7 +735,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
     expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
       accountTag: 'tag-s1',
-      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v2' }, agentInTwo, agentInOne],
+      avatars: [{ ...bobInOne, mxcUrl: 'mxc://private.example/bob-v2' }, agentInTwo],
     });
 
     renderer.unmount();
@@ -654,7 +760,7 @@ describe('collectJoinedMemberAvatars', () => {
     getJoinedMembers: () => members,
   });
 
-  it('keeps the avatar a member has in each room, the most recently active room first', () => {
+  it('lists the avatar a member has in each room, the most recently active room first, and no member without one', () => {
     const avatars = collect([
       room('!quiet:private.example', 100, [
         joinedMember('@agent:private.example', 'mxc://private.example/agent-quiet'),
@@ -683,11 +789,10 @@ describe('collectJoinedMemberAvatars', () => {
         sender: '@agent:private.example',
         mxcUrl: 'mxc://private.example/agent-quiet',
       },
-      { roomId: '!busy:private.example', sender: '@plain:private.example', mxcUrl: null },
     ]);
   });
 
-  it('gives a member without an avatar in a room none there, whatever avatar the SDK user carries', () => {
+  it('leaves a member out of a room where it has no avatar, whatever avatar the SDK user carries', () => {
     // The SDK copies the avatar of a membership into its `User`, here the one of room A.
     const avatars = collect(
       [
@@ -705,11 +810,10 @@ describe('collectJoinedMemberAvatars', () => {
         sender: '@agent:private.example',
         mxcUrl: 'mxc://private.example/agent-in-a',
       },
-      { roomId: '!b:private.example', sender: '@agent:private.example', mxcUrl: null },
     ]);
   });
 
-  it('caps the list at 200 entries, keeping avatars of active rooms over the rest', () => {
+  it('caps the list at 200 entries, keeping the avatars of the most active rooms', () => {
     const members = (prefix: string, count: number, withAvatar: boolean) =>
       Array.from({ length: count }, (_, index) => {
         const name = `${prefix}${String(index).padStart(3, '0')}`;
@@ -729,7 +833,6 @@ describe('collectJoinedMemberAvatars', () => {
     ]);
 
     expect(avatars).toHaveLength(200);
-    expect(avatars.every((avatar) => avatar.mxcUrl !== null)).toBe(true);
     expect(avatars.filter((avatar) => avatar.roomId === '!newer:private.example')).toHaveLength(
       150
     );

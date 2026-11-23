@@ -104,9 +104,9 @@ const clearSessionScopedUiState = async (
   }
 };
 
-const clearSessionScopedNativeState = (sessionId: string): void => {
+const clearSessionScopedNativeState = async (sessionId: string): Promise<void> => {
   try {
-    clearSessionNativeState(sessionId);
+    await clearSessionNativeState(sessionId);
   } catch {
     // Native preference cleanup is best effort during account removal.
   }
@@ -156,7 +156,8 @@ const deleteSessionLocalData = async (
     deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
     clearUserScopedState ? forgetAccountInPlugins(session.userId) : undefined,
   ]);
-  clearSessionScopedNativeState(session.sessionId);
+  // Awaited: the reload that follows a sign-out must not cut off the native removal.
+  await clearSessionScopedNativeState(session.sessionId);
   // Last, so an avatar that finished loading meanwhile cannot keep the cache.
   await clearFetchedAvatars(session.userId);
 };
@@ -239,7 +240,7 @@ export const removeCurrentClientSessionAndReload = async (
     ]);
   } finally {
     // The account has left the registry, also when a store could not be cleared.
-    clearSessionScopedNativeState(identity.sessionId);
+    await clearSessionScopedNativeState(identity.sessionId);
     await clearFetchedAvatars(identity.userId);
   }
   await clearSessionScopedUiState(identity, clearUserScopedState);
