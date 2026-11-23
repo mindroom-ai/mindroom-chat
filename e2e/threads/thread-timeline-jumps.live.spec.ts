@@ -52,8 +52,6 @@ const SCROLL_SETUPS: ScrollSetup[] = [
   { engine: "chromium", viewport: "desktop", protoMode: "auto-trim-near-top" },
   { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-near-top" },
   { engine: "webkit", viewport: "phone", protoMode: "auto-trim-near-top" },
-  { engine: "webkit", viewport: "desktop", protoMode: "hard-b-overtaken" },
-  { engine: "webkit", viewport: "desktop", protoMode: "trim-takeover" },
 ];
 const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
   desktop: { viewport: { width: 1440, height: 900 } },

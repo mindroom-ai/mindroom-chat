@@ -379,9 +379,7 @@ export const useTimelineScrollLedgerController = ({
       const overtakeWheel = protoMode === "hard-b-overtaken" && sinceWheel >= 140;
       const shouldTrim =
         !threadUserScrolled ||
-        overtakeWheel ||
-        (protoMode === "trim-takeover" && sinceWheel >= 140) ||
-        (protoMode === "auto-trim-near-top" && (nearTop || idleWheel));
+        idleWheel;
       if (shouldTrim) {
         headroomScrollDeltaAtRender -= headroomPxAtRender;
         headroomPxAtRender = 0;
@@ -476,12 +474,7 @@ export const useTimelineScrollLedgerController = ({
       idleTimer = setTimeout(checkTrim, protoMode === "hard-b-overtaken" || protoMode === "trim-takeover" ? 150 : 520);
     };
     const onScroll = () => {
-      if (!showThreadLoadOlder && headroomPxRef.current > 0) {
-        const thresh = scrollElement.clientHeight * 1.5;
-        if (scrollElement.scrollTop <= headroomPxRef.current + thresh) {
-          setLedgerCommitTick((t) => t + 1);
-        }
-      }
+      // Never trim mid-burst; idleTimer handles final trim after wheel quiet.
     };
     scrollElement.addEventListener("wheel", onWheel, { passive: true, capture: true });
     scrollElement.addEventListener("scroll", onScroll, { passive: true });
