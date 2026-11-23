@@ -38,6 +38,7 @@ export type UseRoomInputDictationOptions = {
   roomId: string;
   ownerKey: string;
   rootRef: RefObject<HTMLElement | null>;
+  conversationHidden?: boolean;
   createSession?: (opts: DictationSessionOptions) => DictationSession;
 };
 
@@ -74,6 +75,7 @@ export const useRoomInputDictation = ({
   roomId,
   ownerKey,
   rootRef,
+  conversationHidden = false,
   createSession = createDictationSession,
 }: UseRoomInputDictationOptions): RoomInputDictationFeature => {
   const { t } = useTranslation();
@@ -259,6 +261,13 @@ export const useRoomInputDictation = ({
       window.removeEventListener('keydown', onBubbleKeyDown);
     };
   }, [available, handleDiscard, handleFinish, rootRef, snapshot.phase, start]);
+
+  // Pause active recording when the conversation is covered (Canvas, plugin cover, side panel).
+  useEffect(() => {
+    if (conversationHidden && snapshot.phase === 'recording') {
+      void session?.pause();
+    }
+  }, [conversationHidden, session, snapshot.phase]);
 
   // Pause active recording if the mounted composer collapses or hides (e.g. folded thread panel).
   useEffect(() => {

@@ -218,16 +218,18 @@ describe('useRoomInputDictation', () => {
     editor: Editor,
     store: ReturnType<typeof createStore>,
     session: DictationSession,
-    extraChild?: React.ReactNode
+    extraChild?: React.ReactNode,
+    initialConversationHidden = false
   ) => {
     let latest!: RoomInputDictationFeature;
-    function Harness() {
+    function Harness({ conversationHidden }: { conversationHidden: boolean }) {
       const rootRef = useRef<HTMLDivElement | null>(null);
       latest = useRoomInputDictation({
         editor,
         roomId: '!room:example.org',
         ownerKey: 'composer-1',
         rootRef,
+        conversationHidden,
         createSession: () => session,
       });
       return (
@@ -241,10 +243,19 @@ describe('useRoomInputDictation', () => {
     }
     const utils = render(
       <Provider store={store}>
-        <Harness />
+        <Harness conversationHidden={initialConversationHidden} />
       </Provider>
     );
-    return { ...utils, getFeature: () => latest };
+    return {
+      ...utils,
+      setConversationHidden: (hidden: boolean) =>
+        utils.rerender(
+          <Provider store={store}>
+            <Harness conversationHidden={hidden} />
+          </Provider>
+        ),
+      getFeature: () => latest,
+    };
   };
 
   it('hides the button completely when dictation is unavailable', () => {
@@ -432,5 +443,22 @@ describe('useRoomInputDictation', () => {
         value: prevResizeObserver,
       });
     }
+  });
+
+  it('pauses active dictation when conversationHidden becomes true', async () => {
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    const { setConversationHidden } = renderHarness(editor, store, session);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+    });
+    expect(session.pause).not.toHaveBeenCalled();
+
+    act(() => {
+      setConversationHidden(true);
+    });
+    expect(session.pause).toHaveBeenCalledTimes(1);
   });
 });

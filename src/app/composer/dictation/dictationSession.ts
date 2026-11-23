@@ -196,7 +196,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       pendingUploads,
       failedSegments,
       completedSegments,
-      hasPartialText: completedSegments > 0 && stitchCompleted().trim().length > 0,
+      hasPartialText: records.some(
+        (r) => r.status === 'completed' && (r.text?.trim().length ?? 0) > 0
+      ),
     };
     publish(patch);
   };

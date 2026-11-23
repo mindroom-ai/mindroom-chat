@@ -513,6 +513,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       roomId,
       ownerKey: dictationOwnerKey,
       rootRef,
+      conversationHidden,
     });
 
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
