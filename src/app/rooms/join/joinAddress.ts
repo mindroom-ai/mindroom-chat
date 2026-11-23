@@ -8,11 +8,15 @@ export type JoinAddress = {
   eventId?: string;
 };
 
-/** Reads typed or pasted text as a room alias, a room ID, or a matrix.to link to a room or event. */
+/**
+ * Reads typed or pasted text as a room alias, a room ID, or a link to a room or event: matrix.to,
+ * a `matrix:` URI or a link into this app, whatever else its query says (a thread, a tracking tag).
+ */
 export const parseJoinAddress = (value: string): JoinAddress | undefined => {
   const address = value.trim();
   if (isRoomAlias(address) || isRoomId(address)) return { roomIdOrAlias: address };
-  return parseMatrixToRoomEvent(address) ?? parseMatrixToRoom(address);
+  const options = { allowExtraParams: true };
+  return parseMatrixToRoomEvent(address, options) ?? parseMatrixToRoom(address, options);
 };
 
 /** A directory entry; servers on newer spec versions add the join rule and the room type. */

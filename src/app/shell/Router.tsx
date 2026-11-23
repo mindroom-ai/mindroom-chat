@@ -52,6 +52,7 @@ import {
   THREADS_ROOM_PATH,
 } from '../routes/paths';
 import { getAppBasePath } from '../lib/basePath';
+import { moveWaitingUniversalLinkAfterHash } from '../native/nativeUniversalLinks';
 import { markPageStartup } from '../lib/startupTimeline';
 import { AuthLayout } from '../account/auth/AuthLayout';
 import { Login } from '../account/auth/login/Login';
@@ -328,6 +329,8 @@ export const createRouter = (clientConfig: ClientConfig) => {
   // The hash router keeps routes after `#`, for hosts that cannot send every path to index.html;
   // the browser router lives under the deployment base path.
   const hashMode = hashRouter?.enabled === true;
+  // A Universal Link the native app was opened with, before this router: where it starts.
+  if (hashMode) moveWaitingUniversalLinkAfterHash(hashRouter?.basename);
   const makeRouter = hashMode ? createHashRouter : createBrowserRouter;
   return makeRouter(routes, { basename: hashMode ? hashRouter?.basename : getAppBasePath() });
 };

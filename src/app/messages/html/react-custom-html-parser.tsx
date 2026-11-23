@@ -243,6 +243,8 @@ function MessageLinkLabel({
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`) but
  * opens the event; without text of its own (a URL in plain text) it names the room it leads to.
+ * With `keepRoomLabel`, a link to a room keeps its text in the same way and still opens the room:
+ * for a label its author wrote, or one that hides a spoiler, which the room's name would replace.
  * Mentions carry the ID in `data-mention-id`, an optional event in `data-mention-event-id`, and
  * optional routing servers in `data-mention-via`, for the
  * mention click handler. A user or room mention reads in its own direction (`dir="auto"`), so a
@@ -253,7 +255,8 @@ export const renderMatrixMention = (
   viewedRoomId: string | undefined,
   href: string,
   customProps: ComponentPropsWithoutRef<'a'>,
-  content?: ReactNode
+  content?: ReactNode,
+  keepRoomLabel = false
 ): JSX.Element | undefined => {
   const userId = parseMatrixToUser(href);
   if (userId) {
@@ -306,6 +309,18 @@ export const renderMatrixMention = (
   }
 
   const roomLink = parseMatrixToRoom(href);
+  if (roomLink && keepRoomLabel && content !== undefined) {
+    return (
+      <a
+        href={href}
+        {...customProps}
+        data-mention-id={roomLink.roomIdOrAlias}
+        data-mention-via={roomLink.viaServers?.join(',') || undefined}
+      >
+        {content}
+      </a>
+    );
+  }
   if (roomLink) {
     const roomId = roomLink.roomIdOrAlias.startsWith('#')
       ? getCanonicalAliasRoomId(client, roomLink.roomIdOrAlias)
@@ -772,23 +787,30 @@ export const getReactCustomHtmlParser = (
           const { href } = attribs;
           stripLinkTextBidi(children);
           const content = domToReact(children, parserOptions);
+          const hasSpoiler = containsSpoiler(children);
           if (href && testMatrixTo(href)) {
-            // A link whose text is its own URL has nothing to say beyond where it leads.
-            const ownText = textContent(children).trim() !== href;
+            const trimmedText = textContent(children).trim();
+            // A link whose text is its own URL has nothing to say beyond where it leads,
+            // unless a spoiler hides it.
+            const ownText = trimmedText !== href || hasSpoiler;
+            const keepRoomLabel =
+              ownText &&
+              ('data-md' in attribs ||
+                hasSpoiler ||
+                (!href.startsWith('https://matrix.to/') &&
+                  (!children.every(isText) || !/^[#!]/.test(trimmedText))));
             const mention = renderMatrixMention(
               mx,
               roomId,
               href,
               makeMentionCustomProps(params.handleMentionClick),
-              ownText ? content : undefined
+              ownText ? content : undefined,
+              keepRoomLabel
             );
             if (mention) return mention;
           }
           return (
-            <CheckedMessageLink
-              {...props}
-              showFavicon={!!params.showLinkFavicons && !containsSpoiler(children)}
-            >
+            <CheckedMessageLink {...props} showFavicon={!!params.showLinkFavicons && !hasSpoiler}>
               {content}
             </CheckedMessageLink>
           );
