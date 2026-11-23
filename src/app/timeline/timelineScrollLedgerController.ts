@@ -344,6 +344,7 @@ export const useTimelineScrollLedgerController = ({
   let headroomPxAtRender = 0;
   let headroomScrollDeltaAtRender = 0;
   let initHeadroomNow = false;
+  let initialHeadroomPx = 0;
   const protoMode =
     useProtoHeadroom && typeof window !== "undefined"
       ? window.localStorage?.getItem("__protoHeadroom") ?? "auto-trim-near-top"
@@ -357,6 +358,7 @@ export const useTimelineScrollLedgerController = ({
       } else {
         baseHeadroom = Math.max(unloaded * 260, 24_000);
       }
+      initialHeadroomPx = baseHeadroom;
       initHeadroomNow = true;
     }
     const deltaAbove = threadLedgerRenderPlan.foldPx + leadingFoldPx + pendingAboveResizePxRef.current;
@@ -424,7 +426,7 @@ export const useTimelineScrollLedgerController = ({
     }
     if (initHeadroomNow) {
       headroomInitRef.current = true;
-      (window as any).__protoHeadroomStats = { init: baseHeadroom, writes: 0, lastHeadroom: headroomPxAtRender };
+      (window as any).__protoHeadroomStats = { init: initialHeadroomPx, writes: 0, lastHeadroom: headroomPxAtRender };
     }
     headroomPxRef.current = headroomPxAtRender;
     if ((window as any).__protoHeadroomStats) {
