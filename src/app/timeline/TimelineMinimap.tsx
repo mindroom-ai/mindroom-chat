@@ -62,7 +62,8 @@ export const useTimelineMinimapInView = (
       items.forEach((item) => {
         const strip = stripMap.get(item.id);
         if (!strip) return;
-        strip.dataset.inView = inViewIds.has(item.id) ? 'true' : 'false';
+        const next = inViewIds.has(item.id) ? 'true' : 'false';
+        if (strip.dataset.inView !== next) strip.dataset.inView = next;
       });
     };
     const schedule = () => {

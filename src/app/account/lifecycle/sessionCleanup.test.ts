@@ -291,7 +291,7 @@ describe('MindRoom session cleanup', () => {
 
     void clearUserUiState('@alice:example.com');
     clearSessionUiState('session-a');
-    clearSessionNativeState('session-a');
+    void clearSessionNativeState('session-a');
     clearInMemoryCaches();
 
     expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
@@ -315,5 +315,27 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearLongTextHydrationCache)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(clearAttachmentRepositoryMemory)).toHaveBeenCalledTimes(1);
+  });
+
+  it('finishes clearing native state only once the push state is cleared', async () => {
+    let answer: () => void = () => undefined;
+    vi.mocked(clearIOSPushState).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        answer = resolve;
+      })
+    );
+
+    let cleared = false;
+    const clearing = clearSessionNativeState('session-a').then(() => {
+      cleared = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
+    expect(cleared).toBe(false);
+
+    answer();
+    await clearing;
+    expect(cleared).toBe(true);
   });
 });

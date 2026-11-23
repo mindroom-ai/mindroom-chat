@@ -497,7 +497,8 @@
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
-        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken"
+        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
+        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -547,7 +548,12 @@
         "playSound": "Geluid afspelen",
         "resize": "Grootte van het oproepvenster wijzigen",
         "screenOf": "Scherm van {{name}}",
-        "fullScreen": "Volledig scherm"
+        "fullScreen": "Volledig scherm",
+        "screenShareStoppedInBackground": "Scherm delen is gestopt toen je de app verliet.",
+        "shareAgain": "Opnieuw delen",
+        "microphoneStopped": "Je microfoon is gestopt.",
+        "cameraStopped": "Je camera is gestopt.",
+        "turnBackOn": "Weer inschakelen"
       },
       "problems": {
         "service": "De oproepdienst is niet bereikbaar. Probeer het later opnieuw.",
@@ -847,6 +853,12 @@
       "copyCommand": "Opdracht kopiëren",
       "copyFailed": "Kopiëren mislukt",
       "keywords": "mac, macos, desktop, app, downloaden, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Deze app delen",
+        "stopAppShare": "Stoppen met delen van deze app"
+      }
     }
   },
   "mindroomUi": {
@@ -1367,7 +1379,34 @@
     },
     "replyInThread": "Antwoorden in thread…",
     "newThreadIn": "Nieuwe thread in {{room}}…",
-    "newThreadWith": "Nieuwe thread met {{name}}…"
+    "newThreadWith": "Nieuwe thread met {{name}}…",
+    "dictation": {
+      "label": "Dicteren",
+      "cancel": "Dicteren annuleren",
+      "pause": "Dicteren pauzeren",
+      "resume": "Dicteren hervatten",
+      "finish": "Dicteren voltooien",
+      "retry": "Opnieuw proberen",
+      "insertPartial": "Deeltekst invoegen",
+      "discard": "Verwijderen",
+      "dismissError": "Dicteerfout sluiten",
+      "statusStarting": "Dicteren starten",
+      "statusListening": "Aan het dicteren",
+      "statusPaused": "Dicteren gepauzeerd",
+      "statusFinishing": "Afronden...",
+      "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
+      "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
+      "capReached": "Limiet van 5:00 bereikt",
+      "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
+      "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
+      "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen."
+    },
+    "voiceButton": {
+      "settingTitle": "Microfoonknop op telefoon",
+      "settingDescription": "Kies wat de microfoonknop in het invoerveld op telefoons doet. De andere actie blijft in het +-menu.",
+      "dictate": "Dicteren",
+      "voiceMessage": "Spraakbericht"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1446,7 +1485,8 @@
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",
       "callView": "Naar de oproep gaan",
-      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen"
+      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen",
+      "dictate": "Dicteren in het invoerveld"
     }
   },
   "thread": {

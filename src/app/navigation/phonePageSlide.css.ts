@@ -37,8 +37,10 @@ globalStyle(COPY, { inset: 0, pointerEvents: 'none' });
 globalStyle(`${forward} ${COPY}`, { zIndex: -1 });
 globalStyle(`${back} ${COPY}`, { zIndex: 2 });
 // Still: what played in the page when it was copied shows as it ended, and plays no more.
+// 168s is a multiple of both 1.4s (ThreadStreamingDot) and 1.2s (TypingDot), so infinite pulses
+// freeze at 0% (matching a freshly mounted view) while finite entrance animations stay ended.
 globalStyle(`${COPY} > * *`, {
-  animationDelay: '-100s !important',
+  animationDelay: '-168s !important',
   animationPlayState: 'paused !important',
 });
 

@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { DesktopBridge } from '../lib/desktopBridge';
 import { getLivekitServiceUrl } from './rtcFocus';
-import { browserSharesScreens, useCallSupport, type CallSupport } from './callSupport';
+import {
+  browserSharesScreens,
+  screenShareIsInAppOnly,
+  useCallSupport,
+  type CallSupport,
+} from './callSupport';
 
 vi.mock('./rtcFocus', () => ({ getLivekitServiceUrl: vi.fn() }));
 
@@ -88,6 +93,10 @@ const makeBridge = (screenShare: boolean): DesktopBridge => ({
 });
 
 describe('browserSharesScreens', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('follows navigator.mediaDevices.getDisplayMedia when no desktop bridge is present', () => {
     vi.stubGlobal('window', {});
     vi.stubGlobal('navigator', { mediaDevices: { getDisplayMedia: vi.fn() } });
@@ -110,5 +119,24 @@ describe('browserSharesScreens', () => {
     vi.stubGlobal('window', { mindroomDesktop: makeBridge(false) });
     vi.stubGlobal('navigator', { mediaDevices: { getDisplayMedia: vi.fn() } });
     expect(browserSharesScreens()).toBe(false);
+  });
+});
+
+describe('screenShareIsInAppOnly', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['iPhone', { userAgent: 'iPhone OS 18_0', platform: 'iPhone', maxTouchPoints: 5 }, true],
+    [
+      'iPadOS desktop mode',
+      { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 5 },
+      true,
+    ],
+    ['macOS desktop', { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 0 }, false],
+  ])('detects %s', (_label, nav, expected) => {
+    vi.stubGlobal('navigator', nav);
+    expect(screenShareIsInAppOnly()).toBe(expected);
   });
 });

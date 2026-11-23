@@ -1,0 +1,460 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { Provider, createStore } from 'jotai';
+import { act, cleanup, renderHook } from '@testing-library/react';
+import { createClient, MatrixEvent, MemoryStore, Room, type MatrixClient } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
+import type { ClientSessions } from '../../computer/clientSessions';
+import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
+import { isDictationSupported, useDictationServer } from './useDictationServer';
+
+const VIEWER = '@alice:example.org';
+const AGENT = '@mindroom_code:example.org';
+const HUMAN = '@bob:example.org';
+
+type ComputersConfig = NonNullable<ClientConfig['mindroom']>['computers'];
+
+const state = vi.hoisted(
+  (): {
+    readOpenIdBinding: () => Promise<boolean | undefined>;
+    send: ReturnType<typeof vi.fn>;
+    sessionCache: Map<string, ClientSessions>;
+  } => ({
+    readOpenIdBinding: () => Promise.resolve(true),
+    send: vi.fn(),
+    sessionCache: new Map(),
+  })
+);
+
+vi.mock('../../matrix/openidAudience', () => ({
+  readOpenIdBinding: () => state.readOpenIdBinding(),
+}));
+
+vi.mock('../../computer/clientSessions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../computer/clientSessions')>()),
+  clientSessions: (_mx: unknown, apiUrl: string) => {
+    let sessions = state.sessionCache.get(apiUrl);
+    if (!sessions) {
+      sessions = { send: state.send } as unknown as ClientSessions;
+      state.sessionCache.set(apiUrl, sessions);
+    }
+    return sessions;
+  },
+}));
+
+let serial = 0;
+const stateEvent = (
+  roomId: string,
+  type: string,
+  stateKey: string,
+  content: Record<string, unknown>
+) => {
+  serial += 1;
+  return new MatrixEvent({
+    type,
+    state_key: stateKey,
+    sender: stateKey,
+    room_id: roomId,
+    event_id: `$state${serial}`,
+    origin_server_ts: serial,
+    content,
+  });
+};
+
+const createTestClient = () =>
+  createClient({
+    baseUrl: 'https://example.org',
+    userId: VIEWER,
+    store: new MemoryStore(),
+    timelineSupport: true,
+  });
+
+const addRoom = async (
+  mx: MatrixClient,
+  opts: {
+    roomId: string;
+    members: string[];
+    serverOrigins?: Array<{ agentUserId?: string; apiOrigin: string }>;
+    membersLoaded?: boolean;
+    loadMembersPromise?: Promise<boolean>;
+  }
+) => {
+  const room = new Room(opts.roomId, mx, VIEWER, { timelineSupport: true });
+  const events: MatrixEvent[] = [
+    ...opts.members.map((userId) =>
+      stateEvent(opts.roomId, 'm.room.member', userId, { membership: 'join' })
+    ),
+    ...(opts.serverOrigins ?? []).map(({ agentUserId = AGENT, apiOrigin }) =>
+      stateEvent(opts.roomId, MINDROOM_SERVER_EVENT, agentUserId, {
+        api_origin: apiOrigin,
+        computer: true,
+      })
+    ),
+  ];
+  await room.addLiveEvents(events, { addToState: true });
+  room.updateMyMembership('join');
+  const loaded = opts.membersLoaded ?? true;
+  room.membersLoaded = () => loaded;
+  room.loadMembersIfNeeded = () => opts.loadMembersPromise ?? Promise.resolve(true);
+  mx.store.storeRoom(room);
+  return room;
+};
+
+const installMediaCapabilities = (enabled: boolean) => {
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: enabled ? { getUserMedia: vi.fn() } : undefined,
+  });
+  Object.defineProperty(globalThis, 'AudioContext', {
+    configurable: true,
+    value: enabled ? vi.fn() : undefined,
+  });
+  Object.defineProperty(globalThis, 'AudioWorkletNode', {
+    configurable: true,
+    value: enabled ? vi.fn() : undefined,
+  });
+};
+
+const flushEffects = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
+const renderServerHook = (
+  mx: MatrixClient,
+  opts: {
+    roomId?: string;
+    computers?: ComputersConfig;
+    store?: ReturnType<typeof createStore>;
+  } = {}
+) => {
+  const store = opts.store ?? createStore();
+  const config: ClientConfig = opts.computers ? { mindroom: { computers: opts.computers } } : {};
+  return renderHook(() => useDictationServer(opts.roomId), {
+    wrapper: ({ children }: { children: React.ReactNode }) => (
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <ClientConfigProvider value={config}>{children}</ClientConfigProvider>
+        </MatrixClientProvider>
+      </Provider>
+    ),
+  });
+};
+
+beforeEach(() => {
+  localStorage.clear();
+  state.readOpenIdBinding = () => Promise.resolve(true);
+  state.send = vi.fn(async () =>
+    Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+  );
+  state.sessionCache = new Map();
+  installMediaCapabilities(true);
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+describe('useDictationServer', () => {
+  it('hides Dictate and makes zero requests when navigator.mediaDevices is undefined (Mac Catalyst)', async () => {
+    installMediaCapabilities(false);
+    expect(isDictationSupported()).toBe(false);
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+
+    expect(result.current.available).toBe(false);
+    expect(result.current.apiUrl).toBeUndefined();
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('uses auto-discovered roomServer.apiUrl when computers.apiUrl is empty and trustedApiUrls is unset (chat.mindroom.chat default)', async () => {
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!agent-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://selfhosted.example' }],
+    });
+    await addRoom(mx, {
+      roomId: '!newer-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://newer.example' }],
+    });
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!agent-room:example.org',
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+
+    expect(result.current.apiUrl).toBe('https://selfhosted.example');
+    expect(result.current.available).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+    expect(state.send).toHaveBeenCalledWith(
+      '/api/dictation/v1/status?room_id=!agent-room%3Aexample.org',
+      expect.objectContaining({ method: 'GET' })
+    );
+  });
+
+  it('uses auto-discovered computer server in a human DM and Home when preference is null, and respects explicit disable', async () => {
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!agent-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://selfhosted.example' }],
+    });
+    await addRoom(mx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+    });
+
+    const dmHook = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+    expect(dmHook.result.current.apiUrl).toBe('https://selfhosted.example');
+    expect(dmHook.result.current.available).toBe(true);
+    dmHook.unmount();
+
+    const homeHook = renderServerHook(mx, {
+      roomId: undefined,
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+    expect(homeHook.result.current.apiUrl).toBe('https://selfhosted.example');
+    expect(homeHook.result.current.available).toBe(true);
+    homeHook.unmount();
+
+    state.send.mockClear();
+    const disabledStore = createStore();
+    disabledStore.set(computerServicePreferenceAtom, '');
+
+    const disabledDmHook = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { apiUrl: '' },
+      store: disabledStore,
+    });
+    await flushEffects();
+    expect(disabledDmHook.result.current.apiUrl).toBeUndefined();
+    expect(disabledDmHook.result.current.available).toBe(false);
+    disabledDmHook.unmount();
+
+    const disabledHomeHook = renderServerHook(mx, {
+      roomId: undefined,
+      computers: { apiUrl: '' },
+      store: disabledStore,
+    });
+    await flushEffects();
+    expect(disabledHomeHook.result.current.apiUrl).toBeUndefined();
+    expect(disabledHomeHook.result.current.available).toBe(false);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('waits until useRoomMindroomServer settles before resolving room or fallback servers', async () => {
+    let resolveMembers!: (value: boolean) => void;
+    const loadMembersPromise = new Promise<boolean>((resolve) => {
+      resolveMembers = resolve;
+    });
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+      membersLoaded: false,
+      loadMembersPromise,
+    });
+
+    const { result, unmount } = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { apiUrl: 'https://deploy.example' },
+    });
+    await flushEffects();
+    expect(result.current.apiUrl).toBeUndefined();
+    expect(state.send).not.toHaveBeenCalled();
+
+    resolveMembers(true);
+    await flushEffects();
+    expect(result.current.apiUrl).toBe('https://deploy.example');
+    expect(result.current.available).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+    unmount();
+
+    // When roomId is omitted (Home), useMemberListSettled(null) is true, but we still wait for OpenID binding.
+    let resolveBinding!: (value: boolean) => void;
+    state.readOpenIdBinding = () =>
+      new Promise<boolean>((resolve) => {
+        resolveBinding = resolve;
+      });
+    const homeMx = createTestClient();
+    await addRoom(homeMx, {
+      roomId: '!agent-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://home-discovered.example' }],
+    });
+    state.send.mockClear();
+
+    const homeHook = renderServerHook(homeMx, {
+      roomId: undefined,
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+    expect(homeHook.result.current.apiUrl).toBeUndefined();
+    expect(state.send).not.toHaveBeenCalled();
+
+    resolveBinding(true);
+    await flushEffects();
+    expect(homeHook.result.current.apiUrl).toBe('https://home-discovered.example');
+    expect(homeHook.result.current.available).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('enforces deployment trustedApiUrls and apiUrl allowlists and supports personal override', async () => {
+    // Only untrusted server published while trustedApiUrls is set: rejected in both room and DM.
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!untrusted-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://untrusted.example' }],
+    });
+    await addRoom(mx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+    });
+
+    const rejectedRoom = renderServerHook(mx, {
+      roomId: '!untrusted-room:example.org',
+      computers: { trustedApiUrls: ['https://trusted.example'] },
+    });
+    await flushEffects();
+    expect(rejectedRoom.result.current.apiUrl).toBeUndefined();
+    expect(rejectedRoom.result.current.available).toBe(false);
+    expect(state.send).not.toHaveBeenCalled();
+    rejectedRoom.unmount();
+
+    // Even when a newer untrusted room exists alongside a trusted room, fallback in DM picks only the trusted origin.
+    await addRoom(mx, {
+      roomId: '!trusted-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://trusted.example' }],
+    });
+    await addRoom(mx, {
+      roomId: '!newer-untrusted-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://newer-untrusted.example' }],
+    });
+    const allowedDm = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { trustedApiUrls: ['https://trusted.example'] },
+    });
+    await flushEffects();
+    expect(allowedDm.result.current.apiUrl).toBe('https://trusted.example');
+    expect(allowedDm.result.current.available).toBe(true);
+    allowedDm.unmount();
+
+    // When computers.apiUrl is configured without trustedApiUrls, untrusted published origin is rejected.
+    const deploymentRoom = renderServerHook(mx, {
+      roomId: '!untrusted-room:example.org',
+      computers: { apiUrl: 'https://deploy.example' },
+    });
+    await flushEffects();
+    expect(deploymentRoom.result.current.apiUrl).toBe('https://deploy.example');
+    expect(deploymentRoom.result.current.available).toBe(true);
+    deploymentRoom.unmount();
+
+    // Personal override works in a human DM when no deployment server is configured.
+    const personalMx = createTestClient();
+    await addRoom(personalMx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+    });
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, 'https://personal.example');
+    const personalDm = renderServerHook(personalMx, {
+      roomId: '!dm:example.org',
+      store,
+    });
+    await flushEffects();
+    expect(personalDm.result.current.apiUrl).toBe('https://personal.example');
+    expect(personalDm.result.current.available).toBe(true);
+  });
+
+  it('does not use discovered servers when the homeserver does not bind OpenID tokens', async () => {
+    state.readOpenIdBinding = () => Promise.resolve(false);
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!agent-room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://selfhosted.example' }],
+    });
+    await addRoom(mx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+    });
+
+    const roomHook = renderServerHook(mx, {
+      roomId: '!agent-room:example.org',
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+    expect(roomHook.result.current.apiUrl).toBeUndefined();
+    expect(roomHook.result.current.available).toBe(false);
+    roomHook.unmount();
+
+    const dmHook = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { apiUrl: '' },
+    });
+    await flushEffects();
+    expect(dmHook.result.current.apiUrl).toBeUndefined();
+    expect(dmHook.result.current.available).toBe(false);
+    expect(state.send).not.toHaveBeenCalled();
+  });
+
+  it('recovers after a transient 503 status failure once the 30 s TTL expires', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+    state.send
+      .mockResolvedValueOnce(new Response('restarting', { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+      );
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    expect(result.current.available).toBe(false);
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_005);
+    });
+    expect(result.current.available).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(2);
+  });
+});

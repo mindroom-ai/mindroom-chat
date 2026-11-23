@@ -124,9 +124,14 @@ export function FilterBarSlot({
   useLayoutEffect(() => {
     const slot = slotRef.current;
     if (!slot) return undefined;
+    let lastHeight: number | undefined;
     // A slot that has no layout (hidden, or a test document) leaves the inset at its gap.
     const report = () => {
-      if (slot.offsetHeight > 0) onHeight(slot.offsetHeight);
+      const next = slot.offsetHeight;
+      if (next > 0 && next !== lastHeight) {
+        lastHeight = next;
+        onHeight(next);
+      }
     };
     report();
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(report);

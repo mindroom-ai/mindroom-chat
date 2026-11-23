@@ -837,4 +837,687 @@ final class ThreadSnapshotTests: XCTestCase {
                                             ownUserId: me, now: now, trustedAccounts: [agent])
         XCTAssertEqual(ids(snapshot), ["$root", "$voice", "$echo"])
     }
+
+    func testWorkFoldDetailsForV2MarkdownFinishedVsStreamingAndNoPreProse() {
+        let finishedBody = "Looking up flights.\n🔧 `flights_search` [1]\nFound **2 options**."
+        let v2Trace: JSON = [
+            "version": 2,
+            "events": [["type": "tool_call_completed", "tool_name": "flights_search"] as JSON],
+        ]
+        let finished = event("$r1", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let finSnap = ThreadSnapshot.build(root: voiceRoot, related: [finished], ownUserId: me, now: now)
+        XCTAssertEqual(finSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertEqual(finSnap.reply?.tools, 1)
+        XCTAssertEqual(finSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(finSnap.reply?.answerText, "Found 2 options.")
+        XCTAssertNil(finSnap.reply?.durationSeconds)
+
+        // Streaming reply keeps workText nil and renders full answerText.
+        let streaming = event("$r2", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "streaming",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let streamSnap = ThreadSnapshot.build(root: voiceRoot, related: [streaming], ownUserId: me, now: now)
+        XCTAssertEqual(streamSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(streamSnap.reply?.workText)
+        XCTAssertEqual(streamSnap.reply?.answerText, "Looking up flights.\nFound 2 options.")
+
+        // No prose before tool call: workText stays nil even when finished.
+        let noPre = event("$r3", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "🔧 `flights_search` [1]\nFound 2 options.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let noPreSnap = ThreadSnapshot.build(root: voiceRoot, related: [noPre], ownUserId: me, now: now)
+        XCTAssertEqual(noPreSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(noPreSnap.reply?.workText)
+        XCTAssertEqual(noPreSnap.reply?.answerText, "Found 2 options.")
+
+        // Literal marker line without a matching v2 trace stays count-only and never hides prose.
+        let literal = event("$r4", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": finishedBody,
+            "io.mindroom.stream_status": "completed",
+        ]))
+        let literalSnap = ThreadSnapshot.build(root: voiceRoot, related: [literal], ownUserId: me, now: now)
+        XCTAssertEqual(literalSnap.reply?.tools, 1)
+        XCTAssertEqual(literalSnap.reply?.toolNames, [String]())
+        XCTAssertNil(literalSnap.reply?.workText)
+        XCTAssertEqual(literalSnap.reply?.answerText, "Looking up flights.\nFound 2 options.")
+
+        // Hourglass-only tail after a tool call must NOT become the folded answer.
+        let hourglass = event("$r5", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n⏳",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let hourglassSnap = ThreadSnapshot.build(root: voiceRoot, related: [hourglass], ownUserId: me, now: now)
+        XCTAssertEqual(hourglassSnap.reply?.toolNames, ["flights_search"])
+        XCTAssertNil(hourglassSnap.reply?.workText)
+        XCTAssertEqual(hourglassSnap.reply?.answerText, "Looking up flights.\n⏳")
+    }
+
+    func testV3ToolTraceExtractsToolNamesBodyLineSplitAndDuration() {
+        let initial = event("$reply", 1_700_000_000_000, inThread([
+            "msgtype": "m.text",
+            "body": "Working…",
+            "io.mindroom.stream_status": "streaming",
+        ]))
+        let finalEdit = event("$replyEdit", 1_700_000_014_500, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": "Inspecting calendar.\n\nBooked your meeting for 3 PM.",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [
+                        ["type": "tool_call_completed", "tool_name": "calendar_list", "body_line": 1] as JSON,
+                        ["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 2] as JSON,
+                    ],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON,
+        ])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, finalEdit], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.tools, 2)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_list", "calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Inspecting calendar.")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked your meeting for 3 PM.")
+        XCTAssertEqual(snapshot.reply?.durationSeconds, 14)
+
+        // Sub-second edit produces nil durationSeconds even when completed.
+        let fastEdit = event("$fastEdit", 1_700_000_000_400, [
+            "m.new_content": ["msgtype": "m.text", "body": "Done.", "io.mindroom.stream_status": "completed"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON,
+        ])
+        let fastSnap = ThreadSnapshot.build(root: voiceRoot, related: [initial, fastEdit], ownUserId: me, now: now)
+        XCTAssertNil(fastSnap.reply?.durationSeconds)
+    }
+
+    func testNonAgentAndRemoteSendersDoNotGetWorkFoldNamesOrDuration() {
+        let v2Body = "Pre-work prose.\n🔧 `web_search` [1]\nFinal answer."
+        let v3Content: JSON = [
+            "msgtype": "m.text",
+            "body": "Pre-work prose.\n\nFinal answer.",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "read_file", "body_line": 2] as JSON],
+            ] as JSON,
+        ]
+        let buildEditedReply = { (sender: String, content: JSON) -> ThreadSnapshot.Message? in
+            let initial = event("$r", 1_700_000_000_000, sender: sender, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$e", 1_700_000_012_000, sender: sender, [
+                "m.new_content": content,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            return ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: self.now).reply
+        }
+
+        // Ordinary local user with v2 markdown tool line: keeps legacy count, no names/fold/duration.
+        let userV2 = buildEditedReply("@anna:x", ["msgtype": "m.text", "body": v2Body])
+        XCTAssertEqual(userV2?.tools, 1)
+        XCTAssertEqual(userV2?.toolNames, [String]())
+        XCTAssertNil(userV2?.workText)
+        XCTAssertEqual(userV2?.answerText, userV2?.text)
+        XCTAssertNil(userV2?.durationSeconds)
+
+        // Ordinary local user with v3 tool trace: zero tools, no names/fold/duration.
+        let userV3 = buildEditedReply("@anna:x", v3Content)
+        XCTAssertEqual(userV3?.tools, 0)
+        XCTAssertEqual(userV3?.toolNames, [String]())
+        XCTAssertNil(userV3?.workText)
+        XCTAssertEqual(userV3?.answerText, userV3?.text)
+        XCTAssertNil(userV3?.durationSeconds)
+
+        // Remote homeserver mindroom_* sender: keeps legacy count, no names/fold/duration.
+        let remote = "@mindroom_mind:elsewhere.example"
+        let remoteV2 = buildEditedReply(remote, ["msgtype": "m.text", "body": v2Body])
+        XCTAssertEqual(remoteV2?.tools, 1)
+        XCTAssertEqual(remoteV2?.toolNames, [String]())
+        XCTAssertNil(remoteV2?.workText)
+        XCTAssertEqual(remoteV2?.answerText, remoteV2?.text)
+        XCTAssertNil(remoteV2?.durationSeconds)
+
+        let remoteV3 = buildEditedReply(remote, v3Content)
+        XCTAssertEqual(remoteV3?.tools, 1)
+        XCTAssertEqual(remoteV3?.toolNames, [String]())
+        XCTAssertNil(remoteV3?.workText)
+        XCTAssertEqual(remoteV3?.answerText, remoteV3?.text)
+        XCTAssertNil(remoteV3?.durationSeconds)
+    }
+
+    func testV3BodyLineSplitsStrictlyOnLFNotUnicodeLineSeparator() {
+        // \u{2028} inside line 0 must NOT increment the LF line index.
+        let body = "Checking\u{2028}calendar.\nBooked for 3 PM."
+        let reply = event("$r", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Checking\ncalendar.")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked for 3 PM.")
+    }
+
+    func testV3BodyLineSplitsStrictlyOnLFIncludingCRLF() {
+        // Swift treats "\r\n" as one Character, so splitting on LF byte 0x0A is required to match web's split('\n').
+        let body = "Step A\r\nStep B\nBooked.\nAt 3 PM."
+        let reply = event("$r", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "calendar_create", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.toolNames, ["calendar_create"])
+        XCTAssertEqual(snapshot.reply?.workText, "Step A\nStep B")
+        XCTAssertEqual(snapshot.reply?.answerText, "Booked.\nAt 3 PM.")
+    }
+
+    func testPausedStoppedAndFencedV3RepliesKeepFullTextUnfolded() {
+        let body = "Checking staging first.\nWaiting for approval."
+        let makeReply = { (status: String) -> ThreadSnapshot.Message? in
+            let initial = event("$r", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…", "io.mindroom.stream_status": "streaming"]))
+            let edit = event("$e", 1_700_000_012_000, [
+                "m.new_content": [
+                    "msgtype": "m.text",
+                    "body": body,
+                    "io.mindroom.stream_status": status,
+                    "io.mindroom.tool_trace": [
+                        "version": 3,
+                        "events": [["type": "tool_call_started", "tool_name": "check_health", "body_line": 1] as JSON],
+                    ] as JSON,
+                ] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            return ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: self.now).reply
+        }
+        // Approval-pending and cancelled runs must keep full prose visible and audible, and omit elapsed duration.
+        for status in ["approval_pending", "cancelled", "error"] {
+            let reply = makeReply(status)
+            XCTAssertEqual(reply?.toolNames, ["check_health"], "status=\(status)")
+            XCTAssertNil(reply?.workText, "status=\(status)")
+            XCTAssertEqual(reply?.answerText, reply?.text, "status=\(status)")
+            XCTAssertNil(reply?.durationSeconds, "status=\(status)")
+        }
+
+        // A body_line inside an open code fence must not split or strip literal fenced lines.
+        let fencedBody = "Example:\n```\n🔧 `demo` [1]\n```\nDone."
+        let fencedReply = event("$rf", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": fencedBody,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "shell", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let fencedSnap = ThreadSnapshot.build(root: voiceRoot, related: [fencedReply], ownUserId: me, now: now)
+        XCTAssertEqual(fencedSnap.reply?.toolNames, ["shell"])
+        XCTAssertNil(fencedSnap.reply?.workText)
+        XCTAssertEqual(fencedSnap.reply?.answerText, "Example:\n🔧 `demo` [1]\nDone.")
+        // Mixed bare-CR inside an LF-indexed body must keep fenced code intact (matching withToolDetails).
+        let mixedBody = "Checking.\n\nResult:\n~~~\rreturn 42\r~~~"
+        let mixedReply = event("$rm", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": mixedBody,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "eval", "body_line": 2] as JSON],
+            ] as JSON,
+        ]))
+        let mixedSnap = ThreadSnapshot.build(root: voiceRoot, related: [mixedReply], ownUserId: me, now: now)
+        XCTAssertEqual(mixedSnap.reply?.workText, "Checking.")
+        XCTAssertEqual(mixedSnap.reply?.answerText, "Result:\nreturn 42")
+
+        // Out-of-order body_line positions must not split prose.
+        let outOfOrder = event("$ro", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Line 0.\nLine 1.\nLine 2.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [
+                    ["type": "tool_call_completed", "tool_name": "first", "body_line": 2] as JSON,
+                    ["type": "tool_call_completed", "tool_name": "second", "body_line": 1] as JSON,
+                ],
+            ] as JSON,
+        ]))
+        let outOfOrderSnap = ThreadSnapshot.build(root: voiceRoot, related: [outOfOrder], ownUserId: me, now: now)
+        XCTAssertEqual(outOfOrderSnap.reply?.toolNames, ["first", "second"])
+        XCTAssertNil(outOfOrderSnap.reply?.workText)
+        XCTAssertEqual(outOfOrderSnap.reply?.answerText, outOfOrderSnap.reply?.text)
+
+        // ai_run.status=completed combined with string or record-form active/stopped/paused stream_status
+        // must keep RunState, Home rowState, and WorkFoldView aligned and never fold or show duration.
+        let conflictingCases: [(value: Any, expectedRun: RunState, expectedRunningRow: Bool)] = [
+            ("streaming", .streaming, true),
+            ("cancelled", .stopped, false),
+            ("approval_pending", .none, false),
+            (["state": "streaming"] as JSON, .streaming, true),
+            (["status": "cancelled"] as JSON, .stopped, false),
+        ]
+        for testCase in conflictingCases {
+            let initial = event("$rc", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$rce", 1_700_000_012_000, [
+                "m.new_content": [
+                    "msgtype": "m.text",
+                    "body": body,
+                    "io.mindroom.ai_run": ["version": 1, "status": "completed"] as JSON,
+                    "io.mindroom.stream_status": testCase.value,
+                    "io.mindroom.tool_trace": [
+                        "version": 3,
+                        "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                    ] as JSON,
+                ] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$rc"] as JSON,
+            ])
+            let snap = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
+            XCTAssertEqual(snap.reply?.run, testCase.expectedRun, "conflicting=\(testCase.value)")
+            XCTAssertEqual(snap.rowState == .running, testCase.expectedRunningRow, "conflicting=\(testCase.value)")
+            XCTAssertNil(snap.reply?.workText, "conflicting=\(testCase.value)")
+            XCTAssertEqual(snap.reply?.answerText, snap.reply?.text, "conflicting=\(testCase.value)")
+            XCTAssertNil(snap.reply?.durationSeconds, "conflicting=\(testCase.value)")
+        }
+
+        // Valid success aliases ("complete", "done") and wrapper-level stream_status fold cleanly.
+        for alias in ["complete", "done"] {
+            let reply = event("$ra", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.stream_status": alias,
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                ] as JSON,
+            ]))
+            let snap = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
+            XCTAssertEqual(snap.reply?.workText, "Checking staging first.", "alias=\(alias)")
+            XCTAssertEqual(snap.reply?.answerText, "Waiting for approval.", "alias=\(alias)")
+        }
+
+        // Wrapper-level live stream_status on the edit keeps RunState streaming and prevents folding even when ai_run says completed.
+        let wrapInitial = event("$rw", 1_700_000_000_000, inThread(["msgtype": "m.text", "body": "…"]))
+        let wrapEdit = event("$rwe", 1_700_000_012_000, [
+            "io.mindroom.stream_status": ["state": "streaming"] as JSON,
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.ai_run": ["version": 1, "status": "completed"] as JSON,
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$rw"] as JSON,
+        ])
+        let wrapSnap = ThreadSnapshot.build(root: voiceRoot, related: [wrapInitial, wrapEdit], ownUserId: me, now: now)
+        XCTAssertEqual(wrapSnap.reply?.run, .streaming)
+        XCTAssertEqual(wrapSnap.rowState, .running)
+        XCTAssertNil(wrapSnap.reply?.workText)
+        XCTAssertNil(wrapSnap.reply?.durationSeconds)
+
+        // Present-but-invalid body_line (e.g. null) disables v3 prose splitting while keeping valid tool counts.
+        let malformedPos = event("$rmp", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Line 0.\nLine 1.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [
+                    ["type": "tool_call_completed", "tool_name": "first", "body_line": 1] as JSON,
+                    ["type": "tool_call_completed", "tool_name": "second", "body_line": NSNull()] as JSON,
+                ],
+            ] as JSON,
+        ]))
+        let malformedPosSnap = ThreadSnapshot.build(root: voiceRoot, related: [malformedPos], ownUserId: me, now: now)
+        XCTAssertEqual(malformedPosSnap.reply?.tools, 1)
+        XCTAssertEqual(malformedPosSnap.reply?.toolNames, ["first"])
+        XCTAssertNil(malformedPosSnap.reply?.workText)
+        XCTAssertEqual(malformedPosSnap.reply?.answerText, malformedPosSnap.reply?.text)
+
+        // v3 hourglass-only tail and long_text previews stay unfolded.
+        let v3Hourglass = event("$rh", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Checking staging first.\n⏳",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let v3HourglassSnap = ThreadSnapshot.build(root: voiceRoot, related: [v3Hourglass], ownUserId: me, now: now)
+        XCTAssertNil(v3HourglassSnap.reply?.workText)
+
+        let longTextPreview = event("$rlt", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.long_text": ["version": 1] as JSON,
+            "io.mindroom.tool_trace": [
+                "version": 3,
+                "events": [["type": "tool_call_completed", "tool_name": "check_health", "body_line": 1] as JSON],
+            ] as JSON,
+        ]))
+        let longTextSnap = ThreadSnapshot.build(root: voiceRoot, related: [longTextPreview], ownUserId: me, now: now)
+        XCTAssertNil(longTextSnap.reply?.workText)
+
+        // Redacted agent reply with a surviving same-sender edit must NOT expose tool names or work fold.
+        var redacted = event("$red", 1_700_000_000_000, inThread([:]))
+        redacted["unsigned"] = ["redacted_because": ["event_id": "$redaction"] as JSON] as JSON
+        let survivingEdit = event("$rede", 1_700_000_012_000, [
+            "m.new_content": [
+                "msgtype": "m.text",
+                "body": body,
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "secret_tool", "body_line": 1] as JSON],
+                ] as JSON,
+            ] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$red"] as JSON,
+        ])
+        let redactedSnap = ThreadSnapshot.build(root: voiceRoot, related: [redacted, survivingEdit], ownUserId: me, now: now)
+        XCTAssertEqual(redactedSnap.reply?.toolNames, [String]())
+        XCTAssertNil(redactedSnap.reply?.workText)
+        XCTAssertNil(redactedSnap.reply?.durationSeconds)
+    }
+
+    func testDurationSecondsHandlesExtremeAndNonPositiveTimestampsWithoutOverflow() {
+        let cases: [(Int, Int)] = [
+            (Int.min, Int.max),
+            (Int.max, Int.min),
+            (0, 10_000),
+            (-5_000, 10_000),
+            (10_000, 0),
+            (10_000, -1),
+        ]
+        for (startTs, editTs) in cases {
+            let initial = event("$r", startTs, inThread(["msgtype": "m.text", "body": "…"]))
+            let edit = event("$e", editTs, [
+                "m.new_content": ["msgtype": "m.text", "body": "Done.", "io.mindroom.stream_status": "completed"] as JSON,
+                "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+            ])
+            let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [initial, edit], ownUserId: me, now: now)
+            XCTAssertNil(snapshot.reply?.durationSeconds, "Expected nil for (\(startTs), \(editTs))")
+        }
+    }
+
+    func testV2RejectsDuplicateAndOutOfOrderMarkerIndices() {
+        let trace: JSON = [
+            "version": 2,
+            "events": [
+                ["type": "tool_call_completed", "tool_name": "flights_search"] as JSON,
+                ["type": "tool_call_completed", "tool_name": "calendar_list"] as JSON,
+            ],
+        ]
+        // Answer prose sits between a real [1] marker and a quoted/repeated [1] marker: must not double-list or hide the answer.
+        let duplicate = event("$dup", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\nFound 2 flights for Tuesday.\n🔧 `flights_search` [1]\nNote above.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": trace,
+        ]))
+        let dupSnap = ThreadSnapshot.build(root: voiceRoot, related: [duplicate], ownUserId: me, now: now)
+        XCTAssertEqual(dupSnap.reply?.toolNames, [String]())
+        XCTAssertNil(dupSnap.reply?.workText)
+        XCTAssertEqual(dupSnap.reply?.answerText, "Looking up flights.\nFound 2 flights for Tuesday.\nNote above.")
+
+        // Out-of-order [2] then [1] must also be rejected.
+        let reversed = event("$rev", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Step 1.\n🔧 `calendar_list` [2]\nReal answer.\n🔧 `flights_search` [1]\nFooter.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": trace,
+        ]))
+        let revSnap = ThreadSnapshot.build(root: voiceRoot, related: [reversed], ownUserId: me, now: now)
+        XCTAssertEqual(revSnap.reply?.toolNames, [String]())
+        XCTAssertNil(revSnap.reply?.workText)
+        XCTAssertEqual(revSnap.reply?.answerText, "Step 1.\nReal answer.\nFooter.")
+    }
+
+    func testFractionalToolTraceVersionsAndBodyLinesAreRejected() throws {
+        func decode(_ raw: String) throws -> JSON {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? JSON)
+        }
+        let v2Fractional = try decode(#"""
+        {"type":"m.room.message","event_id":"$v2f","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\n🔧 `search` [1]\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":2.5,"events":[{"type":"tool_call_completed","tool_name":"search"}]}}}
+        """#)
+        let v2Snap = ThreadSnapshot.build(root: voiceRoot, related: [v2Fractional], ownUserId: me, now: now)
+        XCTAssertEqual(v2Snap.reply?.toolNames, [String]())
+        XCTAssertNil(v2Snap.reply?.workText)
+
+        let v3Fractional = try decode(#"""
+        {"type":"m.room.message","event_id":"$v3f","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":3.5,"events":[{"type":"tool_call_completed","tool_name":"search","body_line":1}]}}}
+        """#)
+        let v3Snap = ThreadSnapshot.build(root: voiceRoot, related: [v3Fractional], ownUserId: me, now: now)
+        XCTAssertEqual(v3Snap.reply?.tools, 0)
+        XCTAssertEqual(v3Snap.reply?.toolNames, [String]())
+        XCTAssertNil(v3Snap.reply?.workText)
+
+        let fractionalBodyLine = try decode(#"""
+        {"type":"m.room.message","event_id":"$blf","origin_server_ts":10000,"sender":"@mindroom_mind:x",
+         "content":{"msgtype":"m.text","body":"Checking.\nDone.",
+                    "m.relates_to":{"rel_type":"m.thread","event_id":"$root"},
+                    "io.mindroom.stream_status":"completed",
+                    "io.mindroom.tool_trace":{"version":3,"events":[{"type":"tool_call_completed","tool_name":"search","body_line":1.5}]}}}
+        """#)
+        let blSnap = ThreadSnapshot.build(root: voiceRoot, related: [fractionalBodyLine], ownUserId: me, now: now)
+        XCTAssertEqual(blSnap.reply?.tools, 0)
+        XCTAssertNil(blSnap.reply?.workText)
+    }
+
+    func testThematicBreakOnlyTailDoesNotFoldWork() {
+        let v2Trace: JSON = [
+            "version": 2,
+            "events": [["type": "tool_call_completed", "tool_name": "flights_search"] as JSON],
+        ]
+        for divider in ["---", "***", "___", "- - -", "> ---", "> - - -", "> * * *", "> _ _ _", ">- - -", "> > * * *"] {
+            let v2Reply = event("$d2", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": "Looking up flights.\n🔧 `flights_search` [1]\n\(divider)",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": v2Trace,
+            ]))
+            let v2Snap = ThreadSnapshot.build(root: voiceRoot, related: [v2Reply], ownUserId: me, now: now)
+            XCTAssertNil(v2Snap.reply?.workText, "v2 divider=\(divider)")
+            XCTAssertEqual(v2Snap.reply?.answerText, v2Snap.reply?.text, "v2 divider=\(divider)")
+
+            let v3Reply = event("$d3", 10_000, inThread([
+                "msgtype": "m.text",
+                "body": "Looking up flights.\n\(divider)",
+                "io.mindroom.stream_status": "completed",
+                "io.mindroom.tool_trace": [
+                    "version": 3,
+                    "events": [["type": "tool_call_completed", "tool_name": "flights_search", "body_line": 1] as JSON],
+                ] as JSON,
+            ]))
+            let v3Snap = ThreadSnapshot.build(root: voiceRoot, related: [v3Reply], ownUserId: me, now: now)
+            XCTAssertNil(v3Snap.reply?.workText, "v3 divider=\(divider)")
+            XCTAssertEqual(v3Snap.reply?.answerText, v3Snap.reply?.text, "v3 divider=\(divider)")
+        }
+
+        // A divider followed by real prose still splits cleanly.
+        let withAnswer = event("$da", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n---\nFound 2 flights.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let withAnswerSnap = ThreadSnapshot.build(root: voiceRoot, related: [withAnswer], ownUserId: me, now: now)
+        XCTAssertEqual(withAnswerSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(withAnswerSnap.reply?.answerText, "---\nFound 2 flights.")
+
+        // A quoted, spaced divider shows as the divider it is, not as a list item.
+        let quoted = event("$dq", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": "Looking up flights.\n🔧 `flights_search` [1]\n> - - -\nFound 2 flights.",
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": v2Trace,
+        ]))
+        let quotedSnap = ThreadSnapshot.build(root: voiceRoot, related: [quoted], ownUserId: me, now: now)
+        XCTAssertEqual(quotedSnap.reply?.workText, "Looking up flights.")
+        XCTAssertEqual(quotedSnap.reply?.answerText, "- - -\nFound 2 flights.")
+    }
+
+    /// A finished reply of the local agent, with a version-2 trace of one `shell` call for a body that has its
+    /// marker line, else a version-3 trace of that call at `bodyLine`.
+    private func finishedReply(_ body: String, bodyLine: Int? = nil) -> ThreadSnapshot.Message? {
+        var call: JSON = ["type": "tool_call_completed", "tool_name": "shell"]
+        if let bodyLine { call["body_line"] = bodyLine }
+        let reply = event("$fr", 10_000, inThread([
+            "msgtype": "m.text",
+            "body": body,
+            "io.mindroom.stream_status": "completed",
+            "io.mindroom.tool_trace": ["version": bodyLine == nil ? 2 : 3, "events": [call]] as JSON,
+        ]))
+        return ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now).reply
+    }
+
+    func testALinkReferenceDefinitionAloneIsNoSideOfASplit() {
+        // The first is the body of "a link reference that links the index stays version 2" in MindRoom's
+        // shared fixture `tool-positions-v1.json`.
+        let definitions = [
+            ("See [1].", "[1]: https://example.org"),
+            ("Reading the guide.", "[docs]: https://example.com/guide"),
+            ("Reading the guide.", "   [docs]: <https://example.com/the guide> \"The guide\""),
+            ("Reading the guide.", "> [docs]: https://example.com/guide 'The guide'"),
+            ("Reading the guide.", "[a]: https://example.com/a\n[b]: https://example.com/b (B)"),
+        ]
+        for (prose, definition) in definitions {
+            // As it is in the text, without the quote marks: it stays, and shows as the web client's source does.
+            let shown = definition.hasPrefix("> ") ? String(definition.dropFirst(2)) : definition
+
+            // After the last call: there is no answer to fold the work before.
+            let v2After = finishedReply("\(prose)\n\n🔧 `shell` [1]\n\n\(definition)")
+            XCTAssertEqual(v2After?.toolNames, ["shell"], definition)
+            XCTAssertNil(v2After?.workText, definition)
+            XCTAssertEqual(v2After?.text, "\(prose)\n\n\(shown)", definition)
+            XCTAssertEqual(v2After?.answerText, v2After?.text, definition)
+            let v3After = finishedReply("\(prose)\n\n\(definition)", bodyLine: 2)
+            XCTAssertEqual(v3After?.toolNames, ["shell"], definition)
+            XCTAssertNil(v3After?.workText, definition)
+            XCTAssertEqual(v3After?.text, "\(prose)\n\n\(shown)", definition)
+            XCTAssertEqual(v3After?.answerText, v3After?.text, definition)
+
+            // Before it: there is no work to fold.
+            let trimmedShown = shown.trimmingCharacters(in: .whitespaces)
+            let v2Before = finishedReply("\(definition)\n\n🔧 `shell` [1]\n\n\(prose)")
+            XCTAssertNil(v2Before?.workText, definition)
+            XCTAssertEqual(v2Before?.answerText, "\(trimmedShown)\n\n\(prose)", definition)
+            let lines = definition.components(separatedBy: "\n").count
+            let v3Before = finishedReply("\(definition)\n\n\(prose)", bodyLine: lines + 1)
+            XCTAssertNil(v3Before?.workText, definition)
+            XCTAssertEqual(v3Before?.answerText, "\(trimmedShown)\n\n\(prose)", definition)
+        }
+
+        // With an answer beside it the reply folds, and the definition stays in its half.
+        let v2Answer = finishedReply("See [docs].\n\n🔧 `shell` [1]\n\nRead [docs] first.\n\n[docs]: https://example.com/guide")
+        XCTAssertEqual(v2Answer?.workText, "See [docs].")
+        XCTAssertEqual(v2Answer?.answerText, "Read [docs] first.\n\n[docs]: https://example.com/guide")
+        let v3Answer = finishedReply("See [docs].\n\nRead [docs] first.\n\n[docs]: https://example.com/guide", bodyLine: 2)
+        XCTAssertEqual(v3Answer?.workText, "See [docs].")
+        XCTAssertEqual(v3Answer?.answerText, "Read [docs] first.\n\n[docs]: https://example.com/guide")
+
+        // A line with more after the destination than a title is a paragraph, and one in a code block is code.
+        for answer in ["[note]: this stays an answer", "[]: https://example.org", "```\n[1]: https://example.org\n```"] {
+            let shown = answer.replacingOccurrences(of: "```", with: "").trimmingCharacters(in: .newlines)
+            let v2 = finishedReply("Checking.\n\n🔧 `shell` [1]\n\n\(answer)")
+            XCTAssertEqual(v2?.workText, "Checking.", answer)
+            XCTAssertEqual(v2?.answerText, shown, answer)
+            let v3 = finishedReply("Checking.\n\n\(answer)", bodyLine: 2)
+            XCTAssertEqual(v3?.workText, "Checking.", answer)
+            XCTAssertEqual(v3?.answerText, shown, answer)
+        }
+    }
+
+    func testAnAnswerOfCodeKeepsItsFirstLinesIndentation() {
+        let code = "    x = 1\n    y = 2"
+        let v2 = finishedReply("Writing it.\n\n🔧 `shell` [1]\n\n```python\n\(code)\n```\n")
+        XCTAssertEqual(v2?.workText, "Writing it.")
+        XCTAssertEqual(v2?.answerText, code)
+        XCTAssertEqual(v2?.text, "Writing it.\n\n\(code)")
+        let v3 = finishedReply("Writing it.\n\n```python\n\(code)\n```\n", bodyLine: 2)
+        XCTAssertEqual(v3?.workText, "Writing it.")
+        XCTAssertEqual(v3?.answerText, code)
+        XCTAssertEqual(v3?.text, "Writing it.\n\n\(code)")
+
+        // The work's first line keeps it too, and the blank lines around a half and the spaces that end it go.
+        let v2Work = finishedReply("\n```\n\(code)\n```\n  \n🔧 `shell` [1]\n \t\nDone.  \n\n")
+        XCTAssertEqual(v2Work?.workText, code)
+        XCTAssertEqual(v2Work?.answerText, "Done.")
+        let v3Work = finishedReply("\n```\n\(code)\n```\n  \n \t\nDone.  \n\n", bodyLine: 6)
+        XCTAssertEqual(v3Work?.workText, code)
+        XCTAssertEqual(v3Work?.answerText, "Done.")
+        // An empty nested quote tail must not hide the real answer.
+        let v2Quote = finishedReply("Done: changed two files.\n\n🔧 `shell` [1]\n\n> >")
+        XCTAssertNil(v2Quote?.workText)
+        XCTAssertEqual(v2Quote?.answerText, v2Quote?.text)
+        let v3Quote = finishedReply("Done: changed two files.\n\n> >", bodyLine: 2)
+        XCTAssertNil(v3Quote?.workText)
+        XCTAssertEqual(v3Quote?.answerText, v3Quote?.text)
+    }
+
+    func testOnlyAnAgentOfThisHomeserverRuns() {
+        let statuses: [Any] = ["streaming", ["state": "streaming"] as JSON]
+        for status in statuses {
+            // In the message itself, and in the edit that goes on with it.
+            let related = { (sender: String) -> [[JSON]] in
+                let live: JSON = ["msgtype": "m.text", "body": "Working on it", "io.mindroom.stream_status": status]
+                let edit = event("$e", 5, sender: sender, [
+                    "m.new_content": live, "m.relates_to": ["rel_type": "m.replace", "event_id": "$r"] as JSON,
+                ])
+                return [[event("$r", 4, sender: sender, inThread(live))],
+                        [event("$r", 4, sender: sender, inThread(["msgtype": "m.text", "body": "…"])), edit]]
+            }
+            for sender in ["@anna:x", "@mindroom_mind:elsewhere.example"] {
+                for events in related(sender) {
+                    let snapshot = ThreadSnapshot.build(root: voiceRoot, related: events, ownUserId: me, now: now)
+                    XCTAssertEqual(snapshot.reply?.sender, sender)
+                    XCTAssertEqual(snapshot.reply?.run, RunState.none, "\(sender) \(status)")
+                    XCTAssertNotEqual(snapshot.rowState, .running, "\(sender) \(status)")
+                    XCTAssertEqual(WidgetSnapshot(roomName: "Notes", states: [snapshot.rowState], at: now).running, 0)
+                }
+            }
+            for events in related(agent) {
+                let snapshot = ThreadSnapshot.build(root: voiceRoot, related: events, ownUserId: me, now: now)
+                XCTAssertEqual(snapshot.reply?.run, .streaming, "\(status)")
+                XCTAssertEqual(snapshot.rowState, .running, "\(status)")
+            }
+        }
+
+        // The person's own message says nothing of a run either.
+        let own = event("$own", 4, sender: me, inThread(["msgtype": "m.text", "body": "Hi", "io.mindroom.stream_status": "streaming"]))
+        let ownSnapshot = ThreadSnapshot.build(root: voiceRoot, related: [own], ownUserId: me, now: now)
+        guard case let .message(message)? = ownSnapshot.entries.last else { return XCTFail("no message") }
+        XCTAssertEqual(message.eventId, "$own")
+        XCTAssertEqual(message.run, RunState.none)
+        XCTAssertNotEqual(ownSnapshot.rowState, .running)
+    }
 }

@@ -11,7 +11,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallParticipant, CallProblem, CallState } from './RoomCall';
+import type { CallParticipant, CallProblem, CallState, RoomCall } from './RoomCall';
 import {
   callHomeRoomId,
   callPanelRoomAtom,
@@ -30,7 +30,12 @@ import {
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { chooseCallNotify } from './callRings';
-import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
+import {
+  browserSharesScreens,
+  browserSupportsCalls,
+  screenShareIsInAppOnly,
+  useCallSupport,
+} from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar } from './CallTile';
@@ -90,6 +95,30 @@ function Notice({
     </div>
   );
 }
+
+// Stop notices in display order; `act` runs synchronously in the click (screen picker needs a gesture).
+const STOP_NOTICES = [
+  {
+    flag: 'microphoneStopped',
+    act: (call: RoomCall) => call.setMicrophone(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('microphone'),
+  },
+  {
+    flag: 'cameraStopped',
+    act: (call: RoomCall) => call.setCamera(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('camera'),
+  },
+  {
+    flag: 'screenShareStoppedInBackground',
+    act: (call: RoomCall) => call.setScreenShare(true),
+    dismiss: (call: RoomCall) => call.dismissScreenShareNotice(),
+  },
+] as const;
+
+const SHARE_LABEL_KEYS = {
+  app: ['featureUi.call.controls.startAppShare', 'featureUi.call.controls.stopAppShare'],
+  screen: ['featureUi.call.controls.startScreenshare', 'featureUi.call.controls.stopScreenshare'],
+} as const;
 
 /** Whether the primary pointer is a finger, which the bar's call controls are bigger for. */
 const coarsePointer = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
@@ -188,9 +217,12 @@ function JoinedCall({
   // Minimized again while it stands, the window stays a bar.
   const expandWindow = frame?.expand;
   const failureId = visibleFailure?.eventId;
+  const stopNotice = STOP_NOTICES.filter(({ flag }) => state[flag])
+    .map(({ flag }) => flag)
+    .join();
   useEffect(() => {
-    if (failureId || state.audioBlocked) expandWindow?.();
-  }, [expandWindow, failureId, state.audioBlocked]);
+    if (failureId || state.audioBlocked || stopNotice) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked, stopNotice]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -234,6 +266,9 @@ function JoinedCall({
     ? t('featureUi.call.controls.turnOffMicrophone')
     : t('featureUi.call.controls.turnOnMicrophone');
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
+  const screenShareLabel = t(
+    SHARE_LABEL_KEYS[screenShareIsInAppOnly() ? 'app' : 'screen'][state.screenShare ? 1 : 0]
+  );
   const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
   const leaveLabel = t('featureUi.call.callControls.end');
   const barControlSize = coarsePointer() ? '400' : '300';
@@ -273,11 +308,7 @@ function JoinedCall({
         />
         {browserSharesScreens() && (
           <CallControl
-            label={
-              state.screenShare
-                ? t('featureUi.call.controls.stopScreenshare')
-                : t('featureUi.call.controls.startScreenshare')
-            }
+            label={screenShareLabel}
             icon={Icons.ScreenShare}
             pressed={state.screenShare}
             onClick={() => void call.setScreenShare(!state.screenShare)}
@@ -414,6 +445,41 @@ function JoinedCall({
           {t('featureUi.calls.panel.audioBlocked')}
         </Notice>
       )}
+      {STOP_NOTICES.filter(({ flag }) => state[flag]).map(({ flag, act, dismiss }) => {
+        const share = flag === 'screenShareStoppedInBackground';
+        return (
+          <Notice
+            key={flag}
+            action={
+              <Box gap="100" alignItems="Center">
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  fill="Solid"
+                  disabled={share && state.phase !== 'connected'}
+                  onClick={() => void act(call)}
+                >
+                  <Text size="B300">
+                    {t(`featureUi.calls.panel.${share ? 'shareAgain' : 'turnBackOn'}`)}
+                  </Text>
+                </Button>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  aria-label={t('mindroomUi.notices.dismiss')}
+                  onClick={() => dismiss(call)}
+                >
+                  <Icon size="100" src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            }
+          >
+            {t(`featureUi.calls.panel.${flag}`)}
+          </Notice>
+        );
+      })}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

@@ -76,6 +76,7 @@ const mount = () => {
     removeEventListener() {},
   };
   const commits: boolean[] = [];
+  const inRowReport: boolean[] = [];
   function Harness() {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
@@ -91,8 +92,10 @@ const mount = () => {
       threadInitialRenderMode: 'live',
     });
     const rewrapped = controller.unrenderedRewrap();
+    const reported = controller.unrenderedInRowReport();
     useLayoutEffect(() => {
       commits.push(rewrapped);
+      inRowReport.push(reported);
     });
     return <div ref={controller.virtualInnerRef} />;
   }
@@ -146,9 +149,11 @@ const mount = () => {
     await callbackReturns();
   };
   commits.length = 0;
+  inRowReport.length = 0;
   return {
     callbackReturns,
     commits,
+    inRowReport,
     correct,
     layout,
     measure,
@@ -263,6 +268,20 @@ it('takes the permission back when the corrections of one report add up to nothi
   // A row in view grows alone in a later pass: the list keeps its height in that render.
   await reportRows({ end: 3900, index: 38 });
   expect(commits).toEqual([true, false]);
+  unmount();
+});
+
+it('tells a size the rows observer reported from one set outside of its report', async () => {
+  const { callbackReturns, correct, inRowReport, reportRows, unmount } = mount();
+  // A row in view grows in a report of the rows' observer: the render before the paint runs in
+  // the browser's ResizeObserver loop, where the list keeps its height.
+  await reportRows({ end: 3900, index: 38 });
+  expect(inRowReport).toEqual([true]);
+
+  // A row measured as it mounts is sized outside of that loop: the render may resize the list.
+  expect(correct({ end: 3900, index: 38 }, 22)).toBe(false);
+  await callbackReturns();
+  expect(inRowReport).toEqual([true, false]);
   unmount();
 });
 

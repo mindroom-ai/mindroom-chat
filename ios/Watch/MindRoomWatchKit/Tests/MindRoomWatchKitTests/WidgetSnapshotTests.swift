@@ -24,4 +24,16 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.needsYou, 2)
         XCTAssertEqual(snapshot.running, 1)
     }
+
+    func testTheHomeScreenCountsAFailedSendAsItsNeedsYouSectionDoes() {
+        let states: [ThreadRowState] = [.needsYou, .failed, .running, .queued, .idle(.distantPast)]
+        let home = WidgetSnapshot.home(roomName: "Notes", states: states, at: .distantPast)
+        let section = groupThreadRows(states) { $0 }.first { $0.kind == .needsYou }
+        XCTAssertEqual(home.needsYou, 2)
+        XCTAssertEqual(home.needsYou, section?.items.count)
+        XCTAssertEqual(home.running, 1)
+        XCTAssertEqual(home.summary, "2 need you · 1 running")
+        // The complications leave the failed send out.
+        XCTAssertEqual(WidgetSnapshot(roomName: "Notes", states: states, at: .distantPast).needsYou, 1)
+    }
 }

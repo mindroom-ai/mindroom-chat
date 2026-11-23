@@ -7,9 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  NOTIFICATION_SERVICE_INFO_PLIST_PATH,
   WATCH_INFO_PLIST_PATH,
   XCODE_PROJECT_PATH,
   appStoreVersionProblems,
+  notificationServiceUploadProblems,
   watchAppUploadProblems,
 } from '../../../scripts/appstore-preflight.mjs';
 import { replaceAppTargetBuildSetting } from '../../../scripts/ios-xcode-project.mjs';
@@ -20,6 +22,10 @@ const INFO_PLIST_PATH = 'ios/App/App/Info.plist';
 const checkedInProject = readFileSync(join(repoRoot, XCODE_PROJECT_PATH), 'utf8');
 const checkedInInfoPlist = readFileSync(join(repoRoot, INFO_PLIST_PATH), 'utf8');
 const checkedInWatchInfoPlist = readFileSync(join(repoRoot, WATCH_INFO_PLIST_PATH), 'utf8');
+const checkedInNotificationServiceInfoPlist = readFileSync(
+  join(repoRoot, NOTIFICATION_SERVICE_INFO_PLIST_PATH),
+  'utf8'
+);
 
 const project = (marketingVersion: string, buildNumber: string) =>
   replaceAppTargetBuildSetting(
@@ -56,12 +62,15 @@ describe('appStoreVersionProblems', () => {
   });
 
   it('rejects build configurations that disagree', () => {
-    const [debug, ...rest] = project('4.12.6', '33').split('CURRENT_PROJECT_VERSION = 33;');
-    const mixed = [
-      debug,
-      'CURRENT_PROJECT_VERSION = 34;',
-      rest.join('CURRENT_PROJECT_VERSION = 33;'),
-    ].join('');
+    const base = project('4.12.6', '33');
+    const appEntitlementsIndex = base.indexOf('CODE_SIGN_ENTITLEMENTS = App/App.entitlements;');
+    expect(appEntitlementsIndex).toBeGreaterThan(-1);
+    const versionNeedle = 'CURRENT_PROJECT_VERSION = 33;';
+    const versionIndex = base.indexOf(versionNeedle, appEntitlementsIndex);
+    expect(versionIndex).toBeGreaterThan(appEntitlementsIndex);
+    const mixed = `${base.slice(0, versionIndex)}CURRENT_PROJECT_VERSION = 34;${base.slice(
+      versionIndex + versionNeedle.length
+    )}`;
     expect(problems({ projectText: mixed })).toEqual([
       expect.stringContaining('CURRENT_PROJECT_VERSION of target App must have one value'),
     ]);
@@ -130,6 +139,59 @@ describe('watchAppUploadProblems', () => {
   });
 });
 
+describe('notificationServiceUploadProblems', () => {
+  const nseProblems = (
+    overrides: Partial<Parameters<typeof notificationServiceUploadProblems>[0]> = {}
+  ): string[] =>
+    notificationServiceUploadProblems({
+      projectText: checkedInProject,
+      infoPlistText: checkedInInfoPlist,
+      notificationServiceInfoPlistText: checkedInNotificationServiceInfoPlist,
+      ...overrides,
+    });
+
+  it('accepts the checked-in Notification Service Extension', () => {
+    expect(nseProblems()).toEqual([]);
+  });
+
+  it('rejects a version or build mismatch with App', () => {
+    const mismatchedVersion = replaceAppTargetBuildSetting(
+      checkedInProject,
+      'MARKETING_VERSION',
+      '9.9.9',
+      'MindRoomNotificationService'
+    );
+    expect(nseProblems({ projectText: mismatchedVersion })).toEqual([
+      expect.stringContaining('Target MindRoomNotificationService MARKETING_VERSION (9.9.9) must match App'),
+    ]);
+
+    const mismatchedBuild = replaceAppTargetBuildSetting(
+      checkedInProject,
+      'CURRENT_PROJECT_VERSION',
+      '99999',
+      'MindRoomNotificationService'
+    );
+    expect(nseProblems({ projectText: mismatchedBuild })).toEqual([
+      expect.stringContaining('Target MindRoomNotificationService CURRENT_PROJECT_VERSION (99999) must match App'),
+    ]);
+  });
+
+  it('rejects invalid extension Info.plist values and missing INSendMessageIntent in App Info.plist', () => {
+    const badPlist = checkedInNotificationServiceInfoPlist
+      .replace('<string>$(MARKETING_VERSION)</string>', '<string>1.0.0</string>')
+      .replace('<string>com.apple.usernotifications.service</string>', '<string>com.apple.wrong</string>');
+    expect(nseProblems({ notificationServiceInfoPlistText: badPlist })).toEqual([
+      "MindRoomNotificationService Info.plist CFBundleShortVersionString must be $(MARKETING_VERSION), got '1.0.0'.",
+      "MindRoomNotificationService Info.plist NSExtensionPointIdentifier must be com.apple.usernotifications.service, got 'com.apple.wrong'.",
+    ]);
+
+    const missingIntent = checkedInInfoPlist.replace('<string>INSendMessageIntent</string>', '');
+    expect(nseProblems({ infoPlistText: missingIntent })).toEqual([
+      'App Info.plist NSUserActivityTypes must include INSendMessageIntent for Communication Notifications.',
+    ]);
+  });
+});
+
 describe('appstore-preflight.mjs', () => {
   const checkouts: string[] = [];
   afterEach(() => {
@@ -143,6 +205,7 @@ describe('appstore-preflight.mjs', () => {
       [XCODE_PROJECT_PATH]: projectText,
       [INFO_PLIST_PATH]: checkedInInfoPlist,
       [WATCH_INFO_PLIST_PATH]: checkedInWatchInfoPlist,
+      [NOTIFICATION_SERVICE_INFO_PLIST_PATH]: checkedInNotificationServiceInfoPlist,
     };
     Object.entries(files).forEach(([path, content]) => {
       mkdirSync(dirname(join(root, path)), { recursive: true });

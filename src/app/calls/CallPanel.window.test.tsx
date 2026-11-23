@@ -74,9 +74,11 @@ vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => fai
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined }),
 }));
+const support = vi.hoisted(() => ({ inAppOnly: false }));
 vi.mock('./callSupport', () => ({
   browserSharesScreens: () => true,
   browserSupportsCalls: () => true,
+  screenShareIsInAppOnly: () => support.inAppOnly,
   useCallSupport: () => 'supported',
 }));
 vi.mock('./callAccess', () => ({
@@ -152,9 +154,20 @@ const joined = (participants: CallParticipant[]): CallState => ({
 });
 
 const setMicrophone = vi.fn(async () => undefined);
+const setCamera = vi.fn(async () => undefined);
+const setScreenShare = vi.fn(async () => undefined);
+const dismissScreenShareNotice = vi.fn();
+const dismissStoppedInput = vi.fn();
+const callMethods = {
+  setMicrophone,
+  setCamera,
+  setScreenShare,
+  dismissScreenShareNotice,
+  dismissStoppedInput,
+};
 const roomCall = (participants: CallParticipant[]) => {
   calls.active = {
-    call: { room, setMicrophone, getState: () => calls.state } as unknown as ActiveCall['call'],
+    call: { room, ...callMethods, getState: () => calls.state } as unknown as ActiveCall['call'],
     kind: 'room',
   };
   calls.state = joined(participants);
@@ -163,7 +176,7 @@ const agentCall = (origin: { roomId: string; threadId?: string }) => {
   calls.active = {
     call: {
       room: callRoom,
-      setMicrophone,
+      ...callMethods,
       getState: () => calls.state,
     } as unknown as ActiveCall['call'],
     kind: 'agent',
@@ -284,6 +297,7 @@ afterEach(() => {
   calls.state = undefined;
   calls.members = [];
   failures.visible = undefined;
+  support.inAppOnly = false;
 });
 
 describe('the call view title bar', () => {
@@ -1281,5 +1295,57 @@ describe('the live transcript in the window', () => {
     expect(
       screen.getByRole('button', { name: 'Live transcript' }).hasAttribute('aria-pressed')
     ).toBe(false);
+  });
+});
+
+describe('in-app screen share and stopped-device notices', () => {
+  it('labels the share control for in-app capture on iOS', () => {
+    support.inAppOnly = true;
+    roomCall([me, person('@bob:panel.test')]);
+    const { rerender } = renderPanel();
+    expect(button('Share this app')).toBeTruthy();
+    calls.state = { ...calls.state!, screenShare: true };
+    rerender(panel());
+    expect(button('Stop sharing this app')).toBeTruthy();
+  });
+
+  it('shows the stopped-share notice, disables Share again until connected, and dismisses', () => {
+    roomCall([me, person('@bob:panel.test')]);
+    calls.state = { ...calls.state!, phase: 'reconnecting', screenShareStoppedInBackground: true };
+    const { rerender } = renderPanel();
+    expect(screen.getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
+    expect((button('Share again') as HTMLButtonElement).disabled).toBe(true);
+    calls.state = { ...calls.state, phase: 'connected' };
+    rerender(panel());
+    press('Share again');
+    expect(setScreenShare).toHaveBeenCalledWith(true);
+    press('Dismiss notice');
+    expect(dismissScreenShareNotice).toHaveBeenCalledOnce();
+  });
+
+  it('shows stopped microphone and camera notices and expands a minimized window when raised', () => {
+    roomCall([me, person('@bob:panel.test')]);
+    const expand = vi.fn();
+    const asBar = { ...frame(true), expand };
+    const { rerender } = renderPanel({ frame: asBar });
+    calls.state = {
+      ...calls.state!,
+      microphone: false,
+      camera: false,
+      microphoneStopped: true,
+      cameraStopped: true,
+    };
+    rerender(panel({ frame: asBar }));
+    expect(expand).toHaveBeenCalledOnce();
+    rerender(panel());
+    expect(screen.getByText('Your microphone stopped.')).toBeTruthy();
+    expect(screen.getByText('Your camera stopped.')).toBeTruthy();
+    const turnOn = screen.getAllByRole('button', { name: 'Turn back on' });
+    fireEvent.click(turnOn[0]!);
+    fireEvent.click(turnOn[1]!);
+    expect(setMicrophone).toHaveBeenCalledWith(true);
+    expect(setCamera).toHaveBeenCalledWith(true);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Dismiss notice' })[0]!);
+    expect(dismissStoppedInput).toHaveBeenCalledWith('microphone');
   });
 });

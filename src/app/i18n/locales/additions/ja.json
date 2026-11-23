@@ -484,7 +484,8 @@
         "emoji": "絵文字, ステッカー, パック, カスタム絵文字",
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
-        "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ"
+        "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
+        "dictation": "音声入力, ディクテーション, 音声文字起こし, マイク, スマートフォン"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -533,7 +534,12 @@
         "playSound": "音声を再生",
         "resize": "通話パネルのサイズを変更",
         "screenOf": "{{name}}さんの画面",
-        "fullScreen": "全画面表示"
+        "fullScreen": "全画面表示",
+        "screenShareStoppedInBackground": "アプリを離れたため、画面共有が停止しました。",
+        "shareAgain": "もう一度共有",
+        "microphoneStopped": "マイクが停止しました。",
+        "cameraStopped": "カメラが停止しました。",
+        "turnBackOn": "もう一度オンにする"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
@@ -830,6 +836,12 @@
       "copyCommand": "コマンドをコピー",
       "copyFailed": "コピーできませんでした",
       "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "このアプリを共有",
+        "stopAppShare": "このアプリの共有を停止"
+      }
     }
   },
   "mindroomUi": {
@@ -1322,7 +1334,32 @@
     },
     "replyInThread": "スレッドに返信…",
     "newThreadIn": "{{room}} に新しいスレッド…",
-    "newThreadWith": "{{name}} との新しいスレッド…"
+    "newThreadWith": "{{name}} との新しいスレッド…",
+    "dictation": {
+      "label": "音声入力",
+      "cancel": "音声入力をキャンセル",
+      "pause": "音声入力を一時停止",
+      "resume": "音声入力を再開",
+      "finish": "音声入力を完了",
+      "retry": "再試行",
+      "insertPartial": "一部を挿入",
+      "discard": "破棄",
+      "dismissError": "音声入力エラーを閉じる",
+      "statusStarting": "音声入力を開始しています",
+      "statusListening": "音声入力中",
+      "statusPaused": "音声入力を一時停止中",
+      "statusFinishing": "完了処理中...",
+      "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
+      "capReached": "5:00の上限に達しました",
+      "micInterrupted": "マイクが切断されました。再開するか完了してください。",
+      "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。"
+    },
+    "voiceButton": {
+      "settingTitle": "スマートフォンでのマイクボタン",
+      "settingDescription": "スマートフォンで入力欄のマイクボタンを押したときの動作を選びます。もう一方は + メニューに残ります。",
+      "dictate": "音声入力",
+      "voiceMessage": "音声メッセージ"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1401,7 +1438,8 @@
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",
       "callView": "通話へ移動",
-      "voiceRecord": "長押しで音声メッセージを録音、タップで開始または送信"
+      "voiceRecord": "長押しで音声メッセージを録音、タップで開始または送信",
+      "dictate": "入力欄に音声入力"
     }
   },
   "thread": {

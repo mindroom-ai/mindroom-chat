@@ -10,8 +10,20 @@ import {
 } from './sessionLifecycle';
 
 // What happened, in order: the avatars dropped (`avatars <user>`, `avatars all` for every
-// account's, recorded once the kept ones are deleted) and the reload.
+// account's, recorded once the kept ones are deleted; `notification avatars` for the ones the
+// iOS app keeps) and the reload.
 const steps = vi.hoisted(() => [] as string[]);
+const defaultClearAvatarCache = vi.hoisted(() => async () => {
+  steps.push('notification avatars');
+});
+/** `clearNativeNotificationAvatarCache`, which a test replaces. */
+const native = vi.hoisted(() => ({
+  clearAvatarCache: defaultClearAvatarCache,
+}));
+vi.mock('../../native/nativeNotifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../native/nativeNotifications')>()),
+  clearNativeNotificationAvatarCache: () => native.clearAvatarCache(),
+}));
 vi.mock('../../avatars/avatarMedia', () => ({
   // Finishes a little later, as deleting the kept avatars' cache would.
   clearFetchedAvatars: (userId?: string) =>
@@ -101,11 +113,46 @@ describe('removing an account deletes the avatars before the page reloads', () =
   });
 });
 
-it('clearing the cache deletes every account’s avatars before the page reloads', async () => {
-  const replace = vi.fn(() => steps.push('reload'));
-  vi.stubGlobal('location', { ...window.location, replace });
+describe('clearing the cache', () => {
+  const stubReload = () => {
+    const replace = vi.fn(() => steps.push('reload'));
+    vi.stubGlobal('location', { ...window.location, replace });
+  };
 
-  await clearAllCacheAndReload();
+  afterEach(() => {
+    native.clearAvatarCache = defaultClearAvatarCache;
+    vi.useRealTimers();
+  });
 
-  expect(steps).toEqual(['avatars all', 'reload']);
+  it('deletes every account’s avatars, also the ones the iOS app keeps for notifications, before the page reloads', async () => {
+    stubReload();
+
+    await clearAllCacheAndReload();
+
+    expect(steps).toEqual(['notification avatars', 'avatars all', 'reload']);
+  });
+
+  it('reloads although the iOS app could not clear its notification avatars', async () => {
+    stubReload();
+    native.clearAvatarCache = () => Promise.reject(new Error('no plugin'));
+
+    await clearAllCacheAndReload();
+
+    expect(steps).toEqual(['avatars all', 'reload']);
+  });
+
+  it('reloads after a while although the iOS app never answers', async () => {
+    stubReload();
+    // A callback of iOS that is never called.
+    native.clearAvatarCache = () => new Promise<void>(() => undefined);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    const clearing = clearAllCacheAndReload();
+    await vi.advanceTimersByTimeAsync(4900);
+    expect(steps).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(200);
+    await clearing;
+    expect(steps).toEqual(['avatars all', 'reload']);
+  });
 });

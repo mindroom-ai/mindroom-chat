@@ -326,4 +326,25 @@ describe('InsetScrollbar', () => {
     scroll.dispatchEvent(new Event('scroll'));
     expect(requestAnimationFrame).not.toHaveBeenCalled();
   });
+
+  it('skips DOM attribute and style writes when resize leaves scroll geometry unchanged', () => {
+    const setAttribute = vi.spyOn(track, 'setAttribute');
+    const setHeight = vi.spyOn(thumb.style, 'height', 'set');
+    const setTransform = vi.spyOn(thumb.style, 'transform', 'set');
+
+    resize();
+    flush();
+
+    expect(setAttribute).not.toHaveBeenCalled();
+    expect(setHeight).not.toHaveBeenCalled();
+    expect(setTransform).not.toHaveBeenCalled();
+
+    contentHeight = 2000;
+    resize();
+    flush();
+
+    expect(setAttribute).toHaveBeenCalledWith('aria-valuemax', '1500');
+    expect(setHeight).toHaveBeenCalledTimes(1);
+    expect(setTransform).not.toHaveBeenCalled();
+  });
 });

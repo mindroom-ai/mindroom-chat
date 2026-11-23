@@ -15,6 +15,9 @@ export const browserSharesScreens = (): boolean =>
   typeof navigator !== 'undefined' &&
   typeof navigator.mediaDevices?.getDisplayMedia === 'function';
 
+/** Whether screen sharing captures only this app (iOS / iPadOS WebKit). */
+export { isIOS as screenShareIsInAppOnly } from '../lib/user-agent';
+
 export type CallSupport = 'checking' | 'supported' | 'unsupported';
 
 type Answer = { support: Exclude<CallSupport, 'checking'>; at: number };

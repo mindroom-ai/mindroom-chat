@@ -484,7 +484,8 @@
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
-        "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업"
+        "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
+        "dictation": "받아쓰기, 음성 입력, 음성 텍스트 변환, 마이크, 휴대전화"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -533,7 +534,12 @@
         "playSound": "소리 재생",
         "resize": "통화 패널 크기 조절",
         "screenOf": "{{name}}님의 화면",
-        "fullScreen": "전체 화면"
+        "fullScreen": "전체 화면",
+        "screenShareStoppedInBackground": "앱을 벗어나 화면 공유가 중지되었습니다.",
+        "shareAgain": "다시 공유",
+        "microphoneStopped": "마이크가 중지되었습니다.",
+        "cameraStopped": "카메라가 중지되었습니다.",
+        "turnBackOn": "다시 켜기"
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
@@ -830,6 +836,12 @@
       "copyCommand": "명령어 복사",
       "copyFailed": "복사하지 못했습니다",
       "keywords": "mac, macos, 데스크톱, 앱, 다운로드, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "이 앱 공유",
+        "stopAppShare": "이 앱 공유 중지"
+      }
     }
   },
   "mindroomUi": {
@@ -1322,7 +1334,32 @@
     },
     "replyInThread": "스레드에 답장…",
     "newThreadIn": "{{room}}에 새 스레드…",
-    "newThreadWith": "{{name}}에게 새 스레드…"
+    "newThreadWith": "{{name}}에게 새 스레드…",
+    "dictation": {
+      "label": "받아쓰기",
+      "cancel": "받아쓰기 취소",
+      "pause": "받아쓰기 일시정지",
+      "resume": "받아쓰기 재개",
+      "finish": "받아쓰기 완료",
+      "retry": "다시 시도",
+      "insertPartial": "일부 텍스트 삽입",
+      "discard": "폐기",
+      "dismissError": "받아쓰기 오류 닫기",
+      "statusStarting": "받아쓰기 시작 중",
+      "statusListening": "받아쓰기 중",
+      "statusPaused": "받아쓰기 일시정지됨",
+      "statusFinishing": "마무리 중...",
+      "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
+      "capReached": "5:00 제한에 도달했습니다",
+      "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
+      "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다."
+    },
+    "voiceButton": {
+      "settingTitle": "휴대전화 마이크 버튼",
+      "settingDescription": "휴대전화 입력창의 마이크 버튼 동작을 선택합니다. 다른 작업은 + 메뉴에 유지됩니다.",
+      "dictate": "받아쓰기",
+      "voiceMessage": "음성 메시지"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1401,7 +1438,8 @@
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
       "inlineCode": "인라인 코드",
       "callView": "통화로 이동",
-      "voiceRecord": "길게 눌러 음성 메시지 녹음, 탭하여 시작하거나 보내기"
+      "voiceRecord": "길게 눌러 음성 메시지 녹음, 탭하여 시작하거나 보내기",
+      "dictate": "입력창에 받아쓰기"
     }
   },
   "thread": {
