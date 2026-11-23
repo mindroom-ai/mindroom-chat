@@ -54,8 +54,8 @@ build_screenshot_helper() {
   helper_scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-helper-build.XXXXXX")
   arm64_bin="$helper_scratch/helper-arm64"
   x64_bin="$helper_scratch/helper-x64"
-  swiftc "${flags[@]}" -target arm64-apple-macosx13.0 "$helper_src" -o "$arm64_bin"
-  swiftc "${flags[@]}" -target x86_64-apple-macosx13.0 "$helper_src" -o "$x64_bin"
+  xcrun --sdk macosx swiftc "${flags[@]}" -target arm64-apple-macosx13.0 "$helper_src" -o "$arm64_bin"
+  xcrun --sdk macosx swiftc "${flags[@]}" -target x86_64-apple-macosx13.0 "$helper_src" -o "$x64_bin"
   mkdir -p "$(dirname "$helper_out")"
   lipo -create "$arm64_bin" "$x64_bin" -output "$helper_out"
   chmod 755 "$helper_out"

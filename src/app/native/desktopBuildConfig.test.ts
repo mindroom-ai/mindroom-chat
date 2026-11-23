@@ -182,6 +182,8 @@ case "$cmd" in
   xcrun)
     if [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "--show-sdk-path" ]]; then
       printf '%s\\n' "/Fake/MacOSX.sdk"
+    elif [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "swiftc" ]]; then
+      printf 'fake-swift-bin' > "$target"
     elif [[ "\${1:-}" == "stapler" && "\${2:-}" == "validate" ]] && { [[ "$fail" == "stapler:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "stapler:app" && "$target" == *.app ]]; }; then
       exit 65
     fi ;;
@@ -316,7 +318,9 @@ esac
     ).toMatchObject({
       hasNotary: false,
     });
-    const swiftc = res.commands.filter((c) => c.cmd === 'swiftc');
+    const swiftc = res.commands.filter(
+      (c) => c.cmd === 'xcrun' && c.args.startsWith('--sdk macosx swiftc ')
+    );
     expect(swiftc).toHaveLength(2);
     expect(swiftc.every((c) => !c.hasNotary)).toBe(true);
     expect(swiftc.every((c) => c.args.includes('-sdk /Fake/MacOSX.sdk'))).toBe(true);
