@@ -233,12 +233,13 @@ export const getCachedAttachmentMetadata = async (
 const pruneAttachmentBytes = async (
   transaction: IDBTransaction,
   mxcUris: Iterable<string>,
-  sessionId?: string
+  sessionId?: string,
+  removedMedia = false
 ) => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
-  let reclaimedOrDemoted = false;
+  let reclaimedOrDemoted = removedMedia;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -361,10 +362,14 @@ export const replaceCachedAttachmentReferences = async (
       updatedAt: Date.now(),
     } satisfies CachedAttachmentReferenceRecord);
   }
+  const removedMedia = removed.some(
+    (row) => !!row.mxcUri && !entries.some((entry) => entry.mxcUri === row.mxcUri)
+  );
   await pruneAttachmentBytes(
     transaction,
     [...removed, ...entries].map((row) => row.mxcUri),
-    sessionId
+    sessionId,
+    removedMedia
   );
 };
 
@@ -398,7 +403,8 @@ export const invalidateCachedAttachmentReferences = async (
   await pruneAttachmentBytes(
     transaction,
     removed.map((row) => row.mxcUri),
-    sessionId
+    sessionId,
+    removed.some((row) => !!row.mxcUri)
   );
 };
 

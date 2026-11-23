@@ -268,12 +268,11 @@ type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & 
   protectedBytes: number;
 };
 
-type MediaCandidate = { mxcUri: string; roomIds: string[] };
 type MediaPlanResult = {
   bytesBefore: number;
   protectedBytes: number;
   protectedIds: Set<string>;
-  candidates: MediaCandidate[];
+  candidates: string[];
 };
 
 /** Plan optional media eviction readonly so zero-effect passes take no write locks. */
@@ -338,7 +337,7 @@ const planOptionalMediaEviction = (
         const bytesBefore =
           ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
           records.reduce((sum, row) => sum + row.byteLength, 0);
-        const candidates: MediaCandidate[] = [];
+        const candidates: string[] = [];
         plan = { bytesBefore, protectedBytes, protectedIds, candidates };
         if (bytesBefore <= budget) return;
         const step = (startIndex: number): void => {
@@ -356,10 +355,7 @@ const planOptionalMediaEviction = (
                 )
               )
                 continue;
-              candidates.push({
-                mxcUri: record.mxcUri,
-                roomIds: [...new Set(owners.map((row) => row.roomId))],
-              });
+              candidates.push(record.mxcUri);
               continue;
             }
             // Unowned blobs may still be marked essential; read before opening a write txn.
@@ -368,7 +364,7 @@ const planOptionalMediaEviction = (
             request.onsuccess = () => {
               try {
                 const cached = request.result as CachedAttachmentRecord | undefined;
-                if (!cached?.essential) candidates.push({ mxcUri: record.mxcUri, roomIds: [] });
+                if (!cached?.essential) candidates.push(record.mxcUri);
                 step(index + 1);
               } catch (error) {
                 reject(error);
@@ -395,23 +391,13 @@ const reclaimOptionalMedia = async (
   budget: number
 ): Promise<MediaPhaseResult> => {
   const plan = await planOptionalMediaEviction(sessionId, db, budget);
-  const empty: MediaPhaseResult = {
-    bytesAfter: plan.bytesBefore,
-    evictedMxcUris: [],
-    protectedBytes: plan.protectedBytes,
-  };
-  if (!plan.candidates.length) return empty;
-  for (const roomId of new Set(plan.candidates.flatMap((candidate) => candidate.roomIds))) {
-    // eslint-disable-next-line no-await-in-loop
-    if (await isRoomProtectedInStore(db, roomId)) plan.protectedIds.add(roomId);
+  if (!plan.candidates.length) {
+    return {
+      bytesAfter: plan.bytesBefore,
+      evictedMxcUris: [],
+      protectedBytes: plan.protectedBytes,
+    };
   }
-  const candidates = plan.candidates.filter(
-    (candidate) =>
-      !candidate.roomIds.some(
-        (roomId) => plan.protectedIds.has(roomId) || isRoomInUse(sessionId, roomId)
-      )
-  );
-  if (!candidates.length) return empty;
   return new Promise<MediaPhaseResult>((resolve, reject) => {
     const transaction = db.transaction(
       [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
@@ -432,10 +418,10 @@ const reclaimOptionalMedia = async (
     };
     const step = (index: number): void => {
       try {
-        if (index >= candidates.length || bytesAfter <= target) return;
-        const candidate = candidates[index];
-        if (!candidate) return;
-        const blobRequest = blobs.get(candidate.mxcUri);
+        if (index >= plan.candidates.length || bytesAfter <= target) return;
+        const mxcUri = plan.candidates[index];
+        if (!mxcUri) return;
+        const blobRequest = blobs.get(mxcUri);
         blobRequest.onerror = () => fail(blobRequest.error);
         blobRequest.onsuccess = () => {
           try {
@@ -446,7 +432,7 @@ const reclaimOptionalMedia = async (
             }
             const ownersRequest = refs
               .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
-              .getAll(attachmentOwnerUri(candidate.mxcUri));
+              .getAll(attachmentOwnerUri(mxcUri));
             ownersRequest.onerror = () => fail(ownersRequest.error);
             ownersRequest.onsuccess = () => {
               try {
@@ -459,17 +445,17 @@ const reclaimOptionalMedia = async (
                       isRoomInUse(sessionId, row.roomId)
                   )
                 ) {
-                  const deleteRequest = blobs.delete(candidate.mxcUri);
+                  const deleteRequest = blobs.delete(mxcUri);
                   deleteRequest.onerror = () => fail(deleteRequest.error);
                   // A scaled copy leaves the picture's own bytes and references intact.
-                  if (!isScaledPictureKey(candidate.mxcUri)) {
+                  if (!isScaledPictureKey(mxcUri)) {
                     currentOwners.forEach((row) => {
                       const putRequest = refs.put({ ...row, byteLength: 0, status: 'missing' });
                       putRequest.onerror = () => fail(putRequest.error);
                     });
                   }
                   bytesAfter -= cached.byteLength;
-                  evictedMxcUris.push(candidate.mxcUri);
+                  evictedMxcUris.push(mxcUri);
                 }
                 step(index + 1);
               } catch (error) {

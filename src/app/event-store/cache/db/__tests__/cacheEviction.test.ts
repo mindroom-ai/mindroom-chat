@@ -497,3 +497,36 @@ it('invalidates memoized irreclaimable pressure when a redaction frees a protect
   expect(after.bytesBefore).toBeLessThan(before.bytesBefore - 1999);
   expect(await store.loadCachedAttachment(session, 'mxc://test/redacted')).toBeUndefined();
 });
+
+it('invalidates memoized irreclaimable pressure when a shared photo loses its last protected owner', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+  const mxcUri = 'mxc://test/shared-photo';
+  await saveAttachmentOwner(session, 'room-pinned', '$shared-msg', 1, [
+    { mxcUri, essential: false },
+  ]);
+  await saveAttachmentOwner(session, 'room-cold', '$cold-msg', 1, [
+    { mxcUri, essential: false },
+  ]);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri, bytes: new ArrayBuffer(2000), mimeType: 'image/png' },
+    { roomId: 'room-pinned', eventId: '$shared-msg', revisionTs: 1 }
+  );
+  await store.setRoomAttachmentPinned(session, 'room-pinned', true);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: true,
+    evictedMxcUris: [],
+    evictedRoomIds: [],
+  });
+  // Edit removes the pinned room's reference without shrinking text or deleting the shared blob.
+  await saveAttachmentOwner(session, 'room-pinned', '$shared-msg', 2, [], undefined, {
+    revisionId: '$edit-remove',
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedMxcUris: [mxcUri],
+    underPressure: false,
+  });
+  expect(await store.loadCachedAttachment(session, mxcUri)).toBeUndefined();
+});
