@@ -27,7 +27,15 @@ export type AccountSettings = {
   tourOffered: boolean;
   /** The account answered the offer of the Mac app (src/app/shell/MacAppOffer.tsx). */
   macAppOffered: boolean;
+  /** Bundled client plugin IDs turned off for this account (Settings -> Plugins). */
+  disabledPlugins: readonly string[];
 };
+
+export type BooleanAccountSetting = {
+  [K in keyof AccountSettings]: AccountSettings[K] extends boolean ? K : never;
+}[keyof AccountSettings];
+
+const EMPTY_DISABLED_PLUGINS: readonly string[] = Object.freeze([]);
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showCanvasesInSidebar: false,
@@ -38,18 +46,48 @@ export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showLocalMindroomInSidebar: false,
   tourOffered: false,
   macAppOffered: false,
+  disabledPlugins: EMPTY_DISABLED_PLUGINS,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** The stored switch, or its default when it is missing or not a boolean. */
-const storedSwitch = (
-  content: Record<string, unknown>,
-  key: keyof AccountSettings
-): boolean => {
+const storedSwitch = (content: Record<string, unknown>, key: BooleanAccountSetting): boolean => {
   const value = content[key];
   return typeof value === 'boolean' ? value : DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key];
+};
+
+const sanitizeDisabledPlugins = (value: unknown): readonly string[] => {
+  if (!Array.isArray(value)) return EMPTY_DISABLED_PLUGINS;
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const id = item.trim();
+    if (id === '' || seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+  return result.length === 0 ? EMPTY_DISABLED_PLUGINS : result;
+};
+
+/**
+ * Returns a sanitized copy of `disabledPlugins` with `pluginId` added (`disabled: true`)
+ * or removed (`disabled: false`).
+ */
+export const setPluginDisabled = (
+  disabledPlugins: readonly string[],
+  pluginId: string,
+  disabled: boolean
+): string[] => {
+  const id = pluginId.trim();
+  const current = [...sanitizeDisabledPlugins(disabledPlugins)];
+  if (id === '') return current;
+  if (disabled) {
+    return current.includes(id) ? current : [...current, id];
+  }
+  return current.filter((item) => item !== id);
 };
 
 /**
@@ -71,6 +109,7 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
     showLocalMindroomInSidebar: storedSwitch(content, 'showLocalMindroomInSidebar'),
     tourOffered: storedSwitch(content, 'tourOffered'),
     macAppOffered: storedSwitch(content, 'macAppOffered'),
+    disabledPlugins: sanitizeDisabledPlugins(content.disabledPlugins),
   };
 };
 

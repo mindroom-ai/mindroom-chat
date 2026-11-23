@@ -1,10 +1,10 @@
 import { useCallback, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
+import type { ClientConfig } from '../config/useClientConfig';
 import { getMxIdServer } from '../matrix/matrix';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { revealDirectionControls } from '../ui/directional';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from './pluginConfig';
 import { pluginNamespace } from './pluginTranslations';
 import { registeredPlugins } from './registry';
 
@@ -104,7 +104,7 @@ export const pickRenderer = (
 export const useMessageRenderer = (
   event: PluginEvent | undefined,
   viewerId: string | undefined
-): MatchedRenderer | undefined => pickRenderer(useOptionalClientConfig(), event, viewerId);
+): MatchedRenderer | undefined => pickRenderer(usePluginClientConfig(), event, viewerId);
 
 /** Tags of the plugins whose `hidden` threw, so each is logged once. */
 const failedHidden = new Set<string>();
@@ -121,7 +121,7 @@ const hasHiddenRenderers = (): boolean =>
 export const useMessageRowHidden = (
   viewerId: string | undefined
 ): ((event: PluginEvent) => boolean) | undefined => {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const test = useCallback(
     (event: PluginEvent) => {
       // 🔒 Only MindRoom's own messages may go unseen: another account could hide a prompt to the

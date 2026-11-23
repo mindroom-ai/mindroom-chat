@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import type { RectCords } from 'folds';
-import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
+import { usePluginClientConfig } from '../../plugins/pluginConfig';
 import { registeredPlugins, type RegisteredPlugin } from '../../plugins/registry';
 import {
   hasThreadDetails,
@@ -38,7 +38,7 @@ export function ThreadCardDetails({
   menuOpen: boolean;
   plugins?: readonly RegisteredPlugin[];
 }) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const latest = useLatestRef({ room, plugins, config, menuOpen });
   // Without a detail to show, the list gets no listener or observer.
   const contributes = hasThreadDetails(plugins, config);

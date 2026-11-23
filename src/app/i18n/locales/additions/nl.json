@@ -433,6 +433,10 @@
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom."
       },
+      "plugins": {
+        "title": "Plug-ins",
+        "description": "Zet meegeleverde plug-ins aan of uit voor je account op al je apparaten."
+      },
       "menu": {
         "groups": {
           "you": "Jij",
@@ -498,7 +502,8 @@
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
-        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon"
+        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon",
+        "plugins": "plug-ins, plugins, extensies, add-ons, integraties"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",

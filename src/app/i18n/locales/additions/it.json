@@ -446,6 +446,10 @@
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
       },
+      "plugins": {
+        "title": "Plugin",
+        "description": "Attiva o disattiva i plugin inclusi per il tuo account su tutti i tuoi dispositivi."
+      },
       "menu": {
         "groups": {
           "you": "Tu",
@@ -511,7 +515,8 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "dictation": "dettare, dettatura, voce in testo, microfono, telefono"
+        "dictation": "dettare, dettatura, voce in testo, microfono, telefono",
+        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",

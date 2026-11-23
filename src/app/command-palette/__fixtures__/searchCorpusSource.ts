@@ -74,6 +74,7 @@ const SETTINGS_CONTEXT: SettingsContext = {
   errorReporting: true,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
   macApp: false,
+  hasPlugins: false,
 };
 
 const SEARCH_VALUES: SettingsSearchValues = {

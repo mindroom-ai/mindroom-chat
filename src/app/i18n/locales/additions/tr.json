@@ -433,6 +433,10 @@
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
       },
+      "plugins": {
+        "title": "Eklentiler",
+        "description": "Tüm cihazlarınızda hesabınız için yerleşik eklentileri açın veya kapatın."
+      },
       "menu": {
         "groups": {
           "you": "Siz",
@@ -498,7 +502,8 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon"
+        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon",
+        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
       },
       "errorReports": {
         "title": "Hata raporları gönder",

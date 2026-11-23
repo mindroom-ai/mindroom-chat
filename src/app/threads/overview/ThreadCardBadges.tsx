@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
+import { usePluginClientConfig } from '../../plugins/pluginConfig';
 import { pluginFailure } from '../../plugins/pluginFailure';
 import { registeredPlugins, type RegisteredPlugin } from '../../plugins/registry';
 import { enabledThreadCardBadges, type ThreadCardBadgeProps } from '../../plugins/threadCardBadges';
@@ -27,7 +27,7 @@ export function ThreadCardBadges({
   threadId,
   plugins = registeredPlugins,
 }: ThreadCardBadgeProps & { plugins?: readonly RegisteredPlugin[] }) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const badges = enabledThreadCardBadges(plugins, config);
   if (badges.length === 0) return null;
   return (

@@ -3,8 +3,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { Line, toRem } from 'folds';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins } from '../plugins/registry';
 import { usePluginRoomActions, type PluginRoomDialog } from '../plugins/roomActions';
@@ -58,7 +58,7 @@ function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string 
 export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
   function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
     const { room, close, showDialog } = actionProps;
-    const pluginEntries = usePluginRoomActions(registeredPlugins, useOptionalClientConfig(), room);
+    const pluginEntries = usePluginRoomActions(registeredPlugins, usePluginClientConfig(), room);
     // A plugin's entry closes the menu, then runs with the menu's dialog.
     const pluginRows = (critical: boolean) =>
       pluginEntries

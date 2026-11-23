@@ -420,6 +420,10 @@
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。"
       },
+      "plugins": {
+        "title": "外掛程式",
+        "description": "在您的所有裝置上為您的帳號開啟或關閉內建外掛程式。"
+      },
       "menu": {
         "groups": {
           "you": "你",
@@ -485,7 +489,8 @@
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
-        "dictation": "聽寫, 語音輸入, 語音轉文字, 麥克風, 手機"
+        "dictation": "聽寫, 語音輸入, 語音轉文字, 麥克風, 手機",
+        "plugins": "外掛程式, 插件, 擴充功能, 整合"
       },
       "errorReports": {
         "title": "傳送錯誤報告",

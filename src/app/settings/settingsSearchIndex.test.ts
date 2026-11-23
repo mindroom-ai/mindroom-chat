@@ -30,6 +30,7 @@ const WEB: SettingsContext = {
   errorReporting: false,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
   macApp: false,
+  hasPlugins: false,
 };
 
 const ids = (query: string, translate = english) =>
@@ -87,6 +88,29 @@ describe('settings search', () => {
     // A Dutch keyword ("donkere modus") finds the theme; the English one does not.
     expect(ids('donkere modus', dutch)).toContain('darkTheme');
     expect(ids('dark mode', dutch)).toEqual([]);
+  });
+
+  it('finds the Plugins page and individual enabled plugins by display name, id, or description', () => {
+    const plugins = [
+      {
+        id: 'pull-requests',
+        displayName: 'Pull Requests',
+        description: 'Review pull requests inline',
+      },
+    ];
+    const shown = getShownSettings({ ...WEB, hasPlugins: true });
+    expect(searchSettings('plugins', shown, english, VALUES, plugins)[0]?.setting).toMatchObject({
+      id: 'plugins',
+      page: 'plugins',
+    });
+    const [byName] = searchSettings('pull requests', shown, english, VALUES, plugins);
+    expect(byName).toMatchObject({
+      label: 'Pull Requests',
+      location: ['Plugins'],
+      setting: { id: 'plugin:pull-requests', page: 'plugins' },
+    });
+    const [byId] = searchSettings('pull-requests', shown, english, VALUES, plugins);
+    expect(byId?.setting.id).toBe('plugin:pull-requests');
   });
 });
 

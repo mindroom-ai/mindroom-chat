@@ -6,8 +6,9 @@ import { isEventStreaming } from '../event-store/threads/useThreadStreamingState
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
 import { getEventReactions, reactionOrEditEvent } from '../matrix/room';
 import { CHAT_UI_ACTION_KEY } from '../matrix/protocol/chatUiProtocol';
-import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
+import type { ClientConfig } from '../config/useClientConfig';
 import { pickRenderer } from '../plugins/messageRenderers';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { getAiRunInfo } from '../matrix/protocol/aiRun';
 import {
   readInteractiveQuestion,
@@ -178,7 +179,7 @@ export const useThreadTurnFolds = ({
   toggle: (fold: ThreadTurnFold) => void;
 } => {
   const pendingApprovalIds = useThreadApprovals()?.pendingEventIds;
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   // A reply streaming in the newest turn holds it from its own row (`holdsTurn`).
   const lastTurnBusy =
     !!backgroundState?.hasBackgroundJob || !!backgroundState?.hasBackgroundApproval;

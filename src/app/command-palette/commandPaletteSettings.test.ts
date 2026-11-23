@@ -22,6 +22,7 @@ const CONTEXT: SettingsContext = {
   errorReporting: true,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
   macApp: false,
+  hasPlugins: false,
 };
 
 const rows = (stored: Partial<Settings> = {}, context: SettingsContext = CONTEXT) =>

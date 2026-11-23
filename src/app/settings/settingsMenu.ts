@@ -26,6 +26,7 @@ const PAGE_ICONS: Record<SettingsPageId, IconSrc> = {
   appearance: Icons.Sun,
   chats: Icons.Message,
   sidebar: Icons.Category,
+  plugins: Icons.Bulb,
   language: Icons.Globe,
   connections: Icons.Link,
   computers: Icons.Monitor,
@@ -46,16 +47,21 @@ export const getSettingsMenuItems = (
   t: TFunction,
   native = false,
   serverAdmin = false,
-  nativeIOS = false
+  nativeIOS = false,
+  hasPlugins = false
 ): SettingsMenuItem[] =>
-  getShownSettingsPages({ native, nativeIOS, localMindroom: showLocalMindroom, serverAdmin }).map(
-    (page) => ({
-      page: page.id,
-      group: page.group,
-      name: t(page.labelKey),
-      icon: PAGE_ICONS[page.id],
-    })
-  );
+  getShownSettingsPages({
+    native,
+    nativeIOS,
+    localMindroom: showLocalMindroom,
+    serverAdmin,
+    hasPlugins,
+  }).map((page) => ({
+    page: page.id,
+    group: page.group,
+    name: t(page.labelKey),
+    icon: PAGE_ICONS[page.id],
+  }));
 
 /**
  * The page the dialog opens on. A request names a page by its id or an earlier one; one for a
@@ -68,7 +74,8 @@ export const resolveSettingsInitialPage = (
   showLocalMindroom: boolean,
   native = false,
   serverAdmin = false,
-  nativeIOS = false
+  nativeIOS = false,
+  hasPlugins = false
 ): SettingsPageId | undefined => {
   if (initialPage === undefined) {
     return screenSize === ScreenSize.Mobile ? undefined : DEFAULT_SETTINGS_PAGE;
@@ -76,6 +83,12 @@ export const resolveSettingsInitialPage = (
   const page = resolveSettingsPageId(initialPage);
   const shown =
     page !== undefined &&
-    isSettingsPageShown(page, { native, nativeIOS, localMindroom: showLocalMindroom, serverAdmin });
+    isSettingsPageShown(page, {
+      native,
+      nativeIOS,
+      localMindroom: showLocalMindroom,
+      serverAdmin,
+      hasPlugins,
+    });
   return shown ? page : DEFAULT_SETTINGS_PAGE;
 };

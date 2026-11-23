@@ -1,8 +1,7 @@
 import type { ComponentProps } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
-import { isPluginEnabled } from '../plugins/pluginConfig';
+import { isPluginEnabled, usePluginClientConfig } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins, type RoomHeaderSlotComponent } from '../plugins/registry';
 
@@ -21,7 +20,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
  * in every room, so one that failed in a room tries again in the next.
  */
 export function RoomHeaderSlot({ room, headerRef }: ComponentProps<RoomHeaderSlotComponent>) {
-  const config = useOptionalClientConfig();
+  const config = usePluginClientConfig();
   const slot = registeredPlugins.flatMap(({ id, tag, roomHeaderSlot }) =>
     isPluginEnabled(config, id)
       ? roomHeaderSlot.map((Component, index) => (

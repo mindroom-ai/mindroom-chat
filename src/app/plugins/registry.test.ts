@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PluginEntry } from './pluginEntries';
 // The registry as this file's load built it, at the default address.
 import { registeredPlugins } from './registry';
 
@@ -157,7 +158,7 @@ const entries = vi.hoisted(() => {
           },
         },
       },
-    ],
+    ] as PluginEntry[],
   };
 });
 vi.mock('./pluginEntries', () => ({ pluginEntries: entries.list }));
@@ -251,5 +252,48 @@ describe('registeredPlugins', () => {
   it('keeps the plugins for another value of the parameter', async () => {
     window.history.replaceState(null, '', '/?plugins=on');
     expect(await loadRegistry()).toHaveLength(2);
+  });
+
+  it('derives displayName from explicit name or kebab-case id and trims description', async () => {
+    const original = [...entries.list];
+    entries.list.splice(
+      0,
+      entries.list.length,
+      {
+        id: 'pull-requests',
+        version: '1.0.0',
+        description: '  Review pull requests in rooms  ',
+        plugin: {},
+      },
+      {
+        id: 'thread-usage',
+        version: '1.0.0',
+        name: '   ',
+        description: '   ',
+        plugin: {},
+      },
+      {
+        id: 'custom-id',
+        version: '1.0.0',
+        name: '  My Custom Plugin  ',
+        plugin: {},
+      }
+    );
+    try {
+      const loaded = await loadRegistry();
+      expect(
+        loaded.map(({ id, displayName, description }) => ({ id, displayName, description }))
+      ).toEqual([
+        {
+          id: 'pull-requests',
+          displayName: 'Pull Requests',
+          description: 'Review pull requests in rooms',
+        },
+        { id: 'thread-usage', displayName: 'Thread Usage', description: undefined },
+        { id: 'custom-id', displayName: 'My Custom Plugin', description: undefined },
+      ]);
+    } finally {
+      entries.list.splice(0, entries.list.length, ...original);
+    }
   });
 });
