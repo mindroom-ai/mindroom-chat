@@ -50,6 +50,10 @@ export const pluginPanelWidthStorageKey = (userId: string, panelId: string): str
 export const modelCatalogStorageKey = (userId: string): string =>
   `mindroom_client_model_catalogs::${userId}`;
 
+/** Last known per-room streaming dictation availability (`{ [roomKey]: boolean }`). */
+export const dictationAvailabilityStorageKey = (userId: string): string =>
+  `mindroom.dictation.availability:${userId}`;
+
 /** Every key above of one account. */
 export const accountStorageKeys = (userId: string): string[] => [
   spaceOrderStorageKey(userId),
@@ -66,6 +70,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   secondThreadStorageKey(userId),
   secondThreadWidthStorageKey(userId),
   modelCatalogStorageKey(userId),
+  dictationAvailabilityStorageKey(userId),
 ];
 
 /** The starts of the account's keys that hold one value per panel or device. */

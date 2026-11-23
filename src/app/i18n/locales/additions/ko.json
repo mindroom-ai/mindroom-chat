@@ -1365,12 +1365,6 @@
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
       "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다."
-    },
-    "voiceButton": {
-      "settingTitle": "휴대전화 마이크 버튼",
-      "settingDescription": "휴대전화 입력창의 마이크 버튼 동작을 선택합니다. 다른 작업은 + 메뉴에 유지됩니다.",
-      "dictate": "받아쓰기",
-      "voiceMessage": "음성 메시지"
     }
   },
   "commandPalette": {

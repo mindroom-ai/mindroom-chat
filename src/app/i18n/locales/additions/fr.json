@@ -1459,12 +1459,6 @@
       "failedSummary_one": "Impossible de transcrire {{count}} segment.",
       "failedSummary_many": "Impossible de transcrire {{count}} segments.",
       "failedSummary_other": "Impossible de transcrire {{count}} segments."
-    },
-    "voiceButton": {
-      "settingTitle": "Bouton microphone sur téléphone",
-      "settingDescription": "Choisissez l’action du bouton microphone dans la zone de saisie sur téléphone. L’autre action reste dans le menu +.",
-      "dictate": "Dicter",
-      "voiceMessage": "Message vocal"
     }
   },
   "commandPalette": {

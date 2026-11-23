@@ -1600,12 +1600,6 @@
       "failedSummary_few": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
       "failedSummary_many": "تعذّر نسخ ⁨{{count}}⁩ مقطعًا.",
       "failedSummary_other": "تعذّر نسخ ⁨{{count}}⁩ مقطع."
-    },
-    "voiceButton": {
-      "settingTitle": "زر الميكروفون على الهاتف",
-      "settingDescription": "اختر وظيفة زر الميكروفون في محرر الرسائل على الهواتف. يبقى الإجراء الآخر في قائمة +.",
-      "dictate": "إملاء",
-      "voiceMessage": "رسالة صوتية"
     }
   },
   "commandPalette": {

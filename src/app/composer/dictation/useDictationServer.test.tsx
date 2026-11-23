@@ -9,6 +9,7 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
+import { dictationAvailabilityStorageKey } from '../../preferences/accountStorageKeys';
 import { isDictationSupported, useDictationServer } from './useDictationServer';
 
 const VIEWER = '@alice:example.org';
@@ -456,5 +457,138 @@ describe('useDictationServer', () => {
     });
     expect(result.current.available).toBe(true);
     expect(state.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('seeds available: true on frame 1 from localStorage while pending and probing, then persists permanent false', async () => {
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    let resolveMembers!: (value: boolean) => void;
+    let resolveStatus!: (response: Response) => void;
+    state.send = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveStatus = resolve;
+        })
+    );
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+      membersLoaded: false,
+      loadMembersPromise: new Promise<boolean>((resolve) => {
+        resolveMembers = resolve;
+      }),
+    });
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    // Frame 1: roomServer is still pending, yet persisted true avoids flicker.
+    expect(result.current.available).toBe(true);
+    expect(result.current.sessions).toBeUndefined();
+    expect(state.send).not.toHaveBeenCalled();
+
+    // Room server settles and /status probe is in flight: stays true.
+    resolveMembers(true);
+    await flushEffects();
+    expect(result.current.apiUrl).toBe('https://mr.example');
+    expect(result.current.available).toBe(true);
+    expect(state.send).toHaveBeenCalledTimes(1);
+
+    // Permanent 403 settles state to false and updates localStorage.
+    resolveStatus(new Response('forbidden', { status: 403 }));
+    await flushEffects();
+    expect(result.current.available).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(false);
+  });
+
+  it('clears persisted true and returns false when server discovery settles with no apiUrl', async () => {
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!dm:example.org': true }));
+    let resolveMembers!: (value: boolean) => void;
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!dm:example.org',
+      members: [VIEWER, HUMAN],
+      membersLoaded: false,
+      loadMembersPromise: new Promise<boolean>((resolve) => {
+        resolveMembers = resolve;
+      }),
+    });
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!dm:example.org',
+      computers: { apiUrl: '' },
+      store,
+    });
+    expect(result.current.available).toBe(true);
+
+    resolveMembers(true);
+    await flushEffects();
+    expect(result.current.apiUrl).toBeUndefined();
+    expect(result.current.available).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!dm:example.org']).toBe(false);
+  });
+
+  it('reflects false during a transient 503 without poisoning persisted true', async () => {
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    state.send = vi.fn(async () => new Response('restarting', { status: 503 }));
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+
+    const { result } = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    expect(result.current.available).toBe(true);
+
+    await flushEffects();
+    expect(result.current.available).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
+  });
+
+  it('never seeds true when unsupported and caps persisted room entries at 128', async () => {
+    const key = dictationAvailabilityStorageKey(VIEWER);
+    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    installMediaCapabilities(false);
+    const mx = createTestClient();
+    await addRoom(mx, {
+      roomId: '!room:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
+
+    const unsupported = renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    expect(unsupported.result.current.available).toBe(false);
+    await flushEffects();
+    expect(unsupported.result.current.available).toBe(false);
+    unsupported.unmount();
+
+    installMediaCapabilities(true);
+    const seeded = Object.fromEntries(
+      Array.from({ length: 128 }, (_, i) => [`!r${i}:example.org`, true])
+    );
+    localStorage.setItem(key, JSON.stringify(seeded));
+    renderServerHook(mx, {
+      roomId: '!room:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    await flushEffects();
+    const stored = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, boolean>;
+    expect(Object.keys(stored)).toHaveLength(128);
+    expect(stored['!r0:example.org']).toBeUndefined();
+    expect(stored['!room:example.org']).toBe(true);
   });
 });

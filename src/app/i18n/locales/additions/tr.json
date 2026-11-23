@@ -1412,12 +1412,6 @@
       "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
       "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
       "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi."
-    },
-    "voiceButton": {
-      "settingTitle": "Telefonda mikrofon düğmesi",
-      "settingDescription": "Telefonlarda yazma alanındaki mikrofon düğmesinin ne yapacağını seçin. Diğer eylem + menüsünde kalır.",
-      "dictate": "Dikte et",
-      "voiceMessage": "Sesli mesaj"
     }
   },
   "commandPalette": {

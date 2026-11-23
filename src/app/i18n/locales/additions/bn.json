@@ -1412,12 +1412,6 @@
       "micInterrupted": "মাইক্রোফোন বিচ্ছিন্ন হয়েছে। আবার শুরু করুন বা শেষ করুন।",
       "failedSummary_one": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।",
       "failedSummary_other": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।"
-    },
-    "voiceButton": {
-      "settingTitle": "ফোনের মাইক্রোফোন বোতাম",
-      "settingDescription": "ফোনে কম্পোজারের মাইক্রোফোন বোতাম কী করবে তা বেছে নিন। অন্য বিকল্পটি + মেনুতে থাকবে।",
-      "dictate": "ডিকটেট",
-      "voiceMessage": "ভয়েস বার্তা"
     }
   },
   "commandPalette": {

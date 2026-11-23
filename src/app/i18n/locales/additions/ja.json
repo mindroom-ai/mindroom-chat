@@ -1365,12 +1365,6 @@
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
       "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。"
-    },
-    "voiceButton": {
-      "settingTitle": "スマートフォンでのマイクボタン",
-      "settingDescription": "スマートフォンで入力欄のマイクボタンを押したときの動作を選びます。もう一方は + メニューに残ります。",
-      "dictate": "音声入力",
-      "voiceMessage": "音声メッセージ"
     }
   },
   "commandPalette": {

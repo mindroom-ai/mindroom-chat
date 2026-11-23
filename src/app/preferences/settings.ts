@@ -99,8 +99,6 @@ export type Settings = Record<BooleanSettingKey, boolean> &
     dateFormatString: string;
     /** The mode a tap on Send or Enter sends with while an agent replies in the thread. */
     midTurnSend: MidTurnMode;
-    /** Which voice action the primary phone composer microphone button triggers. */
-    voiceButtonMode: VoiceButtonMode;
     /**
      * Times as 13:00 instead of 1:00 PM; unset, times follow the app language's clock
      * (`useHour24Clock`).
@@ -128,11 +126,6 @@ const DEFAULT_BOOLEANS = Object.fromEntries(
   BOOLEAN_SETTING_KEYS.map((key) => [key, ON_BY_DEFAULT.includes(key)])
 ) as Record<BooleanSettingKey, boolean>;
 
-export type VoiceButtonMode = 'dictate' | 'voiceMessage';
-
-export const isVoiceButtonMode = (value: unknown): value is VoiceButtonMode =>
-  value === 'dictate' || value === 'voiceMessage';
-
 export const DEFAULT_SETTINGS: Settings = {
   ...DEFAULT_BOOLEANS,
   pageZoom: PAGE_ZOOM_DEFAULT,
@@ -140,7 +133,6 @@ export const DEFAULT_SETTINGS: Settings = {
   messageSpacing: '400',
   dateFormatString: 'D MMM YYYY',
   midTurnSend: 'auto',
-  voiceButtonMode: 'dictate',
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
@@ -186,9 +178,6 @@ const sanitizeSettings = (value: unknown): Settings => {
     midTurnSend: isMidTurnMode(record.midTurnSend)
       ? record.midTurnSend
       : DEFAULT_SETTINGS.midTurnSend,
-    voiceButtonMode: isVoiceButtonMode(record.voiceButtonMode)
-      ? record.voiceButtonMode
-      : DEFAULT_SETTINGS.voiceButtonMode,
     hour24Clock: typeof record.hour24Clock === 'boolean' ? record.hour24Clock : undefined,
   };
   // A stored value of another type counts by its truthiness, so `null` or `0` turns a setting off.

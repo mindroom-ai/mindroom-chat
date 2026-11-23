@@ -1412,12 +1412,6 @@
       "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
       "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
       "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen."
-    },
-    "voiceButton": {
-      "settingTitle": "Microfoonknop op telefoon",
-      "settingDescription": "Kies wat de microfoonknop in het invoerveld op telefoons doet. De andere actie blijft in het +-menu.",
-      "dictate": "Dicteren",
-      "voiceMessage": "Spraakbericht"
     }
   },
   "commandPalette": {

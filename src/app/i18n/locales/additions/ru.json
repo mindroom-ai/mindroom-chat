@@ -1506,12 +1506,6 @@
       "failedSummary_few": "Не удалось расшифровать {{count}} фрагмента.",
       "failedSummary_many": "Не удалось расшифровать {{count}} фрагментов.",
       "failedSummary_other": "Не удалось расшифровать {{count}} фрагмента."
-    },
-    "voiceButton": {
-      "settingTitle": "Кнопка микрофона на телефоне",
-      "settingDescription": "Выберите действие кнопки микрофона в поле ввода на телефонах. Второе действие останется в меню +.",
-      "dictate": "Диктовка",
-      "voiceMessage": "Голосовое сообщение"
     }
   },
   "commandPalette": {

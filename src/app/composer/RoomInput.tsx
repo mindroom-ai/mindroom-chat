@@ -269,7 +269,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [midTurnSend] = useSetting(settingsAtom, 'midTurnSend');
-    const [voiceButtonMode] = useSetting(settingsAtom, 'voiceButtonMode');
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
@@ -530,7 +529,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       takeRootModelDraft,
       onRoomMessageSent,
       recover: voiceActive,
-      distinctIcon: dictation.available,
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -856,6 +854,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
     const boardOpen = emojiAnchor !== undefined;
+    const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice;
+    const showPhoneEmptyVoice =
+      phone && !ask && dictation.available && !forkFrom && !dictation.active && composerEmpty;
 
     const autocomplete =
       autocompleteQuery &&
@@ -999,33 +1000,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                   voiceAction={
-                    dictation.available && !forkFrom
-                      ? voiceButtonMode === 'voiceMessage'
-                        ? {
-                            label: dictation.label,
-                            icon: Icons.Mic,
-                            disabled: dictation.disabled,
-                            onSelect: () => {
-                              dictation.start();
-                            },
-                          }
-                        : {
-                            label: voice.microphoneLabel,
-                            icon: VoiceMessageIcon,
-                            disabled: voice.microphoneDisabled,
-                            onSelect: () => {
-                              voice.startRecording();
-                            },
-                          }
+                    dictation.available && !forkFrom && !showPhoneEmptyVoice
+                      ? {
+                          label: voice.microphoneLabel,
+                          icon: VoiceMessageIcon,
+                          disabled: voice.microphoneDisabled,
+                          onSelect: () => {
+                            voice.startRecording();
+                          },
+                        }
                       : undefined
                   }
                 />
-                {/* On phones with dictation available, show the chosen primary voice control. */}
-                {dictation.available
-                  ? forkFrom || voiceButtonMode !== 'voiceMessage'
-                    ? dictation.button
-                    : voice.microphone
-                  : !forkFrom && voice.microphone}
+                {!dictation.available && !forkFrom && voice.microphone}
               </>
             ) : (
               <>
@@ -1085,21 +1072,25 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
-              {(!phone || Boolean(ask?.pickers)) && dictation.button}
-              <ComposerSendButton
-                label={sendLabel}
-                alone={phone && !(Boolean(ask?.pickers) && dictation.available)}
-                agentReplying={agentReplying}
-                hasContent={() =>
-                  buildTextContent(midTurnSend) !== undefined ||
-                  hasSendableStagedFiles(attachments.access.snapshot()) ||
-                  hasVoice
-                }
-                empty={noText && !attachments.hasSendableFiles && !hasVoice}
-                defaultMode={midTurnSend}
-                disabled={askBlocked || dictation.blocksSubmit}
-                onSend={handleSend}
-              />
+              {dictation.button}
+              {showPhoneEmptyVoice ? (
+                voice.microphone
+              ) : (
+                <ComposerSendButton
+                  label={sendLabel}
+                  alone={phone && !dictation.available}
+                  agentReplying={agentReplying}
+                  hasContent={() =>
+                    buildTextContent(midTurnSend) !== undefined ||
+                    hasSendableStagedFiles(attachments.access.snapshot()) ||
+                    hasVoice
+                  }
+                  empty={composerEmpty}
+                  defaultMode={midTurnSend}
+                  disabled={askBlocked || dictation.blocksSubmit}
+                  onSend={handleSend}
+                />
+              )}
             </>
           }
         />

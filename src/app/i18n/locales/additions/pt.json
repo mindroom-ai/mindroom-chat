@@ -1459,12 +1459,6 @@
       "failedSummary_one": "Não foi possível transcrever {{count}} segmento.",
       "failedSummary_many": "Não foi possível transcrever {{count}} segmentos.",
       "failedSummary_other": "Não foi possível transcrever {{count}} segmentos."
-    },
-    "voiceButton": {
-      "settingTitle": "Botão do microfone no telemóvel",
-      "settingDescription": "Escolha o que o botão do microfone no editor faz em telemóveis. A outra ação fica no menu +.",
-      "dictate": "Ditar",
-      "voiceMessage": "Mensagem de voz"
     }
   },
   "commandPalette": {

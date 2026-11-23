@@ -1365,12 +1365,6 @@
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
       "failedSummary_other": "无法转写 {{count}} 个片段。"
-    },
-    "voiceButton": {
-      "settingTitle": "手机麦克风按钮",
-      "settingDescription": "选择手机上输入框麦克风按钮的功能。另一项操作保留在 + 菜单中。",
-      "dictate": "听写",
-      "voiceMessage": "语音消息"
     }
   },
   "commandPalette": {

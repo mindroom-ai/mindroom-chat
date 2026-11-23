@@ -1365,12 +1365,6 @@
       "capReached": "Batas 5:00 tercapai",
       "micInterrupted": "Mikrofon terputus. Lanjutkan atau selesaikan.",
       "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen."
-    },
-    "voiceButton": {
-      "settingTitle": "Tombol mikrofon di ponsel",
-      "settingDescription": "Pilih tindakan tombol mikrofon di kolom pesan pada ponsel. Tindakan lainnya tetap berada di menu +.",
-      "dictate": "Dikte",
-      "voiceMessage": "Pesan suara"
     }
   },
   "commandPalette": {

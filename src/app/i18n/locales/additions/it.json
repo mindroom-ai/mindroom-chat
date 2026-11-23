@@ -1459,12 +1459,6 @@
       "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
       "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
       "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
-    },
-    "voiceButton": {
-      "settingTitle": "Pulsante microfono su telefono",
-      "settingDescription": "Scegli cosa fa il pulsante microfono nel compositore sui telefoni. L’altra azione resta nel menu +.",
-      "dictate": "Detta",
-      "voiceMessage": "Messaggio vocale"
     }
   },
   "commandPalette": {

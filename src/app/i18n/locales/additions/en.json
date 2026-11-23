@@ -1412,12 +1412,6 @@
       "micInterrupted": "Microphone disconnected. Resume or finish.",
       "failedSummary_one": "Could not transcribe {{count}} segment.",
       "failedSummary_other": "Could not transcribe {{count}} segments."
-    },
-    "voiceButton": {
-      "settingTitle": "Phone microphone button",
-      "settingDescription": "Choose what the microphone button in the composer does on phones. The other action stays in the + menu.",
-      "dictate": "Dictate",
-      "voiceMessage": "Voice message"
     }
   },
   "commandPalette": {
