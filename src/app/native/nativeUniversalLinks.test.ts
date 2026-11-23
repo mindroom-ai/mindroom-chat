@@ -11,11 +11,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMatrixToRoom, getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { MembersOverlayFollowsNavigation, phoneDrawerOpenAtom } from '../members/useMembersDrawer';
 import { nextPhoneNavDrawerOpen } from '../navigation/phoneNavDrawer';
+import { resolveProtectedRouteRedirect } from '../navigation/routeSessionGuards';
 import {
   getActivityRoomPath,
   getConnectPath,
   getDirectRoomPath,
   getHomeRoomPath,
+  getLoginPath,
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
@@ -331,7 +333,10 @@ describe('native Universal Links', () => {
 
     it.each([
       [undefined, ''],
+      ['/', ''],
       ['/app/', '/app'],
+      ['/app', '/app'],
+      ['app', '/app'],
     ])('starts a hash router (basename %s) on a cold Universal Link', async (basename, prefix) => {
       window.history.replaceState(null, '', '/');
       await register(
@@ -359,6 +364,13 @@ describe('native Universal Links', () => {
       // The route is after `#` alone: the document's own path is the one the app was loaded at.
       expect(window.location.pathname + window.location.search).toBe('/');
       expect(window.location.hash).toBe(`#${prefix}${appPath}`);
+      // Signed out, the page sends to login and remembers the link: the address is one the app
+      // reads its own paths from, whichever way the configuration writes the basename.
+      const hashRouter = basename === undefined ? { enabled: true } : { enabled: true, basename };
+      expect(resolveProtectedRouteRedirect(window.location.href, hashRouter, false)).toEqual({
+        redirectTo: getLoginPath(),
+        afterLoginPath: appPath,
+      });
 
       // A link that arrives now is a push, inside the router's basename.
       await register();

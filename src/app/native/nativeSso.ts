@@ -86,17 +86,20 @@ export const setNativeAppPathNavigator = (
  * in the address as the document's path, which that router never reads, moves after `#` of the
  * address the app was loaded at. The router then starts on the link, as a browser router does.
  * Navigating there once the router is mounted would come too early: the redirect of the page it
- * started on (`/`) navigates after it, and wins.
+ * started on (`/`) navigates after it, and wins. The basename goes after `#/` with or without
+ * slashes of its own, as in the app's own addresses (`getOriginBaseUrl`), which a signed-out
+ * page reads the link back from.
  */
 export const moveWaitingUniversalLinkAfterHash = (basename = '/'): void => {
   const pending = pendingUniversalLink;
   if (!pending) return;
   const [documentAddress = ''] = pending.addressBefore.split('#');
+  const hashPath = basename.replace(/^\/+|\/+$/g, '');
   try {
     window.history.replaceState(
       null,
       '',
-      `${documentAddress}#${basename.replace(/\/+$/, '')}${pending.appPath}`
+      `${documentAddress}#${hashPath ? `/${hashPath}` : ''}${pending.appPath}`
     );
     pendingUniversalLink = undefined;
   } catch {

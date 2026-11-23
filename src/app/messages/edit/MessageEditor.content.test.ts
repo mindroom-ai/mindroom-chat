@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { createEditor, type Descendant } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMarkdownDecorate } from '../../editor/markdownDecorations';
-import { createMentionElement, withInlineElements } from '../../editor/utils';
+import { createMentionElement, getMentions, withInlineElements } from '../../editor/utils';
 import { getEditedContent, getEditorDocument, isUnchanged } from './MessageEditor';
 
 const ME = '@me:example.org';
@@ -32,6 +32,18 @@ const sentHtml = (body: string, html: string) => ({
   format: HTML,
   formatted_body: html,
 });
+
+/** What a message typed as `source` sends, with Markdown on. */
+const typedMarkdown = (source: string) =>
+  getEditedContent(
+    editorWith([{ type: 'paragraph', children: [{ text: source }] }]),
+    true,
+    'm.text',
+    ME
+  )!;
+
+const hasMention = (document: Descendant[]): boolean =>
+  JSON.stringify(document).includes('"type":"mention"');
 
 /** What a message that mentions the event sends, composed where the test runs. */
 const composedEventMention = () =>
@@ -386,6 +398,59 @@ describe('the content of an edit', () => {
     expect(composedEventMention().formatted_body).toBe(
       'see <a href="https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org">Message in #Harbor</a>'
     );
+  });
+
+  it.each([
+    [
+      'a spoiler to an event',
+      'see [||ending||](https://chat.mindroom.chat/!room:example.org/$event)',
+      ' data-mx-spoiler>ending</span></a>',
+    ],
+    [
+      'bold text to an event',
+      'see [**bold**](https://chat.mindroom.chat/!room:example.org/$event)',
+      '>bold</strong></a>',
+    ],
+    [
+      'a name to a user',
+      'see [Alice](https://chat.mindroom.chat/@alice:example.org)',
+      '>Alice</a>',
+    ],
+  ])(
+    'saved without a change, a typed Markdown link from %s stays that link',
+    (_what, source, label) => {
+      const original = typedMarkdown(source);
+      expect(original.body).toBe(source);
+      expect(original.formatted_body).toContain('<a data-md href="https://chat.mindroom.chat/');
+      expect(original.formatted_body).toContain(label);
+      expect(original['m.mentions']).toEqual({});
+
+      // No pill, which would show the label without its formatting and notify the user it names.
+      [true, false].forEach((markdown) => {
+        const reopened = getEditorDocument(original, markdown);
+        expect(hasMention(reopened)).toBe(false);
+        expect(getMentions(editorWith(reopened), ME)).toEqual({ users: new Set(), room: false });
+      });
+      const saved = resave(original)!;
+      expect(saved).toEqual(original);
+      expect(isUnchanged(original, saved)).toBe(true);
+    }
+  );
+
+  it.each([
+    ['<span data-mx-spoiler>ending</span>', ' data-mx-spoiler>ending</span></a>'],
+    ['<strong>ending</strong>', '>ending</strong></a>'],
+  ])('keeps an anchor of another client around %s a link', (label, kept) => {
+    const href = 'https://chat.mindroom.chat/!room:example.org/$event';
+    const original = sentHtml('see ending', `see <a href="${href}">${label}</a>`);
+
+    expect(hasMention(getEditorDocument(original, true))).toBe(false);
+    expect(hasMention(getEditorDocument(original, false))).toBe(false);
+    // Edited as Markdown, the link keeps the formatting of its label.
+    const saved = resave(original)!;
+    expect(saved.formatted_body).toContain(`href="${href}">`);
+    expect(saved.formatted_body).toContain(kept);
+    expect(saved['m.mentions']).toEqual({});
   });
 
   it.each(['https://chat.mindroom.chat/@room', 'https://matrix.to/#/@room'])(

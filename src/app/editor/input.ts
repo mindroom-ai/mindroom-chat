@@ -158,7 +158,11 @@ function parseInline(node: ChildNode, marks: Marks, markdown: boolean): InlineCo
     }
     case 'a': {
       const href = node.attribs.href ?? '';
-      const permalink = parseMatrixToLink(href);
+      // A mention is sent as an anchor around plain text (output.ts). A link the sender typed as
+      // Markdown (`data-md`, which has no value) and an anchor with formatting in it stay links:
+      // a pill would drop the formatting, and one to a user would notify that user.
+      const sentAsMention = md === undefined && node.children.every(isText);
+      const permalink = sentAsMention ? parseMatrixToLink(href) : undefined;
       const text = getText(node);
       if (permalink) {
         return [
