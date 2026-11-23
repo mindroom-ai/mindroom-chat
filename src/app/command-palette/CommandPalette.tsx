@@ -33,6 +33,7 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import { DialogCloseButton, SheetScrollArea } from '../ui/DialogChrome';
 import { InlineScrollFade } from '../ui/inlineScrollFade.css';
 import { useInlineScrollFade } from '../ui/useInlineScrollFade';
 import {
@@ -591,19 +592,19 @@ export function CommandPalette({
             navigatingRef.current = false;
           }}
         />
-        <button
-          type="button"
-          className={css.Close}
-          aria-label={t('commandPalette.closeAria')}
-          onClick={requestClose}
-        >
-          {/* In a page Escape goes back, so the button does not name it. */}
-          {mobileSheet || page ? (
-            <Icon src={Icons.Cross} size="200" />
-          ) : (
+        {/* In a page Escape goes back, so the button does not name it. */}
+        {mobileSheet || page ? (
+          <DialogCloseButton label={t('commandPalette.closeAria')} onClick={requestClose} />
+        ) : (
+          <button
+            type="button"
+            className={css.Close}
+            aria-label={t('commandPalette.closeAria')}
+            onClick={requestClose}
+          >
             <kbd className={css.Key}>esc</kbd>
-          )}
-        </button>
+          </button>
+        )}
       </div>
       {!page && (
         <PaletteTabs
@@ -617,10 +618,10 @@ export function CommandPalette({
           }}
         />
       )}
-      <div
-        ref={resultsRef}
+      <SheetScrollArea
+        scrollRef={resultsRef}
         id={panelId}
-        className={css.Results}
+        viewportClassName={css.Results}
         role={page ? undefined : 'tabpanel'}
         aria-labelledby={page ? undefined : tabId(tab)}
       >
@@ -663,7 +664,7 @@ export function CommandPalette({
             )}
           </div>
         )}
-      </div>
+      </SheetScrollArea>
       <div className={css.Footer}>
         <div className={css.KeyboardHints}>
           <span className={css.Hint}>

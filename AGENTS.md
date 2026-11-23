@@ -8,6 +8,7 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 - **Strict flags.** Every file, tests and `e2e/` included, compiles with the flags of `config/tsconfig.strict.json`; `just strict` and CI's "Strict check" step fail on any error. `just typecheck` and CI's "Type check" step compile the app sources on their own (`config/tsconfig.app.json`: `src/` without tests) with the same flags.
 - **Type-aware lint.** Every TypeScript file, tests and `e2e/` included, passes the type-aware ESLint rules of `just lint`.
 - **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
+- **Quiet Glass sheets and dialogs.** Picker/directory sheets and dialogs reuse `src/app/ui/DialogChrome.{tsx,css.ts}` (`DialogCloseButton`, `SheetScrollArea`, `SheetTitleBar`, `InsetField`, `SheetRow`, `SheetRowActionIdle`, `SheetFooter`) with `GlassPrimitives`, `Modal500`, `InsetScrollbar`, and `Segmented.css.ts` instead of adding one-off scrollbars, close buttons, or modal headers.
 
 ## Licenses and product
 

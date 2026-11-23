@@ -162,8 +162,9 @@ export function InsetScrollbar({
       reveal();
     };
 
-    const observer = new ResizeObserver(schedule);
-    [scroll, content, track].forEach((element) => observer.observe(element));
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
+    if (observer) [scroll, content, track].forEach((element) => observer.observe(element));
     scroll.addEventListener('scroll', onScroll, { passive: true });
     track.addEventListener('pointerdown', onPointerDown);
     track.addEventListener('pointermove', onPointerMove);
@@ -174,7 +175,7 @@ export function InsetScrollbar({
     update();
     return () => {
       drag?.unblock();
-      observer.disconnect();
+      observer?.disconnect();
       cancelAnimationFrame(frame);
       clearTimeout(hideTimer);
       scroll.removeEventListener('scroll', onScroll);
