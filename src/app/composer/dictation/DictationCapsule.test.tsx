@@ -171,7 +171,10 @@ describe('DictationCapsule', () => {
       const preview = screen.getByTestId('dictation-preview');
       expect(preview.textContent).toBe('Hello world.');
       expect(preview.getAttribute('aria-label')).toBe('composer.dictation.previewLabel');
-      expect(preview.getAttribute('role')).toBeNull();
+      expect(preview.getAttribute('role')).toBe('region');
+      if (phase === 'failed') {
+        expect(screen.getByRole('alert').contains(preview)).toBe(false);
+      }
     }
 
     rerender(

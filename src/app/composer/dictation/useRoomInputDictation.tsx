@@ -289,6 +289,7 @@ export const useRoomInputDictation = ({
         handleFinish();
       } else if (snapshot.phase === 'idle' && rootRef.current?.contains(document.activeElement)) {
         event.preventDefault();
+        pendingButtonFocusRef.current = undefined;
         start();
       }
     };
@@ -350,6 +351,9 @@ export const useRoomInputDictation = ({
           ref={triggerRef}
           onPointerDown={() => {
             pendingButtonFocusRef.current = isEditorFocused(editor, rootRef);
+          }}
+          onPointerLeave={() => {
+            pendingButtonFocusRef.current = undefined;
           }}
           onPointerCancel={() => {
             pendingButtonFocusRef.current = undefined;

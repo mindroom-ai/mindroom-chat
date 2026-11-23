@@ -5,7 +5,6 @@ import {
   Range as SlateRange,
   Text as SlateText,
   Transforms,
-  type BasePoint,
   type BaseRange,
   type Editor,
 } from 'slate';
@@ -26,8 +25,11 @@ export type InsertDictatedTextOptions = {
   focus?: boolean;
 };
 
-const withSmartSpacing = (editor: Editor, text: string, target: BaseRange | BasePoint): string => {
-  const [start, end] = SlateRange.isRange(target) ? SlateRange.edges(target) : [target, target];
+const withSmartSpacing = (editor: Editor, text: string): string => {
+  const selection = editor.selection;
+  if (!selection) return text;
+
+  const [start, end] = SlateRange.edges(selection);
   const isBlock = (node: SlateNode) =>
     SlateElement.isElement(node) && SlateEditor.isBlock(editor, node);
   const startBlock = SlateEditor.above(editor, { at: start, match: isBlock });
@@ -62,18 +64,19 @@ export const insertDictatedText = (
   if (!trimmed) return false;
 
   const focus = options?.focus ?? false;
-  const targetRange: BaseRange | BasePoint = isValidRange(editor, savedSelection)
-    ? savedSelection
-    : editor.selection ?? SlateEditor.end(editor, []);
-  const formatted = withSmartSpacing(editor, trimmed, targetRange);
-
-  const run = () => {
-    if (focus) {
-      Transforms.select(editor, targetRange);
-      SlateEditor.insertText(editor, formatted);
-    } else {
-      Transforms.insertText(editor, formatted, { at: targetRange });
+  if (isValidRange(editor, savedSelection)) {
+    if (!editor.selection || !SlateRange.equals(editor.selection, savedSelection)) {
+      Transforms.select(editor, savedSelection);
     }
+  } else if (!editor.selection) {
+    const pendingMarks = editor.marks;
+    Transforms.select(editor, SlateEditor.end(editor, []));
+    if (pendingMarks) editor.marks = pendingMarks;
+  }
+
+  const formatted = withSmartSpacing(editor, trimmed);
+  const run = () => {
+    SlateEditor.insertText(editor, formatted);
   };
 
   if (HistoryEditor.isHistoryEditor(editor)) {

@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createEditor, Editor, Transforms } from 'slate';
+import { createEditor, Editor, Node, Transforms } from 'slate';
 import { HistoryEditor, withHistory } from 'slate-history';
 import { ReactEditor, withReact } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -221,7 +221,6 @@ describe('insertDictatedText', () => {
       expect(unfocused.selection).toBeNull();
       expect(insertDictatedText(unfocused, 'world', null, { focus: false })).toBe(true);
       expect(readText(unfocused)).toBe('Hello world');
-      expect(unfocused.selection).toBeNull();
       expect(focusSpy).not.toHaveBeenCalled();
 
       unfocused.undo();
@@ -248,6 +247,35 @@ describe('insertDictatedText', () => {
 
       HistoryEditor.undo(focused);
       expect(readText(focused)).toBe('red apples');
+    } finally {
+      focusSpy.mockRestore();
+    }
+  });
+
+  it('preserves pending spoiler mark on unfocused insertion with or without an existing selection', () => {
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    try {
+      // Existing collapsed selection with pending spoiler mark.
+      const withSelection = makeSlateEditor();
+      Transforms.select(withSelection, { path: [0, 0], offset: 0 });
+      Editor.addMark(withSelection, 'spoiler', true);
+      expect(
+        insertDictatedText(withSelection, 'secret', withSelection.selection, { focus: false })
+      ).toBe(true);
+      expect(readText(withSelection)).toBe('secret');
+      const selectedLeaves = [...Node.texts(withSelection)].map(([leaf]) => leaf);
+      expect(selectedLeaves).toContainEqual({ text: 'secret', spoiler: true });
+      expect(focusSpy).not.toHaveBeenCalled();
+
+      // Null selection with pending spoiler mark.
+      const withoutSelection = makeSlateEditor();
+      withoutSelection.marks = { spoiler: true };
+      expect(withoutSelection.selection).toBeNull();
+      expect(insertDictatedText(withoutSelection, 'hidden', null, { focus: false })).toBe(true);
+      expect(readText(withoutSelection)).toBe('hidden');
+      const nullSelLeaves = [...Node.texts(withoutSelection)].map(([leaf]) => leaf);
+      expect(nullSelLeaves).toContainEqual({ text: 'hidden', spoiler: true });
+      expect(focusSpy).not.toHaveBeenCalled();
     } finally {
       focusSpy.mockRestore();
     }
@@ -574,6 +602,20 @@ describe('useRoomInputDictation', () => {
         fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
       });
       expect(focusSpy).toHaveBeenCalledTimes(1);
+
+      // Dragging off the Dictate button clears pending focus so a later unfocused start stays unfocused.
+      focusSpy.mockClear();
+      input.focus();
+      fireEvent.pointerDown(btn);
+      fireEvent.pointerLeave(btn);
+      input.blur();
+      await act(async () => {
+        fireEvent.click(btn);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(focusSpy).not.toHaveBeenCalled();
 
       // Moving focus to a control outside the composer mid-dictation prevents stealing focus.
       focusSpy.mockClear();

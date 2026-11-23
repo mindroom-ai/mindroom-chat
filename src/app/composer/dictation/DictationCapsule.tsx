@@ -68,6 +68,7 @@ export function DictationCapsule({
     <div
       ref={previewRef}
       className={css.Preview}
+      role="region"
       data-testid="dictation-preview"
       aria-label={t('composer.dictation.previewLabel')}
     >
@@ -107,9 +108,9 @@ export function DictationCapsule({
       errorMessage && errorMessage !== summary ? `${summary} ${errorMessage}` : summary;
     return (
       <div className={css.Container}>
-        <Box ref={glassRef} className={css.Capsule} role="alert">
+        <Box ref={glassRef} className={css.Capsule}>
           {previewNode}
-          <div className={css.RecoveryBar}>
+          <div className={css.RecoveryBar} role="alert">
             <Text size="T300" className={css.ErrorText}>
               {detail}
             </Text>
