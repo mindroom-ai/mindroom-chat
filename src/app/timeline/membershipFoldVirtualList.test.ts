@@ -578,6 +578,30 @@ describe("the reader's rows as a page of history lands at a fold", () => {
       expect(list.screenTop('$b8')).toBe(nearTop);
     });
 
+    it('keeps them still when the closed fold comes first and the open one after it', () => {
+      const mirrored = [...joins('k', 18), undecrypted('$enc'), ...joins('j', 3), ...below];
+      const list = roomList({
+        loaded: mirrored,
+        stateRange: { start: 0, end: mirrored.length },
+        compact,
+      });
+      list.open('$j0');
+      readDownTo(list, readingAt);
+      expect(list.windowIds().slice(0, 6)).toEqual(['$k0', '$enc', '$j0', '$j1', '$j2', '$b0']);
+      expect(list.screenTop(readingAt)).toBe(-10);
+
+      // The joined run is open, as its second part was, and its break is at `$k0`, the row
+      // that drew the closed fold's break.
+      list.decrypt('$enc', callInvite('$enc'));
+      list.render();
+      expect(list.windowIds().slice(0, 3)).toEqual(['$k0', '$k1', '$k2']);
+      expect(list.ledgerPx()).toBe(17 * (compact ? 96 : 28.5));
+      expect(list.screenTop(readingAt)).toBe(-10);
+      list.commit();
+      expect(list.screenTop(readingAt)).toBe(-10);
+      expect(list.scrollWrites).toEqual([]);
+    });
+
     it('takes nothing for a fold that a jump to one of its events unfolds', () => {
       const list = mount();
       // The jump scrolls to the event's row.
