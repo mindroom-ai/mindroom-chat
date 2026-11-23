@@ -1401,6 +1401,7 @@
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
+      "previewLabel": "Dikte önizlemesi",
       "statusStarting": "Dikte başlatılıyor",
       "statusListening": "Dikte ediliyor",
       "statusPaused": "Dikte duraklatıldı",

@@ -21,6 +21,10 @@ const isValidPoint = (editor: Editor, point: BaseRange['anchor']): boolean => {
 const isValidRange = (editor: Editor, range: BaseRange | null | undefined): range is BaseRange =>
   !!range && isValidPoint(editor, range.anchor) && isValidPoint(editor, range.focus);
 
+export type InsertDictatedTextOptions = {
+  focus?: boolean;
+};
+
 const withSmartSpacing = (editor: Editor, text: string): string => {
   const selection = editor.selection;
   if (!selection) return text;
@@ -53,15 +57,21 @@ const withSmartSpacing = (editor: Editor, text: string): string => {
 export const insertDictatedText = (
   editor: Editor,
   rawText: string,
-  savedSelection?: BaseRange | null
+  savedSelection?: BaseRange | null,
+  options?: InsertDictatedTextOptions
 ): boolean => {
   const trimmed = rawText.trim();
   if (!trimmed) return false;
 
+  const focus = options?.focus ?? false;
   if (isValidRange(editor, savedSelection)) {
-    Transforms.select(editor, savedSelection);
+    if (!editor.selection || !SlateRange.equals(editor.selection, savedSelection)) {
+      Transforms.select(editor, savedSelection);
+    }
   } else if (!editor.selection) {
+    const pendingMarks = editor.marks;
     Transforms.select(editor, SlateEditor.end(editor, []));
+    if (pendingMarks) editor.marks = pendingMarks;
   }
 
   const formatted = withSmartSpacing(editor, trimmed);
@@ -76,10 +86,12 @@ export const insertDictatedText = (
     run();
   }
 
-  try {
-    ReactEditor.focus(editor);
-  } catch {
-    // Editor may not be attached to a DOM tree in headless unit tests.
+  if (focus) {
+    try {
+      ReactEditor.focus(editor);
+    } catch {
+      // Editor may not be attached to a DOM tree in headless unit tests.
+    }
   }
   return true;
 };

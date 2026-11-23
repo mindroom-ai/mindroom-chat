@@ -1401,6 +1401,7 @@
       "insertPartial": "Insert partial",
       "discard": "Discard",
       "dismissError": "Dismiss dictation error",
+      "previewLabel": "Dictation preview",
       "statusStarting": "Starting dictation",
       "statusListening": "Dictating",
       "statusPaused": "Dictation paused",

@@ -36,6 +36,7 @@ export type DictationSnapshot = {
   failedSegments: number;
   completedSegments: number;
   hasPartialText: boolean;
+  previewText: string;
   capReached: boolean;
   interrupted: boolean;
   errorMessage?: string;
@@ -87,7 +88,7 @@ type SegmentRecord = {
 
 type SegmentStats = Pick<
   DictationSnapshot,
-  'pendingUploads' | 'failedSegments' | 'completedSegments' | 'hasPartialText'
+  'pendingUploads' | 'failedSegments' | 'completedSegments' | 'hasPartialText' | 'previewText'
 >;
 
 const EMPTY_STATS: SegmentStats = {
@@ -95,6 +96,7 @@ const EMPTY_STATS: SegmentStats = {
   failedSegments: 0,
   completedSegments: 0,
   hasPartialText: false,
+  previewText: '',
 };
 
 const idleSnapshot = (errorMessage?: string): DictationSnapshot => ({
@@ -192,13 +194,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       else if (record.status === 'failed') failedSegments += 1;
       else if (record.status === 'completed') completedSegments += 1;
     }
+    const previewText = stitchCompleted();
     segmentStats = {
       pendingUploads,
       failedSegments,
       completedSegments,
-      hasPartialText: records.some(
-        (r) => r.status === 'completed' && (r.text?.trim().length ?? 0) > 0
-      ),
+      hasPartialText: previewText.length > 0,
+      previewText,
     };
     publish(patch);
   };

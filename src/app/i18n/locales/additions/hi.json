@@ -1401,6 +1401,7 @@
       "insertPartial": "आंशिक पाठ डालें",
       "discard": "छोड़ें",
       "dismissError": "डिक्टेशन त्रुटि हटाएं",
+      "previewLabel": "डिक्टेशन पूर्वावलोकन",
       "statusStarting": "डिक्टेशन शुरू हो रहा है",
       "statusListening": "बोलकर लिखा जा रहा है",
       "statusPaused": "डिक्टेशन रुका हुआ है",

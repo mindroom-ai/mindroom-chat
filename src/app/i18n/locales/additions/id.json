@@ -1356,6 +1356,7 @@
       "insertPartial": "Sisipkan teks sebagian",
       "discard": "Buang",
       "dismissError": "Tutup kesalahan dikte",
+      "previewLabel": "Pratinjau dikte",
       "statusStarting": "Memulai dikte",
       "statusListening": "Mendikte",
       "statusPaused": "Dikte dijeda",

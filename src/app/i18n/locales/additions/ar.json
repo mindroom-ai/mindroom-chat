@@ -1581,6 +1581,7 @@
       "insertPartial": "إدراج الجزء المنسوخ",
       "discard": "تجاهل",
       "dismissError": "إغلاق خطأ الإملاء",
+      "previewLabel": "معاينة الإملاء",
       "statusStarting": "جارٍ بدء الإملاء",
       "statusListening": "جارٍ الإملاء",
       "statusPaused": "تم إيقاف الإملاء مؤقتًا",

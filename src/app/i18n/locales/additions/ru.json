@@ -1491,6 +1491,7 @@
       "insertPartial": "Вставить часть текста",
       "discard": "Удалить",
       "dismissError": "Закрыть ошибку диктовки",
+      "previewLabel": "Предпросмотр диктовки",
       "statusStarting": "Запуск диктовки",
       "statusListening": "Идет диктовка",
       "statusPaused": "Диктовка на паузе",

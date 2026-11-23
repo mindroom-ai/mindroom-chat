@@ -1356,6 +1356,7 @@
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",
+      "previewLabel": "音声入力のプレビュー",
       "statusStarting": "音声入力を開始しています",
       "statusListening": "音声入力中",
       "statusPaused": "音声入力を一時停止中",

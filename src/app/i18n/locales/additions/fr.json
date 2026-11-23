@@ -1446,6 +1446,7 @@
       "insertPartial": "Insérer le texte partiel",
       "discard": "Supprimer",
       "dismissError": "Fermer l’erreur de dictée",
+      "previewLabel": "Aperçu de la dictée",
       "statusStarting": "Démarrage de la dictée",
       "statusListening": "Dictée en cours",
       "statusPaused": "Dictée en pause",

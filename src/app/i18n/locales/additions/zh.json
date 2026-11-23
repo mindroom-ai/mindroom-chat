@@ -1356,6 +1356,7 @@
       "insertPartial": "插入部分文本",
       "discard": "放弃",
       "dismissError": "关闭听写错误",
+      "previewLabel": "听写预览",
       "statusStarting": "正在启动听写",
       "statusListening": "正在听写",
       "statusPaused": "听写已暂停",

@@ -207,12 +207,17 @@ test('uploads a speech segment before Finish, inserts editable text, and makes n
     expect(transcribeCalls[0]?.contentType).toContain('multipart/form-data');
     expect(transcribeCalls[0]?.bodyText).toContain('filename="speech.wav"');
 
-    // Editor must NOT be mutated while still dictating.
+    // Live preview shows the completed segment while the editor is NOT mutated mid-dictation.
+    await expect(page.getByTestId('dictation-preview')).toContainText(
+      'Ship the dictation feature today.'
+    );
     await expect(composer).not.toContainText('Ship the dictation feature today.');
 
     await finishButton.click();
     await expect(finishButton).toHaveCount(0, { timeout: 15_000 });
     await expect(composer).toContainText('Ship the dictation feature today.');
+    // Dictation started without focusing the composer, so Finish must not focus it.
+    await expect(composer).not.toBeFocused();
 
     // Inserted text is editable in the composer.
     await composer.click();

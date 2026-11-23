@@ -1446,6 +1446,7 @@
       "insertPartial": "Inserisci testo parziale",
       "discard": "Scarta",
       "dismissError": "Chiudi errore di dettatura",
+      "previewLabel": "Anteprima dettatura",
       "statusStarting": "Avvio dettatura",
       "statusListening": "Dettatura in corso",
       "statusPaused": "Dettatura in pausa",
