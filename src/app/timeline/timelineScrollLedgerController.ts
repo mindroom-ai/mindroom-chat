@@ -353,7 +353,7 @@ export const useTimelineScrollLedgerController = ({
     let baseHeadroom = headroomPxRef.current;
     if (showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
-      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 260, 28_000);
+      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 160, 16_000);
       if (!headroomInitRef.current || baseHeadroom < desired) {
         baseHeadroom = desired;
         initialHeadroomPx = desired;
@@ -375,7 +375,7 @@ export const useTimelineScrollLedgerController = ({
       const viewH = scroller?.clientHeight ?? 900;
       const nearTop = scrollTopNow <= headroomPxAtRender + viewH * 1.5;
       const sinceWheel = Date.now() - protoLastWheelAtRef.current;
-      const idleWheel = sinceWheel >= 500;
+      const idleWheel = sinceWheel >= 260;
       const overtakeWheel = protoMode === "hard-b-overtaken" && sinceWheel >= 140;
       const shouldTrim =
         !threadUserScrolled ||
@@ -471,7 +471,7 @@ export const useTimelineScrollLedgerController = ({
     const onWheel = () => {
       protoLastWheelAtRef.current = Date.now();
       if (idleTimer !== undefined) clearTimeout(idleTimer);
-      idleTimer = setTimeout(checkTrim, protoMode === "hard-b-overtaken" || protoMode === "trim-takeover" ? 150 : 520);
+      idleTimer = setTimeout(checkTrim, 270);
     };
     const onScroll = () => {
       // Never trim mid-burst; idleTimer handles final trim after wheel quiet.
