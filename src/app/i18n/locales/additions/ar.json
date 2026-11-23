@@ -1637,6 +1637,11 @@
     "actions": {
       "goActivity": "الانتقال إلى النشاط",
       "goActivityDescription": "الإشارات والردود وما ينتظرك"
+    },
+    "recentVisits": {
+      "recentlyOpened": "المفتوحة مؤخرًا",
+      "otherThreads": "سلاسل محادثات أخرى",
+      "otherRooms": "غرف أخرى"
     }
   },
   "shortcuts": {

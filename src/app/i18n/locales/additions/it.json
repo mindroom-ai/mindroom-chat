@@ -1496,6 +1496,11 @@
     "actions": {
       "goActivity": "Vai ad Attività",
       "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Aperti di recente",
+      "otherThreads": "Altri thread",
+      "otherRooms": "Altre stanze"
     }
   },
   "shortcuts": {

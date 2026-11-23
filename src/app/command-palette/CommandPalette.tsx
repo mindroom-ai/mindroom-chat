@@ -202,6 +202,35 @@ const buildStartChatSection = (
       : undefined,
 });
 
+const isRecentVisit = (item: ExecutableCommandPaletteItem): boolean =>
+  (item.kind === 'room' || item.kind === 'space' || item.kind === 'thread') &&
+  item.recentVisit === true;
+
+const getSectionRecentVisits = (
+  section: CommandPaletteLocalSection,
+  searchText: string,
+  t: TFunction
+): CommandPaletteListSection['recentVisits'] => {
+  if (searchText.length > 0 || (section.id !== 'threads' && section.id !== 'rooms')) {
+    return undefined;
+  }
+  let count = 0;
+  for (const item of section.items) {
+    if (!isRecentVisit(item)) break;
+    count += 1;
+  }
+  if (count === 0) return undefined;
+  return {
+    count,
+    recentLabel: t('commandPalette.recentVisits.recentlyOpened'),
+    otherLabel: t(
+      section.id === 'rooms'
+        ? 'commandPalette.recentVisits.otherRooms'
+        : 'commandPalette.recentVisits.otherThreads'
+    ),
+  };
+};
+
 const getResultCountLabel = (items: readonly ExecutableCommandPaletteItem[], t: TFunction) => {
   const count = items.filter((item) => item.kind !== 'search-page').length;
   if (count === 0) return t('commandPalette.noResults');
@@ -324,7 +353,14 @@ export function CommandPalette({
           const peopleSection = buildPeopleSection(section, people, source, tab, searchText, t);
           return peopleSection ? [peopleSection] : [];
         }
-        return [{ ...section, title: t(TAB_LABEL_KEYS[section.id]) }];
+        const recentVisits = getSectionRecentVisits(section, searchText, t);
+        return [
+          {
+            ...section,
+            title: t(TAB_LABEL_KEYS[section.id]),
+            ...(recentVisits ? { recentVisits } : undefined),
+          },
+        ];
       }
     );
     const listed = new Set(sections.flatMap((section) => section.items.map((item) => item.id)));

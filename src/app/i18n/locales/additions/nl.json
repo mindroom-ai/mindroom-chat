@@ -1449,6 +1449,11 @@
     "actions": {
       "goActivity": "Naar Activiteit",
       "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Recent geopend",
+      "otherThreads": "Andere threads",
+      "otherRooms": "Andere kamers"
     }
   },
   "shortcuts": {

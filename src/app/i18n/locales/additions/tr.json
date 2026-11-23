@@ -1449,6 +1449,11 @@
     "actions": {
       "goActivity": "Etkinliğe git",
       "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Son açılanlar",
+      "otherThreads": "Diğer konular",
+      "otherRooms": "Diğer odalar"
     }
   },
   "shortcuts": {

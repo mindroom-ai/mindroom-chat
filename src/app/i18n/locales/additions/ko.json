@@ -1402,6 +1402,11 @@
     "actions": {
       "goActivity": "활동으로 이동",
       "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
+    },
+    "recentVisits": {
+      "recentlyOpened": "최근에 연 항목",
+      "otherThreads": "다른 스레드",
+      "otherRooms": "다른 방"
     }
   },
   "shortcuts": {

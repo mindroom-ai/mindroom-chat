@@ -1402,6 +1402,11 @@
     "actions": {
       "goActivity": "前往動態",
       "goActivityDescription": "提及、回覆和等待你處理的事項"
+    },
+    "recentVisits": {
+      "recentlyOpened": "最近開啟",
+      "otherThreads": "其他討論串",
+      "otherRooms": "其他房間"
     }
   },
   "shortcuts": {

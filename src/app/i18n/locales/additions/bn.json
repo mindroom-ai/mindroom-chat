@@ -1449,6 +1449,11 @@
     "actions": {
       "goActivity": "কার্যকলাপে যান",
       "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে"
+    },
+    "recentVisits": {
+      "recentlyOpened": "সম্প্রতি খোলা হয়েছে",
+      "otherThreads": "অন্যান্য থ্রেড",
+      "otherRooms": "অন্যান্য রুম"
     }
   },
   "shortcuts": {

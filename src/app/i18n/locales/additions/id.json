@@ -1402,6 +1402,11 @@
     "actions": {
       "goActivity": "Ke Aktivitas",
       "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Baru dibuka",
+      "otherThreads": "Utas lain",
+      "otherRooms": "Ruang lain"
     }
   },
   "shortcuts": {

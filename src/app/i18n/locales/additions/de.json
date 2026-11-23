@@ -1449,6 +1449,11 @@
     "actions": {
       "goActivity": "Zur Aktivität",
       "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Zuletzt geöffnet",
+      "otherThreads": "Andere Threads",
+      "otherRooms": "Andere Räume"
     }
   },
   "shortcuts": {

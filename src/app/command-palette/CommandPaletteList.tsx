@@ -1,5 +1,5 @@
 import { Avatar, Icon, Icons, Spinner, Text, type IconSrc } from 'folds';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
@@ -41,6 +41,8 @@ export type CommandPaletteListSection = {
   trailingNotes?: CommandPaletteListNote[];
   /** More rows may still arrive: a spinner beside the title. */
   busy?: boolean;
+  /** Leading recently visited rows promoted above the rest while nothing is typed. */
+  recentVisits?: { count: number; recentLabel: string; otherLabel: string };
 };
 
 type CommandPaletteListProps = {
@@ -377,6 +379,11 @@ export function CommandPaletteList({
     <div id={id} role="listbox" aria-label={label}>
       {sections.map((section) => {
         const count = section.items.filter((item) => item.kind !== 'search-page').length;
+        const recentCount = section.recentVisits
+          ? Math.min(section.recentVisits.count, section.items.length)
+          : 0;
+        const recentVisits = recentCount > 0 ? section.recentVisits : undefined;
+        const recentSubgroupId = `${id}-${section.id}-recent`;
         return (
           <div
             key={section.id}
@@ -398,9 +405,20 @@ export function CommandPaletteList({
             {section.notes?.map((note) => (
               <SectionNote key={note.id} note={note} />
             ))}
-            {section.items.map((item) => {
+            {recentVisits && (
+              <div
+                id={recentSubgroupId}
+                className={css.SubGroupTitle}
+                role="presentation"
+                data-subgroup="recent"
+              >
+                <Icon size="50" src={Icons.RecentClock} aria-hidden="true" />
+                <span>{recentVisits.recentLabel}</span>
+              </div>
+            )}
+            {section.items.map((item, index) => {
               const isSelected = selectedItemId === item.id;
-              return (
+              const row = (
                 // Keyboard activation belongs to the combobox, which retains DOM focus.
                 // eslint-disable-next-line jsx-a11y/click-events-have-key-events
                 <div
@@ -410,6 +428,9 @@ export function CommandPaletteList({
                   role="option"
                   aria-selected={isSelected}
                   aria-checked={getChecked(item)}
+                  aria-describedby={
+                    recentVisits && index < recentCount ? recentSubgroupId : undefined
+                  }
                   tabIndex={-1}
                   className={css.Row}
                   data-item-id={item.id}
@@ -441,6 +462,21 @@ export function CommandPaletteList({
                   </span>
                 </div>
               );
+              if (recentVisits && index === recentCount) {
+                return (
+                  <Fragment key={item.id}>
+                    <div
+                      className={`${css.SubGroupTitle} ${css.SubGroupDivider}`}
+                      role="presentation"
+                      data-subgroup="other"
+                    >
+                      <span>{recentVisits.otherLabel}</span>
+                    </div>
+                    {row}
+                  </Fragment>
+                );
+              }
+              return row;
             })}
             {section.trailingNotes?.map((note) => (
               <SectionNote key={note.id} note={note} />
