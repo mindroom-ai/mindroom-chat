@@ -2,8 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  allowActiveRunsState,
   createDefaultThreadFilterState,
   joinRoom,
+  publishActiveRuns,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -119,6 +121,7 @@ for (const ios of [false, true]) {
       invite: [agent.userId],
     });
     await joinRoom(HOMESERVER, agent.accessToken, roomId);
+    await allowActiveRunsState(HOMESERVER, reader.accessToken, roomId);
     const roots: string[] = [];
     for (let index = 0; index < WORKING + NEEDS_YOU; index += 1) {
       roots.push(
@@ -160,7 +163,8 @@ for (const ios of [false, true]) {
     });
 
     // An agent starts on the first WORKING threads while the reader watches, as MindRoom does.
-    for (const rootId of roots.slice(0, WORKING)) {
+    const workingRoots = roots.slice(0, WORKING);
+    for (const rootId of workingRoots) {
       await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
         msgtype: 'm.text',
         body: 'Thinking...',
@@ -168,6 +172,7 @@ for (const ios of [false, true]) {
         ...inThread(rootId),
       });
     }
+    await publishActiveRuns(HOMESERVER, agent, roomId, workingRoots, 600_000);
     await expect(page.locator('[data-compact-section="working"]')).toHaveText(
       new RegExp(`· ${WORKING}$`),
       { timeout: 30_000 }

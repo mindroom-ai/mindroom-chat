@@ -1,8 +1,7 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
 import { getEditedEvent } from '../matrix/room';
-import { getReplyTimeParts, getReplyTiming } from './replyTiming';
+import { getReplyTimeParts, getReplyTiming, STREAM_IDLE_LIMIT_MS } from './replyTiming';
 
 const at = (day: number, hour: number, minute: number, second = 0) =>
   new Date(2026, 2, day, hour, minute, second).getTime();

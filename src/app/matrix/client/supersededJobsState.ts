@@ -1,5 +1,11 @@
 import { RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContract';
+
+const SUPERSEDED_AGENT_STATE_TYPES = new Set([
+  MINDROOM_BACKGROUND_JOBS_EVENT,
+  MINDROOM_ACTIVE_RUNS_EVENT,
+]);
 
 // Each agent publishes its background jobs as one state event per room, the whole list on every
 // change, and each write carries the list it replaces as well (`unsigned.prev_content`). A room
@@ -15,7 +21,7 @@ import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContra
  */
 export const emptySupersededJobsState = (mx: MatrixClient): void => {
   mx.on(RoomStateEvent.Events, (event, state, previous) => {
-    if (event.getType() !== MINDROOM_BACKGROUND_JOBS_EVENT) return;
+    if (!SUPERSEDED_AGENT_STATE_TYPES.has(event.getType())) return;
     const previousId = previous?.getId();
     if (!previousId || previousId === event.getId()) return;
     // The timeline's event with that ID, which is the replaced state itself unless the server sends

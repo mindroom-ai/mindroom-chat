@@ -72,6 +72,7 @@ describe('MindRoom agent calls', () => {
           'm.room.tombstone': 100,
           'org.matrix.msc3401.call.member': 0,
           'io.mindroom.background_jobs': 0,
+          'io.mindroom.active_runs': 0,
           'io.mindroom.server': 0,
           'io.mindroom.auto_approve': 0,
           'io.mindroom.accounts': 0,
@@ -206,7 +207,33 @@ describe('MindRoom agent calls', () => {
       StateEvent.RoomPowerLevels,
       {
         users: { [ALICE]: 100 },
-        events: { 'org.matrix.msc3401.call.member': 50, 'io.mindroom.background_jobs': 0 },
+        events: {
+          'org.matrix.msc3401.call.member': 50,
+          'io.mindroom.background_jobs': 0,
+          'io.mindroom.active_runs': 0,
+        },
+      },
+      ''
+    );
+  });
+
+  it('adds io.mindroom.active_runs to a reused call room that already has background_jobs, preserving explicit levels', async () => {
+    const powerLevels = {
+      users: { [ALICE]: 100 },
+      events: { 'org.matrix.msc3401.call.member': 0, 'io.mindroom.background_jobs': 50 },
+    };
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.RoomPowerLevels,
+      {
+        users: { [ALICE]: 100 },
+        events: {
+          'org.matrix.msc3401.call.member': 0,
+          'io.mindroom.background_jobs': 50,
+          'io.mindroom.active_runs': 0,
+        },
       },
       ''
     );
@@ -284,7 +311,9 @@ describe('MindRoom agent calls', () => {
   });
 
   it('leaves the power levels of a call room that already allows it alone', async () => {
-    const powerLevels = { events: { 'io.mindroom.background_jobs': 0 } };
+    const powerLevels = {
+      events: { 'io.mindroom.background_jobs': 0, 'io.mindroom.active_runs': 0 },
+    };
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join', powerLevels });
     await prepareAgentCallRoom(mx, room, HELPER, origin);
     expect(sendStateEvent).not.toHaveBeenCalledWith(

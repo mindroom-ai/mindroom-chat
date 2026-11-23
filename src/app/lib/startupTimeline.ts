@@ -5,7 +5,6 @@ type ClientPhase =
   | `client.init.${'start' | 'parallel.start' | 'done'}`
   | 'crypto.store.probe'
   | 'store.startup.done'
-  | 'streaming.restore.done'
   | 'crypto.init.done'
   | 'identity.check.done'
   | 'saved_sync.read.done'

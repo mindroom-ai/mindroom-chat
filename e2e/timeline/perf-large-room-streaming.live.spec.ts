@@ -7,8 +7,10 @@ import {
   createDefaultThreadFilterState,
   loginToMatrix,
   matrixFetch,
+  publishActiveRuns,
   seedRoomOverviewState,
   sendRoomMessage,
+  sendStateEvent,
 } from '../helpers/matrix';
 
 type Manifest = {
@@ -156,6 +158,18 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
       'io.mindroom.stream_status':
         step === steps ? 'completed' : step === 0 ? 'pending' : 'streaming',
     });
+    // Bind the fixture account as trusted router if it lacks the `mindroom_` prefix so its
+    // simulated `io.mindroom.active_runs` state drives card Working/streaming state.
+    if (!session.userId.startsWith('@mindroom_')) {
+      await sendStateEvent(
+        homeserver.origin,
+        session.accessToken,
+        fixture.roomId,
+        'io.mindroom.router',
+        '',
+        { user_id: session.userId }
+      );
+    }
     const send = (body: Record<string, unknown>) =>
       sendRoomMessage(homeserver.origin, session.accessToken, fixture.roomId, body, runId);
     const replies = await Promise.all(
@@ -170,6 +184,13 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
           },
         })
       )
+    );
+    await publishActiveRuns(
+      homeserver.origin,
+      session,
+      fixture.roomId,
+      targets.map(({ rootId }) => rootId),
+      600_000
     );
     const waitForPreviews = (step: number) =>
       page.waitForFunction(
@@ -244,10 +265,14 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
         );
         if (step < steps) await sleep(batchPauseMs);
       }
+      await publishActiveRuns(homeserver.origin, session, fixture.roomId, []);
       sendMs = performance.now() - burstStart;
       await waitForPreviews(steps);
       caughtUp = true;
     } finally {
+      await publishActiveRuns(homeserver.origin, session, fixture.roomId, []).catch(
+        () => undefined
+      );
       const elapsedMs = performance.now() - burstStart;
       const after = (await cdp.send('Performance.getMetrics')).metrics;
       const { profile } = await cdp.send('Profiler.stop');

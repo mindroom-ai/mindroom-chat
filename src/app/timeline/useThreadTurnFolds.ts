@@ -55,8 +55,7 @@ export const turnRowWaits = (
     if (request && effectiveSecretRequestStatus(request, now) === 'pending') return true;
   }
   if (author !== 'agent') return false;
-  // A reply that says it streams has not finished, also while the client has yet to vouch for it
-  // (isStreamingReplyCurrent): its turn folds once it says it ended.
+  // A reply that says it streams has not finished: its turn folds once it says it ended.
   // One whose writer died mid-stream keeps holding: its turn shows whole, as without folds.
   if (isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet)) return true;
   // A question waits until a reaction answers it, as its card reads it (QuestionCard), whatever
