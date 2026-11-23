@@ -111,6 +111,7 @@ export type TimelineScrollLedgerController = {
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   headroomPxAtRender: number;
+  headroomPxAtRender: number;
   measureElement: (node: Element | null) => void;
   leadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
@@ -237,6 +238,13 @@ export const useTimelineScrollLedgerController = ({
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
+  const useProtoHeadroom = !!threadId;
+  const headroomPxRef = useRef(0);
+  const headroomInitRef = useRef(false);
+  const pendingAboveResizePxRef = useRef(0);
+  const pendingHeadroomScrollWriteRef = useRef(0);
+  const protoLastWheelAtRef = useRef(0);
+  const protoScrollOffsetOverrideRef = useRef<number | undefined>(undefined);
   const useProtoHeadroom = !!threadId;
   const headroomPxRef = useRef(0);
   const headroomInitRef = useRef(false);
@@ -561,6 +569,9 @@ export const useTimelineScrollLedgerController = ({
     // updated estimates reach unmeasured virtual-core rows.
     getItemKey,
   });
+  if (useProtoHeadroom && protoScrollOffsetOverrideRef.current !== undefined) {
+    virtualizer.scrollOffset = protoScrollOffsetOverrideRef.current;
+  }
   const virtualizerRef = useRef(virtualizer);
   const measureElement = useMemo(
     () => createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)),
@@ -1199,6 +1210,16 @@ export const useTimelineScrollLedgerController = ({
         renderRowMoveBeforePaint();
         return false;
       }
+      if (useProtoHeadroom) {
+        const [item, delta, instance] = args;
+        const liveTop = instance.scrollElement?.scrollTop ?? instance.scrollOffset ?? 0;
+        const readerTop = readerTopOffset(liveTop) ?? liveTop;
+        if (item.end <= readerTop && delta !== 0) {
+          pendingAboveResizePxRef.current += delta;
+        }
+        renderRowMoveBeforePaint();
+        return false;
+      }
       dropped = false;
       if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const apply = decide(...args);
@@ -1287,6 +1308,7 @@ export const useTimelineScrollLedgerController = ({
     endSettleDiscardWatch,
     holdThreadBannerResize,
     ledgerPxAtRender,
+    headroomPxAtRender,
     headroomPxAtRender,
     measureElement,
     readRowFoldPx,

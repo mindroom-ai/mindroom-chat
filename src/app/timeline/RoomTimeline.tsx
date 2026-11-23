@@ -1506,6 +1506,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadFilteredEventsRef: roomRowsRef,
     foldedRows: roomProjection.foldedRows,
     threadId,
+    expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
+    showThreadLoadOlder,
+    threadUserScrolled,
     threadInitialRenderMode,
     threadLatestOpenPending,
     threadOpenedAtLatest,
@@ -1722,7 +1725,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pendingListShrinkPx
   );
   // After the follow above and every other observer of the timeline (it is created last).
-  useListEndClamp(scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
+  useListEndClamp(threadId ? null : scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
 
   // The compact overview: older history until zero-reply roots show up, root edits it lacks (the
   // Threads view's too, which lists the same roots), and a refresh of its threads when the page
