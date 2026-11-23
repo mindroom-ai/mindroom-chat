@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as deepTrace from '../../../../diagnostics/deepTrace';
+import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import { EVICTION_CHECK_MIN_INTERVAL_MS } from '../cacheStoreSchema';
 import * as store from '../index';
 
@@ -409,8 +410,10 @@ it('memoizes irreclaimable pressure within interval and invalidates on space or 
   const first = await store.runCacheEvictionIfOverBudget(session);
   expect(first).toMatchObject({ underPressure: true, evictedMxcUris: [], evictedRoomIds: [] });
   expect(evictionTraceCount()).toBe(1);
-  // Back-to-back call within the interval returns the cached result with zero IDB work.
+  // Back-to-back call within the interval (even after adding protection) uses the cached result.
   txSpy.mockClear();
+  store.setEvictionProtectedRoomIds(['room-focused', 'room-extra']);
+  store.setEvictionDownloadingRoomIds(session, ['room-downloading', 'room-extra']);
   now += EVICTION_CHECK_MIN_INTERVAL_MS - 1;
   expect(await store.runCacheEvictionIfOverBudget(session)).toBe(first);
   expect(txSpy).not.toHaveBeenCalled();
@@ -462,4 +465,35 @@ it('memoizes irreclaimable pressure within interval and invalidates on space or 
     underPressure: false,
   });
   expect(txSpy).toHaveBeenCalled();
+});
+
+it('invalidates memoized irreclaimable pressure when a redaction frees a protected attachment', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+  await saveAttachmentOwner(session, 'room-focused', '$media-event', 1, [
+    { mxcUri: 'mxc://test/redacted', essential: true },
+  ]);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/redacted', bytes: new ArrayBuffer(2000), mimeType: 'text/plain' },
+    { roomId: 'room-focused', eventId: '$media-event', revisionTs: 1, essential: true }
+  );
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const before = await store.runCacheEvictionIfOverBudget(session);
+  expect(before).toMatchObject({ underPressure: true, evictedMxcUris: [], evictedRoomIds: [] });
+  expect(before.bytesBefore).toBeGreaterThan(2000);
+  await store.saveRoomEventsToCacheCommitted(session, 'room-focused', [
+    {
+      event_id: '$redaction',
+      type: 'm.room.redaction',
+      redacts: '$media-event',
+      origin_server_ts: 2,
+      content: {},
+    },
+  ]);
+  const after = await store.runCacheEvictionIfOverBudget(session);
+  expect(after.underPressure).toBe(false);
+  expect(after.bytesBefore).toBeLessThan(before.bytesBefore - 1999);
+  expect(await store.loadCachedAttachment(session, 'mxc://test/redacted')).toBeUndefined();
 });

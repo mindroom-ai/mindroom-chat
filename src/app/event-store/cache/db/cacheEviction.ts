@@ -295,15 +295,16 @@ const planOptionalMediaEviction = (
     ledgerRequest.onerror = () => reject(ledgerRequest.error);
     metaRequest.onerror = () => reject(metaRequest.error);
     referencesRequest.onerror = () => reject(referencesRequest.error);
-    const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
+    // The index yields records in lastAccessedAt ascending order already.
+    const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'byteLength'>[] = [];
     const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
     let plan: MediaPlanResult;
     cursorRequest.onsuccess = () => {
       try {
         const cursor = cursorRequest.result;
         if (cursor) {
-          const [lastAccessedAt, byteLength] = cursor.key as [number, number];
-          records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
+          const [, byteLength] = cursor.key as [number, number];
+          records.push({ mxcUri: cursor.primaryKey as string, byteLength });
           cursor.continue();
           return;
         }
@@ -340,32 +341,34 @@ const planOptionalMediaEviction = (
         const candidates: MediaCandidate[] = [];
         plan = { bytesBefore, protectedBytes, protectedIds, candidates };
         if (bytesBefore <= budget) return;
-        let plannedBytesAfter = bytesBefore;
-        const target = budget * EVICTION_TARGET_UTILIZATION;
-        records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
         const step = (startIndex: number): void => {
           for (let index = startIndex; index < records.length; index += 1) {
-            if (plannedBytesAfter <= target) return;
             const record = records[index];
             if (!record) return;
             const owners = ownersOf(record.mxcUri);
-            if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
-            // Only eviction candidates need a value read (unowned essentials also survive).
+            if (owners.length) {
+              if (
+                owners.some(
+                  (row) =>
+                    row.essential ||
+                    protectedIds.has(row.roomId) ||
+                    isRoomInUse(sessionId, row.roomId)
+                )
+              )
+                continue;
+              candidates.push({
+                mxcUri: record.mxcUri,
+                roomIds: [...new Set(owners.map((row) => row.roomId))],
+              });
+              continue;
+            }
+            // Unowned blobs may still be marked essential; read before opening a write txn.
             const request = blobs.get(record.mxcUri);
             request.onerror = () => reject(request.error);
             request.onsuccess = () => {
               try {
                 const cached = request.result as CachedAttachmentRecord | undefined;
-                if (
-                  !cached?.essential &&
-                  !owners.some((row) => isRoomInUse(sessionId, row.roomId))
-                ) {
-                  candidates.push({
-                    mxcUri: record.mxcUri,
-                    roomIds: [...new Set(owners.map((row) => row.roomId))],
-                  });
-                  plannedBytesAfter -= record.byteLength;
-                }
+                if (!cached?.essential) candidates.push({ mxcUri: record.mxcUri, roomIds: [] });
                 step(index + 1);
               } catch (error) {
                 reject(error);
@@ -625,13 +628,16 @@ export const runCacheEvictionIfOverBudget = (sessionId: string): Promise<Evictio
   if (running) return running;
   const budget = getCacheStoreByteBudget();
   const cached = irreclaimablePressureBySession.get(sessionId);
-  if (
-    cached &&
-    Date.now() - cached.at < EVICTION_CHECK_MIN_INTERVAL_MS &&
-    cached.budget === budget &&
-    isCacheStoreWriteLeaseCurrent(cached.lease)
-  )
-    return Promise.resolve(cached.result);
+  if (cached) {
+    const age = Date.now() - cached.at;
+    if (
+      age >= 0 &&
+      age < EVICTION_CHECK_MIN_INTERVAL_MS &&
+      cached.budget === budget &&
+      isCacheStoreWriteLeaseCurrent(cached.lease)
+    )
+      return Promise.resolve(cached.result);
+  }
   const epoch = pressureEpoch;
   const lease = captureCacheStoreWriteLease(sessionId);
   const eviction = evictUntilUnderBudget(sessionId)

@@ -230,10 +230,15 @@ export const getCachedAttachmentMetadata = async (
 };
 
 /** Drop unshared bytes and keep shared-byte retention derived from validated owners. */
-const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterable<string>) => {
+const pruneAttachmentBytes = async (
+  transaction: IDBTransaction,
+  mxcUris: Iterable<string>,
+  sessionId?: string
+) => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
+  let reclaimedOrDemoted = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -243,17 +248,28 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     if (!remaining.length) unowned.push(mxcUri);
     if (!cached) continue;
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
-    if (!remaining.length) blobs.delete(mxcUri);
-    else if (cached.essential !== essential) blobs.put({ ...cached, essential });
+    if (!remaining.length) {
+      blobs.delete(mxcUri);
+      reclaimedOrDemoted = true;
+    } else if (cached.essential !== essential) {
+      blobs.put({ ...cached, essential });
+      if (cached.essential && !essential) reclaimedOrDemoted = true;
+    }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
-  await deleteScaledPictures(blobs, unowned);
+  const freedScaledBytes = await deleteScaledPictures(blobs, unowned);
+  if (reclaimedOrDemoted || freedScaledBytes > 0) {
+    transaction.addEventListener('complete', () => invalidateEvictionPressureCache(sessionId), {
+      once: true,
+    });
+  }
 };
 
 /** Only the canonical event transaction calls this after accepting the same raw revision. */
 export const replaceCachedAttachmentReferences = async (
   transaction: IDBTransaction,
-  message: EventAttachmentMessage
+  message: EventAttachmentMessage,
+  sessionId?: string
 ): Promise<void> => {
   const { roomId, eventId, revisionTs, revisionId, attachments } = message;
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
@@ -347,7 +363,8 @@ export const replaceCachedAttachmentReferences = async (
   }
   await pruneAttachmentBytes(
     transaction,
-    [...removed, ...entries].map((row) => row.mxcUri)
+    [...removed, ...entries].map((row) => row.mxcUri),
+    sessionId
   );
 };
 
@@ -355,7 +372,8 @@ export const replaceCachedAttachmentReferences = async (
 export const invalidateCachedAttachmentReferences = async (
   transaction: IDBTransaction,
   roomId: string,
-  redactedIds: ReadonlySet<string>
+  redactedIds: ReadonlySet<string>,
+  sessionId?: string
 ): Promise<void> => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const rows = (await requestResult(
@@ -379,7 +397,8 @@ export const invalidateCachedAttachmentReferences = async (
   }
   await pruneAttachmentBytes(
     transaction,
-    removed.map((row) => row.mxcUri)
+    removed.map((row) => row.mxcUri),
+    sessionId
   );
 };
 

@@ -92,7 +92,8 @@ const isRawLocalEchoEventId = (eventId: unknown): boolean =>
 const saveAcceptedAttachmentOwner = (
   transaction: IDBTransaction,
   rawEvent: Partial<IEvent>,
-  owners: readonly EventAttachmentMessage[]
+  owners: readonly EventAttachmentMessage[],
+  sessionId?: string
 ): void => {
   const owner = owners.find((candidate) => candidate.eventId === rawEvent.event_id);
   if (!owner || rawEvent.unsigned?.redacted_because) return;
@@ -102,7 +103,7 @@ const saveAcceptedAttachmentOwner = (
     (owner.revisionId ?? '') !== (revision.replacement?.eventId ?? '')
   )
     return;
-  void replaceCachedAttachmentReferences(transaction, owner).catch(() =>
+  void replaceCachedAttachmentReferences(transaction, owner, sessionId).catch(() =>
     abortTransaction(transaction)
   );
 };
@@ -293,7 +294,8 @@ const runScrubRedactedRelationsTxn = async (
   db: IDBDatabase,
   roomId: string,
   redactedEventIds: ReadonlySet<string>,
-  tombstones: ReadonlyMap<string, Partial<IEvent>>
+  tombstones: ReadonlyMap<string, Partial<IEvent>>,
+  sessionId?: string
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
@@ -308,9 +310,12 @@ const runScrubRedactedRelationsTxn = async (
       ],
       'readwrite'
     );
-    void invalidateCachedAttachmentReferences(transaction, roomId, redactedEventIds).catch(() =>
-      abortTransaction(transaction)
-    );
+    void invalidateCachedAttachmentReferences(
+      transaction,
+      roomId,
+      redactedEventIds,
+      sessionId
+    ).catch(() => abortTransaction(transaction));
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
@@ -860,7 +865,13 @@ export const saveRoomEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          sessionId
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0) return true;
@@ -877,7 +888,8 @@ export const saveRoomEventsToCacheCommitted = async (
       beforeTokenForEarliest,
       relationSnapshotMode,
       redactedEventIds,
-      attachmentOwners
+      attachmentOwners,
+      sessionId
     );
   } catch (error) {
     if (isCacheStoreWriteLeaseCurrent(writeLease))
@@ -919,6 +931,7 @@ type SchedulePutsOptions = {
   probeKey: 'roomEventPuts' | 'threadEventPuts';
   transaction: IDBTransaction;
   attachmentOwners: readonly EventAttachmentMessage[];
+  sessionId?: string;
   reject: (reason?: unknown) => void;
   onComplete: (earliestPersistedEventId: string | undefined) => void;
   onChanged?: () => void;
@@ -937,6 +950,7 @@ const scheduleEventPutsWithLedger = ({
   probeKey,
   transaction,
   attachmentOwners,
+  sessionId,
   reject,
   onComplete,
   onChanged,
@@ -986,7 +1000,7 @@ const scheduleEventPutsWithLedger = ({
         embeddedIdsOfEvent(previous?.rawEvent),
         embeddedIdsOfEvent(eventRecord.rawEvent)
       );
-      saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners);
+      saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners, sessionId);
       persistedEventIds[index] = rawEvent.event_id;
       maybeFinalizeLedger();
     };
@@ -1001,7 +1015,8 @@ const runSaveRoomEventsTxn = async (
   beforeTokenForEarliest: string | null | undefined,
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
-  attachmentOwners: readonly EventAttachmentMessage[]
+  attachmentOwners: readonly EventAttachmentMessage[],
+  sessionId?: string
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
@@ -1080,6 +1095,7 @@ const runSaveRoomEventsTxn = async (
             embeddedStore,
             transaction,
             attachmentOwners,
+            sessionId,
             ledger,
             ledgerStore,
             roomId,
@@ -1476,7 +1492,13 @@ export const saveThreadEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          sessionId
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0 && !rootEvent) return true;
@@ -1497,7 +1519,8 @@ export const saveThreadEventsToCacheCommitted = async (
       relationSnapshotComplete,
       relationSnapshotMode,
       redactedEventIds,
-      attachmentOwners
+      attachmentOwners,
+      sessionId
     );
     if (changed && isCacheStoreWriteLeaseCurrent(writeLease))
       notifyThreadCacheChanged(sessionId, roomId, threadId);
@@ -1531,7 +1554,8 @@ const runSaveThreadEventsTxn = async (
   relationSnapshotComplete: boolean | undefined,
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
-  attachmentOwners: readonly EventAttachmentMessage[]
+  attachmentOwners: readonly EventAttachmentMessage[],
+  sessionId?: string
 ): Promise<boolean> =>
   new Promise<boolean>((resolve, reject) => {
     let changed = false;
@@ -1633,7 +1657,12 @@ const runSaveThreadEventsTxn = async (
               embeddedIdsOfRoot(nextMeta.rootEvent)
             );
             if (nextMeta.rootEvent)
-              saveAcceptedAttachmentOwner(transaction, nextMeta.rootEvent, attachmentOwners);
+              saveAcceptedAttachmentOwner(
+                transaction,
+                nextMeta.rootEvent,
+                attachmentOwners,
+                sessionId
+              );
           };
           metaRequest.onerror = () => reject(metaRequest.error);
         };
@@ -1644,6 +1673,7 @@ const runSaveThreadEventsTxn = async (
             embeddedStore,
             transaction,
             attachmentOwners,
+            sessionId,
             ledger,
             ledgerStore,
             roomId,

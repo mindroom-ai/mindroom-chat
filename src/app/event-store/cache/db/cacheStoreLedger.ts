@@ -6,6 +6,7 @@ import {
   type CachedEventRecord,
   type CachedRoomLedgerRecord,
 } from './cacheStoreSchema';
+import { invalidateEvictionPressureCache } from './cacheEviction';
 
 // ISSUE-207 P2.2 commit 1: room byte/activity ledger.
 //
@@ -41,6 +42,7 @@ export type LedgerStoreLike = {
   get: (key: IDBValidKey) => IDBRequest<CachedRoomLedgerRecord | undefined>;
   put: (value: CachedRoomLedgerRecord) => IDBRequest<IDBValidKey>;
   delete: (key: IDBValidKey) => IDBRequest<undefined>;
+  readonly transaction?: Pick<IDBTransaction, 'addEventListener'>;
 };
 
 type LedgerBaseline = Pick<
@@ -110,6 +112,12 @@ const writeUpdatedLedger = (
   const nextBytes = Math.max(0, baseline.approxBytes + acc.bytesDelta);
   const nextCount = Math.max(0, baseline.eventCount + acc.countDelta);
   const nextLastActivityTs = Math.max(baseline.lastActivityTs, acc.latestActivityTsSeen);
+
+  if (acc.bytesDelta < 0) {
+    ledgerStore.transaction?.addEventListener('complete', () => invalidateEvictionPressureCache(), {
+      once: true,
+    });
+  }
 
   if (nextCount === 0 && nextBytes === 0 && !baseline.pinned) {
     ledgerStore.delete(roomId);
