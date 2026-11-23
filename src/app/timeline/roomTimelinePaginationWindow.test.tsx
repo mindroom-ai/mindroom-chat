@@ -5,7 +5,7 @@ import { Direction, type EventTimeline, type MatrixEvent } from 'matrix-js-sdk';
 import type { ItemRange } from './useVirtualPaginator';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
-  useRetryAfterEmptyBackPage,
+  useRetryAfterPageWithoutRows,
   useRoomWindowPaginator,
   useWindowKeepsNewestRow,
 } from './roomTimelinePaginationWindow';
@@ -104,6 +104,7 @@ function RoomWindow({
   const activeRangeRef = useLatestRef(activeTimelineRange);
   const threadIdRef = useRef<string>();
   const firstRoomTimelineRef = useRef<EventTimeline>();
+  const lastRoomTimelineRef = useRef<EventTimeline>();
   const scrollRef = useRef<HTMLElement | null>(scroller.element);
   const suppressFocusPaginationRef = useRef(false);
   useLayoutEffect(() => {
@@ -123,8 +124,10 @@ function RoomWindow({
     roomRowsRef,
     activeTimelineRange,
     activeRangeRef,
+    loadedRangeOfRef: useRef((rowRange: ItemRange) => rowRange),
     threadIdRef,
     firstRoomTimelineRef,
+    lastRoomTimelineRef,
     scrollRef,
     setTimeline,
     paginateRoom: () => Promise.resolve(),
@@ -324,16 +327,19 @@ function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
   const activeRangeRef = useLatestRef(activeTimelineRange);
   const threadIdRef = useRef<string>();
   const firstRoomTimelineRef = useLatestRef(chain[0]);
+  const lastRoomTimelineRef = useLatestRef(chain.at(-1));
   const scrollRef = useRef<HTMLElement | null>(scroller);
   const suppressFocusPaginationRef = useRef(false);
-  const { paginator, roomBackPage } = useRoomWindowPaginator({
+  const { paginator, settledRoomPage } = useRoomWindowPaginator({
     alive: () => true,
     roomRows: rows,
     roomRowsRef,
     activeTimelineRange,
     activeRangeRef,
+    loadedRangeOfRef: useRef((rowRange: ItemRange) => rowRange),
     threadIdRef,
     firstRoomTimelineRef,
+    lastRoomTimelineRef,
     scrollRef,
     setTimeline,
     paginateRoom,
@@ -343,7 +349,7 @@ function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
     deferAutomaticPagination: () => false,
     readAhead: true,
   });
-  useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, paginator.retryPagination);
+  useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, paginator.retryPagination);
   handles.setTimeline = setTimeline;
   handles.paginator = paginator;
   return null;

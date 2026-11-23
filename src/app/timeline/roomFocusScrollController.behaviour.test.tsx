@@ -432,6 +432,22 @@ describe('room focus jump', () => {
     expect(state.shown).toEqual(jumpTo('$row-10', 15));
     expect(mocks.scrollToItem).toHaveBeenLastCalledWith(15, centred);
   });
+
+  it('aims at the closed fold that holds the event, not at the loaded row the focus counted', () => {
+    // The room loaded around `$held`, loaded row 16: the focus counts in loaded rows. In the
+    // room's rows a closed fold before it is one row, and another, row 10, holds it.
+    const rows = makeRows(20);
+    const area = makeScrollArea();
+    const { options, mocks } = setup(area, {
+      threadFilteredEvents: rows,
+      foldedRows: new Map([['$held', 10]]),
+    });
+    const state: FocusState = {};
+    render(<FocusHarness options={options} initialFocus={jumpTo('$held', 16)} state={state} />);
+    const centred = { behavior: 'instant', align: 'center', offset: undefined, stopInView: false };
+    expect(mocks.scrollToItem).toHaveBeenLastCalledWith(10, centred);
+    expect(state.shown).toEqual(jumpTo('$held', 10));
+  });
 });
 
 describe('focus lifetime', () => {
