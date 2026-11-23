@@ -56,7 +56,12 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
 
     expect(signed).toMatchObject({
       appId: 'chat.mindroom.app', productName: 'MindRoom Chat', asar: true, npmRebuild: false,
-      buildVersion: '2026.11.9', publish: null,
+      buildVersion: '2026.11.9',
+      publish: {
+        provider: 'generic',
+        url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
+        useMultipleRangeRequest: false,
+      },
       extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
       mac: {
@@ -211,6 +216,7 @@ esac
     ['wrong Authority', { TEST_AUTHORITY: 'Apple Development: Dev (DNA6966LGZ)' }],
     ['missing hardened runtime on app', { TEST_FLAGS: '0x0(none)' }],
     ['failed spctl on DMG', { TEST_FAIL: 'spctl:dmg' }],
+    ['failed spctl on unpacked app', { TEST_FAIL: 'spctl:app' }],
     ['failed codesign on app', { TEST_FAIL: 'codesign:app' }],
   ])('--verify-only fails closed on %s', (_label, overrides) => {
     const { verifyArgs, run } = createFixture();
@@ -235,9 +241,9 @@ esac
 });
 
 describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
-  type Step = { name?: string; run?: string; uses?: string; with?: Record<string, unknown> };
+  type Step = { id?: string; if?: string; name?: string; run?: string; uses?: string; with?: Record<string, unknown> };
 
-  it('wires release.yml -> desktop.yml, pins desktop.yml release guards, and keeps macos.yml unsigned PR-only', () => {
+  it('wires release.yml -> desktop.yml, pins desktop.yml release + feed guards, and keeps macos.yml unsigned PR-only', () => {
     const releaseText = read('.github/workflows/release.yml');
     const desktopText = read('.github/workflows/desktop.yml');
     const macosText = read('.github/workflows/macos.yml');
@@ -247,8 +253,14 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     expect(releaseText).not.toContain('macos.yml');
 
     const desktop = parse(desktopText) as {
-      jobs: { e2e: { steps: Step[] }; release: { if?: string; permissions?: Record<string, string>; steps: Step[] } };
+      on: { pull_request: { paths: string[] } };
+      jobs: {
+        e2e: { steps: Step[] };
+        release: { if?: string; permissions?: Record<string, string>; steps: Step[] };
+        feed: { needs?: string; if?: string; 'runs-on'?: string; permissions?: Record<string, string>; concurrency?: { group: string; queue: string }; steps: Step[] };
+      };
     };
+    expect(desktop.on.pull_request.paths).toContain('scripts/macos-publish-appcast.sh');
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });
     expect(desktop.jobs.release.if).toBe(
       "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"
@@ -258,11 +270,31 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
       ref: 'refs/tags/${{ env.RELEASE_TAG }}',
       'persist-credentials': false,
     });
+    expect(desktop.jobs.release.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
     const upload = desktop.jobs.release.steps.find((s) => s.name === 'Attach verified artifacts to the release')?.run ?? '';
     expect(upload).toContain('build/desktop-dist/MindRoom-Chat-arm64-mac.zip.blockmap');
     expect(upload).toContain('build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap');
     expect(upload).not.toContain('if [[ -f');
     expect(upload).not.toContain('--clobber');
+    expect(desktop.jobs.feed).toMatchObject({
+      needs: 'release',
+      'runs-on': 'ubuntu-24.04',
+      permissions: { contents: 'write' },
+      concurrency: { group: 'mac-desktop-feed', queue: 'max' },
+    });
+    expect(desktop.jobs.feed.if).toContain("needs.release.result == 'success'");
+    expect(desktop.jobs.feed.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+    expect(desktop.jobs.feed.steps.find((s) => s.id === 'feed')?.run).toBe(
+      'scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"'
+    );
+    for (const name of ['Mint a token for the Homebrew tap', 'Ask the tap to update its cask']) {
+      expect(desktop.jobs.feed.steps.find((s) => s.name === name)?.if).toBe(
+        "steps.feed.outputs.published == 'true' && steps.newest.outputs.newest == 'true'"
+      );
+    }
     expect(desktopText).not.toContain('PROVISIONING_PROFILE');
     expect(desktopText).not.toContain('provisionprofile');
 

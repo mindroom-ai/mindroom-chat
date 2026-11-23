@@ -17,12 +17,14 @@ const SAVE_DEBOUNCE_MS = 250;
 
 let mainWindow: BrowserWindow | undefined;
 let screenShareEnabled = false;
+let updaterEnabled = false;
 let quitting = false;
 let hideAfterFullScreen = false;
 let activeFlushWindowState: (() => void) | undefined;
 
-export const configureMainWindow = (options: { screenShare: boolean }): void => {
+export const configureMainWindow = (options: { screenShare: boolean; updater?: boolean }): void => {
   screenShareEnabled = options.screenShare;
+  updaterEnabled = Boolean(options.updater);
 };
 
 export const markQuitting = (): void => {
@@ -66,6 +68,7 @@ export const showMainWindow = (): BrowserWindow => {
       preload: path.join(__dirname, 'preload.cjs'),
       additionalArguments: [
         screenShareEnabled ? '--mindroom-screen-share=1' : '--mindroom-screen-share=0',
+        ...(updaterEnabled ? ['--mindroom-updater=1'] : []),
       ],
       contextIsolation: true,
       sandbox: true,

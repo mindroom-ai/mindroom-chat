@@ -6,6 +6,10 @@ export type DesktopShellEvent =
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
+export type DesktopUpdateBridge = {
+  status: () => Promise<{ version?: string }>;
+  install: () => Promise<void>;
+};
 /** What hands the page a URL the system opened: Capacitor's App plugin, or the desktop bridge. */
 export type AppUrlPlugin = {
   addListener(
@@ -28,6 +32,7 @@ export type DesktopBridge = {
   showMainWindow: () => Promise<DesktopResult<void>>;
   screenShare: boolean;
   appUrl: AppUrlPlugin;
+  update?: DesktopUpdateBridge;
 };
 
 declare global {

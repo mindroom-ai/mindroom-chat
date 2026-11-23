@@ -3,8 +3,9 @@
 # - workflow_call (from release.yml), release: published (hand-cut releases), and workflow_dispatch
 #   (backfilling a release missing its Mac app): builds, Developer ID signs, notarizes, staples,
 #   verifies (fail-closed), and attaches MindRoom-Chat.dmg (universal), arm64/x64 ZIPs with
-#   blockmaps, and latest-mac.yml to the release, then notifies mindroom-ai/homebrew-tap when
-#   this release is the newest. Existing release assets are never replaced.
+#   blockmaps, and latest-mac.yml to the release; the feed job then updates the mac-feed
+#   prerelease (latest-mac.yml) and notifies mindroom-ai/homebrew-tap when this release is the
+#   newest. Existing release assets are never replaced.
 name: Desktop shell
 
 on:
@@ -28,6 +29,7 @@ on:
       - scripts/build-desktop-app.sh
       - scripts/desktop-latest-yml.mjs
       - scripts/macos-dmg/**
+      - scripts/macos-publish-appcast.sh
       - src/app/lib/desktopBridge.ts
       - src/app/lib/nativeShell.ts
       - src/app/native/**
@@ -171,7 +173,36 @@ jobs:
             build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap \
             build/desktop-dist/latest-mac.yml \
             --repo "$GITHUB_REPOSITORY"
+
+  feed:
+    name: Publish the update feed
+    needs: release
+    if: ${{ !cancelled() && needs.release.result == 'success' && (inputs.tag || github.event.release.tag_name) }}
+    # One at a time across every release's run, every waiting run kept (queue: max), since a run
+    # that finishes late may be older than one waiting. It publishes its release only above what the
+    # feed names, so the order runs finish in does not matter, and a re-run repairs a failed
+    # publication without a rebuild.
+    concurrency:
+      group: mac-desktop-feed
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - name: Point the feed at this release if it is the newest ready one
+        id: feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"
       - name: Check that the release is the newest
+        if: steps.feed.outputs.published == 'true'
         id: newest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -184,7 +215,7 @@ jobs:
             echo "::notice::The cask stays as it is: $newest is newer than $RELEASE_TAG"
           fi
       - name: Mint a token for the Homebrew tap
-        if: steps.newest.outputs.newest == 'true'
+        if: steps.feed.outputs.published == 'true' && steps.newest.outputs.newest == 'true'
         id: release-bot
         uses: actions/create-github-app-token@v3
         with:
@@ -194,7 +225,7 @@ jobs:
           repositories: homebrew-tap
           permission-contents: write
       - name: Ask the tap to update its cask
-        if: steps.newest.outputs.newest == 'true'
+        if: steps.feed.outputs.published == 'true' && steps.newest.outputs.newest == 'true'
         env:
           GH_TOKEN: ${{ steps.release-bot.outputs.token }}
         run: |

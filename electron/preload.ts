@@ -74,6 +74,22 @@ const bridge = {
       return Promise.resolve();
     },
   },
+  ...(process.argv.includes('--mindroom-updater=1')
+    ? {
+        update: {
+          status: async () => {
+            const res = (await ipcRenderer.invoke('desktop:update-status')) as DesktopResult<{
+              version?: string;
+            }>;
+            return res.ok ? res.value : {};
+          },
+          install: async () => {
+            const res = (await ipcRenderer.invoke('desktop:update-install')) as DesktopResult<void>;
+            if (!res.ok) throw new Error(res.code);
+          },
+        },
+      }
+    : {}),
 } satisfies DesktopBridge;
 
 contextBridge.exposeInMainWorld('mindroomDesktop', bridge);

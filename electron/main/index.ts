@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import { createAuthCallback, registerSignInHandlers } from './authCallback';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
 import { handle } from './ipc';
@@ -18,6 +19,7 @@ import {
   setBlockedUrlRecorder,
   supportsSystemScreenShare,
 } from './security';
+import { startUpdater, type UpdaterHandle } from './updater';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
 app.commandLine.appendSwitch(
@@ -66,6 +68,7 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 
 const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
+let updater: UpdaterHandle | undefined;
 
 app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
@@ -96,18 +99,71 @@ void app.whenReady().then(() => {
     typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : '',
     isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
   );
-  configureMainWindow({ screenShare });
+  configureMainWindow({ screenShare, updater: app.isPackaged });
 
-  const menuTemplate = buildMenuTemplate(
-    { updateReady: false, canCheck: false, quickCapture: false },
-    {
-      onZoom: (action) => {
-        const win = getMainWindow();
-        if (win) win.webContents.send('desktop:shell-event', { type: 'zoom', action });
+  const showUpdateDialog = (
+    options: Electron.MessageBoxOptions
+  ): Promise<Electron.MessageBoxReturnValue> => {
+    const win = getMainWindow();
+    return win && win.isVisible()
+      ? dialog.showMessageBox(win, options)
+      : dialog.showMessageBox(options);
+  };
+
+  const onCheckForUpdates = (): void => {
+    const active = updater;
+    if (!active) return;
+    void (async () => {
+      const outcome = await active.check();
+      if (active.readyVersion()) {
+        const { response } = await showUpdateDialog({
+          type: 'info',
+          buttons: ['Restart Now', 'Later'],
+          defaultId: 0,
+          cancelId: 1,
+          message: 'An update is ready to install.',
+        });
+        if (response === 0) active.install();
+        return;
+      }
+      const message =
+        outcome === 'none'
+          ? 'MindRoom Chat is up to date.'
+          : outcome === 'found'
+          ? 'An update is available and downloading in the background. You can restart from the menu once it is ready.'
+          : 'Could not check for updates right now.';
+      await showUpdateDialog({ type: outcome === 'error' ? 'error' : 'info', message });
+    })().catch(() => undefined);
+  };
+
+  const rebuildMenu = (): void => {
+    const menuTemplate = buildMenuTemplate(
+      {
+        updateReady: Boolean(updater?.readyVersion()),
+        canCheck: Boolean(updater),
+        quickCapture: false,
       },
-    }
-  );
-  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+      {
+        onZoom: (action) => {
+          const win = getMainWindow();
+          if (win) win.webContents.send('desktop:shell-event', { type: 'zoom', action });
+        },
+        onCheckForUpdates,
+        onRestartToUpdate: () => updater?.install(),
+      }
+    );
+    Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+  };
+
+  if (app.isPackaged) {
+    updater = startUpdater(autoUpdater, rebuildMenu, {
+      onBeforeInstall: () => {
+        markQuitting();
+        flushMainWindowState();
+      },
+    });
+  }
+  rebuildMenu();
 
   const mainOwners = (): readonly Electron.WebContents[] => {
     const win = getMainWindow();
@@ -138,6 +194,22 @@ void app.whenReady().then(() => {
       return { ok: true, value: undefined };
     }
   );
+  handle(
+    'desktop:update-status',
+    mainOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => ({ ok: true, value: { version: updater?.readyVersion() } })
+  );
+  handle(
+    'desktop:update-install',
+    mainOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => {
+      if (!updater?.readyVersion()) return { ok: false, code: 'NOT_READY' };
+      updater.install();
+      return { ok: true, value: undefined };
+    }
+  );
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);
@@ -152,7 +224,10 @@ void app.whenReady().then(() => {
   showMainWindow();
 });
 
-app.on('will-quit', () => authCallback.close());
+app.on('will-quit', () => {
+  updater?.stop();
+  authCallback.close();
+});
 app.on('activate', () => {
   if (gotLock) showMainWindow();
 });

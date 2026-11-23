@@ -2,7 +2,8 @@
 import { Capacitor } from '@capacitor/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setAppUpdate } from '../config/appUpdate';
-import { NATIVE_UPDATE_POLL_MS, watchNativeUpdate } from './nativeUpdate';
+import type { DesktopUpdateBridge } from '../lib/desktopBridge';
+import { isNativeUpdateAvailable, NATIVE_UPDATE_POLL_MS, watchNativeUpdate } from './nativeUpdate';
 
 const plugin = vi.hoisted(() => ({ status: vi.fn(), install: vi.fn() }));
 
@@ -40,6 +41,7 @@ describe('watchNativeUpdate', () => {
   });
 
   afterEach(() => {
+    Reflect.deleteProperty(window, 'mindroomDesktop');
     vi.useRealTimers();
   });
 
@@ -92,5 +94,35 @@ describe('watchNativeUpdate', () => {
     await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
     shown(true);
     expect(plugin.status).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses the Electron desktop update bridge when present and ignores it when absent', async () => {
+    setAvailable(false);
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
+    expect(isNativeUpdateAvailable()).toBe(false);
+    watchNativeUpdate()();
+    await settle();
+    expect(setAppUpdate).not.toHaveBeenCalled();
+
+    const desktopUpdate: DesktopUpdateBridge = {
+      status: vi.fn().mockResolvedValue({ version: '2026.11.12' }),
+      install: vi.fn().mockResolvedValue(undefined),
+    };
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { update: desktopUpdate },
+    });
+    expect(isNativeUpdateAvailable()).toBe(true);
+
+    const stop = watchNativeUpdate();
+    await settle();
+    expect(plugin.status).not.toHaveBeenCalled();
+    expect(setAppUpdate).toHaveBeenLastCalledWith({
+      version: '2026.11.12',
+      install: expect.any(Function),
+    });
+    await vi.mocked(setAppUpdate).mock.lastCall![0]!.install();
+    expect(desktopUpdate.install).toHaveBeenCalledOnce();
+    stop();
   });
 });

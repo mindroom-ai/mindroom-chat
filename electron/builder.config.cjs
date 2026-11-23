@@ -81,5 +81,9 @@ module.exports = {
     grantFileProtocolExtraPrivileges: false,
     resetAdHocDarwinSignature: !sign,
   },
-  publish: null,
+  publish: {
+    provider: 'generic',
+    url: 'https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-feed',
+    useMultipleRangeRequest: false,
+  },
 };
