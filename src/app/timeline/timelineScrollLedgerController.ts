@@ -375,12 +375,13 @@ export const useTimelineScrollLedgerController = ({
       const scrollTopNow = scroller?.scrollTop ?? 0;
       const viewH = scroller?.clientHeight ?? 900;
       const nearTop = scrollTopNow <= headroomPxAtRender + viewH * 1.5;
-      const idleWheel = Date.now() - protoLastWheelAtRef.current >= 500;
+      const sinceWheel = Date.now() - protoLastWheelAtRef.current;
+      const idleWheel = sinceWheel >= 500;
+      const overtakeWheel = protoMode === "hard-b-overtaken" && sinceWheel >= 140;
       const shouldTrim =
         !threadUserScrolled ||
-        protoMode === "auto-trim-now" ||
-        (protoMode === "auto-trim-near-top" && (nearTop || idleWheel)) ||
-        (protoMode === "auto-trim-at-rest" && (scrollTopNow <= headroomPxAtRender + 40 || idleWheel));
+        overtakeWheel ||
+        (protoMode === "auto-trim-near-top" && (nearTop || idleWheel));
       if (shouldTrim) {
         headroomScrollDeltaAtRender -= headroomPxAtRender;
         headroomPxAtRender = 0;
@@ -461,11 +462,11 @@ export const useTimelineScrollLedgerController = ({
     const onWheel = () => {
       protoLastWheelAtRef.current = Date.now();
       if (idleTimer !== undefined) clearTimeout(idleTimer);
-      idleTimer = setTimeout(checkTrim, 520);
+      idleTimer = setTimeout(checkTrim, protoMode === "hard-b-overtaken" ? 150 : 520);
     };
     const onScroll = () => {
       if (!showThreadLoadOlder && headroomPxRef.current > 0) {
-        const thresh = protoMode === "auto-trim-at-rest" ? 40 : scrollElement.clientHeight * 1.5;
+        const thresh = scrollElement.clientHeight * 1.5;
         if (scrollElement.scrollTop <= headroomPxRef.current + thresh) {
           setLedgerCommitTick((t) => t + 1);
         }
