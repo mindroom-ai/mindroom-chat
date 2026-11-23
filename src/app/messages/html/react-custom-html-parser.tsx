@@ -243,6 +243,8 @@ function MessageLinkLabel({
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`) but
  * opens the event; without text of its own (a URL in plain text) it names the room it leads to.
+ * With `keepRoomLabel`, a link to a room keeps its text in the same way and still opens the room:
+ * for a label its author wrote, or one that hides a spoiler, which the room's name would replace.
  * Mentions carry the ID in `data-mention-id`, an optional event in `data-mention-event-id`, and
  * optional routing servers in `data-mention-via`, for the
  * mention click handler. A user or room mention reads in its own direction (`dir="auto"`), so a
@@ -253,7 +255,8 @@ export const renderMatrixMention = (
   viewedRoomId: string | undefined,
   href: string,
   customProps: ComponentPropsWithoutRef<'a'>,
-  content?: ReactNode
+  content?: ReactNode,
+  keepRoomLabel = false
 ): JSX.Element | undefined => {
   const userId = parseMatrixToUser(href);
   if (userId) {
@@ -306,6 +309,18 @@ export const renderMatrixMention = (
   }
 
   const roomLink = parseMatrixToRoom(href);
+  if (roomLink && keepRoomLabel && content !== undefined) {
+    return (
+      <a
+        href={href}
+        {...customProps}
+        data-mention-id={roomLink.roomIdOrAlias}
+        data-mention-via={roomLink.viaServers?.join(',') || undefined}
+      >
+        {content}
+      </a>
+    );
+  }
   if (roomLink) {
     const roomId = roomLink.roomIdOrAlias.startsWith('#')
       ? getCanonicalAliasRoomId(client, roomLink.roomIdOrAlias)
@@ -780,7 +795,9 @@ export const getReactCustomHtmlParser = (
               roomId,
               href,
               makeMentionCustomProps(params.handleMentionClick),
-              ownText ? content : undefined
+              ownText ? content : undefined,
+              // A label typed as Markdown, or one that hides a spoiler, is not a room's mention.
+              'data-md' in attribs || containsSpoiler(children)
             );
             if (mention) return mention;
           }

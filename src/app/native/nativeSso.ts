@@ -43,11 +43,12 @@ type NativeAppUrlPlugin = {
 /**
  * Opens a Universal Link's app path (router-relative, such as `/!room:example.org/`) in the mounted
  * router. `replace` is false for a link that arrives while the app shows a page, and true for one
- * that arrived before the router was there.
+ * that arrived before the router was there. With `unlessShown`, a router that shows the path
+ * already is left as it is.
  */
 type NativeAppPathNavigator = (
   appPath: string,
-  options: { state?: unknown; replace: boolean }
+  options: { state?: unknown; replace: boolean; unlessShown: boolean }
 ) => void;
 
 /** A Universal Link that arrived before a router was mounted, and the address it replaced. */
@@ -72,7 +73,7 @@ export const setNativeAppPathNavigator = (
   const pending = pendingUniversalLink;
   pendingUniversalLink = undefined;
   if (navigator && pending) {
-    navigator(pending.appPath, { state: pending.state, replace: true });
+    navigator(pending.appPath, { state: pending.state, replace: true, unlessShown: true });
   }
   return () => {
     if (activeNativeAppNavigator === navigator) {
@@ -107,6 +108,15 @@ export const moveWaitingUniversalLinkAfterHash = (basename = '/'): void => {
   }
 };
 
+/** The app path (path and query, inside the basename) `router` shows. */
+const shownAppPath = (router: Pick<AppRouter, 'state' | 'basename'>): string => {
+  const { pathname, search } = router.state.location;
+  const base = (router.basename ?? '/').replace(/^\/+|\/+$/g, '');
+  const prefix = base ? `/${base}` : '';
+  const inBase = prefix !== '' && (pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return `${inBase ? pathname.slice(prefix.length) || '/' : pathname}${search}`;
+};
+
 /**
  * How `router` opens Universal Links, for `setNativeAppPathNavigator`. A link that arrives while
  * the app shows a page is a push, as a tapped notification is: a replace would pass for the page
@@ -114,10 +124,9 @@ export const moveWaitingUniversalLinkAfterHash = (basename = '/'): void => {
  * from before the router replaces its first page, unless the router started on it already.
  */
 export const createRouterAppPathNavigator =
-  (router: Pick<AppRouter, 'navigate' | 'state'>): NativeAppPathNavigator =>
-  (appPath, { replace, state }) => {
-    const { pathname, search } = router.state.location;
-    if (replace && `${pathname}${search}` === appPath) return;
+  (router: Pick<AppRouter, 'navigate' | 'state' | 'basename'>): NativeAppPathNavigator =>
+  (appPath, { replace, state, unlessShown }) => {
+    if (unlessShown && shownAppPath(router) === appPath) return;
     void router.navigate(appPath, { replace, state });
   };
 
@@ -214,12 +223,20 @@ const writeAppPathToAddress = (appPath: string): void => {
 const currentAddress = (): string =>
   `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
-/** Opens a Universal Link's app path: in the mounted router, or in the address until one mounts. */
-const openUniversalLinkPath = (appPath: string): void => {
+/**
+ * Opens a Universal Link's app path: in the mounted router, or in the address until one mounts.
+ * With `unlessShown`, not where the router, or the address that waits for one, has it already.
+ */
+const openUniversalLinkPath = (appPath: string, unlessShown = false): void => {
   if (activeNativeAppNavigator) {
-    activeNativeAppNavigator(appPath, { state: OPENED_FROM_OUTSIDE_STATE, replace: false });
+    activeNativeAppNavigator(appPath, {
+      state: OPENED_FROM_OUTSIDE_STATE,
+      replace: false,
+      unlessShown,
+    });
     return;
   }
+  if (unlessShown && `${window.location.pathname}${window.location.search}` === appPath) return;
   pendingUniversalLink = {
     appPath,
     state: OPENED_FROM_OUTSIDE_STATE,
@@ -405,11 +422,15 @@ const isPageReload = (): boolean => {
 
 export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
   let handledOpenUrl = false;
-  const handleNativeAppUrl = (url: string): boolean => {
+  // The URL the app was launched with, until the next `appUrlOpen`: Capacitor may deliver that
+  // launch there once more, after `getLaunchUrl()` opened it.
+  let launchUrlToRepeat: string | undefined;
+  const handleNativeAppUrl = (url: string, repeatsLaunch = false): boolean => {
     if (routeNativeSsoCallback(url)) return true;
     const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
-      openUniversalLinkPath(appPath);
+      // The launch again is no second visit: where its page is still shown, nothing is pushed.
+      openUniversalLinkPath(appPath, repeatsLaunch);
       return true;
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
@@ -422,13 +443,18 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url && !handledOpenUrl && !isPageReload()) handleNativeAppUrl(url);
+      if (url && !handledOpenUrl && !isPageReload() && handleNativeAppUrl(url)) {
+        launchUrlToRepeat = url;
+      }
     })
     .catch(() => undefined);
 
   nativeApp
     .addListener('appUrlOpen', (event) => {
-      if (event.url && handleNativeAppUrl(event.url)) handledOpenUrl = true;
+      // Only the first delivery can be the launch: a later one of the same URL is a tap.
+      const repeatsLaunch = event.url !== undefined && event.url === launchUrlToRepeat;
+      launchUrlToRepeat = undefined;
+      if (event.url && handleNativeAppUrl(event.url, repeatsLaunch)) handledOpenUrl = true;
     })
     .catch(() => undefined);
 };

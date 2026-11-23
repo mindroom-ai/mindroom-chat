@@ -33,6 +33,39 @@ const sentHtml = (body: string, html: string) => ({
   formatted_body: html,
 });
 
+/**
+ * An edit of other text: `content` opened, its first word changed from `from` to `to`, and saved.
+ * Also the people the edit box mentions then.
+ */
+const saveWithFirstWord = (
+  content: Record<string, unknown>,
+  markdown: boolean,
+  from: string,
+  to: string
+) => {
+  const opened = JSON.stringify(getEditorDocument(content, markdown));
+  const editor = editorWith(
+    JSON.parse(opened.replace(`"text":"${from} `, `"text":"${to} `)) as Descendant[]
+  );
+  return {
+    mentioned: getMentions(editor, ME).users,
+    saved: getEditedContent(editor, markdown, 'm.text', ME)!,
+  };
+};
+
+/** `document` with its mention pills deleted. */
+const withoutMentions = (document: Descendant[]): Descendant[] =>
+  document.map((block) =>
+    'children' in block
+      ? ({
+          ...block,
+          children: block.children.filter(
+            (child) => !('type' in child && child.type === 'mention')
+          ),
+        } as Descendant)
+      : block
+  );
+
 /** What a message typed as `source` sends, with Markdown on. */
 const typedMarkdown = (source: string) =>
   getEditedContent(
@@ -416,12 +449,17 @@ describe('the content of an edit', () => {
       'see [Alice](https://chat.mindroom.chat/@alice:example.org)',
       '>Alice</a>',
     ],
+    [
+      'a bold name to a user on matrix.to',
+      'see [**Alice**](https://matrix.to/#/@alice:example.org)',
+      '>Alice</strong></a>',
+    ],
   ])(
     'saved without a change, a typed Markdown link from %s stays that link',
     (_what, source, label) => {
       const original = typedMarkdown(source);
       expect(original.body).toBe(source);
-      expect(original.formatted_body).toContain('<a data-md href="https://chat.mindroom.chat/');
+      expect(original.formatted_body).toContain('<a data-md href="https://');
       expect(original.formatted_body).toContain(label);
       expect(original['m.mentions']).toEqual({});
 
@@ -438,10 +476,23 @@ describe('the content of an edit', () => {
   );
 
   it.each([
-    ['<span data-mx-spoiler>ending</span>', ' data-mx-spoiler>ending</span></a>'],
-    ['<strong>ending</strong>', '>ending</strong></a>'],
-  ])('keeps an anchor of another client around %s a link', (label, kept) => {
-    const href = 'https://chat.mindroom.chat/!room:example.org/$event';
+    [
+      'https://chat.mindroom.chat/!room:example.org/$event',
+      '<span data-mx-spoiler>ending</span>',
+      ' data-mx-spoiler>ending</span></a>',
+    ],
+    [
+      'https://chat.mindroom.chat/!room:example.org/$event',
+      '<strong>ending</strong>',
+      '>ending</strong></a>',
+    ],
+    // A pill would show what the spoiler hides, also for a matrix.to link.
+    [
+      'https://matrix.to/#/!room:example.org',
+      '<span data-mx-spoiler>ending</span>',
+      ' data-mx-spoiler>ending</span></a>',
+    ],
+  ])('keeps an anchor of another client to %s around %s a link', (href, label, kept) => {
     const original = sentHtml('see ending', `see <a href="${href}">${label}</a>`);
 
     expect(hasMention(getEditorDocument(original, true))).toBe(false);
@@ -452,6 +503,61 @@ describe('the content of an edit', () => {
     expect(saved.formatted_body).toContain(kept);
     expect(saved['m.mentions']).toEqual({});
   });
+
+  it.each([true, false])(
+    'an edit of other text mentions nobody for a plain link to a user in the app (Markdown %s)',
+    (markdown) => {
+      const href = 'https://chat.mindroom.chat/@alice:example.org';
+      const original = {
+        ...sentHtml('See Alice', `See <a href="${href}">Alice</a>`),
+        'm.mentions': {},
+      };
+
+      const first = saveWithFirstWord(original, markdown, 'See', 'Ask');
+      expect(first.mentioned.has('@alice:example.org')).toBe(false);
+      expect(first.saved.body).toMatch(/^Ask /);
+      expect(first.saved.formatted_body).toContain(`href="${href}">Alice</a>`);
+      expect(first.saved['m.mentions']).toEqual({});
+
+      // Edited again as rich text, whose first save left an anchor without any mark of a link.
+      const second = saveWithFirstWord(first.saved, false, 'Ask', 'See');
+      expect(second.mentioned.has('@alice:example.org')).toBe(false);
+      expect(second.saved.body).toMatch(/^See /);
+      expect(second.saved.formatted_body).toContain(`href="${href}">Alice</a>`);
+      expect(second.saved['m.mentions']).toEqual({});
+    }
+  );
+
+  it.each([true, false])(
+    'an edit of other text keeps a matrix.to mention whose name is bold (Markdown %s)',
+    (markdown) => {
+      const href = 'https://matrix.to/#/@alice:example.org';
+      const original = {
+        ...sentHtml('See Alice', `See <a href="${href}"><strong>Alice</strong></a>`),
+        'm.mentions': { user_ids: ['@alice:example.org'] },
+      };
+      const reopened = getEditorDocument(original, markdown);
+      expect(reopened).toEqual([
+        {
+          type: 'paragraph',
+          children: [
+            { text: 'See ' },
+            createMentionElement('@alice:example.org', 'Alice', false, undefined, undefined, href),
+          ],
+        },
+      ]);
+
+      const edited = saveWithFirstWord(original, markdown, 'See', 'Ask');
+      expect(edited.mentioned).toEqual(new Set(['@alice:example.org']));
+      expect(edited.saved.formatted_body).toBe(`Ask <a href="${href}">Alice</a>`);
+      expect(edited.saved['m.mentions']).toEqual({ user_ids: ['@alice:example.org'] });
+
+      // With the pill deleted, the edit mentions nobody.
+      const deleted = editorWith(withoutMentions(reopened));
+      expect(getMentions(deleted, ME).users.size).toBe(0);
+      expect(getEditedContent(deleted, markdown, 'm.text', ME)!['m.mentions']).toEqual({});
+    }
+  );
 
   it.each(['https://chat.mindroom.chat/@room', 'https://matrix.to/#/@room'])(
     'keeps a link to %s a link, which notifies nobody',

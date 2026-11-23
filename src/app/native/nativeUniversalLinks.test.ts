@@ -372,6 +372,13 @@ describe('native Universal Links', () => {
         afterLoginPath: appPath,
       });
 
+      // Capacitor delivers the launch link once more: the router shows it already.
+      await open(
+        'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org&focusEvent=1'
+      );
+      expect(navigate).not.toHaveBeenCalled();
+      expect(window.location.hash).toBe(`#${prefix}${appPath}`);
+
       // A link that arrives now is a push, inside the router's basename.
       await register();
       await open('https://chat.mindroom.chat/home/!alpha:example.org');
@@ -380,6 +387,73 @@ describe('native Universal Links', () => {
       expect(window.location.hash).toBe(`#${prefix}${getHomeRoomPath('!alpha:example.org')}`);
       expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!alpha:example.org'));
       expect(previousHistoryPathname()).toBeUndefined();
+    });
+
+    it.each([
+      ['before the router is mounted', true],
+      ['once the router is mounted', false],
+    ])(
+      'opens a launch link that resolves %s once when it is delivered again as appUrlOpen',
+      async (_when, cold) => {
+        window.history.replaceState(null, '', '/home/');
+        const url = 'https://chat.mindroom.chat/home/!alpha:example.org?via=example.org';
+        const appPath = withSearchParam(getHomeRoomPath('!alpha:example.org'), {
+          viaServers: 'example.org',
+        });
+        const routes = [{ path: '*', element: React.createElement(Recorder) }];
+        let router: TestRouter;
+        if (cold) {
+          await register(url);
+          router = createBrowserRouter(routes);
+          await mount(harness(router));
+        } else {
+          router = createBrowserRouter(routes);
+          await mount(harness(router));
+          await act(async () => {
+            await register(url);
+          });
+        }
+        expect(shownPath(router)).toBe(appPath);
+        const navigate = vi.spyOn(router, 'navigate');
+        const entries = window.history.length;
+
+        // The same launch, which Capacitor kept for the listener: no second history entry.
+        await open(url);
+        expect(navigate).not.toHaveBeenCalled();
+        expect(window.history.length).toBe(entries);
+        expect(shownPath(router)).toBe(appPath);
+
+        // A tap on the same link from another page opens it.
+        await act(async () => {
+          await router.navigate('/home/');
+        });
+        navigate.mockClear();
+        await open(url);
+        expect(navigate).toHaveBeenCalledTimes(1);
+        expect(router.state.historyAction).toBe('PUSH');
+        expect(shownPath(router)).toBe(appPath);
+
+        // So does a tap while the link is shown: only the launch is delivered twice.
+        await open(url);
+        expect(navigate).toHaveBeenCalledTimes(2);
+        expect(window.history.length).toBe(entries + 3);
+      }
+    );
+
+    it('opens a link again that was tapped a second time after launch', async () => {
+      const url = 'https://chat.mindroom.chat/home/!alpha:example.org';
+      const router = createBrowserRouter([{ path: '*', element: React.createElement(Recorder) }]);
+      await mount(harness(router));
+      await act(async () => {
+        await register(url);
+      });
+      const navigate = vi.spyOn(router, 'navigate');
+
+      // The first delivery after launch may be the launch itself; the next one is a tap.
+      await open(url);
+      await open(url);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(router.state.historyAction).toBe('PUSH');
     });
 
     it('replaces the first page of a router that did not start on the waiting link', async () => {
@@ -437,6 +511,7 @@ describe('native Universal Links', () => {
     expect(navigator).toHaveBeenCalledWith(getHomeRoomPath('!beta:example.org'), {
       state: OPENED_FROM_OUTSIDE_STATE,
       replace: true,
+      unlessShown: true,
     });
 
     // Handed over once: a navigator named later gets nothing, and a link that arrives is a push.
@@ -447,6 +522,7 @@ describe('native Universal Links', () => {
     expect(navigator).toHaveBeenLastCalledWith(getHomeRoomPath('!gamma:example.org'), {
       state: OPENED_FROM_OUTSIDE_STATE,
       replace: false,
+      unlessShown: false,
     });
 
     navigator.mockClear();

@@ -61,15 +61,38 @@ function getText(node: ChildNode): string {
 const isBlockNode = (node: ChildNode): boolean =>
   isTag(node) && (BLOCK_TAGS.has(node.name) || isEditorMathBlockElement(node));
 
+/** How a mention of a user is sent (`getMatrixToUser`), and of a room or event by older apps. */
+const MATRIX_TO_PREFIX = 'https://matrix.to/#/';
+
+const hasSpoiler = (node: ChildNode): boolean =>
+  isTag(node) && (node.attribs['data-mx-spoiler'] !== undefined || node.children.some(hasSpoiler));
+
 /**
- * Reads a user, room, or event permalink; other links stay links. So does a link to a user that
- * is no user ID, such as `/@room`: as a mention it would notify the whole room.
+ * The mention an anchor of a sent message is read back as; other anchors stay links.
+ *
+ * A link the sender typed as Markdown (`data-md`, which has no value) is never one: a pill would
+ * drop the formatting of its label, and one to a user would notify that user.
+ *
+ * A matrix.to link is one to a user, a room or an event, whatever formatting another client put
+ * in its label, unless that hides a spoiler, which a pill would show. Only a user ID mentions a
+ * user: as a mention, `@room` would notify the whole room.
+ *
+ * Any other link (into this app, a Universal Link, a `matrix:` URI) is one to a room or an event
+ * when its label is plain text, as this app sends it. It never mentions a user, since no mention
+ * of a user is sent as such a link.
  */
-const parseMatrixToLink = (
+const parseMentionLink = (
+  node: DomElement,
   href: string
 ): { id: string; eventId?: string; viaServers?: string[] } | undefined => {
-  const userId = parseMatrixToUser(href);
-  if (userId) return isUserId(userId) ? { id: userId } : undefined;
+  if (node.attribs['data-md'] !== undefined) return undefined;
+  if (href.startsWith(MATRIX_TO_PREFIX)) {
+    if (node.children.some(hasSpoiler)) return undefined;
+    const userId = parseMatrixToUser(href);
+    if (userId) return isUserId(userId) ? { id: userId } : undefined;
+  } else if (!node.children.every(isText)) {
+    return undefined;
+  }
 
   const eventLink = parseMatrixToRoomEvent(href);
   if (eventLink) {
@@ -158,11 +181,7 @@ function parseInline(node: ChildNode, marks: Marks, markdown: boolean): InlineCo
     }
     case 'a': {
       const href = node.attribs.href ?? '';
-      // A mention is sent as an anchor around plain text (output.ts). A link the sender typed as
-      // Markdown (`data-md`, which has no value) and an anchor with formatting in it stay links:
-      // a pill would drop the formatting, and one to a user would notify that user.
-      const sentAsMention = md === undefined && node.children.every(isText);
-      const permalink = sentAsMention ? parseMatrixToLink(href) : undefined;
+      const permalink = parseMentionLink(node, href);
       const text = getText(node);
       if (permalink) {
         return [

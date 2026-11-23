@@ -116,6 +116,38 @@ describe('links to messages', () => {
     expect(textOf(root)).toBe(`see ${href}`);
   });
 
+  it('keep an authored label and its spoiler on a link to a room, which still opens in the app', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}?via=example.org`;
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts: LINKIFY_OPTS });
+    const spoilers = (root: ReactTestRenderer) =>
+      root.root.findAll(
+        (node) => node.type === 'span' && node.props['data-mx-spoiler'] !== undefined
+      );
+
+    // A link typed as Markdown, and an anchor of another client around a spoiler.
+    ['<a data-md href', '<a href'].forEach((anchorStart) => {
+      const root = render(
+        parse(`see ${anchorStart}="${href}"><span data-mx-spoiler>the berth plan</span></a>`, opts)
+      );
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+      expect(anchor.props['data-mention-via']).toBe('example.org');
+      expect(anchor.props.className).toBeUndefined();
+      expect(spoilers(root)).toHaveLength(1);
+      expect(textOf(root)).toBe('see the berth plan');
+    });
+    const labelled = render(parse(`see <a data-md href="${href}">the berth plan</a>`, opts));
+    expect(textOf(labelled)).toBe('see the berth plan');
+    expect(labelled.root.find((node) => node.type === 'a').props['data-mention-id']).toBe(ROOM_ID);
+
+    // A mention of the room and its bare URL are still pills that name the room.
+    ['#Harbor', href].forEach((text) => {
+      const root = render(parse(`see <a href="${href}">${text}</a>`, opts));
+      expect(textOf(root)).toBe('see #Harbor operations');
+      expect(root.root.find((node) => node.type === 'a').props.className).toBe('Mention');
+    });
+  });
+
   it('say thread for a thread root or a reply the client knows', () => {
     expect(textOf(render(mention(LINK(ROOM_ID, ROOT_ID))))).toBe('Thread in #Harbor operations');
     expect(textOf(render(mention(LINK(ROOM_ID, REPLY_ID))))).toBe('Thread in #Harbor operations');
