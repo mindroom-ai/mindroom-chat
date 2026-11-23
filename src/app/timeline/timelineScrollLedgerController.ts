@@ -12,6 +12,7 @@ import {
 import { flushSync } from 'react-dom';
 import {
   measureElement as measureRowElement,
+  observeElementOffset,
   observeElementRect,
   useVirtualizer,
   type Range,
@@ -432,6 +433,19 @@ export const useTimelineScrollLedgerController = ({
     observing = true;
     return stop;
   }, []);
+  // virtual-core's idle report, 150 ms after the last `scroll` event, repeats the offset of that
+  // event. A write to `scrollTop` since then whose own event never came (WebKit can coalesce it
+  // away) left the scroller elsewhere, and the report would move the range back to the old
+  // offset: after the status-bar jump to 0, away from the first rows. So the idle report takes
+  // the offset the scroller has by then.
+  const observeTimelineOffset = useCallback<typeof observeElementOffset>(
+    (instance, onOffset) =>
+      observeElementOffset(instance, (offset, isScrolling) => {
+        const { scrollElement } = instance;
+        onOffset(!isScrolling && scrollElement ? scrollElement.scrollTop : offset, isScrolling);
+      }),
+    []
+  );
 
   // Extraction runs after useVirtualizer returns, against this render's
   // instance/options. A fresh callback invalidates the range cache on resize.
@@ -443,6 +457,7 @@ export const useTimelineScrollLedgerController = ({
     overscan: 10,
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
+    observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so

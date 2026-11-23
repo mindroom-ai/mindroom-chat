@@ -254,4 +254,57 @@ describe('installStatusBarTapScroll', () => {
     uninstall = undefined;
     expect(overflowWrites).not.toHaveBeenCalled();
   });
+
+  it('restores at once and skips the fallback scrollTo when removed inside a status-bar-scroll-top listener', () => {
+    const { frames } = stubIOSFrames(IPHONE);
+    uninstall = installStatusBarTapScroll(window);
+    const timeline = area(document.body, 700);
+    // jsdom reports what a listener throws instead of failing the test: record, assert after.
+    const seen: string[] = [];
+    const listener = vi.fn(() => {
+      seen.push(`before:${timeline.style.overflowY}:${frames.size}`);
+      uninstall?.();
+      uninstall = undefined;
+      seen.push(`after:${timeline.style.overflowY}:${frames.size}`);
+    });
+    timeline.addEventListener(STATUS_BAR_SCROLL_TOP_EVENT, listener);
+
+    tapUnder(timeline);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    // Nothing of the flick-stop outlives the removal, even before the dispatch returns.
+    expect(seen).toEqual(['before:hidden:1', 'after:auto:0']);
+    expect(timeline.style.overflowY).toBe('auto');
+    expect(frames.size).toBe(0);
+    expect(timeline.scrollTo).not.toHaveBeenCalled();
+    expect(timeline.scrollTop).toBe(700);
+  });
+
+  it('starts no flick-stop and no scroll when removed inside a wheel listener', () => {
+    const { frames } = stubIOSFrames(IPHONE);
+    uninstall = installStatusBarTapScroll(window);
+    const timeline = area(document.body, 700);
+    const beforeTop = vi.fn();
+    timeline.addEventListener(STATUS_BAR_SCROLL_TOP_EVENT, beforeTop);
+    const overflowWrites = vi.fn();
+    const wheel = vi.fn(() => {
+      uninstall?.();
+      uninstall = undefined;
+      Object.defineProperty(timeline.style, 'overflowY', {
+        get: () => 'auto',
+        set: overflowWrites,
+        configurable: true,
+      });
+    });
+    timeline.addEventListener('wheel', wheel);
+
+    tapUnder(timeline);
+
+    expect(wheel).toHaveBeenCalledTimes(1);
+    expect(overflowWrites).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+    expect(beforeTop).not.toHaveBeenCalled();
+    expect(timeline.scrollTo).not.toHaveBeenCalled();
+    expect(timeline.scrollTop).toBe(700);
+  });
 });

@@ -38,31 +38,37 @@ export const statusBarTapScrollTarget = (doc: Document): HTMLElement | undefined
   return undefined;
 };
 
+/** What the installed listener needs from one tap; both events it dispatches can remove it. */
+type StatusBarTapHooks = {
+  /** Whether the listener was removed, which a `wheel` or scroll-top listener can do. */
+  isDisposed?: () => boolean;
+  /** Receives the cleanup of the iOS flick-stop as it starts, before any listener can run. */
+  onFlickStop?: (restore: () => void) => void;
+  /** Called once when that flick-stop ends, on its own or by its cleanup. */
+  onRestore?: () => void;
+};
+
 /**
  * Runs the status-bar tap scroll sequence on the target area: dispatches an upward wheel turn so
  * timelines treat the move as reader intent, starts an iOS flick-stop so active momentum cannot
  * discard the jump, and dispatches the cancelable `STATUS_BAR_SCROLL_TOP_EVENT` before falling
- * back to `scrollTo({ top: 0 })`. Returns the active flick-stop cleanup handle when started on
- * iOS, or `undefined` when no flick-stop is active.
+ * back to `scrollTo({ top: 0 })`. Stops at once when a listener of either event removed the
+ * installed listener.
  */
-const scrollToTopOnStatusBarTapWithCleanup = (
-  doc: Document,
-  onRestore?: () => void
-): (() => void) | undefined => {
+const runStatusBarTapScroll = (doc: Document, hooks: StatusBarTapHooks = {}): void => {
   const target = statusBarTapScrollTarget(doc);
   const view = doc.defaultView;
-  if (!target || !view) return undefined;
+  if (!target || !view) return;
   target.dispatchEvent(
     new view.WheelEvent('wheel', { bubbles: true, deltaMode: 0, deltaY: -target.scrollTop })
   );
-  const restoreFlick = stopIOSFlick(target, view, onRestore);
-  const activeFlick = isIOSFlickStopped(target);
+  if (hooks.isDisposed?.()) return;
+  const restoreFlick = stopIOSFlick(target, view, hooks.onRestore);
+  if (isIOSFlickStopped(target)) hooks.onFlickStop?.(restoreFlick);
   const beforeTop = new view.Event(STATUS_BAR_SCROLL_TOP_EVENT, { cancelable: true });
   target.dispatchEvent(beforeTop);
-  if (!beforeTop.defaultPrevented) {
-    target.scrollTo({ top: 0 });
-  }
-  return activeFlick ? restoreFlick : undefined;
+  if (beforeTop.defaultPrevented || hooks.isDisposed?.()) return;
+  target.scrollTo({ top: 0 });
 };
 
 /**
@@ -73,27 +79,36 @@ const scrollToTopOnStatusBarTapWithCleanup = (
  * and jump to 0 atomically before the fallback `scrollTo({ top: 0 })`.
  */
 export const scrollToTopOnStatusBarTap = (doc: Document): void => {
-  scrollToTopOnStatusBarTapWithCleanup(doc);
+  runStatusBarTapScroll(doc);
 };
 
-/** Scrolls to the top on every status bar tap; returns what removes the listener. */
+/**
+ * Scrolls to the top on every status bar tap; returns what removes the listener. Removing it ends
+ * every flick-stop it started, also from inside a `wheel` or `STATUS_BAR_SCROLL_TOP_EVENT`
+ * listener of a tap in progress, which then starts nothing more.
+ */
 export const installStatusBarTapScroll = (view: Window): (() => void) => {
   const activeRestores = new Set<() => void>();
+  let disposed = false;
   const onTap = () => {
     let restore: (() => void) | undefined;
     let restored = false;
-    const onRestore = () => {
-      restored = true;
-      if (restore) activeRestores.delete(restore);
-    };
-    const cleanup = scrollToTopOnStatusBarTapWithCleanup(view.document, onRestore);
-    if (cleanup && !restored) {
-      restore = cleanup;
-      activeRestores.add(cleanup);
-    }
+    runStatusBarTapScroll(view.document, {
+      isDisposed: () => disposed,
+      onFlickStop: (cleanup) => {
+        if (restored) return;
+        restore = cleanup;
+        activeRestores.add(cleanup);
+      },
+      onRestore: () => {
+        restored = true;
+        if (restore) activeRestores.delete(restore);
+      },
+    });
   };
   view.addEventListener('statusTap', onTap);
   return () => {
+    disposed = true;
     view.removeEventListener('statusTap', onTap);
     for (const cleanup of [...activeRestores]) {
       cleanup();
