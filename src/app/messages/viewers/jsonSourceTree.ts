@@ -103,20 +103,17 @@ export const shouldCollapseByDefault = (
 };
 
 export type TreeStructureMeta = {
-  nodeCount: number;
   allCollapsibleAtDepthGte1: string[];
   defaultCollapsed: Set<string>;
 };
 
 export const EMPTY_TREE_STRUCTURE: TreeStructureMeta = {
-  nodeCount: 0,
   allCollapsibleAtDepthGte1: [],
   defaultCollapsed: new Set(),
 };
 
-/** Single-pass structural analysis collecting node count, collapsible paths, and default folds. */
+/** Single-pass structural analysis collecting collapsible paths and default folds. */
 export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
-  let nodeCount = 0;
   const allCollapsibleAtDepthGte1: string[] = [];
   const defaultCollapsed = new Set<string>();
 
@@ -127,7 +124,6 @@ export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
     parentKey: string | undefined,
     depth: number
   ): void => {
-    nodeCount += 1;
     if (!isJsonContainer(node)) return;
     const entries = getContainerEntries(node);
     if (entries.length === 0) return;
@@ -145,7 +141,7 @@ export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
   };
 
   visit(root, '', undefined, undefined, 0);
-  return { nodeCount, allCollapsibleAtDepthGte1, defaultCollapsed };
+  return { allCollapsibleAtDepthGte1, defaultCollapsed };
 };
 
 export type TreeFilterResult = {
@@ -265,15 +261,20 @@ export const splitHighlightSegments = (text: string, query: string): HighlightSe
 
 /**
  * Single-line JSON-escaped quoted preview for folded long strings (`> LONG_STRING_THRESHOLD` chars),
- * with whitespace normalized and bidirectional controls revealed.
+ * with whitespace normalized and bidirectional controls revealed. It is cut by code points, so a
+ * character outside the Basic Multilingual Plane, such as an emoji, is never split in half.
  */
 export const makeStringSnippet = (rawString: string): string => {
   const singleLine = rawString.replace(/\s+/g, ' ');
-  const isTruncated = singleLine.length > LONG_STRING_SNIPPET_LENGTH || singleLine !== rawString;
-  const snippet =
-    singleLine.length > LONG_STRING_SNIPPET_LENGTH
-      ? singleLine.slice(0, LONG_STRING_SNIPPET_LENGTH).trimEnd()
-      : singleLine;
+  // Twice the limit in UTF-16 units holds at least the limit in code points, so a very long
+  // string is not split into an array of all its characters on every render.
+  const headUnits = LONG_STRING_SNIPPET_LENGTH * 2;
+  const codePoints = Array.from(singleLine.slice(0, headUnits));
+  const isCut = singleLine.length > headUnits || codePoints.length > LONG_STRING_SNIPPET_LENGTH;
+  const isTruncated = isCut || singleLine !== rawString;
+  const snippet = isCut
+    ? codePoints.slice(0, LONG_STRING_SNIPPET_LENGTH).join('').trimEnd()
+    : singleLine;
   const escaped = formatJsonStringInner(snippet);
   return isTruncated ? `"${escaped}…"` : `"${escaped}"`;
 };

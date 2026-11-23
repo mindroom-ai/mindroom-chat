@@ -22,6 +22,18 @@ describe('jsonSourceTree helpers', () => {
     expect(snippet.endsWith('…"')).toBe(true);
   });
 
+  it('cuts folded string snippets by code points so an emoji at the boundary keeps both surrogates', () => {
+    // The emoji is the 48th code point: its surrogate pair straddles UTF-16 index 48.
+    const longText = `${'a'.repeat(47)}🌱${'b'.repeat(140)}`;
+    const snippet = makeStringSnippet(longText);
+    expect(snippet).toBe(`"${'a'.repeat(47)}🌱…"`);
+    expect(snippet).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+
+    // A long run of emoji keeps whole characters and still counts as cut.
+    const emojiRun = makeStringSnippet('🌱'.repeat(130));
+    expect(emojiRun).toBe(`"${'🌱'.repeat(48)}…"`);
+  });
+
   it('formats in-range timestamps and returns undefined for out-of-range timestamps without throwing', () => {
     expect(formatTimestampHint(1731500000000, 'en')).toBeTruthy();
     expect(formatTimestampHint(9e15, 'en')).toBeUndefined();
@@ -45,7 +57,7 @@ describe('jsonSourceTree helpers', () => {
     ]);
   });
 
-  it('short-circuits exceedsTreeNodeLimit and collects nodeCount and folds in analyzeTreeStructure', () => {
+  it('short-circuits exceedsTreeNodeLimit and collects folds in analyzeTreeStructure', () => {
     const sample = {
       content: {
         'm.mentions': { user_ids: ['@alex:example.org'] },
@@ -57,7 +69,7 @@ describe('jsonSourceTree helpers', () => {
     expect(exceedsTreeNodeLimit(sample, 50)).toBe(false);
 
     const meta = analyzeTreeStructure(sample);
-    expect(meta.nodeCount).toBe(14);
+    expect(Object.keys(meta).sort()).toEqual(['allCollapsibleAtDepthGte1', 'defaultCollapsed']);
     expect(meta.defaultCollapsed.has('/unsigned')).toBe(true);
     expect(meta.defaultCollapsed.has('/content/m.mentions')).toBe(true);
     expect(meta.defaultCollapsed.has('/content/readings')).toBe(true);

@@ -7,11 +7,13 @@ import '../../theme/codeTokenStyles.css';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
-import { revealDirectionControls } from '../../ui/directional';
+import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
+import { IsolatedText, documentIsRightToLeft, revealDirectionControls } from '../../ui/directional';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import {
   buildEventSourceBundle,
   extractEventSummary,
+  type EventSourceBundle,
   type EventSourceDoc,
   type EventSourceDocKind,
 } from './eventSourceDocuments';
@@ -51,6 +53,88 @@ const getEventIdentityKey = (mEvent: MatrixEvent): string => {
     eventInstanceIds.set(mEvent, id);
   }
   return String(id);
+};
+
+/** Each means the event's source may have changed: its decryption, edit, redaction, ID or status. */
+const EVENT_CHANGE_EVENTS = [
+  MatrixEventEvent.Decrypted,
+  MatrixEventEvent.Replaced,
+  MatrixEventEvent.LocalEventIdReplaced,
+  MatrixEventEvent.Status,
+] as const;
+
+/**
+ * The edit the SDK applied to the event, usable or not: an edit that failed to decrypt is hidden
+ * from `replacingEvent()`, and shows once it decrypts.
+ */
+const readAppliedEdit = (mEvent: MatrixEvent): MatrixEvent | undefined =>
+  typeof mEvent.replacingEvent === 'function' ? getAppliedEdit(mEvent) ?? undefined : undefined;
+
+type BundleSnapshot = { mEvent: MatrixEvent; bundle: EventSourceBundle };
+
+/**
+ * The event's source documents, rebuilt while the viewer is open whenever the event decrypts, is
+ * edited or redacted, gets its server ID or changes status, or its applied edit decrypts.
+ */
+const useEventSourceBundle = (mEvent: MatrixEvent): EventSourceBundle => {
+  const [snapshot, setSnapshot] = useState<BundleSnapshot>(() => ({
+    mEvent,
+    bundle: buildEventSourceBundle(mEvent),
+  }));
+  let current = snapshot;
+  if (snapshot.mEvent !== mEvent) {
+    current = { mEvent, bundle: buildEventSourceBundle(mEvent) };
+    setSnapshot(current);
+  }
+
+  useEffect(() => {
+    let disposed = false;
+    let listenedEdit: MatrixEvent | undefined;
+
+    const reconcile = () => {
+      const bundle = buildEventSourceBundle(mEvent);
+      setSnapshot((prev) =>
+        prev.mEvent === mEvent && prev.bundle.bundleKey === bundle.bundleKey
+          ? prev
+          : { mEvent, bundle }
+      );
+    };
+    // The applied edit changes with every new edit, so its listener moves with it.
+    const listenToAppliedEdit = () => {
+      const edit = readAppliedEdit(mEvent);
+      if (edit === listenedEdit) return;
+      listenedEdit?.off(MatrixEventEvent.Decrypted, reconcile);
+      listenedEdit =
+        typeof edit?.on === 'function' && typeof edit.off === 'function' ? edit : undefined;
+      listenedEdit?.on(MatrixEventEvent.Decrypted, reconcile);
+    };
+    const onChange = () => {
+      if (disposed) return;
+      listenToAppliedEdit();
+      reconcile();
+    };
+    // The SDK emits BeforeRedaction before it strips the event, so the rebuild waits for that.
+    const onBeforeRedaction = () => queueMicrotask(onChange);
+
+    const canListen = typeof mEvent.on === 'function' && typeof mEvent.off === 'function';
+    if (canListen) {
+      EVENT_CHANGE_EVENTS.forEach((eventName) => mEvent.on(eventName, onChange));
+      mEvent.on(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+    }
+    // Whatever changed between the render and these listeners shows now.
+    onChange();
+
+    return () => {
+      disposed = true;
+      if (canListen) {
+        EVENT_CHANGE_EVENTS.forEach((eventName) => mEvent.off(eventName, onChange));
+        mEvent.off(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+      }
+      listenedEdit?.off(MatrixEventEvent.Decrypted, reconcile);
+    };
+  }, [mEvent]);
+
+  return current.bundle;
 };
 
 type EventSourceViewerProps = {
@@ -113,16 +197,16 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 }
 
 type JsonTreeContextValue = {
-  docKey: string;
+  /** The path of the row whose copy just succeeded in this version of the document, if any. */
+  copiedPath: string | undefined;
   collapsedPaths: ReadonlySet<string>;
   foldStrings: boolean;
   stringOverrides: Readonly<Record<string, boolean>>;
   filterResult: TreeFilterResult | null;
-  copiedRowKey: string | null;
   language: string;
   onToggleContainer: (path: string) => void;
   onToggleString: (path: string) => void;
-  onCopyRow: (path: string, value: unknown) => void;
+  onCopyRow: (path: string, value: unknown, button: Element) => void;
 };
 
 const JsonTreeContext = React.createContext<JsonTreeContextValue | null>(null);
@@ -138,20 +222,28 @@ type JsonNodeRenderProps = {
 function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNodeRenderProps) {
   const { t } = useTranslation();
   const ctx = useContext(JsonTreeContext);
+  // The row's gutter fold button, which stays mounted when the row folds or unfolds.
+  const foldButtonRef = useRef<HTMLButtonElement>(null);
   if (!ctx) return null;
 
   const {
-    docKey,
+    copiedPath,
     collapsedPaths,
     foldStrings,
     stringOverrides,
     filterResult,
-    copiedRowKey,
     language,
     onToggleContainer,
     onToggleString,
     onCopyRow,
   } = ctx;
+
+  // The collapsed pill and the folded string preview unmount as the row unfolds; focus moves to
+  // the gutter button first, so it never drops to the page.
+  const unfoldKeepingFocus = (toggle: (targetPath: string) => void) => {
+    toggle(path);
+    foldButtonRef.current?.focus();
+  };
 
   if (filterResult && !filterResult.visiblePaths.has(path)) {
     return null;
@@ -161,7 +253,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
   const shownKey = keyName !== undefined ? revealDirectionControls(keyName) : undefined;
   const escapedKey = keyName !== undefined ? formatJsonStringInner(keyName) : undefined;
   const comma = hasTrailingComma ? <span className="token punctuation">,</span> : null;
-  const isRowCopied = copiedRowKey === `${docKey}:${path}`;
+  const isRowCopied = copiedPath === path;
 
   const renderKeyPrefix = () =>
     escapedKey !== undefined ? (
@@ -179,7 +271,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
     <button
       type="button"
       className={classNames(css.RowCopyBtn, isRowCopied && css.RowCopyBtnCopied)}
-      onClick={() => onCopyRow(path, value)}
+      onClick={(event) => onCopyRow(path, value, event.currentTarget)}
       aria-label={
         shownKey !== undefined
           ? t('sharedUi.eventSourceViewer.copyField', { field: shownKey })
@@ -226,6 +318,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
           <div className={css.TreeLine}>
             <span className={css.TreeGutter}>
               <button
+                ref={foldButtonRef}
                 type="button"
                 className={css.FoldButton}
                 aria-expanded={false}
@@ -242,9 +335,9 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
                 type="button"
                 className={css.FoldPill}
                 aria-expanded={false}
-                onClick={() => onToggleContainer(path)}
+                onClick={() => unfoldKeepingFocus(onToggleContainer)}
               >
-                {summaryPill}
+                <IsolatedText text={summaryPill} />
               </button>
               <span className="token punctuation">{closeBrace}</span>
               {comma}
@@ -264,6 +357,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
         <div className={css.TreeLine}>
           <span className={css.TreeGutter}>
             <button
+              ref={foldButtonRef}
               type="button"
               className={css.FoldButton}
               disabled={forceExpanded}
@@ -320,6 +414,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
     return (
       <span className={css.TreeGutter}>
         <button
+          ref={foldButtonRef}
           type="button"
           className={css.FoldButton}
           disabled={matchedInFilter}
@@ -346,7 +441,7 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
             <button
               type="button"
               className={css.StringPreviewBtn}
-              onClick={() => onToggleString(path)}
+              onClick={() => unfoldKeepingFocus(onToggleString)}
               aria-expanded={false}
             >
               <span className="token string">{snippet}</span>
@@ -359,7 +454,9 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
                 onClick={() => onToggleString(path)}
                 aria-label={t('sharedUi.eventSourceViewer.expandString')}
               >
-                {t('sharedUi.eventSourceViewer.charCount', { count: value.length })}
+                <IsolatedText
+                  text={t('sharedUi.eventSourceViewer.charCount', { count: value.length })}
+                />
               </button>
               {comma}
             </span>
@@ -419,7 +516,8 @@ function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNod
           {comma}
           {timestampHint && (
             <span className={classNames('token comment', css.TimestampHint)}>
-              {` // ${timestampHint}`}
+              {' // '}
+              <bdi>{timestampHint}</bdi>
             </span>
           )}
         </>
@@ -491,6 +589,9 @@ const getDocTabLabelKey = (kind: EventSourceDocKind) => {
   }
 };
 
+/** A copy that succeeded: the document snapshot it was made from and the item copied from it. */
+type CopiedItem = { snapshotKey: string; item: string };
+
 type MetaChipDescriptor = {
   key: 'event_id' | 'type' | 'sender' | 'origin_server_ts';
   label: string;
@@ -509,38 +610,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     const shownName = revealDirectionControls(name);
 
     const eventKey = getEventIdentityKey(mEvent);
-    const [revision, setRevision] = useState(0);
-    const replacingEvent = mEvent.replacingEvent?.() ?? undefined;
-
-    // Live updates when the event decrypts or receives an edit while the viewer is open.
-    useEffect(() => {
-      const bump = () => setRevision((prev) => prev + 1);
-      if (typeof mEvent.on === 'function' && typeof mEvent.off === 'function') {
-        mEvent.on(MatrixEventEvent.Decrypted, bump);
-        mEvent.on(MatrixEventEvent.Replaced, bump);
-      }
-      if (
-        replacingEvent &&
-        typeof replacingEvent.on === 'function' &&
-        typeof replacingEvent.off === 'function'
-      ) {
-        replacingEvent.on(MatrixEventEvent.Decrypted, bump);
-      }
-      return () => {
-        if (typeof mEvent.off === 'function') {
-          mEvent.off(MatrixEventEvent.Decrypted, bump);
-          mEvent.off(MatrixEventEvent.Replaced, bump);
-        }
-        if (replacingEvent && typeof replacingEvent.off === 'function') {
-          replacingEvent.off(MatrixEventEvent.Decrypted, bump);
-        }
-      };
-    }, [mEvent, replacingEvent]);
-
-    const bundle = useMemo(() => {
-      if (revision < 0) return buildEventSourceBundle(mEvent);
-      return buildEventSourceBundle(mEvent);
-    }, [mEvent, revision]);
+    const bundle = useEventSourceBundle(mEvent);
 
     const [selectedDocByEvent, setSelectedDocByEvent] = useState<
       Record<string, EventSourceDocKind>
@@ -550,19 +620,27 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       : undefined;
     const activeDoc: EventSourceDoc =
       bundle.docs.find((doc) => doc.kind === selectedKind) ?? bundle.docs[0];
+    // Fold state follows the tab; the Raw override and copy feedback follow one version of its
+    // document, so a live edit or decryption never inherits them.
     const docKey = `${eventKey}:${activeDoc.kind}`;
+    const docSnapshotKey = `${eventKey}:${activeDoc.snapshotKey}`;
+    const bundleSnapshotKey = `${eventKey}:${bundle.bundleKey}`;
 
     const [collapsedByDoc, setCollapsedByDoc] = useState<Record<string, Set<string>>>({});
     const [stringOverridesByDoc, setStringOverridesByDoc] = useState<
       Record<string, Record<string, boolean>>
     >({});
     const [foldStringsByDoc, setFoldStringsByDoc] = useState<Record<string, boolean>>({});
-    const [rawModeByDoc, setRawModeByDoc] = useState<Record<string, boolean>>({});
+    const [rawModeBySnapshot, setRawModeBySnapshot] = useState<Record<string, boolean>>({});
     const [filterQueryByEvent, setFilterQueryByEvent] = useState<Record<string, string>>({});
 
-    const [copiedAll, setCopiedAll] = useState(false);
-    const [copiedMetaKey, setCopiedMetaKey] = useState<string | null>(null);
-    const [copiedRowKey, setCopiedRowKey] = useState<string | null>(null);
+    // Each names the snapshot it was copied from, and shows only while that snapshot does.
+    const [copiedAllKey, setCopiedAllKey] = useState<string | null>(null);
+    const [copiedMeta, setCopiedMeta] = useState<CopiedItem | null>(null);
+    const [copiedRow, setCopiedRow] = useState<CopiedItem | null>(null);
+    const copiedAll = copiedAllKey === bundleSnapshotKey;
+    const copiedMetaKey = copiedMeta?.snapshotKey === docSnapshotKey ? copiedMeta.item : undefined;
+    const copiedPath = copiedRow?.snapshotKey === docSnapshotKey ? copiedRow.item : undefined;
 
     const mountedRef = useRef(true);
     useEffect(() => {
@@ -571,8 +649,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
         mountedRef.current = false;
       };
     }, []);
-    const activeDocKeyRef = useRef(docKey);
-    activeDocKeyRef.current = docKey;
+    // What shows now, for a copy that finishes later to compare with what it copied.
+    const shownKeysRef = useRef({ doc: docSnapshotKey, bundle: bundleSnapshotKey });
+    shownKeysRef.current = { doc: docSnapshotKey, bundle: bundleSnapshotKey };
     const copyTokenRef = useRef({ all: 0, meta: 0, row: 0 });
     const tabRefs = useRef<Partial<Record<EventSourceDocKind, HTMLButtonElement | null>>>({});
 
@@ -583,7 +662,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       () => exceedsTreeNodeLimit(activeDoc.data, MAX_TREE_NODES),
       [activeDoc.data]
     );
-    const rawOverride = Object.hasOwn(rawModeByDoc, docKey) ? rawModeByDoc[docKey] : undefined;
+    const rawOverride = Object.hasOwn(rawModeBySnapshot, docSnapshotKey)
+      ? rawModeBySnapshot[docSnapshotKey]
+      : undefined;
     const isRaw = rawOverride ?? treeExceedsLimit;
 
     // Skip full tree fold analysis while in Raw mode.
@@ -610,22 +691,22 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     );
 
     useEffect(() => {
-      if (!copiedAll) return undefined;
-      const timer = setTimeout(setCopiedAll, COPIED_ALL_FEEDBACK_MS, false);
+      if (!copiedAllKey) return undefined;
+      const timer = setTimeout(setCopiedAllKey, COPIED_ALL_FEEDBACK_MS, null);
       return () => clearTimeout(timer);
-    }, [copiedAll]);
+    }, [copiedAllKey]);
 
     useEffect(() => {
-      if (!copiedMetaKey) return undefined;
-      const timer = setTimeout(setCopiedMetaKey, COPIED_ITEM_FEEDBACK_MS, null);
+      if (!copiedMeta) return undefined;
+      const timer = setTimeout(setCopiedMeta, COPIED_ITEM_FEEDBACK_MS, null);
       return () => clearTimeout(timer);
-    }, [copiedMetaKey]);
+    }, [copiedMeta]);
 
     useEffect(() => {
-      if (!copiedRowKey) return undefined;
-      const timer = setTimeout(setCopiedRowKey, COPIED_ITEM_FEEDBACK_MS, null);
+      if (!copiedRow) return undefined;
+      const timer = setTimeout(setCopiedRow, COPIED_ITEM_FEEDBACK_MS, null);
       return () => clearTimeout(timer);
-    }, [copiedRowKey]);
+    }, [copiedRow]);
 
     const selectDocKind = useCallback(
       (kind: EventSourceDocKind) => {
@@ -641,38 +722,39 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       [eventKey]
     );
 
-    const handleCopyAll = () => {
-      const targetEventKey = eventKey;
+    // The clicked button goes along, so the copy command's fallback field mounts in this dialog.
+    const handleCopyAll = (event: React.MouseEvent<HTMLElement>) => {
+      const targetKey = bundleSnapshotKey;
       copyTokenRef.current.all += 1;
       const token = copyTokenRef.current.all;
-      copyToClipboard(bundle.rawAll).then(
+      copyToClipboard(bundle.rawAll, event.currentTarget).then(
         (ok) => {
           if (
             ok &&
             mountedRef.current &&
             copyTokenRef.current.all === token &&
-            activeDocKeyRef.current.startsWith(`${targetEventKey}:`)
+            shownKeysRef.current.bundle === targetKey
           ) {
-            setCopiedAll(true);
+            setCopiedAllKey(targetKey);
           }
         },
         () => undefined
       );
     };
 
-    const handleCopyMeta = (metaKey: string, rawValue: string) => {
-      const targetDocKey = docKey;
+    const handleCopyMeta = (metaKey: string, rawValue: string, button: Element) => {
+      const targetKey = docSnapshotKey;
       copyTokenRef.current.meta += 1;
       const token = copyTokenRef.current.meta;
-      copyToClipboard(rawValue).then(
+      copyToClipboard(rawValue, button).then(
         (ok) => {
           if (
             ok &&
             mountedRef.current &&
             copyTokenRef.current.meta === token &&
-            activeDocKeyRef.current === targetDocKey
+            shownKeysRef.current.doc === targetKey
           ) {
-            setCopiedMetaKey(`${targetDocKey}:${metaKey}`);
+            setCopiedMeta({ snapshotKey: targetKey, item: metaKey });
           }
         },
         () => undefined
@@ -680,25 +762,25 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     };
 
     const handleCopyRow = useCallback(
-      (path: string, rowValue: unknown) => {
-        const targetDocKey = docKey;
+      (path: string, rowValue: unknown, button: Element) => {
+        const targetKey = docSnapshotKey;
         copyTokenRef.current.row += 1;
         const token = copyTokenRef.current.row;
-        copyToClipboard(formatCopyValue(rowValue)).then(
+        copyToClipboard(formatCopyValue(rowValue), button).then(
           (ok) => {
             if (
               ok &&
               mountedRef.current &&
               copyTokenRef.current.row === token &&
-              activeDocKeyRef.current === targetDocKey
+              shownKeysRef.current.doc === targetKey
             ) {
-              setCopiedRowKey(`${targetDocKey}:${path}`);
+              setCopiedRow({ snapshotKey: targetKey, item: path });
             }
           },
           () => undefined
         );
       },
-      [docKey]
+      [docSnapshotKey]
     );
 
     const handleToggleContainer = useCallback(
@@ -757,7 +839,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     };
 
     const handleToggleRawMode = () => {
-      setRawModeByDoc((prev) => ({ ...prev, [docKey]: !isRaw }));
+      setRawModeBySnapshot((prev) => ({ ...prev, [docSnapshotKey]: !isRaw }));
     };
 
     const handleFilterKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -769,10 +851,14 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     };
 
     const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      // The tabs run in reading order, so in a right-to-left document the next one is to the left.
+      const [nextKey, previousKey] = documentIsRightToLeft()
+        ? ['ArrowLeft', 'ArrowRight']
+        : ['ArrowRight', 'ArrowLeft'];
       let nextIndex: number | undefined;
-      if (event.key === 'ArrowRight') {
+      if (event.key === nextKey) {
         nextIndex = (index + 1) % bundle.docs.length;
-      } else if (event.key === 'ArrowLeft') {
+      } else if (event.key === previousKey) {
         nextIndex = (index - 1 + bundle.docs.length) % bundle.docs.length;
       } else if (event.key === 'Home') {
         nextIndex = 0;
@@ -837,12 +923,11 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
 
     const treeContextValue = useMemo<JsonTreeContextValue>(
       () => ({
-        docKey,
+        copiedPath,
         collapsedPaths,
         foldStrings,
         stringOverrides,
         filterResult,
-        copiedRowKey,
         language: i18n.language,
         onToggleContainer: handleToggleContainer,
         onToggleString: handleToggleString,
@@ -850,8 +935,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       }),
       [
         collapsedPaths,
-        copiedRowKey,
-        docKey,
+        copiedPath,
         filterResult,
         foldStrings,
         handleCopyRow,
@@ -894,7 +978,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
         {hasMetaStrip && (
           <div className={css.MetaStrip}>
             {metaChips.map((chip) => {
-              const isCopied = copiedMetaKey === `${docKey}:${chip.key}`;
+              const isCopied = copiedMetaKey === chip.key;
               const copyActionLabel = t('sharedUi.eventSourceViewer.copyField', {
                 field: chip.label,
               });
@@ -906,10 +990,17 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
                   className={classNames(css.MetaChip, isCopied && css.MetaChipCopied)}
                   title={accessibleLabel}
                   aria-label={accessibleLabel}
-                  onClick={() => handleCopyMeta(chip.key, chip.rawValue)}
+                  onClick={(event) => handleCopyMeta(chip.key, chip.rawValue, event.currentTarget)}
                 >
                   <span className={css.MetaChipLabel}>{chip.label}</span>
-                  <span className={css.MetaChipValue}>{chip.displayValue}</span>
+                  <span
+                    className={classNames(
+                      css.MetaChipValue,
+                      chip.key !== 'origin_server_ts' && css.MetaChipValueTechnical
+                    )}
+                  >
+                    {chip.displayValue}
+                  </span>
                   {isCopied && <CheckMiniIcon />}
                 </button>
               );
@@ -1006,7 +1097,11 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             />
             {filterResult && (
               <span className={css.FilterCount} aria-live="polite">
-                {t('sharedUi.eventSourceViewer.matchCount', { count: filterResult.matchCount })}
+                <IsolatedText
+                  text={t('sharedUi.eventSourceViewer.matchCount', {
+                    count: filterResult.matchCount,
+                  })}
+                />
               </span>
             )}
           </div>
@@ -1028,7 +1123,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             </pre>
           ) : filterResult && filterResult.matchCount === 0 ? (
             <div className={css.EmptyFilter}>
-              {t('sharedUi.eventSourceViewer.noMatches', { query: filterResult.query })}
+              <IsolatedText
+                text={t('sharedUi.eventSourceViewer.noMatches', { query: filterResult.query })}
+              />
             </div>
           ) : (
             <div className={css.TreeRoot}>

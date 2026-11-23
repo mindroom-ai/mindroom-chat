@@ -180,7 +180,7 @@ const check = async (page: Page, world: World, label: string, canRead: boolean) 
   // View Source of the plain message.
   await openMessageMenu(page, row(page, world.plainId), 'Rename', label.endsWith('phone'));
   await page.getByRole('menuitem', { name: 'View Source' }).click({ timeout: 30_000 });
-  const sourceDialog = page.getByRole('dialog').filter({ has: page.getByText('Source Code') });
+  const sourceDialog = page.getByRole('dialog', { name: 'Source Code' });
   await expect(sourceDialog).toBeVisible({ timeout: 30_000 });
   await expectShown(sourceDialog, `"body": "${PLAIN_SHOWN}"`);
   await shot(page, `${label}-view-source`);

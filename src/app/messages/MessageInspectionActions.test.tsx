@@ -3,7 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
-import { MessageSourceCodeItem } from './MessageInspectionActions';
+import { MessageReadReceiptItem, MessageSourceCodeItem } from './MessageInspectionActions';
 
 vi.mock('folds', () => ({
   as: (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
@@ -20,7 +20,16 @@ vi.mock('folds', () => ({
       </button>
     )
   ),
-  Modal: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Modal: ({
+    children,
+    role,
+    'aria-modal': ariaModal,
+    'aria-label': ariaLabel,
+  }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div role={role} aria-modal={ariaModal} aria-label={ariaLabel}>
+      {children}
+    </div>
+  ),
   Overlay: ({ open, children }: { open: boolean; children?: React.ReactNode }) =>
     open ? <div>{children}</div> : null,
   OverlayBackdrop: () => null,
@@ -38,7 +47,7 @@ vi.mock('./EventReaders', () => ({ EventReaders: () => null }));
 vi.mock('./styles.css', () => ({}));
 
 describe('MessageSourceCodeItem', () => {
-  it('updates the open viewer title after a language change', async () => {
+  it('opens a named modal dialog and updates its name and title after a language change', async () => {
     const language = createInstance();
     await language.init({
       lng: 'en',
@@ -63,11 +72,54 @@ describe('MessageSourceCodeItem', () => {
       </I18nextProvider>
     );
 
+    const findDialog = () =>
+      renderer.root.find((node) => node.type === 'div' && node.props.role === 'dialog');
+
+    expect(
+      renderer.root.findAll((node) => node.type === 'div' && node.props.role === 'dialog')
+    ).toHaveLength(0);
     await act(() => renderer.root.findByType('button').props.onClick());
-    expect(renderer.root.findByProps({ 'data-viewer-name': 'Source Code' })).toBeDefined();
+    expect(findDialog().props['aria-modal']).toBe('true');
+    expect(findDialog().props['aria-label']).toBe('Source Code');
+    expect(findDialog().findByProps({ 'data-viewer-name': 'Source Code' })).toBeDefined();
     await act(async () => {
       await language.changeLanguage('es');
     });
-    expect(renderer.root.findByProps({ 'data-viewer-name': 'Código fuente' })).toBeDefined();
+    expect(findDialog().props['aria-modal']).toBe('true');
+    expect(findDialog().props['aria-label']).toBe('Código fuente');
+    expect(findDialog().findByProps({ 'data-viewer-name': 'Código fuente' })).toBeDefined();
+  });
+});
+
+describe('MessageReadReceiptItem', () => {
+  it('opens a modal dialog named after its menu entry', async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      react: { useSuspense: false },
+      resources: {
+        en: {
+          translation: {
+            mindroomUi: {
+              messages: { messageInspectionActions: { readReceipts: 'Read receipts' } },
+            },
+          },
+        },
+      },
+    });
+    const room = { getTimelineForEvent: () => undefined };
+    const renderer = create(
+      <I18nextProvider i18n={language}>
+        <MessageReadReceiptItem room={room as never} eventId="$evt_receipts_1" />
+      </I18nextProvider>
+    );
+
+    await act(() => renderer.root.findByType('button').props.onClick());
+    const dialog = renderer.root.find(
+      (node) => node.type === 'div' && node.props.role === 'dialog'
+    );
+    expect(dialog.props['aria-modal']).toBe('true');
+    expect(dialog.props['aria-label']).toBe('Read receipts');
   });
 });

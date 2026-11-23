@@ -95,6 +95,13 @@ export const MetaChipValue = style({
   },
 });
 
+// An event ID, type or sender reads left to right in any interface; the time, which is written
+// in the interface's language, keeps the document's direction.
+export const MetaChipValueTechnical = style({
+  direction: 'ltr',
+  unicodeBidi: 'isolate',
+});
+
 export const MetaBadge = style({
   display: 'inline-flex',
   alignItems: 'center',
@@ -212,6 +219,10 @@ export const ToolbarButton = style({
       borderColor: color.Primary.ContainerLine,
       color: color.Primary.OnContainer,
       fontWeight: config.fontWeight.W600,
+    },
+    // More specific than the plain hover above, so a pressed toggle keeps its Primary highlight.
+    '&[aria-pressed="true"]:hover:not(:disabled)': {
+      backgroundColor: color.Primary.ContainerHover,
     },
     '&:disabled': {
       opacity: 0.45,

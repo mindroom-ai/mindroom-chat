@@ -11,12 +11,14 @@ import { EventReaders } from './EventReaders';
 type MenuDialogItemProps = {
   icon: IconSrc;
   label: string;
+  /** The dialog's accessible name. */
+  dialogLabel: string;
   onClose?: () => void;
   renderDialog: (requestClose: () => void) => React.ReactNode;
 };
 
 /** A message menu item that opens a modal; closing the modal also closes the menu. */
-function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemProps) {
+function MenuDialogItem({ icon, label, dialogLabel, onClose, renderDialog }: MenuDialogItemProps) {
   const [open, setOpen] = useState(false);
   // Leaving the dialog also dismisses the menu that opened it.
   const close = () => {
@@ -31,7 +33,13 @@ function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemPr
         onClose={close}
         focus={{ initialFocus: false, returnFocusOnDeactivate: false }}
       >
-        <Modal variant="Surface" size="500">
+        <Modal
+          variant="Surface"
+          size="500"
+          role="dialog"
+          aria-modal="true"
+          aria-label={dialogLabel}
+        >
           {open && renderDialog(close)}
         </Modal>
       </ModalLayer>
@@ -52,17 +60,15 @@ export function MessageSourceCodeItem({
   onClose,
 }: InspectionItemProps & { mEvent: MatrixEvent }) {
   const { t } = useTranslation();
+  const sourceCode = t('sharedUi.welcomePage.sourceCode');
   return (
     <MenuDialogItem
       label={t('mindroomUi.messages.messageInspectionActions.viewSource')}
+      dialogLabel={sourceCode}
       icon={Icons.BlockCode}
       onClose={onClose}
       renderDialog={(requestClose) => (
-        <EventSourceViewer
-          name={t('sharedUi.welcomePage.sourceCode')}
-          mEvent={mEvent}
-          requestClose={requestClose}
-        />
+        <EventSourceViewer name={sourceCode} mEvent={mEvent} requestClose={requestClose} />
       )}
     />
   );
@@ -75,9 +81,11 @@ export function MessageReadReceiptItem({
   onClose,
 }: InspectionItemProps & { eventId: string }) {
   const { t } = useTranslation();
+  const readReceipts = t('mindroomUi.messages.messageInspectionActions.readReceipts');
   return (
     <MenuDialogItem
-      label={t('mindroomUi.messages.messageInspectionActions.readReceipts')}
+      label={readReceipts}
+      dialogLabel={readReceipts}
       icon={Icons.CheckTwice}
       onClose={onClose}
       renderDialog={(requestClose) => (

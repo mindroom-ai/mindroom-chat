@@ -85,6 +85,12 @@ export const getFileLanguageName = (fileName: string, mimeType: string): string 
   if (base.endsWith('json')) return 'json';
   if (base.endsWith('xml')) return 'xml';
   if (base.endsWith('yaml')) return 'yaml';
+  if (base.endsWith('javascript')) return 'javascript';
+  if (base.endsWith('typescript')) return 'typescript';
+  if (base.endsWith('sql')) return 'sql';
+  if (base.endsWith('python')) return 'python';
+  if (base === 'text/css') return 'css';
+  if (base === 'text/html') return 'html';
   return 'plaintext';
 };
 
