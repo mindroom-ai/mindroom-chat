@@ -351,15 +351,14 @@ export const useTimelineScrollLedgerController = ({
       : "auto-trim-near-top";
   if (useProtoHeadroom && !resettingLedgerView) {
     let baseHeadroom = headroomPxRef.current;
-    if (!headroomInitRef.current && showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
+    if (showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
-      if (protoMode === "zero") {
-        baseHeadroom = 0;
-      } else {
-        baseHeadroom = Math.max(unloaded * 260, 24_000);
+      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 260, 28_000);
+      if (!headroomInitRef.current || baseHeadroom < desired) {
+        baseHeadroom = desired;
+        initialHeadroomPx = desired;
+        initHeadroomNow = true;
       }
-      initialHeadroomPx = baseHeadroom;
-      initHeadroomNow = true;
     }
     const deltaAbove = threadLedgerRenderPlan.foldPx + leadingFoldPx + pendingAboveResizePxRef.current;
     const rawNext = baseHeadroom - deltaAbove;
@@ -381,6 +380,7 @@ export const useTimelineScrollLedgerController = ({
       const shouldTrim =
         !threadUserScrolled ||
         overtakeWheel ||
+        (protoMode === "trim-takeover" && sinceWheel >= 140) ||
         (protoMode === "auto-trim-near-top" && (nearTop || idleWheel));
       if (shouldTrim) {
         headroomScrollDeltaAtRender -= headroomPxAtRender;
@@ -443,9 +443,20 @@ export const useTimelineScrollLedgerController = ({
     protoScrollOffsetOverrideRef.current = undefined;
     const scrollElement = getScrollElement();
     if (scrollDelta !== 0 && scrollElement) {
-      if ((window as any).__protoHeadroomStats) (window as any).__protoHeadroomStats.writes += 1;
+      const st = (window as any).__protoHeadroomStats;
+      if (st) {
+        st.writes += 1;
+        st.deltas = [...(st.deltas ?? []), Math.round(scrollDelta)];
+      }
       const next = Math.max(0, scrollElement.scrollTop + scrollDelta);
-      scrollElement.scrollTop = next;
+      if (protoMode === "trim-takeover") {
+        scrollElement.style.overflowY = "hidden";
+        void scrollElement.offsetHeight;
+        scrollElement.scrollTop = next;
+        requestAnimationFrame(() => requestAnimationFrame(() => { scrollElement.style.overflowY = ""; }));
+      } else {
+        scrollElement.scrollTop = next;
+      }
       virtualizerRef.current.scrollOffset = next;
     }
   });
@@ -462,7 +473,7 @@ export const useTimelineScrollLedgerController = ({
     const onWheel = () => {
       protoLastWheelAtRef.current = Date.now();
       if (idleTimer !== undefined) clearTimeout(idleTimer);
-      idleTimer = setTimeout(checkTrim, protoMode === "hard-b-overtaken" ? 150 : 520);
+      idleTimer = setTimeout(checkTrim, protoMode === "hard-b-overtaken" || protoMode === "trim-takeover" ? 150 : 520);
     };
     const onScroll = () => {
       if (!showThreadLoadOlder && headroomPxRef.current > 0) {
