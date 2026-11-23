@@ -212,6 +212,10 @@ export const Notice = style([
     alignItems: 'flex-start',
     padding: space.S300,
     borderRadius: radii.R400,
+    // For the app's notice places (CallStopNoticesOutOfView), which give no height, clicks or width.
+    flexShrink: 0,
+    pointerEvents: 'auto',
+    minInlineSize: `min(100%, ${toRem(448)})`,
   }),
 ]);
 

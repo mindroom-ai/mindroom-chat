@@ -50,12 +50,6 @@ vi.mock('../activity/ActivitySheet', () => ({
 vi.mock('./rail/ActivityTab', () => ({
   ActivityBadge: ({ count }: { count: number }) => React.createElement('b', null, String(count)),
 }));
-vi.mock('../calls/CallPanel.css', () => ({
-  Notice: 'notice',
-  NoticeCritical: 'notice-critical',
-  NoticeText: 'notice-text',
-  NoticeAction: 'notice-action',
-}));
 vi.mock('./PhoneTopBar.css', () => ({
   PhoneTopBar: 'bar',
   PhoneChrome: 'chrome',
@@ -81,18 +75,10 @@ vi.mock('folds', async () => {
       reactModule.createElement(as ?? tag, rest, children);
   return {
     Badge: element('span'),
-    Box: element('div'),
     Button: element('button'),
     Icon: element('i'),
     IconButton: element('button'),
-    Icons: {
-      Search: 'Search',
-      Bell: 'Bell',
-      Phone: 'Phone',
-      MicMute: 'MicMute',
-      Warning: 'Warning',
-      Cross: 'Cross',
-    },
+    Icons: { Search: 'Search', Bell: 'Bell', Phone: 'Phone', MicMute: 'MicMute' },
     Text: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
   };
@@ -221,9 +207,6 @@ const callStore = ({
   agent = false,
   microphone = false,
   speaking = false,
-  screenShareStoppedInBackground = false,
-  microphoneStopped = false,
-  methods = {},
 }: {
   selected?: string;
   panel?: string | null;
@@ -231,18 +214,9 @@ const callStore = ({
   agent?: boolean;
   microphone?: boolean;
   speaking?: boolean;
-  screenShareStoppedInBackground?: boolean;
-  microphoneStopped?: boolean;
-  methods?: Record<string, unknown>;
 } = {}) => {
   navigation.selected = selected;
-  const state = {
-    phase,
-    microphone,
-    screenShareStoppedInBackground,
-    microphoneStopped,
-    participants: [{ speaking }],
-  };
+  const state = { phase, microphone, participants: [{ speaking }] };
   const active = {
     kind: agent ? 'agent' : 'room',
     origin: agent ? { roomId: HOME, threadId: '$planning' } : undefined,
@@ -252,7 +226,6 @@ const callStore = ({
         : { roomId: HOME, name: 'Studio' },
       subscribe: () => () => undefined,
       getState: () => state,
-      ...methods,
     },
   } as unknown as ActiveCall;
   const store = createStore();
@@ -344,62 +317,5 @@ describe('PhoneTopBar return to call', () => {
       expect(navigation.navigateRoom).toHaveBeenCalledWith(HOME);
       expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
     }
-  });
-
-  it('shows the background screen-share and dead-mic notices while the call panel is closed, invoking Share again synchronously', () => {
-    const setScreenShare = vi.fn(async () => undefined);
-    const dismissScreenShareNotice = vi.fn();
-    const setMicrophone = vi.fn(async () => undefined);
-    const dismissStoppedInput = vi.fn();
-    const { renderer, button } = renderBar(
-      callStore({
-        selected: HOME,
-        panel: null,
-        screenShareStoppedInBackground: true,
-        microphoneStopped: true,
-        methods: {
-          setScreenShare,
-          dismissScreenShareNotice,
-          setMicrophone,
-          dismissStoppedInput,
-        },
-      })
-    );
-
-    const renderedText = textOf(renderer.root);
-    expect(renderedText).toContain('Screen sharing stopped when you left the app.');
-    expect(renderedText).toContain('Your microphone stopped.');
-
-    // Direct user gesture: clicking Share again calls setScreenShare(true) synchronously without navigating.
-    const shareAgain = renderer.root
-      .findAllByType('button')
-      .find((node) => textOf(node) === 'Share again');
-    expect(shareAgain).toBeDefined();
-    act(() => {
-      shareAgain!.props.onClick();
-    });
-    expect(setScreenShare).toHaveBeenCalledWith(true);
-    expect(navigation.navigateRoom).not.toHaveBeenCalled();
-
-    const turnBackOn = renderer.root
-      .findAllByType('button')
-      .find((node) => textOf(node) === 'Turn back on');
-    expect(turnBackOn).toBeDefined();
-    act(() => {
-      turnBackOn!.props.onClick();
-    });
-    expect(setMicrophone).toHaveBeenCalledWith(true);
-
-    const dismissButtons = renderer.root
-      .findAllByType('button')
-      .filter((node) => node.props['aria-label'] === 'Dismiss notice');
-    expect(dismissButtons).toHaveLength(2);
-    act(() => {
-      dismissButtons[0]!.props.onClick();
-      dismissButtons[1]!.props.onClick();
-    });
-    expect(dismissScreenShareNotice).toHaveBeenCalledOnce();
-    expect(dismissStoppedInput).toHaveBeenCalledWith('microphone');
-    expect(button(RETURN)).toBeDefined();
   });
 });

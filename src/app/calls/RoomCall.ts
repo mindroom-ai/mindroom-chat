@@ -966,11 +966,7 @@ export class RoomCall {
     const op = (this.toggleOps[kind] += 1);
     const wasStopped = this.stoppedInputs.delete(kind);
     this.requestedInputs[kind] = on;
-    const stoppedKey = kind === 'microphone' ? 'microphoneStopped' : 'cameraStopped';
-    this.update({
-      [kind]: on,
-      ...(wasStopped ? { [stoppedKey]: false } : {}),
-    });
+    this.update({ [kind]: on, [`${kind}Stopped`]: false });
     const media = this.media;
     if (!media || this.state.phase === 'connecting' || this.rejoin) return;
     // LiveKit's unmute skips track re-acquisition if the publication was never muted when it died.
@@ -1024,9 +1020,7 @@ export class RoomCall {
     const participant = media?.localParticipant;
     if (!participant || this.state.phase === 'connecting' || this.rejoin) return;
     if (on) {
-      if (this.state.screenShareStoppedInBackground) {
-        this.update({ screenShareStoppedInBackground: false });
-      }
+      this.dismissScreenShareNotice();
       const start = { hid: false };
       this.screenShareStart = start;
       await participant
@@ -1041,11 +1035,8 @@ export class RoomCall {
         .catch(() => undefined);
       if (this.screenShareStart === start) this.screenShareStart = undefined;
       if (this.media !== media) return;
-      if (start.hid && participant.isScreenShareEnabled) {
-        await this.stopScreenShareInBackground();
-        return;
-      }
-      this.refresh();
+      if (start.hid && participant.isScreenShareEnabled) await this.stopScreenShareInBackground();
+      else this.refresh();
       return;
     }
     await participant.setScreenShareEnabled(false).catch(() => undefined);
@@ -1107,22 +1098,13 @@ export class RoomCall {
     this.wakeShownWaiters();
     this.endLeftoverWait?.();
     this.stoppedInputs.clear();
-    const participants = this.readParticipants();
-    if (
-      this.state.microphoneTrack ||
-      this.state.screenShareStoppedInBackground ||
-      this.state.microphoneStopped ||
-      this.state.cameraStopped ||
-      !sameParticipants(participants, this.state.participants)
-    ) {
-      this.update({
-        microphoneTrack: undefined,
-        screenShareStoppedInBackground: false,
-        microphoneStopped: false,
-        cameraStopped: false,
-        participants,
-      });
-    }
+    this.update({
+      microphoneTrack: undefined,
+      screenShareStoppedInBackground: false,
+      microphoneStopped: false,
+      cameraStopped: false,
+      participants: this.readParticipants(),
+    });
     try {
       // A rejoin's withdrawal of the old membership that is still on its way gets the same wait.
       let timer = 0;

@@ -42,6 +42,8 @@ vi.mock('../matrix/ClientStartupContext', () => ({
   useClientStartupContext: () => ({ hasCompletedInitialSync: false }),
 }));
 vi.mock('./IncomingCalls', () => ({ IncomingCalls: () => null }));
+// The stop notices read the route, which these tests have none of; they have tests of their own.
+vi.mock('./CallNotices', () => ({ CallStopNoticesOutOfView: () => null }));
 vi.mock('./IncomingCalls.css', () => ({ Host: 'incoming-calls' }));
 vi.mock('./agent/AgentCallFailureNotice', () => ({
   AgentCallFailureNotice: () => null,

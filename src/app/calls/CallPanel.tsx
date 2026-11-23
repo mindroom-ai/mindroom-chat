@@ -175,27 +175,15 @@ function JoinedCall({
   // Minimized again while it stands, the window stays a bar.
   const expandWindow = frame?.expand;
   const failureId = visibleFailure?.eventId;
-  const screenShareStopped = !finished && !!state.screenShareStoppedInBackground;
-  const microphoneStopped = !finished && !!state.microphoneStopped;
-  const cameraStopped = !finished && !!state.cameraStopped;
+  // Each new stop notice brings the window up again; a call's end clears them (RoomCall.teardown).
+  const stopNotices = [
+    state.screenShareStoppedInBackground,
+    state.microphoneStopped,
+    state.cameraStopped,
+  ].filter(Boolean).length;
   useEffect(() => {
-    if (
-      failureId ||
-      state.audioBlocked ||
-      screenShareStopped ||
-      microphoneStopped ||
-      cameraStopped
-    ) {
-      expandWindow?.();
-    }
-  }, [
-    expandWindow,
-    failureId,
-    state.audioBlocked,
-    screenShareStopped,
-    microphoneStopped,
-    cameraStopped,
-  ]);
+    if (failureId || state.audioBlocked || stopNotices) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked, stopNotices]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -337,11 +325,11 @@ function JoinedCall({
     stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
   let stoppedStatus: string | undefined;
-  if (microphoneStopped) {
+  if (state.microphoneStopped) {
     stoppedStatus = t('featureUi.calls.panel.microphoneStopped');
-  } else if (cameraStopped) {
+  } else if (state.cameraStopped) {
     stoppedStatus = t('featureUi.calls.panel.cameraStopped');
-  } else if (screenShareStopped) {
+  } else if (state.screenShareStoppedInBackground) {
     stoppedStatus = t('featureUi.calls.panel.screenShareStoppedInBackground');
   }
   const bar: BarContent = {
