@@ -11,6 +11,7 @@ import { blockSelection } from '../dragSelection';
 import {
   animatePanel,
   currentPanelSize,
+  layoutParentOf,
   panelGap,
   type PanelPhase,
   type PanelRegistration,
@@ -250,7 +251,7 @@ export function ResizablePanel({
       setPreviewWidth(undefined);
       return undefined;
     }
-    const parent = panelRef.current?.parentElement;
+    const parent = layoutParentOf(panelRef.current);
     if (!parent) return undefined;
     const measure = () => {
       const style = getComputedStyle(parent);
