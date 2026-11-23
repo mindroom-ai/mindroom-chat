@@ -939,13 +939,18 @@ test.describe('thread timeline jumps reproducers', () => {
         const url = new URL(route.request().url());
         const isTargetThread =
           (url.pathname.includes(encodedRoot) || url.pathname.includes(fixture.longThreadRootId)) &&
-          url.pathname.includes('/m.thread');
+          !url.pathname.includes('/m.replace') &&
+          !url.pathname.includes('/m.annotation');
         if (isTargetThread) {
           url.searchParams.set('limit', '25');
           await wait(450);
           const response = await route.fetch({ url: url.toString() });
           const body = await response.text();
           state.relationsPages += 1;
+          if (state.relationsPages <= 2) {
+            // eslint-disable-next-line no-console
+            console.log(`[COLD-REL-URL #${state.relationsPages}]`, url.pathname + url.search);
+          }
           try {
             const parsed = JSON.parse(body) as { next_batch?: string };
             if (!parsed.next_batch) state.relationsDone = true;
@@ -1131,6 +1136,95 @@ test.describe('thread timeline jumps reproducers', () => {
           report.maxAnchorDriftPx,
           `anchor drift during cold open (mid-thread): ${summary}`
         ).toBeLessThanOrEqual(20);
+      });
+    });
+
+    test(`${setup.engine} ${setup.viewport}: cold open while reader scrolls/taps during 10+ slow /relations pages does not jump`, async ({
+      baseURL,
+    }) => {
+      test.skip(!world, 'disposable homeserver is not running');
+      test.skip(
+        setup.engine === 'webkit' && !WEBKIT_EXECUTABLE,
+        'PLAYWRIGHT_WEBKIT_EXECUTABLE not set'
+      );
+      const fixture = world!;
+
+      await openAndRun(setup, baseURL, fixture, async (page) => {
+        const net = await setupColdThreadRoutes(page, fixture);
+
+        await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+        const card = page.locator(
+          `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
+        );
+        await expect(card).toBeVisible({ timeout: 30_000 });
+
+        await page.evaluate(async () => {
+          await (
+            window as unknown as {
+              __threadJumpProbe: { clearCacheStore: () => Promise<number> };
+            }
+          ).__threadJumpProbe.clearCacheStore();
+        });
+        net.allowRelations = true;
+
+        await card.click();
+        await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
+        await expect
+          .poll(() => net.relationsPages, { timeout: 30_000 })
+          .toBeGreaterThanOrEqual(1);
+        await page.waitForTimeout(100);
+
+        const center = await page.evaluate(() => {
+          const inner = document.querySelector<HTMLElement>(
+            '[data-timeline-rows][data-thread-count]'
+          );
+          let scroller = inner?.parentElement ?? null;
+          while (scroller) {
+            const { overflowY } = getComputedStyle(scroller);
+            if (overflowY === 'auto' || overflowY === 'scroll') break;
+            scroller = scroller.parentElement;
+          }
+          const box = (scroller ?? document.body).getBoundingClientRect();
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        });
+
+        await startProbe(page, 'scrollUp', 0);
+        await page.mouse.move(center.x, center.y);
+        // Reader gently reads/scrolls upward while pages 2..12 keep arriving every 450 ms.
+        while (!net.relationsDone) {
+          for (let notch = 0; notch < 6; notch += 1) {
+            await page.mouse.wheel(0, -120);
+            await page.waitForTimeout(32);
+          }
+          await page.waitForTimeout(180);
+        }
+        await page.waitForTimeout(800);
+        const report = await stopProbe(page);
+
+        const summary = JSON.stringify({
+          relationsPages: net.relationsPages,
+          scrolledPx: report.scrolledPx,
+          threadCountStart: report.threadCountStart,
+          threadCountEnd: report.threadCountEnd,
+          minVisibleCount: report.minVisibleCount,
+          maxRowJumpPx: report.maxRowJumpPx,
+          maxReversalPx: report.maxReversalPx,
+          maxUnexplainedPx: report.maxUnexplainedPx,
+          maxSpreadPx: report.maxSpreadPx,
+          lostPlaceFrames: report.lostPlaceFrames,
+          topJumps: report.jumps.slice(0, 12),
+          coldFramesSample: report.coldFrames.slice(0, 20),
+        });
+        // eslint-disable-next-line no-console
+        console.log(`[COLD-ACTIVE ${setup.engine} ${setup.viewport}]`, summary);
+        expect(net.relationsPages, `expected 10+ /relations pages: ${summary}`).toBeGreaterThanOrEqual(10);
+        expect(report.lostPlaceFrames, `lost place during cold load: ${summary}`).toBe(0);
+        expect(report.maxReversalPx, `reversal jump during cold load: ${summary}`).toBeLessThanOrEqual(8);
+        expect(
+          report.maxUnexplainedPx,
+          `unexplained row jump during cold load: ${summary}`
+        ).toBeLessThanOrEqual(12);
+        expect(report.maxSpreadPx, `row spread jump during cold load: ${summary}`).toBeLessThanOrEqual(4);
       });
     });
   });
