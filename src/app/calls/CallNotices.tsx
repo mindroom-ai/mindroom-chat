@@ -4,11 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import classNames from 'classnames';
-import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
-import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall, useCallState } from './callStore';
+import { callNoticesInViewAtom, useActiveCall, useCallState } from './callStore';
 import type { CallState, RoomCall } from './RoomCall';
-import { useCallViewFloats } from './window/callWindowState';
 import * as css from './CallPanel.css';
 
 export function Notice({
@@ -81,56 +79,58 @@ export function ActionNotice({
   );
 }
 
+// The stop notices in the order they show, each under the name of its text. `act` runs in the
+// click itself: the screen picker needs the gesture.
+const STOP_NOTICES = [
+  {
+    flag: 'microphoneStopped',
+    act: (call: RoomCall) => call.setMicrophone(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('microphone'),
+  },
+  {
+    flag: 'cameraStopped',
+    act: (call: RoomCall) => call.setCamera(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('camera'),
+  },
+  {
+    flag: 'screenShareStoppedInBackground',
+    act: (call: RoomCall) => call.setScreenShare(true),
+    dismiss: (call: RoomCall) => call.dismissScreenShareNotice(),
+  },
+] as const;
+
+/** The stop notices `state` raises now; the first is the one a minimized window's bar names. */
+export const stopNoticesOf = (state: CallState) => STOP_NOTICES.filter(({ flag }) => state[flag]);
+
 /** Actionable notices for an interrupted screen share or dead local mic/camera. */
 export function CallStopNotices({ call, state }: { call: RoomCall; state: CallState }) {
   const { t } = useTranslation();
-  return (
-    <>
-      {state.screenShareStoppedInBackground && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.screenShareStoppedInBackground')}
-          actionLabel={t('featureUi.calls.panel.shareAgain')}
-          // A rejoin drops a share started meanwhile, and the picker needs this click.
-          disabled={state.phase !== 'connected'}
-          onAction={() => void call.setScreenShare(true)}
-          onDismiss={() => call.dismissScreenShareNotice()}
-        />
-      )}
-      {state.microphoneStopped && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.microphoneStopped')}
-          actionLabel={t('featureUi.calls.panel.turnBackOn')}
-          onAction={() => void call.setMicrophone(true)}
-          onDismiss={() => call.dismissStoppedInput('microphone')}
-        />
-      )}
-      {state.cameraStopped && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.cameraStopped')}
-          actionLabel={t('featureUi.calls.panel.turnBackOn')}
-          onAction={() => void call.setCamera(true)}
-          onDismiss={() => call.dismissStoppedInput('camera')}
-        />
-      )}
-    </>
-  );
+  return stopNoticesOf(state).map(({ flag, act, dismiss }) => {
+    const share = flag === 'screenShareStoppedInBackground';
+    return (
+      <ActionNotice
+        key={flag}
+        message={t(`featureUi.calls.panel.${flag}`)}
+        actionLabel={t(`featureUi.calls.panel.${share ? 'shareAgain' : 'turnBackOn'}`)}
+        // A rejoin drops a share started meanwhile.
+        disabled={share && state.phase !== 'connected'}
+        onAction={() => void act(call)}
+        onDismiss={() => dismiss(call)}
+      />
+    );
+  });
 }
 
 /**
- * The stop notices while the active call's view shows nowhere (closed, or docked in a room that is
- * not on the page), on every layout: in the app's notice place (ui/noticeSlots.tsx) inside what
- * covers the page (a phone's drawer or sheet, a dialog), else in the page's.
+ * The stop notices while no call view shows them (closed, in another room, folded, or under what
+ * covers the page): in the app's notice place (ui/noticeSlots.tsx) inside that cover, else the page's.
  */
 export function CallStopNoticesOutOfView() {
   const active = useActiveCall();
   const state = useCallState(active?.call);
-  const panelRoomId = useAtomValue(callPanelRoomAtom);
-  const here = useSelectedRoom();
-  const floats = useCallViewFloats();
+  const inView = useAtomValue(callNoticesInViewAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const slot = useAtomValue(coverNoticeSlotAtom) ?? pageSlot;
-  const inView =
-    !!panelRoomId && isActiveCallShownIn(active, panelRoomId) && (floats || here === panelRoomId);
   if (!active || inView || !slot) return null;
   return createPortal(<CallStopNotices call={active.call} state={state} />, slot);
 }

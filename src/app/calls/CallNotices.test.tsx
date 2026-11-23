@@ -2,56 +2,36 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NoticeSlot } from '../ui/noticeSlots';
-import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from './callStore';
+import { activeCallAtom, callNoticesInViewAtom, type ActiveCall } from './callStore';
 import { CallStopNoticesOutOfView } from './CallNotices';
 import type { CallState } from './RoomCall';
-import { clearCallWindowStore, getCallWindowSettingsAtom } from './window/callWindowState';
 
-// The stop notices of a call whose view is out of sight, in the app's notice places.
-
-const USER = '@me:notices.test';
-const CALL_ROOM = '!standup:notices.test';
-const OTHER_ROOM = '!lounge:notices.test';
-
-const navigation = vi.hoisted(() => ({ selected: undefined as string | undefined }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:notices.test' }),
-}));
-vi.mock('../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => navigation.selected }));
+// The stop notices of a call no view shows, in the app's notice places. Which view counts as
+// showing them (folded, covered, minimized) is the call view's to say: CallPanel.window.test.tsx.
 
 const setScreenShare = vi.fn(async () => undefined);
 const setCamera = vi.fn(async () => undefined);
 const dismissStoppedInput = vi.fn();
 
 type Scene = {
-  size?: ScreenSize;
-  /** The room whose call view is open; none while it is closed. */
-  panel?: string;
-  selected?: string;
-  docked?: boolean;
+  /** A phone's page place, under its top bar; a desktop's floats over the page. */
+  phone?: boolean;
   /** A phone's drawer is out, with its notice place. */
   drawer?: boolean;
+  /** A call view shows the notices itself. */
+  inView?: boolean;
   state: Partial<CallState>;
 };
 
-const renderScene = ({
-  size = ScreenSize.Desktop,
-  panel,
-  selected,
-  docked,
-  drawer,
-  state,
-}: Scene) => {
-  navigation.selected = selected;
+const renderScene = ({ phone = false, drawer = false, inView = false, state }: Scene) => {
   const callState = { phase: 'connected', participants: [], ...state } as unknown as CallState;
   const store = createStore();
   store.set(activeCallAtom, {
     kind: 'room',
     call: {
-      room: { roomId: CALL_ROOM } as Room,
+      room: { roomId: '!standup:notices.test' } as Room,
       subscribe: () => () => undefined,
       getState: () => callState,
       setScreenShare,
@@ -59,22 +39,18 @@ const renderScene = ({
       dismissStoppedInput,
     },
   } as unknown as ActiveCall);
-  store.set(callPanelRoomAtom, panel);
-  if (docked) store.set(getCallWindowSettingsAtom(USER), { mode: 'docked' });
-  const phone = size === ScreenSize.Mobile;
+  store.set(callNoticesInViewAtom, inView ? 1 : 0);
   render(
     <Provider store={store}>
-      <ScreenSizeProvider value={size}>
-        <div data-testid="page-place">
-          <NoticeSlot place="page" phone={phone} covered={drawer} />
+      <div data-testid="page-place">
+        <NoticeSlot place="page" phone={phone} covered={drawer} />
+      </div>
+      {drawer && (
+        <div data-testid="drawer-place">
+          <NoticeSlot place="drawer" />
         </div>
-        {drawer && (
-          <div data-testid="drawer-place">
-            <NoticeSlot place="drawer" />
-          </div>
-        )}
-        <CallStopNoticesOutOfView />
-      </ScreenSizeProvider>
+      )}
+      <CallStopNoticesOutOfView />
     </Provider>
   );
 };
@@ -82,16 +58,14 @@ const renderScene = ({
 const placeText = (place: 'page' | 'drawer') => screen.getByTestId(`${place}-place`).textContent;
 const pagePlace = () => screen.getByTestId('page-place').firstElementChild!;
 
-beforeEach(() => localStorage.clear());
 afterEach(() => {
   cleanup();
-  clearCallWindowStore(USER);
   vi.clearAllMocks();
 });
 
 describe('CallStopNoticesOutOfView', () => {
-  it('shows a dead camera in the page place at desktop width while the call view is closed', () => {
-    renderScene({ selected: OTHER_ROOM, state: { cameraStopped: true } });
+  it('shows a dead camera in the page place of a desktop while no call view shows it', () => {
+    renderScene({ state: { cameraStopped: true } });
 
     expect(placeText('page')).toContain('Your camera stopped.');
     fireEvent.click(screen.getByRole('button', { name: 'Turn back on' }));
@@ -101,12 +75,7 @@ describe('CallStopNoticesOutOfView', () => {
   });
 
   it('shows the stopped share under a phone top bar, with Share again acting inside its click', () => {
-    renderScene({
-      size: ScreenSize.Mobile,
-      selected: OTHER_ROOM,
-      panel: CALL_ROOM,
-      state: { screenShareStoppedInBackground: true },
-    });
+    renderScene({ phone: true, state: { screenShareStoppedInBackground: true } });
 
     expect(placeText('page')).toContain('Screen sharing stopped when you left the app.');
     // The picker needs the click itself: nothing waits between it and the call.
@@ -116,7 +85,7 @@ describe('CallStopNoticesOutOfView', () => {
 
   it('moves into the drawer of a phone while it covers the page, so its actions stay in reach', () => {
     renderScene({
-      size: ScreenSize.Mobile,
+      phone: true,
       drawer: true,
       state: { screenShareStoppedInBackground: true, microphoneStopped: true },
     });
@@ -136,32 +105,12 @@ describe('CallStopNoticesOutOfView', () => {
     expect(setScreenShare).not.toHaveBeenCalled();
   });
 
-  it.each<[string, Omit<Scene, 'state'>]>([
-    [
-      'the floating window shows the call over another page',
-      { panel: CALL_ROOM, selected: OTHER_ROOM },
-    ],
-    [
-      'the docked panel shows it in its room',
-      { panel: CALL_ROOM, selected: CALL_ROOM, docked: true },
-    ],
-    ['a phone shows its panel', { size: ScreenSize.Mobile, panel: CALL_ROOM, selected: CALL_ROOM }],
-  ])('leaves the notices to the call view while %s', (_where, scene) => {
-    renderScene({ ...scene, state: { cameraStopped: true } });
+  it('leaves the notices to a call view that shows them, and the place empty while all is well', () => {
+    renderScene({ inView: true, state: { cameraStopped: true } });
     expect(pagePlace().childElementCount).toBe(0);
-  });
-
-  it('shows them for a docked call whose room is not on the page, and nothing while all is well', () => {
-    renderScene({
-      panel: CALL_ROOM,
-      selected: OTHER_ROOM,
-      docked: true,
-      state: { cameraStopped: true },
-    });
-    expect(placeText('page')).toContain('Your camera stopped.');
     cleanup();
 
-    renderScene({ selected: OTHER_ROOM, state: {} });
+    renderScene({ state: {} });
     expect(pagePlace().childElementCount).toBe(0);
   });
 });

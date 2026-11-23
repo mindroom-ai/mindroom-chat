@@ -35,6 +35,9 @@ export const callPanelRoomAtom = atom<string | undefined>(undefined);
 /** A return shortcut asks for the room panel even if it is already open, but folded. */
 export const callPanelRequestAtom = atom<{ roomId: string } | undefined>(undefined);
 
+/** How many call views show the active call's stop notices now: in sight, not folded or covered. */
+export const callNoticesInViewAtom = atom(0);
+
 export const useActiveCall = () => useAtomValue(activeCallAtom);
 
 /** The start running in this tab, if any; a second start would race it for the one call. */
@@ -157,6 +160,7 @@ export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
   store.set(callPanelRequestAtom, undefined);
+  store.set(callNoticesInViewAtom, 0);
   store.set(callViewStateAtom, new Map());
   store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);

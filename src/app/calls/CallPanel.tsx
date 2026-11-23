@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue, useStore } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -8,11 +8,14 @@ import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
+import { coverNoticeSlotAtom } from '../ui/noticeSlots';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
 import type { CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
   callHomeRoomId,
+  callNoticesInViewAtom,
   callPanelRoomAtom,
   callStartingAtom,
   callStartProblemAtom,
@@ -37,7 +40,7 @@ import {
 } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { ActionNotice, CallStopNotices, Notice } from './CallNotices';
+import { ActionNotice, CallStopNotices, Notice, stopNoticesOf } from './CallNotices';
 import { CallMemberAvatar } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo, pickScope, type StageView } from './stageLayout';
@@ -175,15 +178,27 @@ function JoinedCall({
   // Minimized again while it stands, the window stays a bar.
   const expandWindow = frame?.expand;
   const failureId = visibleFailure?.eventId;
-  // Each new stop notice brings the window up again; a call's end clears them (RoomCall.teardown).
-  const stopNotices = [
-    state.screenShareStoppedInBackground,
-    state.microphoneStopped,
-    state.cameraStopped,
-  ].filter(Boolean).length;
   useEffect(() => {
-    if (failureId || state.audioBlocked || stopNotices) expandWindow?.();
-  }, [expandWindow, failureId, state.audioBlocked, stopNotices]);
+    if (failureId || state.audioBlocked) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked]);
+  // A stop notice newly raised brings the window up too; one that only went leaves it a bar.
+  const stopNotices = stopNoticesOf(state);
+  const raisedBefore = useRef<typeof stopNotices>([]);
+  useEffect(() => {
+    const raised = stopNotices.some((notice) => !raisedBefore.current.includes(notice));
+    raisedBefore.current = stopNotices;
+    if (raised) expandWindow?.();
+  });
+  // The view shows them only where they can be reached: not folded to its tab, nor under what
+  // covers the page (a phone's drawer or sheet, a dialog). CallStopNoticesOutOfView shows the rest.
+  const folded = usePanelFrame()?.layout === 'folded';
+  const noticesInView = useAtomValue(coverNoticeSlotAtom) === null && !folded;
+  const setNoticesInView = useSetAtom(callNoticesInViewAtom);
+  useLayoutEffect(() => {
+    if (!noticesInView) return undefined;
+    setNoticesInView((views) => views + 1);
+    return () => setNoticesInView((views) => Math.max(0, views - 1));
+  }, [noticesInView, setNoticesInView]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -324,20 +339,12 @@ function JoinedCall({
   const stageArea =
     stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
-  let stoppedStatus: string | undefined;
-  if (state.microphoneStopped) {
-    stoppedStatus = t('featureUi.calls.panel.microphoneStopped');
-  } else if (state.cameraStopped) {
-    stoppedStatus = t('featureUi.calls.panel.cameraStopped');
-  } else if (state.screenShareStoppedInBackground) {
-    stoppedStatus = t('featureUi.calls.panel.screenShareStoppedInBackground');
-  }
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
     // or why the microphone it just turned on stays off.
-    status: problem ?? stoppedStatus,
+    status: problem ?? (stopNotices[0] && t(`featureUi.calls.panel.${stopNotices[0].flag}`)),
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
@@ -404,7 +411,7 @@ function JoinedCall({
           onAction={() => void call.resumeAudio()}
         />
       )}
-      {!finished && <CallStopNotices call={call} state={state} />}
+      {noticesInView && <CallStopNotices call={call} state={state} />}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

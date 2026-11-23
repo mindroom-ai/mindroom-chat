@@ -10,6 +10,9 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
 import { phoneLayerOpenAtom, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import type { IconTooltipProps } from '../ui/IconTooltip';
+import { NoticeSlot } from '../ui/noticeSlots';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
+import type { PanelLayout } from '../ui/panels/roomPanels';
 import {
   activeCallAtom,
   callPanelRoomAtom,
@@ -20,6 +23,7 @@ import {
 } from './callStore';
 import type { CallDeviceKind, CallDevices, CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
+import { CallStopNoticesOutOfView } from './CallNotices';
 import { ActiveCallTab } from './ActiveCallTab';
 import { FloatingCallWindow } from './window/FloatingCallWindow';
 import {
@@ -1376,5 +1380,110 @@ describe('in-app screen share and stopped-device notices', () => {
     const dismissButtons = screen.getAllByRole('button', { name: 'Dismiss notice' });
     fireEvent.click(dismissButtons[0]!);
     expect(dismissStoppedInput).toHaveBeenCalledWith('microphone');
+  });
+  // The call's room stays the one on the page throughout: what moves the notices is whether the
+  // panel can be seen and reached, not which room is selected.
+  type Scene = {
+    layout?: PanelLayout;
+    drawer?: boolean;
+    size?: ScreenSize;
+    inFrame?: CallWindowFrame;
+  };
+  const scene = ({ layout = 'beside', drawer = false, size = 'Desktop', inFrame }: Scene = {}) => (
+    <Provider store={store}>
+      <ScreenSizeProvider value={size}>
+        <MemoryRouter initialEntries={[roomRoute(room.roomId)]}>
+          <div data-testid="page-place">
+            <NoticeSlot place="page" phone={size === 'Mobile'} covered={drawer} />
+          </div>
+          {/* As ClientLayout does while a phone's drawer is out. */}
+          <div {...(drawer ? { inert: '' } : {})}>
+            <PanelFrameProvider
+              value={inFrame ? undefined : { label: 'Call', layout, setLayout: () => undefined }}
+            >
+              <CallWindowFrameContext.Provider value={inFrame}>
+                <CallPanel room={room} onClose={onClose} />
+              </CallWindowFrameContext.Provider>
+            </PanelFrameProvider>
+          </div>
+          {drawer && (
+            <div data-testid="drawer-place">
+              <NoticeSlot place="drawer" />
+            </div>
+          )}
+          <CallStopNoticesOutOfView />
+        </MemoryRouter>
+      </ScreenSizeProvider>
+    </Provider>
+  );
+  /** The one button of that name in the whole document, which must be in reach, and where it is. */
+  const onlyAction = (name: string) => {
+    const [action, ...more] = screen.queryAllByRole('button', { name, hidden: true });
+    expect(more).toHaveLength(0);
+    expect(action!.closest('[inert]')).toBeNull();
+    return ['page-place', 'drawer-place', 'call-panel'].find((place) =>
+      screen.queryByTestId(place)?.contains(action!)
+    );
+  };
+
+  it('moves a dead microphone to the page place while the docked panel is folded to its tab', () => {
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'docked' });
+    roomCall([me, person('@ana:panel.test')]);
+    const { rerender } = render(scene());
+
+    // Folded, the panel's body is out of sight (PanelFrame.css.ts), and then the microphone dies.
+    rerender(scene({ layout: 'folded' }));
+    calls.state = { ...calls.state!, microphone: false, microphoneStopped: true };
+    rerender(scene({ layout: 'folded' }));
+    expect(onlyAction('Turn back on')).toBe('page-place');
+    press('Turn back on');
+    expect(setMicrophone).toHaveBeenCalledWith(true);
+
+    // Unfolded, the panel shows it again, and only the panel.
+    rerender(scene());
+    expect(onlyAction('Turn back on')).toBe('call-panel');
+  });
+
+  it('moves a stopped share into the drawer that covers the call panel of a phone', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const { rerender } = render(scene({ size: 'Mobile' }));
+
+    // The drawer comes out over the panel, the app goes to the background and comes back.
+    rerender(scene({ size: 'Mobile', drawer: true }));
+    calls.state = { ...calls.state!, screenShareStoppedInBackground: true };
+    rerender(scene({ size: 'Mobile', drawer: true }));
+    expect(onlyAction('Share again')).toBe('drawer-place');
+    press('Share again');
+    expect(setScreenShare).toHaveBeenCalledWith(true);
+
+    // The drawer away, the panel is in reach again and shows it itself.
+    rerender(scene({ size: 'Mobile' }));
+    expect(onlyAction('Share again')).toBe('call-panel');
+  });
+
+  it('shows a notice once while the floating window shows the call', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    calls.state = { ...calls.state!, cameraStopped: true };
+    render(scene({ inFrame: frame() }));
+    expect(onlyAction('Turn back on')).toBe('call-panel');
+  });
+
+  it('expands a minimized window for a newly raised stop notice only, not when one of two goes', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const expand = vi.fn();
+    const asBar = { ...frame(true), expand };
+    const { rerender } = render(scene({ inFrame: asBar }));
+    const stops = (stopped: Partial<CallState>) => {
+      calls.state = { ...joined([me, person('@ana:panel.test')]), ...stopped };
+      rerender(scene({ inFrame: asBar }));
+    };
+
+    stops({ microphoneStopped: true, cameraStopped: true });
+    expect(expand).toHaveBeenCalledOnce();
+    // Minimized again; the microphone recovers and the camera's notice stands.
+    stops({ cameraStopped: true });
+    expect(expand).toHaveBeenCalledOnce();
+    stops({ cameraStopped: true, screenShareStoppedInBackground: true });
+    expect(expand).toHaveBeenCalledTimes(2);
   });
 });

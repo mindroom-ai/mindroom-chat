@@ -2444,6 +2444,40 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState().screenShareStoppedInBackground).toBe(false);
   });
 
+  it('lets go of the old share before Share again starts while the background stop still mutes it', async () => {
+    vi.stubGlobal('navigator', IPHONE_NAV);
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    await call.setScreenShare(true);
+    const oldShare = publicationOf(media, 'screen_share');
+    const muting = pending<void>();
+    vi.spyOn(oldShare, 'mute').mockImplementationOnce(() => muting.promise);
+    media.localParticipant.setScreenShareEnabled.mockClear();
+
+    // A suspended page settles the mute only after the person is back and has pressed Share again.
+    setVisibility('hidden');
+    setVisibility('visible');
+    await settle();
+    const sharing = call.setScreenShare(true);
+    // The old publication went before the start looked for one to unmute: the picker opens.
+    expect(media.localParticipant.setScreenShareEnabled.mock.calls.map(([on]) => on)).toEqual([
+      false,
+      true,
+    ]);
+    muting.resolve();
+    await sharing;
+    await settle();
+
+    // The stop that was under way leaves the new share alone.
+    expect(media.localParticipant.setScreenShareEnabled).toHaveBeenCalledTimes(2);
+    expect(publicationOf(media, 'screen_share')).not.toBe(oldShare);
+    expect(call.getState()).toMatchObject({
+      screenShare: true,
+      screenShareStoppedInBackground: false,
+    });
+  });
+
   it('stops a screen-share start that hid before resolving, even after returning visible', async () => {
     vi.stubGlobal('navigator', IPHONE_NAV);
     const { call } = setup();
