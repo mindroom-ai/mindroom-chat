@@ -1,46 +1,65 @@
-const GLUED_LEADING_PUNCTUATION = /^[,.;:!?…)\]}]/;
-const EDGE_PUNCTUATION = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
-const MAX_OVERLAP_WORDS = 6;
-const MAX_PROMPT_ECHO_WORDS = 6;
-const PROMPT_ECHO_MAX_SECONDS = 2.5;
-const PROMPT_ECHO_LOUD_RMS = 0.08;
-
 export type StitchSegmentInput = {
   text: string;
   overlapped?: boolean;
-  prompt?: string;
-  seconds?: number;
-  peakRms?: number;
 };
+
+const MAX_OVERLAP_WORDS = 6;
+const GLUED_LEADING_PUNCTUATION = /^[,.;:!?…)\]}>。、，！？：；」』】）]/;
+const OPENING_NO_SPACE = /[([{"'「『【（]$/;
+const CJK_CLOSING_PUNCTUATION = /[。、，！？：；」』】）]$/;
+const CJK_CHAR = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 type WordSpan = {
+  norm: string;
   start: number;
   end: number;
-  norm: string;
 };
 
-const normalizeWord = (word: string): string => word.toLowerCase().replace(EDGE_PUNCTUATION, '');
+const normalizeWord = (word: string): string =>
+  word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
 
 const scanWords = (text: string): WordSpan[] => {
   const spans: WordSpan[] = [];
-  for (const match of text.matchAll(/\S+/g)) {
-    const start = match.index ?? 0;
-    spans.push({ start, end: start + match[0].length, norm: normalizeWord(match[0]) });
+  const matcher = /\S+/g;
+  let match: RegExpExecArray | null = matcher.exec(text);
+  while (match !== null) {
+    const raw = match[0];
+    spans.push({
+      norm: normalizeWord(raw),
+      start: match.index,
+      end: match.index + raw.length,
+    });
+    match = matcher.exec(text);
   }
   return spans;
 };
 
-/** Returns true when `text` starts with punctuation that attaches with no leading space. */
+/** Returns true when `text` starts with punctuation that attaches directly to the prior word. */
 export const startsWithGluedPunctuation = (text: string): boolean =>
-  GLUED_LEADING_PUNCTUATION.test(text);
+  GLUED_LEADING_PUNCTUATION.test(text.trimStart());
 
-/** Joins two transcript chunks with punctuation-aware spacing. */
+/**
+ * Returns true when inserting `right` immediately after `left` should include a single ASCII space.
+ * Skips spaces around whitespace, opening brackets, glued punctuation, and adjacent CJK characters.
+ */
+export const needsSpaceBetween = (left: string, right: string): boolean => {
+  if (!left || !right) return false;
+  const lastChar = left.slice(-1);
+  const firstChar = right.slice(0, 1);
+  if (/\s/.test(lastChar) || /\s/.test(firstChar)) return false;
+  if (GLUED_LEADING_PUNCTUATION.test(firstChar)) return false;
+  if (OPENING_NO_SPACE.test(lastChar) || CJK_CLOSING_PUNCTUATION.test(lastChar)) return false;
+  if (CJK_CHAR.test(lastChar) && CJK_CHAR.test(firstChar)) return false;
+  return true;
+};
+
+/** Joins two transcript chunks with punctuation- and CJK-aware spacing. */
 export const joinTranscriptParts = (left: string, right: string): string => {
   const a = left.trimEnd();
   const b = right.trimStart();
   if (!a) return b;
   if (!b) return a;
-  return GLUED_LEADING_PUNCTUATION.test(b) ? `${a}${b}` : `${a} ${b}`;
+  return needsSpaceBetween(a, b) ? `${a} ${b}` : `${a}${b}`;
 };
 
 /** Trims trailing context to at most `maxChars` on a word boundary for Whisper prompt chaining. */
@@ -58,35 +77,6 @@ export const buildTrailingPrompt = (text: string, maxChars = 200): string | unde
   if (firstSpace === -1) return tail;
   const bounded = tail.slice(firstSpace + 1).trimStart();
   return bounded || tail;
-};
-
-/**
- * Returns true when a short or low-energy tail chunk merely echoes a suffix of the sent prompt.
- */
-export const isPromptEcho = (
-  text: string,
-  prompt: string | undefined,
-  meta?: { seconds?: number; peakRms?: number }
-): boolean => {
-  if (!prompt) return false;
-  if (meta?.peakRms !== undefined && meta.peakRms >= PROMPT_ECHO_LOUD_RMS) return false;
-  if (meta?.seconds !== undefined && meta.seconds > PROMPT_ECHO_MAX_SECONDS) return false;
-
-  const chunkWords = scanWords(text)
-    .map((span) => span.norm)
-    .filter(Boolean);
-  if (chunkWords.length === 0 || chunkWords.length > MAX_PROMPT_ECHO_WORDS) return false;
-
-  const promptWords = scanWords(prompt)
-    .map((span) => span.norm)
-    .filter(Boolean);
-  if (chunkWords.length > promptWords.length) return false;
-
-  const offset = promptWords.length - chunkWords.length;
-  for (let i = 0; i < chunkWords.length; i += 1) {
-    if (chunkWords[i] !== promptWords[offset + i]) return false;
-  }
-  return true;
 };
 
 const deduplicateOverlap = (left: string, right: string): string => {
@@ -117,14 +107,6 @@ const deduplicateOverlap = (left: string, right: string): string => {
 export const appendTranscriptSegment = (current: string, segment: StitchSegmentInput): string => {
   const next = segment.text.trim();
   if (!next) return current;
-  if (
-    isPromptEcho(next, segment.prompt, {
-      seconds: segment.seconds,
-      peakRms: segment.peakRms,
-    })
-  ) {
-    return current;
-  }
   if (!current.trim()) return next;
   if (segment.overlapped) return deduplicateOverlap(current, next);
   return joinTranscriptParts(current, next);

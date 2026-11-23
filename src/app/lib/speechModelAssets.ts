@@ -5,6 +5,9 @@ declare const __MINDROOM_SPEECH_MODEL__: string;
 export const SILERO_VAD_MODEL_FILE = 'silero_vad_legacy.onnx';
 export const DICTATION_WORKLET_FILE = 'dictationCaptureWorklet.js';
 
+/** What a person does that lets a page start sound (browsers' autoplay rules). */
+const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
+
 export type SpeechRuntimeAssets = {
   moduleUrl: string;
   wasm: ArrayBuffer;
@@ -72,4 +75,27 @@ export const configureSpeechOrt = (ort: OrtLike, runtime: SpeechRuntimeAssets): 
   }
   env.wasm.wasmPaths = { mjs: runtime.moduleUrl };
   env.wasm.wasmBinary = runtime.wasm;
+};
+
+/**
+ * Keeps an AudioContext running across autoplay suspension and mobile interruptions.
+ * Returns a disposer that clears `onstatechange` and removes the gesture listeners.
+ */
+export const keepAudioContextRunning = (context: AudioContext): (() => void) => {
+  const keepRunning = () => {
+    if (context.state !== 'running') context.resume().catch(() => undefined);
+  };
+  keepRunning();
+  context.onstatechange = keepRunning;
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    USER_GESTURES.forEach((type) => window.addEventListener(type, keepRunning, { capture: true }));
+  }
+  return () => {
+    context.onstatechange = null;
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      USER_GESTURES.forEach((type) =>
+        window.removeEventListener(type, keepRunning, { capture: true })
+      );
+    }
+  };
 };

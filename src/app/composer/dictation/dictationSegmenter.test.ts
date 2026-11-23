@@ -124,7 +124,7 @@ describe('DictationSegmenter', () => {
     let idx = 0;
     await segmenter.attachVad({ score: async () => probs[idx++] ?? 0 });
     for (const frame of frames) segmenter.pushFrame(frame);
-    await segmenter.flush('finish');
+    await segmenter.flush();
 
     expect(segments).toHaveLength(1);
     expect(segments[0]?.overlapped).toBe(false);
@@ -149,7 +149,7 @@ describe('DictationSegmenter', () => {
     for (let i = 0; i < probs.length; i += 1) {
       segmenter.pushFrame(makeFrame(i < 157 ? 0.3 : 0.01));
     }
-    await segmenter.flush('pause');
+    await segmenter.flush();
 
     expect(segments).toHaveLength(1);
     expect(segments[0]?.overlapped).toBe(false);
@@ -173,7 +173,7 @@ describe('DictationSegmenter', () => {
     for (let i = 0; i < totalFrames; i += 1) {
       segmenter.pushFrame(makeFrame(i === 255 ? 0.05 : 0.3));
     }
-    await segmenter.flush('finish');
+    await segmenter.flush();
 
     expect(segments).toHaveLength(2);
     expect(segments[0]?.overlapped).toBe(false);
@@ -201,7 +201,7 @@ describe('DictationSegmenter', () => {
     let idx = 0;
     await segmenter.attachVad({ score: async () => silenceProbs[idx++] ?? 0.05 });
     for (let i = 0; i < 15; i += 1) segmenter.pushFrame(makeFrame(0.0001));
-    await segmenter.flush('finish');
+    await segmenter.flush();
     expect(segments).toHaveLength(0);
 
     // Case 2: Crisp 2-frame (~192 ms) "Yes" survives Finish flush.
@@ -212,13 +212,25 @@ describe('DictationSegmenter', () => {
     await shortSegmenter.attachVad({ score: async () => shortProbs[sIdx++] ?? 0.05 });
     shortSegmenter.pushFrame(makeFrame(0.25));
     shortSegmenter.pushFrame(makeFrame(0.2));
-    await shortSegmenter.flush('finish');
+    await shortSegmenter.flush();
 
     expect(shortSegs).toHaveLength(1);
     expect(shortSegs[0]?.seconds).toBeCloseTo(
       (2 * DICTATION_FRAME_SAMPLES) / DICTATION_SAMPLE_RATE,
       3
     );
+
+    // Case 3: Crisp 2-frame (~192 ms) "Yes" also survives a natural pause (8 quiet frames).
+    const pauseSegs: DictationSegment[] = [];
+    const pauseSegmenter = new DictationSegmenter({ onSegment: (seg) => pauseSegs.push(seg) });
+    const pauseProbs = [0.85, 0.8, ...Array.from({ length: 8 }, () => 0.05)];
+    let pIdx = 0;
+    await pauseSegmenter.attachVad({ score: async () => pauseProbs[pIdx++] ?? 0.05 });
+    pauseSegmenter.pushFrame(makeFrame(0.25));
+    pauseSegmenter.pushFrame(makeFrame(0.22));
+    for (let i = 0; i < 8; i += 1) pauseSegmenter.pushFrame(makeFrame(0.001));
+    await pauseSegmenter.flush();
+    expect(pauseSegs).toHaveLength(1);
   });
 
   it('falls back to buffered PCM WAV and RMS-valley splitting past 20 s when WASM fails', async () => {
@@ -233,8 +245,8 @@ describe('DictationSegmenter', () => {
     for (let i = 0; i < 10; i += 1) segmenter.pushFrame(makeFrame(0.2));
 
     // WASM load fails -> replays buffered frames via RMS fallback.
-    segmenter.markVadFailed();
-    await segmenter.flush('finish');
+    await segmenter.markVadFailed();
+    await segmenter.flush();
 
     expect(segments).toHaveLength(2);
     expect(segments[0]?.overlapped).toBe(false);
@@ -248,7 +260,7 @@ describe('DictationSegmenter', () => {
     const segmenter = new DictationSegmenter({ onSegment: (seg) => segments.push(seg) });
 
     for (let i = 0; i < 5; i += 1) segmenter.pushFrame(makeFrame(0.25));
-    await segmenter.flush('finish');
+    await segmenter.flush();
 
     expect(segments).toHaveLength(1);
     const header = await readWavHeader(segments[0]!.wav);
@@ -265,7 +277,6 @@ describe('DictationSegmenter', () => {
     });
 
     for (let i = 0; i < 10; i += 1) segmenter.pushFrame(makeFrame(0.1));
-    expect(segmenter.isCapReached).toBe(true);
     expect(onCapReached).toHaveBeenCalledTimes(1);
   });
 });

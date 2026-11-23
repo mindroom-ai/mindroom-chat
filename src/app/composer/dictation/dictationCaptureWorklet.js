@@ -15,7 +15,11 @@ class DictationCaptureProcessor extends AudioWorkletProcessor {
     this.nextEmit = this.ratio;
     this.stopped = false;
     this.port.onmessage = (event) => {
-      if (event.data === 'stop') {
+      const message = event.data;
+      if (
+        message === 'stop' ||
+        (message && typeof message === 'object' && message.type === 'stop')
+      ) {
         if (this.outIndex > 0) {
           const tail = this.out;
           this.out = new Float32Array(FRAME_SAMPLES);
@@ -23,6 +27,7 @@ class DictationCaptureProcessor extends AudioWorkletProcessor {
           this.port.postMessage(tail, [tail.buffer]);
         }
         this.stopped = true;
+        this.port.postMessage({ type: 'stopped' });
       }
     };
   }

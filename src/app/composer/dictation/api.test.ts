@@ -6,6 +6,7 @@ import {
   DictationClient,
   probeDictationAvailability,
   readCachedDictationAvailability,
+  readCachedDictationRetryAt,
   readRetryAfterMs,
 } from './api';
 
@@ -52,17 +53,20 @@ describe('DictationClient', () => {
     expect(res).toEqual({ text: 'Hello world', seconds: 2.4 });
 
     const [path, init] = send.mock.calls[0] ?? [];
-    expect(path).toBe('/api/dictation/v1/transcribe');
+    expect(path).toBe(
+      `/api/dictation/v1/transcribe?room_id=${encodeURIComponent('!room:example.org')}`
+    );
     expect(init?.method).toBe('POST');
     const form = init?.body as FormData;
     expect(form).toBeInstanceOf(FormData);
     const audio = form.get('audio') as File;
     expect(audio.name).toBe('speech.wav');
     expect(form.get('prompt')).toBe('Prior words');
-    expect(form.get('room_id')).toBe('!room:example.org');
+    expect(form.has('room_id')).toBe(false);
 
-    // Omits optional fields when absent (e.g. segment 0).
+    // Omits optional fields and query string when absent (e.g. segment 0).
     await client.transcribe(wav);
+    expect(send.mock.calls[1]?.[0]).toBe('/api/dictation/v1/transcribe');
     const form0 = send.mock.calls[1]?.[1]?.body as FormData;
     expect(form0.has('prompt')).toBe(false);
     expect(form0.has('room_id')).toBe(false);
@@ -139,6 +143,18 @@ describe('probeDictationAvailability cache', () => {
 
     expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(false);
     expect(readCachedDictationAvailability(sessions, '!r:ex', 50_000 + 60_000)).toBe(false);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBeUndefined();
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks 503/network failures as transient with a 30 s retryAt deadline', async () => {
+    const send = vi.fn(async () => new Response('unavailable', { status: 503 }));
+    const sessions = makeSessions(send);
+    const now = () => 100_000;
+
+    expect(await probeDictationAvailability(sessions, '!r:ex', undefined, now)).toBe(false);
+    expect(readCachedDictationRetryAt(sessions, '!r:ex')).toBe(130_000);
+    expect(readCachedDictationAvailability(sessions, '!r:ex', 129_999)).toBe(false);
+    expect(readCachedDictationAvailability(sessions, '!r:ex', 130_001)).toBeUndefined();
   });
 });

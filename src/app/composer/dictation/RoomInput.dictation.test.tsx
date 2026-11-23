@@ -188,6 +188,7 @@ const renderInput = (
   opts: {
     screenSize?: ScreenSize;
     forkFrom?: { threadId: string; eventId: string };
+    ask?: React.ComponentProps<typeof RoomInput>['ask'];
   } = {}
 ) => {
   const editor = createEditor();
@@ -202,6 +203,7 @@ const renderInput = (
           roomId={room.roomId}
           room={room}
           forkFrom={opts.forkFrom}
+          ask={opts.ask}
         />
       </ScreenSizeProvider>
     </Provider>
@@ -272,6 +274,25 @@ describe('RoomInput dictation layout and submit guard', () => {
       screen.getByTestId('slot-before').querySelector('[data-testid="dictate-btn"]')
     ).toBeNull();
     expect(layoutState.actionsMenuVoiceAction?.label).toBe('Dictate');
+  });
+
+  it('keeps Dictate available in after on phones when ask.pickers replaces the before slot', () => {
+    renderInput({
+      screenSize: ScreenSize.Mobile,
+      ask: {
+        agentUserId: '@mindroom_assistant:example.org',
+        placeholder: 'Ask',
+        pickers: <div data-testid="ask-pickers" />,
+        canSend: () => true,
+      },
+    });
+
+    expect(
+      screen.getByTestId('slot-before').querySelector('[data-testid="ask-pickers"]')
+    ).not.toBeNull();
+    expect(
+      screen.getByTestId('slot-after').querySelector('[data-testid="dictate-btn"]')
+    ).not.toBeNull();
   });
 
   it('disables Send and guards submission while dictating', () => {

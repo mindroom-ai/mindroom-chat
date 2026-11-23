@@ -11,7 +11,8 @@ import {
 import { useAtomValue, useStore } from 'jotai';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
-import type { BaseRange, Editor } from 'slate';
+import { Editor as SlateEditor, type BaseRange, type Editor, type RangeRef } from 'slate';
+import { ReactEditor } from 'slate-react';
 import { computerOwnsKeyboardEvent } from '../../computer/computerFocus';
 import { openOverlay } from '../../shortcuts/shortcutDom';
 import { shortcutAttributes } from '../../shortcuts/ShortcutKeys';
@@ -82,7 +83,7 @@ export const useRoomInputDictation = ({
   const liveVoice = useAtomValue(liveVoiceRecordingAtom);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
 
-  const savedSelectionRef = useRef<BaseRange | null>(null);
+  const selectionRef = useRef<RangeRef | null>(null);
   const session = useMemo(() => {
     if (!sessions) return undefined;
     return createSession({
@@ -107,21 +108,42 @@ export const useRoomInputDictation = ({
     }
   }, [ownerKey, store]);
 
+  const clearSelectionRef = useCallback(() => {
+    selectionRef.current?.unref();
+    selectionRef.current = null;
+  }, []);
+
+  const consumeSelectionRef = useCallback((): BaseRange | null => {
+    const range = selectionRef.current?.unref() ?? null;
+    selectionRef.current = null;
+    return range;
+  }, []);
+
+  const focusEditor = useCallback(() => {
+    try {
+      ReactEditor.focus(editor);
+    } catch {
+      // Editor may not be attached to a DOM tree in headless unit tests.
+    }
+  }, [editor]);
+
   // Discard and release ownership when this session is replaced or the composer unmounts.
   useEffect(
     () => () => {
+      clearSelectionRef();
       session?.discard();
       releaseOwnership();
     },
-    [releaseOwnership, session]
+    [clearSelectionRef, releaseOwnership, session]
   );
 
   // Account switch or sign-out clears activeDictationAtom externally; abort local capture too.
   useEffect(() => {
     if (activeDictation !== ownerKey && snapshot.phase !== 'idle') {
+      clearSelectionRef();
       session?.discard();
     }
-  }, [activeDictation, ownerKey, session, snapshot.phase]);
+  }, [activeDictation, clearSelectionRef, ownerKey, session, snapshot.phase]);
 
   const start = useCallback((): boolean => {
     if (!available || !session) return false;
@@ -132,55 +154,59 @@ export const useRoomInputDictation = ({
     ) {
       return false;
     }
-    savedSelectionRef.current = editor.selection ? structuredClone(editor.selection) : null;
+    clearSelectionRef();
+    if (editor.selection) {
+      selectionRef.current = SlateEditor.rangeRef(editor, editor.selection);
+    }
     store.set(activeDictationAtom, ownerKey);
     void session.start().then((started) => {
-      if (!started) releaseOwnership();
+      if (!started) {
+        clearSelectionRef();
+        releaseOwnership();
+      }
     });
     return true;
-  }, [available, editor, ownerKey, releaseOwnership, session, store]);
+  }, [available, clearSelectionRef, editor, ownerKey, releaseOwnership, session, store]);
 
   const handleFinish = useCallback(() => {
     if (!session) return;
     void session.finish().then((result) => {
       if (result.status === 'completed') {
-        insertDictatedText(editor, result.text, savedSelectionRef.current);
-        savedSelectionRef.current = null;
+        insertDictatedText(editor, result.text, consumeSelectionRef());
         releaseOwnership();
       } else if (result.status === 'cancelled') {
-        savedSelectionRef.current = null;
+        clearSelectionRef();
         releaseOwnership();
       }
     });
-  }, [editor, releaseOwnership, session]);
+  }, [clearSelectionRef, consumeSelectionRef, editor, releaseOwnership, session]);
 
   const handleRetry = useCallback(() => {
     if (!session) return;
     void session.retryFailed().then((result) => {
       if (result.status === 'completed') {
-        insertDictatedText(editor, result.text, savedSelectionRef.current);
-        savedSelectionRef.current = null;
+        insertDictatedText(editor, result.text, consumeSelectionRef());
         releaseOwnership();
       } else if (result.status === 'cancelled') {
-        savedSelectionRef.current = null;
+        clearSelectionRef();
         releaseOwnership();
       }
     });
-  }, [editor, releaseOwnership, session]);
+  }, [clearSelectionRef, consumeSelectionRef, editor, releaseOwnership, session]);
 
   const handleInsertPartial = useCallback(() => {
     if (!session) return;
     const text = session.takePartialText();
-    insertDictatedText(editor, text, savedSelectionRef.current);
-    savedSelectionRef.current = null;
+    insertDictatedText(editor, text, consumeSelectionRef());
     releaseOwnership();
-  }, [editor, releaseOwnership, session]);
+  }, [consumeSelectionRef, editor, releaseOwnership, session]);
 
   const handleDiscard = useCallback(() => {
     session?.discard();
-    savedSelectionRef.current = null;
+    clearSelectionRef();
     releaseOwnership();
-  }, [releaseOwnership, session]);
+    focusEditor();
+  }, [clearSelectionRef, focusEditor, releaseOwnership, session]);
 
   const handlePause = useCallback(() => {
     void session?.pause();
@@ -201,7 +227,10 @@ export const useRoomInputDictation = ({
       if (event.repeat || isComposingKey(event)) return;
       if (
         event.key === 'Escape' &&
-        (snapshot.phase === 'recording' || snapshot.phase === 'paused')
+        (snapshot.phase === 'recording' || snapshot.phase === 'paused') &&
+        rootRef.current?.contains(document.activeElement) &&
+        openOverlay() === 'none' &&
+        !computerOwnsKeyboardEvent(event)
       ) {
         event.preventDefault();
         event.stopPropagation();

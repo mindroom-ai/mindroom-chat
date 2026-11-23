@@ -3,8 +3,8 @@ import React, { useRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createEditor, Editor, Transforms } from 'slate';
-import { withHistory } from 'slate-history';
-import { withReact } from 'slate-react';
+import { HistoryEditor, withHistory } from 'slate-history';
+import { ReactEditor, withReact } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { activeDictationAtom } from '../roomInputDrafts';
@@ -14,9 +14,20 @@ import type { DictationSession, DictationSnapshot } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoomInputDictation';
 
-const serverMock = vi.hoisted(() => ({
-  available: true,
-  sessions: { send: vi.fn() } as unknown as ClientSessions,
+const serverMock = vi.hoisted(
+  (): {
+    available: boolean;
+    overlay: 'none' | 'help' | 'other';
+    sessions: ClientSessions;
+  } => ({
+    available: true,
+    overlay: 'none',
+    sessions: { send: vi.fn() } as unknown as ClientSessions,
+  })
+);
+
+vi.mock('../../shortcuts/shortcutDom', () => ({
+  openOverlay: () => serverMock.overlay,
 }));
 
 vi.mock('./useDictationServer', () => ({
@@ -127,6 +138,7 @@ const createMockSession = () => {
 
 beforeEach(() => {
   serverMock.available = true;
+  serverMock.overlay = 'none';
 });
 
 afterEach(() => {
@@ -162,6 +174,27 @@ describe('insertDictatedText', () => {
     Transforms.select(beforeComma, { path: [0, 0], offset: 5 });
     insertDictatedText(beforeComma, 'dear', beforeComma.selection);
     expect(readText(beforeComma)).toBe('Hello dear, world');
+  });
+
+  it('replaces selected text and restores the original selection in a single undo step', () => {
+    const editor = makeSlateEditor('red apples');
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 0 },
+      focus: { path: [0, 0], offset: 3 },
+    });
+
+    expect(insertDictatedText(editor, 'green', editor.selection)).toBe(true);
+    expect(readText(editor)).toBe('green apples');
+
+    HistoryEditor.undo(editor);
+    expect(readText(editor)).toBe('red apples');
+  });
+
+  it('skips spaces around CJK characters and CJK punctuation', () => {
+    const editor = makeSlateEditor('你好。');
+    Transforms.select(editor, { path: [0, 0], offset: 2 });
+    insertDictatedText(editor, '世界', editor.selection);
+    expect(readText(editor)).toBe('你好世界。');
   });
 });
 
@@ -262,12 +295,31 @@ describe('useRoomInputDictation', () => {
     });
     expect(session.start).toHaveBeenCalledTimes(1);
 
-    // Escape cancels while recording.
+    // Escape is ignored while an overlay (e.g. command palette / menu) is open.
+    serverMock.overlay = 'other';
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    expect(session.discard).not.toHaveBeenCalled();
+    serverMock.overlay = 'none';
+
+    // Escape is ignored when focus is outside the composer.
+    input.blur();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    expect(session.discard).not.toHaveBeenCalled();
+
+    // Escape cancels when focus is inside the composer and returns focus to Slate.
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+    input.focus();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'Escape' });
     });
     expect(session.discard).toHaveBeenCalledTimes(1);
     expect(store.get(activeDictationAtom)).toBeUndefined();
+    expect(focusSpy).toHaveBeenCalledWith(editor);
+    focusSpy.mockRestore();
 
     // Start again and finish via Ctrl+Shift+D.
     await act(async () => {
@@ -278,5 +330,26 @@ describe('useRoomInputDictation', () => {
     });
     expect(session.finish).toHaveBeenCalledTimes(1);
     expect(readText(editor)).toBe('dictated words');
+  });
+
+  it('tracks selection via Slate RangeRef when text is edited before the cursor mid-dictation', async () => {
+    const editor = makeSlateEditor('Hello world');
+    Transforms.select(editor, { path: [0, 0], offset: 5 });
+    const store = createStore();
+    const { session } = createMockSession();
+
+    renderHarness(editor, store, session);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+    });
+
+    // Edit text before the saved cursor while dictation is running.
+    Transforms.insertText(editor, 'Hey ', { at: { path: [0, 0], offset: 0 } });
+    expect(readText(editor)).toBe('Hey Hello world');
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    });
+    expect(readText(editor)).toBe('Hey Hello dictated words world');
   });
 });

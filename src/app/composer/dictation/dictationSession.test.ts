@@ -2,63 +2,70 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DictationApiError } from './api';
 import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE } from './dictationSegmenter';
-import { createDictationSession } from './dictationSession';
+import { createDictationSession, type DictationCaptureFactory } from './dictationSession';
 
-const makeFrame = (amp: number): Float32Array => {
+const makeFrame = (amplitude: number): Float32Array => {
   const frame = new Float32Array(DICTATION_FRAME_SAMPLES);
   for (let i = 0; i < frame.length; i += 1) {
-    frame[i] = amp * Math.sin((2 * Math.PI * 440 * i) / DICTATION_SAMPLE_RATE);
+    frame[i] = amplitude * Math.sin((2 * Math.PI * 440 * i) / DICTATION_SAMPLE_RATE);
   }
   return frame;
 };
 
-const createFakeTrack = () => {
-  const endedListeners = new Set<() => void>();
-  const stop = vi.fn();
-  const track = {
-    stop,
-    addEventListener: (event: string, fn: () => void) => {
-      if (event === 'ended') endedListeners.add(fn);
+const flushMicrotasks = async (rounds = 8) => {
+  for (let i = 0; i < rounds; i += 1) await Promise.resolve();
+};
+
+const makeVad = (release = vi.fn(async () => undefined)) => ({
+  score: async (frame: Float32Array) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+  reset: vi.fn(),
+  release,
+});
+
+type FakeCaptureRig = {
+  captureFactory: DictationCaptureFactory;
+  pushFrame: (frame: Float32Array) => void;
+  triggerTrackEnded: () => void;
+  stopAndFlush: ReturnType<typeof vi.fn>;
+  dispose: ReturnType<typeof vi.fn>;
+  setTailOnStop: (frames: Float32Array[]) => void;
+};
+
+const createFakeCaptureRig = (): FakeCaptureRig => {
+  let onFrameCb: ((frame: Float32Array) => void) | undefined;
+  let onTrackEndedCb: (() => void) | undefined;
+  let tailFrames: Float32Array[] = [];
+  const stopAndFlush = vi.fn(async () => {
+    for (const frame of tailFrames) onFrameCb?.(frame);
+    tailFrames = [];
+  });
+  const dispose = vi.fn();
+
+  const captureFactory: DictationCaptureFactory = async ({ onFrame, onTrackEnded }) => {
+    onFrameCb = onFrame;
+    onTrackEndedCb = onTrackEnded;
+    return {
+      readLevel: () => 0.25,
+      stopAndFlush,
+      dispose,
+    };
+  };
+
+  return {
+    captureFactory,
+    pushFrame: (frame) => onFrameCb?.(frame),
+    triggerTrackEnded: () => onTrackEndedCb?.(),
+    stopAndFlush,
+    dispose,
+    setTailOnStop: (frames) => {
+      tailFrames = frames;
     },
-    removeEventListener: (event: string, fn: () => void) => {
-      if (event === 'ended') endedListeners.delete(fn);
-    },
-  } as unknown as MediaStreamTrack;
-  const triggerEnded = () => endedListeners.forEach((fn) => fn());
-  return { track, stop, triggerEnded };
+  };
 };
 
-const createFakeAudioContext = () => {
-  const close = vi.fn(async () => undefined);
-  const resume = vi.fn(async () => undefined);
-  const context = {
-    state: 'running',
-    sampleRate: 16_000,
-    onstatechange: null,
-    destination: {},
-    resume,
-    close,
-    createMediaStreamSource: () => ({ connect: vi.fn(), disconnect: vi.fn() }),
-    createAnalyser: () => ({
-      fftSize: 2048,
-      getByteTimeDomainData: (buf: Uint8Array) => buf.fill(140),
-    }),
-    createGain: () => ({
-      gain: { value: 1 },
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-    }),
-  } as unknown as AudioContext;
-  return { context, close, resume };
-};
-
-const flushMicrotasks = async (turns = 6) => {
-  for (let i = 0; i < turns; i += 1) await Promise.resolve();
-};
-
-const pushSpeechAndPause = (pushFrame: (f: Float32Array) => void) => {
+const pushSpeechAndPause = (pushFrame: (frame: Float32Array) => void) => {
   for (let i = 0; i < 4; i += 1) pushFrame(makeFrame(0.3));
-  for (let i = 0; i < 8; i += 1) pushFrame(makeFrame(0.0005));
+  for (let i = 0; i < 8; i += 1) pushFrame(makeFrame(0.001));
 };
 
 describe('createDictationSession', () => {
@@ -66,132 +73,93 @@ describe('createDictationSession', () => {
     vi.restoreAllMocks();
   });
 
-  it('chains prompts serially across segments (concurrency = 1) and omits prompt on segment 0', async () => {
-    const calls: Array<{ prompt?: string; roomId?: string; wavSize: number }> = [];
+  it('serializes segment uploads with prompt chaining and stitches results on finish', async () => {
     let inFlight = 0;
     let maxInFlight = 0;
-    let resolveFirst!: (res: { text: string; seconds: number }) => void;
+    const calls: Array<{ prompt?: string; roomId?: string }> = [];
+    const responses = ['First sentence.', 'Second sentence.'];
 
-    const transcribe = vi.fn(async (wav: Blob, opts: { prompt?: string; roomId?: string }) => {
+    const transcribe = vi.fn(async (_wav: Blob, opts?: { prompt?: string; roomId?: string }) => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      calls.push({ prompt: opts.prompt, roomId: opts.roomId, wavSize: wav.size });
-      try {
-        if (calls.length === 1) {
-          return await new Promise<{ text: string; seconds: number }>((resolve) => {
-            resolveFirst = resolve;
-          });
-        }
-        return { text: 'second part.', seconds: 1.1 };
-      } finally {
-        inFlight -= 1;
-      }
+      calls.push({ prompt: opts?.prompt, roomId: opts?.roomId });
+      await Promise.resolve();
+      inFlight -= 1;
+      return { text: responses.shift() ?? '', seconds: 1.2 };
     });
 
-    const { track, stop } = createFakeTrack();
-    const { context, close } = createFakeAudioContext();
-    let pushFrame!: (frame: Float32Array) => void;
-
+    const rig = createFakeCaptureRig();
     const session = createDictationSession({
       client: { transcribe },
       roomId: '!room:example.org',
-      getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
-      createAudioContext: () => context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vi.fn(async () => undefined),
-      }),
-      sleep: async () => undefined,
-      onCaptureReady: (push) => {
-        pushFrame = push;
-      },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
     });
 
     expect(await session.start()).toBe(true);
     await flushMicrotasks();
 
-    // Emit two natural-pause segments while segment 0 is still uploading.
-    pushSpeechAndPause(pushFrame);
-    pushSpeechAndPause(pushFrame);
-    await flushMicrotasks(35);
-
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.prompt).toBeUndefined();
-    expect(calls[0]?.roomId).toBe('!room:example.org');
-    expect(session.getSnapshot().pendingUploads).toBe(2);
-
-    resolveFirst({ text: 'First sentence', seconds: 1.1 });
+    pushSpeechAndPause(rig.pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
     await flushMicrotasks(20);
 
+    const finished = await session.finish();
+    expect(finished).toEqual({
+      status: 'completed',
+      text: 'First sentence. Second sentence.',
+    });
     expect(maxInFlight).toBe(1);
-    expect(calls).toHaveLength(2);
-    expect(calls[1]?.prompt).toBe('First sentence');
-
-    const result = await session.finish();
-    expect(result).toEqual({ status: 'completed', text: 'First sentence second part.' });
-    expect(stop).toHaveBeenCalled();
-    expect(close).toHaveBeenCalled();
+    expect(calls).toEqual([
+      { prompt: undefined, roomId: '!room:example.org' },
+      { prompt: 'First sentence.', roomId: '!room:example.org' },
+    ]);
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('auto-retries mid-speech failures with Retry-After, retains WAVs, and supports retryFailed and takePartialText', async () => {
-    const sleep = vi.fn(async () => undefined);
+  it('retains failed segment WAV for auto-retry and manual retryFailed without re-uploading completed segments', async () => {
     let seg0Attempts = 0;
     let seg1Attempts = 0;
-    const transcribe = vi.fn(async (_wav: Blob, opts: { prompt?: string }) => {
-      // Segment 0 succeeds on its first attempt; segment 1 fails mid-speech (twice) and on Finish retry, then succeeds on manual retryFailed.
-      if (!opts.prompt) {
+    const sleepDelays: number[] = [];
+
+    const transcribe = vi.fn(async (_wav: Blob, opts?: { prompt?: string }) => {
+      if (!opts?.prompt) {
         seg0Attempts += 1;
         return { text: 'Hello from segment zero.', seconds: 1.0 };
       }
       seg1Attempts += 1;
       if (seg1Attempts <= 3) {
-        throw new DictationApiError('Rate limited', 429, 'too-many-requests', 2500);
+        throw new DictationApiError('Rate limited', 429, 'too-many-requests', 2000);
       }
       return { text: 'And segment one recovered.', seconds: 1.0 };
     });
 
-    const { track } = createFakeTrack();
-    const { context } = createFakeAudioContext();
-    let pushFrame!: (frame: Float32Array) => void;
-
+    const rig = createFakeCaptureRig();
+    let clock = 1_000;
     const session = createDictationSession({
       client: { transcribe },
-      getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
-      createAudioContext: () => context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vi.fn(async () => undefined),
-      }),
-      sleep,
-      onCaptureReady: (push) => {
-        pushFrame = push;
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      now: () => clock,
+      sleep: async (ms) => {
+        sleepDelays.push(ms);
+        clock += ms;
       },
     });
 
     await session.start();
     await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(40);
 
-    pushSpeechAndPause(pushFrame);
-    pushSpeechAndPause(pushFrame);
-    await flushMicrotasks(30);
+    expect(seg0Attempts).toBe(1);
+    expect(seg1Attempts).toBe(2);
+    expect(sleepDelays).toContain(2000);
+    expect(session.getSnapshot().failedSegments).toBe(1);
 
-    // Mid-speech failure auto-retried once with 2500 ms Retry-After, then stayed recording with 1 failed segment.
-    expect(sleep).toHaveBeenCalledWith(2500, expect.any(AbortSignal));
-    expect(session.getSnapshot()).toMatchObject({
-      phase: 'recording',
-      completedSegments: 1,
-      failedSegments: 1,
-      hasPartialText: true,
-    });
-
-    // Finish retries the failed segment once; still failing -> enters 'failed' recovery state with WAV intact.
-    const finishRes = await session.finish();
-    expect(finishRes).toMatchObject({
+    // Finish retries transient failed segment once more (attempt 3 -> still fails -> phase failed).
+    const finished = await session.finish();
+    expect(finished).toMatchObject({
       status: 'failed',
       failedSegments: 1,
       completedSegments: 1,
@@ -211,6 +179,73 @@ describe('createDictationSession', () => {
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
+  it('never auto-retries non-transient 400/403/413 errors mid-speech or on Finish', async () => {
+    const transcribe = vi.fn(async () => {
+      throw new DictationApiError('Audio too large', 413, 'too-large');
+    });
+    const rig = createFakeCaptureRig();
+    const sleep = vi.fn(async () => undefined);
+
+    const session = createDictationSession({
+      client: { transcribe },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      sleep,
+    });
+
+    await session.start();
+    await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(20);
+
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+
+    const finished = await session.finish();
+    expect(finished.status).toBe('failed');
+    expect(transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies 429 Retry-After queue-wide to subsequent queued segments', async () => {
+    let call = 0;
+    const sleepDelays: number[] = [];
+    let clock = 5_000;
+
+    const transcribe = vi.fn(async () => {
+      call += 1;
+      if (call <= 2) {
+        throw new DictationApiError('Too many requests', 429, 'too-many-requests', 4000);
+      }
+      return { text: 'Second segment ok.', seconds: 1.0 };
+    });
+
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      now: () => clock,
+      sleep: async (ms) => {
+        sleepDelays.push(ms);
+        clock += ms;
+      },
+    });
+
+    await session.start();
+    await flushMicrotasks();
+    // Enqueue 2 segments; seg 0 gets 429 twice (auto-retry + fail), setting retryNotBeforeMs.
+    pushSpeechAndPause(rig.pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(30);
+
+    // Both seg 0's retry AND seg 1's first attempt waited 4000 ms for the queue-wide deadline.
+    expect(sleepDelays).toEqual([4000, 4000]);
+    expect(session.getSnapshot()).toMatchObject({
+      failedSegments: 1,
+      completedSegments: 1,
+    });
+  });
+
   it('supports takePartialText when some segments succeeded and others failed', async () => {
     let count = 0;
     const transcribe = vi.fn(async () => {
@@ -219,30 +254,18 @@ describe('createDictationSession', () => {
       throw new DictationApiError('Backend down', 503, 'unavailable');
     });
 
-    const { track } = createFakeTrack();
-    const { context } = createFakeAudioContext();
-    let pushFrame!: (frame: Float32Array) => void;
-
+    const rig = createFakeCaptureRig();
     const session = createDictationSession({
       client: { transcribe },
-      getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
-      createAudioContext: () => context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vi.fn(async () => undefined),
-      }),
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
       sleep: async () => undefined,
-      onCaptureReady: (push) => {
-        pushFrame = push;
-      },
     });
 
     await session.start();
     await flushMicrotasks();
-    pushSpeechAndPause(pushFrame);
-    pushSpeechAndPause(pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
     await flushMicrotasks(25);
 
     const finished = await session.finish();
@@ -253,7 +276,7 @@ describe('createDictationSession', () => {
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('aborts in-flight uploads and releases mic on discard', async () => {
+  it('aborts in-flight uploads and disposes capture immediately on discard', async () => {
     let capturedSignal: AbortSignal | undefined;
     const transcribe = vi.fn(
       (_wav: Blob, _opts: unknown, signal?: AbortSignal) =>
@@ -265,68 +288,67 @@ describe('createDictationSession', () => {
         })
     );
 
-    const { track, stop } = createFakeTrack();
-    const { context, close } = createFakeAudioContext();
     const vadRelease = vi.fn(async () => undefined);
-    let pushFrame!: (frame: Float32Array) => void;
-
+    const rig = createFakeCaptureRig();
     const session = createDictationSession({
       client: { transcribe },
-      getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
-      createAudioContext: () => context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vadRelease,
-      }),
-      onCaptureReady: (push) => {
-        pushFrame = push;
-      },
+      loadVad: async () => makeVad(vadRelease),
+      captureFactory: rig.captureFactory,
     });
 
     await session.start();
     await flushMicrotasks();
-    pushSpeechAndPause(pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
     await flushMicrotasks(15);
     expect(transcribe).toHaveBeenCalledTimes(1);
 
     session.discard();
     expect(capturedSignal?.aborted).toBe(true);
-    expect(stop).toHaveBeenCalled();
-    expect(close).toHaveBeenCalled();
+    expect(rig.dispose).toHaveBeenCalledTimes(1);
+    expect(rig.stopAndFlush).not.toHaveBeenCalled();
     expect(vadRelease).toHaveBeenCalled();
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('pauses visibly and flushes captured speech when track.onended fires unexpectedly', async () => {
-    const transcribe = vi.fn(async () => ({ text: 'Captured before disconnect.', seconds: 0.6 }));
-    const { track, triggerEnded } = createFakeTrack();
-    const { context } = createFakeAudioContext();
-    let pushFrame!: (frame: Float32Array) => void;
-
+  it('awaits worklet stop tail flush on Pause and Finish so the final syllable is not clipped', async () => {
+    const transcribe = vi.fn(async () => ({ text: 'Tail captured.', seconds: 0.3 }));
+    const rig = createFakeCaptureRig();
     const session = createDictationSession({
       client: { transcribe },
-      getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
-      createAudioContext: () => context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vi.fn(async () => undefined),
-      }),
-      onCaptureReady: (push) => {
-        pushFrame = push;
-      },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
     });
 
     await session.start();
     await flushMicrotasks();
 
-    // Speak 4 frames without pausing, then simulate headset disconnect.
-    for (let i = 0; i < 4; i += 1) pushFrame(makeFrame(0.3));
+    // Only 1 voiced frame reached main thread before Finish; the 2nd frame arrives in the worklet stop tail.
+    rig.pushFrame(makeFrame(0.3));
+    rig.setTailOnStop([makeFrame(0.3)]);
+
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Tail captured.',
+    });
+    expect(rig.stopAndFlush).toHaveBeenCalledTimes(1);
+    expect(transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('pauses visibly and flushes captured speech when track.onended fires unexpectedly', async () => {
+    const transcribe = vi.fn(async () => ({ text: 'Captured before disconnect.', seconds: 0.6 }));
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+
+    await session.start();
+    await flushMicrotasks();
+
+    for (let i = 0; i < 4; i += 1) rig.pushFrame(makeFrame(0.3));
     await flushMicrotasks(10);
-    triggerEnded();
+    rig.triggerTrackEnded();
     await flushMicrotasks(20);
 
     expect(session.getSnapshot()).toMatchObject({
@@ -336,7 +358,6 @@ describe('createDictationSession', () => {
     });
     expect(transcribe).toHaveBeenCalledTimes(1);
 
-    // User can still click Finish and get all captured text.
     await expect(session.finish()).resolves.toEqual({
       status: 'completed',
       text: 'Captured before disconnect.',
@@ -349,32 +370,16 @@ describe('createDictationSession', () => {
       call += 1;
       return { text: call === 1 ? 'Before pause' : 'after resume.', seconds: 0.5 };
     });
-    const { track: track1 } = createFakeTrack();
-    const { track: track2 } = createFakeTrack();
-    let micCalls = 0;
-    let pushFrame!: (frame: Float32Array) => void;
-
+    const rig = createFakeCaptureRig();
     const session = createDictationSession({
       client: { transcribe },
-      getUserMedia: async () => {
-        micCalls += 1;
-        const t = micCalls === 1 ? track1 : track2;
-        return { getAudioTracks: () => [t], getTracks: () => [t] } as unknown as MediaStream;
-      },
-      createAudioContext: () => createFakeAudioContext().context,
-      loadVad: async () => ({
-        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-        reset: vi.fn(),
-        release: vi.fn(async () => undefined),
-      }),
-      onCaptureReady: (push) => {
-        pushFrame = push;
-      },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
     });
 
     await session.start();
     await flushMicrotasks();
-    for (let i = 0; i < 4; i += 1) pushFrame(makeFrame(0.3));
+    for (let i = 0; i < 4; i += 1) rig.pushFrame(makeFrame(0.3));
     await flushMicrotasks(10);
 
     await session.pause();
@@ -384,12 +389,56 @@ describe('createDictationSession', () => {
 
     expect(await session.resume()).toBe(true);
     await flushMicrotasks();
-    for (let i = 0; i < 4; i += 1) pushFrame(makeFrame(0.3));
+    for (let i = 0; i < 4; i += 1) rig.pushFrame(makeFrame(0.3));
     await flushMicrotasks(10);
 
     await expect(session.finish()).resolves.toEqual({
       status: 'completed',
       text: 'Before pause after resume.',
     });
+  });
+
+  it('reports a clear audio capture error when audioWorklet.addModule fails instead of blaming mic permissions', async () => {
+    const track = {
+      stop: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaStreamTrack;
+    const fakeContext = {
+      state: 'running',
+      sampleRate: 48_000,
+      destination: {},
+      onstatechange: null,
+      resume: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+      createMediaStreamSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
+      createAnalyser: vi.fn(() => ({
+        fftSize: 2048,
+        getByteTimeDomainData: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+      createGain: vi.fn(() => ({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() })),
+      audioWorklet: {
+        addModule: vi.fn(async () => {
+          throw new Error('CSP blocked module');
+        }),
+      },
+    } as unknown as AudioContext;
+
+    const session = createDictationSession({
+      client: { transcribe: vi.fn() },
+      getUserMedia: async () =>
+        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+      createAudioContext: () => fakeContext,
+      loadVad: async () => makeVad(),
+    });
+
+    expect(await session.start()).toBe(false);
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot().errorMessage).toBe(
+      'Could not initialize dictation audio capture.'
+    );
+    expect(track.stop).toHaveBeenCalled();
   });
 });

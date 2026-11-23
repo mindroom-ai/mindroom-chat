@@ -1076,10 +1076,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
-              {!phone && dictation.button}
+              {(!phone || Boolean(ask?.pickers)) && dictation.button}
               <ComposerSendButton
                 label={sendLabel}
-                alone={phone}
+                alone={phone && !(Boolean(ask?.pickers) && dictation.available)}
                 agentReplying={agentReplying}
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
                 empty={noText}

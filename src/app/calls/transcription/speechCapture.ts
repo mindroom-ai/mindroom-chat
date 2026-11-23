@@ -2,6 +2,7 @@ import type { MicVAD, RealTimeVADOptions } from '@ricky0123/vad-web';
 import {
   configureSpeechOrt,
   getSpeechModelDirectory,
+  keepAudioContextRunning,
   loadSpeechRuntime,
 } from '../../lib/speechModelAssets';
 
@@ -13,8 +14,6 @@ const SAMPLE_RATE = 16000;
  * at most that.
  */
 const LONGEST_STRETCH_SECONDS = 30;
-/** What a person does that lets a page start sound (browsers' autoplay rules). */
-const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
 
 /** One stretch of speech from this device's microphone. */
 export type SpeechStretch = {
@@ -203,22 +202,14 @@ export const startSpeechCapture = async (
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
   // the page (a call taken up again after a reload starts without a click), and a phone may
   // suspend it later (a call to the phone itself), so it asks again then and at each click or key.
-  const keepRunning = () => {
-    if (context.state !== 'running') context.resume().catch(() => undefined);
-  };
-  keepRunning();
-  context.onstatechange = keepRunning;
-  USER_GESTURES.forEach((type) => window.addEventListener(type, keepRunning, { capture: true }));
+  const stopKeepingRunning = keepAudioContextRunning(context);
 
   return {
     setPaused: (value) => set({ paused: value, muted }),
     setMuted: (value) => set({ paused, muted: value }),
     stop: () => {
       stopping ??= step((detector) => handingOn(detector, detector.destroy)).then(async () => {
-        context.onstatechange = null;
-        USER_GESTURES.forEach((type) =>
-          window.removeEventListener(type, keepRunning, { capture: true })
-        );
+        stopKeepingRunning();
         await context.close().catch(() => undefined);
       });
       return stopping;

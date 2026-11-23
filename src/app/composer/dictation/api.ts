@@ -97,11 +97,11 @@ export class DictationClient {
     opts: { prompt?: string; roomId?: string } = {},
     signal?: AbortSignal
   ): Promise<DictationTranscribeResult> {
+    const query = opts.roomId ? `?room_id=${encodeURIComponent(opts.roomId)}` : '';
     const form = new FormData();
     form.append('audio', wav, 'speech.wav');
     if (opts.prompt) form.append('prompt', opts.prompt);
-    if (opts.roomId) form.append('room_id', opts.roomId);
-    return this.sendJson<DictationTranscribeResult>('/transcribe', {
+    return this.sendJson<DictationTranscribeResult>(`/transcribe${query}`, {
       method: 'POST',
       body: form,
       signal,
@@ -112,6 +112,7 @@ export class DictationClient {
 type StatusCacheEntry = {
   value?: boolean;
   expiresAt: number;
+  transient?: boolean;
   pending?: Promise<boolean>;
 };
 
@@ -135,6 +136,19 @@ export const readCachedDictationAvailability = (
   const entry = statusCache.get(sessions)?.get(roomId ?? '');
   if (!entry || entry.value === undefined || entry.expiresAt <= now) return undefined;
   return entry.value;
+};
+
+/**
+ * Returns the timestamp at which a cached transient status failure becomes stale and eligible for
+ * retry, or undefined if no transient failure is recorded.
+ */
+export const readCachedDictationRetryAt = (
+  sessions: ClientSessions,
+  roomId?: string
+): number | undefined => {
+  const entry = statusCache.get(sessions)?.get(roomId ?? '');
+  if (!entry?.transient || entry.value !== false) return undefined;
+  return entry.expiresAt;
 };
 
 /**
@@ -163,14 +177,14 @@ export const probeDictationAvailability = (
   const pending = client.status(roomId).then(
     (status) => {
       const value = Boolean(status.enabled);
-      map.set(key, { value, expiresAt: now() + DICTATION_STATUS_CACHE_TTL_MS });
+      map.set(key, { value, expiresAt: now() + DICTATION_STATUS_CACHE_TTL_MS, transient: false });
       return value;
     },
     (error: unknown) => {
       const permanent =
         error instanceof MindroomServerError && (error.status === 403 || error.status === 404);
       const ttl = permanent ? DICTATION_STATUS_CACHE_TTL_MS : TRANSIENT_CACHE_TTL_MS;
-      map.set(key, { value: false, expiresAt: now() + ttl });
+      map.set(key, { value: false, expiresAt: now() + ttl, transient: !permanent });
       return false;
     }
   );

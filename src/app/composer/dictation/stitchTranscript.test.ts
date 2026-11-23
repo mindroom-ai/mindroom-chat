@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   appendTranscriptSegment,
   buildTrailingPrompt,
-  isPromptEcho,
   joinTranscriptParts,
+  needsSpaceBetween,
   stitchTranscript,
 } from './stitchTranscript';
 
@@ -16,6 +16,15 @@ describe('joinTranscriptParts', () => {
     expect(joinTranscriptParts('(draft', ')')).toBe('(draft)');
     expect(joinTranscriptParts('', 'Start')).toBe('Start');
     expect(joinTranscriptParts('End', '   ')).toBe('End');
+  });
+
+  it('handles CJK punctuation and skips spaces between adjacent CJK characters', () => {
+    expect(joinTranscriptParts('今日は', 'いい天気です')).toBe('今日はいい天気です');
+    expect(joinTranscriptParts('你好', '，世界！')).toBe('你好，世界！');
+    expect(joinTranscriptParts('你好。', '再见')).toBe('你好。再见');
+    expect(joinTranscriptParts('テスト', '。')).toBe('テスト。');
+    expect(needsSpaceBetween('今天', '天气')).toBe(false);
+    expect(needsSpaceBetween('hello', 'world')).toBe(true);
   });
 });
 
@@ -36,7 +45,10 @@ describe('stitchTranscript overlap deduplication', () => {
     expect(stitched).toBe('Intro One, TWO three four five six and seven.');
   });
 
-  it('does not deduplicate repeated words when overlapped is false', () => {
+  it('preserves real non-overlapping short speech even when it matches prior wording', () => {
+    expect(appendTranscriptSegment('Are you sure?', { text: 'Sure.', overlapped: false })).toBe(
+      'Are you sure? Sure.'
+    );
     const stitched = stitchTranscript([
       { text: 'Very good', overlapped: false },
       { text: 'good point.', overlapped: false },
@@ -63,7 +75,6 @@ describe('buildTrailingPrompt', () => {
     const prompt = buildTrailingPrompt(long, 50);
     expect(prompt).toBeDefined();
     expect(prompt!.length).toBeLessThanOrEqual(50);
-    // Must not start mid-word.
     expect(long.endsWith(prompt!)).toBe(true);
     const startIdx = long.length - prompt!.length;
     expect(startIdx === 0 || /\s/.test(long[startIdx - 1] ?? '')).toBe(true);
@@ -72,27 +83,5 @@ describe('buildTrailingPrompt', () => {
   it('handles a single unbroken token longer than maxChars cleanly', () => {
     const token = 'a'.repeat(250);
     expect(buildTrailingPrompt(token, 200)).toBe('a'.repeat(200));
-  });
-});
-
-describe('prompt-echo guard', () => {
-  it('drops short low-energy tail chunks that merely repeat a suffix of the sent prompt', () => {
-    const prompt = 'Let us meet in the lobby on Tuesday.';
-    expect(isPromptEcho('on Tuesday.', prompt, { seconds: 0.7, peakRms: 0.02 })).toBe(true);
-    expect(
-      appendTranscriptSegment(prompt, {
-        text: 'on Tuesday.',
-        prompt,
-        seconds: 0.7,
-        peakRms: 0.02,
-      })
-    ).toBe(prompt);
-  });
-
-  it('preserves loud deliberate repetitions and longer speech', () => {
-    const prompt = 'Please confirm yes.';
-    expect(isPromptEcho('Yes.', prompt, { seconds: 0.6, peakRms: 0.2 })).toBe(false);
-    expect(isPromptEcho('confirm yes.', prompt, { seconds: 3.2, peakRms: 0.03 })).toBe(false);
-    expect(isPromptEcho('no problem.', prompt, { seconds: 0.5, peakRms: 0.02 })).toBe(false);
   });
 });

@@ -86,6 +86,7 @@ const installSpokenMicrophone = (speechBase64: string) => {
 };
 
 type TranscribeRecord = {
+  roomId: string | null;
   contentType: string;
   bodyText: string;
 };
@@ -137,6 +138,7 @@ const serveDictationApi = async (
     if (url.pathname === '/api/dictation/v1/transcribe') {
       const buf = request.postDataBuffer();
       onTranscribe({
+        roomId: url.searchParams.get('room_id'),
         contentType: request.headers()['content-type'] ?? '',
         bodyText: buf ? buf.toString('latin1') : '',
       });
@@ -201,9 +203,9 @@ test('uploads a speech segment before Finish, inserts editable text, and makes n
 
     // Early segment upload must fire after the natural pause BEFORE Finish is clicked.
     await expect.poll(() => transcribeCalls.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+    expect(transcribeCalls[0]?.roomId).toBe(roomId);
     expect(transcribeCalls[0]?.contentType).toContain('multipart/form-data');
     expect(transcribeCalls[0]?.bodyText).toContain('filename="speech.wav"');
-    expect(transcribeCalls[0]?.bodyText).toContain(roomId);
 
     // Editor must NOT be mutated while still dictating.
     await expect(composer).not.toContainText('Ship the dictation feature today.');

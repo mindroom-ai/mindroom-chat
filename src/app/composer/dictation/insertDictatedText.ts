@@ -10,9 +10,7 @@ import {
 } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
-import { startsWithGluedPunctuation } from './stitchTranscript';
-
-const OPENING_NO_SPACE = /[([{"']$/;
+import { needsSpaceBetween } from './stitchTranscript';
 
 const isValidPoint = (editor: Editor, point: BaseRange['anchor']): boolean => {
   if (!SlateNode.has(editor, point.path)) return false;
@@ -44,22 +42,9 @@ const withSmartSpacing = (editor: Editor, text: string): string => {
     focus: SlateEditor.end(editor, blockPath),
   });
 
-  const charBefore = beforeText.slice(-1);
-  const charAfter = afterText.slice(0, 1);
-
-  const needsLeadingSpace =
-    charBefore !== '' &&
-    !/\s/.test(charBefore) &&
-    !OPENING_NO_SPACE.test(charBefore) &&
-    !startsWithGluedPunctuation(text);
-
-  const needsTrailingSpace =
-    charAfter !== '' &&
-    !/\s/.test(charAfter) &&
-    !startsWithGluedPunctuation(charAfter) &&
-    !/\s$/.test(text);
-
-  return `${needsLeadingSpace ? ' ' : ''}${text}${needsTrailingSpace ? ' ' : ''}`;
+  const leadingSpace = needsSpaceBetween(beforeText, text) ? ' ' : '';
+  const trailingSpace = needsSpaceBetween(text, afterText) ? ' ' : '';
+  return `${leadingSpace}${text}${trailingSpace}`;
 };
 
 /**
@@ -86,7 +71,8 @@ export const insertDictatedText = (
   };
 
   if (HistoryEditor.isHistoryEditor(editor)) {
-    HistoryEditor.withoutMerging(editor, run);
+    // Starts a fresh undo batch and merges replacement delete + insert into one undo step.
+    HistoryEditor.withNewBatch(editor, run);
   } else {
     run();
   }
