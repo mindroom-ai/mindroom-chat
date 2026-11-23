@@ -19,6 +19,7 @@ import {
   type ReactVirtualizer,
 } from '@tanstack/react-virtual';
 import { threadScrollRange } from './threadScrollRange';
+import { NOOP_THREAD_SCROLL_TO_FN } from './threadScrollWriter';
 import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
@@ -89,6 +90,7 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEventIndexMap: ReadonlyMap<string, number>;
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
+  threadScrollOwnerEnabled?: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   /** What `estimateSize` prices a thread's rows by besides their events, by identity. */
   threadRowPricing?: unknown;
@@ -226,6 +228,7 @@ export const useTimelineScrollLedgerController = ({
   threadEventIndexMap,
   threadEvents,
   threadId,
+  threadScrollOwnerEnabled = false,
   threadInitialRenderMode,
   threadRowPricing,
   leadingKey = '',
@@ -490,6 +493,7 @@ export const useTimelineScrollLedgerController = ({
     observeElementRect: observeTimelineRect,
     observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
+    ...(threadId && threadScrollOwnerEnabled ? { scrollToFn: NOOP_THREAD_SCROLL_TO_FN } : {}),
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.

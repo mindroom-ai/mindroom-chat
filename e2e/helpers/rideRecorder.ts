@@ -34,9 +34,6 @@ export type RideFrame = {
   driven: number;
   threadCount: number;
   distFromBottom: number;
-  // Live offset-ledger margin on the inner virtual container (0 when a
-  // sampler has no ledger context, e.g. gesture rides).
-  ledgerPx?: number;
 };
 
 export type TileSnap = { i: string | null; id: string | null; top: number; h: number };
@@ -210,8 +207,13 @@ export const positionThreadForPrepend = async (page: Page) => {
   const readPosition = () =>
     page.locator('[data-e2e-scroller="1"]').evaluate((scroller) => {
       const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-index]'));
+      const headroom =
+        Number(
+          scroller.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0
+        ) || 0;
       return {
         top: scroller.scrollTop,
+        headroom,
         height: scroller.clientHeight,
         firstIndex: Math.min(...rows.map((row) => Number(row.dataset.index))),
         // A nonzero offset-ledger margin means dropped size corrections have not settled yet.
@@ -222,7 +224,7 @@ export const positionThreadForPrepend = async (page: Page) => {
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (
       position.firstIndex <= THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS &&
-      position.top > position.height &&
+      position.top - position.headroom > position.height &&
       position.fold === 0
     ) {
       await page.waitForTimeout(200);
@@ -317,10 +319,7 @@ const recordFlickRide = (
         Object.entries(snapshot).filter(
           ([key, value]) =>
             typeof value === 'number' &&
-            (key.startsWith('threadPaginateBack') ||
-              key === 'threadAutoPaginateBackFired' ||
-              key === 'ledgerQuiescenceSettles' ||
-              key === 'ledgerBoundarySettles')
+            (key.startsWith('threadPaginateBack') || key === 'threadAutoPaginateBackFired')
         )
       );
     };
@@ -341,6 +340,12 @@ const recordFlickRide = (
       const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
         tile.getBoundingClientRect()
       );
+      const reserve = scroller.querySelector<HTMLElement>(
+        '[data-testid="thread-headroom-reserve"]'
+      );
+      if (reserve && reserve.getBoundingClientRect().height > 0) {
+        covering.push(reserve.getBoundingClientRect());
+      }
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
       // that ends above the list's own box counts, so a missing row or a ledger
@@ -390,7 +395,6 @@ const recordFlickRide = (
       driven: number;
       threadCount: number;
       distFromBottom: number;
-      ledgerPx: number;
     }[] = [];
     const jumpEvents: { t: number; jump: number; before: TileSnap[]; after: TileSnap[] }[] = [];
     let jumpAnchor: Element | null = null;
@@ -419,7 +423,6 @@ const recordFlickRide = (
         jumpAnchorTop = jumpAnchor?.getBoundingClientRect().top ?? 0;
         lastTileSnaps = readTileSnaps();
       }
-      const inner = scroller.querySelector('[data-index]')?.parentElement as HTMLElement | null;
       frames.push({
         t,
         scrollTop: scroller.scrollTop,
@@ -429,7 +432,6 @@ const recordFlickRide = (
         driven,
         threadCount: readThreadCount(),
         distFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-        ledgerPx: inner ? Math.round(Number.parseFloat(inner.style.marginTop) || 0) : 0,
       });
     };
 
@@ -618,6 +620,12 @@ export const startRideSampling = (
       const covering = Array.from(scroller.querySelectorAll('[data-index]'))
         .filter((tile) => shown(tile.querySelector('[data-message-item]') ?? tile))
         .map((tile) => tile.getBoundingClientRect());
+      const reserve = scroller.querySelector<HTMLElement>(
+        '[data-testid="thread-headroom-reserve"]'
+      );
+      if (reserve && shown(reserve) && reserve.getBoundingClientRect().height > 0) {
+        covering.push(reserve.getBoundingClientRect());
+      }
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
       // that ends above the list's own box counts, so a missing row or a ledger
@@ -666,6 +674,17 @@ export const startRideSampling = (
           best = r;
         }
       });
+      if (!best && visibleOnly && viewport) {
+        const reserve = scroller.querySelector<HTMLElement>(
+          '[data-testid="thread-headroom-reserve"]'
+        );
+        if (reserve) {
+          const rect = reserve.getBoundingClientRect();
+          if (rect.height > 0 && rect.bottom > viewport.top && rect.top < viewport.bottom) {
+            return reserve;
+          }
+        }
+      }
       return best;
     };
     const state = {

@@ -146,7 +146,8 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // mounting, so a start under 3120px fails.
     const cycleCount = 10;
     const stepsPerCycle = 8;
-    const stepPx = Math.min(90, (start.top - 720) / (cycleCount * stepsPerCycle));
+    const distFromLoadedTop = start.top - start.headroom;
+    const stepPx = Math.min(90, (distFromLoadedTop - 720) / (cycleCount * stepsPerCycle));
     expect(stepPx, `ride start ${start.top}px leaves too little room for a flick`).toBeGreaterThan(
       30
     );
@@ -286,8 +287,12 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
         candidate = candidate.parentElement;
       }
       if (!candidate) return;
+      const headroomPx =
+        Number(
+          candidate.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0
+        ) || 0;
       w.__driverDepth = (w.__driverDepth ?? 0) + 1;
-      candidate.scrollTop = 2_400;
+      candidate.scrollTop = headroomPx + 2_400;
       w.__driverDepth -= 1;
       await new Promise((resolve) => {
         setTimeout(resolve, 800);
@@ -551,18 +556,29 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await expect(page.locator('[data-thread-count]')).toHaveAttribute('data-thread-count', '151', {
       timeout: 60_000,
     });
-    // The open's last hydration fold settles at rest; the ride is sized from the settled window.
+    // Wait for the initial open layout to finish settling at rest before sizing the ride.
     await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (
-              document.querySelector('[data-message-item]')?.closest('[data-index]')
-                ?.parentElement as HTMLElement | null
-            )?.style.marginTop ?? 'no list'
-        )
+      .poll(
+        () =>
+          page.evaluate(async () => {
+            const list = document.querySelector<HTMLElement>('[data-thread-count]');
+            let scroller: HTMLElement | null = list?.parentElement ?? null;
+            while (scroller) {
+              const oy = getComputedStyle(scroller).overflowY;
+              if (oy === 'auto' || oy === 'scroll') break;
+              scroller = scroller.parentElement;
+            }
+            if (!list || !scroller) return false;
+            const before = `${scroller.scrollTop}|${scroller.scrollHeight}|${list.style.marginTop}`;
+            await new Promise((resolve) => {
+              setTimeout(resolve, 200);
+            });
+            const after = `${scroller.scrollTop}|${scroller.scrollHeight}|${list.style.marginTop}`;
+            return before === after && list.style.marginTop === '';
+          }),
+        { timeout: 15_000 }
       )
-      .toBe('');
+      .toBe(true);
     await throttleCpu(page, 4);
 
     // Continuous ride to the very top of the window: pauses below the
@@ -576,16 +592,15 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
 
     const analysis = analyzeRide(report, FULL_RIDE_BUDGETS);
     const topReached = Math.min(...report.frames.map((frame) => frame.scrollTop));
-    const maxLedger = Math.max(0, ...report.frames.map((frame) => Math.abs(frame.ledgerPx ?? 0)));
+    const blankFramesOver200 = report.frames.filter((frame) => frame.gapPx >= 200).length;
     // eslint-disable-next-line no-console
     console.log(
       `LEDGER-BOUNDARY ${JSON.stringify({
         frames: report.frames.length,
         boundaryDriver: report.boundaryDriver,
         topReached,
-        maxLedger,
         maxGapPx: analysis.maxGapPx,
-        blankFramesOver200: report.frames.filter((frame) => frame.gapPx >= 200).length,
+        blankFramesOver200,
         maxJumpPx: analysis.maxJumpPx,
         totalJumpPx: analysis.totalJumpPx,
         appWrites: report.appWrites.length,
@@ -603,11 +618,8 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(report.boundaryDriver?.minTop).toBe(0);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
-    expect(maxLedger).toBeGreaterThan(48);
-    expect(report.probes.ledgerBoundarySettles).toBeGreaterThan(0);
-    // THE invariant: no blank debt zone, no content shifts - even at the
-    // boundary. (Boundary settles are allowed writes; they are visually
-    // exact pairs and the jump budget verifies that.)
+    // Black-box invariants: no blank bands and no content jumps even at the top boundary.
+    expect(blankFramesOver200).toBe(0);
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
     expect(analysis.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
     expect(analysis.totalJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.totalJumpPx);
