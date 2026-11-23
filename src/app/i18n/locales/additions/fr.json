@@ -1859,6 +1859,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} autre fil",
+    "moreThreads_many": "{{count}} de fils supplémentaires",
+    "moreThreads_other": "{{count}} autres fils",
     "forMe": "Pour moi",
     "forMeHint": "Uniquement les fils auxquels vous participez, dans lesquels un agent a publié pour vous ou que vous avez épinglés",
     "roomForMeHint": "Uniquement les fils auxquels vous participez ou dans lesquels un agent a publié pour vous",

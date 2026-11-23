@@ -1990,10 +1990,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // the bar instead, which pages back to the room's start and there says it has no thread (not
   // the intro: the header already names the room). A filter that hides every thread keeps the
   // cards and their empty state.
-  const noThreadYet =
-    compactCards &&
-    !threadIndex.showCompactRoomView &&
-    (roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp);
+  const hydrating = roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp;
+  const noThreadYet = compactCards && !threadIndex.showCompactRoomView && hydrating;
   if (noThreadYet) {
     return (
       <Box grow="Yes" alignItems="Center" justifyContent="Center">
@@ -2023,6 +2021,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           focusRequest={focusRequest}
+          // The timeline cache read is skipped for an event address.
+          indexPending={(eventId ? clientCatchingUp : hydrating) || threadIndex.threadListLoading}
+          focusScope={threadIndex.threadSortControlSignature}
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}

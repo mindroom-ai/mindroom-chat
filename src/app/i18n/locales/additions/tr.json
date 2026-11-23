@@ -1805,6 +1805,8 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} konu daha",
+    "moreThreads_other": "{{count}} konu daha",
     "forMe": "Benim için",
     "forMeHint": "Yalnızca katıldığınız, bir ajanın sizin adınıza mesaj gönderdiği veya sabitlediğiniz konular",
     "roomForMeHint": "Yalnızca katıldığınız veya bir ajanın sizin adınıza mesaj gönderdiği konular",

@@ -127,6 +127,7 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
    * which still reads the list's last load.
    */
   threadListSettled: boolean;
+  threadListLoading: boolean;
   refreshRoomThreadList: () => Promise<void>;
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
   /** The time the list was filtered at, renewed when a snooze ends (Compact's sections use it). */
@@ -786,6 +787,7 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     availableRoomTags,
     roomThreadListThreads,
+    threadListLoading: roomThreadListLoading,
     threadListSettled:
       (compactViewRequested || threadsViewListed) &&
       roomThreadListLoadedSuccessfully &&

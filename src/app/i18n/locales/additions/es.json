@@ -1859,6 +1859,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} hilo más",
+    "moreThreads_many": "{{count}} de hilos más",
+    "moreThreads_other": "{{count}} hilos más",
     "forMe": "Para mí",
     "forMeHint": "Solo los hilos en los que participas, en los que un agente publicó por ti o que has fijado",
     "roomForMeHint": "Solo los hilos en los que participas o en los que un agente publicó por ti",

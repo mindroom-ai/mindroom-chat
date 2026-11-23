@@ -1751,6 +1751,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "另有 {{count}} 个讨论串",
     "forMe": "与我相关",
     "forMeHint": "只显示你参与过、代理代你发过消息或你已置顶的讨论串",
     "roomForMeHint": "只显示你参与过或代理代你发过消息的讨论串",

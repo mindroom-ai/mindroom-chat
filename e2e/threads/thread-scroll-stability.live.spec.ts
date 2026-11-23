@@ -1,5 +1,6 @@
 import { chromium, expect, test, type Browser, type BrowserContextOptions } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, expectCompactCardCount } from '../helpers/compactCards';
 import {
   agentReply,
   buildBusyThreadRoom,
@@ -102,9 +103,8 @@ test.describe('scrolling a room with many agent threads', () => {
 
         await open('compact');
         const cards = page.locator('[data-compact-room-view="true"] [data-scroll-anchor]');
-        await expect
-          .poll(() => cards.count(), { timeout: 120_000 })
-          .toBeGreaterThanOrEqual(THREADS);
+        // The list mounts a window of its cards: it is ready once it has measured them all.
+        await expectCompactCardCount(page.locator(COMPACT_VIEW), THREADS, { atLeast: true });
         // The cards of the first screen load their threads.
         await page.waitForTimeout(3_000);
         // A card's age ticks from "now" to "1m" and on; its slot keeps its width, so the title
