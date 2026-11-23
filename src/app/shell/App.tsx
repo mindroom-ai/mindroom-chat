@@ -20,6 +20,7 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
+import { usePendingNativeNotificationClears } from '../notifications/push/usePendingNativeNotificationClears';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -92,6 +93,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
 function App() {
   // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
   useMobileKeyboardViewportFix();
+  // What a signed-out account still shares with the iOS notification extension is removed, also
+  // on the sign-in pages.
+  usePendingNativeNotificationClears();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);

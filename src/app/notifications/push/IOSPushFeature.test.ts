@@ -4,15 +4,14 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import {
-  clearAllNativeNotificationAccounts,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
 } from '../../native/nativeNotifications';
 import {
   checkIOSPushPermission,
+  clearAllNativeNotificationAccountsWithRetry,
   clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
-  flushPendingNativeNotificationClears,
   forgetPendingNativeNotificationClear,
   getOrCreateIOSPushProfileTag,
   registerIOSPush,
@@ -41,6 +40,12 @@ const joinedMember = (userId: string, mxcUrl: string | null = null): RoomMemberS
   userId,
   membership: KnownMembership.Join,
   getMxcAvatarUrl: () => mxcUrl,
+});
+
+/** A member whose membership event has something else than a string for `avatar_url`. */
+const malformedMember = (userId: string, avatarUrl: unknown): RoomMemberStub => ({
+  ...joinedMember(userId),
+  getMxcAvatarUrl: () => avatarUrl as string,
 });
 
 const state = vi.hoisted(() => {
@@ -73,6 +78,8 @@ const state = vi.hoisted(() => {
     permissionPending: undefined as Promise<void> | undefined,
     // Storage that is full or blocked: a new tag is handed out but not kept.
     tagStorageFails: false,
+    // A removal of every account that the app has not confirmed yet.
+    clearAllPending: false,
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
     onAppStateChange: undefined as ((appState: { isActive: boolean }) => void) | undefined,
     rooms: [] as RoomStub[],
@@ -137,9 +144,13 @@ vi.mock('./iosPush', () => ({
     if (!state.tagStorageFails) state.storedTags.set(key, tag);
     return tag;
   }),
+  clearAllNativeNotificationAccountsWithRetry: vi.fn(async () => {
+    state.clearAllPending = false;
+    return true;
+  }),
   clearNativeNotificationAccountWithRetry: vi.fn(async () => undefined),
-  flushPendingNativeNotificationClears: vi.fn(async () => undefined),
   forgetPendingNativeNotificationClear: vi.fn(),
+  hasPendingNativeNotificationClearAll: () => state.clearAllPending,
   isNativeIOSPlatform: () => true,
   registerIOSPush: vi.fn(async () => undefined),
   resolveEffectiveIOSPushFormat: (pushConfig: { format: 'full' | 'event_id_only' }) =>
@@ -156,7 +167,6 @@ vi.mock('../../native/cloudflareAccess', () => ({
   useCloudflareAccessSignInRequired: () => state.signInRequired,
 }));
 vi.mock('../../native/nativeNotifications', () => ({
-  clearAllNativeNotificationAccounts: vi.fn(async () => undefined),
   isNativeNotificationsAvailable: () => state.nativeNotificationsAvailable,
   syncNativeNotificationAccount: vi.fn(async () => undefined),
   syncNativeNotificationAvatars: vi.fn(async () => undefined),
@@ -207,6 +217,7 @@ describe('NativeIOSPushFeature', () => {
     state.permission = 'granted';
     state.permissionPending = undefined;
     state.tagStorageFails = false;
+    state.clearAllPending = false;
     state.onRegistration = undefined;
     state.onAppStateChange = undefined;
     state.rooms = [];
@@ -358,8 +369,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
     expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
-    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
-    expect(flushPendingNativeNotificationClears).not.toHaveBeenCalled();
+    expect(clearAllNativeNotificationAccountsWithRetry).not.toHaveBeenCalled();
     // No room's members are gone through for avatars nobody would show.
     expect(state.mx.getRooms).not.toHaveBeenCalled();
     expect(state.onAppStateChange).toBeUndefined();
@@ -374,17 +384,117 @@ describe('NativeIOSPushFeature', () => {
     renderer.unmount();
   });
 
-  it('tries the clears again that the app did not confirm, at the start and when the app becomes active', async () => {
+  it('shares the avatars only once the app has stored the account', async () => {
     state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    let answer: () => void = () => undefined;
+    vi.mocked(syncNativeNotificationAccount).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        answer = resolve;
+      })
+    );
+
+    // The app keeps avatars only for an account it knows: before it has answered, a list of
+    // avatars would be dropped, and not sent again while it stays the same.
+    const renderer = await mount();
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+
+    await act(async () => answer());
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledWith(
+      expect.objectContaining({ accountTag: 'tag-s1' })
+    );
+    renderer.unmount();
+  });
+
+  it('shares the avatars of the other members when one has an avatar that is not a string', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [
+      {
+        roomId: '!agents:private.example',
+        getMyMembership: () => KnownMembership.Join,
+        getJoinedMembers: () => [
+          malformedMember('@broken:private.example', 123),
+          malformedMember('@odd:private.example', {}),
+          joinedMember('@agent:private.example', 'mxc://private.example/agent-v1'),
+        ],
+      },
+    ];
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    // Thrown in the effect, it would take the whole feature down.
+    const renderer = await mount();
+
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledWith({
+      accountTag: 'tag-s1',
+      avatars: [
+        {
+          roomId: '!agents:private.example',
+          sender: '@agent:private.example',
+          mxcUrl: 'mxc://private.example/agent-v1',
+        },
+      ],
+    });
+    renderer.unmount();
+    consoleError.mockRestore();
+  });
+
+  it('shares no avatars for an account that the app could not store', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    vi.mocked(syncNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
 
     const renderer = await mount();
-    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
-    await act(async () => state.onAppStateChange?.({ isActive: false }));
-    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(1);
+    // A new token is another try, and this time the app stores the account.
+    state.activeSession = { sessionId: 's1', accessToken: 'session-token-v2' };
+    await rerender(renderer);
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(2);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+    warn.mockRestore();
+  });
 
+  it('makes a removal of every account that is still owed before it shares the account, and waits while that fails', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    // iOS denied notifications earlier, and the app could not remove the accounts then.
+    state.clearAllPending = true;
+    vi.mocked(clearAllNativeNotificationAccountsWithRetry).mockResolvedValueOnce(false);
+
+    // Shared now, the account would be removed by the removal once it succeeds.
+    const renderer = await mount();
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(1);
+    expect(forgetPendingNativeNotificationClear).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+
+    // The next time the app becomes active the removal is made, and the account shared after it.
+    let syncedAfterClearAll = false;
+    vi.mocked(syncNativeNotificationAccount).mockImplementationOnce(async () => {
+      syncedAfterClearAll = !state.clearAllPending;
+    });
     await act(async () => state.onAppStateChange?.({ isActive: true }));
-    expect(flushPendingNativeNotificationClears).toHaveBeenCalledTimes(2);
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(2);
+    expect(forgetPendingNativeNotificationClear).toHaveBeenCalledWith('tag-s1');
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(syncedAfterClearAll).toBe(true);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+
+    // Nothing is owed any more: becoming active again shares nothing anew.
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(2);
+    expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(1);
     renderer.unmount();
   });
 
@@ -439,7 +549,7 @@ describe('NativeIOSPushFeature', () => {
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
     expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s1');
-    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
+    expect(clearAllNativeNotificationAccountsWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -454,7 +564,7 @@ describe('NativeIOSPushFeature', () => {
 
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(1);
     expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
@@ -480,7 +590,7 @@ describe('NativeIOSPushFeature', () => {
     await rerender(renderer);
     expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledTimes(1);
     expect(clearNativeNotificationAccountWithRetry).toHaveBeenCalledWith('tag-s2');
-    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
+    expect(clearAllNativeNotificationAccountsWithRetry).not.toHaveBeenCalled();
 
     state.pushEnabled = true;
     await rerender(renderer);
@@ -490,7 +600,7 @@ describe('NativeIOSPushFeature', () => {
     // active too.
     state.permission = 'denied';
     await act(async () => state.onAppStateChange?.({ isActive: true }));
-    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(1);
     expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     renderer.unmount();
   });
@@ -581,7 +691,7 @@ describe('NativeIOSPushFeature', () => {
     vi.mocked(clearNativeNotificationAccountWithRetry).mockClear();
     state.permission = 'denied';
     await act(async () => state.onAppStateChange?.({ isActive: true }));
-    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearAllNativeNotificationAccountsWithRetry).toHaveBeenCalledTimes(1);
     expect(clearNativeNotificationAccountWithRetry).not.toHaveBeenCalled();
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
@@ -842,5 +952,32 @@ describe('collectJoinedMemberAvatars', () => {
         (_, index) => `@older${String(index).padStart(3, '0')}:private.example`
       )
     );
+  });
+
+  it('passes over an avatar that is not a string, as a malformed membership event can carry it', () => {
+    const rooms = [
+      room('!a:private.example', 100, [
+        malformedMember('@number:private.example', 123),
+        malformedMember('@object:private.example', {}),
+        malformedMember('@list:private.example', ['mxc://private.example/in-a-list']),
+        joinedMember('@http:private.example', 'https://private.example/avatar.png'),
+        joinedMember('@valid:private.example', 'mxc://private.example/valid'),
+        joinedMember('@zoe:private.example', 'mxc://private.example/zoe'),
+      ]),
+    ];
+
+    expect(() => collect(rooms)).not.toThrow();
+    expect(collect(rooms)).toEqual([
+      {
+        roomId: '!a:private.example',
+        sender: '@valid:private.example',
+        mxcUrl: 'mxc://private.example/valid',
+      },
+      {
+        roomId: '!a:private.example',
+        sender: '@zoe:private.example',
+        mxcUrl: 'mxc://private.example/zoe',
+      },
+    ]);
   });
 });

@@ -3,7 +3,7 @@ import Security
 import XCTest
 
 /// Stands in for the Keychain: items by account, and a status to answer a delete with.
-private final class FakeKeychain: @unchecked Sendable {
+final class FakeKeychain: @unchecked Sendable {
     var items: [String: Data] = [:]
     var addStatus: OSStatus?
     var deleteStatus: OSStatus?

@@ -15,6 +15,9 @@ private struct AvatarSyncEntry: Sendable {
 /// the avatar sync tasks and their generation counters, so that an in-flight download can never
 /// bring an account's cache back after `clearAccount` or `clearAllAccounts`, nor write over the
 /// result of a later sync.
+///
+/// The plugin calls it from its `NotificationAccountMutationQueue` only, one change at a time in
+/// the order the web side asked for them.
 private final class AvatarSyncCoordinator: @unchecked Sendable {
     private static let maxConcurrentDownloads = 4
 
@@ -76,21 +79,23 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         previous?.cancel()
     }
 
-    /// Removes what the account shares with the notification extension. False when the Keychain
-    /// kept the account's record; everything else is removed either way.
-    func clearAccount(accountTag: String) async -> Bool {
-        let removed = removeAccount(accountTag)
-        // What the notification extension donated for the account's messages.
-        try? await INInteraction.delete(with: accountTag)
-        return removed
+    /// Removes what the account shares with the notification extension: its record and its
+    /// avatars, then what the notification extension donated for its messages. Done only when
+    /// neither the Keychain nor Siri refused; everything else is removed either way.
+    func clearAccount(accountTag: String) async -> NotificationAccountCleanup.Outcome {
+        await NotificationAccountCleanup.run(
+            removeSharedState: { removeAccount(accountTag) },
+            deleteInteractions: { try await INInteraction.delete(with: accountTag) }
+        )
     }
 
     /// Removes what every account shares with the notification extension, also the accounts
-    /// that are not the active one. False when the Keychain kept a record.
-    func clearAllAccounts() async -> Bool {
-        let removed = removeAllAccounts()
-        try? await INInteraction.deleteAll()
-        return removed
+    /// that are not the active one.
+    func clearAllAccounts() async -> NotificationAccountCleanup.Outcome {
+        await NotificationAccountCleanup.run(
+            removeSharedState: { removeAllAccounts() },
+            deleteInteractions: { try await INInteraction.deleteAll() }
+        )
     }
 
     private func removeAccount(_ accountTag: String) -> Bool {
@@ -295,6 +300,19 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
     }
 }
 
+/// Answers a clear: it failed unless the Keychain record and the donated interactions are both
+/// gone, so that the web side knows to try again.
+private func answerClear(_ call: CAPPluginCall, _ outcome: NotificationAccountCleanup.Outcome) {
+    switch outcome {
+    case .removed:
+        call.resolve()
+    case .keychainKeptRecord:
+        call.reject("Could not remove the account from the Keychain", "KEYCHAIN_ERROR")
+    case .interactionsNotDeleted:
+        call.reject("Could not delete the donated interactions", "INTENTS_ERROR")
+    }
+}
+
 /// Syncs Matrix account credentials and sender avatars to the shared Keychain and App Group cache
 /// for the iOS Notification Service Extension (`src/app/native/nativeNotifications.ts`).
 @objc(MindRoomNotificationsPlugin)
@@ -309,6 +327,9 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private let coordinator = AvatarSyncCoordinator()
+    /// Every change of the shared accounts goes through it, in the order the calls come in: a
+    /// clear that is still deleting interactions is over before a later sync stores its account.
+    private let mutations = NotificationAccountMutationQueue()
 
     @objc func syncAccount(_ call: CAPPluginCall) {
         guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")),
@@ -321,16 +342,20 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let installId = NotificationInstallMarker.shared.getOrCreateInstallId() else {
             return call.reject("Could not mark this installation", "INSTALL_MARKER_ERROR")
         }
-        guard coordinator.saveAccount(
-            accountTag: accountTag,
-            homeserverUrl: homeserverUrl,
-            userId: userId,
-            accessToken: Self.trimmedNonEmpty(call.getString("accessToken")),
-            installId: installId
-        ) else {
-            return call.reject("Could not store the account in the Keychain", "KEYCHAIN_ERROR")
+        let accessToken = Self.trimmedNonEmpty(call.getString("accessToken"))
+        let coordinator = self.coordinator
+        mutations.enqueue {
+            guard coordinator.saveAccount(
+                accountTag: accountTag,
+                homeserverUrl: homeserverUrl,
+                userId: userId,
+                accessToken: accessToken,
+                installId: installId
+            ) else {
+                return call.reject("Could not store the account in the Keychain", "KEYCHAIN_ERROR")
+            }
+            call.resolve()
         }
-        call.resolve()
     }
 
     @objc func syncAvatars(_ call: CAPPluginCall) {
@@ -339,22 +364,21 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         let rawAvatars = call.getArray("avatars") as? [[String: Any]] ?? []
-        var entries: [AvatarSyncEntry] = []
-        entries.reserveCapacity(rawAvatars.count)
-
-        for item in rawAvatars {
+        let entries = rawAvatars.compactMap { item -> AvatarSyncEntry? in
             guard let roomId = Self.trimmedNonEmpty(item["roomId"] as? String),
                   let sender = Self.trimmedNonEmpty(item["sender"] as? String),
-                  let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String) else { continue }
-            entries.append(AvatarSyncEntry(roomId: roomId, sender: sender, mxcUrl: mxcUrl))
+                  let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String) else { return nil }
+            return AvatarSyncEntry(roomId: roomId, sender: sender, mxcUrl: mxcUrl)
         }
 
-        coordinator.scheduleSync(accountTag: accountTag, entries: entries)
+        // After the changes of the accounts that came before it: the avatars are kept only for
+        // an account that is stored.
+        let coordinator = self.coordinator
+        mutations.enqueue {
+            coordinator.scheduleSync(accountTag: accountTag, entries: entries)
+        }
         call.resolve()
     }
-
-    // A clear answers once the donated interactions are deleted too, and fails when the Keychain
-    // kept a record, so that the web side knows to try again.
 
     @objc func clearAccount(_ call: CAPPluginCall) {
         guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")) else {
@@ -362,23 +386,15 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         let coordinator = self.coordinator
-        Task<Void, Never> {
-            if await coordinator.clearAccount(accountTag: accountTag) {
-                call.resolve()
-            } else {
-                call.reject("Could not remove the account from the Keychain", "KEYCHAIN_ERROR")
-            }
+        mutations.enqueue {
+            answerClear(call, await coordinator.clearAccount(accountTag: accountTag))
         }
     }
 
     @objc func clearAllAccounts(_ call: CAPPluginCall) {
         let coordinator = self.coordinator
-        Task<Void, Never> {
-            if await coordinator.clearAllAccounts() {
-                call.resolve()
-            } else {
-                call.reject("Could not remove the accounts from the Keychain", "KEYCHAIN_ERROR")
-            }
+        mutations.enqueue {
+            answerClear(call, await coordinator.clearAllAccounts())
         }
     }
 

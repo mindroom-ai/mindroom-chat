@@ -46,6 +46,7 @@ import {
   mergeSessionCleanupContexts,
 } from './browserStorageCleanup';
 import { leavePage } from '../../../boot/inviteFragment';
+import { queueIOSPushNativeClear } from '../../notifications/push/iosPush';
 
 const getMatrixClientSessionIdentity = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getSafeUserId'>
@@ -104,11 +105,25 @@ const clearSessionScopedUiState = async (
   }
 };
 
+/** How long a sign-out waits for the app to answer the removal of the account's native state. */
+const NATIVE_STATE_CLEAR_TIMEOUT_MS = 5000;
+
+// Waits for the app's answer, but not for long: an answer that never comes (a callback of iOS
+// that is never called) must not keep the sign-out from its reload. The removal is noted down
+// by then (queueIOSPushNativeClear), and is tried again after the reload.
 const clearSessionScopedNativeState = async (sessionId: string): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await clearSessionNativeState(sessionId);
+    await Promise.race([
+      clearSessionNativeState(sessionId),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, NATIVE_STATE_CLEAR_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
     // Native preference cleanup is best effort during account removal.
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 };
 
@@ -172,6 +187,9 @@ const removeSessionRecordAndLocalData = async (
   mx?: MatrixClient
 ): Promise<void> => {
   const nextStore = removeSession(session.sessionId);
+  // Before anything is awaited: a sign-out that is cut off from here on still leaves the
+  // removal of what the account shares with the notification extension noted down.
+  queueIOSPushNativeClear(session.sessionId);
   await deleteSessionLocalData(
     session,
     mx,
@@ -227,6 +245,8 @@ export const removeCurrentClientSessionAndReload = async (
   // cache, canvas and native teardown needs.
   const identity = getMatrixClientSessionIdentity(mx);
   const nextStore = removeSession(identity.sessionId);
+  // As in removeSessionRecordAndLocalData.
+  queueIOSPushNativeClear(identity.sessionId);
   const clearUserScopedState = !nextStore.sessions.some(
     (storedSession) => storedSession.userId === identity.userId
   );

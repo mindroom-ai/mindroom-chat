@@ -9,7 +9,10 @@ import {
   type StoredSession,
 } from '../../matrix/session/sessions';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
-import { clearNativeNotificationAccount } from '../../native/nativeNotifications';
+import {
+  clearAllNativeNotificationAccounts,
+  clearNativeNotificationAccount,
+} from '../../native/nativeNotifications';
 
 /**
  * The notification category of every push. The Apple Watch app shows its own long look for it
@@ -59,6 +62,7 @@ const PUSH_TOKEN_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}token`;
 const PUSH_PROFILE_TAG_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}profile_tag`;
 const PUSH_ENABLED_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}enabled`;
 const PENDING_NATIVE_CLEARS_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}pending_native_clears`;
+const PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}pending_native_clear_all`;
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 export const IOS_PUSH_STATE_EVENT = 'mindroom-ios-push-state-changed';
 
@@ -379,6 +383,11 @@ const writePendingNativeClears = (accountTags: string[]): void => {
   }
 };
 
+const notePendingNativeClear = (accountTag: string): void => {
+  const pending = readPendingNativeClears();
+  if (!pending.includes(accountTag)) writePendingNativeClears([...pending, accountTag]);
+};
+
 /** Takes back a noted clear: the account shares with the notification extension again. */
 export const forgetPendingNativeNotificationClear = (accountTag: string): void => {
   const pending = readPendingNativeClears();
@@ -387,16 +396,30 @@ export const forgetPendingNativeNotificationClear = (accountTag: string): void =
 };
 
 /**
+ * Notes down, at once, that what the account shares with the notification extension is to be
+ * removed. A sign-out calls it as soon as the account has left the registry: whatever cuts the
+ * rest of the sign-out off, the removal is still owed and `flushPendingNativeNotificationClears`
+ * makes it. Never throws.
+ */
+export const queueIOSPushNativeClear = (sessionId?: string): void => {
+  try {
+    const accountTag = getStoredIOSPushProfileTag(sessionId);
+    if (accountTag) notePendingNativeClear(accountTag);
+  } catch {
+    // The sign-out goes on, and clears the account itself.
+  }
+};
+
+/**
  * Removes what the account shares with the notification extension (its Keychain record, its
  * avatars, its donated interactions). The tag is noted down before the app is asked and struck
- * off only once the app confirms: a clear that the Keychain refuses, or whose answer a reload
- * cuts off, is tried again by `flushPendingNativeNotificationClears`. Never rejects.
+ * off only once the app confirms: a clear that the Keychain or Siri refuses, or whose answer a
+ * reload cuts off, is tried again by `flushPendingNativeNotificationClears`. Never rejects.
  */
 export const clearNativeNotificationAccountWithRetry = async (
   accountTag: string
 ): Promise<void> => {
-  const pending = readPendingNativeClears();
-  if (!pending.includes(accountTag)) writePendingNativeClears([...pending, accountTag]);
+  notePendingNativeClear(accountTag);
   try {
     await clearNativeNotificationAccount(accountTag);
     forgetPendingNativeNotificationClear(accountTag);
@@ -406,9 +429,68 @@ export const clearNativeNotificationAccountWithRetry = async (
   }
 };
 
-/** Tries the clears again that are still noted down. */
-export const flushPendingNativeNotificationClears = async (): Promise<void> => {
+const isNativeClearAllNoted = (): boolean =>
+  readStorage(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY) !== undefined;
+
+const writePendingNativeClearAll = (pending: boolean): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (pending) {
+      window.localStorage.setItem(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY, '1');
+    } else {
+      window.localStorage.removeItem(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY);
+    }
+  } catch {
+    // A clear that cannot be noted down is still attempted once.
+  }
+};
+
+/** The clears of every account that the app has been asked for and has not answered yet. */
+let nativeClearAllsUnderWay = 0;
+
+/**
+ * Whether a removal of every account is still owed or under way. An account that is shared
+ * before it is done would be removed by it.
+ */
+export const hasPendingNativeNotificationClearAll = (): boolean =>
+  nativeClearAllsUnderWay > 0 || isNativeClearAllNoted();
+
+/**
+ * Removes what every account on the device shares with the notification extension. It is noted
+ * down before the app is asked and struck off only once the app confirms, as for one account;
+ * with it go the noted clears of single accounts that it covers, the ones noted before it.
+ * Whether the app confirmed. Never rejects.
+ */
+export const clearAllNativeNotificationAccountsWithRetry = async (): Promise<boolean> => {
+  writePendingNativeClearAll(true);
+  const covered = readPendingNativeClears();
+  nativeClearAllsUnderWay += 1;
+  try {
+    await clearAllNativeNotificationAccounts();
+  } catch (error) {
+    // Noted again: an earlier clear of all that succeeded meanwhile has struck it off.
+    writePendingNativeClearAll(true);
+    // eslint-disable-next-line no-console
+    console.warn('[ios-push] could not clear the notification accounts; it stays noted', error);
+    return false;
+  } finally {
+    nativeClearAllsUnderWay -= 1;
+  }
+  writePendingNativeClearAll(false);
+  writePendingNativeClears(readPendingNativeClears().filter((tag) => !covered.includes(tag)));
+  return true;
+};
+
+/**
+ * Tries the clears again that are still noted down: first the one of every account, without
+ * which nothing else is tried, then the ones of single accounts. Whether none is left.
+ */
+export const flushPendingNativeNotificationClears = async (): Promise<boolean> => {
+  if (isNativeClearAllNoted() && !(await clearAllNativeNotificationAccountsWithRetry())) {
+    return false;
+  }
   await Promise.all(readPendingNativeClears().map(clearNativeNotificationAccountWithRetry));
+  return !isNativeClearAllNoted() && readPendingNativeClears().length === 0;
 };
 
 /**

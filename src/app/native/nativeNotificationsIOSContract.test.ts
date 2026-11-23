@@ -27,6 +27,7 @@ const credentialStoreSource = kitSource('NotificationCredentialStore');
 const intentSource = kitSource('NotificationCommunicationIntent');
 const interactionSource = kitSource('NotificationInteractionCoordinator');
 const installMarkerSource = kitSource('NotificationInstallMarker');
+const mutationQueueSource = kitSource('NotificationAccountMutationQueue');
 
 describe('MindRoomNotificationsPlugin and NotificationService native contract', () => {
   it('registers MindRoomNotifications with its Capacitor methods only on iOS (not Mac Catalyst)', () => {
@@ -83,15 +84,45 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
       /guard coordinator\.saveAccount\([^{]*\) else \{\s*return call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)/
     );
     ['clearAccount(accountTag: accountTag)', 'clearAllAccounts()'].forEach((clear) => {
-      const start = pluginSource.indexOf(`if await coordinator.${clear} {`);
-      expect(start).toBeGreaterThan(-1);
-      expect(pluginSource.slice(start, start + 220)).toMatch(
-        /call\.resolve\(\)\s*\} else \{\s*call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)/
-      );
+      expect(pluginSource).toContain(`answerClear(call, await coordinator.${clear})`);
     });
+    expect(pluginSource).toMatch(
+      /case \.removed:\s*call\.resolve\(\)\s*case \.keychainKeptRecord:\s*call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)\s*case \.interactionsNotDeleted:\s*call\.reject\("[^"]*", "INTENTS_ERROR"\)/
+    );
     expect(credentialStoreSource).toContain(
       'deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound'
     );
+  });
+
+  it('fails a clear whose interactions Siri kept, so that it is tried again', () => {
+    // What Siri refuses is handed on, never dropped.
+    expect(pluginSource).not.toMatch(/try\? await INInteraction/);
+    expect(pluginSource).toContain(
+      'deleteInteractions: { try await INInteraction.delete(with: accountTag) }'
+    );
+    expect(pluginSource).toContain('deleteInteractions: { try await INInteraction.deleteAll() }');
+    // The interactions are deleted also after a record that stayed, and both must be gone.
+    expect(mutationQueueSource).toMatch(
+      /let recordRemoved = removeSharedState\(\)\s*do \{\s*try await deleteInteractions\(\)\s*\} catch \{\s*return recordRemoved \? \.interactionsNotDeleted : \.keychainKeptRecord\s*\}\s*return recordRemoved \? \.removed : \.keychainKeptRecord/
+    );
+  });
+
+  it('changes the shared accounts one at a time, in the order the web side asked', () => {
+    // A place in the order is taken under the lock, before the call returns.
+    expect(mutationQueueSource).toMatch(
+      /lock\.lock\(\)\s*defer \{ lock\.unlock\(\) \}\s*let previous = last\s*let task = Task<Void, Never> \{\s*if let previous \{\s*await previous\.value\s*\}\s*await mutation\(\)\s*\}\s*last = task/
+    );
+    // Every change goes through the queue, the avatars after the account they are for.
+    expect(pluginSource.match(/mutations\.enqueue \{/g)).toHaveLength(4);
+    ['syncAccount', 'syncAvatars', 'clearAccount', 'clearAllAccounts'].forEach((method) => {
+      const start = pluginSource.indexOf(`@objc func ${method}(`);
+      const end = pluginSource.indexOf('@objc func ', start + 1);
+      expect(start).toBeGreaterThan(-1);
+      expect(pluginSource.slice(start, end === -1 ? undefined : end)).toContain(
+        'mutations.enqueue {'
+      );
+    });
+    expect(pluginSource).not.toMatch(/Task<Void, Never> \{\s*(if await|answerClear)/);
   });
 
   it('removes every account, and what Siri keeps of them, when asked to clear all', () => {
@@ -105,7 +136,7 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(removeAll).toContain('NotificationAvatarStore.shared.clearAll()');
     // The call answers only after the interactions are deleted too.
     expect(pluginSource).toMatch(
-      /let removed = removeAllAccounts\(\)\s*try\? await INInteraction\.deleteAll\(\)\s*return removed/
+      /removeSharedState: \{ removeAllAccounts\(\) \},\s*deleteInteractions: \{ try await INInteraction\.deleteAll\(\) \}/
     );
   });
 
@@ -117,7 +148,7 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(intentSource).not.toMatch(/content: (?!nil)/);
     expect(pluginSource).toContain('import Intents');
     expect(pluginSource).toMatch(
-      /let removed = removeAccount\(accountTag\)[^}]*try\? await INInteraction\.delete\(with: accountTag\)\s*return removed/
+      /removeSharedState: \{ removeAccount\(accountTag\) \},\s*deleteInteractions: \{ try await INInteraction\.delete\(with: accountTag\) \}/
     );
   });
 

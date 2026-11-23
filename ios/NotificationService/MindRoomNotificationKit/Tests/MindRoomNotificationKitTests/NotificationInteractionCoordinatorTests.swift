@@ -1,47 +1,6 @@
 import MindRoomNotificationKit
 import XCTest
 
-/// Holds `donate` where it is until the test lets it go on.
-private final class DonationGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var held: CheckedContinuation<Void, Never>?
-    private var waiting: CheckedContinuation<Void, Never>?
-
-    /// Called by `donate`: says that the donation is under way and waits to be let through.
-    func hold() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.lock.lock()
-            self.held = continuation
-            let waiting = self.waiting
-            self.waiting = nil
-            self.lock.unlock()
-            waiting?.resume()
-        }
-    }
-
-    /// Returns once `donate` is held.
-    func waitUntilHeld() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.lock.lock()
-            if self.held != nil {
-                self.lock.unlock()
-                continuation.resume()
-                return
-            }
-            self.waiting = continuation
-            self.lock.unlock()
-        }
-    }
-
-    func release() {
-        lock.lock()
-        let held = self.held
-        self.held = nil
-        lock.unlock()
-        held?.resume()
-    }
-}
-
 /// The account as the Keychain has it, and what the helper was asked to do.
 private final class DonationLog: @unchecked Sendable {
     private let lock = NSLock()
@@ -69,7 +28,7 @@ private struct DonationFailed: Error {}
 
 /// Runs the helper for a notification that started with sync "sync-1", holding `donate` at the
 /// gate when there is one.
-private func runDonation(log: DonationLog, gate: DonationGate? = nil, failing: Bool = false) async -> Bool {
+private func runDonation(log: DonationLog, gate: TestGate? = nil, failing: Bool = false) async -> Bool {
     await NotificationInteractionCoordinator.donateIfValid(
         isAccountStillValid: { log.syncId == "sync-1" },
         donate: { interactionId in
@@ -106,7 +65,7 @@ final class NotificationInteractionCoordinatorTests: XCTestCase {
 
     func testDeletesTheDonationOfAnAccountClearedWhileItWasDonated() async {
         let log = DonationLog(syncId: "sync-1")
-        let gate = DonationGate()
+        let gate = TestGate()
 
         let running = Task { await runDonation(log: log, gate: gate) }
         await gate.waitUntilHeld()
@@ -123,7 +82,7 @@ final class NotificationInteractionCoordinatorTests: XCTestCase {
 
     func testDeletesTheDonationOfAnAccountClearedAndSharedAgainWhileItWasDonated() async {
         let log = DonationLog(syncId: "sync-1")
-        let gate = DonationGate()
+        let gate = TestGate()
 
         let running = Task { await runDonation(log: log, gate: gate) }
         await gate.waitUntilHeld()
@@ -149,7 +108,7 @@ final class NotificationInteractionCoordinatorTests: XCTestCase {
 
     func testCleansUpForATaskThatWasCancelledMeanwhile() async {
         let log = DonationLog(syncId: "sync-1")
-        let gate = DonationGate()
+        let gate = TestGate()
 
         let running = Task { await runDonation(log: log, gate: gate) }
         await gate.waitUntilHeld()
