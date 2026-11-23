@@ -116,6 +116,8 @@ export const ListArea = style([
   {
     flexGrow: 1,
     minBlockSize: toRem(140),
+    // Override Viewport's contain so scrolling past the list chains to Body on short keyboard viewports.
+    overscrollBehaviorY: 'auto',
     paddingInline: config.space.S200,
     paddingBlockEnd: config.space.S200,
   },

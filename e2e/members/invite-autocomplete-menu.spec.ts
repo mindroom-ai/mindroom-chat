@@ -224,9 +224,10 @@ const checkDesktopFraming = async (dialog: Locator) => {
     return {
       scrollbarWidth: getComputedStyle(el).scrollbarWidth,
       gutter: el.offsetWidth - el.clientWidth,
+      overscrollBehaviorY: getComputedStyle(el).overscrollBehaviorY,
     };
   }, listId);
-  expect(scroller).toEqual({ scrollbarWidth: 'none', gutter: 0 });
+  expect(scroller).toEqual({ scrollbarWidth: 'none', gutter: 0, overscrollBehaviorY: 'auto' });
 };
 
 const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
