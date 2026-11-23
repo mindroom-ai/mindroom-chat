@@ -330,52 +330,7 @@ test.describe('Electron script policy and canvas frame', () => {
         expect(state.hasRobotsNoIndex, targetPath).toBe(false);
       }
 
-      for (const directUrl of [
-        `${APP_ORIGIN}/canvas-frame.html`,
-        `${APP_ORIGIN}/%63anvas-frame%2ehtml`,
-      ]) {
-        const result = await app.evaluate(async ({ BrowserWindow }, target: string) => {
-          const win = BrowserWindow.getAllWindows()[0];
-          if (!win) return { rejected: false, code: '' };
-          let settled = false;
-          const onStopped = (): void => {
-            settled = true;
-          };
-          win.webContents.once('did-stop-loading', onStopped);
-          try {
-            await win.loadURL(target);
-            return { rejected: false, code: '' };
-          } catch (err) {
-            if (!settled || win.webContents.isLoading()) {
-              await new Promise<void>((resolve, reject) => {
-                const onDone = (): void => {
-                  clearTimeout(timer);
-                  resolve();
-                };
-                const timer = setTimeout(() => {
-                  win.webContents.removeListener('did-stop-loading', onDone);
-                  reject(new Error(`error page did not finish loading for ${target}`));
-                }, 5_000);
-                win.webContents.once('did-stop-loading', onDone);
-                if (settled && !win.webContents.isLoading()) {
-                  win.webContents.removeListener('did-stop-loading', onDone);
-                  clearTimeout(timer);
-                  resolve();
-                }
-              });
-            }
-            return { rejected: true, code: String((err as { code?: unknown }).code ?? '') };
-          } finally {
-            win.webContents.removeListener('did-stop-loading', onStopped);
-          }
-        }, directUrl);
-        expect(result, directUrl).toEqual({ rejected: true, code: 'ERR_BLOCKED_BY_CLIENT' });
-      }
-
-      // Return to root and embed /canvas-frame.html WITHOUT a sandbox attribute.
-      await page.goto(`${APP_ORIGIN}/`);
-      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
-
+      // Embed /canvas-frame.html WITHOUT a sandbox attribute while still on APP_ORIGIN.
       const unsandboxedResult = await page.evaluate(async () => {
         const frame = document.createElement('iframe');
         // Deliberately NO sandbox attribute: CANVAS_FRAME_POLICY header must still sandbox it.
@@ -424,6 +379,25 @@ test.describe('Electron script policy and canvas frame', () => {
         parentBlocked: true,
         messageOrigin: 'null',
       });
+
+      // Run direct main-process loadURL blocks last: ERR_BLOCKED_BY_CLIENT triggers an async
+      // chrome-error://chromewebdata/ commit that can interrupt a subsequent page.goto.
+      for (const directUrl of [
+        `${APP_ORIGIN}/canvas-frame.html`,
+        `${APP_ORIGIN}/%63anvas-frame%2ehtml`,
+      ]) {
+        const result = await app.evaluate(async ({ BrowserWindow }, target: string) => {
+          const win = BrowserWindow.getAllWindows()[0];
+          if (!win) return { rejected: false, code: '' };
+          try {
+            await win.loadURL(target);
+            return { rejected: false, code: '' };
+          } catch (err) {
+            return { rejected: true, code: String((err as { code?: unknown }).code ?? '') };
+          }
+        }, directUrl);
+        expect(result, directUrl).toEqual({ rejected: true, code: 'ERR_BLOCKED_BY_CLIENT' });
+      }
     } finally {
       await session.close();
     }
