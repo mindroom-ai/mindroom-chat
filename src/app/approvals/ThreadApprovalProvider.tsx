@@ -121,6 +121,7 @@ function ActiveThreadApprovalProvider({
       threadId
     )
   );
+  // The ref is the source of truth and `history` mirrors it: change it only through `ingest`.
   const historyRef = useRef(history);
   const events = history.events;
   const [loading, setLoading] = useState(true);
