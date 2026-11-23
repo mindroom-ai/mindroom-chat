@@ -19,7 +19,10 @@ import { scrollToBottom } from '../lib/dom';
 import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
-import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
+import {
+  shouldPinThreadToBottomOnOpen,
+  type ThreadInitialRenderMode,
+} from '../event-store/threads/threadRenderUtils';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
 import {
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
@@ -88,6 +91,8 @@ export type RoomFocusScrollControllerOptions = {
   threadEventsLength: number;
   threadFilteredEvents: MatrixEvent[];
   threadFilteredEventsRef: MutableRefObject<MatrixEvent[]>;
+  /** The row of each loaded event that a closed fold of the room's rows holds, by event ID. */
+  foldedRows?: ReadonlyMap<string, number>;
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadLatestOpenPending: boolean;
@@ -223,6 +228,22 @@ type FocusJumpMemory = {
 };
 
 /**
+ * The focused event's row among the room's rows: its own, or the closed fold that holds it.
+ * Without either, the row the focus was set at: a focus set as a room loads counts in loaded
+ * rows, which are the room's rows only without a closed fold before it.
+ */
+const focusedRoomRow = (
+  rows: MatrixEvent[],
+  foldedRows: ReadonlyMap<string, number> | undefined,
+  focus: Pick<RoomTimelineFocusItem, 'eventId' | 'index'>
+): number =>
+  getFocusedRoomEventIndex(
+    rows,
+    focus.eventId,
+    (focus.eventId === undefined ? undefined : foldedRows?.get(focus.eventId)) ?? focus.index
+  );
+
+/**
  * Jumps to the focused event in the room view while it asks for a jump (`scrollTo`). Edge
  * pagination pauses for the jump; the paginator moves to the row's index, and once the row is in
  * the DOM it is aimed at again while the rows around it load and measure. Then pagination resumes
@@ -241,6 +262,7 @@ const useRoomFocusJump = ({
   setFocusItem,
   suppressFocusPaginationRef,
   threadFilteredEventsRef,
+  foldedRows,
   threadId,
 }: Pick<
   Options,
@@ -255,8 +277,10 @@ const useRoomFocusJump = ({
   | 'setFocusItem'
   | 'suppressFocusPaginationRef'
   | 'threadFilteredEventsRef'
+  | 'foldedRows'
   | 'threadId'
 >) => {
+  const foldedRowsRef = useLatestRef(foldedRows);
   const [memory] = useState<FocusJumpMemory>(() => ({ roomId, focusItem }));
   // In the render that shows another room, before any effect: a focus of the previous room must
   // never land in this one, whether its row is still awaited or its item is still current.
@@ -293,7 +317,7 @@ const useRoomFocusJump = ({
 
     const focus = focusItem;
     const rows = threadFilteredEventsRef.current;
-    const position = getFocusedRoomEventIndex(rows, focus.eventId, focus.index);
+    const position = focusedRoomRow(rows, foldedRowsRef.current, focus);
     // `scrollToElement` aligns a row's start below the scroll padding, as it is at each call.
     const { offset } = focus;
     const rowPlacement = () =>
@@ -366,6 +390,7 @@ const useRoomFocusJump = ({
     alive,
     focusItem,
     focusScrollResetToken,
+    foldedRowsRef,
     memory,
     retryPagination,
     scrollRef,
@@ -687,17 +712,21 @@ const useFocusIndexTracking = ({
   focusItem,
   setFocusItem,
   threadFilteredEvents,
+  foldedRows,
   threadId,
-}: Pick<Options, 'focusItem' | 'setFocusItem' | 'threadFilteredEvents' | 'threadId'>) => {
+}: Pick<
+  Options,
+  'focusItem' | 'setFocusItem' | 'threadFilteredEvents' | 'foldedRows' | 'threadId'
+>) => {
   useEffect(() => {
     const eventId = focusItem?.eventId;
     if (threadId || !focusItem || !eventId) return;
-    const index = getFocusedRoomEventIndex(threadFilteredEvents, eventId, focusItem.index);
+    const index = focusedRoomRow(threadFilteredEvents, foldedRows, focusItem);
     if (index === focusItem.index) return;
     setFocusItem((current) =>
       current?.eventId === eventId && current.index !== index ? { ...current, index } : current
     );
-  }, [focusItem, setFocusItem, threadFilteredEvents, threadId]);
+  }, [focusItem, foldedRows, setFocusItem, threadFilteredEvents, threadId]);
 };
 
 /** Brings the row of the message being edited into view, unless it already shows in full. */

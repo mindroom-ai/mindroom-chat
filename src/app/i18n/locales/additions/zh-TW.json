@@ -130,6 +130,37 @@
     "textViewer": {
       "close": "關閉"
     },
+    "eventSourceViewer": {
+      "metaEventId": "事件",
+      "metaType": "類型",
+      "metaSender": "傳送者",
+      "metaTime": "時間",
+      "badgeEdited": "已編輯",
+      "badgeEncrypted": "已加密",
+      "documentTabsLabel": "事件版本",
+      "tabEvent": "事件",
+      "tabOriginal": "原始",
+      "tabLatestEdit": "最新編輯",
+      "tabDecrypted": "已解密",
+      "tabDecryptionError": "解密失敗",
+      "tabEncrypted": "已加密",
+      "collapseAll": "摺疊",
+      "expandAll": "展開",
+      "foldStrings": "摺疊長文字",
+      "rawJson": "原始",
+      "filterPlaceholder": "篩選鍵或值…",
+      "noMatches": "找不到「{{query}}」的相符項目",
+      "copyField": "複製 {{field}}",
+      "copyValue": "複製值",
+      "expandNode": "展開 {{name}}",
+      "collapseNode": "摺疊 {{name}}",
+      "expandString": "展開文字",
+      "collapseString": "摺疊文字",
+      "matchCount_other": "{{count}} 個相符項目",
+      "keyCount_other": "{{count}} 個鍵",
+      "itemCount_other": "{{count}} 個項目",
+      "charCount_other": "{{count}} 個字元"
+    },
     "invites": {
       "actionFailed": "發生錯誤，請再試一次。"
     },
@@ -273,9 +304,6 @@
       "newIntro": "請選擇新的復原密碼。舊密碼將失效。",
       "notCached": "此工作階段未持有所有加密金鑰。請用復原密碼或其他裝置驗證它，然後再試一次。",
       "incompleteError": "新的復原密碼尚未涵蓋所有加密金鑰。請重試。",
-      "nudgeTitle": "保護你的訊息",
-      "nudgeBody": "設定復原密碼，這樣在清除此瀏覽器資料或在新裝置上登入後，你仍然可以閱讀加密聊天。",
-      "nudgeButton": "設定復原密碼",
       "unlockWithPassword": "使用復原密碼解鎖",
       "resetLoss": "此裝置目前無法讀取的訊息將維持無法讀取。你的其他工作階段需要重新驗證。",
       "setupCheckFailed": "無法檢查你的加密設定。",
@@ -945,6 +973,20 @@
       "turnFold": {
         "earlier_other": "{{count}} 則較早的訊息",
         "hide_other": "隱藏 {{count}} 則訊息"
+      },
+      "membershipFold": {
+        "summary_other": "{{count}} 則聊天室事件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "隱藏 {{count}} 則聊天室事件",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人加入",
+        "left_other": "{{count}} 人離開",
+        "invited_other": "{{count}} 人受邀",
+        "requested_other": "{{count}} 人請求加入",
+        "kicked_other": "{{count}} 人被移出",
+        "banned_other": "{{count}} 人被封鎖",
+        "unbanned_other": "{{count}} 人已解除封鎖",
+        "profileChanges_other": "{{count}} 次個人資料變更"
       },
       "questionCard": {
         "title": "問題",
@@ -1770,5 +1812,40 @@
     "cancellationSent": "已傳送取消請求",
     "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
     "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
+  },
+  "home": {
+    "greeting": {
+      "morning": "早安，{{name}}",
+      "afternoon": "午安，{{name}}",
+      "evening": "晚安，{{name}}"
+    },
+    "ask": {
+      "placeholder": "向 {{name}} 提出任何問題…",
+      "chooseAgent": "選擇由誰回答",
+      "agentChoice": "由 {{name}} 回答",
+      "chooseRoom": "選擇討論串從哪裡開始",
+      "roomChoice": "在 {{room}}",
+      "inRoom": "在 <avatar/>{{room}}",
+      "directChat": "私訊",
+      "startsDirectChat": "開始與 {{name}} 的對話",
+      "startingDirectChat": "正在開始與 {{name}} 的對話…",
+      "directChatFailed": "無法開始與 {{name}} 的對話。請再試一次。",
+      "waitingForAgent": "正在等待 {{name}} 加入聊天…",
+      "notSent": "未在 {{room}} 傳送給 {{agent}}",
+      "chooseAgain": "此選擇已無法使用。你的文字已保留：請重新選擇由誰回答或在哪裡提問。"
+    },
+    "recent": {
+      "title": "最近的討論串",
+      "allThreads": "所有討論串",
+      "unread": "未讀"
+    },
+    "recovery": {
+      "action": "設定復原密碼",
+      "text": "在新裝置上也能存取加密對話。"
+    },
+    "device": {
+      "action": "驗證此裝置",
+      "text": "在那之前，它無法讀取你的加密對話。"
+    }
   }
 }

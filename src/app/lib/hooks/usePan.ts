@@ -16,14 +16,17 @@ const INITIAL_PAN: Pan = { translateX: 0, translateY: 0 };
 
 /**
  * Drag-to-pan for a zoomed element. One pointer pans; a second one (a pinch) suspends panning
- * until a single pointer is left. Turning `active` off recenters the element.
+ * until a single pointer is left. Turning `active` off recenters the element. While `suspended`
+ * no drag pans, and the offset stays: for a pinch whose second finger is down outside the
+ * element, which sees one pointer and would pan on top of `zoomAround`.
  */
-export const usePan = (active: boolean) => {
+export const usePan = (active: boolean, suspended = false) => {
   const [isPanning, setIsPanning] = useState(false);
   const [pan, setPan] = useState<Pan>(INITIAL_PAN);
   const pointersRef = useRef(new Map<number, Point>());
-  const activeRef = useRef(active);
-  activeRef.current = active;
+  // Whether a drag pans.
+  const activeRef = useRef(active && !suspended);
+  activeRef.current = active && !suspended;
 
   useEffect(() => {
     if (active) return;

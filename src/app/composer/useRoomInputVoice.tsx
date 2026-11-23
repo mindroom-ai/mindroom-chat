@@ -91,6 +91,8 @@ type UseRoomInputVoiceOptions = {
   >;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
   onRoomMessageSent?: (eventId: string) => boolean | void;
+  /** False in a composer that takes no recording: it brings none back from disk either. */
+  recover?: boolean;
 };
 
 type VoiceFeature = {
@@ -132,6 +134,7 @@ export const useRoomInputVoice = ({
   sessions: { hasActiveSendSession, startSendSession },
   takeRootModelDraft,
   onRoomMessageSent,
+  recover = true,
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
   const store = useStore();
@@ -244,7 +247,7 @@ export const useRoomInputVoice = ({
   );
   // What the account left on disk comes back with the first composer: a failed send, or a
   // recording that a crash or a stopped recorder cut short.
-  useSavedVoiceDraft(mx, getVoiceSendContext);
+  useSavedVoiceDraft(mx, getVoiceSendContext, recover);
 
   const claimVoiceAutoSend = useCallback(() => {
     if (store.get(voiceAutoSendPendingAtom)) return false;

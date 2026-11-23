@@ -900,10 +900,12 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       );
     });
     expect(extractText(notice.root)).toContain('Server error');
+    const alert = notice.root.findByProps({ role: 'alert' });
+    // Marked as a notice that moves into what covers the page (sidebar/PhoneNavDrawer.tsx).
+    expect(alert.props['data-cover-notice']).toBe('');
+    const dismiss = notice.root.findByProps({ 'aria-label': 'Dismiss notice' });
     act(() => {
-      notice.root
-        .find((n) => n.type === 'button' && n.props['aria-label'] === 'Dismiss notice')
-        .props.onClick();
+      dismiss.props.onClick();
     });
     expect(closed.store.get(detachedGrantErrorAtom)).toBeUndefined();
   });

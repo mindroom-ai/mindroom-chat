@@ -87,14 +87,14 @@ let reloaded: typeof pendingVoiceSendDraftAtom | undefined;
 const reloadedAtom = () => reloaded!;
 
 /** A reload: fresh modules (nothing restored yet), a fresh store, and the hook mounted again. */
-const reloadPage = async (getRecoveryContext?: () => PendingVoiceSendContext) => {
+const reloadPage = async (getRecoveryContext?: () => PendingVoiceSendContext, restore = true) => {
   vi.resetModules();
   const drafts = await import('../roomInputDrafts');
   const saved = await import('./savedVoiceDraft');
   reloaded = drafts.pendingVoiceSendDraftAtom;
   const store = createStore();
   function Reloaded() {
-    saved.useSavedVoiceDraft(mx, getRecoveryContext);
+    saved.useSavedVoiceDraft(mx, getRecoveryContext, restore);
     return null;
   }
   act(() => {
@@ -483,6 +483,25 @@ describe('useSavedVoiceDraft', () => {
       threadingEnabled: true,
     });
     expect(restored?.context.room).toBe(room);
+  });
+
+  it('brings nothing back where no recording can show, and leaves it for a reload', async () => {
+    const first = openPage();
+    await settle();
+    act(() =>
+      first.store.set(pendingVoiceSendDraftAtom, { ...failedDraft(), recordingId: 'kept' })
+    );
+    await settle();
+    act(() => first.renderer.unmount());
+    const held = stubLocks();
+
+    // A page whose composer takes text only: it reads nothing, and holds no recording.
+    const textOnly = await reloadPage(undefined, false);
+    expect(textOnly.get(reloadedAtom())).toBeUndefined();
+    expect(held.size).toBe(0);
+
+    const store = await reloadPage();
+    expect(store.get(reloadedAtom())?.recordingId).toBe('kept');
   });
 
   it("keeps a recording from a thread's own view for a view of that thread", async () => {

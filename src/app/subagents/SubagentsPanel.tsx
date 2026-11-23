@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { useAtomValue } from 'jotai';
+import { useInert } from '../lib/hooks/useInert';
 import { useInterval } from '../lib/hooks/useInterval';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -17,6 +28,12 @@ import {
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
+import {
+  animateSwipeElements,
+  type InteractiveSwipeScene,
+  SWIPE_PRIORITY,
+} from '../navigation/interactiveSwipe';
+import { RoomPanelEdgeSwipeContext } from '../navigation/roomPanelEdgeSwipeContext';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { settingsAtom } from '../preferences/settings';
@@ -30,6 +47,7 @@ import * as css from './subagentsPanel.css';
 
 /** How often a running run's time moves on. */
 const CLOCK_MS = 1_000;
+const NOOP = () => undefined;
 
 /**
  * Sub-agents at work first, the one that started first on top; then the finished, the last to end
@@ -147,10 +165,106 @@ export function SubagentsPanel({
     setReturnTo(open?.id ?? null);
     setOpenId(open?.parent ?? null);
   }, [open]);
-  // On a phone the panel covers the conversation, whose thread then leaves its back swipe: a swipe
-  // from the screen's left edge goes back as Back does, and from the list closes the panel.
+  const [peekingBack, setPeekingBack] = useState(false);
+  const underLayerRef = useRef<HTMLDivElement>(null);
+  const detailLayerRef = useRef<HTMLDivElement>(null);
+  useInert(underLayerRef, peekingBack);
+  useEffect(() => {
+    if (!open && peekingBack) setPeekingBack(false);
+  }, [open, peekingBack]);
+  const openRef = useLatestRef(open);
+  const backRef = useLatestRef(back);
+  const beginDetailBack = useCallback(
+    ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
+      const currentOpen = openRef.current;
+      const rootEl = section.current;
+      const detailEl = detailLayerRef.current;
+      if (!currentOpen || !rootEl || !detailEl) return null;
+      const extent = rootEl.getBoundingClientRect().width;
+      if (extent <= 0) return null;
+
+      const startOpenId = currentOpen.id;
+      flushSync(() => setPeekingBack(true));
+      const underEl = underLayerRef.current;
+      if (!underEl) {
+        flushSync(() => setPeekingBack(false));
+        return null;
+      }
+
+      detailEl.dataset.swiping = '';
+      detailEl.dataset.swipeShadow = '';
+      underEl.dataset.swiping = '';
+
+      const applyPositions = (offsetPx: number, progress: number) => {
+        detailEl.style.translate = `${offsetPx * dirSign}px 0`;
+        underEl.style.translate = `${-0.3 * extent * (1 - progress) * dirSign}px 0`;
+      };
+      applyPositions(0, 0);
+
+      const clearStyles = () => {
+        delete detailEl.dataset.swiping;
+        delete detailEl.dataset.swipeShadow;
+        detailEl.style.translate = '';
+        delete underEl.dataset.swiping;
+        underEl.style.translate = '';
+      };
+
+      return {
+        extent,
+        update(offsetPx, progress) {
+          applyPositions(offsetPx, progress);
+        },
+        settle(commit, durationMs, currentOffsetPx) {
+          const currentProgress =
+            extent > 0 ? Math.min(1, Math.max(0, currentOffsetPx / extent)) : 0;
+          const startDetailX = currentOffsetPx * dirSign;
+          const targetDetailX = (commit ? extent : 0) * dirSign;
+          const startUnderX = -0.3 * extent * (1 - currentProgress) * dirSign;
+          const targetUnderX = (commit ? 0 : -0.3 * extent) * dirSign;
+          return animateSwipeElements(
+            [
+              {
+                element: detailEl,
+                keyframes: [
+                  { translate: `${startDetailX}px 0` },
+                  { translate: `${targetDetailX}px 0` },
+                ],
+              },
+              {
+                element: underEl,
+                keyframes: [
+                  { translate: `${startUnderX}px 0` },
+                  { translate: `${targetUnderX}px 0` },
+                ],
+              },
+            ],
+            durationMs
+          );
+        },
+        commit() {
+          if (openRef.current?.id !== startOpenId) return;
+          flushSync(() => {
+            setPeekingBack(false);
+            backRef.current();
+          });
+          clearStyles();
+        },
+        cleanup() {
+          clearStyles();
+          setPeekingBack(false);
+        },
+      };
+    },
+    [backRef, openRef]
+  );
+  // On a phone the panel covers the conversation, whose thread then leaves its back swipe: inside a
+  // Room, Room owns closing from the list while a detail run outranks it to go back interactively.
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  useEdgeSwipeBack(open ? back : onClose, mobile);
+  const handledByRoom = useContext(RoomPanelEdgeSwipeContext);
+  useEdgeSwipeBack(open ? back : onClose, mobile && (open ? true : !handledByRoom), {
+    priority: open ? SWIPE_PRIORITY.PANEL_INNER : SWIPE_PRIORITY.PANEL,
+    begin: open ? beginDetailBack : undefined,
+  });
   useLayoutEffect(() => {
     if (returnTo === null) return;
     const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent]') ?? [];
@@ -190,6 +304,48 @@ export function SubagentsPanel({
     .filter((part): part is string => !!part)
     .join(' · ');
 
+  const parentNode = open?.parent ? byId.get(open.parent) : undefined;
+  const renderList = () => (
+    <>
+      <header className={SidePanelHeader}>
+        <div className={css.Heading}>
+          <Text as="h2" size="H4" truncate>
+            {title}
+          </Text>
+          {subtitle && (
+            <Text size="T200" priority="300" truncate data-subagents-totals="">
+              {subtitle}
+            </Text>
+          )}
+        </div>
+        <IconButton
+          size="300"
+          radii="300"
+          variant="Surface"
+          aria-label={t('mindroomUi.subagents.close')}
+          onClick={onClose}
+        >
+          <Icon size="200" src={Icons.Cross} />
+        </IconButton>
+      </header>
+      <div className={css.Body}>
+        {nodes.length === 0 ? (
+          <Text size="T300" priority="300" className={css.Empty}>
+            {t(threadId ? 'mindroomUi.subagents.emptyThread' : 'mindroomUi.subagents.empty')}
+          </Text>
+        ) : (
+          <ul className={css.List}>
+            {nodes.map((node) => (
+              <li key={node.id}>
+                <SubagentRunCard room={room} node={node} now={now} onOpen={setOpenId} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <section
       ref={section}
@@ -199,57 +355,55 @@ export function SubagentsPanel({
       data-testid="subagents-panel"
     >
       {open ? (
-        <SubagentRunView
-          key={open.id}
-          room={room}
-          node={open}
-          now={now}
-          parserOptions={parserOptions}
-          onBack={back}
-          onOpen={setOpenId}
-          onClose={onClose}
-          viewThreadId={threadId}
-          readOnly={readOnly}
-        />
-      ) : (
         <>
-          <header className={SidePanelHeader}>
-            <div className={css.Heading}>
-              <Text as="h2" size="H4" truncate>
-                {title}
-              </Text>
-              {subtitle && (
-                <Text size="T200" priority="300" truncate data-subagents-totals="">
-                  {subtitle}
-                </Text>
+          {peekingBack && (
+            <div
+              ref={underLayerRef}
+              className={css.UnderLayer}
+              data-subagents-swipe-under=""
+              aria-hidden="true"
+            >
+              {parentNode ? (
+                <SubagentRunView
+                  key={parentNode.id}
+                  room={room}
+                  node={parentNode}
+                  now={now}
+                  parserOptions={parserOptions}
+                  onBack={NOOP}
+                  onOpen={NOOP}
+                  onClose={NOOP}
+                  viewThreadId={threadId}
+                  readOnly={readOnly}
+                  preview
+                />
+              ) : (
+                renderList()
               )}
             </div>
-            <IconButton
-              size="300"
-              radii="300"
-              variant="Surface"
-              aria-label={t('mindroomUi.subagents.close')}
-              onClick={onClose}
-            >
-              <Icon size="200" src={Icons.Cross} />
-            </IconButton>
-          </header>
-          <div className={css.Body}>
-            {nodes.length === 0 ? (
-              <Text size="T300" priority="300" className={css.Empty}>
-                {t(threadId ? 'mindroomUi.subagents.emptyThread' : 'mindroomUi.subagents.empty')}
-              </Text>
-            ) : (
-              <ul className={css.List}>
-                {nodes.map((node) => (
-                  <li key={node.id}>
-                    <SubagentRunCard room={room} node={node} now={now} onOpen={setOpenId} />
-                  </li>
-                ))}
-              </ul>
-            )}
+          )}
+          <div
+            ref={detailLayerRef}
+            key="detail"
+            className={css.DetailLayer}
+            data-subagents-swipe-detail=""
+          >
+            <SubagentRunView
+              key={open.id}
+              room={room}
+              node={open}
+              now={now}
+              parserOptions={parserOptions}
+              onBack={back}
+              onOpen={setOpenId}
+              onClose={onClose}
+              viewThreadId={threadId}
+              readOnly={readOnly}
+            />
           </div>
         </>
+      ) : (
+        renderList()
       )}
     </section>
   );

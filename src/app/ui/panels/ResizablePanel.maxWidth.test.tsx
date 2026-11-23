@@ -125,6 +125,61 @@ describe('ResizablePanel width bounds', () => {
     expect(panel().style.display).toBe('contents');
     expect(container.querySelector('[role="separator"]')).toBeNull();
   });
+
+  it('measures and observes the layout parent through a display: contents wrapper', () => {
+    const observed: Element[] = [];
+    let resizeCallback: (() => void) | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resizeCallback = callback;
+        }
+
+        observe(target: Element) {
+          observed.push(target);
+        }
+
+        disconnect() {}
+      }
+    );
+
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 1200 });
+    localStorage.setItem('test.width', JSON.stringify(400));
+
+    act(() => {
+      root.render(
+        <div style={{ display: 'contents' }} data-testid="passthrough-host">
+          <ResizablePanel
+            storageKey="test.width"
+            defaultWidth={400}
+            minContentWidth={320}
+            maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+            resizeLabel="Resize"
+            collapseLabel="Close"
+            testId="panel"
+          >
+            <div>content</div>
+          </ResizablePanel>
+        </div>
+      );
+    });
+
+    const host = container.querySelector('[data-testid="passthrough-host"]') as HTMLDivElement;
+    // A display: contents wrapper reports clientWidth 0; ResizablePanel must skip it.
+    expect(host.clientWidth).toBe(0);
+    expect(panel().style.width).toBe('400px');
+    expect(container.querySelector('[role="separator"]')?.getAttribute('aria-valuemax')).toBe(
+      '880'
+    );
+    expect(observed).toEqual([container]);
+
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 900 });
+    act(() => resizeCallback?.());
+    expect(container.querySelector('[role="separator"]')?.getAttribute('aria-valuemax')).toBe(
+      '580'
+    );
+  });
 });
 
 describe('ResizablePanel overlay', () => {

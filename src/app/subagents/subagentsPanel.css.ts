@@ -7,7 +7,35 @@ const { space, radii, borderWidth } = config;
 const quietLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
 
 // It fills its column, and on phones the room's width, as the room's other side panels do.
-export const Panel = style([SidePanelPanel, { flexGrow: 1 }]);
+export const Panel = style([SidePanelPanel, { flexGrow: 1, position: 'relative' }]);
+
+/** Inert previous view (list or parent run) revealed under a dragged detail run on phones. */
+export const UnderLayer = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  minBlockSize: 0,
+  backgroundColor: color.Background.Container,
+  pointerEvents: 'none',
+});
+
+/** Active detail run wrapper that tracks the finger over `UnderLayer` on phones. */
+export const DetailLayer = style({
+  position: 'relative',
+  flex: '1 1 auto',
+  display: 'flex',
+  flexDirection: 'column',
+  inlineSize: '100%',
+  minInlineSize: 0,
+  minBlockSize: 0,
+  backgroundColor: color.Background.Container,
+  selectors: {
+    // Only elevate into a stacking context while actively sliding over `UnderLayer`.
+    '&[data-swiping]': { zIndex: 1 },
+  },
+});
 
 export const Heading = style({
   display: 'flex',

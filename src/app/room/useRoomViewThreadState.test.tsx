@@ -17,6 +17,13 @@ import {
 import { matchesThreadRecordFilterState } from '../event-store/threads/threadRecordOverview';
 import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
+import {
+  clearPhoneSwipePreviews,
+  PHONE_PAGE,
+  PHONE_STAGE,
+  setActivePhoneSwipeContext,
+} from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
@@ -96,6 +103,9 @@ afterEach(() => {
   joinedRooms.list = [];
   cachedPage.rootEvent = undefined;
   cachedPage.events = [];
+  clearPhoneSwipePreviews();
+  setActivePhoneSwipeContext(undefined);
+  document.body.replaceChildren();
   vi.clearAllMocks();
   viewMode.current = 'compact';
 });
@@ -519,4 +529,107 @@ it('restores the authoritative Done tab after toggling Unresolved in Simple mode
   expect(current().threadFilterState.resolved).toBe('any');
   act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
   expect(current().threadFilterState.resolved).toBe('exclude');
+});
+
+describe('useRoomViewThreadState interactive swipe wiring', () => {
+  const mountPhoneStage = (label: string) => {
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    const page = document.createElement('div');
+    page.setAttribute(PHONE_PAGE, '');
+    page.textContent = label;
+    stage.append(page);
+    document.body.append(stage);
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 390,
+      height: 844,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 844,
+      toJSON: () => ({}),
+    });
+    return { stage, page };
+  };
+
+  it('registers PAGE priority and interactive begin scenes on back and forward edge swipes', () => {
+    const { store } = mountThreadState({ threadId: '$thread' });
+    const backOptions = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2];
+    expect(backOptions?.priority).toBe(SWIPE_PRIORITY.PAGE);
+    expect(typeof backOptions?.begin).toBe('function');
+
+    act(() => store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
+    const forwardOptions = vi.mocked(useEdgeSwipeForward).mock.lastCall?.[2];
+    expect(forwardOptions?.priority).toBe(SWIPE_PRIORITY.PAGE);
+    expect(typeof forwardOptions?.begin).toBe('function');
+  });
+
+  it('cancelled back drag leaves route navigation and lastExitedThreadAtom untouched', async () => {
+    const { stage, page } = mountPhoneStage('Thread');
+    const { store } = mountThreadState({ threadId: '$thread' });
+    const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+    const scene = begin?.({ axisSign: 1, dirSign: 1 });
+    expect(scene).not.toBeNull();
+
+    scene!.update(90, 90 / 390);
+    expect(page.style.translate).toBe('90px 0');
+
+    await scene!.settle(false, 0, 90);
+    scene!.cleanup(false);
+
+    expect(store.get(lastExitedThreadAtom)).toBeNull();
+    expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+    expect(navigation.navigatePath).not.toHaveBeenCalled();
+    expect(page.style.translate).toBe('');
+    expect(stage.hasAttribute('data-swipe-stage')).toBe(false);
+    expect(stage.querySelector('[data-swipe-preview]')).toBeNull();
+  });
+
+  it('cancelled forward drag leaves lastExitedThreadAtom intact and does not navigate', async () => {
+    const { stage, page } = mountPhoneStage('Room');
+    const { store, rerender } = mountThreadState();
+    act(() => store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
+    rerender();
+
+    const begin = vi.mocked(useEdgeSwipeForward).mock.lastCall?.[2]?.begin;
+    const scene = begin?.({ axisSign: -1, dirSign: 1 });
+    expect(scene).not.toBeNull();
+
+    scene!.update(80, 80 / 390);
+    await scene!.settle(false, 0, 80);
+    scene!.cleanup(false);
+
+    expect(store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$thread' });
+    expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+    expect(page.style.translate).toBe('');
+    expect(stage.hasAttribute('data-swipe-stage')).toBe(false);
+    expect(stage.querySelector('[data-swipe-preview]')).toBeNull();
+  });
+
+  it('committed back drag exits thread, sets lastExitedThreadAtom, and caches thread preview', async () => {
+    const { stage } = mountPhoneStage('Active Thread Body');
+    const { store, rerender } = mountThreadState({ threadId: '$thread' });
+    const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+    const scene = begin?.({ axisSign: 1, dirSign: 1 });
+    expect(scene).not.toBeNull();
+
+    scene!.update(260, 260 / 390);
+    await scene!.settle(true, 0, 260);
+    act(() => {
+      scene!.commit();
+      scene!.cleanup(true);
+    });
+
+    expect(store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$thread' });
+    expect(navigation.navigateRoomFocusEvent).toHaveBeenCalledWith(ROOM_ID, '$thread', {
+      replace: true,
+    });
+    // Release the interactive handoff by removing data-phone-stage briefly, then re-adding it.
+    stage.removeAttribute(PHONE_STAGE);
+    await Promise.resolve();
+    stage.setAttribute(PHONE_STAGE, '');
+    rerender();
+  });
 });

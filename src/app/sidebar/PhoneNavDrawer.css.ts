@@ -51,6 +51,7 @@ export const Scrim = style([
       '&[data-animate]': { transition: `opacity ${SLIDE} ${EASE}, visibility 0s ${SLIDE}` },
       '&[data-animate][data-open]': { transition: `opacity ${SLIDE} ${EASE}` },
       [IN_PAGE_SLIDE]: { transition: 'none' },
+      '&[data-swiping]': { transition: 'none !important', visibility: 'visible' },
     },
   },
 ]);
@@ -88,6 +89,7 @@ export const Panel = style([
       '&[data-animate]': { transition: `transform ${SLIDE} ${EASE}, visibility 0s ${SLIDE}` },
       '&[data-animate][data-open]': { transition: `transform ${SLIDE} ${EASE}` },
       [IN_PAGE_SLIDE]: { transition: 'none' },
+      '&[data-swiping]': { transition: 'none !important', visibility: 'visible' },
       // A page without a list (Threads, Canvases): the rail alone.
       '&:has([data-nav-slot]:empty)': { inlineSize: 'auto' },
     },

@@ -59,7 +59,9 @@ function MenuButton() {
         aria-expanded={open}
         aria-controls={PHONE_NAV_DRAWER_ID}
         aria-describedby={hasUnread ? unreadId : undefined}
-        onClick={() => movePhoneNavDrawer(!open, setOpen)}
+        onClick={() => {
+          void movePhoneNavDrawer(!open, setOpen);
+        }}
       >
         <Icon src={MenuIcon} />
       </IconButton>

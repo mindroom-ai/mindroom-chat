@@ -133,6 +133,41 @@
     "textViewer": {
       "close": "Schließen"
     },
+    "eventSourceViewer": {
+      "metaEventId": "Ereignis",
+      "metaType": "Typ",
+      "metaSender": "Absender",
+      "metaTime": "Zeit",
+      "badgeEdited": "Bearbeitet",
+      "badgeEncrypted": "Verschlüsselt",
+      "documentTabsLabel": "Ereignisversionen",
+      "tabEvent": "Ereignis",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Letzte Bearbeitung",
+      "tabDecrypted": "Entschlüsselt",
+      "tabDecryptionError": "Entschlüsselung fehlgeschlagen",
+      "tabEncrypted": "Verschlüsselt",
+      "collapseAll": "Einklappen",
+      "expandAll": "Ausklappen",
+      "foldStrings": "Texte kürzen",
+      "rawJson": "Roh",
+      "filterPlaceholder": "Schlüssel oder Werte filtern…",
+      "noMatches": "Keine Treffer für „{{query}}“",
+      "copyField": "{{field}} kopieren",
+      "copyValue": "Wert kopieren",
+      "expandNode": "{{name}} ausklappen",
+      "collapseNode": "{{name}} einklappen",
+      "expandString": "Text ausklappen",
+      "collapseString": "Text einklappen",
+      "matchCount_one": "{{count}} Treffer",
+      "matchCount_other": "{{count}} Treffer",
+      "keyCount_one": "{{count}} Schlüssel",
+      "keyCount_other": "{{count}} Schlüssel",
+      "itemCount_one": "{{count}} Eintrag",
+      "itemCount_other": "{{count}} Einträge",
+      "charCount_one": "{{count}} Zeichen",
+      "charCount_other": "{{count}} Zeichen"
+    },
     "invites": {
       "actionFailed": "Etwas ist schiefgelaufen. Versuche es erneut."
     },
@@ -277,9 +312,6 @@
       "newIntro": "Wähle ein neues Wiederherstellungspasswort. Das alte funktioniert dann nicht mehr.",
       "notCached": "Diese Sitzung hat nicht jeden Verschlüsselungsschlüssel. Verifiziere sie mit deinem Wiederherstellungspasswort oder einem anderen Gerät und versuche es dann erneut.",
       "incompleteError": "Das neue Wiederherstellungspasswort deckt noch nicht jeden Verschlüsselungsschlüssel ab. Versuche es erneut.",
-      "nudgeTitle": "Schütze deine Nachrichten",
-      "nudgeBody": "Lege ein Wiederherstellungspasswort fest, damit du deine verschlüsselten Chats auch nach dem Löschen dieses Browsers oder der Anmeldung auf einem neuen Gerät noch lesen kannst.",
-      "nudgeButton": "Wiederherstellungspasswort einrichten",
       "unlockWithPassword": "Mit Wiederherstellungspasswort entsperren",
       "resetLoss": "Nachrichten, die dieses Gerät jetzt nicht lesen kann, bleiben unlesbar. Deine anderen Sitzungen müssen erneut verifiziert werden.",
       "setupCheckFailed": "Dein Verschlüsselungs-Setup konnte nicht geprüft werden.",
@@ -962,6 +994,30 @@
         "earlier_other": "{{count}} frühere Nachrichten",
         "hide_one": "{{count}} Nachricht ausblenden",
         "hide_other": "{{count}} Nachrichten ausblenden"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} Raumereignis",
+        "summary_other": "{{count}} Raumereignisse",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} Raumereignis ausblenden",
+        "hide_other": "{{count}} Raumereignisse ausblenden",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} beigetreten",
+        "joined_other": "{{count}} beigetreten",
+        "left_one": "{{count}} gegangen",
+        "left_other": "{{count}} gegangen",
+        "invited_one": "{{count}} eingeladen",
+        "invited_other": "{{count}} eingeladen",
+        "requested_one": "{{count}} Beitrittsanfrage",
+        "requested_other": "{{count}} Beitrittsanfragen",
+        "kicked_one": "{{count}} entfernt",
+        "kicked_other": "{{count}} entfernt",
+        "banned_one": "{{count}} gesperrt",
+        "banned_other": "{{count}} gesperrt",
+        "unbanned_one": "{{count}} entsperrt",
+        "unbanned_other": "{{count}} entsperrt",
+        "profileChanges_one": "{{count}} Profiländerung",
+        "profileChanges_other": "{{count}} Profiländerungen"
       },
       "questionCard": {
         "title": "Frage",
@@ -1814,5 +1870,40 @@
     "cancellationSent": "Abbruch gesendet",
     "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
     "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Guten Morgen, {{name}}",
+      "afternoon": "Guten Tag, {{name}}",
+      "evening": "Guten Abend, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Frag {{name}} etwas …",
+      "chooseAgent": "Wählen, wer antwortet",
+      "agentChoice": "{{name}} antwortet",
+      "chooseRoom": "Wählen, wo der Thread beginnt",
+      "roomChoice": "In {{room}}",
+      "inRoom": "in <avatar/>{{room}}",
+      "directChat": "Direktchat",
+      "startsDirectChat": "Startet einen Chat mit {{name}}",
+      "startingDirectChat": "Chat mit {{name}} wird gestartet …",
+      "directChatFailed": "Der Chat mit {{name}} konnte nicht gestartet werden. Versuche es erneut.",
+      "waitingForAgent": "Warten, bis {{name}} dem Chat beitritt …",
+      "notSent": "Nicht an {{agent}} in {{room}} gesendet",
+      "chooseAgain": "Diese Auswahl geht nicht mehr. Dein Text bleibt erhalten: Wähle, wer antwortet oder wo."
+    },
+    "recent": {
+      "title": "Neueste Threads",
+      "allThreads": "Alle Threads",
+      "unread": "Ungelesen"
+    },
+    "recovery": {
+      "action": "Wiederherstellungspasswort einrichten",
+      "text": "Behalte auf einem neuen Gerät Zugriff auf verschlüsselte Chats."
+    },
+    "device": {
+      "action": "Dieses Gerät verifizieren",
+      "text": "Bis dahin kann es deine verschlüsselten Chats nicht lesen."
+    }
   }
 }

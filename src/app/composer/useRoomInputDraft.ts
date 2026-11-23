@@ -2,7 +2,7 @@ import { useStore } from 'jotai';
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Editor, Transforms } from 'slate';
 import { isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
+import { roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
 
 // The drafts mounted composers show, each counted once per composer.
 const shownDrafts = new Map<string, number>();
@@ -10,14 +10,12 @@ const shownDrafts = new Map<string, number>();
 /** Whether a mounted composer shows the draft under `draftKey` (`getRoomInputDraftKey`). */
 export const isDraftShown = (draftKey: string): boolean => shownDrafts.has(draftKey);
 
-export const useRoomInputDraft = (
-  editor: Editor,
-  userId: string,
-  roomId: string,
-  threadId?: string
-) => {
+/**
+ * Keeps the editor's text as the draft under `draftKey`: a room and thread's
+ * (`getRoomInputDraftKey`), or Home's ask field's (`getHomeAskDraftKey`).
+ */
+export const useRoomInputDraft = (editor: Editor, draftKey: string) => {
   const store = useStore();
-  const draftKey = getRoomInputDraftKey(userId, roomId, threadId);
   const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
   const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>();
   const savingRef = useRef(false);
