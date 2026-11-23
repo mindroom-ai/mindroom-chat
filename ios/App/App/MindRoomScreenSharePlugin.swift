@@ -405,7 +405,11 @@ private final class BroadcastPickerSheetController: UIViewController, UIAdaptive
 
         let backdrop = UIView()
         backdrop.translatesAutoresizingMaskIntoConstraints = false
-        backdrop.backgroundColor = UIColor.tintColor.withAlphaComponent(0.15)
+        backdrop.backgroundColor = UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor.white.withAlphaComponent(0.88)
+                : UIColor.tintColor.withAlphaComponent(0.15)
+        }
         backdrop.layer.cornerRadius = 36
         backdrop.clipsToBounds = true
 
