@@ -18,9 +18,9 @@ type ComposerSendButtonProps = {
   alone?: boolean;
   /** An agent replies in the thread now, so holding the button offers the modes. */
   agentReplying: boolean;
-  /** Whether the composer holds text to send; only a text message carries a mode. */
-  hasText: () => boolean;
-  /** The composer holds no text to send, which closes a menu a rest opened, however it went. */
+  /** Whether the composer holds content to send (text, staged files, or a voice recording). */
+  hasContent: () => boolean;
+  /** The composer holds nothing to send, which closes a menu a rest opened, however it went. */
   empty: boolean;
   /** The mode a tap sends with, from the Chats setting; its row in the menu says so. */
   defaultMode: MidTurnMode;
@@ -70,15 +70,15 @@ const HOVER_CLOSE_MS = 200;
  * `HOVER_CLOSE_MS`, unless focus is in it, and once the reply ends, the conversation hides or the
  * composer empties; a click on the button still sends with the default mode. A menu that closes
  * with the mouse on the button opens again only once it has left and come back. A finger or a pen
- * only holds, and a mouse with a button down never rests. Without a reply, or without text to send
- * (a voice message or files alone carry no mode), a hold is a tap and a rest opens nothing. Escape
+ * only holds, and a mouse with a button down never rests. Without a reply, or with nothing to send
+ * (no text, staged files, or voice recording), a hold is a tap and a rest opens nothing. Escape
  * closes the menu, and focus goes back to the button if it was in the menu.
  */
 export function ComposerSendButton({
   label,
   alone,
   agentReplying,
-  hasText,
+  hasContent,
   empty,
   defaultMode,
   onSend,
@@ -94,7 +94,7 @@ export function ComposerSendButton({
   const buttonRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const refocusRef = useRef(false);
-  const canOpen = () => agentReplying && hasText();
+  const canOpen = () => agentReplying && hasContent();
   const canHoverRef = useRef(canOpen);
   canHoverRef.current = () => !conversationHidden && canOpen();
   const press = usePointerLongPress((element) => {
@@ -106,8 +106,8 @@ export function ComposerSendButton({
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const closeHover = () => setMenu((current) => (current?.hover ? undefined : current));
   // A rest counts only while the menu may open: once the conversation hides, the reply ends or the
-  // composer empties (a send, a cut, a voice message), a pending rest is dropped and a menu it
-  // opened closes; only a new rest opens it again.
+  // composer empties (a send, a cut, removing files, discarding a recording), a pending rest is
+  // dropped and a menu it opened closes; only a new rest opens it again.
   const hoverAllowed = agentReplying && !conversationHidden && !empty;
   useEffect(() => {
     if (hoverAllowed) return;

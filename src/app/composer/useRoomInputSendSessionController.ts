@@ -47,8 +47,10 @@ import {
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
 } from './roomInputSendSession';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { SUBMISSION_CONTENT_KEY } from '../matrix/protocol/submission';
 import type { ThreadModelContent } from '../matrix/protocol/threadModel';
+import { isMidTurnMode, type MidTurnMode } from '../preferences/midTurnModes';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
@@ -65,6 +67,7 @@ type SendSession = RoomInputSendSessionState & {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   textContent?: IContent;
+  midTurnMode?: MidTurnMode;
   rootModel?: ThreadModelContent;
   composerFallback?: Descendant[];
   composerContext: ComposerContext;
@@ -193,6 +196,9 @@ export type RoomInputSendContext = {
 
 export type StartRoomInputSendSessionOptions = {
   textContent?: IContent;
+  midTurnMode?: MidTurnMode;
+  /** True when `midTurnMode` was explicitly picked from the Send menu rather than defaulted. */
+  explicitMidTurnMode?: boolean;
   rootModel?: ThreadModelContent | null;
   batch?: {
     fileItems: TUploadItem[];
@@ -282,12 +288,18 @@ export const hasFailedPasteMarkerInText = (
   });
 };
 
+const readMidTurnMode = (content?: IContent): MidTurnMode | undefined => {
+  const mode = content?.[MID_TURN_MODE_KEY];
+  return isMidTurnMode(mode) ? mode : undefined;
+};
+
 const createSendSession = (
   context: RoomInputSendContext,
   files: TUploadContent[],
   fields: Pick<
     SendSession,
     | 'textContent'
+    | 'midTurnMode'
     | 'rootModel'
     | 'composerFallback'
     | 'composerContext'
@@ -521,9 +533,12 @@ export const useRoomInputSendSessionController = ({
     async (session: SendSession) => {
       if (!session.textContent) return;
 
+      const textContent = session.midTurnMode
+        ? { ...session.textContent, [MID_TURN_MODE_KEY]: session.midTurnMode }
+        : session.textContent;
       const { content, relation, settleFork } = await placeMessage(
         session,
-        session.textContent,
+        textContent,
         getTextRelationForSendSession(session)
       );
       const markedContent = withSubmissionMarker(session, content, undefined);
@@ -606,11 +621,18 @@ export const useRoomInputSendSessionController = ({
       }
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
+      const contentWithMidTurn = session.midTurnMode
+        ? { ...content, [MID_TURN_MODE_KEY]: session.midTurnMode }
+        : content;
       const {
         content: contentWithRelation,
         relation,
         settleFork,
-      } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
+      } = await placeMessage(
+        session,
+        contentWithMidTurn,
+        getUploadRelationForSendSession(session, isRoot)
+      );
       // An upload retried while this file built or waited for its fork holds it back, as
       // resolveRoomInputSendStep does: the file stays unsent, gives up its place as the fork's
       // start, and the session builds and places it again once nothing uploads.
@@ -730,6 +752,8 @@ export const useRoomInputSendSessionController = ({
   const startSendSession = useCallback(
     async ({
       textContent,
+      midTurnMode,
+      explicitMidTurnMode = false,
       rootModel,
       batch,
       context,
@@ -764,6 +788,8 @@ export const useRoomInputSendSessionController = ({
           return undefined;
         return takeRootModelDraft?.(target.room);
       };
+      const resolvedMidTurnMode =
+        (isMidTurnMode(midTurnMode) ? midTurnMode : undefined) ?? readMidTurnMode(textContent);
       const existingSession = sendSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
@@ -773,7 +799,10 @@ export const useRoomInputSendSessionController = ({
         }
         if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
           // Send again: the attachments whose send failed go out again; text being sent stays
-          // in the composer meanwhile.
+          // in the composer meanwhile. An explicit menu pick overrides the session's saved mode.
+          if (explicitMidTurnMode && resolvedMidTurnMode) {
+            existingSession.midTurnMode = resolvedMidTurnMode;
+          }
           existingSession.blockedRoot = false;
           existingSession.failedFiles.clear();
           await processSendSession(sendSlot);
@@ -810,6 +839,7 @@ export const useRoomInputSendSessionController = ({
           // with it and gets its row at once.
           const session = createSendSession(nextContext, [], {
             textContent,
+            midTurnMode: resolvedMidTurnMode,
             rootModel: nextRootModel,
             composerFallback: nextFallback,
             composerContext: nextComposerContext,
@@ -830,6 +860,7 @@ export const useRoomInputSendSessionController = ({
           sendSlot
             .start?.({
               textContent,
+              midTurnMode: resolvedMidTurnMode,
               rootModel: nextRootModel ?? null,
               context: nextContext,
               composerFallback: nextFallback,
@@ -874,6 +905,7 @@ export const useRoomInputSendSessionController = ({
       );
       const session = createSendSession(sendContext, sendFiles, {
         textContent,
+        midTurnMode: resolvedMidTurnMode,
         rootModel: acquireRootModel(sendContext, sendFiles.length > 0),
         composerContext: composerContext ?? { roomId, threadId: composerThreadId },
         failFast: completeWithinCall,
