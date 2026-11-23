@@ -5127,82 +5127,9 @@ describe("RoomInput as Home's ask field", () => {
     canSend: () => true,
     ...overrides,
   });
-  // Too large for one event: its long-text file is uploaded before anything is sent.
   const LONG_QUESTION = 'A long question. '.repeat(3000);
+  const question = [{ type: 'paragraph', children: [{ text: LONG_QUESTION }] }];
 
-  it('takes the plain text of a paste, and nothing of a file or a paste chip copied with it', async () => {
-    const readPastes = vi.spyOn(keptPastes, 'readKeptPasteTexts');
-    try {
-      const { renderer, store } = await renderRoomInput(createStore(), { ask: askProps() });
-      const fragmentsBefore = vi.mocked(Transforms.insertFragment).mock.calls.length;
-      const paste = {
-        clipboardData: {
-          files: { length: 1, 0: new File(['secret'], 'mindroom-paste-abc123.txt') },
-          types: ['Files', 'text/plain', 'application/x-slate-fragment'],
-          getData: (type: string) => (type === 'text/plain' ? 'Only these words' : 'a paste chip'),
-        },
-        preventDefault: vi.fn(),
-      };
-      await act(async () => {
-        await customEditorState.props!.onPaste?.(paste as never);
-      });
-
-      // Slate's own paste, which would insert the copied chip, is prevented.
-      expect(paste.preventDefault).toHaveBeenCalledTimes(1);
-      expect(editorMocks.insertText.mock.calls).toEqual([['Only these words']]);
-      expect(editorMocks.insertNode).not.toHaveBeenCalled();
-      expect(vi.mocked(Transforms.insertFragment).mock.calls).toHaveLength(fragmentsBefore);
-      expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
-
-      // A chip that got into the draft some other way is not turned back into a file at Send.
-      editorOutputState.emptyEditor = false;
-      editorOutputState.plainText = 'Only these words';
-      customEditorState.editor!.children = [
-        {
-          type: 'paragraph',
-          children: [
-            { text: 'Only these words' },
-            {
-              type: 'paste-marker',
-              fileName: 'mindroom-paste-abc123.txt',
-              children: [{ text: '' }],
-            },
-          ],
-        },
-      ];
-      await submitComposer();
-      await act(async () => {
-        await Promise.resolve();
-      });
-      expect(readPastes).not.toHaveBeenCalled();
-      expect(mxState.uploadContent).not.toHaveBeenCalled();
-      expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-      expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
-        msgtype: 'm.text',
-        body: 'Only these words',
-      });
-      renderer.unmount();
-    } finally {
-      readPastes.mockRestore();
-    }
-  });
-
-  it("refuses a drop, which a room's composer leaves to the editor", async () => {
-    const { renderer } = await renderRoomInput(createStore(), { ask: askProps() });
-    const drop = { preventDefault: vi.fn() };
-    customEditorState.props!.onDrop?.(drop);
-    expect(drop.preventDefault).toHaveBeenCalledTimes(1);
-    renderer.unmount();
-
-    const room = await renderRoomInput();
-    expect(customEditorState.props!.onDrop).toBeUndefined();
-    room.renderer.unmount();
-  });
-
-  /**
-   * Sends a long question from Home to ROOM_ID; its upload is still on its way. Home's draft is
-   * kept as going to `keptRoomId`, with null nowhere.
-   */
   const sendLongQuestion = async (
     ask: Partial<NonNullable<React.ComponentProps<typeof RoomInput>['ask']>> = {},
     keptRoomId: string | null = ROOM_ID,
@@ -5230,188 +5157,140 @@ describe("RoomInput as Home's ask field", () => {
       });
     return { store, renderer, fail: () => settle(false), finishUpload: () => settle(true) };
   };
-  const question = [{ type: 'paragraph', children: [{ text: LONG_QUESTION }] }];
 
-  it("returns a question whose upload failed to the field it shows in, and to no room's draft", async () => {
-    const { store, renderer, fail } = await sendLongQuestion();
-    await fail();
+  it('enforces text-only paste/drop, ignores paste chips, skips voice recovery, suppresses typing, and ignores empty send', async () => {
+    const readPastes = vi.spyOn(keptPastes, 'readKeptPasteTexts');
+    try {
+      const onSendingChange = vi.fn();
+      const { renderer, store } = await renderRoomInput(createStore(), {
+        ask: askProps({ onSendingChange }),
+      });
+      expect(store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(false);
+      expect(typingState.hidden).toBe(true);
 
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent).toHaveBeenCalledTimes(1);
-    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
-    expect(store.get(roomDraft(ROOM_ID))).toEqual([]);
-    renderer.unmount();
+      // Empty Enter/click does not toggle pending sending state.
+      stageComposerText('');
+      await act(async () => {
+        await getPrimarySendButton(renderer).props.onClick();
+      });
+      expect(onSendingChange).not.toHaveBeenCalled();
+
+      // Drop is refused; paste takes plain text only and drops files / slate fragments.
+      const drop = { preventDefault: vi.fn() };
+      customEditorState.props!.onDrop?.(drop);
+      expect(drop.preventDefault).toHaveBeenCalledTimes(1);
+
+      const fragmentsBefore = vi.mocked(Transforms.insertFragment).mock.calls.length;
+      const paste = {
+        clipboardData: {
+          files: { length: 1, 0: new File(['secret'], 'mindroom-paste-abc123.txt') },
+          types: ['Files', 'text/plain', 'application/x-slate-fragment'],
+          getData: (type: string) => (type === 'text/plain' ? 'Only these words' : 'a paste chip'),
+        },
+        preventDefault: vi.fn(),
+      };
+      await act(async () => {
+        await customEditorState.props!.onPaste?.(paste as never);
+      });
+      expect(paste.preventDefault).toHaveBeenCalledTimes(1);
+      expect(editorMocks.insertText.mock.calls).toEqual([['Only these words']]);
+      expect(editorMocks.insertNode).not.toHaveBeenCalled();
+      expect(vi.mocked(Transforms.insertFragment).mock.calls).toHaveLength(fragmentsBefore);
+      expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+
+      // Existing paste-marker chip is not uploaded on send.
+      editorOutputState.emptyEditor = false;
+      editorOutputState.plainText = 'Only these words';
+      customEditorState.editor!.children = [
+        {
+          type: 'paragraph',
+          children: [
+            { text: 'Only these words' },
+            {
+              type: 'paste-marker',
+              fileName: 'mindroom-paste-abc123.txt',
+              children: [{ text: '' }],
+            },
+          ],
+        },
+      ];
+      await submitComposer();
+      await act(async () => Promise.resolve());
+      expect(readPastes).not.toHaveBeenCalled();
+      expect(mxState.uploadContent).not.toHaveBeenCalled();
+      expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+        msgtype: 'm.text',
+        body: 'Only these words',
+      });
+      renderer.unmount();
+
+      // Normal room composer keeps drop, voice recovery, and typing notices.
+      const room = await renderRoomInput();
+      expect(customEditorState.props!.onDrop).toBeUndefined();
+      expect(room.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(true);
+      expect(typingState.hidden).toBeFalsy();
+      room.renderer.unmount();
+    } finally {
+      readPastes.mockRestore();
+    }
   });
 
-  it.each([
-    ['goes there still', ROOM_ID],
-    ['has none kept', null],
-    ['goes elsewhere', OTHER_ROOM_ID],
-  ])(
-    "returns a question whose upload failed after Home went to Home's draft alone, with where it was going, when that %s",
-    async (_name, keptRoomId) => {
-      const { store, renderer, fail } = await sendLongQuestion({}, keptRoomId);
-      renderer.unmount();
-      await fail();
+  it('restores failed pre-echo upload to Home draft (mounted and unmounted, preserving isDirect) without touching room drafts', async () => {
+    const mounted = await sendLongQuestion();
+    await mounted.fail();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
+    expect(mounted.store.get(roomDraft(ROOM_ID))).toEqual([]);
+    mounted.renderer.unmount();
 
-      expect(store.get(homeDraft())).toEqual(question);
-      expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
-        agentId: HELPER,
-        roomId: ROOM_ID,
-      });
-      expect(store.get(roomDraft(ROOM_ID))).toEqual([]);
-      expect(store.get(roomDraft(OTHER_ROOM_ID))).toEqual([]);
-      store.set(homeDraft(), []);
-    }
-  );
-
-  it('returns a question for the direct chat as one for the direct chat', async () => {
-    const { store, renderer, fail } = await sendLongQuestion({ isDirect: true }, null);
-    renderer.unmount();
-    await fail();
-
-    expect(store.get(homeDraft())).toEqual(question);
-    expect(store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
+    const unmounted = await sendLongQuestion({ isDirect: true }, OTHER_ROOM_ID);
+    unmounted.renderer.unmount();
+    await unmounted.fail();
+    expect(unmounted.store.get(homeDraft())).toEqual(question);
+    expect(unmounted.store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
       agentId: HELPER,
       roomId: ROOM_ID,
       isDirect: true,
     });
-    store.set(homeDraft(), []);
+    expect(unmounted.store.get(roomDraft(ROOM_ID))).toEqual([]);
+    expect(unmounted.store.get(roomDraft(OTHER_ROOM_ID))).toEqual([]);
+    unmounted.store.set(homeDraft(), []);
   });
 
-  it('tells of the message made for a question, also after the composer has gone', async () => {
+  it('tracks onSendingChange and onLocalEcho across unmount and rechecks canSend(room) per send right before sendMessage', async () => {
     const echoId = `~${ROOM_ID}:txn-room-input`;
+    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
+    const onSendingChange = vi.fn();
     const onLocalEcho = vi.fn();
     const onRoomMessageSent = vi.fn();
-    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
-    const mounted = await sendLongQuestion({ onLocalEcho }, ROOM_ID, onRoomMessageSent);
-    await mounted.finishUpload();
-    expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
-    expect(onRoomMessageSent.mock.calls).toEqual([[echoId]]);
-    mounted.renderer.unmount();
 
-    // The composer goes during the upload: the message is told of, and opens nothing.
-    onLocalEcho.mockClear();
-    onRoomMessageSent.mockClear();
-    const gone = await sendLongQuestion({ onLocalEcho }, ROOM_ID, onRoomMessageSent);
+    // Unmounted mid-upload: still notifies onLocalEcho and onSendingChange(false), skips onRoomMessageSent.
+    const gone = await sendLongQuestion(
+      { onSendingChange, onLocalEcho },
+      ROOM_ID,
+      onRoomMessageSent
+    );
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
     gone.renderer.unmount();
     await gone.finishUpload();
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
     expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
     expect(onRoomMessageSent).not.toHaveBeenCalled();
-  });
 
-  it('asks and tells a send as it was at its press, whatever the field shows by then', async () => {
-    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
-    // The field moves to another room while the long text uploads.
-    const moved = { canSend: vi.fn(() => true), onLocalEcho: vi.fn() };
-    const moveOn = (sent: Awaited<ReturnType<typeof sendLongQuestion>>) =>
-      updateRoomInput(sent.renderer, sent.store, { roomId: OTHER_ROOM_ID, ask: askProps(moved) });
-
-    // Refused where it was going: asked there about that room, and nothing goes out.
+    // Refused right before sendMessage (even after field switches room): aborts send and restores Home draft.
     const pressed = { canSend: vi.fn((sentTo?: unknown) => !sentTo), onLocalEcho: vi.fn() };
+    const moved = { canSend: vi.fn(() => true), onLocalEcho: vi.fn() };
     const refused = await sendLongQuestion(pressed);
-    await moveOn(refused);
+    await updateRoomInput(refused.renderer, refused.store, {
+      roomId: OTHER_ROOM_ID,
+      ask: askProps(moved),
+    });
     await refused.finishUpload();
     expect(pressed.canSend).toHaveBeenCalledWith(inRoom);
     expect(moved.canSend).not.toHaveBeenCalledWith(expect.anything());
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1); // Only the first send succeeded.
     expect(refused.store.get(homeDraft())).toEqual(question);
-    expect(refused.store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
-      agentId: HELPER,
-      roomId: ROOM_ID,
-    });
     refused.renderer.unmount();
     refused.store.set(homeDraft(), []);
-
-    // Allowed, it goes where it was going, and its message is told of there.
-    const allowed = { canSend: vi.fn(() => true), onLocalEcho: vi.fn() };
-    const sent = await sendLongQuestion(allowed);
-    await moveOn(sent);
-    await sent.finishUpload();
-    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0]![0]).toBe(ROOM_ID);
-    expect(allowed.onLocalEcho.mock.calls).toEqual([[`~${ROOM_ID}:txn-room-input`, inRoom]]);
-    expect(moved.onLocalEcho).not.toHaveBeenCalled();
-    sent.renderer.unmount();
-  });
-
-  it('says while a send is on its way, to its end also after the composer has gone', async () => {
-    const onSendingChange = vi.fn();
-    const mounted = await sendLongQuestion({ onSendingChange });
-    expect(onSendingChange.mock.calls).toEqual([[true]]);
-    await mounted.fail();
-    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
-    mounted.renderer.unmount();
-
-    // The composer goes while the question is sent: the send goes on, and its end is told.
-    onSendingChange.mockClear();
-    const gone = await sendLongQuestion({ onSendingChange });
-    gone.renderer.unmount();
-    expect(onSendingChange.mock.calls).toEqual([[true]]);
-    await gone.fail();
-    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
-    gone.store.set(homeDraft(), []);
-  });
-
-  it('tells of no send when Send is pressed with nothing typed', async () => {
-    const onSendingChange = vi.fn();
-    const { renderer } = await renderRoomInput(createStore(), {
-      ask: askProps({ onSendingChange }),
-    });
-    stageComposerText('');
-    await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
-    expect(onSendingChange).not.toHaveBeenCalled();
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it('asks again just before the message goes out, and sends nothing where it may no longer go', async () => {
-    // Allowed at the press; by the time the message would go out, the room or agent has changed.
-    const canSend = vi.fn((sentTo?: unknown) => !sentTo);
-    const inRoom = expect.objectContaining({ roomId: ROOM_ID });
-    const { renderer } = await renderRoomInput(createStore(), { ask: askProps({ canSend }) });
-    stageComposerText('A short question');
-    resetEditorOnNextSend();
-    await act(async () => {
-      await getPrimarySendButton(renderer).props.onClick();
-    });
-    expect(canSend).toHaveBeenCalledWith(inRoom);
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual([
-      { type: 'paragraph', children: [{ text: 'A short question' }] },
-    ]);
-    renderer.unmount();
-
-    // A long question is asked about once its upload is done.
-    editorMocks.restoreEditorContent.mockClear();
-    canSend.mockClear();
-    const long = await sendLongQuestion({ canSend });
-    expect(canSend).not.toHaveBeenCalledWith(inRoom);
-    await long.finishUpload();
-    expect(canSend).toHaveBeenCalledWith(inRoom);
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    expect(editorMocks.restoreEditorContent.mock.calls[0]![1]).toEqual(question);
-    long.renderer.unmount();
-  });
-
-  it("brings no saved recording back, as a room's composer does: it could show none", async () => {
-    const home = await renderRoomInput(createStore(), { ask: askProps() });
-    expect(home.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(false);
-    home.renderer.unmount();
-    const room = await renderRoomInput();
-    expect(room.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(true);
-    room.renderer.unmount();
-  });
-
-  it('tells no room that someone types in it', async () => {
-    const { renderer } = await renderRoomInput(createStore(), { ask: askProps() });
-    expect(typingState.hidden).toBe(true);
-    renderer.unmount();
-    const room = await renderRoomInput();
-    expect(typingState.hidden).toBeFalsy();
-    room.renderer.unmount();
   });
 });

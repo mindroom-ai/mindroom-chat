@@ -36,29 +36,14 @@ import { revealDirectionControls } from '../ui/directional';
 
 export type HomeAgent = {
   userId: string;
-  /**
-   * Its display name and its avatar, each from the first of its rooms that knows it, the name's
-   * direction controls written out.
-   */
   name: string;
   avatarMxc?: string;
-  /** The rooms a question to it can go to (`canAskIn`), the one it last answered in first. */
   roomIds: string[];
-  /**
-   * Its direct chat with the account, waiting while it has yet to join: of several it has joined,
-   * the one it last answered in.
-   */
   direct?: { roomId: string; waiting: boolean };
-  /**
-   * Where a question to it goes: the room it last answered in, else its direct chat; undefined
-   * while that chat has yet to be started.
-   */
   defaultRoomId?: string;
-  /** When it last answered in one of those rooms or in its direct chat, 0 if never. */
   lastUsedTs: number;
 };
 
-/** Whether the account is in `room`, it has not been replaced, and the account may post in it. */
 const canSendIn = (room: Room): boolean => {
   if (room.getMyMembership() !== 'join' || getStateEvent(room, StateEvent.RoomTombstone)) {
     return false;
@@ -71,305 +56,192 @@ const canSendIn = (room: Room): boolean => {
   );
 };
 
-/**
- * Whether a question to `agentId` can go to `room`: the account is in it and may send messages, as
- * its room's composer needs (RoomView), the room has not been replaced, and the agent is in it. An
- * agent whose membership is not loaded yet is in it while it publishes its state there.
- */
+/** Whether the account can send a question to `agentId` in `room`. */
 export const canAskIn = (room: Room, agentId: string): boolean => {
   if (!canSendIn(room)) return false;
   const agent = room.getMember(agentId);
   return agent
     ? agent.membership === 'join'
-    : agentRoomState(room, MINDROOM_SERVER_EVENT).some((event) => event.getSender() === agentId);
+    : agentRoomState(room, MINDROOM_SERVER_EVENT).some((e) => e.getSender() === agentId);
 };
 
-/**
- * Whether `room` is a direct chat with `agentId`: the account may post in it, the two are alone in
- * it, and the agent is known to have joined it, or has another of `memberships` (undefined: not
- * known yet). A third member the client knows of counts before the room's counts do. The state an
- * agent publishes says nothing here: one that left a chat of two leaves its state.
- */
+/** Whether `room` is a writable 1:1 direct chat with `agentId` matching one of `memberships`. */
 export const isDirectRoomWith = (
   room: Room,
   agentId: string,
   memberships: readonly (string | undefined)[] = ['join']
-): boolean =>
-  canSendIn(room) &&
-  room.getJoinedMemberCount() + room.getInvitedMemberCount() <= 2 &&
-  !room
-    .getMembers()
-    .some(
-      (member) =>
-        (member.membership === 'join' || member.membership === 'invite') &&
-        member.userId !== room.myUserId &&
-        member.userId !== agentId
-    ) &&
-  memberships.includes(room.getMember(agentId)?.membership);
+): boolean => {
+  const isThird = (m: { userId: string; membership?: string }) =>
+    (m.membership === 'join' || m.membership === 'invite') &&
+    m.userId !== room.myUserId &&
+    m.userId !== agentId;
+  return (
+    canSendIn(room) &&
+    room.getJoinedMemberCount() + room.getInvitedMemberCount() <= 2 &&
+    !room.getMembers().some(isThird) &&
+    memberships.includes(room.getMember(agentId)?.membership)
+  );
+};
 
-/** The rooms `m.direct` lists for `agentId` that the client has. */
 const listedDirectRooms = (mx: MatrixClient, agentId: string): Room[] => {
-  // Account data holds whatever a client wrote: anything but a list of room IDs lists no room.
-  const content = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>();
-  const listed: unknown = content?.[agentId];
-  return (Array.isArray(listed) ? listed : []).flatMap((roomId: unknown) => {
-    const room = typeof roomId === 'string' ? mx.getRoom(roomId) : null;
-    return room ? [room] : [];
-  });
+  const raw: unknown = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>()?.[agentId];
+  return Array.isArray(raw)
+    ? raw
+        .map((id) => (typeof id === 'string' ? mx.getRoom(id) : null))
+        .filter((r): r is Room => !!r)
+    : [];
 };
 
-/**
- * The account's direct chats with `agentId`, in `m.direct`'s order: the rooms it lists that are
- * one (`isDirectRoomWith`) the agent has joined, and the first it is invited to. `unloaded`: the
- * agent may be in another yet, a room of two whose members the client has still to load.
- */
-type Directs = { joined: Room[]; invited?: Room; unloaded: boolean };
-const readDirects = (mx: MatrixClient, agentId: string): Directs => {
-  const rooms = listedDirectRooms(mx, agentId);
-  return {
-    joined: rooms.filter((room) => isDirectRoomWith(room, agentId)),
-    invited: rooms.find((room) => isDirectRoomWith(room, agentId, ['invite'])),
-    unloaded: rooms.some(
-      (room) => isDirectRoomWith(room, agentId, [undefined]) && !room.membersLoaded()
-    ),
-  };
-};
-
-/**
- * A message that answers: no reaction, edit, redacted message or thread's title notice, nor one
- * that could not be decrypted, which may be any of these.
- */
-const isAnswer = (event: MatrixEvent): boolean =>
-  event.getType() === 'm.room.message' &&
-  !event.isRedacted() &&
-  !event.isDecryptionFailure() &&
-  event.getRelation()?.rel_type !== RelationType.Replace &&
-  !isThreadSummaryEvent(event);
+const isAnswer = (e: MatrixEvent): boolean =>
+  e.getType() === 'm.room.message' &&
+  !e.isRedacted() &&
+  !e.isDecryptionFailure() &&
+  e.getRelation()?.rel_type !== RelationType.Replace &&
+  !isThreadSummaryEvent(e);
 
 const answerKey = (roomId: string, senderId: string): string => `${roomId}\0${senderId}`;
 
-/**
- * When each sender last answered in each of `rooms`, by `answerKey`, read in one pass: its newest
- * message the client has loaded there, the newest reply the server told of in one of the room's
- * threads (also before the thread's events are loaded or the thread index has it, so an older
- * reply that is loaded hides no newer one; a title notice that followed it is not it, the reply
- * kept from before is), or the reply the thread index says ends a thread. Someone else's later
- * message in a thread it answered in does not count. The index's time moves with an edit of that
- * reply, so it counts only for a sender none of whose answers in the thread the client has:
- * those count by when they were sent. Nor does it count for a reply the index could not decrypt.
- */
-const readLastAnswers = (
-  rooms: Iterable<Room>,
-  threads: Iterable<CrossRoomThreadIndexEntry>
-): Map<string, number> => {
+const readLastAnswers = (rooms: Iterable<Room>, threads: Iterable<CrossRoomThreadIndexEntry>) => {
   const newest = new Map<string, number>();
   const note = (roomId: string, senderId: string, ts: number) => {
     const key = answerKey(roomId, senderId);
     if (ts > (newest.get(key) ?? 0)) newest.set(key, ts);
   };
   const roomIds = new Set<string>();
-  // The senders with an answer the client has in each thread, by `answerKey` of the thread.
   const inThread = new Set<string>();
   for (const room of rooms) {
     roomIds.add(room.roomId);
     const read = (events: MatrixEvent[], threadId?: string) =>
       events.forEach((event) => {
-        const senderId = event.getSender();
-        if (!senderId || !isAnswer(event)) return;
-        note(room.roomId, senderId, event.getTs());
-        if (threadId) inThread.add(answerKey(threadId, senderId));
+        const sender = event.getSender();
+        if (!sender || !isAnswer(event)) return;
+        note(room.roomId, sender, event.getTs());
+        if (threadId) inThread.add(answerKey(threadId, sender));
       });
     read(room.getLiveTimeline().getEvents());
-    room.getThreads().forEach((thread) => {
-      const reply = getThreadSummaryReply(thread);
-      read(reply ? [...thread.events, reply] : thread.events, thread.id);
+    room.getThreads().forEach((t) => {
+      const reply = getThreadSummaryReply(t);
+      read(reply ? [...t.events, reply] : t.events, t.id);
     });
   }
   for (const { roomId, threadRootId, threadRecord } of threads) {
-    const { lastSenderId, latestReplyTs, latestReplyPreviewLocalization } =
-      threadRecord.presentation;
-    const known = !!lastSenderId && inThread.has(answerKey(threadRootId, lastSenderId));
-    const unread = latestReplyPreviewLocalization?.kind === 'encrypted';
-    if (roomIds.has(roomId) && lastSenderId && !known && !unread) {
-      note(roomId, lastSenderId, latestReplyTs ?? 0);
+    const p = threadRecord.presentation;
+    if (
+      roomIds.has(roomId) &&
+      p.lastSenderId &&
+      !inThread.has(answerKey(threadRootId, p.lastSenderId)) &&
+      p.latestReplyPreviewLocalization?.kind !== 'encrypted'
+    ) {
+      note(roomId, p.lastSenderId, p.latestReplyTs ?? 0);
     }
   }
   return newest;
 };
 
-/**
- * The account's direct chat with `agentId` among `directs` (`readDirects`): of the chats it has
- * joined, the one it last answered in by `answers` (`readLastAnswers`), else the first `m.direct`
- * lists; with none joined, the first it is invited to, waiting. An invitation is not it while the
- * agent may be in a chat whose members are still to load: that is found by starting the chat.
- */
-const pickDirect = (
-  { joined, invited, unloaded }: Directs,
-  agentId: string,
-  answers: Map<string, number>
-): HomeAgent['direct'] => {
-  const answered = (room: Room) => answers.get(answerKey(room.roomId, agentId)) ?? 0;
-  const [chat] = [...joined].sort((a, b) => answered(b) - answered(a));
-  if (chat) return { roomId: chat.roomId, waiting: false };
-  return invited && !unloaded ? { roomId: invited.roomId, waiting: true } : undefined;
+const readDirect = (mx: MatrixClient, agentId: string, answers: Map<string, number>) => {
+  const rooms = listedDirectRooms(mx, agentId);
+  const ts = (r: Room) => answers.get(answerKey(r.roomId, agentId)) ?? 0;
+  const [joined] = rooms.filter((r) => isDirectRoomWith(r, agentId)).sort((a, b) => ts(b) - ts(a));
+  if (joined) return { roomId: joined.roomId, waiting: false };
+  const invited = rooms.find((r) => isDirectRoomWith(r, agentId, ['invite']));
+  return invited ? { roomId: invited.roomId, waiting: true } : undefined;
 };
 
-/**
- * An agent's display name as `room` knows it, else its ID's name without the agents' prefix, the
- * direction controls written out.
- */
+/** Agent display name from `room`, falling back to localpart without `mindroom_`. */
 export const agentNameIn = (room: Room | undefined, userId: string): string =>
   revealDirectionControls(
     (room ? getMemberRawDisplayName(room, userId) : undefined) ||
       (getMxIdLocalPart(userId) ?? userId).replace(/^mindroom_/, '')
   );
 
-/**
- * The agents of the account's rooms, who answer Home's questions: each agent that publishes its
- * server state in a joined room, except the router, the one that answered last first.
- */
+/** Agents publishing server state in joined rooms (excluding router), ranked by last answer. */
 export const readHomeAgents = (
   mx: MatrixClient,
   roomIds: readonly string[],
   threads: Iterable<CrossRoomThreadIndexEntry>
 ): HomeAgent[] => {
   const roomsByAgent = new Map<string, Room[]>();
+  const answerRooms = new Set<Room>();
   roomIds.forEach((roomId) => {
     const room = mx.getRoom(roomId);
     if (!room || room.isSpaceRoom() || room.getMyMembership() !== 'join') return;
     agentRoomState(room, MINDROOM_SERVER_EVENT).forEach((event) => {
-      const agentId = event.getSender()!;
-      if (isMindroomOwnerUserId(agentId)) return;
-      roomsByAgent.set(agentId, [...(roomsByAgent.get(agentId) ?? []), room]);
+      const id = event.getSender()!;
+      if (isMindroomOwnerUserId(id)) return;
+      roomsByAgent.set(id, [...(roomsByAgent.get(id) ?? []), room]);
+      answerRooms.add(room);
     });
   });
-  const directs = new Map(
-    Array.from(roomsByAgent.keys(), (agentId) => [agentId, readDirects(mx, agentId)] as const)
+  roomsByAgent.forEach((_, id) =>
+    listedDirectRooms(mx, id).forEach((r) => isDirectRoomWith(r, id) && answerRooms.add(r))
   );
-  // An agent's answers in its direct chats count too, also in one where it publishes no state.
-  const answerRooms = new Set(Array.from(roomsByAgent.values()).flat());
-  directs.forEach(({ joined }) => joined.forEach((room) => answerRooms.add(room)));
   const answers = readLastAnswers(answerRooms, threads);
-  const agents = Array.from(roomsByAgent, ([userId, rooms]): HomeAgent => {
-    const answered = (roomId: string) => answers.get(answerKey(roomId, userId)) ?? 0;
-    // Sorted in place, so rooms never answered in keep the room list's order.
+  return Array.from(roomsByAgent, ([userId, rooms]): HomeAgent => {
+    const ts = (id: string) => answers.get(answerKey(id, userId)) ?? 0;
     const usable = rooms
-      .filter((room) => canAskIn(room, userId))
-      .map((room) => room.roomId)
-      .sort((a, b) => answered(b) - answered(a));
-    const direct = pickDirect(directs.get(userId)!, userId, answers);
-    let [lastRoomId] = usable;
-    let lastUsedTs = lastRoomId ? answered(lastRoomId) : 0;
-    if (direct && !direct.waiting && answered(direct.roomId) > lastUsedTs) {
-      lastRoomId = direct.roomId;
-      lastUsedTs = answered(direct.roomId);
-    }
-    // Of its rooms, the first that knows its name, and the first that knows its avatar: the
-    // members of one before it may be still to load.
-    const named = rooms.find((room) => getMemberRawDisplayName(room, userId));
-    const pictured = rooms.find((room) => getMemberAvatarMxc(room, userId));
+      .filter((r) => canAskIn(r, userId))
+      .map((r) => r.roomId)
+      .sort((a, b) => ts(b) - ts(a));
+    const direct = readDirect(mx, userId, answers);
+    const roomTs = usable[0] ? ts(usable[0]) : 0;
+    const directTs = direct && !direct.waiting ? ts(direct.roomId) : 0;
+    const lastUsedTs = Math.max(roomTs, directTs);
     return {
       userId,
-      name: agentNameIn(named, userId),
-      avatarMxc: pictured && getMemberAvatarMxc(pictured, userId),
+      name: agentNameIn(
+        rooms.find((r) => getMemberRawDisplayName(r, userId)),
+        userId
+      ),
+      avatarMxc: rooms.map((r) => getMemberAvatarMxc(r, userId)).find(Boolean),
       roomIds: usable,
       direct,
-      defaultRoomId: lastUsedTs > 0 ? lastRoomId : direct?.roomId,
+      defaultRoomId: directTs > roomTs ? direct?.roomId : roomTs > 0 ? usable[0] : direct?.roomId,
       lastUsedTs,
     };
-  });
-  return agents.sort((a, b) => b.lastUsedTs - a.lastUsedTs || a.userId.localeCompare(b.userId));
+  }).sort((a, b) => b.lastUsedTs - a.lastUsedTs || a.userId.localeCompare(b.userId));
 };
 
-// Direct chats being started, and those made whose `m.direct` entry failed, by client and agent.
-const directStarts = new WeakMap<
-  MatrixClient,
-  Map<string, { start?: Promise<string>; made?: string }>
->();
+type DirectStart = { start?: Promise<string>; made?: string };
+const directStarts = new WeakMap<MatrixClient, Map<string, DirectStart>>();
 
-/**
- * The direct chat `m.direct` lists with `agentId`, read once the members of each listed room of
- * two whose members the client has yet to load are loaded: the agent may be in one, also in one
- * `m.direct` lists only while the others load. Of several, it is the one `readHomeAgents` takes
- * (`pickDirect`). It fails when none is found and the members of one did not load: that one may
- * be the chat. The thread index is read (`getThreads`) once they have loaded, as it is then.
- */
-const loadDirect = async (
-  mx: MatrixClient,
-  agentId: string,
-  getThreads: () => Iterable<CrossRoomThreadIndexEntry>
-): Promise<string | undefined> => {
-  const tried = new Set<Room>();
-  let failed = false;
-  const fail = () => {
-    failed = true;
-  };
-  for (;;) {
-    const unloaded = listedDirectRooms(mx, agentId).filter(
-      (room) => !tried.has(room) && isDirectRoomWith(room, agentId, [undefined])
-    );
-    if (unloaded.length === 0) break;
-    unloaded.forEach((room) => tried.add(room));
-    // eslint-disable-next-line no-await-in-loop
-    await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(fail)));
-  }
-  // Loaded, the agent is in a listed chat or in none; one that did not load may still be it.
-  const directs = { ...readDirects(mx, agentId), unloaded: failed };
-  const answers = readLastAnswers(directs.joined, getThreads());
-  const direct = pickDirect(directs, agentId, answers)?.roomId;
-  if (!direct && failed) throw new Error('The members of a listed direct chat did not load.');
-  return direct;
-};
-
-/** The direct chat with `agentId` that `startDirectChat` is starting, until that ends. */
-export const pendingDirectStart = (
-  mx: MatrixClient,
-  agentId: string
-): Promise<string> | undefined => directStarts.get(mx)?.get(agentId)?.start;
-
-/**
- * Starts the account's direct chat with `agentId`, once: a second call while it starts gets the
- * same promise, and after a room was made but not listed in `m.direct`, a retry lists that room.
- * It makes no second chat beside one `m.direct` lists whose members were not loaded yet, nor
- * beside one whose members do not load: it fails then, to be tried again. `getThreads` reads the
- * thread index, by which a chat found among several is the one the agent last answered in.
- */
-export const startDirectChat = (
-  mx: MatrixClient,
-  agentId: string,
-  version?: string,
-  getThreads: () => Iterable<CrossRoomThreadIndexEntry> = () => []
-) => {
-  if (!directStarts.has(mx)) directStarts.set(mx, new Map());
-  const known = directStarts.get(mx)!.get(agentId) ?? {};
-  directStarts.get(mx)!.set(agentId, known);
-  const { made } = known;
-  known.start ??= (
-    made
-      ? addRoomIdToMDirect(mx, made, agentId).then(() => made)
-      : loadDirect(mx, agentId, getThreads).then(
-          (existing) =>
-            existing ??
-            createDirectRoom(mx, agentId, { version, onCreated: (roomId) => (known.made = roomId) })
-        )
-  )
-    .then((roomId) => {
+/** Starts or reuses a 1:1 direct chat with `agentId`, deduping concurrent calls and retries. */
+export const startDirectChat = (mx: MatrixClient, agentId: string, version?: string) => {
+  const byAgent = directStarts.get(mx) ?? new Map<string, DirectStart>();
+  directStarts.set(mx, byAgent);
+  const known = byAgent.get(agentId) ?? {};
+  byAgent.set(agentId, known);
+  known.start ??= (async () => {
+    try {
+      let roomId = known.made;
+      if (roomId) {
+        await addRoomIdToMDirect(mx, roomId, agentId);
+      } else {
+        let failed = false;
+        const unloaded = listedDirectRooms(mx, agentId).filter((r) =>
+          isDirectRoomWith(r, agentId, [undefined])
+        );
+        await Promise.all(
+          unloaded.map((r) => r.loadMembersIfNeeded().catch(() => (failed = true)))
+        );
+        const joined = listedDirectRooms(mx, agentId).filter((r) => isDirectRoomWith(r, agentId));
+        const existing = readDirect(mx, agentId, readLastAnswers(joined, []))?.roomId;
+        if (!existing && failed)
+          throw new Error('The members of a listed direct chat did not load.');
+        roomId =
+          existing ??
+          (await createDirectRoom(mx, agentId, { version, onCreated: (id) => (known.made = id) }));
+      }
       known.made = undefined;
       return roomId;
-    })
-    .finally(() => {
+    } finally {
       known.start = undefined;
-      // Only a room made and not listed yet is kept, for the retry.
-      if (!known.made) directStarts.get(mx)?.delete(agentId);
-    });
+      if (!known.made) byAgent.delete(agentId);
+    }
+  })();
   return known.start;
 };
 
-/**
- * `readHomeAgents` for the rooms the room list shows, read again as rooms, threads, `m.direct` or
- * a room's state (memberships, power levels, agents' state) change, as a room's members load,
- * and as an agent answers or a message is redacted.
- */
+/** Live list of Home agents, refreshed on state, membership, answer, and redaction updates. */
 export const useHomeAgents = (): HomeAgent[] => {
   const mx = useMatrixClient();
   const roomIds = useAtomValue(navigationRoomsAtom);
@@ -378,17 +250,11 @@ export const useHomeAgents = (): HomeAgent[] => {
   const [stateVersion, stateChanged] = useForceUpdate();
   useStateEventCallback(mx, stateChanged);
   useEffect(() => {
-    // An agent's answer moves the order, in a room's main timeline too, which the thread index
-    // does not follow; an encrypted one counts once it is read. People's messages move nothing.
-    const onMessage = (event: MatrixEvent) => {
-      if (!event.isState() && isAnswer(event) && isMindroomAgentUserId(event.getSender())) {
-        stateChanged();
-      }
+    const onMessage = (e: MatrixEvent) => {
+      if (!e.isState() && isAnswer(e) && isMindroomAgentUserId(e.getSender())) stateChanged();
     };
     mx.on(RoomEvent.Timeline, onMessage);
     mx.on(MatrixEventEvent.Decrypted, onMessage);
-    // Members loaded after the room are no state events, and say whether a chat is a direct
-    // one; a redacted answer no longer counts.
     mx.on(RoomStateEvent.Members, stateChanged);
     mx.on(RoomEvent.Redaction, stateChanged);
     return () => {
@@ -399,8 +265,7 @@ export const useHomeAgents = (): HomeAgent[] => {
     };
   }, [mx, stateChanged]);
   return useMemo(() => {
-    void directs;
-    void stateVersion;
+    void [directs, stateVersion];
     return readHomeAgents(mx, roomIds, entries.values());
   }, [directs, entries, mx, roomIds, stateVersion]);
 };

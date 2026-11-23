@@ -91,37 +91,39 @@ export function ComposerMenuButton({
       align="Start"
       offset={8}
       content={
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: false,
-            isKeyForward: arrowKey('arrowdown'),
-            isKeyBackward: arrowKey('arrowup'),
-            // A press on the button closes the menu here too; the shared Menu drops the click
-            // that ends it (ui/glass/menuBehaviour.ts).
-            clickOutsideDeactivates: close,
-            escapeDeactivates: () => {
-              refocusRef.current = true;
-              return close();
-            },
-          }}
-        >
-          {/* A long list scrolls inside the menu's rim, which stays put around it. */}
-          <Menu
-            role="menu"
-            aria-label={label}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              minWidth: toRem(200),
-              maxHeight: 'min(20rem, 50vh)',
+        anchor ? (
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              isKeyForward: arrowKey('arrowdown'),
+              isKeyBackward: arrowKey('arrowup'),
+              // A press on the button closes the menu here too; the shared Menu drops the click
+              // that ends it (ui/glass/menuBehaviour.ts).
+              clickOutsideDeactivates: close,
+              escapeDeactivates: () => {
+                refocusRef.current = true;
+                return close();
+              },
             }}
           >
-            <div style={{ minHeight: 0, overflowY: 'auto' }}>
-              <MenuGroup>{children(controls)}</MenuGroup>
-            </div>
-          </Menu>
-        </FocusTrap>
+            {/* A long list scrolls inside the menu's rim, which stays put around it. */}
+            <Menu
+              role="menu"
+              aria-label={label}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: toRem(200),
+                maxHeight: 'min(20rem, 50vh)',
+              }}
+            >
+              <div style={{ minHeight: 0, overflowY: 'auto' }}>
+                <MenuGroup>{children(controls)}</MenuGroup>
+              </div>
+            </Menu>
+          </FocusTrap>
+        ) : null
       }
     >
       <IconTooltip position="Top" label={label}>
