@@ -1,9 +1,16 @@
 import { useTranslation } from 'react-i18next';
-import { Icons, type RectCords } from 'folds';
+import { Icons, type IconSrc, type RectCords } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { useDebugMode } from '../diagnostics/useDebugMode';
 import { ComposerMenuButton } from './ComposerMenuButton';
 import * as css from './RoomInput.css';
+
+export type ComposerExtraVoiceAction = {
+  label: string;
+  icon: IconSrc;
+  disabled?: boolean;
+  onSelect: () => void;
+};
 
 type ComposerActionsMenuProps = {
   formattingOpen: boolean;
@@ -13,6 +20,8 @@ type ComposerActionsMenuProps = {
   onToggleFormatting(): void;
   /** Opens the emoji board at the given place, the "More actions" button. */
   onEmoji(anchor: RectCords): void;
+  /** Alternate voice action on phones when dictation is available. */
+  voiceAction?: ComposerExtraVoiceAction;
 };
 
 /**
@@ -25,6 +34,7 @@ export function ComposerActionsMenu({
   onAttachAppLogs,
   onToggleFormatting,
   onEmoji,
+  voiceAction,
 }: ComposerActionsMenuProps) {
   const { t } = useTranslation();
   const debugMode = useDebugMode();
@@ -57,6 +67,16 @@ export function ComposerActionsMenu({
             icon={Icons.Text}
             onSelect={choose(onToggleFormatting)}
           />
+          {voiceAction && (
+            <MenuEntry
+              role="menuitem"
+              className={css.ComposerMenuItem}
+              label={voiceAction.label}
+              icon={voiceAction.icon}
+              disabled={voiceAction.disabled}
+              onSelect={choose(voiceAction.onSelect)}
+            />
+          )}
           <MenuEntry
             role="menuitem"
             className={css.ComposerMenuItem}

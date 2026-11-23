@@ -1,5 +1,9 @@
 import type { MicVAD, RealTimeVADOptions } from '@ricky0123/vad-web';
-import { appUrl } from '../../lib/basePath';
+import {
+  configureSpeechOrt,
+  getSpeechModelDirectory,
+  loadSpeechRuntime,
+} from '../../lib/speechModelAssets';
 
 /** The model hears 16 kHz mono audio, and stretches are sent at that rate. */
 const SAMPLE_RATE = 16000;
@@ -11,34 +15,6 @@ const SAMPLE_RATE = 16000;
 const LONGEST_STRETCH_SECONDS = 30;
 /** What a person does that lets a page start sound (browsers' autoplay rules). */
 const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
-
-declare const __MINDROOM_SPEECH_MODEL__: string;
-
-/**
- * Loads of the runtime's module that failed in this page. The runtime keeps a start that failed
- * failed for good, so the capture loads its module and WebAssembly before it starts; the browser
- * keeps a module that failed to load failed too, so each load after such a failure asks for the
- * module by a URL of its own.
- */
-let failedModuleLoads = 0;
-
-/** The runtime's module, loaded, and its WebAssembly from `directory`. */
-const loadRuntime = async (directory: string) => {
-  const moduleUrl = `${directory}ort-wasm-simd-threaded.js${
-    failedModuleLoads ? `?retry=${failedModuleLoads}` : ''
-  }`;
-  const [wasm] = await Promise.all([
-    fetch(`${directory}ort-wasm-simd-threaded.wasm`).then((response) => {
-      if (!response.ok) throw new Error(`The speech runtime answered ${response.status}.`);
-      return response.arrayBuffer();
-    }),
-    import(/* @vite-ignore */ moduleUrl).catch((error: unknown) => {
-      failedModuleLoads += 1;
-      throw error;
-    }),
-  ]);
-  return { moduleUrl, wasm };
-};
 
 /** One stretch of speech from this device's microphone. */
 export type SpeechStretch = {
@@ -74,13 +50,7 @@ export const startSpeechCapture = async (
   // The context runs at the rate the browser chooses, which a microphone source needs in some
   // browsers; the wrapper's worklet brings it down to 16 kHz.
   const context = new AudioContext();
-  // The build's directory of the detector's AudioWorklet, the model and the runtime's WebAssembly
-  // (vite.config.js names it); unit tests run without the build's constants.
-  const directory = `${appUrl(
-    typeof __MINDROOM_SPEECH_MODEL__ === 'string'
-      ? __MINDROOM_SPEECH_MODEL__
-      : 'assets/speech-model'
-  )}/`;
+  const directory = getSpeechModelDirectory();
   /** 16 kHz mono 16-bit PCM, which MindRoom takes; set as the wrapper loads, before it hears. */
   let wavOf: (samples: Float32Array) => Blob;
   let vad: MicVAD | undefined;
@@ -196,15 +166,11 @@ export const startSpeechCapture = async (
       const { MicVAD, utils } = await import('@ricky0123/vad-web');
       wavOf = (samples) =>
         new Blob([utils.encodeWAV(samples, 1, SAMPLE_RATE, 1, 16)], { type: 'audio/wav' });
-      const { moduleUrl, wasm } = await loadRuntime(directory);
+      const runtime = await loadSpeechRuntime(directory);
       return MicVAD.new({
         ...options,
         ortConfig: (ort) => {
-          // As the wrapper's default ortConfig, which this one replaces, sets it.
-          ort.env.logLevel = 'error';
-          // The runtime starts with its files loaded already.
-          ort.env.wasm.wasmPaths = { mjs: moduleUrl };
-          ort.env.wasm.wasmBinary = wasm;
+          configureSpeechOrt(ort, runtime);
         },
       });
     })().then(

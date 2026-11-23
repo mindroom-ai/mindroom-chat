@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import { defineConfig, searchForWorkspaceRoot } from 'vite';
+import { defaultClientConditions, defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { clientPlugins, readClientPlugins } from './scripts/client-plugins.mjs';
@@ -29,12 +29,22 @@ import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 // directory, so it may be cached for good like the rest of assets/. The runtime's module goes as
 // .js: nginx, among other static hosts, has no JavaScript type for .mjs.
 const SPEECH_MODEL_FILES = [
-  { file: '@ricky0123/vad-web/dist/vad.worklet.bundle.min.js', type: 'text/javascript' },
-  { file: '@ricky0123/vad-web/dist/silero_vad_legacy.onnx', type: 'application/octet-stream' },
-  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', type: 'application/wasm' },
-  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', type: 'text/javascript' },
+  {
+    file: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
+    type: 'text/javascript',
+  },
+  {
+    file: 'node_modules/@ricky0123/vad-web/dist/silero_vad_legacy.onnx',
+    type: 'application/octet-stream',
+  },
+  {
+    file: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+    type: 'application/wasm',
+  },
+  { file: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', type: 'text/javascript' },
+  { file: 'src/app/composer/dictation/dictationCaptureWorklet.js', type: 'text/javascript' },
 ].map(({ file, type }) => ({
-  source: readFileSync(new URL(`node_modules/${file}`, import.meta.url)),
+  source: readFileSync(new URL(file, import.meta.url)),
   name: path.basename(file).replace(/\.mjs$/, '.js'),
   type,
 }));
@@ -204,6 +214,11 @@ const repository = fileURLToPath(new URL('.', import.meta.url));
 const pluginDirs = pluginDirectories(process.env.E2E_PLUGIN_DIRS, repository);
 
 export default defineConfig({
+  resolve: {
+    // Load onnxruntime-web/wasm without its bundled .wasm URLs: speechModelFiles()
+    // already emits and serves the runtime WebAssembly from SPEECH_MODEL_DIR.
+    conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions],
+  },
   define: {
     __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR),
     __MINDROOM_CANVAS_LIBRARIES__: JSON.stringify(CANVAS_LIBRARY_DIR),

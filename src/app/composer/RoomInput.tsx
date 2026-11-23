@@ -108,6 +108,8 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { VoiceMessageIcon } from './voice/VoiceMessageIcon';
+import { useRoomInputDictation } from './dictation/useRoomInputDictation';
 import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
@@ -266,6 +268,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [midTurnSend] = useSetting(settingsAtom, 'midTurnSend');
+    const [voiceButtonMode] = useSetting(settingsAtom, 'voiceButtonMode');
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
@@ -503,6 +506,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const dictationOwnerKey = `${textKey}:${view ?? 'room'}`;
+    const dictation = useRoomInputDictation({
+      editor,
+      roomId,
+      ownerKey: dictationOwnerKey,
+      rootRef,
+    });
+
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     // Home's ask field takes text only, so it neither shows nor sends a recording either. Neither
     // brings one back from disk: it would hold it from a tab that can show it.
@@ -516,6 +528,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       takeRootModelDraft,
       onRoomMessageSent,
       recover: voiceActive,
+      distinctIcon: dictation.available,
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -561,6 +574,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const submit = useCallback(
       async (mode: MidTurnMode, waited: boolean) => {
+        if (dictation.blocksSubmit) return;
         if (voiceActive && voice.blocksSubmit()) return;
         if (!ask) {
           // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
@@ -635,6 +649,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         holdForRoot,
         runActingCommand,
         sendTypingStatus,
+        dictation.blocksSubmit,
         sessions,
         settlePastes,
         t,
@@ -785,7 +800,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);
     const { setRoot } = focus;
-    const rootRef = useRef<HTMLDivElement | null>(null);
     const setComposerRef = useCallback(
       (node: HTMLDivElement | null) => {
         rootRef.current = node;
@@ -824,6 +838,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         !!replyDraft ||
         !!attachments.board ||
         !!recorder ||
+        !!dictation.capsule ||
         emojiAnchor !== undefined ||
         autocompleteMenuOpen ||
         formattingOpen,
@@ -928,6 +943,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           />
         )}
         {recorder}
+        {dictation.capsule}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
@@ -973,9 +989,34 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onAttachAppLogs={attachments.attachAppLogs}
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
+                  voiceAction={
+                    dictation.available && !forkFrom
+                      ? voiceButtonMode === 'voiceMessage'
+                        ? {
+                            label: dictation.label,
+                            icon: Icons.Mic,
+                            disabled: dictation.disabled,
+                            onSelect: () => {
+                              dictation.start();
+                            },
+                          }
+                        : {
+                            label: voice.microphoneLabel,
+                            icon: VoiceMessageIcon,
+                            disabled: voice.microphoneDisabled,
+                            onSelect: () => {
+                              voice.startRecording();
+                            },
+                          }
+                      : undefined
+                  }
                 />
-                {/* A fork draft records no voice: one would start a thread, not the fork. */}
-                {!forkFrom && voice.microphone}
+                {/* On phones with dictation available, show the chosen primary voice control. */}
+                {dictation.available
+                  ? forkFrom || voiceButtonMode !== 'voiceMessage'
+                    ? dictation.button
+                    : voice.microphone
+                  : !forkFrom && voice.microphone}
               </>
             ) : (
               <>
@@ -1035,6 +1076,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
+              {!phone && dictation.button}
               <ComposerSendButton
                 label={sendLabel}
                 alone={phone}
@@ -1042,7 +1084,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
                 empty={noText}
                 defaultMode={midTurnSend}
-                disabled={askBlocked}
+                disabled={askBlocked || dictation.blocksSubmit}
                 onSend={handleSend}
               />
             </>

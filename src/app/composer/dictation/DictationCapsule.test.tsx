@@ -1,0 +1,146 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DictationCapsule } from './DictationCapsule';
+import type { DictationSnapshot } from './dictationSession';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params?.count !== undefined ? `${key}:${String(params.count)}` : key,
+  }),
+}));
+
+vi.mock('../../ui/glass/liquid/useLiquidGlass', () => ({
+  useLiquidGlass: () => ({ current: null }),
+}));
+
+vi.mock('../../messages/content/voice/VoiceWaveform', () => ({
+  VoiceWaveform: ({ liveSampleCount, dimmed }: { liveSampleCount?: number; dimmed?: boolean }) => (
+    <div data-testid="waveform" data-live={liveSampleCount ?? ''} data-dimmed={String(!!dimmed)} />
+  ),
+}));
+
+vi.mock('../../ui/IconTooltip', () => ({
+  IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
+    children(() => undefined),
+}));
+
+const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnapshot => ({
+  phase: 'recording',
+  elapsedMs: 18_000,
+  waveform: [100, 400, 800],
+  sampleCount: 3,
+  pendingUploads: 0,
+  failedSegments: 0,
+  completedSegments: 0,
+  hasPartialText: false,
+  capReached: false,
+  interrupted: false,
+  errorMessage: undefined,
+  ...overrides,
+});
+
+const handlers = () => ({
+  onCancel: vi.fn(),
+  onPause: vi.fn(),
+  onResume: vi.fn(),
+  onFinish: vi.fn(),
+  onRetry: vi.fn(),
+  onInsertPartial: vi.fn(),
+  onDiscard: vi.fn(),
+  onDismissError: vi.fn(),
+});
+
+afterEach(() => cleanup());
+
+describe('DictationCapsule', () => {
+  it('renders Cancel, live waveform, timer, Pause, and Finish while recording', () => {
+    const h = handlers();
+    render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
+
+    expect(screen.getByText('0:18')).toBeTruthy();
+    expect(screen.getByTestId('waveform').getAttribute('data-live')).toBe('3');
+    expect(screen.getByTestId('waveform').getAttribute('data-dimmed')).toBe('false');
+
+    fireEvent.click(screen.getByLabelText('composer.dictation.cancel'));
+    fireEvent.click(screen.getByLabelText('composer.dictation.pause'));
+    fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    expect(h.onCancel).toHaveBeenCalledTimes(1);
+    expect(h.onPause).toHaveBeenCalledTimes(1);
+    expect(h.onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows Resume when paused and subtle status when segments are pending retry or finishing', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'paused', failedSegments: 1 })} {...h} />
+    );
+
+    expect(screen.getByTestId('waveform').getAttribute('data-dimmed')).toBe('true');
+    expect(screen.getAllByText('composer.dictation.statusPendingRetry:1').length).toBeGreaterThan(
+      0
+    );
+    fireEvent.click(screen.getByLabelText('composer.dictation.resume'));
+    expect(h.onResume).toHaveBeenCalledTimes(1);
+
+    rerender(<DictationCapsule snapshot={baseSnapshot({ phase: 'finishing' })} {...h} />);
+    expect(screen.getAllByText('composer.dictation.statusFinishing').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(
+      true
+    );
+  });
+
+  it('renders inline recovery actions on failure and shows Insert partial only when partial text exists', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'failed',
+          failedSegments: 1,
+          completedSegments: 1,
+          hasPartialText: true,
+          errorMessage: 'Upstream timeout',
+        })}
+        {...h}
+      />
+    );
+
+    expect(screen.getByRole('alert').textContent).toContain('Upstream timeout');
+    fireEvent.click(screen.getByText('composer.dictation.retry'));
+    fireEvent.click(screen.getByText('composer.dictation.insertPartial'));
+    fireEvent.click(screen.getByText('composer.dictation.discard'));
+    expect(h.onRetry).toHaveBeenCalledTimes(1);
+    expect(h.onInsertPartial).toHaveBeenCalledTimes(1);
+    expect(h.onDiscard).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'failed',
+          failedSegments: 1,
+          completedSegments: 0,
+          hasPartialText: false,
+          errorMessage: 'Failed',
+        })}
+        {...h}
+      />
+    );
+    expect(screen.queryByText('composer.dictation.insertPartial')).toBeNull();
+  });
+
+  it('renders a dismissible alert banner when idle with a microphone error', () => {
+    const h = handlers();
+    render(
+      <DictationCapsule
+        snapshot={baseSnapshot({ phase: 'idle', errorMessage: 'Microphone permission denied.' })}
+        {...h}
+      />
+    );
+
+    expect(screen.getByRole('alert').textContent).toContain('Microphone permission denied.');
+    fireEvent.click(screen.getByLabelText('composer.dictation.dismissError'));
+    expect(h.onDismissError).toHaveBeenCalledTimes(1);
+  });
+});

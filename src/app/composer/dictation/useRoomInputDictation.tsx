@@ -1,0 +1,281 @@
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
+import { useAtomValue, useStore } from 'jotai';
+import { Icon, Icons } from 'folds';
+import { useTranslation } from 'react-i18next';
+import type { BaseRange, Editor } from 'slate';
+import { computerOwnsKeyboardEvent } from '../../computer/computerFocus';
+import { openOverlay } from '../../shortcuts/shortcutDom';
+import { shortcutAttributes } from '../../shortcuts/ShortcutKeys';
+import { isComposingKey, matchesShortcut } from '../../shortcuts/shortcuts';
+import { IconButton } from '../../ui/glass/GlassPrimitives';
+import { IconTooltip } from '../../ui/IconTooltip';
+import { ComposerIconButton } from '../RoomInput.css';
+import { activeDictationAtom, voiceAutoSendPendingAtom } from '../roomInputDrafts';
+import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { DictationClient } from './api';
+import { DictationCapsule } from './DictationCapsule';
+import {
+  createDictationSession,
+  type DictationSession,
+  type DictationSessionOptions,
+  type DictationSnapshot,
+} from './dictationSession';
+import { insertDictatedText } from './insertDictatedText';
+import { useDictationServer } from './useDictationServer';
+
+export type UseRoomInputDictationOptions = {
+  editor: Editor;
+  roomId: string;
+  ownerKey: string;
+  rootRef: RefObject<HTMLElement | null>;
+  createSession?: (opts: DictationSessionOptions) => DictationSession;
+};
+
+export type RoomInputDictationFeature = {
+  available: boolean;
+  blocksSubmit: boolean;
+  active: boolean;
+  disabled: boolean;
+  label: string;
+  button: ReactNode;
+  capsule: ReactNode;
+  start: () => boolean;
+};
+
+const IDLE_SNAPSHOT: DictationSnapshot = {
+  phase: 'idle',
+  elapsedMs: 0,
+  waveform: [],
+  sampleCount: 0,
+  pendingUploads: 0,
+  failedSegments: 0,
+  completedSegments: 0,
+  hasPartialText: false,
+  capReached: false,
+  interrupted: false,
+  errorMessage: undefined,
+};
+
+const noopSubscribe = () => () => undefined;
+const keepTextFocus = (event: MouseEvent) => event.preventDefault();
+
+export const useRoomInputDictation = ({
+  editor,
+  roomId,
+  ownerKey,
+  rootRef,
+  createSession = createDictationSession,
+}: UseRoomInputDictationOptions): RoomInputDictationFeature => {
+  const { t } = useTranslation();
+  const store = useStore();
+  const { available, sessions } = useDictationServer(roomId);
+  const activeDictation = useAtomValue(activeDictationAtom);
+  const liveVoice = useAtomValue(liveVoiceRecordingAtom);
+  const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
+
+  const savedSelectionRef = useRef<BaseRange | null>(null);
+  const session = useMemo(() => {
+    if (!sessions) return undefined;
+    return createSession({
+      client: new DictationClient(sessions),
+      roomId,
+    });
+  }, [createSession, roomId, sessions]);
+
+  const subscribe = useCallback(
+    (listener: () => void) => (session ? session.subscribe(listener) : noopSubscribe()),
+    [session]
+  );
+  const getSnapshot = useCallback(
+    () => (session ? session.getSnapshot() : IDLE_SNAPSHOT),
+    [session]
+  );
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  const releaseOwnership = useCallback(() => {
+    if (store.get(activeDictationAtom) === ownerKey) {
+      store.set(activeDictationAtom, undefined);
+    }
+  }, [ownerKey, store]);
+
+  // Discard and release ownership when this session is replaced or the composer unmounts.
+  useEffect(
+    () => () => {
+      session?.discard();
+      releaseOwnership();
+    },
+    [releaseOwnership, session]
+  );
+
+  // Account switch or sign-out clears activeDictationAtom externally; abort local capture too.
+  useEffect(() => {
+    if (activeDictation !== ownerKey && snapshot.phase !== 'idle') {
+      session?.discard();
+    }
+  }, [activeDictation, ownerKey, session, snapshot.phase]);
+
+  const start = useCallback((): boolean => {
+    if (!available || !session) return false;
+    if (
+      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(voiceAutoSendPendingAtom) ||
+      store.get(activeDictationAtom) !== undefined
+    ) {
+      return false;
+    }
+    savedSelectionRef.current = editor.selection ? structuredClone(editor.selection) : null;
+    store.set(activeDictationAtom, ownerKey);
+    void session.start().then((started) => {
+      if (!started) releaseOwnership();
+    });
+    return true;
+  }, [available, editor, ownerKey, releaseOwnership, session, store]);
+
+  const handleFinish = useCallback(() => {
+    if (!session) return;
+    void session.finish().then((result) => {
+      if (result.status === 'completed') {
+        insertDictatedText(editor, result.text, savedSelectionRef.current);
+        savedSelectionRef.current = null;
+        releaseOwnership();
+      } else if (result.status === 'cancelled') {
+        savedSelectionRef.current = null;
+        releaseOwnership();
+      }
+    });
+  }, [editor, releaseOwnership, session]);
+
+  const handleRetry = useCallback(() => {
+    if (!session) return;
+    void session.retryFailed().then((result) => {
+      if (result.status === 'completed') {
+        insertDictatedText(editor, result.text, savedSelectionRef.current);
+        savedSelectionRef.current = null;
+        releaseOwnership();
+      } else if (result.status === 'cancelled') {
+        savedSelectionRef.current = null;
+        releaseOwnership();
+      }
+    });
+  }, [editor, releaseOwnership, session]);
+
+  const handleInsertPartial = useCallback(() => {
+    if (!session) return;
+    const text = session.takePartialText();
+    insertDictatedText(editor, text, savedSelectionRef.current);
+    savedSelectionRef.current = null;
+    releaseOwnership();
+  }, [editor, releaseOwnership, session]);
+
+  const handleDiscard = useCallback(() => {
+    session?.discard();
+    savedSelectionRef.current = null;
+    releaseOwnership();
+  }, [releaseOwnership, session]);
+
+  const handlePause = useCallback(() => {
+    void session?.pause();
+  }, [session]);
+
+  const handleResume = useCallback(() => {
+    void session?.resume();
+  }, [session]);
+
+  const handleDismissError = useCallback(() => {
+    session?.clearError();
+  }, [session]);
+
+  // Keyboard shortcuts: Escape cancels while recording/paused; Mod+Shift+D starts or finishes.
+  useEffect(() => {
+    if (!available) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || isComposingKey(event)) return;
+      if (
+        event.key === 'Escape' &&
+        (snapshot.phase === 'recording' || snapshot.phase === 'paused')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleDiscard();
+        return;
+      }
+      if (!matchesShortcut(event, 'dictate')) return;
+      if (computerOwnsKeyboardEvent(event) || openOverlay() !== 'none') return;
+
+      if (snapshot.phase === 'recording' || snapshot.phase === 'paused') {
+        event.preventDefault();
+        handleFinish();
+      } else if (snapshot.phase === 'idle' && rootRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        start();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [available, handleDiscard, handleFinish, rootRef, snapshot.phase, start]);
+
+  const active = snapshot.phase !== 'idle';
+  const blocksSubmit = active;
+  const disabled =
+    !available || liveVoice !== undefined || voiceAutoSendPending || activeDictation !== undefined;
+  const label = t('composer.dictation.label');
+
+  const button = available ? (
+    <IconTooltip label={label} position="Top" shortcut="dictate">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          onClick={() => {
+            start();
+          }}
+          onMouseDown={keepTextFocus}
+          variant="SurfaceVariant"
+          size="300"
+          radii="300"
+          disabled={disabled}
+          aria-label={label}
+          aria-pressed={active}
+          {...shortcutAttributes('dictate')}
+          className={ComposerIconButton}
+        >
+          <Icon src={Icons.Mic} />
+        </IconButton>
+      )}
+    </IconTooltip>
+  ) : null;
+
+  const capsule =
+    snapshot.phase !== 'idle' || snapshot.errorMessage !== undefined ? (
+      <DictationCapsule
+        snapshot={snapshot}
+        onCancel={handleDiscard}
+        onPause={handlePause}
+        onResume={handleResume}
+        onFinish={handleFinish}
+        onRetry={handleRetry}
+        onInsertPartial={handleInsertPartial}
+        onDiscard={handleDiscard}
+        onDismissError={handleDismissError}
+      />
+    ) : null;
+
+  return {
+    available,
+    blocksSubmit,
+    active,
+    disabled,
+    label,
+    button,
+    capsule,
+    start,
+  };
+};

@@ -188,6 +188,21 @@ vi.mock('./useRoomInputVoice', () => ({
     sendAtPress: () => undefined,
     renderRecorder: () => null,
     microphone: null,
+    microphoneLabel: 'Record voice',
+    microphoneDisabled: false,
+    startRecording: () => false,
+  }),
+}));
+vi.mock('./dictation/useRoomInputDictation', () => ({
+  useRoomInputDictation: () => ({
+    available: false,
+    blocksSubmit: false,
+    active: false,
+    disabled: true,
+    label: 'Dictate',
+    button: null,
+    capsule: null,
+    start: () => false,
   }),
 }));
 
