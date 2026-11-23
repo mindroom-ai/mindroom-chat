@@ -299,6 +299,8 @@ const checkInviteRetryNoteAndGrant = async (page: Page, seeded: Seed) => {
   // Opening the note places the input next in Tab order right after the toggle button.
   const noteToggle = dialog.getByRole('button', { name: '+ Add invite note' });
   await noteToggle.click();
+  // macOS WebKit does not focus a button on click; focus explicitly before testing Tab order.
+  await noteToggle.focus();
   await page.keyboard.press('Tab');
   const noteField = dialog.getByPlaceholder('Add a note to your invite...');
   await expect(noteField).toBeFocused();

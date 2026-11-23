@@ -46,6 +46,7 @@ type SheetScrollAreaProps = Pick<
   chainOverscroll?: boolean;
   /** Applied to the outer scroll frame; use `viewportClassName` for the scrollable viewport. */
   className?: string;
+  /** Applied to the scrollable viewport; must not establish a containing block (`position`/`transform`). */
   viewportClassName?: string;
 };
 

@@ -5,8 +5,9 @@ import { touchTarget } from './styles/touchTarget';
 
 export const TouchIcon = style([touchTarget('6px'), { flexShrink: 0 }]);
 
-// Close buttons sit at header ends (28px visual pill), so 8px reach expands them to 44x44px on touch.
-export const CloseTouchIcon = style([touchTarget('8px'), { flexShrink: 0 }]);
+// Close buttons sit at header ends; 12px reach keeps a 44x44px touch target even at 75% page zoom
+// while clamping to 8px reach (44x44px) for a 28px pill at 100% zoom.
+export const CloseTouchIcon = style([touchTarget('12px'), { flexShrink: 0 }]);
 
 export const SheetTitleBar = style({
   flexShrink: 0,
@@ -32,6 +33,9 @@ export const InsetField = style({
     },
   },
   '@media': {
+    '(pointer: coarse)': {
+      selectors: { '&&': { minBlockSize: toRem(44), height: 'auto' } },
+    },
     '(forced-colors: active)': {
       selectors: {
         '&&:focus-within': { outline: '2px solid Highlight' },
