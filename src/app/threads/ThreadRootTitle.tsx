@@ -134,9 +134,9 @@ export const getThreadRootTitle = (
 };
 
 /**
- * The banner's title line from the thread's first message, cut at a word to fit one line. `hint`
- * follows the whole text in its tooltip. `whole` shows all of it instead, on as many lines as it
- * takes: the title on a phone.
+ * The banner's title from the thread's first message: one word-fitted line on wide banners, or
+ * clamped to two lines (one in a short room area) when `whole` is set on compact/phone banners.
+ * `hint` follows the whole text in its tooltip.
  */
 export function ThreadRootTitle({
   text,
@@ -156,11 +156,9 @@ export function ThreadRootTitle({
       ref={ref}
       as="span"
       data-thread-context-root-title="true"
-      className={whole ? css.PhoneTitle : css.SummaryText}
+      className={whole ? css.PhoneRootTitle : css.SummaryText}
       size="T300"
       truncate={!whole}
-      // A title taller than its bound scrolls, also from the keyboard.
-      tabIndex={whole ? 0 : undefined}
       title={hint ? `${text}\n${hint}` : text}
       onDoubleClick={onDoubleClick}
       {...(whole ? ownDirectionBlock : ownDirectionLine)}

@@ -1,6 +1,12 @@
 import { useEffect, useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MatrixEventEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEventEvent,
+  RelationType,
+  RoomEvent,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { Box, Icon, Icons, Text } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import { ReplyLayout } from '../messages/layout/layout';
@@ -78,22 +84,24 @@ export function RoomInputReplyPreview({
       )
     : getReplyPreviewText(room, quoted, t);
 
+  const isThreadReply = replyDraft.relation?.rel_type === RelationType.Thread;
+
   return (
     <RoomInputReplyContext room={room} relation={replyDraft.relation} pendingSend={submitPending}>
-      <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-        <IconButton
-          size="300"
-          radii="300"
-          variant="SurfaceVariant"
-          aria-label={t('composer.cancelReply')}
-          onClick={onCancel}
-        >
-          <Icon size="50" src={Icons.Cross} />
-        </IconButton>
-        <Box grow="Yes" style={{ minWidth: 0 }}>
+      <Box grow="Yes" basis="No" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
+        {!isThreadReply && (
+          <Icon
+            size="50"
+            src={Icons.ReplyArrow}
+            data-directional
+            aria-hidden="true"
+            style={{ flexShrink: 0 }}
+          />
+        )}
+        <Box grow="Yes" basis="No" style={{ minWidth: 0 }}>
           <ReplyLayout
             username={
-              <Text size="T300">
+              <Text as="span" size="T300" truncate>
                 <b>{sender}</b>
               </Text>
             }
@@ -103,6 +111,16 @@ export function RoomInputReplyPreview({
             </Text>
           </ReplyLayout>
         </Box>
+        <IconButton
+          style={{ flexShrink: 0 }}
+          size="300"
+          radii="300"
+          variant="SurfaceVariant"
+          aria-label={t('composer.cancelReply')}
+          onClick={onCancel}
+        >
+          <Icon size="50" src={Icons.Cross} />
+        </IconButton>
       </Box>
     </RoomInputReplyContext>
   );
