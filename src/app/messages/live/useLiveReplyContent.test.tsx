@@ -12,6 +12,7 @@ import {
   useLiveReplyContent,
 } from './useLiveReplyContent';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 
 const ROOM = '!room:example';
 const REPLY = '$reply';
@@ -570,6 +571,65 @@ describe('useLiveReplyContent', () => {
     expect(read.body).toBe(body);
     expect(read['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
     expect(live()).toBe(false);
+  });
+
+  it('yields to a marker-free sidecar preview when the expired frame only adds a trailing pending call', () => {
+    const preview = durable('streaming', { ...SIDECAR, body: 'Looking.' });
+    const read = afterExpiry('Looking.\n\n🔧 `shell` [1] ⏳', preview);
+    expect(read.body).toBe('Looking.');
+    expect(read['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+    expect(live()).toBe(false);
+  });
+
+  it('holds an expired frame with more live prose over a marker-free sidecar preview that borrowed an older tool trace', () => {
+    const reply = replyEvent();
+    const olderTrace = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+    };
+    const editEvent = (eventId: string, ts: number, newContent: Record<string, unknown>) =>
+      new MatrixEvent({
+        type: 'm.room.message',
+        room_id: ROOM,
+        event_id: eventId,
+        sender: AGENT,
+        origin_server_ts: ts,
+        content: {
+          msgtype: 'm.text',
+          body: `* ${String(newContent.body)}`,
+          'm.new_content': newContent,
+          'm.relates_to': { rel_type: 'm.replace', event_id: REPLY },
+        },
+      });
+    const olderEdit = editEvent('$edit1', 2, {
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1]\n\nFound it.',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.tool_trace': olderTrace,
+    });
+    const sidecarEdit = editEvent('$edit2', 3, {
+      msgtype: 'm.file',
+      body: 'Found it.',
+      'io.mindroom.stream_status': 'streaming',
+      ...SIDECAR,
+    });
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: () => ({
+          getRelations: () => [olderEdit, sidecarEdit],
+        }),
+      },
+    } as unknown as Parameters<typeof getEditedEvent>[2];
+
+    const edited = getEditedEvent(REPLY, reply, timelineSet);
+    expect(edited?.getId()).toBe('$edit2');
+    const resolved = getLatestMessageContent(reply, edited);
+    expect(resolved['io.mindroom.tool_trace']).toEqual(olderTrace);
+    expect(resolved['io.mindroom.long_text']).toEqual(SIDECAR['io.mindroom.long_text']);
+
+    const md = '🔧 `shell` [1]\n\nFound it. More...';
+    expect(afterExpiry(md, resolved).body).toBe(md);
+    expect(live()).toBe(true);
   });
 
   // A preview of calls alone has its calls in its sidecar, and nothing says which.

@@ -403,6 +403,8 @@ describe('tool positions on read', () => {
         };
         const read = event(AGENT, edit).getContent();
         expect({ ...read, 'm.new_content': edit['m.new_content'] }).toEqual(edit);
+        expect([read.body, read.formatted_body]).toEqual([edit.body, edit.formatted_body]);
+        if (TRACE in edit) expect(read[TRACE]).toEqual(edit[TRACE]);
         expect(textOf(read)[1]).toEqual([streaming.sent.body, streaming.sent.formatted_body, 2]);
       }
     }

@@ -206,18 +206,22 @@ const isEarlierState = (
   if (checkpoint && compareLiveOrder(shown.order, checkpoint) <= 0) return false;
   const { body } = withWarmupActivity(content);
   if (typeof body !== 'string') return false;
+  const hasSidecar = hasLongTextMetadata(content);
   if (isThinkingPlaceholderBody(content)) {
     // A preview of calls alone has their rows in its sidecar, so only live prose is more than it.
-    return hasLongTextMetadata(content)
-      ? withoutToolMarkerLines(md).trim().length > 0
-      : md.length > 0;
+    return hasSidecar ? withoutToolMarkerLines(md).trim().length > 0 : md.length > 0;
   }
   if (body.length >= md.length) return false;
+  const bodyHasMarkers = withoutToolMarkerLines(body) !== body;
+  if (hasSidecar && !bodyHasMarkers) {
+    // A marker-free sidecar preview omits its tool calls (they live in the sidecar, even if
+    // edit resolution borrowed an older trace). Hold the frame only when it has more prose.
+    const prose = withoutToolMarkerLines(md);
+    return body.length < prose.length && prose.startsWith(body);
+  }
   if (md.startsWith(body)) return true;
-  // Progress edits and frames show the same text, so a reply with its calls is compared as it is:
-  // a call that completed changed its marker line, and that reply is no earlier state. Only a
-  // sidecar preview and the text sent when the upload failed lack the frame's marker lines.
-  if (MINDROOM_TOOL_TRACE_KEY in content || withoutToolMarkerLines(body) !== body) return false;
+  if (bodyHasMarkers) return false;
+  // Marker-free upload-failure fallback (no sidecar): compare prose against marker-free live text.
   const prose = withoutToolMarkerLines(md);
   return body.length < prose.length && prose.startsWith(body);
 };
