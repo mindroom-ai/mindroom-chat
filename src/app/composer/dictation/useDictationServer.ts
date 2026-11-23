@@ -18,6 +18,7 @@ import {
 
 export type DictationServerInfo = {
   available: boolean;
+  confirmed: boolean;
   apiUrl: string | undefined;
   roomId: string | undefined;
   sessions: ClientSessions | undefined;
@@ -200,9 +201,10 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       : roomServer.pending
       ? undefined
       : false;
+  const confirmed = supported && sessions !== undefined && settled === true;
   const available =
     supported &&
     (settled ?? (userId ? readPersistedDictationAvailability(userId, roomId) === true : false));
 
-  return { available, apiUrl, roomId, sessions };
+  return { available, confirmed, apiUrl, roomId, sessions };
 };

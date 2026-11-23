@@ -459,9 +459,12 @@ describe('useDictationServer', () => {
     expect(state.send).toHaveBeenCalledTimes(2);
   });
 
-  it('seeds available: true on frame 1 from localStorage while pending and probing, then persists permanent false', async () => {
+  it('seeds available: true with confirmed: false while pending and probing, then confirms or clears', async () => {
     const key = dictationAvailabilityStorageKey(VIEWER);
-    localStorage.setItem(key, JSON.stringify({ '!room:example.org': true }));
+    localStorage.setItem(
+      key,
+      JSON.stringify({ '!room:example.org': true, '!denied:example.org': true })
+    );
     let resolveMembers!: (value: boolean) => void;
     let resolveStatus!: (response: Response) => void;
     state.send = vi.fn(
@@ -480,28 +483,51 @@ describe('useDictationServer', () => {
         resolveMembers = resolve;
       }),
     });
+    await addRoom(mx, {
+      roomId: '!denied:example.org',
+      members: [VIEWER, AGENT],
+      serverOrigins: [{ apiOrigin: 'https://mr.example' }],
+    });
 
-    const { result } = renderServerHook(mx, {
+    const okHook = renderServerHook(mx, {
       roomId: '!room:example.org',
       computers: { apiUrl: 'https://mr.example' },
     });
-    // Frame 1: roomServer is still pending, yet persisted true avoids flicker.
-    expect(result.current.available).toBe(true);
-    expect(result.current.sessions).toBeUndefined();
+    // Frame 1: roomServer is still pending; placement is seeded but readiness is unconfirmed.
+    expect(okHook.result.current.available).toBe(true);
+    expect(okHook.result.current.confirmed).toBe(false);
+    expect(okHook.result.current.sessions).toBeUndefined();
     expect(state.send).not.toHaveBeenCalled();
 
-    // Room server settles and /status probe is in flight: stays true.
+    // Room server settles and /status probe is in flight: stays available, still unconfirmed.
     resolveMembers(true);
     await flushEffects();
-    expect(result.current.apiUrl).toBe('https://mr.example');
-    expect(result.current.available).toBe(true);
+    expect(okHook.result.current.apiUrl).toBe('https://mr.example');
+    expect(okHook.result.current.available).toBe(true);
+    expect(okHook.result.current.confirmed).toBe(false);
     expect(state.send).toHaveBeenCalledTimes(1);
 
-    // Permanent 403 settles state to false and updates localStorage.
+    // Status enabled: true flips confirmed to true.
+    resolveStatus(
+      Response.json({ enabled: true, maxSegmentSeconds: 30, maxSegmentBytes: 1_000_000 })
+    );
+    await flushEffects();
+    expect(okHook.result.current.available).toBe(true);
+    expect(okHook.result.current.confirmed).toBe(true);
+    okHook.unmount();
+
+    // Permanent 403 settles available and confirmed to false and updates localStorage.
+    const deniedHook = renderServerHook(mx, {
+      roomId: '!denied:example.org',
+      computers: { apiUrl: 'https://mr.example' },
+    });
+    expect(deniedHook.result.current.available).toBe(true);
+    expect(deniedHook.result.current.confirmed).toBe(false);
     resolveStatus(new Response('forbidden', { status: 403 }));
     await flushEffects();
-    expect(result.current.available).toBe(false);
-    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(false);
+    expect(deniedHook.result.current.available).toBe(false);
+    expect(deniedHook.result.current.confirmed).toBe(false);
+    expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!denied:example.org']).toBe(false);
   });
 
   it('clears persisted true and returns false when server discovery settles with no apiUrl', async () => {
@@ -531,6 +557,7 @@ describe('useDictationServer', () => {
     await flushEffects();
     expect(result.current.apiUrl).toBeUndefined();
     expect(result.current.available).toBe(false);
+    expect(result.current.confirmed).toBe(false);
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!dm:example.org']).toBe(false);
   });
 
@@ -553,6 +580,7 @@ describe('useDictationServer', () => {
 
     await flushEffects();
     expect(result.current.available).toBe(false);
+    expect(result.current.confirmed).toBe(false);
     expect(JSON.parse(localStorage.getItem(key) ?? '{}')['!room:example.org']).toBe(true);
   });
 
