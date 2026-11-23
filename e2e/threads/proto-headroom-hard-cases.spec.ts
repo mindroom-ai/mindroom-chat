@@ -1,10 +1,10 @@
 import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
-type ViewportCase = { name: 'desktop' | 'phone'; options: BrowserContextOptions };
+type ViewportCase = { name: 'desktop' | 'phone-size'; options: BrowserContextOptions };
 const VIEWPORTS: ViewportCase[] = [
   { name: 'desktop', options: { viewport: { width: 1440, height: 900 } } },
-  { name: 'phone', options: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } },
+  { name: 'phone-size', options: { viewport: { width: 390, height: 844 } } },
 ];
 
 const HARNESS_HTML = `<!doctype html>
@@ -33,6 +33,8 @@ const HARNESS_HTML = `<!doctype html>
     prevTop: 0,
     prevRows: new Map(),
     sampling: false,
+    scheduled: null,
+    fired: 0,
   };
 
   function render() {
@@ -73,8 +75,51 @@ const HARNESS_HTML = `<!doctype html>
     }
   }
 
+  function runAction(action) {
+    state.fired += 1;
+    if (action.kind === 'prepend') {
+      const deltaPx = action.rows * ROW_H;
+      state.firstId -= action.rows;
+      state.count += action.rows;
+      if (action.mode === 'headroom') {
+        const consumed = Math.min(state.headroom, deltaPx);
+        state.headroom -= consumed;
+        const deficit = deltaPx - consumed;
+        render();
+        if (deficit > 0) writeScrollTop(scroller.scrollTop + deficit, false);
+        render();
+        return;
+      }
+      render();
+      writeScrollTop(scroller.scrollTop + deltaPx, action.mode === 'takeover');
+      render();
+    } else if (action.kind === 'trim') {
+      const trim = state.headroom;
+      state.headroom = 0;
+      render();
+      const target = Math.max(0, scroller.scrollTop - trim);
+      writeScrollTop(target, action.mode === 'takeover');
+      render();
+    }
+  }
+
+  let burstTimer = 0;
   window.addEventListener('wheel', (e) => {
     if (state.sampling) state.wheelPx += e.deltaY;
+    const s = state.scheduled;
+    if (!s) return;
+    if (s.trigger === 'on-wheel-delay' && !s.armed) {
+      s.armed = true;
+      setTimeout(() => runAction(s.action), s.delayMs);
+    } else if (s.trigger === 'after-burst-idle') {
+      clearTimeout(burstTimer);
+      burstTimer = setTimeout(() => {
+        if (!state.scheduled) return;
+        const action = state.scheduled.action;
+        state.scheduled = null;
+        runAction(action);
+      }, s.delayMs);
+    }
   }, { capture: true, passive: true });
 
   scroller.addEventListener('scroll', () => {
@@ -126,7 +171,8 @@ const HARNESS_HTML = `<!doctype html>
   requestAnimationFrame(tick);
 
   window.__proto = {
-    init({ headroom, count, scrollTop, stallMs = 150 }) {
+    init({ headroom, count, scrollTop, stallMs = 150, scheduled = null }) {
+      clearTimeout(burstTimer);
       state.headroom = headroom;
       state.firstId = 100;
       state.count = count;
@@ -136,6 +182,8 @@ const HARNESS_HTML = `<!doctype html>
       state.frames = [];
       state.prevRows = new Map();
       state.sampling = false;
+      state.scheduled = scheduled;
+      state.fired = 0;
       render();
       scroller.scrollTop = scrollTop;
       render();
@@ -149,33 +197,6 @@ const HARNESS_HTML = `<!doctype html>
       state.prevRows = new Map();
       state.sampling = true;
     },
-    prepend({ rows, mode }) {
-      const deltaPx = rows * ROW_H;
-      state.firstId -= rows;
-      state.count += rows;
-      if (mode === 'headroom') {
-        const consumed = Math.min(state.headroom, deltaPx);
-        state.headroom -= consumed;
-        const deficit = deltaPx - consumed;
-        render();
-        if (deficit > 0) writeScrollTop(scroller.scrollTop + deficit, false);
-        render();
-        return { consumed, deficit };
-      }
-      render();
-      writeScrollTop(scroller.scrollTop + deltaPx, mode === 'takeover');
-      render();
-      return { consumed: 0, deficit: deltaPx };
-    },
-    trimHeadroom({ mode }) {
-      const trim = state.headroom;
-      state.headroom = 0;
-      render();
-      const target = Math.max(0, scroller.scrollTop - trim);
-      writeScrollTop(target, mode === 'takeover');
-      render();
-      return { trim, target };
-    },
     stop() {
       state.sampling = false;
       const frames = state.frames;
@@ -188,6 +209,7 @@ const HARNESS_HTML = `<!doctype html>
         (f) => Math.abs(f.unexplained) >= 8 || f.median <= -6 || f.lostPlace
       );
       return {
+        fired: state.fired,
         frameCount: frames.length,
         finalScrollTop: Math.round(scroller.scrollTop),
         headroom: state.headroom,
@@ -208,10 +230,11 @@ const HARNESS_HTML = `<!doctype html>
 async function runCase(page: Page, label: string, fn: () => Promise<void>) {
   await page.setContent(HARNESS_HTML);
   await fn();
-  const report = await page.evaluate(() => (window as unknown as { __proto: { stop: () => unknown } }).__proto.stop());
+  const report = await page.evaluate(() => (window as any).__proto.stop());
   // eslint-disable-next-line no-console
   console.log(`PROTO ${label}: ${JSON.stringify(report)}`);
   return report as {
+    fired: number;
     maxUnexplained: number;
     maxReversal: number;
     lostPlace: number;
@@ -226,7 +249,7 @@ test.describe('prototype: WebKit headroom hard cases (a) and (b)', () => {
   test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
 
   for (const vp of VIEWPORTS) {
-    test(`webkit ${vp.name}: probe hard cases (a) prepend-at-0 while wheeling and (b) burst overtaking final trim`, async () => {
+    test(`webkit ${vp.name}: hard cases (a) prepend-at-0 while wheeling and (b) burst overtaking final trim`, async () => {
       const browser = await launchWebKit();
       try {
         const context = await browser.newContext(vp.options);
@@ -235,100 +258,101 @@ test.describe('prototype: WebKit headroom hard cases (a) and (b)', () => {
         const cy = Math.floor((vp.options.viewport?.height ?? 600) / 2);
         await page.mouse.move(cx, cy);
 
-        // (a1) Prepend +2400px at scrollTop=0 while actively wheeling up (raw scrollTop write + 150ms stall)
+        // (a1) Prepend +2400px at scrollTop=0 while actively wheeling up (in-page timer fires mid-burst + 150ms stall)
         const aRaw = await runCase(page, `${vp.name}/a-raw-prepend-at-0`, async () => {
-          await page.evaluate(() => (window as any).__proto.init({ headroom: 0, count: 60, scrollTop: 0, stallMs: 150 }));
+          await page.evaluate(() => (window as any).__proto.init({
+            headroom: 0, count: 60, scrollTop: 0, stallMs: 150,
+            scheduled: { trigger: 'on-wheel-delay', delayMs: 40, action: { kind: 'prepend', rows: 24, mode: 'raw' } },
+          }));
           await page.evaluate(() => (window as any).__proto.startSampling());
           await page.waitForTimeout(50);
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 16; i++) {
             await page.mouse.wheel(0, -240);
             await page.waitForTimeout(16);
           }
-          const prependPromise = page.evaluate(() => (window as any).__proto.prepend({ rows: 24, mode: 'raw' }));
-          await page.waitForTimeout(50);
-          for (let i = 0; i < 6; i++) {
-            await page.mouse.wheel(0, -240);
-            await page.waitForTimeout(16);
-          }
-          await prependPromise;
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
         });
 
-        // (a2) Prepend +2400px at scrollTop=0 while wheeling up WITH explicit overflow-y:hidden takeover
+        // (a2) Prepend +2400px at scrollTop=0 while actively wheeling up WITH overflow-y:hidden takeover
         const aTakeover = await runCase(page, `${vp.name}/a-takeover-prepend-at-0`, async () => {
-          await page.evaluate(() => (window as any).__proto.init({ headroom: 0, count: 60, scrollTop: 0, stallMs: 150 }));
+          await page.evaluate(() => (window as any).__proto.init({
+            headroom: 0, count: 60, scrollTop: 0, stallMs: 150,
+            scheduled: { trigger: 'on-wheel-delay', delayMs: 40, action: { kind: 'prepend', rows: 24, mode: 'takeover' } },
+          }));
           await page.evaluate(() => (window as any).__proto.startSampling());
           await page.waitForTimeout(50);
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 16; i++) {
             await page.mouse.wheel(0, -240);
             await page.waitForTimeout(16);
           }
-          const prependPromise = page.evaluate(() => (window as any).__proto.prepend({ rows: 24, mode: 'takeover' }));
-          await page.waitForTimeout(50);
-          for (let i = 0; i < 6; i++) {
-            await page.mouse.wheel(0, -240);
-            await page.waitForTimeout(16);
-          }
-          await prependPromise;
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
         });
 
-        // (a3) Prepend +2400px absorbed by headroom=3000 while actively wheeling up (zero scrollTop write)
+        // (a3) Prepend +2400px absorbed by headroom=3000 mid-burst (ZERO scrollTop write)
         const aHeadroom = await runCase(page, `${vp.name}/a-headroom-absorbs`, async () => {
-          await page.evaluate(() => (window as any).__proto.init({ headroom: 3000, count: 60, scrollTop: 3200, stallMs: 150 }));
+          await page.evaluate(() => (window as any).__proto.init({
+            headroom: 3000, count: 60, scrollTop: 5500, stallMs: 150,
+            scheduled: { trigger: 'on-wheel-delay', delayMs: 40, action: { kind: 'prepend', rows: 24, mode: 'headroom' } },
+          }));
           await page.evaluate(() => (window as any).__proto.startSampling());
           await page.waitForTimeout(50);
-          for (let i = 0; i < 4; i++) {
+          for (let i = 0; i < 16; i++) {
             await page.mouse.wheel(0, -240);
             await page.waitForTimeout(16);
           }
-          await page.evaluate(() => (window as any).__proto.prepend({ rows: 24, mode: 'headroom' }));
-          for (let i = 0; i < 6; i++) {
-            await page.mouse.wheel(0, -240);
-            await page.waitForTimeout(16);
-          }
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
         });
 
-        // (b1) New wheel burst overtaking final headroom trim (-1200px, raw scrollTop write + 150ms stall)
+        // (b1) New wheel burst overtaking final headroom trim (-1200px, raw write at 150ms into 220ms pause + 150ms stall)
         const bRaw = await runCase(page, `${vp.name}/b-raw-trim-overtaken`, async () => {
-          await page.evaluate(() => (window as any).__proto.init({ headroom: 1200, count: 60, scrollTop: 3000, stallMs: 150 }));
+          await page.evaluate(() => (window as any).__proto.init({
+            headroom: 1200, count: 80, scrollTop: 7000, stallMs: 150,
+            scheduled: { trigger: 'after-burst-idle', delayMs: 150, action: { kind: 'trim', mode: 'raw' } },
+          }));
           await page.evaluate(() => (window as any).__proto.startSampling());
           await page.waitForTimeout(50);
-          const trimPromise = page.evaluate(() => (window as any).__proto.trimHeadroom({ mode: 'raw' }));
-          await page.waitForTimeout(50);
+          // Burst 1
           for (let i = 0; i < 8; i++) {
             await page.mouse.wheel(0, -240);
             await page.waitForTimeout(16);
           }
-          await trimPromise;
+          // 220ms pause -> timer fires at 150ms, stalls 150ms (to 300ms), burst 2 hits at 220ms!
+          await page.waitForTimeout(220);
+          for (let i = 0; i < 8; i++) {
+            await page.mouse.wheel(0, -240);
+            await page.waitForTimeout(16);
+          }
           await page.waitForTimeout(500);
         });
 
-        // (b2) New wheel burst overtaking final headroom trim (-1200px, overflow-y:hidden takeover + 150ms stall)
+        // (b2) New wheel burst overtaking final headroom trim (-1200px, takeover write at 150ms into 220ms pause + 150ms stall)
         const bTakeover = await runCase(page, `${vp.name}/b-takeover-trim-overtaken`, async () => {
-          await page.evaluate(() => (window as any).__proto.init({ headroom: 1200, count: 60, scrollTop: 3000, stallMs: 150 }));
+          await page.evaluate(() => (window as any).__proto.init({
+            headroom: 1200, count: 80, scrollTop: 7000, stallMs: 150,
+            scheduled: { trigger: 'after-burst-idle', delayMs: 150, action: { kind: 'trim', mode: 'takeover' } },
+          }));
           await page.evaluate(() => (window as any).__proto.startSampling());
-          await page.waitForTimeout(50);
-          const trimPromise = page.evaluate(() => (window as any).__proto.trimHeadroom({ mode: 'takeover' }));
           await page.waitForTimeout(50);
           for (let i = 0; i < 8; i++) {
             await page.mouse.wheel(0, -240);
             await page.waitForTimeout(16);
           }
-          await trimPromise;
+          await page.waitForTimeout(220);
+          for (let i = 0; i < 8; i++) {
+            await page.mouse.wheel(0, -240);
+            await page.waitForTimeout(16);
+          }
           await page.waitForTimeout(500);
         });
 
-        // Sanity assertion on the headroom absorption path (must be 0 jump!)
+        expect(aHeadroom.fired).toBe(1);
         expect(aHeadroom.maxUnexplained).toBeLessThanOrEqual(8);
         expect(aHeadroom.maxReversal).toBeLessThanOrEqual(4);
         expect(aHeadroom.lostPlace).toBe(0);
-        // Log summary so we inspect raw vs takeover empirically
-        expect(aRaw.finalScrollTop).toBeGreaterThanOrEqual(0);
-        expect(aTakeover.finalScrollTop).toBeGreaterThanOrEqual(0);
-        expect(bRaw.finalScrollTop).toBeGreaterThanOrEqual(0);
-        expect(bTakeover.finalScrollTop).toBeGreaterThanOrEqual(0);
+        expect(aRaw.fired).toBe(1);
+        expect(aTakeover.fired).toBe(1);
+        expect(bRaw.fired).toBe(1);
+        expect(bTakeover.fired).toBe(1);
       } finally {
         await browser.close();
       }
