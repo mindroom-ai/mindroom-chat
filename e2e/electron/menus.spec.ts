@@ -317,6 +317,10 @@ test('cancelled app.quit() via beforeunload preserves macOS close-to-hide', asyn
     const serverInput = page.locator('input[name="serverInput"]');
     await expect(serverInput).toBeVisible();
 
+    // Electron handles beforeunload natively via will-prevent-unload without showing a JS dialog;
+    // register a no-op dialog listener so Playwright does not call Page.handleJavaScriptDialog.
+    page.on('dialog', () => undefined);
+
     // Give the page sticky user activation so Chromium honors beforeunload cancellation.
     await serverInput.click();
 
@@ -645,9 +649,6 @@ test('@homeserver CallPanel omits screenshare button when screenShare is false',
   const releasePendingLivekit: Array<() => void> = [];
   try {
     const { page } = session;
-    await page.route('**/.well-known/matrix/client', async (route) => {
-      await route.abort();
-    });
     await page.route(
       '**/_matrix/client/unstable/org.matrix.msc4143/rtc/transports*',
       async (route) => {
