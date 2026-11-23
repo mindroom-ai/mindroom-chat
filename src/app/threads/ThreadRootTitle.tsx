@@ -64,11 +64,15 @@ const textWidth = (element: HTMLElement): ((candidate: string) => number) | unde
  * so its width is the room the line has, then the cut; it is cut again when its row changes
  * width. Not `enabled` (the whole title on a phone), it is `text`, whatever an earlier line cut.
  */
-const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: boolean): string => {
+const useWordFitText = (
+  ref: RefObject<HTMLElement | null>,
+  text: string,
+  enabled: boolean
+): string => {
   const [rowWidthChanges, rowWidthChanged] = useReducer((count: number) => count + 1, 0);
   const [fit, setFit] = useState<{ text: string; rowWidthChanges: number; shown: string }>();
   const fitted = enabled && fit?.text === text && fit.rowWidthChanges === rowWidthChanges;
-  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useLayoutEffect(() => {
     if (!enabled) {

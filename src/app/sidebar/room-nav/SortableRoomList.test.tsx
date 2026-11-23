@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { SortableRoomList, SortableRoomRow } from './SortableRoomList';

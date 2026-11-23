@@ -236,7 +236,7 @@ function RoomWindow({
   const loadedRangeOfRef = useRef((rows: ItemRange) =>
     loadedRangeOfRows(projectionRef.current, rows)
   );
-  const threadIdRef = useRef<string>();
+  const threadIdRef = useRef<string>(undefined);
   const firstRoomTimelineRef = useLatestRef(chain as unknown as EventTimeline | undefined);
   const lastRoomTimelineRef = firstRoomTimelineRef;
   const scrollRef = useRef<HTMLElement | null>(scroller.element);

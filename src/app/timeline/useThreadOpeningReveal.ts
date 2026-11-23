@@ -13,7 +13,7 @@ type ThreadOpeningRevealOptions = {
   opensAtLatest: boolean;
   /** The rows of the thread's virtual list. */
   rows: readonly MatrixEvent[];
-  scrollRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
   /** Whether the reader took the position over: a gesture, a jump, a request for older history. */
   readerTookOver: () => boolean;
 };

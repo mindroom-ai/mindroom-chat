@@ -148,7 +148,7 @@ const useUnreadMarkerOpening = ({
   | 'unreadInfo'
   | 'unreadScrollAnchorIndex'
 >) => {
-  const openingRef = useRef<MarkerOpening>();
+  const openingRef = useRef<MarkerOpening>(undefined);
   useLayoutEffect(() => {
     const viewKey = `${roomId}|${threadId ?? ''}`;
     const previous = openingRef.current;
@@ -437,7 +437,7 @@ const useThreadOpeningPin = ({
   const pinnedInCommitRef = useRef(false);
   // Where the last pin, or the last commit that found the view at the bottom, left the scroll
   // position: a view above it was moved up by something else than the rows growing.
-  const pinnedPositionRef = useRef<{ top: number; correction: number }>();
+  const pinnedPositionRef = useRef<{ top: number; correction: number }>(undefined);
   useLayoutEffect(() => {
     if (!threadId) return;
     const pinned = shouldPinThreadToBottomOnOpen({

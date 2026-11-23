@@ -83,7 +83,7 @@ function Row({ icon, title, detail, count }: RowProps) {
 type CapabilitiesProps = {
   state: AgentProfileState;
   onViewAll: () => void;
-  viewAllRef: RefObject<HTMLButtonElement>;
+  viewAllRef: RefObject<HTMLButtonElement | null>;
 };
 
 /** "Configured tools": each tool when there are few, else the first groups and "View all". */

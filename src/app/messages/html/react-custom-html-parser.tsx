@@ -8,6 +8,7 @@ import React, {
   useEffect,
   useRef,
   useState,
+  type JSX,
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -423,7 +424,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   const [wrap, setWrap] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
   // The view (collapse, wrap, code length) whose last line the reader scrolled to, if any.
   const [endView, setEndView] = useState<string>();

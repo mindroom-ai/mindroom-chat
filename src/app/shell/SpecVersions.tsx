@@ -147,8 +147,8 @@ export function SpecVersions({ baseUrl, allowCachedContent = false, children }: 
     [baseUrl, userId]
   );
   const [refreshedVersions, setRefreshedVersions] = useState<ServerSpecVersions>();
-  const loadedVersionsRef = useRef<ServerSpecVersions>();
-  const refreshedKeyRef = useRef<string>();
+  const loadedVersionsRef = useRef<ServerSpecVersions>(undefined);
+  const refreshedKeyRef = useRef<string>(undefined);
 
   const showWithoutLoader = cachedVersions !== undefined || allowCachedContent;
 

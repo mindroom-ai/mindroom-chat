@@ -16,7 +16,7 @@ const ARRIVAL: Keyframe[] = [
  * from where it was to where it is. Nothing moves with reduced motion or where the browser has
  * no Web Animations.
  */
-export const useFlipList = (listRef: RefObject<HTMLElement>, order: string): void => {
+export const useFlipList = (listRef: RefObject<HTMLElement | null>, order: string): void => {
   const tops = useRef(new Map<string, number>());
   const shownOrder = useRef(order);
 

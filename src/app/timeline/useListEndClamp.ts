@@ -91,8 +91,8 @@ export const listShrinkAfterResize = (
  */
 export function useListEndClamp(
   scroll: HTMLElement | null,
-  contentRef: RefObject<HTMLElement>,
-  probeRef: RefObject<HTMLElement>,
+  contentRef: RefObject<HTMLElement | null>,
+  probeRef: RefObject<HTMLElement | null>,
   pendingListShrinkPx: () => number
 ): void {
   useEffect(() => {

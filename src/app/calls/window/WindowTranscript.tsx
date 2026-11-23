@@ -39,7 +39,7 @@ const focusWindowHandle = () =>
  * The focus in the element of `ref` goes to the window's handle when the element leaves the page,
  * rather than to the page: before it does, while it still has the focus to tell.
  */
-const useFocusHandleOnLeave = (ref: RefObject<HTMLElement>) =>
+const useFocusHandleOnLeave = (ref: RefObject<HTMLElement | null>) =>
   useLayoutEffect(() => {
     const element = ref.current;
     return () => {
@@ -66,7 +66,7 @@ type DividerProps = {
   /** The stage's share of the window body, as the divider shows it now. */
   share: number;
   /** The box the stage and the transcript share, which the pointer's place is measured in. */
-  boxRef: RefObject<HTMLDivElement>;
+  boxRef: RefObject<HTMLDivElement | null>;
   /** A drag's share while it goes; undefined once it ended. */
   onDrag: (share: number | undefined) => void;
   /** Keeps a share: a released drag's, or a key step's. */
@@ -79,7 +79,7 @@ type DividerProps = {
  */
 function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   const { t } = useTranslation();
-  const drag = useRef<{ pointerId: number; share?: number; unblock: () => void }>();
+  const drag = useRef<{ pointerId: number; share?: number; unblock: () => void }>(undefined);
   // A drag the divider goes away during (the window turned short, the transcript hidden) ends
   // with it, unsaved; its pointer capture went with the element.
   useEffect(() => () => onDrag(undefined), [onDrag]);
@@ -179,7 +179,7 @@ type TranscriptProps = {
   room: Room;
   layout: TranscriptLayout;
   grow: number | undefined;
-  paneRef: RefObject<HTMLDivElement>;
+  paneRef: RefObject<HTMLDivElement | null>;
 };
 
 /**

@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /* eslint-disable react/prop-types */
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UrlPreviewCard, UrlPreviewHolder } from './UrlPreviewCard';
 

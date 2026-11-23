@@ -142,7 +142,7 @@ export const useRoomEventOpenController = ({
   prefetchDepth: number;
   prefetchDepthRef: MutableRefObject<number>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
-  scrollRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<{ count: number; smooth: boolean }>;
   scrollToElement: ScrollToElement;
@@ -588,7 +588,7 @@ export const useRoomEventRouteOpenController = ({
 }) => {
   const openRoomEventRouteRef = useRef(openRoomEventRoute);
   // One object per open, so a route that leaves and comes back starts a new open.
-  const handledRoomEventRouteRef = useRef<{ key: string }>();
+  const handledRoomEventRouteRef = useRef<{ key: string }>(undefined);
 
   useEffect(() => {
     openRoomEventRouteRef.current = openRoomEventRoute;

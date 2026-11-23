@@ -157,8 +157,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   optionsRef.current = options;
   const { range } = options;
 
-  const anchorRef = useRef<{ index: number; top: number }>();
-  const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>();
+  const anchorRef = useRef<{ index: number; top: number }>(undefined);
+  const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>(undefined);
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
 
@@ -249,7 +249,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   }, []);
 
   // The window a pagination step widened, until the widened window renders.
-  const steppedFromRef = useRef<ItemRange>();
+  const steppedFromRef = useRef<ItemRange>(undefined);
   const changeRange = useCallback(
     (nextRange: ItemRange, preserveAnchorIndex?: number) => {
       const {
@@ -427,7 +427,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       );
   }, [recheck]);
 
-  const resizesRef = useRef<ResizeObserver>();
+  const resizesRef = useRef<ResizeObserver>(undefined);
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
     const resizes = new ResizeObserver(recheck);

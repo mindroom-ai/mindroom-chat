@@ -22,8 +22,8 @@ const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
 
 type Options = {
   groups: Record<string, string[]>;
-  scrollRef: RefObject<HTMLElement>;
-  contentRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
+  contentRef: RefObject<HTMLElement | null>;
   memory: ScrollAnchorMemory;
   roomId: string;
   target?: string;

@@ -202,7 +202,7 @@ export const useCrossRoomThreadIndex = () => {
   const joinedRoomIdsRef = useRef(joinedRoomIds);
   const snapshotRef = useRef(snapshot);
   const roomDisposersRef = useRef(new Map<string, RoomListenerDisposer>());
-  const controllerRef = useRef<CrossRoomThreadIndexController | undefined>();
+  const controllerRef = useRef<CrossRoomThreadIndexController | undefined>(undefined);
 
   recentThreadsRef.current = recentThreads;
   sessionIdRef.current = activeSession?.sessionId;

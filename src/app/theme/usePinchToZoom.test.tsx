@@ -1459,7 +1459,7 @@ describe('usePinchToZoom', () => {
     it('hands nothing more of a touch pinch once its hook goes, though its element stays', () => {
       const { setPageZoom } = mount(100);
       const calls: string[] = [];
-      function Zoom({ target }: { target: RefObject<HTMLDivElement> }) {
+      function Zoom({ target }: { target: RefObject<HTMLDivElement | null> }) {
         usePinchSurface(target, { onPinch: ({ phase }) => calls.push(phase) });
         return null;
       }

@@ -74,7 +74,7 @@ export const useCompleteSession = <T extends SessionCredentials>(
 ): boolean => {
   const navigate = useNavigate();
   const [storeFailed, setStoreFailed] = useState(false);
-  const handledResponse = useRef<T>();
+  const handledResponse = useRef<T>(undefined);
 
   const baseUrl = data?.baseUrl;
   const response = data?.response;

@@ -58,7 +58,7 @@ const readFocus = () => {
 type CoverLayerProps = {
   entry: TaggedCover;
   room: Room;
-  conversationRef: RefObject<HTMLElement>;
+  conversationRef: RefObject<HTMLElement | null>;
   onFailure: (thrown: unknown, componentStack?: string | null) => void;
 };
 
@@ -111,7 +111,7 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   // control (or its first, or itself) the cover moves the focus to the other end. Where the browser
   // still takes it out (past a control it skips, such as Safari's buttons), it comes back to the
   // other end. Keys and focus from layers a component portals elsewhere are theirs.
-  const tabbingRef = useRef<{ backwards: boolean }>();
+  const tabbingRef = useRef<{ backwards: boolean }>(undefined);
   const controlAt = (backwards: boolean): HTMLElement | undefined => {
     const controls = layerRef.current ? tabbablesOf(layerRef.current) : [];
     // Tab skips a control whose tabindex is negative. A text editor with none, whose `tabIndex`
@@ -203,7 +203,7 @@ export function ConversationCover({
 }: {
   room: Room;
   /** The conversation the cover hides. */
-  conversationRef: RefObject<HTMLElement>;
+  conversationRef: RefObject<HTMLElement | null>;
 }) {
   const config = usePluginClientConfig();
   const enabled = useMemo(

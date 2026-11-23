@@ -90,7 +90,7 @@ export function MessageLinkCards({
   const match = useMessageLinkMatcher(plugins, clientConfig);
   const [shown, setShown] = useState<Shown>();
   const [hovered, setHovered] = useState<Shown & { roomId: string }>();
-  const hideHover = useRef<() => void>();
+  const hideHover = useRef<() => void>(undefined);
   const hoverId = useId();
   const [, relayout] = useReducer((count: number) => count + 1, 0);
   const hoverCards = plugins.some(

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import React, { StrictMode, useEffect } from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act, StrictMode, useEffect } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ClientEvent, createClient, Device, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';

@@ -147,7 +147,7 @@ export function useCanvasHost({
   // Every error this page reported, so one already sent is not offered again.
   const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
-  const uploadingSubmission = useRef<CanvasSubmission>();
+  const uploadingSubmission = useRef<CanvasSubmission>(undefined);
   const stagedNow = useRef(staged);
   stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
@@ -165,7 +165,7 @@ export function useCanvasHost({
   const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
   const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
   // The update held behind Load update; its page finishing its download is not a new update.
-  const heldRevisionId = useRef<string>();
+  const heldRevisionId = useRef<string>(undefined);
 
   const shownRevisionId = displayed.revisionEventId;
   const frameRevisionId = useRef(shownRevisionId);

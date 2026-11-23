@@ -71,7 +71,7 @@ export function RailScrollArea({ top, children }: RailScrollAreaProps) {
   const [pinned, setPinned] = useState(true);
   const pinnedRef = useRef(pinned);
   // The scroll offset of the layout being left, for the one taking over.
-  const carriedOffset = useRef<number>();
+  const carriedOffset = useRef<number>(undefined);
 
   useLayoutEffect(() => {
     const area = areaRef.current;

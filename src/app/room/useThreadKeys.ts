@@ -16,7 +16,7 @@ import {
 type UseThreadKeysOptions = {
   roomId: string;
   /** The room's own area, which holds its Compact cards. */
-  areaRef: RefObject<HTMLElement>;
+  areaRef: RefObject<HTMLElement | null>;
   openThreadId: string | undefined;
   viewMode: RoomViewMode;
   onOpenThread: (threadId: string) => void;
@@ -87,8 +87,8 @@ export const useThreadKeys = ({
   // which a step back in the browser's history does a moment after the key. Not from a control
   // the reader went to meanwhile: the focus moves only from where it was at the key, or from the
   // page, where the closed thread left it.
-  const leftByKey = useRef<{ threadId: string; focused: Element | null }>();
-  const awaitedCard = useRef<{ otherwise?: () => void }>();
+  const leftByKey = useRef<{ threadId: string; focused: Element | null }>(undefined);
+  const awaitedCard = useRef<{ otherwise?: () => void }>(undefined);
   const shownThreadId = useRef(openThreadId);
   useEffect(() => {
     const closed = shownThreadId.current;

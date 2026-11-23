@@ -228,7 +228,7 @@ export const useSecretRequestLine = (
   cardId: string,
   wanted: boolean,
   hidden = false
-): { line: boolean; taken: boolean; lineRef: RefObject<HTMLDivElement> } => {
+): { line: boolean; taken: boolean; lineRef: RefObject<HTMLDivElement | null> } => {
   const { drawn } = useContext(InlineSecretRequestsContext);
   const [self] = useState(() => ({}));
   const lineRef = useRef<HTMLDivElement>(null);

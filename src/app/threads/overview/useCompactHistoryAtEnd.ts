@@ -32,7 +32,7 @@ export const useCompactHistoryAtEnd = ({
    * An element holding the compact view (`[data-compact-room-view]`), marked
    * `data-cards-pending` while some of its cards are still to mount.
    */
-  hostRef: RefObject<HTMLElement>;
+  hostRef: RefObject<HTMLElement | null>;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
   paginateBack: (backwards: boolean) => Promise<void>;

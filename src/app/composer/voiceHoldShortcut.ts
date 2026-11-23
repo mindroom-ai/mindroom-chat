@@ -97,7 +97,7 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
   const composing = useComposingCheck();
   // Read live: switched off, the key arms nothing, and a press under way ends as interrupted.
   const enabledRef = useRef(enabled);
-  const holdRef = useRef<VoiceHold>();
+  const holdRef = useRef<VoiceHold>(undefined);
   useEffect(() => {
     enabledRef.current = enabled;
     if (!enabled) holdRef.current?.interrupt();

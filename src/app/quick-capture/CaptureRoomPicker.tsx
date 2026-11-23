@@ -26,7 +26,7 @@ type CaptureRoomPickerProps = {
   roomId: string | null;
   request: CaptureClient['request'];
   apple: boolean;
-  fieldRef: RefObject<HTMLInputElement>;
+  fieldRef: RefObject<HTMLInputElement | null>;
   onFocus: () => void;
   onPicked: () => void;
 };

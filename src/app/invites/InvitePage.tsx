@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
@@ -48,7 +48,7 @@ export function InvitePage(): JSX.Element {
   const navigate = useNavigate();
   const [link, setLink] = useState(takeLink);
   const [state, setState] = useState<PageState>({ status: 'ready' });
-  const stopRef = useRef<() => void>();
+  const stopRef = useRef<() => void>(undefined);
   const halt = useCallback(() => {
     stopRef.current?.();
     stopRef.current = undefined;

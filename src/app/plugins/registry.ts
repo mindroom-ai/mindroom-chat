@@ -20,7 +20,7 @@ import { registerPluginTranslations, type PluginTranslations } from './pluginTra
  */
 export type RoomHeaderSlotComponent = ComponentType<{
   room: Room;
-  headerRef: RefObject<HTMLElement>;
+  headerRef: RefObject<HTMLElement | null>;
 }>;
 
 /**

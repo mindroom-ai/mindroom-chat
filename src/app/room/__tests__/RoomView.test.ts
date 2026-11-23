@@ -2183,6 +2183,6 @@ vi.mock('../ThreadView', () => ({
     ...props
   }: {
     header?: React.ReactNode;
-    roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
+    roomHeader?: (headerRef: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
   }) => React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));

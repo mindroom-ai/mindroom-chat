@@ -82,7 +82,7 @@ const isMoving = (box: Element): boolean =>
  */
 const useOpenMeasurement = (
   open: boolean,
-  anchorBoxRef: RefObject<HTMLElement>
+  anchorBoxRef: RefObject<HTMLElement | null>
 ): Measurement | undefined => {
   const [measurement, setMeasurement] = useState<Measurement>();
 
@@ -130,13 +130,13 @@ const useOpenMeasurement = (
 const useDismissTrapOptions = (
   open: boolean,
   requestClose: () => void,
-  listRef: RefObject<HTMLElement>
+  listRef: RefObject<HTMLElement | null>
 ): TrapOptions => {
   const alive = useAlive();
   const newestRequestClose = useRef(requestClose);
   // Numbers each opening; `shown` is the opening on screen, undefined while the list is closed.
   const openings = useRef(0);
-  const shown = useRef<number>();
+  const shown = useRef<number>(undefined);
   // For each deactivation still to be reported, oldest first: the opening it ended.
   const unreported = useRef<Array<number | undefined>>([]);
 

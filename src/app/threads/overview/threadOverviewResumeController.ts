@@ -74,7 +74,7 @@ export const useThreadOverviewResumeController = ({
   // (kind: 'thread-backfill'), and the resume trigger is naturally
   // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
-  const overviewRefreshAbortControllerRef = useRef<AbortController>();
+  const overviewRefreshAbortControllerRef = useRef<AbortController>(undefined);
   const targetThreadIds = useMemo(
     () =>
       resolveThreadOverviewRefreshTargets({

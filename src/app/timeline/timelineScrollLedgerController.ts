@@ -109,7 +109,7 @@ export type TimelineScrollLedgerController = {
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
-  leadingRef: RefObject<HTMLDivElement>;
+  leadingRef: RefObject<HTMLDivElement | null>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
   unrenderedCorrectionPx: () => number;
   /** Applied upward measurement corrections, including those whose rows already rendered. */
@@ -133,7 +133,7 @@ export type TimelineScrollLedgerController = {
    * the reader's. Each call takes it, so a later scroll to the same place counts as theirs.
    */
   takeSettledScrollTop: () => number | undefined;
-  virtualInnerRef: RefObject<HTMLDivElement>;
+  virtualInnerRef: RefObject<HTMLDivElement | null>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
 
@@ -243,7 +243,7 @@ export const useTimelineScrollLedgerController = ({
   const [, setLedgerCommitTick] = useState(0);
   // The reader's first visible thread row as of the last commit or scroll.
   // Rows that a later render adds above it are folded, whatever added them.
-  const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>();
+  const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>(undefined);
   const ledgerSettleWantedRef = useRef(false);
   // The part of the ledger that thread rows added above the reader brought with their own height,
   // until the next settle: a thread's list holds all its rows, so their fold lifts the list without
@@ -266,7 +266,7 @@ export const useTimelineScrollLedgerController = ({
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
   // mutable instance.
-  const ledgerFoldSizeCacheRef = useRef<Map<VirtualItemKey, number>>();
+  const ledgerFoldSizeCacheRef = useRef<Map<VirtualItemKey, number>>(undefined);
 
   const priceThreadRowForLedger = useCallback(
     (key: VirtualItemKey, index: number): number =>
@@ -305,7 +305,7 @@ export const useTimelineScrollLedgerController = ({
   const leadingFoldPx = leadingHeld ? leadingRenderPx - committedLeading.px : 0;
   // Anchored room rows: rows a render puts above the reader's first visible row are folded,
   // whatever put them there (a new thread at the top, a page that widened the window).
-  const roomLedgerAnchorRef = useRef<RoomLedgerAnchor>();
+  const roomLedgerAnchorRef = useRef<RoomLedgerAnchor>(undefined);
   const anchoringRoomRows = !threadId && !!anchorRoomRows;
   const roomRowKeys = anchoringRoomRows
     ? Array.from({ length: itemCount }, (_, index) => getItemKey(index))
@@ -402,10 +402,10 @@ export const useTimelineScrollLedgerController = ({
   //   scroll area's width itself, after the browser gathered and before the rows are reported.
   // Widths are compared unrounded: a row wraps anew at a change of a fraction of a pixel.
   // `reportedWidthRef` is the scroll area and the width its observer was last told of.
-  const reportedWidthRef = useRef<{ scrollElement: Element; width: number }>();
+  const reportedWidthRef = useRef<{ scrollElement: Element; width: number }>(undefined);
   // Whether the scroll area has a width its observer has not been told of, as the report of
   // the rows' observer that runs now found it; undefined between its reports.
-  const widthUnreportedRef = useRef<boolean>();
+  const widthUnreportedRef = useRef<boolean>(undefined);
   // Whether the row measured last wrapped anew, until the correction hook reads it or the
   // observer's callback returns: a row that kept its size asks for no correction, and a size set
   // later without a measurement (a fold, a hidden row) did not wrap anew.
@@ -522,7 +522,7 @@ export const useTimelineScrollLedgerController = ({
     rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
     listTop: number;
     inset: number;
-  }>();
+  }>(undefined);
   const readerTopOffset = useCallback((scrollTop: number) => {
     const view = threadLedgerViewRef.current;
     return view ? scrollTop + view.inset - view.listTop : undefined;
@@ -553,7 +553,7 @@ export const useTimelineScrollLedgerController = ({
     priceRow: RoomLedgerAnchor['priceRow'];
     listTop: number;
     inset: number;
-  }>();
+  }>(undefined);
   const anchorRoomRowsRef = useRef(anchorRoomRows);
   useLayoutEffect(() => {
     anchorRoomRowsRef.current = anchorRoomRows;

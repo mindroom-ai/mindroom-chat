@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type FocusTrap from 'focus-trap-react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';

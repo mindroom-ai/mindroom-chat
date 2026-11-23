@@ -98,9 +98,9 @@ export function ThreadView({
   /** Holds, while it is mounted, the function that takes the focus to its composer. */
   focusRef?: MutableRefObject<(() => void) | undefined>;
   /** The element whose dropped files its composer takes, in place of the view. */
-  fileDropContainerRef?: RefObject<HTMLElement>;
+  fileDropContainerRef?: RefObject<HTMLElement | null>;
   /** The room's header, over the thread as over the room's messages, given its element. */
-  roomHeader?: (headerRef: RefObject<HTMLDivElement>) => ReactNode;
+  roomHeader?: (headerRef: RefObject<HTMLDivElement | null>) => ReactNode;
   /** The room page's thread summaries, which the thread's own events bring up to date. */
   summaryMap?: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary?: RoomTimelineProps['onStoreThreadSummary'];
@@ -180,7 +180,7 @@ export function ThreadView({
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
   // same thread: the focus stays where the person took it meanwhile. `autoFocus` counts as a thread
   // opens or changes: changing it alone (the column changing width) moves no focus.
-  const previousThreadId = useRef<string>();
+  const previousThreadId = useRef<string>(undefined);
   const autoFocusRef = useLatestRef(autoFocus);
   useEffect(() => {
     const previous = previousThreadId.current;

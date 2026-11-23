@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatUiCanvas } from '../../matrix/protocol/chatUiProtocol';

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { expect, it, vi } from 'vitest';
 import {
   ApprovalHistory,
@@ -21,7 +20,7 @@ vi.mock('../ui/page/PageScroll', () => ({
   }: {
     header?: React.ReactNode;
     children: React.ReactNode;
-    scrollRef?: React.RefObject<HTMLDivElement>;
+    scrollRef?: React.RefObject<HTMLDivElement | null>;
   }) => (
     <div ref={scrollRef}>
       {header}

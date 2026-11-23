@@ -20,7 +20,7 @@ const nearBottom = (scroll: HTMLElement) =>
  */
 export function useFooterBottomPin(
   scroll: HTMLElement | null,
-  probeRef: RefObject<HTMLElement>,
+  probeRef: RefObject<HTMLElement | null>,
   followLatestRows: () => void
 ): void {
   useLayoutEffect(() => {

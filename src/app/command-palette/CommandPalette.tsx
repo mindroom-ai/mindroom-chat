@@ -240,7 +240,7 @@ const directionOf = (element: unknown): 'ltr' | 'rtl' =>
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
 
 type PaletteTabsProps = {
-  listRef: RefObject<HTMLDivElement>;
+  listRef: RefObject<HTMLDivElement | null>;
   tab: CommandPaletteTab;
   tabId: (id: CommandPaletteTab) => string;
   panelId: string;

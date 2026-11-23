@@ -23,7 +23,11 @@ const loadingCallView = (
   </Box>
 );
 
-type FloatingCallProps = { room: Room; onClose: () => void; frameRef: RefObject<HTMLElement> };
+type FloatingCallProps = {
+  room: Room;
+  onClose: () => void;
+  frameRef: RefObject<HTMLElement | null>;
+};
 
 /** The call view of `room` in the floating window, with the room's power levels it reads. */
 function FloatingCall({ room, onClose, frameRef }: FloatingCallProps) {

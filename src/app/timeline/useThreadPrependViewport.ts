@@ -13,7 +13,7 @@ export const useThreadPrependViewport = ({
   scrollRef,
 }: {
   controller: ThreadBackPaginationController;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }): ThreadPrependViewportPort =>
   useMemo(
     () => ({

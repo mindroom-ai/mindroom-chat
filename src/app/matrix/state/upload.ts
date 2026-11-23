@@ -165,7 +165,7 @@ export const useBindUploadAtom = (
 ): BoundUpload => {
   const store = useStore();
   const upload = useAtomValue(uploadAtom);
-  const requestRef = useRef<Promise<UploadResponse>>();
+  const requestRef = useRef<Promise<UploadResponse>>(undefined);
 
   useEffect(
     () => () => {

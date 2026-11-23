@@ -107,7 +107,7 @@ export const PageNavHeader = as<'header', { outlined?: boolean; scroll?: boolean
 );
 
 type PageNavContentProps = {
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   /** The column's title (a `PageNavHeader`), which the list scrolls beneath. */
   header?: ReactNode;
   /** Adds to the list's own padding, such as the settings menu's even inset. */

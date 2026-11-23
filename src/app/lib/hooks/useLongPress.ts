@@ -69,7 +69,7 @@ export function useLongPress(
   onLongPress: (x: number, y: number, element: HTMLElement) => void,
   canStart: (evt: TouchEvent<HTMLElement>) => boolean
 ) {
-  const press = useRef<Press>();
+  const press = useRef<Press>(undefined);
   const latest = useRef(onLongPress);
   latest.current = onLongPress;
 

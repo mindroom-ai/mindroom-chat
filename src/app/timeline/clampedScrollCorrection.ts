@@ -26,7 +26,7 @@ type Pending = {
 export const useClampedCorrectionFinish = (
   getScrollElement: () => HTMLElement | null
 ): ((deltaPx: number) => void) => {
-  const pendingRef = useRef<Pending>();
+  const pendingRef = useRef<Pending>(undefined);
 
   const noteAppliedCorrection = useCallback(
     (deltaPx: number) => {

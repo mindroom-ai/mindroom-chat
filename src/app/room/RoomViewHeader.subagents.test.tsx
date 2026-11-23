@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { fireEvent } from '@testing-library/react';
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { act as actInDom, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
-import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import {
   Badge,

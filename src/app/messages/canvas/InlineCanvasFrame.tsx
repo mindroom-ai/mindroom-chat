@@ -64,7 +64,7 @@ function SizedFrame({
   width?: number;
   raw: boolean;
   /** The page's host, which reads its other messages, follows this frame. */
-  frameRef?: RefObject<HTMLIFrameElement>;
+  frameRef?: RefObject<HTMLIFrameElement | null>;
   /** The page escaped and starts again; its host builds it again from what it saved since. */
   onRestart?: () => void;
 }) {

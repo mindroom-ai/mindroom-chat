@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import { useLayoutEffect } from 'react';
+import { act, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { EventStatus, MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useLocalEchoStatus } from './useLocalEchoStatus';

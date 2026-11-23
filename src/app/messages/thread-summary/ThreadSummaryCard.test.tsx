@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { readFileSync } from 'node:fs';
-import React from 'react';
+import React, { type JSX } from 'react';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ThreadSummaryCard } from './ThreadSummaryCard';

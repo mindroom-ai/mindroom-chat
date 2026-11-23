@@ -34,7 +34,7 @@ export function ThreadCardDetails({
   plugins = registeredPlugins,
 }: {
   room: Room;
-  listRef: RefObject<HTMLElement>;
+  listRef: RefObject<HTMLElement | null>;
   menuOpen: boolean;
   plugins?: readonly RegisteredPlugin[];
 }) {
@@ -42,8 +42,8 @@ export function ThreadCardDetails({
   const latest = useLatestRef({ room, plugins, config, menuOpen });
   // Without a detail to show, the list gets no listener or observer.
   const contributes = hasThreadDetails(plugins, config);
-  const resetRef = useRef<() => void>();
-  const closeRef = useRef<() => void>();
+  const resetRef = useRef<() => void>(undefined);
+  const closeRef = useRef<() => void>(undefined);
   const [open, setOpen] = useState<OpenDetails>();
   const surfaceRef = useRef<HTMLDivElement>(null);
   const openThreadId = open?.threadId;

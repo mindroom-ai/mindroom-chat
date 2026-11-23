@@ -1,10 +1,13 @@
 /* eslint-disable react/prop-types */
-import React from 'react';
+import React, { type JSX } from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { ThreadApprovals } from './ThreadApprovalProvider';
-import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from '../matrix/protocol/toolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+  ToolApprovalData,
+} from '../matrix/protocol/toolApproval';
 
 const sendEventMock = vi.fn();
 vi.mock('../ui/page/PageScroll', () => ({
@@ -729,7 +732,9 @@ describe('ToolApprovalCard', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('The arguments are too large to preview.');
-    expect(text).toContain('The arguments are too large to review, so this request can only be denied.');
+    expect(text).toContain(
+      'The arguments are too large to review, so this request can only be denied.'
+    );
     expect(text).not.toContain('This request cannot be approved here.');
     expect(text).not.toContain('Show all arguments');
     expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();

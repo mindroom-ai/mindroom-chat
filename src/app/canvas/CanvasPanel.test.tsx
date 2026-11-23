@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import {
   createClient,
   EventStatus,
@@ -15,7 +14,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
-import { CANVAS_LIBRARY_SOURCE, canvasPolicy, type CanvasSaved } from '../messages/canvas/canvasDocument';
+import {
+  CANVAS_LIBRARY_SOURCE,
+  canvasPolicy,
+  type CanvasSaved,
+} from '../messages/canvas/canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from '../messages/canvas/canvasTheme';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 

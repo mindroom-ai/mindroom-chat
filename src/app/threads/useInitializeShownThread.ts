@@ -114,7 +114,7 @@ const getListScroll = (list: Element): ListScroll => {
 export const useInitializeShownThread = (
   roomId: string,
   threadRootId: string | undefined,
-  scrollRoot?: RefObject<Element>
+  scrollRoot?: RefObject<Element | null>
 ) => {
   const mx = useMatrixClient();
   const liveSync = getLiveSync(mx);

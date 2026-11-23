@@ -147,15 +147,15 @@ export const toolbarOffset = (
  * scrolls under it or the row changes size.
  */
 export const useToolbarClearance = (
-  rowRef: RefObject<HTMLElement>,
-  toolbarRef: RefObject<HTMLElement>,
+  rowRef: RefObject<HTMLElement | null>,
+  toolbarRef: RefObject<HTMLElement | null>,
   shown: boolean
 ): number | undefined => {
   const [clearance, setClearance] = useState<number>();
-  const clearanceRef = useRef<number>();
+  const clearanceRef = useRef<number>(undefined);
   clearanceRef.current = clearance;
   // The toolbar's usual offset from the top of its row, measured while it sits there.
-  const usualOffset = useRef<number>();
+  const usualOffset = useRef<number>(undefined);
 
   useLayoutEffect(() => {
     const row = rowRef.current;

@@ -97,12 +97,12 @@ const browserAnchorsScroll = (): boolean =>
  */
 export const useCompactScrollFallback = (
   rows: readonly string[],
-  viewRef: RefObject<HTMLElement>,
+  viewRef: RefObject<HTMLElement | null>,
   sectionOfRow?: SectionOfRow
 ): void => {
   // The scroll listener needs the latest committed rows. This ref does not decide their order.
   const latestRowsRef = useRef(rows);
-  const cardsInViewRef = useRef<CardsInView>();
+  const cardsInViewRef = useRef<CardsInView>(undefined);
   // Every commit: a card's thread that loads above the view changes its height without an order
   // change.
   useLayoutEffect(() => {
@@ -163,8 +163,8 @@ export const usePointerOverCards = () => {
   const [mouseInside, setMouseInside] = useState(false);
   const [otherInside, setOtherInside] = useState(false);
   const cancelledRef = useRef(false);
-  const releaseOnClickRef = useRef<() => void>();
-  const restTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const releaseOnClickRef = useRef<() => void>(undefined);
+  const restTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const stopResting = useCallback(() => {
     clearTimeout(restTimerRef.current);
     restTimerRef.current = undefined;

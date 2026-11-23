@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import { useLayoutEffect, useState } from 'react';
+import { act, useLayoutEffect, useState } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { revokeBlobUrl, useBlobUrlCleanup } from './useBlobUrlCleanup';
 import { AsyncCallback, useAsyncCallback } from './useAsyncCallback';

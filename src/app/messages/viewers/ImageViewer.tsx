@@ -43,7 +43,7 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  */
 const useSaveMedia = (src: string, fileName: string) => {
   const [saved, setSaved] = useState<{ src: string; state: DownloadState }>();
-  const blobRef = useRef<{ src: string; blob: Blob }>();
+  const blobRef = useRef<{ src: string; blob: Blob }>(undefined);
   const state = saved?.src === src ? saved.state : 'idle';
 
   const save = async () => {
@@ -85,9 +85,9 @@ type ImageViewerProps = {
    */
   onStep?: (delta: StepDelta) => void;
   /** On phones, the viewer's screen: a swipe from its left edge closes the viewer at fit. */
-  edgeSwipeArea?: RefObject<Element>;
+  edgeSwipeArea?: RefObject<Element | null>;
   /** On phones, the overlay surface wrapping the viewer and backdrop so pinches spanning the exposed strip still zoom the image. */
-  pinchSurfaceRef?: RefObject<HTMLElement>;
+  pinchSurfaceRef?: RefObject<HTMLElement | null>;
 };
 
 // Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
@@ -114,7 +114,7 @@ const arrowStep = (rightward: boolean): StepDelta =>
  */
 const useSwipe = (enabled: boolean, edgeCloses: boolean, onSwipe: (leftward: boolean) => void) => {
   const pointersRef = useRef(new Set<number>());
-  const startRef = useRef<{ pointerId: number; x: number; y: number }>();
+  const startRef = useRef<{ pointerId: number; x: number; y: number }>(undefined);
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;

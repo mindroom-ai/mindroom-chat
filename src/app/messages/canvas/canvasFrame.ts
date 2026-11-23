@@ -7,7 +7,7 @@ export const CANVAS_FRAME_READY = 'canvas-frame-ready';
 /** Chooses `srcDoc` on web/phone or `/canvas-frame.html` handshake in the desktop shell. */
 export const useCanvasFrame = (
   doc: string,
-  frame: RefObject<HTMLIFrameElement>,
+  frame: RefObject<HTMLIFrameElement | null>,
   onLoad: () => void
 ): ({ srcDoc: string } | { src: string }) & { onLoad: () => void; generation: number } => {
   const desktop = isDesktopApp();

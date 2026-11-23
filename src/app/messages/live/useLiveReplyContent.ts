@@ -262,7 +262,7 @@ export const useLiveReplyContent = (
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
   // grows or pauses.
-  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>();
+  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>(undefined);
   if (docs && entry) shownRef.current = { docs, order: { sid: entry.sid, seq: entry.seq } };
   const heldDocs =
     !docs &&

@@ -64,7 +64,7 @@ export const useRoomPaginationCommandController = ({
   threadIdRef: MutableRefObject<string | undefined>;
   timeline: RoomTimelineState;
 }) => {
-  const backPaginationPromiseRef = useRef<Promise<void>>();
+  const backPaginationPromiseRef = useRef<Promise<void>>(undefined);
   const runBackwardPagination = useCallback(async () => {
     const persistRoomEventCache = beginRoomCacheWrite();
     roomPaginatingBackRef.current = true;

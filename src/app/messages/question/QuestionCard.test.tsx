@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { EventEmitter } from 'events';
 import {
   MatrixEvent,

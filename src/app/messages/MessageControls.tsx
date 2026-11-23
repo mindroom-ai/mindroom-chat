@@ -203,7 +203,7 @@ export function DownloadOriginalMenuItem({
   const mx = useMatrixClient();
   const [state, setState] = useState<DownloadState>('idle');
   const activeRef = useRef(false);
-  const blobRef = useRef<{ source: LongTextSource; blob: Blob }>();
+  const blobRef = useRef<{ source: LongTextSource; blob: Blob }>(undefined);
 
   const handleClick = async () => {
     if (activeRef.current) return;

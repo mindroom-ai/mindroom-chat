@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { Profiler } from 'react';
+import { act, Profiler } from 'react';
 import { EventEmitter } from 'events';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import {
   ClientEvent,
   MatrixEvent,

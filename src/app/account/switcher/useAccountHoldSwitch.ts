@@ -219,7 +219,7 @@ export type UseAccountHoldSwitchResult = {
   holdAnchor: HTMLElement | undefined;
   pressing: boolean;
   hoveredSessionId: string | undefined;
-  menuRef: RefObject<HTMLDivElement>;
+  menuRef: RefObject<HTMLDivElement | null>;
   triggerProps: {
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
     onClickCapture: (event: ReactMouseEvent<HTMLElement>) => void;
@@ -245,10 +245,10 @@ export function useAccountHoldSwitch({
   const [hoveredSessionId, setHoveredSessionId] = useState<string>();
 
   const menuRef = useRef<HTMLDivElement>(null);
-  const gestureRef = useRef<ActiveGesture>();
+  const gestureRef = useRef<ActiveGesture>(undefined);
   const suppressNextClickRef = useRef(false);
-  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const removeSuppressListenersRef = useRef<() => void>();
+  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const removeSuppressListenersRef = useRef<() => void>(undefined);
 
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;

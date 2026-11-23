@@ -25,7 +25,7 @@ const resolveStripClass = (distance: number | null): string => {
  * hook mutates their dataset on scroll frames.
  */
 export const useTimelineMinimapInView = (
-  scrollRef: RefObject<HTMLElement>,
+  scrollRef: RefObject<HTMLElement | null>,
   items: readonly TimelineMinimapItem[],
   stripMap: Map<string, HTMLSpanElement>,
   enabled: boolean

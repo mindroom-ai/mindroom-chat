@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

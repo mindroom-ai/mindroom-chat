@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasSaved } from './canvasDocument';

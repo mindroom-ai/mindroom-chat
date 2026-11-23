@@ -72,7 +72,7 @@ type UseRoomInputAttachmentsOptions = {
   draftKey?: string;
   editor: Editor;
   isMarkdown: boolean;
-  fileDropContainerRef: RefObject<HTMLElement>;
+  fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
 };
 

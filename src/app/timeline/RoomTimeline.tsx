@@ -376,7 +376,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const fallbackCompactScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const compactRoomScrollStateRef =
     props.compactRoomScrollStateRef ?? fallbackCompactScrollStateRef;
-  const fallbackThreadReturnPlaceRef = useRef<RoomRowsPlace>();
+  const fallbackThreadReturnPlaceRef = useRef<RoomRowsPlace>(undefined);
 
   // Without agents, the threaded view is the room's conversation in the order it was sent, like
   // the Full view: no filter bar, so no filter or sort of the bar applies there. The Compact
@@ -1849,7 +1849,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   // Scrolling near the top of a thread's loaded rows asks for older ones.
   const windowItems = virtualizer.getVirtualItems();
-  const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>();
+  const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>(undefined);
   const mountedRowKeys = mountedRowKeysRef.current;
   const virtualItems =
     beforePaint && mountedRowKeys

@@ -30,7 +30,7 @@ const rootFontSize = (): number =>
 const SMALLEST_SCALE = 0.6;
 
 /** How much the room is scaled down to fit its frame's height; 1 where the frame is tall enough. */
-const useStageScale = (frameRef: RefObject<HTMLElement>, phone: boolean): number => {
+const useStageScale = (frameRef: RefObject<HTMLElement | null>, phone: boolean): number => {
   const [scale, setScale] = useState(1);
   useLayoutEffect(() => {
     const frame = frameRef.current;

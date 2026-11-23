@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { useEffect, useLayoutEffect } from 'react';
+import { act, useEffect, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { atom, createStore, Provider, useAtomValue, useSetAtom } from 'jotai';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';

@@ -73,7 +73,7 @@ export function SecretRequestLine({
   agentUserId,
 }: {
   /** Receives the line's element, for the reply that draws it. */
-  lineRef?: RefObject<HTMLDivElement>;
+  lineRef?: RefObject<HTMLDivElement | null>;
   /** The card's event, whose row hid. */
   eventId: string;
   request: SecretRequest;
