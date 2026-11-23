@@ -150,8 +150,13 @@ done
 # Only read from here on: a URL that lags is waited for, never uploaded to again.
 for _ in $(seq 24); do
   if curl -fsSL "https://github.com/$GITHUB_REPOSITORY/releases/download/$feed/$asset" | cmp -s - "$new"; then
-    say "The feed is now $tag."
-    set_published true
+    if [[ -n $publish ]]; then
+      say "The feed is now $tag."
+      set_published true
+    else
+      say "The feed already has $tag."
+      set_published false
+    fi
     exit 0
   fi
   sleep 5

@@ -1,7 +1,7 @@
 export type UpdaterCheckOutcome = 'none' | 'found' | 'error';
 
 type EventMethod = ((
-  event: 'update-downloaded' | 'update-available' | 'update-not-available',
+  event: 'update-downloaded',
   listener: (info: { version: string }) => void
 ) => unknown) &
   ((event: 'error', listener: (error: Error) => void) => unknown);
@@ -51,7 +51,12 @@ export function startUpdater(
     onChange();
   };
   const onError = (error: Error): void => {
-    if (!stopped) logError(error);
+    if (stopped) return;
+    logError(error);
+    if (stagedVersion !== undefined) {
+      stagedVersion = undefined;
+      onChange();
+    }
   };
   autoUpdater.on('update-downloaded', onDownloaded);
   autoUpdater.on('error', onError);
@@ -61,36 +66,14 @@ export function startUpdater(
     if (stopped) return Promise.resolve('none');
     if (inFlight) return inFlight;
 
-    let outcome: UpdaterCheckOutcome | undefined;
-    let sawError = false;
-    const onFound = () => {
-      outcome = 'found';
-    };
-    const onNone = () => {
-      outcome ??= 'none';
-    };
-    const onCheckError = () => {
-      sawError = true;
-      outcome = 'error';
-    };
-    autoUpdater.on('update-available', onFound);
-    autoUpdater.on('update-downloaded', onFound);
-    autoUpdater.on('update-not-available', onNone);
-    autoUpdater.on('error', onCheckError);
-
     const run = (async (): Promise<UpdaterCheckOutcome> => {
       try {
         const res = await autoUpdater.checkForUpdates();
         if (res?.downloadPromise) void res.downloadPromise.catch(() => undefined);
-        return outcome ?? (res?.isUpdateAvailable ? 'found' : 'none');
+        return res?.isUpdateAvailable ? 'found' : 'none';
       } catch (error) {
-        if (!sawError) logError(error);
+        logError(error);
         return 'error';
-      } finally {
-        autoUpdater.removeListener('update-available', onFound);
-        autoUpdater.removeListener('update-downloaded', onFound);
-        autoUpdater.removeListener('update-not-available', onNone);
-        autoUpdater.removeListener('error', onCheckError);
       }
     })().finally(() => {
       if (inFlight === run) inFlight = undefined;

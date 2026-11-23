@@ -210,7 +210,7 @@ it.each([
     '2026.11.10',
     'published=false',
   ],
-  ['the same release again', '2026.11.10', 'v2026.11.10', {}, 0, '2026.11.10', 'published=true'],
+  ['the same release again', '2026.11.10', 'v2026.11.10', {}, 0, '2026.11.10', 'published=false'],
   [
     'an upload that fails once',
     '2026.11.9',
@@ -355,7 +355,7 @@ it.each([
     '2026.11.10',
     'published=false',
   ],
-  ['repeated desktop run', '2026.11.10', 'v2026.11.10', 0, '2026.11.10', 'published=true'],
+  ['repeated desktop run', '2026.11.10', 'v2026.11.10', 0, '2026.11.10', 'published=false'],
 ])('--desktop: %s', (_name, before, tag, uploadCount, after, expectedOutput) => {
   const github = fixture('desktop');
   if (before !== undefined) github.live(before);

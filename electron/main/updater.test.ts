@@ -40,19 +40,38 @@ describe('startUpdater', () => {
     handle.stop();
   });
 
-  it('keeps readyVersion undefined on error before staging and preserves staged version on later error', () => {
+  it('clears readyVersion on error after update-downloaded, notifies onChange, and lets the next check() retry', async () => {
     const fake = new FakeAutoUpdater();
     const logError = vi.fn();
-    const handle = startUpdater(fake, vi.fn(), { logError });
+    const seenVersions: Array<string | undefined> = [];
+    const onChange = vi.fn(() => {
+      seenVersions.push(handle.readyVersion());
+    });
+    const handle = startUpdater(fake, onChange, { logError });
+    await vi.advanceTimersByTimeAsync(0);
 
     const err1 = new Error('network');
     fake.emit('error', err1);
     expect(logError).toHaveBeenCalledWith(err1);
     expect(handle.readyVersion()).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
 
     fake.emit('update-downloaded', { version: '2026.11.10' });
-    fake.emit('error', new Error('later'));
     expect(handle.readyVersion()).toBe('2026.11.10');
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    const stagingErr = new Error('squirrel staging failed');
+    fake.emit('error', stagingErr);
+    expect(logError).toHaveBeenCalledWith(stagingErr);
+    expect(handle.readyVersion()).toBeUndefined();
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(seenVersions).toEqual(['2026.11.10', undefined]);
+
+    // After staging error clears stagedVersion, check() retries cleanly instead of short-circuiting.
+    const callsBeforeRetry = fake.checkForUpdates.mock.calls.length;
+    fake.checkForUpdates.mockResolvedValueOnce({ isUpdateAvailable: true });
+    await expect(handle.check()).resolves.toBe('found');
+    expect(fake.checkForUpdates).toHaveBeenCalledTimes(callsBeforeRetry + 1);
     handle.stop();
   });
 
@@ -73,20 +92,19 @@ describe('startUpdater', () => {
     // Initial check is in flight; concurrent check() shares the same call.
     const concurrent = handle.check();
     expect(fake.checkForUpdates).toHaveBeenCalledTimes(1);
-    fake.emit('update-not-available', { version: '2026.11.9' });
     resolveCheck({ isUpdateAvailable: false });
     await expect(concurrent).resolves.toBe('none');
 
-    // Found via update-available + rejected downloadPromise causes no unhandled rejection.
-    fake.checkForUpdates.mockImplementationOnce(async () => {
-      fake.emit('update-available', { version: '2026.11.10' });
-      return { isUpdateAvailable: true, downloadPromise: Promise.reject(new Error('dl fail')) };
+    // Found with a rejected downloadPromise causes no unhandled rejection.
+    fake.checkForUpdates.mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      downloadPromise: Promise.reject(new Error('dl fail')),
     });
     await expect(handle.check()).resolves.toBe('found');
 
-    // Found via result.isUpdateAvailable without event.
-    fake.checkForUpdates.mockResolvedValueOnce({ isUpdateAvailable: true });
-    await expect(handle.check()).resolves.toBe('found');
+    // Null result maps to 'none'.
+    fake.checkForUpdates.mockResolvedValueOnce(null);
+    await expect(handle.check()).resolves.toBe('none');
 
     // Error via rejection.
     fake.checkForUpdates.mockRejectedValueOnce(new Error('offline'));

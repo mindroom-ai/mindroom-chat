@@ -96,16 +96,21 @@ The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and 
 
 **Electron update feed (`mac-feed`).** `.github/workflows/desktop.yml` runs a serialized `feed` job (`needs: release`, `concurrency: { group: mac-desktop-feed, queue: max }`) that runs `scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"`. It verifies the release is published with all six desktop assets (`MindRoom-Chat.dmg`, both ZIPs, both `.blockmap` files, and a valid `latest-mac.yml` whose `version` and ZIP URLs match `v<version>`), checks that `mac-feed` is not paused, and only advances `mac-feed/latest-mac.yml` when the release is newer than what `mac-feed` currently serves (re-running a failed `feed` job repairs publication without rebuilding). Release assets themselves are immutable and `desktop.yml` never uses `--clobber` on release tags: if `release` fails partway through uploading assets, keep completed assets and cut a new tag rather than replacing published files; if `feed` uploaded `latest-mac.yml` and only the Homebrew tap dispatch failed, run the tap's **Update MindRoom Chat cask** workflow manually.
 
-**Stopping a rollout.** If a bad Electron release has already shipped to `mac-feed`, stop further updates in this order:
+**Stopping a rollout.** If a bad release has already shipped to `mac-feed` (for Electron, or also `mac-appcast` for legacy Catalyst if rolling back both feeds until Catalyst cleanup removes Sparkle), stop further updates in this order:
 
-1. Upload a `PAUSED` marker asset to `mac-feed` so no queued or new `feed` job advances the feed or dispatches the Homebrew tap:
+1. Upload a `PAUSED` marker asset to `mac-feed` (and to `mac-appcast` as well if rolling back both) so no queued or new publisher job advances the feed or dispatches the Homebrew tap:
    `touch PAUSED && gh release upload mac-feed PAUSED --clobber --repo mindroom-ai/mindroom-chat`
-2. Wait until no `desktop.yml` `feed` job is running under `mac-desktop-feed`, then download the last known-good release's `latest-mac.yml` and upload it to `mac-feed` with `--clobber`:
+   If also rolling back legacy Catalyst:
+   `gh release upload mac-appcast PAUSED --clobber --repo mindroom-ai/mindroom-chat`
+2. Wait until no publisher job is running (including any `desktop.yml` `feed` job under `mac-desktop-feed`), then download the last known-good release's `latest-mac.yml` and upload it to `mac-feed` with `--clobber` (and restore the last good `appcast.xml` on `mac-appcast` with `--clobber` if rolling back both):
    `gh release download <last-good-tag> --pattern latest-mac.yml --repo mindroom-ai/mindroom-chat`
    `gh release upload mac-feed latest-mac.yml --clobber --repo mindroom-ai/mindroom-chat`
+   If also rolling back legacy Catalyst:
+   `gh release download <last-good-tag> --pattern appcast.xml --repo mindroom-ai/mindroom-chat`
+   `gh release upload mac-appcast appcast.xml --clobber --repo mindroom-ai/mindroom-chat`
 3. Revert the Homebrew tap cask commit in `mindroom-ai/homebrew-tap` so `brew install/upgrade --cask mindroom-chat` serves the last good DMG.
 4. Mark the bad GitHub release as a prerelease (`gh release edit <bad-tag> --prerelease --repo mindroom-ai/mindroom-chat`) so `src/app/native/macApp.ts` stops offering its DMG on the download page.
-5. Once a fixed release is ready, delete the `PAUSED` asset from `mac-feed` (`gh release delete-asset mac-feed PAUSED --yes --repo mindroom-ai/mindroom-chat`) so normal rollouts resume.
+5. Once a fixed release is ready, delete the `PAUSED` asset from `mac-feed` (`gh release delete-asset mac-feed PAUSED --yes --repo mindroom-ai/mindroom-chat`, and from `mac-appcast` if it was paused too) so normal rollouts resume, then re-run the `feed` job for any release whose feed publication was skipped while paused.
 
 **Legacy Catalyst Sparkle updater and feed (retired).** Previously, the legacy Mac Catalyst Developer ID app updated itself with [Sparkle](https://sparkle-project.org) 2.10.1 (`scripts/fetch-sparkle.sh`, pinned by checksum) in `MindRoomMacUpdater.bundle` (Mac Catalyst only; the Store app and iOS have none of it). The Catalyst `macos.yml` `dmg` and `feed` publishing jobs have been retired; the Sparkle-only scripts (`scripts/macos-appcast.sh`, `scripts/macos-updater-info-plist.sh`) and the default Sparkle mode of `scripts/macos-publish-appcast.sh` stay in the repository only until Catalyst cleanup removes them.
 
