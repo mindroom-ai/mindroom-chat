@@ -4,355 +4,61 @@ import Foundation
 import Intents
 import MindRoomNotificationKit
 
-/// One joined member's avatar in one room.
-private struct AvatarSyncEntry: Sendable {
-    let roomId: String
-    let sender: String
-    let mxcUrl: String
-}
-
-/// Serializes what the app shares with the notification extension for each account: its record,
-/// the avatar sync tasks and their generation counters, so that an in-flight download can never
-/// bring an account's cache back after `clearAccount` or `clearAllAccounts`, nor write over the
-/// result of a later sync.
-///
-/// The plugin calls it from its `NotificationAccountMutationQueue` only, one change at a time in
-/// the order the web side asked for them.
-private final class AvatarSyncCoordinator: @unchecked Sendable {
-    private static let maxConcurrentDownloads = 4
-
-    private let lock = NSLock()
-    private var syncTasks: [String: Task<Void, Never>] = [:]
-    private var accountGenerations: [String: UInt64] = [:]
-    private var clearAllGeneration: UInt64 = 0
-
-    deinit {
-        lock.lock()
-        let tasks = Array(syncTasks.values)
-        syncTasks.removeAll()
-        lock.unlock()
-        tasks.forEach { $0.cancel() }
-    }
-
-    /// Stores the account's record for the extension; false when the Keychain did not take it.
-    /// Under the lock, so that a record read here cannot be one that a clear removes meanwhile.
-    func saveAccount(
-        accountTag: String,
-        homeserverUrl: String,
-        userId: String,
-        accessToken: String?,
-        installId: String
-    ) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        let store = KeychainNotificationCredentialStore.shared
-        let record = NotificationAccountRecord.synced(
-            homeserverUrl: homeserverUrl,
-            userId: userId,
-            accessToken: accessToken,
-            installId: installId,
-            continuing: store.load(accountTag: accountTag)
-        )
-        return store.save(accountTag: accountTag, record: record)
-    }
-
-    func scheduleSync(
-        accountTag: String,
-        entries: [AvatarSyncEntry]
-    ) {
-        lock.lock()
-        // Every sync gets a number of its own: a download of an earlier sync that is still under
-        // way then stores nothing, neither over this sync's avatars nor one this sync removed.
-        accountGenerations[accountTag, default: 0] &+= 1
-        let generation = currentGeneration(of: accountTag)
-        let previous = syncTasks[accountTag]
-        let task = Task<Void, Never>.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
-            await self.performAvatarSync(
-                accountTag: accountTag,
-                generation: generation,
-                entries: entries
-            )
-        }
-        syncTasks[accountTag] = task
-        lock.unlock()
-        previous?.cancel()
-    }
-
-    /// Removes what the account shares with the notification extension: its record and its
-    /// avatars, then what the notification extension donated for its messages. Done only when
-    /// neither the Keychain nor Siri refused; everything else is removed either way.
-    func clearAccount(accountTag: String) async -> NotificationAccountCleanup.Outcome {
-        await NotificationAccountCleanup.run(
-            removeSharedState: { removeAccount(accountTag) },
-            deleteInteractions: { try await INInteraction.delete(with: accountTag) }
-        )
-    }
-
-    /// Removes what every account shares with the notification extension, also the accounts
-    /// that are not the active one.
-    func clearAllAccounts() async -> NotificationAccountCleanup.Outcome {
-        await NotificationAccountCleanup.run(
-            removeSharedState: { removeAllAccounts() },
-            deleteInteractions: { try await INInteraction.deleteAll() }
-        )
-    }
-
-    private func removeAccount(_ accountTag: String) -> Bool {
-        lock.lock()
-        accountGenerations[accountTag, default: 0] &+= 1
-        let active = syncTasks.removeValue(forKey: accountTag)
-        let removed = KeychainNotificationCredentialStore.shared.remove(accountTag: accountTag)
-        NotificationAvatarStore.shared.clearAccount(accountTag: accountTag)
-        lock.unlock()
-        active?.cancel()
-        return removed
-    }
-
-    private func removeAllAccounts() -> Bool {
-        lock.lock()
-        clearAllGeneration &+= 1
-        let active = Array(syncTasks.values)
-        syncTasks.removeAll()
-        let removed = KeychainNotificationCredentialStore.shared.removeAll()
-        NotificationAvatarStore.shared.clearAll()
-        lock.unlock()
-        active.forEach { $0.cancel() }
-        return removed
-    }
-
-    /// A number that changes when the account is synced or cleared, alone or with all the
-    /// others; neither count ever goes down, so it never comes back to an earlier value. Call
-    /// with the lock held.
-    private func currentGeneration(of accountTag: String) -> UInt64 {
-        clearAllGeneration &+ (accountGenerations[accountTag] ?? 0)
-    }
-
-    private func isCurrentGeneration(accountTag: String, generation: UInt64) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return currentGeneration(of: accountTag) == generation
-    }
-
-    /// Removes from the cache what the sync's list no longer holds. False when the sync is no
-    /// longer the account's latest, or the account is not shared.
-    private func reconcileIfCurrent(
-        accountTag: String,
-        generation: UInt64,
-        entries: [AvatarSyncEntry]
-    ) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard currentGeneration(of: accountTag) == generation,
-              KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
-            return false
-        }
-        NotificationAvatarStore.shared.reconcileAccount(
-            accountTag: accountTag,
-            desiredEntries: entries.map { entry -> (roomId: String?, sender: String, mxcUrl: String) in
-                (roomId: entry.roomId, sender: entry.sender, mxcUrl: entry.mxcUrl)
-            }
-        )
-        return true
-    }
-
-    private func storeAvatarIfCurrent(
-        accountTag: String,
-        generation: UInt64,
-        entries: [AvatarSyncEntry],
-        mxcUrl: String,
-        data: Data
-    ) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard currentGeneration(of: accountTag) == generation,
-              KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
-            return
-        }
-        for entry in entries {
-            NotificationAvatarStore.shared.storeAvatar(
-                accountTag: accountTag,
-                roomId: entry.roomId,
-                sender: entry.sender,
-                mxcUrl: mxcUrl,
-                data: data
-            )
-        }
-    }
-
-    private func performAvatarSync(
-        accountTag: String,
-        generation: UInt64,
-        entries: [AvatarSyncEntry]
-    ) async {
-        // The list is all the avatars the account has now. What the cache holds beyond it (a
-        // member who left or removed the avatar, an avatar that changed) goes first, so that a
-        // download that fails leaves no old avatar behind.
-        guard !Task.isCancelled,
-              reconcileIfCurrent(accountTag: accountTag, generation: generation, entries: entries) else {
-            return
-        }
-
-        // A member is listed once for each room, mostly with the same avatar: each avatar is
-        // downloaded once, for all the entries that show it.
-        var toDownload: [(mxcUrl: String, entries: [AvatarSyncEntry])] = []
-        var downloadIndex: [String: Int] = [:]
-
-        for entry in entries {
-            if Task.isCancelled || !isCurrentGeneration(accountTag: accountTag, generation: generation) {
-                return
-            }
-            if NotificationAvatarStore.shared.cachedMxcUrl(
-                accountTag: accountTag,
-                roomId: entry.roomId,
-                sender: entry.sender
-            ) == entry.mxcUrl {
-                continue
-            }
-            if let index = downloadIndex[entry.mxcUrl] {
-                toDownload[index].entries.append(entry)
-            } else {
-                downloadIndex[entry.mxcUrl] = toDownload.count
-                toDownload.append((mxcUrl: entry.mxcUrl, entries: [entry]))
-            }
-        }
-
-        guard !toDownload.isEmpty,
-              !Task.isCancelled,
-              isCurrentGeneration(accountTag: accountTag, generation: generation),
-              let credentials = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag),
-              let accessToken = credentials.accessToken,
-              !accessToken.isEmpty else {
-            return
-        }
-
-        let homeserverUrl = credentials.homeserverUrl
-        let maxConcurrency = Self.maxConcurrentDownloads
-
-        await withTaskGroup(of: Void.self) { group in
-            var nextIndex = 0
-
-            while nextIndex < min(maxConcurrency, toDownload.count) {
-                let item = toDownload[nextIndex]
-                nextIndex += 1
-                group.addTask {
-                    await self.downloadAndStoreAvatar(
-                        accountTag: accountTag,
-                        generation: generation,
-                        homeserverUrl: homeserverUrl,
-                        accessToken: accessToken,
-                        entries: item.entries,
-                        mxcUrl: item.mxcUrl
-                    )
-                }
-            }
-
-            while await group.next() != nil {
-                if Task.isCancelled
-                    || nextIndex >= toDownload.count
-                    || !isCurrentGeneration(accountTag: accountTag, generation: generation)
-                {
-                    continue
-                }
-                let item = toDownload[nextIndex]
-                nextIndex += 1
-                group.addTask {
-                    await self.downloadAndStoreAvatar(
-                        accountTag: accountTag,
-                        generation: generation,
-                        homeserverUrl: homeserverUrl,
-                        accessToken: accessToken,
-                        entries: item.entries,
-                        mxcUrl: item.mxcUrl
-                    )
-                }
-            }
-        }
-    }
-
-    private func downloadAndStoreAvatar(
-        accountTag: String,
-        generation: UInt64,
-        homeserverUrl: String,
-        accessToken: String,
-        entries: [AvatarSyncEntry],
-        mxcUrl: String
-    ) async {
-        guard !Task.isCancelled,
-              isCurrentGeneration(accountTag: accountTag, generation: generation) else {
-            return
-        }
-        guard let data = await NotificationAvatarFetcher.shared.downloadThumbnail(
-            homeserverUrl: homeserverUrl,
-            accessToken: accessToken,
-            mxcUrl: mxcUrl
-        ) else {
-            return
-        }
-        guard !Task.isCancelled else { return }
-        storeAvatarIfCurrent(
-            accountTag: accountTag,
-            generation: generation,
-            entries: entries,
-            mxcUrl: mxcUrl,
-            data: data
-        )
-    }
-}
-
-/// Answers a clear: it failed unless the Keychain record and the donated interactions are both
-/// gone, so that the web side knows to try again.
-private func answerClear(_ call: CAPPluginCall, _ outcome: NotificationAccountCleanup.Outcome) {
-    switch outcome {
-    case .removed:
-        call.resolve()
-    case .keychainKeptRecord:
-        call.reject("Could not remove the account from the Keychain", "KEYCHAIN_ERROR")
-    case .interactionsNotDeleted:
-        call.reject("Could not delete the donated interactions", "INTENTS_ERROR")
-    }
-}
-
-/// Syncs Matrix account credentials and sender avatars to the shared Keychain and App Group cache
-/// for the iOS Notification Service Extension (`src/app/native/nativeNotifications.ts`).
+/// Shares with the iOS Notification Service Extension, through the App Group, what a rich
+/// notification shows: the accounts whose pushes name their sender and the avatars of their room
+/// members (`src/app/native/nativeNotifications.ts`). Nothing of it is secret. The web side
+/// downloads the avatars, so no token crosses the bridge and nothing here makes a request.
 @objc(MindRoomNotificationsPlugin)
 public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "MindRoomNotificationsPlugin"
     public let jsName = "MindRoomNotifications"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "syncAccount", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reconcileAccounts", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncAvatars", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "clearAccount", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "clearAllAccounts", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "storeAvatar", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearAvatarCache", returnType: CAPPluginReturnPromise),
     ]
 
-    private let coordinator = AvatarSyncCoordinator()
-    /// Every change of the shared accounts goes through it, in the order the calls come in: a
-    /// clear that is still deleting interactions is over before a later sync stores its account.
-    private let mutations = NotificationAccountMutationQueue()
+    private let mutations = NotificationAccountMutations(
+        accounts: .shared,
+        avatars: .shared,
+        interactions: NotificationInteractionDeleter(
+            deleteAll: { try await INInteraction.deleteAll() },
+            deleteGroup: { groupIdentifier in try await INInteraction.delete(with: groupIdentifier) },
+            deleteInteraction: { interactionIdentifier in
+                try await INInteraction.delete(with: [interactionIdentifier])
+            }
+        )
+    )
+    /// Every call goes through it, in the order the calls come in: a reconcile that is still
+    /// deleting interactions is over before a later sync stores its account.
+    private let queue = NotificationAccountMutationQueue()
 
     @objc func syncAccount(_ call: CAPPluginCall) {
         guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")),
-              let homeserverUrl = Self.trimmedNonEmpty(call.getString("homeserverUrl")),
               let userId = Self.trimmedNonEmpty(call.getString("userId")) else {
             return call.reject("Invalid account payload", "INVALID")
         }
-        // The record names this installation, so that one the Keychain keeps past the app's
-        // removal is not taken for an account of the next installation.
-        guard let installId = NotificationInstallMarker.shared.getOrCreateInstallId() else {
-            return call.reject("Could not mark this installation", "INSTALL_MARKER_ERROR")
+        let mutations = self.mutations
+        queue.enqueue {
+            guard mutations.syncAccount(accountTag: accountTag, userId: userId) else {
+                return call.reject("Could not store the account", "STORE_ERROR")
+            }
+            call.resolve()
         }
-        let accessToken = Self.trimmedNonEmpty(call.getString("accessToken"))
-        let coordinator = self.coordinator
-        mutations.enqueue {
-            guard coordinator.saveAccount(
-                accountTag: accountTag,
-                homeserverUrl: homeserverUrl,
-                userId: userId,
-                accessToken: accessToken,
-                installId: installId
-            ) else {
-                return call.reject("Could not store the account in the Keychain", "KEYCHAIN_ERROR")
+    }
+
+    @objc func reconcileAccounts(_ call: CAPPluginCall) {
+        // A call without the list is refused: taken for an empty one, it would remove every account.
+        guard let rawAccountTags = call.getArray("allowedAccountTags") as? [String] else {
+            return call.reject("Invalid allowedAccountTags", "INVALID")
+        }
+        let allowedAccountTags = Set(rawAccountTags.compactMap { Self.trimmedNonEmpty($0) })
+        let mutations = self.mutations
+        queue.enqueue {
+            guard await mutations.reconcileAccounts(allowedAccountTags: allowedAccountTags) else {
+                return call.reject("Could not delete the donated interactions", "INTENTS_ERROR")
             }
             call.resolve()
         }
@@ -362,39 +68,56 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")) else {
             return call.reject("Invalid accountTag", "INVALID")
         }
-
         let rawAvatars = call.getArray("avatars") as? [[String: Any]] ?? []
-        let entries = rawAvatars.compactMap { item -> AvatarSyncEntry? in
+        let entries = rawAvatars.compactMap { item -> NotificationAccountMutations.AvatarEntry? in
             guard let roomId = Self.trimmedNonEmpty(item["roomId"] as? String),
                   let sender = Self.trimmedNonEmpty(item["sender"] as? String),
                   let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String) else { return nil }
-            return AvatarSyncEntry(roomId: roomId, sender: sender, mxcUrl: mxcUrl)
+            return NotificationAccountMutations.AvatarEntry(roomId: roomId, sender: sender, mxcUrl: mxcUrl)
         }
-
-        // After the changes of the accounts that came before it: the avatars are kept only for
-        // an account that is stored.
-        let coordinator = self.coordinator
-        mutations.enqueue {
-            coordinator.scheduleSync(accountTag: accountTag, entries: entries)
-        }
-        call.resolve()
-    }
-
-    @objc func clearAccount(_ call: CAPPluginCall) {
-        guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")) else {
-            return call.reject("Invalid accountTag", "INVALID")
-        }
-
-        let coordinator = self.coordinator
-        mutations.enqueue {
-            answerClear(call, await coordinator.clearAccount(accountTag: accountTag))
+        let mutations = self.mutations
+        queue.enqueue {
+            let sync = mutations.syncAvatars(accountTag: accountTag, entries: entries)
+            call.resolve([
+                "missingMxcUrls": sync.missingMxcUrls,
+                "syncGeneration": sync.syncGeneration,
+            ])
         }
     }
 
-    @objc func clearAllAccounts(_ call: CAPPluginCall) {
-        let coordinator = self.coordinator
-        mutations.enqueue {
-            answerClear(call, await coordinator.clearAllAccounts())
+    @objc func storeAvatar(_ call: CAPPluginCall) {
+        let rawEntries = call.getArray("entries") as? [[String: Any]] ?? []
+        let entries = rawEntries.compactMap { item -> (roomId: String, sender: String)? in
+            guard let roomId = Self.trimmedNonEmpty(item["roomId"] as? String),
+                  let sender = Self.trimmedNonEmpty(item["sender"] as? String) else { return nil }
+            return (roomId: roomId, sender: sender)
+        }
+        guard let accountTag = Self.trimmedNonEmpty(call.getString("accountTag")),
+              let syncGeneration = call.getInt("syncGeneration"),
+              let mxcUrl = Self.trimmedNonEmpty(call.getString("mxcUrl")),
+              !entries.isEmpty,
+              let data = call.getString("base64Data").flatMap({ Data(base64Encoded: $0) }),
+              data.count <= NotificationAvatarStore.maxAvatarBytes else {
+            return call.reject("Invalid avatar payload", "INVALID")
+        }
+        let mutations = self.mutations
+        queue.enqueue {
+            mutations.storeAvatar(
+                accountTag: accountTag,
+                syncGeneration: syncGeneration,
+                mxcUrl: mxcUrl,
+                entries: entries,
+                data: data
+            )
+            call.resolve()
+        }
+    }
+
+    @objc func clearAvatarCache(_ call: CAPPluginCall) {
+        let mutations = self.mutations
+        queue.enqueue {
+            mutations.clearAvatarCache()
+            call.resolve()
         }
     }
 

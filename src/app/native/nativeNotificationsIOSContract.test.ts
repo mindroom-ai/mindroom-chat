@@ -1,7 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+const fileUrl = (path: string) => new URL(`../../../${path}`, import.meta.url);
+const read = (path: string) => readFileSync(fileUrl(path), 'utf8');
+
+const KIT_SOURCES =
+  'ios/NotificationService/MindRoomNotificationKit/Sources/MindRoomNotificationKit';
+const KIT_TESTS =
+  'ios/NotificationService/MindRoomNotificationKit/Tests/MindRoomNotificationKitTests';
 
 const pluginSource = read('ios/App/App/MindRoomNotificationsPlugin.swift');
 const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
@@ -16,149 +22,220 @@ const serviceInfoPlist = read('ios/NotificationService/MindRoomNotificationServi
 const serviceEntitlements = read(
   'ios/NotificationService/MindRoomNotificationService/MindRoomNotificationService.entitlements'
 );
-const kitSource = (name: string) =>
-  read(
-    `ios/NotificationService/MindRoomNotificationKit/Sources/MindRoomNotificationKit/${name}.swift`
-  );
-const fetcherSource = kitSource('NotificationAvatarFetcher');
-const storeSource = kitSource('NotificationAvatarStore');
-const httpClientSource = kitSource('NotificationHTTPClient');
-const credentialStoreSource = kitSource('NotificationCredentialStore');
+const kitSource = (name: string) => read(`${KIT_SOURCES}/${name}.swift`);
+const accountStoreSource = kitSource('NotificationAccountStore');
+const avatarStoreSource = kitSource('NotificationAvatarStore');
 const intentSource = kitSource('NotificationCommunicationIntent');
 const interactionSource = kitSource('NotificationInteractionCoordinator');
-const installMarkerSource = kitSource('NotificationInstallMarker');
 const mutationQueueSource = kitSource('NotificationAccountMutationQueue');
+/** Everything that runs for a notification or for a call of the plugin. */
+const nativeSources = [
+  pluginSource,
+  serviceSource,
+  accountStoreSource,
+  avatarStoreSource,
+  intentSource,
+  interactionSource,
+  mutationQueueSource,
+  kitSource('NotificationMarkdown'),
+  kitSource('NotificationPayload'),
+];
+
+/** The body of a Swift function, from its `func <name>(` to the next `func ` of its type. */
+const functionBody = (source: string, name: string): string => {
+  const start = source.indexOf(`func ${name}(`);
+  expect(start).toBeGreaterThan(-1);
+  const end = source.indexOf('\n    func ', start + 1);
+  const nextAnnotated = source.indexOf('\n    @objc func ', start + 1);
+  const nextPrivate = source.indexOf('\n    private ', start + 1);
+  const nextPublic = source.indexOf('\n    public func ', start + 1);
+  const ends = [end, nextAnnotated, nextPrivate, nextPublic].filter((index) => index > -1);
+  return source.slice(start, ends.length > 0 ? Math.min(...ends) : undefined);
+};
+
+const PLUGIN_METHODS = [
+  'syncAccount',
+  'reconcileAccounts',
+  'syncAvatars',
+  'storeAvatar',
+  'clearAvatarCache',
+];
 
 describe('MindRoomNotificationsPlugin and NotificationService native contract', () => {
   it('registers MindRoomNotifications with its Capacitor methods only on iOS (not Mac Catalyst)', () => {
     expect(pluginSource).toContain('#if !targetEnvironment(macCatalyst)');
     expect(pluginSource).toContain('public let jsName = "MindRoomNotifications"');
-    ['syncAccount', 'syncAvatars', 'clearAccount', 'clearAllAccounts'].forEach((method) => {
+    PLUGIN_METHODS.forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
       expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
     });
+    expect(pluginSource.match(/CAPPluginMethod\(name:/g)).toHaveLength(PLUGIN_METHODS.length);
     expect(bridgeSource).toContain('#if !targetEnvironment(macCatalyst)');
     expect(bridgeSource).toContain('registerPluginInstance(MindRoomNotificationsPlugin())');
   });
 
-  it('turns the Capacitor bridge log off, which would print the access token of syncAccount in a Debug build', () => {
-    // Capacitor logs every plugin call with its options unless the instance says otherwise.
-    expect(bridgeSource).toMatch(
-      /override func instanceDescriptor\(\) -> InstanceDescriptor \{[^}]*descriptor\.loggingBehavior = \.none\n\s*return descriptor/
-    );
+  it('keeps no secret, makes no request, and has no Keychain or install marker left', () => {
+    [
+      `${KIT_SOURCES}/NotificationCredentialStore.swift`,
+      `${KIT_SOURCES}/NotificationInstallMarker.swift`,
+      `${KIT_SOURCES}/NotificationHTTPClient.swift`,
+      `${KIT_SOURCES}/NotificationAvatarFetcher.swift`,
+      `${KIT_TESTS}/NotificationCredentialStoreTests.swift`,
+      `${KIT_TESTS}/NotificationHTTPClientTests.swift`,
+      `${KIT_TESTS}/NotificationAvatarFetcherTests.swift`,
+    ].forEach((path) => expect(existsSync(fileUrl(path)), path).toBe(false));
+
+    nativeSources.forEach((source) => {
+      expect(source).not.toMatch(/URLSession|URLRequest|import Security|SecItem|kSec|Keychain/);
+      expect(source).not.toMatch(/accessToken|access_token|homeserverUrl|Bearer/);
+    });
+    // No token crosses the bridge, so its log keeps Capacitor's default.
+    expect(bridgeSource).not.toContain('loggingBehavior');
     expect(pluginSource).not.toMatch(/\b(print|NSLog|CAPLog\.print)\(/);
+  });
+
+  it('keeps the accounts where iOS deletes them with the app and does not empty them to make room', () => {
+    expect(accountStoreSource).toContain('.appendingPathComponent("Application Support"');
+    expect(accountStoreSource).toContain('"MindRoomNotifications"');
+    expect(accountStoreSource).not.toContain('"Caches"');
+    expect(accountStoreSource).toContain(
+      'containerURL(forSecurityApplicationGroupIdentifier: NotificationAvatarStore.appGroupId)'
+    );
+    expect(accountStoreSource).toContain('appendingPathComponent("accounts", isDirectory: true)');
+    expect(accountStoreSource).toContain('"pending-interaction-deletes.json"');
+    // The avatars can be downloaded again, so they are a cache.
+    expect(avatarStoreSource).toContain('.appendingPathComponent("Caches"');
+    expect(avatarStoreSource).toContain('public static let appGroupId = "group.chat.mindroom.app"');
+    // What is stored of an account: its tag, its user and its sync, nothing else.
+    const metadata = accountStoreSource.slice(
+      accountStoreSource.indexOf('public struct NotificationAccountMetadata'),
+      accountStoreSource.indexOf('public init(accountTag: String, userId: String, syncId: String)')
+    );
+    expect(metadata.match(/public let \w+: String/g)).toEqual([
+      'public let accountTag: String',
+      'public let userId: String',
+      'public let syncId: String',
+    ]);
   });
 
   it('enriches only a push whose mindroom_account is an account the app still shares', () => {
     // No guess of "the only account on the device" for a push that names none.
-    expect(serviceSource).not.toContain('loadSingleAccount');
-    expect(credentialStoreSource).not.toContain('loadSingleAccount');
+    expect(serviceSource).not.toContain('allAccountTags');
     expect(serviceSource).toContain('let accountTag = payload.accountTag, !accountTag.isEmpty');
     // Once before the avatar is read, and again around the donation.
     expect(
       serviceSource.match(
-        /KeychainNotificationCredentialStore\.shared\.load\(accountTag: accountTag\)/g
+        /NotificationAccountStore\.shared\.loadAccount\(accountTag: accountTag\)/g
       )
     ).toHaveLength(2);
-  });
-
-  it('ignores a Keychain record that an earlier installation of the app left', () => {
-    // The Keychain outlives the app; the marker in the App Group container does not.
-    expect(installMarkerSource).toContain('.appendingPathComponent("Application Support"');
-    expect(installMarkerSource).not.toContain('"Caches"');
-    expect(credentialStoreSource).toMatch(
-      /installMarker\.readInstallId\(\),\s*!current\.isEmpty,\s*record\.installId == current/
+    expect(serviceSource).toMatch(
+      /guard let account = NotificationAccountStore\.shared\.loadAccount\(accountTag: accountTag\) else \{\s*slot\.deliver\(mutableContent\)\s*return/
     );
-    expect(credentialStoreSource).toContain('installMarker: NotificationInstallMarker.shared');
-    // Only the app makes the marker, and no account is stored without one.
-    expect(serviceSource).not.toContain('getOrCreateInstallId');
-    expect(pluginSource).toMatch(
-      /NotificationInstallMarker\.shared\.getOrCreateInstallId\(\) else \{\s*return call\.reject\(/
+    // The extension writes no account and no avatar.
+    expect(serviceSource).not.toMatch(
+      /saveAccount|removeAccount|storeAvatar|clearAll|pruneAccounts/
     );
   });
 
-  it('fails a sync or a clear that the Keychain refused, so that it is tried again', () => {
-    expect(pluginSource).toMatch(
-      /guard coordinator\.saveAccount\([^{]*\) else \{\s*return call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)/
+  it('shows the avatar the app cached, and downloads none', () => {
+    expect(serviceSource).toMatch(
+      /let avatarData = NotificationAvatarStore\.shared\.cachedAvatar\(\s*accountTag: accountTag,\s*roomId: payload\.roomId,\s*sender: sender\s*\)/
     );
-    ['clearAccount(accountTag: accountTag)', 'clearAllAccounts()'].forEach((clear) => {
-      expect(pluginSource).toContain(`answerClear(call, await coordinator.${clear})`);
-    });
-    expect(pluginSource).toMatch(
-      /case \.removed:\s*call\.resolve\(\)\s*case \.keychainKeptRecord:\s*call\.reject\("[^"]*", "KEYCHAIN_ERROR"\)\s*case \.interactionsNotDeleted:\s*call\.reject\("[^"]*", "INTENTS_ERROR"\)/
-    );
-    expect(credentialStoreSource).toContain(
-      'deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound'
-    );
+    expect(serviceSource).not.toMatch(/fetch|download|Deadline/i);
   });
 
-  it('fails a clear whose interactions Siri kept, so that it is tried again', () => {
-    // What Siri refuses is handed on, never dropped.
-    expect(pluginSource).not.toMatch(/try\? await INInteraction/);
-    expect(pluginSource).toContain(
-      'deleteInteractions: { try await INInteraction.delete(with: accountTag) }'
-    );
-    expect(pluginSource).toContain('deleteInteractions: { try await INInteraction.deleteAll() }');
-    // The interactions are deleted also after a record that stayed, and both must be gone.
-    expect(mutationQueueSource).toMatch(
-      /let recordRemoved = removeSharedState\(\)\s*do \{\s*try await deleteInteractions\(\)\s*\} catch \{\s*return recordRemoved \? \.interactionsNotDeleted : \.keychainKeptRecord\s*\}\s*return recordRemoved \? \.removed : \.keychainKeptRecord/
-    );
-  });
-
-  it('changes the shared accounts one at a time, in the order the web side asked', () => {
+  it('changes what the app shares one call at a time, in the order the web side asked', () => {
     // A place in the order is taken under the lock, before the call returns.
     expect(mutationQueueSource).toMatch(
       /lock\.lock\(\)\s*defer \{ lock\.unlock\(\) \}\s*let previous = last\s*let task = Task<Void, Never> \{\s*if let previous \{\s*await previous\.value\s*\}\s*await mutation\(\)\s*\}\s*last = task/
     );
-    // Every change goes through the queue, the avatars after the account they are for.
-    expect(pluginSource.match(/mutations\.enqueue \{/g)).toHaveLength(4);
-    ['syncAccount', 'syncAvatars', 'clearAccount', 'clearAllAccounts'].forEach((method) => {
-      const start = pluginSource.indexOf(`@objc func ${method}(`);
-      const end = pluginSource.indexOf('@objc func ', start + 1);
-      expect(start).toBeGreaterThan(-1);
-      expect(pluginSource.slice(start, end === -1 ? undefined : end)).toContain(
-        'mutations.enqueue {'
-      );
+    // Every call goes through the queue, and answers from inside it.
+    expect(pluginSource.match(/queue\.enqueue \{/g)).toHaveLength(PLUGIN_METHODS.length);
+    PLUGIN_METHODS.forEach((method) => {
+      const body = functionBody(pluginSource, method);
+      const enqueued = body.slice(body.indexOf('queue.enqueue {'));
+      expect(enqueued).toContain(`mutations.${method}(`);
+      expect(enqueued).toMatch(/call\.resolve\(/);
     });
-    expect(pluginSource).not.toMatch(/Task<Void, Never> \{\s*(if await|answerClear)/);
+    expect(pluginSource).not.toMatch(/Task(<[^>]*>)? \{/);
   });
 
-  it('removes every account, and what Siri keeps of them, when asked to clear all', () => {
-    expect(credentialStoreSource).toContain('public func removeAll() -> Bool');
-    const removeAll = pluginSource.slice(
-      pluginSource.indexOf('private func removeAllAccounts() -> Bool {'),
-      pluginSource.indexOf('private func currentGeneration')
+  it('fails a sync that could not be stored and a reconcile whose interactions Siri kept, so that they are tried again', () => {
+    expect(functionBody(pluginSource, 'syncAccount')).toMatch(
+      /guard mutations\.syncAccount\(accountTag: accountTag, userId: userId\) else \{\s*return call\.reject\("[^"]*", "STORE_ERROR"\)/
     );
-    expect(removeAll).toContain('clearAllGeneration &+= 1');
-    expect(removeAll).toContain('KeychainNotificationCredentialStore.shared.removeAll()');
-    expect(removeAll).toContain('NotificationAvatarStore.shared.clearAll()');
-    // The call answers only after the interactions are deleted too.
-    expect(pluginSource).toMatch(
-      /removeSharedState: \{ removeAllAccounts\(\) \},\s*deleteInteractions: \{ try await INInteraction\.deleteAll\(\) \}/
+    expect(functionBody(pluginSource, 'reconcileAccounts')).toMatch(
+      /guard await mutations\.reconcileAccounts\(allowedAccountTags: allowedAccountTags\) else \{\s*return call\.reject\("[^"]*", "INTENTS_ERROR"\)/
+    );
+    // A call without the list is refused, not taken for "keep none".
+    expect(functionBody(pluginSource, 'reconcileAccounts')).toMatch(
+      /guard let rawAccountTags = call\.getArray\("allowedAccountTags"\) as\? \[String\] else \{\s*return call\.reject\("[^"]*", "INVALID"\)/
+    );
+    // What Siri refuses is handed on, never dropped.
+    expect(pluginSource).not.toMatch(/try\? await INInteraction/);
+    expect(serviceSource).not.toMatch(/try\? await INInteraction/);
+    expect(pluginSource).toContain('deleteAll: { try await INInteraction.deleteAll() }');
+    expect(pluginSource).toContain('try await INInteraction.delete(with: groupIdentifier)');
+    expect(pluginSource).toContain('try await INInteraction.delete(with: [interactionIdentifier])');
+  });
+
+  it('removes every account that is not allowed, with its avatars and what Siri keeps of it', () => {
+    const reconcile = functionBody(mutationQueueSource, 'reconcileAccounts');
+    // The delete is noted down before the account goes, and struck off once Siri has made it.
+    expect(reconcile).toMatch(
+      /for accountTag in accounts\.allAccountTags\(\)\.subtracting\(allowedAccountTags\) \{[^}]*accounts\.recordPendingGroupDelete\(accountTag\)\s*accounts\.removeAccount\(accountTag: accountTag\)\s*accountGenerations\[accountTag, default: 0\] \+= 1\s*\}\s*avatars\.pruneAccounts\(keeping: allowedAccountTags\)/
+    );
+    expect(reconcile).toMatch(
+      /try await interactions\.deleteGroup\(groupIdentifier\)\s*accounts\.removePendingGroupDelete\(groupIdentifier\)\s*\} catch \{\s*deletedAll = false/
+    );
+    expect(reconcile).toMatch(
+      /try await interactions\.deleteInteraction\(interactionIdentifier\)\s*accounts\.removePendingInteractionDelete\(interactionIdentifier\)\s*\} catch \{\s*deletedAll = false/
+    );
+    // The group of an account that is allowed again is not deleted.
+    expect(reconcile).toContain(
+      'for groupIdentifier in pending.groupIdentifiers where !allowedAccountTags.contains(groupIdentifier)'
+    );
+    // No account allowed: everything goes, and one delete covers every delete that was owed.
+    expect(reconcile).toMatch(
+      /if allowedAccountTags\.isEmpty \{\s*accounts\.removeAllAccounts\(\)\s*avatars\.clearAll\(\)\s*clearAllGeneration \+= 1\s*do \{\s*try await interactions\.deleteAll\(\)\s*\} catch \{\s*return false\s*\}\s*accounts\.clearAllPendingDeletes\(\)\s*return true/
     );
   });
 
-  it('donates an interaction under its account, without the message text, and deletes it with the account', () => {
+  it('lets an account that shares again keep what is donated from then on', () => {
+    expect(functionBody(mutationQueueSource, 'syncAccount')).toMatch(
+      /guard accounts\.saveAccount\(accountTag: accountTag, userId: userId\) else \{\s*return false\s*\}[^}]*accounts\.removePendingGroupDelete\(accountTag\)\s*return true/
+    );
+    expect(functionBody(mutationQueueSource, 'syncAccount')).not.toContain(
+      'removePendingInteractionDelete'
+    );
+  });
+
+  it('donates an interaction under its account, without the message text', () => {
     expect(serviceSource).toContain('interaction.groupIdentifier = accountTag');
     expect(serviceSource).toContain('interaction.identifier = interactionId');
     expect(serviceSource).not.toContain('mutableContent.body,');
     expect(intentSource.match(/content: nil,/g)).toHaveLength(2);
     expect(intentSource).not.toMatch(/content: (?!nil)/);
     expect(pluginSource).toContain('import Intents');
-    expect(pluginSource).toMatch(
-      /removeSharedState: \{ removeAccount\(accountTag\) \},\s*deleteInteractions: \{ try await INInteraction\.delete\(with: accountTag\) \}/
-    );
   });
 
-  it('takes back a donation whose account went away while it was made', () => {
+  it('takes back a donation whose account went away while it was made, and notes down the one it could not take back', () => {
     expect(serviceSource).toContain('NotificationInteractionCoordinator.donateIfValid(');
-    expect(serviceSource).toContain('try? await INInteraction.delete(with: [interactionId])');
-    // The account is looked at before and after the donation, by its install and its sync.
-    expect(interactionSource.match(/guard isAccountStillValid\(\) else/g)).toHaveLength(2);
+    // The account is looked at before and after the donation, by its sync.
+    expect(interactionSource.match(/isAccountStillValid\(\)/g)).toHaveLength(2);
     expect(serviceSource).toMatch(
-      /account\.isSameSync\(\s*as: KeychainNotificationCredentialStore\.shared\.load\(accountTag: accountTag\)\s*\)/
+      /isAccountStillValid: \{\s*NotificationAccountStore\.shared\.loadAccount\(accountTag: accountTag\)\?\.syncId == account\.syncId\s*\}/
+    );
+    expect(serviceSource).toMatch(
+      /deleteInteraction: \{ interactionId in\s*try await INInteraction\.delete\(with: \[interactionId\]\)\s*\}/
+    );
+    expect(interactionSource).toMatch(
+      /do \{\s*try await deleteInteraction\(interactionId\)\s*\} catch \{\s*recordPendingDelete\(interactionId\)\s*\}\s*return false/
+    );
+    expect(serviceSource).toMatch(
+      /recordPendingDelete: \{ interactionId in\s*NotificationAccountStore\.shared\.recordPendingInteractionDelete\(interactionId\)\s*\}/
     );
     // The cancellation of the task is looked at only after that cleanup, and nothing is shown
     // for a donation that was taken back.
@@ -180,84 +257,79 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(intentSource).toContain('recipients: nil,');
   });
 
-  it('asks for the sender avatar of the room of the notification, not of the profile', () => {
-    expect(serviceSource).toMatch(
-      /fetchSenderAvatar\([^)]*roomId: payload\.roomId,\s*sender: sender,\s*deadlineNanoseconds:/
-    );
-    expect(fetcherSource).toContain('/state/m.room.member/');
-  });
-
   it('keeps avatars per room from the plugin call to the lookup for a notification', () => {
-    expect(pluginSource).toContain('Self.trimmedNonEmpty(item["roomId"] as? String)');
-    expect(pluginSource).toMatch(
-      /storeAvatar\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
+    ['syncAvatars', 'storeAvatar'].forEach((method) => {
+      expect(functionBody(pluginSource, method)).toContain(
+        'Self.trimmedNonEmpty(item["roomId"] as? String)'
+      );
+    });
+    expect(functionBody(mutationQueueSource, 'storeAvatar')).toMatch(
+      /avatars\.storeAvatar\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
     );
-    expect(pluginSource).toMatch(
-      /cachedMxcUrl\(\s*accountTag: accountTag,\s*roomId: entry\.roomId,/
+    expect(avatarStoreSource).toContain('sha256Hex("\\(room)\\0\\(sender)")');
+  });
+
+  it('answers a list of avatars with the ones it lacks, and stores only what belongs to its latest list', () => {
+    expect(avatarStoreSource).toMatch(
+      /public func reconcileAccount\(\s*accountTag: String,\s*desiredEntries: \[\(roomId: String\?, sender: String, mxcUrl: String\)\]\s*\) -> \[String\]/
     );
-    expect(storeSource).toContain('sha256Hex("\\(room)\\0\\(sender)")');
-    expect(serviceSource).toMatch(
-      /cachedAvatar\(\s*accountTag: accountTag,\s*roomId: payload\.roomId,\s*sender: sender\s*\)/
+    const sync = functionBody(mutationQueueSource, 'syncAvatars');
+    // Nothing is kept for an account that is not shared.
+    expect(sync).toMatch(
+      /guard accounts\.loadAccount\(accountTag: accountTag\) != nil else \{\s*return AvatarSync\(missingMxcUrls: \[\], syncGeneration: 0\)/
+    );
+    expect(sync).toMatch(
+      /accountGenerations\[accountTag, default: 0\] \+= 1\s*let missingMxcUrls = avatars\.reconcileAccount\(/
+    );
+    expect(functionBody(pluginSource, 'syncAvatars')).toMatch(
+      /call\.resolve\(\[\s*"missingMxcUrls": sync\.missingMxcUrls,\s*"syncGeneration": sync\.syncGeneration,\s*\]\)/
+    );
+    expect(functionBody(mutationQueueSource, 'storeAvatar')).toMatch(
+      /guard accounts\.loadAccount\(accountTag: accountTag\) != nil,\s*currentGeneration\(of: accountTag\) == syncGeneration else \{\s*return/
+    );
+    expect(mutationQueueSource).toContain(
+      'clearAllGeneration + (accountGenerations[accountTag] ?? 0)'
     );
   });
 
-  it('removes cached avatars that a sync no longer lists before it downloads any', () => {
-    expect(storeSource).toContain('public func reconcileAccount(');
-    // Each sync has a number of its own, so an earlier one stores nothing after it.
-    const scheduleSync = pluginSource.slice(
-      pluginSource.indexOf('func scheduleSync('),
-      pluginSource.indexOf('func clearAccount(')
-    );
-    expect(scheduleSync).toMatch(
-      /accountGenerations\[accountTag, default: 0\] &\+= 1\s*let generation = currentGeneration\(of: accountTag\)/
-    );
-    const sync = pluginSource.slice(pluginSource.indexOf('private func performAvatarSync('));
-    expect(sync.indexOf('reconcileIfCurrent(')).toBeGreaterThan(-1);
-    expect(sync.indexOf('reconcileIfCurrent(')).toBeLessThan(
-      sync.indexOf('downloadAndStoreAvatar(')
-    );
-    expect(pluginSource).toContain('NotificationAvatarStore.shared.reconcileAccount(');
-    expect(pluginSource).toContain('let mxcUrl = Self.trimmedNonEmpty(item["mxcUrl"] as? String)');
+  it('clears the avatar cache without touching the accounts or what Siri keeps', () => {
+    const clear = functionBody(mutationQueueSource, 'clearAvatarCache');
+    expect(clear).toMatch(/clearAllGeneration \+= 1\s*avatars\.clearAll\(\)\s*\}/);
+    expect(clear).not.toMatch(/accounts\.|interactions\./);
   });
 
-  it('holds a notification back no longer than 3 seconds for an avatar that is not cached', () => {
-    expect(serviceSource).toContain(
-      'private static let avatarFetchDeadlineNanoseconds: UInt64 = 3_000_000_000'
+  it('bounds what the app stores and the extension decodes', () => {
+    expect(avatarStoreSource).toContain('public static let maxAvatarBytes = 512 * 1024');
+    expect(avatarStoreSource).toContain('public static let maxImageDimension = 2048');
+    expect(avatarStoreSource).toContain('public static let maxImagePixels = 4_194_304');
+    expect(avatarStoreSource).toContain('public static let maxEntriesPerAccount = 250');
+    expect(functionBody(pluginSource, 'storeAvatar')).toMatch(
+      /let data = call\.getString\("base64Data"\)\.flatMap\(\{ Data\(base64Encoded: \$0\) \}\),\s*data\.count <= NotificationAvatarStore\.maxAvatarBytes else \{\s*return call\.reject\("[^"]*", "INVALID"\)/
     );
-    expect(serviceSource).toContain('deadlineNanoseconds: Self.avatarFetchDeadlineNanoseconds');
-    // Every fetch of the extension goes through the deadline.
-    expect(serviceSource.match(/fetchSenderAvatar\(/g)).toHaveLength(1);
-    expect(fetcherSource).toContain('try? await Task.sleep(nanoseconds: deadlineNanoseconds)');
-    expect(fetcherSource).toContain('group.cancelAll()');
-  });
-
-  it('bounds what the extension downloads and decodes', () => {
-    expect(storeSource).toContain('public static let maxImageDimension = 2048');
-    expect(storeSource).toContain('public static let maxImagePixels = 4_194_304');
-    // The body is collected in the chunks the session delivers, never byte by byte.
-    expect(fetcherSource).not.toContain('.bytes(for:');
-    expect(httpClientSource).toContain('URLSessionDataDelegate');
     // An image of several frames is never kept as it came.
-    expect(storeSource).toMatch(
+    expect(avatarStoreSource).toMatch(
       /if CGImageSourceGetCount\(inspected\.source\) == 1,\s*max\(inspected\.width, inspected\.height\) <= maxStoredPixelSize\s*\{\s*return data/
     );
   });
 
-  it('configures Communication Notifications, App Group, and shared Keychain only on the right targets', () => {
+  it('configures Communication Notifications and the App Group only on the right targets, and no shared Keychain', () => {
     // Main iOS app entitlements
-    expect(appEntitlements).toContain(
-      '<key>com.apple.developer.usernotifications.communication</key>'
+    expect(appEntitlements).toContain('<key>aps-environment</key>');
+    expect(appEntitlements).toMatch(
+      /<key>com\.apple\.developer\.usernotifications\.communication<\/key>\s*<true\/>/
     );
-    expect(appEntitlements).toContain('<string>group.chat.mindroom.app</string>');
-    expect(appEntitlements).toContain('<string>$(AppIdentifierPrefix)chat.mindroom.app</string>');
+    expect(appEntitlements).toMatch(
+      /<key>com\.apple\.security\.application-groups<\/key>\s*<array>\s*<string>group\.chat\.mindroom\.app<\/string>\s*<\/array>/
+    );
 
-    // Notification Service Extension entitlements: shared App Group + Keychain, NEVER communication entitlement
+    // Notification Service Extension entitlements: the App Group, and nothing else
+    expect(serviceEntitlements.match(/<key>[^<]*<\/key>/g)).toEqual([
+      '<key>com.apple.security.application-groups</key>',
+    ]);
     expect(serviceEntitlements).toContain('<string>group.chat.mindroom.app</string>');
-    expect(serviceEntitlements).toContain(
-      '<string>$(AppIdentifierPrefix)chat.mindroom.app</string>'
-    );
-    expect(serviceEntitlements).not.toContain(
-      'com.apple.developer.usernotifications.communication'
+
+    [appEntitlements, serviceEntitlements, macEntitlements, macAppStoreEntitlements].forEach(
+      (entitlements) => expect(entitlements).not.toContain('keychain-access-groups')
     );
 
     // Mac Catalyst entitlements stay untouched and free of iOS-only notification entitlements
@@ -287,7 +359,6 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     expect(serviceSource).toContain('INInteraction(intent: intent, response: nil)');
     expect(serviceSource).toContain('interaction.direction = .incoming');
     expect(serviceSource).toContain('DeliverySlot');
-    expect(serviceSource).not.toContain('NotificationAvatarStore.shared.storeAvatar');
     expect(serviceSource).toContain('mutableContent.updating(from: intent)');
     expect(serviceSource).toContain('serviceExtensionTimeWillExpire');
   });

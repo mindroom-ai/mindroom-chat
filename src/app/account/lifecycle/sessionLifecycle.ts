@@ -27,6 +27,7 @@ import {
   forgetCloudflareAccessToken,
   renewExpiredCloudflareAccess,
 } from '../../native/cloudflareAccess';
+import { clearNativeNotificationAvatarCache } from '../../native/nativeNotifications';
 import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
 import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
@@ -46,7 +47,6 @@ import {
   mergeSessionCleanupContexts,
 } from './browserStorageCleanup';
 import { leavePage } from '../../../boot/inviteFragment';
-import { queueIOSPushNativeClear } from '../../notifications/push/iosPush';
 
 const getMatrixClientSessionIdentity = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getSafeUserId'>
@@ -105,27 +105,31 @@ const clearSessionScopedUiState = async (
   }
 };
 
-/** How long a sign-out waits for the app to answer the removal of the account's native state. */
+/** How long a sign-out or a cache clear waits for the app to answer a removal of native state. */
 const NATIVE_STATE_CLEAR_TIMEOUT_MS = 5000;
 
 // Waits for the app's answer, but not for long: an answer that never comes (a callback of iOS
-// that is never called) must not keep the sign-out from its reload. The removal is noted down
-// by then (queueIOSPushNativeClear), and is tried again after the reload.
-const clearSessionScopedNativeState = async (sessionId: string): Promise<void> => {
+// that is never called) must not keep the page from its reload. The account has left the
+// registry by then, so what the app still shares of it is removed when the app starts again
+// (useReconcileNativeNotifications).
+const waitForNativeClear = async (clear: () => Promise<void>): Promise<void> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
-      clearSessionNativeState(sessionId),
+      clear(),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, NATIVE_STATE_CLEAR_TIMEOUT_MS);
       }),
     ]);
   } catch {
-    // Native preference cleanup is best effort during account removal.
+    // Native cleanup is best effort.
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
 };
+
+const clearSessionScopedNativeState = (sessionId: string): Promise<void> =>
+  waitForNativeClear(() => clearSessionNativeState(sessionId));
 
 const clearMatrixClientStores = async (
   mx: MatrixClient,
@@ -187,9 +191,6 @@ const removeSessionRecordAndLocalData = async (
   mx?: MatrixClient
 ): Promise<void> => {
   const nextStore = removeSession(session.sessionId);
-  // Before anything is awaited: a sign-out that is cut off from here on still leaves the
-  // removal of what the account shares with the notification extension noted down.
-  queueIOSPushNativeClear(session.sessionId);
   await deleteSessionLocalData(
     session,
     mx,
@@ -245,8 +246,6 @@ export const removeCurrentClientSessionAndReload = async (
   // cache, canvas and native teardown needs.
   const identity = getMatrixClientSessionIdentity(mx);
   const nextStore = removeSession(identity.sessionId);
-  // As in removeSessionRecordAndLocalData.
-  queueIOSPushNativeClear(identity.sessionId);
   const clearUserScopedState = !nextStore.sessions.some(
     (storedSession) => storedSession.userId === identity.userId
   );
@@ -334,6 +333,8 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
     // ignore sessionStorage cleanup errors
   }
 
+  // The avatars the iOS app keeps for notifications; the next avatar sync fills them again.
+  await waitForNativeClear(clearNativeNotificationAvatarCache);
   // The kept avatars are homeserver thumbnails, outside the app scope cleared above; last, as in
   // deleteSessionLocalData.
   await clearFetchedAvatars();

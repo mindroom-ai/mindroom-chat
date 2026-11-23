@@ -52,7 +52,7 @@ import {
 } from '../../event-store/cache/db';
 import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
 import { clearNativeVoiceRecordings } from '../../native/nativeVoiceRecorder';
-import { clearIOSPushState, queueIOSPushNativeClear } from '../../notifications/push/iosPush';
+import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../../matrix/cachedSpecVersions';
@@ -140,7 +140,6 @@ vi.mock('../../event-store/cache/db', () => ({
 vi.mock('../../notifications/push/iosPush', () => ({
   IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
-  queueIOSPushNativeClear: vi.fn(),
 }));
 
 const createStorageMock = (initialEntries: Record<string, string> = {}) => {
@@ -1891,7 +1890,6 @@ describe('logoutClient', () => {
     const sessionId = createSessionId('https://example.com', '@alice:example.com');
     expect(deleteDatabase).toHaveBeenCalledWith(getCanvasStateDbName(sessionId));
     expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
-    expect(vi.mocked(queueIOSPushNativeClear)).toHaveBeenCalledWith(sessionId);
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
@@ -2151,8 +2149,6 @@ describe('logoutClient', () => {
     expect(vi.mocked(deleteCacheStoreDb)).not.toHaveBeenCalled();
     expect(vi.mocked(clearRecentThreadsStore)).not.toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).not.toHaveBeenCalled();
-    // The account stays, so no removal of what it shares natively is noted down.
-    expect(vi.mocked(queueIOSPushNativeClear)).not.toHaveBeenCalled();
     expect(getSessionStore(localStorageMock).sessions).toEqual([session]);
     expect(reload).not.toHaveBeenCalled();
   });
@@ -2256,26 +2252,24 @@ describe('logoutClient', () => {
       vi.useRealTimers();
     });
 
-    it('notes its removal down as soon as the account has left the registry, before any teardown', async () => {
+    it('takes the account out of the registry before any teardown, and before the app is asked to remove it', async () => {
       const { session, localStorageMock, reload, clearStores, mx } = signedInAccount();
-      let registeredWhenNoted: number | undefined;
-      let teardownBegunWhenNoted = true;
-      vi.mocked(queueIOSPushNativeClear).mockImplementation(() => {
-        registeredWhenNoted = getSessionStore(localStorageMock).sessions.length;
-        teardownBegunWhenNoted =
-          clearStores.mock.calls.length > 0 ||
-          vi.mocked(deleteCacheStoreDb).mock.calls.length > 0 ||
-          vi.mocked(clearIOSPushState).mock.calls.length > 0;
+      let registeredAtTeardown: number | undefined;
+      let registeredWhenAsked: number | undefined;
+      clearStores.mockImplementation(async () => {
+        registeredAtTeardown = getSessionStore(localStorageMock).sessions.length;
+      });
+      vi.mocked(clearIOSPushState).mockImplementation(async () => {
+        registeredWhenAsked = getSessionStore(localStorageMock).sessions.length;
       });
 
       await logoutClient(mx);
 
-      expect(vi.mocked(queueIOSPushNativeClear)).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(queueIOSPushNativeClear)).toHaveBeenCalledWith(session.sessionId);
-      // A sign-out that is cut off anywhere after this still owes the removal.
-      expect(registeredWhenNoted).toBe(0);
-      expect(teardownBegunWhenNoted).toBe(false);
-      expect(clearStores).toHaveBeenCalled();
+      // The app keeps the accounts of the registry only. A sign-out that is cut off anywhere
+      // after this needs nothing noted down: the next reconcile removes what the account shares.
+      expect(registeredAtTeardown).toBe(0);
+      expect(registeredWhenAsked).toBe(0);
+      expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(session.sessionId);
       expect(reload).toHaveBeenCalledTimes(1);
     });
@@ -2298,8 +2292,6 @@ describe('logoutClient', () => {
       await vi.advanceTimersByTimeAsync(200);
       await signingOut;
       expect(reload).toHaveBeenCalledTimes(1);
-      // Noted down before, the removal is made after the reload.
-      expect(vi.mocked(queueIOSPushNativeClear)).toHaveBeenCalledWith(session.sessionId);
     });
 
     it('stops waiting when the app answers in time', async () => {

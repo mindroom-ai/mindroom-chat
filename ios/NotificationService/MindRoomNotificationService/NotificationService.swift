@@ -10,7 +10,7 @@ private final class DeliverySlot: @unchecked Sendable {
     private var delivered = false
     private var contentHandler: ((UNNotificationContent) -> Void)?
     private var bestAttemptContent: UNMutableNotificationContent?
-    private var fetchTask: Task<Void, Never>?
+    private var enrichTask: Task<Void, Never>?
 
     init(
         contentHandler: @escaping (UNNotificationContent) -> Void,
@@ -26,7 +26,7 @@ private final class DeliverySlot: @unchecked Sendable {
         if delivered {
             shouldCancel = true
         } else {
-            fetchTask = task
+            enrichTask = task
             shouldCancel = false
         }
         lock.unlock()
@@ -46,7 +46,7 @@ private final class DeliverySlot: @unchecked Sendable {
         handler = contentHandler
         contentHandler = nil
         bestAttemptContent = nil
-        fetchTask = nil
+        enrichTask = nil
         lock.unlock()
         handler?(content)
     }
@@ -64,10 +64,10 @@ private final class DeliverySlot: @unchecked Sendable {
         delivered = true
         handler = contentHandler
         fallback = bestAttemptContent
-        task = fetchTask
+        task = enrichTask
         contentHandler = nil
         bestAttemptContent = nil
-        fetchTask = nil
+        enrichTask = nil
         lock.unlock()
 
         task?.cancel()
@@ -77,11 +77,10 @@ private final class DeliverySlot: @unchecked Sendable {
     }
 }
 
+/// Turns a push into a Communication Notification with what the app left in the App Group: the
+/// account and the sender's avatar. It makes no request and holds no token, so a notification is
+/// never held back by the network.
 class NotificationService: UNNotificationServiceExtension {
-    /// How long an avatar that is not cached may hold a notification back: 3 seconds for both of
-    /// its requests together, since the notification may be a tool approval that waits for an answer.
-    private static let avatarFetchDeadlineNanoseconds: UInt64 = 3_000_000_000
-
     private let slotLock = NSLock()
     private var activeSlot: DeliverySlot?
 
@@ -120,7 +119,7 @@ class NotificationService: UNNotificationServiceExtension {
         }
 
         // A push that names no account keeps what the gateway sent: there is no telling whose
-        // avatars and homeserver it would be shown with.
+        // avatars it would be shown with.
         guard let sender = payload.sender, !sender.isEmpty,
               let accountTag = payload.accountTag, !accountTag.isEmpty else {
             contentHandler(mutableContent)
@@ -168,39 +167,20 @@ class NotificationService: UNNotificationServiceExtension {
         sender: String,
         senderDisplayName: String
     ) async {
-        // Only the account the push names, while the app shares it, lends its avatars and its
-        // homeserver: never another account that happens to be the only one on the device.
-        guard let account = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) else {
+        // Only the account the push names, while the app shares it, lends its avatars: never
+        // another account that happens to be the only one on the device.
+        guard let account = NotificationAccountStore.shared.loadAccount(accountTag: accountTag) else {
             slot.deliver(mutableContent)
             return
         }
 
-        // The sender's avatar in this room, which can differ from the one in another room.
-        var avatarData = NotificationAvatarStore.shared.cachedAvatar(
+        // The sender's avatar in this room, which can differ from the one in another room. Only
+        // what the app cached: a sender whose avatar it has not is shown without one.
+        let avatarData = NotificationAvatarStore.shared.cachedAvatar(
             accountTag: accountTag,
             roomId: payload.roomId,
             sender: sender
         )
-
-        // On cache miss, fetch for this notification in memory only so the main app remains the sole
-        // disk cache writer (prevents cross-process cache resurrection after account sign-out).
-        // Past the deadline the notification goes out without an avatar.
-        if avatarData == nil,
-           let accessToken = account.accessToken,
-           !accessToken.isEmpty
-        {
-            if let fetched = await NotificationAvatarFetcher.shared.fetchSenderAvatar(
-                homeserverUrl: account.homeserverUrl,
-                accessToken: accessToken,
-                roomId: payload.roomId,
-                sender: sender,
-                deadlineNanoseconds: Self.avatarFetchDeadlineNanoseconds
-            ) {
-                avatarData = fetched.data
-            }
-        }
-
-        guard !Task.isCancelled else { return }
 
         let intent = NotificationCommunicationIntent.makeSendMessageIntent(
             sender: sender,
@@ -216,9 +196,7 @@ class NotificationService: UNNotificationServiceExtension {
         // the one this notification started with is kept and shown.
         let donated = await NotificationInteractionCoordinator.donateIfValid(
             isAccountStillValid: {
-                account.isSameSync(
-                    as: KeychainNotificationCredentialStore.shared.load(accountTag: accountTag)
-                )
+                NotificationAccountStore.shared.loadAccount(accountTag: accountTag)?.syncId == account.syncId
             },
             donate: { interactionId in
                 let interaction = INInteraction(intent: intent, response: nil)
@@ -229,7 +207,11 @@ class NotificationService: UNNotificationServiceExtension {
                 try await interaction.donate()
             },
             deleteInteraction: { interactionId in
-                try? await INInteraction.delete(with: [interactionId])
+                try await INInteraction.delete(with: [interactionId])
+            },
+            // The app deletes it the next time it reconciles its accounts.
+            recordPendingDelete: { interactionId in
+                NotificationAccountStore.shared.recordPendingInteractionDelete(interactionId)
             }
         )
 

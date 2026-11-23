@@ -8,10 +8,10 @@ import {
   listSessions,
   type StoredSession,
 } from '../../matrix/session/sessions';
-import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+import { cloudflareAccessAllowsPush, hasCloudflareAccess } from '../../native/cloudflareAccess';
 import {
-  clearAllNativeNotificationAccounts,
-  clearNativeNotificationAccount,
+  isNativeNotificationsAvailable,
+  reconcileNativeNotificationAccounts,
 } from '../../native/nativeNotifications';
 
 /**
@@ -61,8 +61,6 @@ export const IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX = 'mindroom_ios_push_';
 const PUSH_TOKEN_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}token`;
 const PUSH_PROFILE_TAG_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}profile_tag`;
 const PUSH_ENABLED_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}enabled`;
-const PENDING_NATIVE_CLEARS_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}pending_native_clears`;
-const PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY = `${IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX}pending_native_clear_all`;
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 export const IOS_PUSH_STATE_EVENT = 'mindroom-ios-push-state-changed';
 
@@ -357,140 +355,55 @@ const setStoredIOSPushToken = (token: string, sessionId?: string) => {
   writeStorage(storageKey, token);
 };
 
-/** The account tags whose share with the notification extension is still to be removed. */
-const readPendingNativeClears = (): string[] => {
-  const stored = readStorage(PENDING_NATIVE_CLEARS_STORAGE_KEY);
-  if (!stored) return [];
-  try {
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
-  } catch {
-    return [];
-  }
-};
-
-const writePendingNativeClears = (accountTags: string[]): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    if (accountTags.length === 0) {
-      window.localStorage.removeItem(PENDING_NATIVE_CLEARS_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(PENDING_NATIVE_CLEARS_STORAGE_KEY, JSON.stringify(accountTags));
+/**
+ * The tags of the accounts that may share with the notification extension: signed in on this
+ * device, with push turned on, on a server that allows pushes. With the deployment's
+ * configuration, also only the accounts whose pushes name their sender (`full`). A caller
+ * without it (the sign-in pages, a sign-out) leaves those to the next caller that has it.
+ */
+export const getAllowedNativeNotificationAccountTags = (clientConfig?: ClientConfig): string[] =>
+  listSessions().flatMap((session) => {
+    // Read first: resolving the push configuration makes a tag for an account without one.
+    const accountTag = getStoredIOSPushProfileTag(session.sessionId);
+    if (!accountTag || !getIOSPushEnabled(session.sessionId)) return [];
+    if (!cloudflareAccessAllowsPush(session.baseUrl)) return [];
+    if (clientConfig) {
+      const pushConfig = resolveIOSPushConfig(clientConfig, session.sessionId);
+      if (!pushConfig) return [];
+      if (resolveEffectiveIOSPushFormat(pushConfig, session.baseUrl) !== 'full') return [];
     }
-  } catch {
-    // A clear that cannot be noted down is still attempted once.
-  }
-};
-
-const notePendingNativeClear = (accountTag: string): void => {
-  const pending = readPendingNativeClears();
-  if (!pending.includes(accountTag)) writePendingNativeClears([...pending, accountTag]);
-};
-
-/** Takes back a noted clear: the account shares with the notification extension again. */
-export const forgetPendingNativeNotificationClear = (accountTag: string): void => {
-  const pending = readPendingNativeClears();
-  if (!pending.includes(accountTag)) return;
-  writePendingNativeClears(pending.filter((tag) => tag !== accountTag));
-};
+    return [accountTag];
+  });
 
 /**
- * Notes down, at once, that what the account shares with the notification extension is to be
- * removed. A sign-out calls it as soon as the account has left the registry: whatever cuts the
- * rest of the sign-out off, the removal is still owed and `flushPendingNativeNotificationClears`
- * makes it. Never throws.
+ * Makes what the app shares with the notification extension follow the accounts on this device:
+ * an account that is signed out, has push turned off, or may not show rich notifications is
+ * removed there, with its avatars and what Siri keeps of it. It only ever removes; an account is
+ * shared by `syncNativeNotificationAccount`.
+ *
+ * Nothing is noted down for a removal that fails or is cut off: the next call (when the app
+ * starts or becomes active, and whenever an account changes) removes what is left. Never rejects.
  */
-export const queueIOSPushNativeClear = (sessionId?: string): void => {
+export const reconcileIOSPushNativeState = async (options?: {
+  clientConfig?: ClientConfig;
+  permission?: NativePushPermission;
+}): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
   try {
-    const accountTag = getStoredIOSPushProfileTag(sessionId);
-    if (accountTag) notePendingNativeClear(accountTag);
-  } catch {
-    // The sign-out goes on, and clears the account itself.
-  }
-};
-
-/**
- * Removes what the account shares with the notification extension (its Keychain record, its
- * avatars, its donated interactions). The tag is noted down before the app is asked and struck
- * off only once the app confirms: a clear that the Keychain or Siri refuses, or whose answer a
- * reload cuts off, is tried again by `flushPendingNativeNotificationClears`. Never rejects.
- */
-export const clearNativeNotificationAccountWithRetry = async (
-  accountTag: string
-): Promise<void> => {
-  notePendingNativeClear(accountTag);
-  try {
-    await clearNativeNotificationAccount(accountTag);
-    forgetPendingNativeNotificationClear(accountTag);
+    // Signed out, nothing is shared, whatever iOS and the deployment allow.
+    if (listSessions().length === 0) {
+      await reconcileNativeNotificationAccounts([]);
+      return;
+    }
+    const permission = options?.permission ?? (await checkIOSPushPermission());
+    // iOS allows or denies notifications to the whole app, so to every account.
+    await reconcileNativeNotificationAccounts(
+      permission === 'granted' ? getAllowedNativeNotificationAccountTags(options?.clientConfig) : []
+    );
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.warn('[ios-push] could not clear a notification account; it stays noted', error);
+    console.warn('[ios-push] could not reconcile the notification accounts', error);
   }
-};
-
-const isNativeClearAllNoted = (): boolean =>
-  readStorage(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY) !== undefined;
-
-const writePendingNativeClearAll = (pending: boolean): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    if (pending) {
-      window.localStorage.setItem(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY, '1');
-    } else {
-      window.localStorage.removeItem(PENDING_NATIVE_CLEAR_ALL_STORAGE_KEY);
-    }
-  } catch {
-    // A clear that cannot be noted down is still attempted once.
-  }
-};
-
-/** The clears of every account that the app has been asked for and has not answered yet. */
-let nativeClearAllsUnderWay = 0;
-
-/**
- * Whether a removal of every account is still owed or under way. An account that is shared
- * before it is done would be removed by it.
- */
-export const hasPendingNativeNotificationClearAll = (): boolean =>
-  nativeClearAllsUnderWay > 0 || isNativeClearAllNoted();
-
-/**
- * Removes what every account on the device shares with the notification extension. It is noted
- * down before the app is asked and struck off only once the app confirms, as for one account;
- * with it go the noted clears of single accounts that it covers, the ones noted before it.
- * Whether the app confirmed. Never rejects.
- */
-export const clearAllNativeNotificationAccountsWithRetry = async (): Promise<boolean> => {
-  writePendingNativeClearAll(true);
-  const covered = readPendingNativeClears();
-  nativeClearAllsUnderWay += 1;
-  try {
-    await clearAllNativeNotificationAccounts();
-  } catch (error) {
-    // Noted again: an earlier clear of all that succeeded meanwhile has struck it off.
-    writePendingNativeClearAll(true);
-    // eslint-disable-next-line no-console
-    console.warn('[ios-push] could not clear the notification accounts; it stays noted', error);
-    return false;
-  } finally {
-    nativeClearAllsUnderWay -= 1;
-  }
-  writePendingNativeClearAll(false);
-  writePendingNativeClears(readPendingNativeClears().filter((tag) => !covered.includes(tag)));
-  return true;
-};
-
-/**
- * Tries the clears again that are still noted down: first the one of every account, without
- * which nothing else is tried, then the ones of single accounts. Whether none is left.
- */
-export const flushPendingNativeNotificationClears = async (): Promise<boolean> => {
-  if (isNativeClearAllNoted() && !(await clearAllNativeNotificationAccountsWithRetry())) {
-    return false;
-  }
-  await Promise.all(readPendingNativeClears().map(clearNativeNotificationAccountWithRetry));
-  return !isNativeClearAllNoted() && readPendingNativeClears().length === 0;
 };
 
 /**
@@ -498,17 +411,14 @@ export const flushPendingNativeNotificationClears = async (): Promise<boolean> =
  * account shares with the notification extension, so that a sign-out does not reload under it.
  */
 export const clearIOSPushState = async (sessionId?: string): Promise<void> => {
-  const profileTag = getStoredIOSPushProfileTag(sessionId);
   const storageKeys = [
     resolveScopedStorageKey(PUSH_TOKEN_STORAGE_KEY, sessionId),
     resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId),
     resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId),
   ];
-  // Started before the stored tag goes: the tag is the only name the app knows the account by,
-  // and this notes it down for another try.
-  const nativeClear = profileTag ? clearNativeNotificationAccountWithRetry(profileTag) : undefined;
   storageKeys.forEach(removeStorage);
-  await nativeClear;
+  // Without its stored tag the account is not among the allowed ones any more.
+  await reconcileIOSPushNativeState();
 };
 
 /** Each account's last pusher write, so its writes reach the homeserver in the order they start. */

@@ -6,9 +6,5 @@
 	<array>
 		<string>group.chat.mindroom.app</string>
 	</array>
-	<key>keychain-access-groups</key>
-	<array>
-		<string>$(AppIdentifierPrefix)chat.mindroom.app</string>
-	</array>
 </dict>
 </plist>

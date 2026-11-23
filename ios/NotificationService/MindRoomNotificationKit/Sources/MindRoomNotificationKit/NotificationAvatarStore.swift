@@ -198,24 +198,35 @@ public final class NotificationAvatarStore: @unchecked Sendable {
     }
 
     /// Makes the account's cache hold nothing but `desiredEntries`: an avatar whose member is
-    /// not among them (it left, removed its avatar, or fell out of the list's cap) and one that is
-    /// cached for another `mxcUrl` than the member has now are deleted. What is missing after
-    /// that is for the caller to download.
+    /// not among them (it left, removed its avatar, or fell out of the list's cap), one that is
+    /// cached for another `mxcUrl` than the member has now, and one whose file is gone or is no
+    /// image are deleted.
+    ///
+    /// - Returns: The `mxcUrl`s that are missing after that, each once, in the order of
+    ///   `desiredEntries`, for the caller to download and store.
+    @discardableResult
     public func reconcileAccount(
         accountTag: String,
         desiredEntries: [(roomId: String?, sender: String, mxcUrl: String)]
-    ) {
-        guard !accountTag.isEmpty else { return }
-        var desiredByKey: [String: String] = [:]
-        for entry in desiredEntries {
-            desiredByKey[Self.entryKey(roomId: entry.roomId, sender: entry.sender)] = entry.mxcUrl
+    ) -> [String] {
+        guard !accountTag.isEmpty else { return [] }
+        let desired = desiredEntries.map { entry in
+            (key: Self.entryKey(roomId: entry.roomId, sender: entry.sender), mxcUrl: entry.mxcUrl)
         }
-        queue.sync {
+        var desiredByKey: [String: String] = [:]
+        for entry in desired {
+            desiredByKey[entry.key] = entry.mxcUrl
+        }
+        return queue.sync {
             let accountDir = accountDirectory(for: accountTag)
-            guard FileManager.default.fileExists(atPath: accountDir.path) else { return }
-
             var manifest = loadManifest(accountTag: accountTag)
-            let staleKeys = manifest.filter { desiredByKey[$0.key] != $0.value.mxcUrl }.map(\.key)
+            let staleKeys = manifest.filter { key, entry in
+                guard desiredByKey[key] == entry.mxcUrl,
+                      let data = try? Data(contentsOf: avatarFileURL(accountTag: accountTag, key: key)) else {
+                    return true
+                }
+                return !Self.isValidImageData(data)
+            }.map(\.key)
             for key in staleKeys {
                 manifest.removeValue(forKey: key)
             }
@@ -238,6 +249,12 @@ public final class NotificationAvatarStore: @unchecked Sendable {
             if !staleKeys.isEmpty {
                 try? saveManifest(manifest, accountTag: accountTag)
             }
+
+            var missing: [String] = []
+            for entry in desired where manifest[entry.key] == nil && !missing.contains(entry.mxcUrl) {
+                missing.append(entry.mxcUrl)
+            }
+            return missing
         }
     }
 
@@ -246,6 +263,20 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         queue.sync {
             let accountDir = accountDirectory(for: accountTag)
             try? FileManager.default.removeItem(at: accountDir)
+        }
+    }
+
+    /// Removes the cache of every account whose tag is not among `allowedAccountTags`.
+    public func pruneAccounts(keeping allowedAccountTags: Set<String>) {
+        let allowedDirectoryNames = Set(allowedAccountTags.map(Self.accountDirectoryName(for:)))
+        queue.sync {
+            let directories = (try? FileManager.default.contentsOfDirectory(
+                at: baseDirectory,
+                includingPropertiesForKeys: nil
+            )) ?? []
+            for directory in directories where !allowedDirectoryNames.contains(directory.lastPathComponent) {
+                try? FileManager.default.removeItem(at: directory)
+            }
         }
     }
 
@@ -334,8 +365,13 @@ public final class NotificationAvatarStore: @unchecked Sendable {
         return data.isEmpty ? nil : data
     }
 
+    /// The name of an account's directory, which does not give the account's tag away.
+    private static func accountDirectoryName(for accountTag: String) -> String {
+        sha256Hex(accountTag)
+    }
+
     private func accountDirectory(for accountTag: String) -> URL {
-        baseDirectory.appendingPathComponent(Self.sha256Hex(accountTag), isDirectory: true)
+        baseDirectory.appendingPathComponent(Self.accountDirectoryName(for: accountTag), isDirectory: true)
     }
 
     /// The name of an avatar's file and of its manifest entry. No Matrix ID holds a NUL, so the

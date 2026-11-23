@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
+import { encodeBase64 } from 'matrix-js-sdk/lib/base64';
 import { App as NativeApp } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { useNavigate } from 'react-router-dom';
@@ -13,28 +14,28 @@ import { setActiveSession, type StoredSession } from '../../matrix/session/sessi
 import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
 import { OPENED_FROM_OUTSIDE_STATE } from '../../routes/historyStack';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
+import { mxcUrlToHttp } from '../../matrix/mediaUrl';
+import { authenticatedAvatarRequest } from '../../avatars/avatarMedia';
 import {
   cloudflareAccessAllowsPush,
   useCloudflareAccessSignInRequired,
 } from '../../native/cloudflareAccess';
 import {
   isNativeNotificationsAvailable,
+  storeNativeNotificationAvatar,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
   type NativeNotificationAvatarEntry,
 } from '../../native/nativeNotifications';
 import {
   checkIOSPushPermission,
-  clearAllNativeNotificationAccountsWithRetry,
-  clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
   findIOSPushAccount,
-  forgetPendingNativeNotificationClear,
   getOrCreateIOSPushProfileTag,
   getStoredIOSPushProfileTag,
-  hasPendingNativeNotificationClearAll,
   IOS_PUSH_ACCOUNT_KEY,
   isNativeIOSPlatform,
+  reconcileIOSPushNativeState,
   registerIOSPush,
   resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
@@ -45,6 +46,11 @@ import { useIOSPushEnabled } from './useIOSPushEnabled';
 
 const MAX_NATIVE_NOTIFICATION_AVATARS = 200;
 const NATIVE_AVATAR_SYNC_DEBOUNCE_MS = 1000;
+/** The thumbnail asked of the homeserver, in pixels each way. */
+const NATIVE_AVATAR_PIXELS = 128;
+/** The largest avatar the app takes (`NotificationAvatarStore.maxAvatarBytes`). */
+const MAX_NATIVE_AVATAR_BYTES = 512 * 1024;
+const MAX_NATIVE_AVATAR_DOWNLOADS = 4;
 
 /**
  * The avatars of the other members of the joined rooms, one entry for each room a member has an
@@ -86,6 +92,95 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
   }
 
   return avatars.slice(0, MAX_NATIVE_NOTIFICATION_AVATARS);
+};
+
+/** Whether the homeserver has no authenticated media endpoint, as one older than Matrix 1.11. */
+const lacksAuthenticatedMedia = async (response: Response): Promise<boolean> => {
+  if (response.status === 404) return true;
+  if (response.ok) return false;
+  try {
+    const body = (await response.clone().json()) as { errcode?: unknown } | null;
+    return body?.errcode === 'M_UNRECOGNIZED';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Downloads an avatar's thumbnail and returns it as base64, or nothing when the server has none
+ * or it is larger than the app takes. The access token goes to the homeserver's authenticated
+ * media endpoint only, in a header; a server without that endpoint is asked without the token.
+ */
+const downloadAvatarThumbnail = async (
+  mx: MatrixClient,
+  mxcUrl: string,
+  signal: AbortSignal
+): Promise<string | undefined> => {
+  const httpUrl = mxcUrlToHttp(
+    mx,
+    mxcUrl,
+    false,
+    NATIVE_AVATAR_PIXELS,
+    NATIVE_AVATAR_PIXELS,
+    'crop'
+  );
+  if (!httpUrl) return undefined;
+  const authenticated = authenticatedAvatarRequest(mx, httpUrl);
+  let response = authenticated
+    ? await fetch(authenticated.url, { ...authenticated.init, signal })
+    : await fetch(httpUrl, { signal });
+  if (authenticated && (await lacksAuthenticatedMedia(response))) {
+    response = await fetch(httpUrl, { signal });
+  }
+  if (!response.ok) return undefined;
+  if (Number(response.headers.get('content-length')) > MAX_NATIVE_AVATAR_BYTES) return undefined;
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > MAX_NATIVE_AVATAR_BYTES) return undefined;
+  return encodeBase64(bytes);
+};
+
+/**
+ * Lists the account's avatars to the app, which removes the ones that are no longer among them,
+ * and downloads the ones it lacks, a few at a time, for the app to keep. The notification
+ * extension itself downloads nothing: a sender whose avatar is not kept shows without one.
+ *
+ * Rejects when the list did not reach the app. An avatar that cannot be downloaded or stored is
+ * left out. Aborting `signal` stops the downloads.
+ */
+const prewarmNativeNotificationAvatars = async (
+  mx: MatrixClient,
+  accountTag: string,
+  avatars: NativeNotificationAvatarEntry[],
+  signal: AbortSignal
+): Promise<void> => {
+  const { missingMxcUrls, syncGeneration } = await syncNativeNotificationAvatars({
+    accountTag,
+    avatars,
+  });
+  const pending = [...missingMxcUrls];
+  const downloadNext = async (): Promise<void> => {
+    const mxcUrl = pending.shift();
+    if (mxcUrl === undefined || signal.aborted) return;
+    try {
+      const base64Data = await downloadAvatarThumbnail(mx, mxcUrl, signal);
+      if (base64Data && !signal.aborted) {
+        await storeNativeNotificationAvatar({
+          accountTag,
+          syncGeneration,
+          mxcUrl,
+          // A member is listed once for each room, mostly with the same avatar.
+          entries: avatars
+            .filter((avatar) => avatar.mxcUrl === mxcUrl)
+            .map(({ roomId, sender }) => ({ roomId, sender })),
+          base64Data,
+        });
+      }
+    } catch {
+      // Left out; the others are still downloaded.
+    }
+    await downloadNext();
+  };
+  await Promise.all(Array.from({ length: MAX_NATIVE_AVATAR_DOWNLOADS }, () => downloadNext()));
 };
 
 /**
@@ -136,18 +231,20 @@ export function NativeIOSPushFeature() {
     Boolean(sessionId);
   // Only then does the notification extension get the account and its members' avatars.
   const richPushEligible = richPushConfigured && !signInRequired && permission === 'granted';
-  // Prefer `activeSession.accessToken` so rotated tokens published to the session store sync
-  // immediately without waiting for `matrix-js-sdk` to update its internal field.
-  const notificationAccessToken = activeSession?.accessToken ?? mx.getAccessToken?.() ?? undefined;
-  const latest = useLatestRef({ enabled, signInRequired, pushAllowed });
   const lastAvatarSnapshotRef = useRef<string | undefined>(undefined);
   // The tag under which the app has stored the account, once it has: it keeps avatars only for
   // an account it knows.
   const [sharedAccountTag, setSharedAccountTag] = useState<string>();
-  // An account that could not be shared because a removal of every account is still owed is
-  // shared the next time the app becomes active.
-  const shareOwedRef = useRef(false);
-  const [shareAttempt, setShareAttempt] = useState(0);
+  // Counts the times the app became active while the account was not shared although it should
+  // be, as after the app could not store it: each is another try.
+  const [foregroundTick, setForegroundTick] = useState(0);
+  const latest = useLatestRef({
+    enabled,
+    signInRequired,
+    pushAllowed,
+    richPushEligible,
+    sharedAccountTag,
+  });
 
   // iOS grants and withdraws the permission outside the app's own state: in its prompt, and in
   // Settings while the app is in the background. Either way the app becomes active again after,
@@ -170,71 +267,62 @@ export function NativeIOSPushFeature() {
     const handle = NativeApp.addListener('appStateChange', ({ isActive }) => {
       if (!isActive) return;
       refreshPermission();
-      if (shareOwedRef.current) {
-        shareOwedRef.current = false;
-        setShareAttempt((attempt) => attempt + 1);
+      const state = latest.current;
+      if (
+        state.richPushEligible &&
+        state.sharedAccountTag !== getStoredIOSPushProfileTag(sessionId)
+      ) {
+        setForegroundTick((tick) => tick + 1);
       }
     });
     return () => {
       latestCheck += 1;
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [enabled, nativeNotificationsAvailable, pushAllowed, sessionId, signInRequired, stableConfig]);
+  }, [
+    enabled,
+    latest,
+    nativeNotificationsAvailable,
+    pushAllowed,
+    sessionId,
+    signInRequired,
+    stableConfig,
+  ]);
 
-  // Sync the account and its token for the Notification Service Extension while rich
-  // notifications can show; clear native state once they cannot.
+  // Share the account with the Notification Service Extension while rich notifications can
+  // show, and take away what may no longer be shared once they cannot.
   useEffect(() => {
     if (!nativeNotificationsAvailable || !sessionId) return undefined;
     if (!richPushEligible) {
       // The first permission check is still out: nothing says yet that the account must go.
       if (richPushConfigured && permission === undefined) return undefined;
       lastAvatarSnapshotRef.current = undefined;
-      shareOwedRef.current = false;
       setSharedAccountTag(undefined);
-      // A clear that fails stays noted down and is tried again (usePendingNativeNotificationClears).
-      // iOS denies notifications to the whole app: what every account shares goes, also the
-      // accounts that are not active. Anything else that ends it concerns this account alone.
-      if (permission === 'denied') {
-        void clearAllNativeNotificationAccountsWithRetry();
-        return undefined;
-      }
-      const storedTag = getStoredIOSPushProfileTag(sessionId);
-      if (storedTag) void clearNativeNotificationAccountWithRetry(storedTag);
+      // Never rejects. What it leaves is removed when the app next becomes active
+      // (useReconcileNativeNotifications).
+      void reconcileIOSPushNativeState({ clientConfig, permission });
       return undefined;
     }
-    if (!homeserverUrl || !userId) return undefined;
+    if (!userId) return undefined;
     // Always the per-session tag that `mindroom_account` carries in APNs payloads, never a
     // deployment-level `pushConfig.profileTag`.
     const accountTag = getOrCreateIOSPushProfileTag(sessionId);
-    // Sign-out removes the Keychain record of the stored tag. A tag that storage did not keep
-    // (full, or blocked) would leave a record that nothing can find again.
+    // Only the accounts whose tag is stored are kept when the shared accounts are reconciled. A
+    // tag that storage did not keep (full, or blocked) would be shared now and removed then.
     if (getStoredIOSPushProfileTag(sessionId) !== accountTag) return undefined;
 
     let cancelled = false;
     const shareAccount = async () => {
-      // A removal of every account that is still owed would take this account with it when it
-      // is made later. It is made first; while it fails, the account is not shared.
-      if (hasPendingNativeNotificationClearAll()) {
-        const cleared = await clearAllNativeNotificationAccountsWithRetry();
-        if (cancelled) return;
-        if (!cleared) {
-          shareOwedRef.current = true;
-          return;
-        }
-      }
-      // The account shares again: a clear of it that is still noted down must not run later.
-      // One that the app is making now is done before the sync starts, as the app takes the
-      // changes of its accounts in the order they are asked for.
-      forgetPendingNativeNotificationClear(accountTag);
-      await syncNativeNotificationAccount({
-        accountTag,
-        homeserverUrl,
-        userId,
-        ...(notificationAccessToken ? { accessToken: notificationAccessToken } : {}),
-      });
+      // First the accounts that may no longer share go, the other accounts on the device among
+      // them. The app takes both changes in the order they are asked for.
+      await reconcileIOSPushNativeState({ clientConfig, permission: 'granted' });
+      // Asked for now, the account would be stored after the reconcile of a later effect.
+      if (cancelled) return;
+      await syncNativeNotificationAccount({ accountTag, userId });
       if (!cancelled) setSharedAccountTag(accountTag);
     };
     shareAccount().catch((error: unknown) => {
+      // Tried again when the app next becomes active.
       // eslint-disable-next-line no-console
       console.warn('[ios-push] could not sync notification account', error);
     });
@@ -242,38 +330,48 @@ export function NativeIOSPushFeature() {
       cancelled = true;
     };
   }, [
-    homeserverUrl,
+    clientConfig,
+    foregroundTick,
     nativeNotificationsAvailable,
-    notificationAccessToken,
     permission,
     richPushConfigured,
     richPushEligible,
     sessionId,
-    shareAttempt,
     userId,
   ]);
 
   // Pre-warm sender avatars in the shared App Group cache once initial sync completes.
   useEffect(() => {
     if (!richPushEligible || !hasCompletedInitialSync || !userId) return undefined;
-    // Only for the account that the effect above has stored in the app, which removes the
-    // avatars of an account it does not know.
+    // Only for the account that the effect above has stored in the app, which keeps no avatars
+    // of an account it does not know.
     const accountTag = sharedAccountTag;
     if (!accountTag || accountTag !== getStoredIOSPushProfileTag(sessionId)) return undefined;
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // The downloads of the latest list, while they are under way.
+    let downloads: AbortController | undefined;
     const syncAvatarsNow = () => {
       const avatars = collectJoinedMemberAvatars(mx);
       const snapshot = JSON.stringify({ accountTag, avatars });
       if (snapshot === lastAvatarSnapshotRef.current) return;
       lastAvatarSnapshotRef.current = snapshot;
-      syncNativeNotificationAvatars({ accountTag, avatars }).catch((error: unknown) => {
-        if (lastAvatarSnapshotRef.current === snapshot) {
-          lastAvatarSnapshotRef.current = undefined;
-        }
-        // eslint-disable-next-line no-console
-        console.warn('[ios-push] could not sync notification avatars', error);
-      });
+      // The app stores nothing for an earlier list than its latest.
+      downloads?.abort();
+      const controller = new AbortController();
+      downloads = controller;
+      prewarmNativeNotificationAvatars(mx, accountTag, avatars, controller.signal)
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          if (lastAvatarSnapshotRef.current === snapshot) {
+            lastAvatarSnapshotRef.current = undefined;
+          }
+          // eslint-disable-next-line no-console
+          console.warn('[ios-push] could not sync notification avatars', error);
+        })
+        .finally(() => {
+          if (downloads === controller) downloads = undefined;
+        });
     };
 
     const scheduleSync = () => {
@@ -287,6 +385,11 @@ export function NativeIOSPushFeature() {
 
     return () => {
       if (timer !== undefined) clearTimeout(timer);
+      if (downloads) {
+        // Cut off: the same list is sent again, and what is still missing downloaded.
+        downloads.abort();
+        lastAvatarSnapshotRef.current = undefined;
+      }
       mx.removeListener?.(RoomMemberEvent.Membership, scheduleSync);
       mx.removeListener?.(RoomStateEvent.Members, scheduleSync);
     };

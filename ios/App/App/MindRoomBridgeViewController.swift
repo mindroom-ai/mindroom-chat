@@ -24,9 +24,6 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         statusBar["overlaysWebView"] = true
         plugins["StatusBar"] = statusBar
         descriptor.pluginConfigurations = plugins
-        // Capacitor's default (`.debug`) prints the options of every plugin call in a Debug build,
-        // and some calls carry an access token (MindRoomNotifications `syncAccount`).
-        descriptor.loggingBehavior = .none
         return descriptor
     }
 

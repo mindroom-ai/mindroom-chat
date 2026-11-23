@@ -1,36 +1,41 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { PushNotifications } from '@capacitor/push-notifications';
 import {
   buildIOSPushPusherRequest,
-  clearAllNativeNotificationAccountsWithRetry,
   clearIOSPushState,
-  clearNativeNotificationAccountWithRetry,
   disableIOSPushPusher,
   findIOSPushAccount,
-  flushPendingNativeNotificationClears,
-  forgetPendingNativeNotificationClear,
+  getAllowedNativeNotificationAccountTags,
   getIOSPushEnabled,
   getStoredIOSPushToken,
-  hasPendingNativeNotificationClearAll,
   migrateLegacyIOSPushEnabled,
-  queueIOSPushNativeClear,
+  reconcileIOSPushNativeState,
   resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
   setIOSPushEnabled,
   upsertIOSPushPusher,
 } from './iosPush';
-import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+import type { ClientConfig } from '../../config/useClientConfig';
+import { cloudflareAccessAllowsPush, hasCloudflareAccess } from '../../native/cloudflareAccess';
 import { SESSION_STORE_KEY } from '../../matrix/session/sessions';
 
 import {
-  clearAllNativeNotificationAccounts,
-  clearNativeNotificationAccount,
+  isNativeNotificationsAvailable,
+  reconcileNativeNotificationAccounts,
 } from '../../native/nativeNotifications';
 
-vi.mock('../../native/cloudflareAccess', () => ({ hasCloudflareAccess: vi.fn(() => false) }));
+vi.mock('@capacitor/push-notifications', () => ({
+  PushNotifications: { checkPermissions: vi.fn(async () => ({ receive: 'granted' })) },
+}));
+vi.mock('../../native/cloudflareAccess', () => ({
+  cloudflareAccessAllowsPush: vi.fn(() => true),
+  hasCloudflareAccess: vi.fn(() => false),
+}));
+// No notification extension, as in a browser, unless a test says otherwise.
 vi.mock('../../native/nativeNotifications', () => ({
-  clearAllNativeNotificationAccounts: vi.fn(async () => undefined),
-  clearNativeNotificationAccount: vi.fn(async () => undefined),
+  isNativeNotificationsAvailable: vi.fn(() => false),
+  reconcileNativeNotificationAccounts: vi.fn(async () => undefined),
 }));
 
 describe('resolveIOSPushConfig', () => {
@@ -327,7 +332,7 @@ describe('resolveIOSPushConfig', () => {
     expect(getIOSPushEnabled('session-a')).toBe(true);
   });
 
-  it('attempts every push-state removal when one key is blocked', () => {
+  it('attempts every push-state removal when one key is blocked', async () => {
     const storage = new Map<string, string>([
       ['mindroom_ios_push_token::session-a', 'token'],
       ['mindroom_ios_push_profile_tag::session-a', 'profile'],
@@ -345,350 +350,335 @@ describe('resolveIOSPushConfig', () => {
       configurable: true,
     });
 
-    expect(() => clearIOSPushState('session-a')).not.toThrow();
+    await expect(clearIOSPushState('session-a')).resolves.toBeUndefined();
     expect(removeItem).toHaveBeenCalledTimes(3);
     expect(storage.has('mindroom_ios_push_token::session-a')).toBe(false);
     expect(storage.has('mindroom_ios_push_enabled::session-a')).toBe(false);
     expect(storage.has('mindroom_ios_push_profile_tag::session-a')).toBe(true);
   });
 
-  it('clears native notification credentials and avatar cache using the stored profile tag', async () => {
-    vi.mocked(clearNativeNotificationAccount).mockClear();
-    const storage = new Map<string, string>([
-      ['mindroom_ios_push_token::session-b', 'token-b'],
-      ['mindroom_ios_push_profile_tag::session-b', 'tag-b'],
-      ['mindroom_ios_push_enabled::session-b', '1'],
-    ]);
-    Object.defineProperty(globalThis, 'window', {
-      value: {
-        localStorage: {
-          getItem: (key: string) => storage.get(key) ?? null,
-          removeItem: (key: string) => storage.delete(key),
+  describe('what the accounts share with the notification extension', () => {
+    const fullPushes: ClientConfig = {
+      push: {
+        ios: {
+          enabled: true,
+          appId: 'com.mindroom-ios',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+          format: 'full',
         },
-        dispatchEvent: () => true,
       },
-      configurable: true,
-    });
+    };
+    const accountA = {
+      sessionId: 'session-a',
+      baseUrl: 'https://a.example',
+      userId: '@a:a.example',
+    };
+    const accountB = {
+      sessionId: 'session-b',
+      baseUrl: 'https://b.example',
+      userId: '@b:b.example',
+    };
 
-    await clearIOSPushState('session-b');
-
-    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-b');
-    expect(storage.size).toBe(0);
-
-    vi.mocked(clearNativeNotificationAccount).mockClear();
-    await clearIOSPushState('session-b');
-    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
-  });
-
-  describe('a native clear that the app has to confirm', () => {
-    const PENDING_KEY = 'mindroom_ios_push_pending_native_clears';
-    const stubStorage = (entries: [string, string][]) => {
-      const storage = new Map<string, string>(entries);
-      Object.defineProperty(globalThis, 'window', {
-        value: {
-          localStorage: {
-            getItem: (key: string) => storage.get(key) ?? null,
-            setItem: (key: string, value: string) => storage.set(key, value),
-            removeItem: (key: string) => storage.delete(key),
-          },
-          dispatchEvent: () => true,
+    /** A device with the accounts signed in, account A used last, and `entries` in its storage. */
+    const stubDevice = (
+      signedIn: (typeof accountA)[],
+      entries: [string, string][] = [
+        ['mindroom_ios_push_profile_tag::session-a', 'tag-a'],
+        ['mindroom_ios_push_profile_tag::session-b', 'tag-b'],
+      ]
+    ) => {
+      const storage = new Map<string, string>([
+        [
+          SESSION_STORE_KEY,
+          JSON.stringify({
+            version: 1,
+            sessions: signedIn.map((session, index) => ({
+              ...session,
+              deviceId: 'D',
+              accessToken: 't',
+              lastUsedAt: signedIn.length - index,
+            })),
+            activeSessionId: signedIn[0]?.sessionId,
+          }),
+        ],
+        ...entries,
+      ]);
+      const localStorageMock = {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value);
         },
+        removeItem: (key: string) => {
+          storage.delete(key);
+        },
+      };
+      Object.defineProperty(globalThis, 'window', {
+        value: { localStorage: localStorageMock, dispatchEvent: () => true },
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: localStorageMock,
         configurable: true,
       });
       return storage;
     };
+    /** The account lists the app was asked to keep, in the order it was asked. */
+    const reconciled = () =>
+      vi.mocked(reconcileNativeNotificationAccounts).mock.calls.map(([allowed]) => allowed);
 
-    it('resolves only once the app has answered, with the tag noted down until then', async () => {
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      const storage = stubStorage([['mindroom_ios_push_profile_tag::session-c', 'tag-c']]);
-      let answer: () => void = () => undefined;
-      let notedAtCall: string | undefined;
-      let storedTagAtCall: string | undefined;
-      vi.mocked(clearNativeNotificationAccount).mockImplementationOnce(() => {
-        notedAtCall = storage.get(PENDING_KEY);
-        storedTagAtCall = storage.get('mindroom_ios_push_profile_tag::session-c');
-        return new Promise<void>((resolve) => {
-          answer = resolve;
-        });
+    beforeEach(() => {
+      vi.mocked(isNativeNotificationsAvailable).mockReturnValue(true);
+      vi.mocked(reconcileNativeNotificationAccounts).mockReset();
+      vi.mocked(reconcileNativeNotificationAccounts).mockResolvedValue(undefined);
+      vi.mocked(PushNotifications.checkPermissions).mockReset();
+      vi.mocked(PushNotifications.checkPermissions).mockResolvedValue({ receive: 'granted' });
+    });
+
+    afterEach(() => {
+      vi.mocked(isNativeNotificationsAvailable).mockReturnValue(false);
+      vi.mocked(hasCloudflareAccess).mockReturnValue(false);
+      vi.mocked(cloudflareAccessAllowsPush).mockReturnValue(true);
+    });
+
+    describe('getAllowedNativeNotificationAccountTags', () => {
+      it('lists the stored tag of every signed-in account whose push is on', () => {
+        stubDevice([accountA, accountB]);
+        expect(getAllowedNativeNotificationAccountTags()).toEqual(['tag-a', 'tag-b']);
+
+        setIOSPushEnabled(false, 'session-a');
+        expect(getAllowedNativeNotificationAccountTags()).toEqual(['tag-b']);
       });
 
-      let cleared = false;
-      const clearing = clearIOSPushState('session-c').then(() => {
-        cleared = true;
-      });
-      await Promise.resolve();
-      await Promise.resolve();
-
-      // Noted down before the app is asked, while the stored tag is still there.
-      expect(notedAtCall).toBe('["tag-c"]');
-      expect(storedTagAtCall).toBe('tag-c');
-      expect(cleared).toBe(false);
-      // The stored tag is gone at once; what remains names the account for another try.
-      expect(storage.has('mindroom_ios_push_profile_tag::session-c')).toBe(false);
-      expect(storage.get(PENDING_KEY)).toBe('["tag-c"]');
-
-      answer();
-      await clearing;
-      expect(cleared).toBe(true);
-      expect(storage.size).toBe(0);
-    });
-
-    it('keeps the tag of a clear the app refused, and clears it on a later try', async () => {
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const storage = stubStorage([
-        ['mindroom_ios_push_profile_tag::session-c', 'tag-c'],
-        [PENDING_KEY, '["tag-earlier"]'],
-      ]);
-      // The Keychain kept the record of tag-c; tag-earlier is cleared this time.
-      vi.mocked(clearNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
-
-      // A sign-out goes on all the same.
-      await expect(clearIOSPushState('session-c')).resolves.toBeUndefined();
-      expect(storage.has('mindroom_ios_push_profile_tag::session-c')).toBe(false);
-      expect(storage.get(PENDING_KEY)).toBe('["tag-earlier","tag-c"]');
-
-      // Still refused: nothing is lost.
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      vi.mocked(clearNativeNotificationAccount).mockImplementation(async (tag: string) => {
-        if (tag === 'tag-c') throw new Error('KEYCHAIN_ERROR');
-      });
-      await flushPendingNativeNotificationClears();
-      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-earlier');
-      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-c');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-c"]');
-
-      // Confirmed at last.
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      vi.mocked(clearNativeNotificationAccount).mockImplementation(async () => undefined);
-      await flushPendingNativeNotificationClears();
-      expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-c');
-      expect(storage.has(PENDING_KEY)).toBe(false);
-
-      await flushPendingNativeNotificationClears();
-      expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-      warn.mockRestore();
-    });
-
-    it('drops a noted clear of an account that shares again', async () => {
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const storage = stubStorage([]);
-      vi.mocked(clearNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
-      await clearNativeNotificationAccountWithRetry('tag-d');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-d"]');
-
-      forgetPendingNativeNotificationClear('tag-d');
-      expect(storage.has(PENDING_KEY)).toBe(false);
-
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      await flushPendingNativeNotificationClears();
-      expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
-      warn.mockRestore();
-    });
-
-    it('notes the clear of a signed-out account down at once, before anything is asked of the app', () => {
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      const storage = stubStorage([
-        ['mindroom_ios_push_profile_tag::session-e', 'tag-e'],
-        [PENDING_KEY, '["tag-earlier"]'],
-      ]);
-
-      queueIOSPushNativeClear('session-e');
-
-      // Synchronously: a sign-out that is cut off right after still owes the clear.
-      expect(storage.get(PENDING_KEY)).toBe('["tag-earlier","tag-e"]');
-      expect(storage.get('mindroom_ios_push_profile_tag::session-e')).toBe('tag-e');
-      expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
-
-      // Noted once, and nothing for an account without a tag.
-      queueIOSPushNativeClear('session-e');
-      queueIOSPushNativeClear('session-without-tag');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-earlier","tag-e"]');
-    });
-
-    it('never throws from noting a clear down, whatever storage does', () => {
-      Object.defineProperty(globalThis, 'window', {
-        value: {
-          localStorage: {
-            getItem: (key: string) =>
-              key === 'mindroom_ios_push_profile_tag::session-e' ? 'tag-e' : null,
-            setItem: () => {
-              throw new Error('blocked');
-            },
-            removeItem: () => {
-              throw new Error('blocked');
-            },
-          },
-          dispatchEvent: () => true,
-        },
-        configurable: true,
-      });
-      expect(() => queueIOSPushNativeClear('session-e')).not.toThrow();
-
-      Object.defineProperty(globalThis, 'window', {
-        value: {
-          get localStorage(): Storage {
-            throw new Error('no storage');
-          },
-        },
-        configurable: true,
-      });
-      expect(() => queueIOSPushNativeClear('session-e')).not.toThrow();
-    });
-
-    it('finishes the sign-out that noted its clear down early, and strikes the clear off', async () => {
-      vi.mocked(clearNativeNotificationAccount).mockClear();
-      vi.mocked(clearNativeNotificationAccount).mockImplementation(async () => undefined);
-      const storage = stubStorage([['mindroom_ios_push_profile_tag::session-e', 'tag-e']]);
-
-      queueIOSPushNativeClear('session-e');
-      await clearIOSPushState('session-e');
-
-      expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-e');
-      expect(storage.size).toBe(0);
-    });
-  });
-
-  describe('a native clear of every account that the app has to confirm', () => {
-    const PENDING_KEY = 'mindroom_ios_push_pending_native_clears';
-    const PENDING_ALL_KEY = 'mindroom_ios_push_pending_native_clear_all';
-    const stubStorage = (entries: [string, string][]) => {
-      const storage = new Map<string, string>(entries);
-      Object.defineProperty(globalThis, 'window', {
-        value: {
-          localStorage: {
-            getItem: (key: string) => storage.get(key) ?? null,
-            setItem: (key: string, value: string) => storage.set(key, value),
-            removeItem: (key: string) => storage.delete(key),
-          },
-          dispatchEvent: () => true,
-        },
-        configurable: true,
-      });
-      return storage;
-    };
-    const resetNativeMocks = () => {
-      vi.mocked(clearNativeNotificationAccount).mockReset();
-      vi.mocked(clearNativeNotificationAccount).mockImplementation(async () => undefined);
-      vi.mocked(clearAllNativeNotificationAccounts).mockReset();
-      vi.mocked(clearAllNativeNotificationAccounts).mockImplementation(async () => undefined);
-    };
-
-    it('is noted down before the app is asked and struck off once it confirms, with the clears it covers', async () => {
-      resetNativeMocks();
-      const storage = stubStorage([[PENDING_KEY, '["tag-a","tag-b"]']]);
-      let answer: () => void = () => undefined;
-      let notedAtCall: string | undefined;
-      vi.mocked(clearAllNativeNotificationAccounts).mockImplementationOnce(() => {
-        notedAtCall = storage.get(PENDING_ALL_KEY);
-        return new Promise<void>((resolve) => {
-          answer = resolve;
-        });
-      });
-
-      expect(hasPendingNativeNotificationClearAll()).toBe(false);
-      const clearing = clearAllNativeNotificationAccountsWithRetry();
-      await Promise.resolve();
-
-      expect(notedAtCall).toBe('1');
-      expect(storage.get(PENDING_ALL_KEY)).toBe('1');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-a","tag-b"]');
-      expect(hasPendingNativeNotificationClearAll()).toBe(true);
-      // An account that signs out now is cleared after this clear, on its own.
-      await clearNativeNotificationAccountWithRetry('tag-later');
-      vi.mocked(clearNativeNotificationAccount).mockRejectedValueOnce(new Error('KEYCHAIN_ERROR'));
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      await clearNativeNotificationAccountWithRetry('tag-refused');
-      warn.mockRestore();
-
-      answer();
-      await expect(clearing).resolves.toBe(true);
-      expect(storage.has(PENDING_ALL_KEY)).toBe(false);
-      // The clears noted before it are done with it; the one refused after it is still owed.
-      expect(storage.get(PENDING_KEY)).toBe('["tag-refused"]');
-      expect(hasPendingNativeNotificationClearAll()).toBe(false);
-    });
-
-    it('stays noted when the app refuses, and is tried again before the clears of single accounts', async () => {
-      resetNativeMocks();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const storage = stubStorage([[PENDING_KEY, '["tag-a"]']]);
-      vi.mocked(clearAllNativeNotificationAccounts).mockRejectedValue(new Error('INTENTS_ERROR'));
-
-      await expect(clearAllNativeNotificationAccountsWithRetry()).resolves.toBe(false);
-      expect(storage.get(PENDING_ALL_KEY)).toBe('1');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-a"]');
-      expect(hasPendingNativeNotificationClearAll()).toBe(true);
-
-      // Still refused: nothing else is tried, and nothing is lost.
-      await expect(flushPendingNativeNotificationClears()).resolves.toBe(false);
-      expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(2);
-      expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
-      expect(storage.get(PENDING_ALL_KEY)).toBe('1');
-      expect(storage.get(PENDING_KEY)).toBe('["tag-a"]');
-
-      // Confirmed at last: every account is gone, so tag-a needs no clear of its own.
-      vi.mocked(clearAllNativeNotificationAccounts).mockImplementation(async () => undefined);
-      await expect(flushPendingNativeNotificationClears()).resolves.toBe(true);
-      expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(3);
-      expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
-      expect(storage.size).toBe(0);
-
-      await expect(flushPendingNativeNotificationClears()).resolves.toBe(true);
-      expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(3);
-      warn.mockRestore();
-    });
-
-    it('says that clears are still owed when one of a single account is refused again', async () => {
-      resetNativeMocks();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const storage = stubStorage([[PENDING_KEY, '["tag-a","tag-b"]']]);
-      vi.mocked(clearNativeNotificationAccount).mockImplementation(async (tag: string) => {
-        if (tag === 'tag-b') throw new Error('INTENTS_ERROR');
-      });
-
-      await expect(flushPendingNativeNotificationClears()).resolves.toBe(false);
-      expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
-      expect(storage.get(PENDING_KEY)).toBe('["tag-b"]');
-      warn.mockRestore();
-    });
-
-    it('is still owed after a later one failed, although an earlier one succeeded meanwhile', async () => {
-      resetNativeMocks();
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      const storage = stubStorage([]);
-      let confirmFirst: () => void = () => undefined;
-      let refuseSecond: (error: Error) => void = () => undefined;
-      vi.mocked(clearAllNativeNotificationAccounts)
-        .mockImplementationOnce(
-          () =>
-            new Promise<void>((resolve) => {
-              confirmFirst = resolve;
-            })
-        )
-        .mockImplementationOnce(
-          () =>
-            new Promise<void>((_, reject) => {
-              refuseSecond = reject;
-            })
+      it('leaves out a signed-out account, and makes no tag for an account without one', () => {
+        // Account B has signed out: its tag is still stored, as after a sign-out that was cut off.
+        const storage = stubDevice(
+          [accountA],
+          [['mindroom_ios_push_profile_tag::session-b', 'tag-b']]
         );
 
-      const first = clearAllNativeNotificationAccountsWithRetry();
-      const second = clearAllNativeNotificationAccountsWithRetry();
-      confirmFirst();
-      await expect(first).resolves.toBe(true);
-      // The second one is under way: an account shared now would be removed by it.
-      expect(hasPendingNativeNotificationClearAll()).toBe(true);
+        expect(getAllowedNativeNotificationAccountTags()).toEqual([]);
+        expect(getAllowedNativeNotificationAccountTags(fullPushes)).toEqual([]);
+        expect(storage.has('mindroom_ios_push_profile_tag::session-a')).toBe(false);
+      });
 
-      refuseSecond(new Error('KEYCHAIN_ERROR'));
-      await expect(second).resolves.toBe(false);
-      expect(storage.get(PENDING_ALL_KEY)).toBe('1');
-      expect(hasPendingNativeNotificationClearAll()).toBe(true);
-      warn.mockRestore();
+      it('leaves out an account whose server keeps pushes off', () => {
+        stubDevice([accountA, accountB]);
+        vi.mocked(cloudflareAccessAllowsPush).mockImplementation(
+          (baseUrl) => baseUrl !== 'https://a.example'
+        );
+
+        expect(getAllowedNativeNotificationAccountTags()).toEqual(['tag-b']);
+        expect(getAllowedNativeNotificationAccountTags(fullPushes)).toEqual(['tag-b']);
+      });
+
+      it('given the configuration, lists only the accounts whose pushes name their sender', () => {
+        stubDevice([accountA, accountB]);
+        expect(getAllowedNativeNotificationAccountTags(fullPushes)).toEqual(['tag-a', 'tag-b']);
+
+        // A server behind Cloudflare Access gets event_id_only pushes whatever is configured.
+        vi.mocked(hasCloudflareAccess).mockImplementation(
+          (baseUrl) => baseUrl === 'https://b.example'
+        );
+        expect(getAllowedNativeNotificationAccountTags(fullPushes)).toEqual(['tag-a']);
+        // Without the configuration that is left to a caller that has it.
+        expect(getAllowedNativeNotificationAccountTags()).toEqual(['tag-a', 'tag-b']);
+        vi.mocked(hasCloudflareAccess).mockReturnValue(false);
+
+        const ios = fullPushes.push?.ios;
+        expect(
+          getAllowedNativeNotificationAccountTags({
+            push: { ios: { ...ios, format: 'event_id_only' } },
+          })
+        ).toEqual([]);
+        expect(
+          getAllowedNativeNotificationAccountTags({ push: { ios: { ...ios, enabled: false } } })
+        ).toEqual([]);
+        expect(getAllowedNativeNotificationAccountTags({})).toEqual([]);
+      });
+    });
+
+    describe('reconcileIOSPushNativeState', () => {
+      it('does nothing where the app has no notification extension, as on the Mac and in a browser', async () => {
+        stubDevice([accountA, accountB]);
+        vi.mocked(isNativeNotificationsAvailable).mockReturnValue(false);
+
+        await reconcileIOSPushNativeState();
+        await reconcileIOSPushNativeState({ clientConfig: fullPushes, permission: 'granted' });
+
+        expect(reconcileNativeNotificationAccounts).not.toHaveBeenCalled();
+        expect(PushNotifications.checkPermissions).not.toHaveBeenCalled();
+      });
+
+      it('keeps no account while signed out, without asking iOS for the permission', async () => {
+        // What the last account shared is still to be removed, as after a sign-out that was cut off.
+        stubDevice([], [['mindroom_ios_push_profile_tag::session-a', 'tag-a']]);
+
+        await reconcileIOSPushNativeState();
+
+        expect(reconciled()).toEqual([[]]);
+        expect(PushNotifications.checkPermissions).not.toHaveBeenCalled();
+      });
+
+      it('keeps every signed-in account whose push is on, also the ones that are not active', async () => {
+        stubDevice([accountA, accountB]);
+
+        await reconcileIOSPushNativeState();
+
+        expect(reconciled()).toEqual([['tag-a', 'tag-b']]);
+        expect(PushNotifications.checkPermissions).toHaveBeenCalledTimes(1);
+      });
+
+      it('follows an account whose push is turned off, on again, and off again', async () => {
+        stubDevice([accountA, accountB]);
+
+        setIOSPushEnabled(false, 'session-a');
+        await reconcileIOSPushNativeState();
+        setIOSPushEnabled(true, 'session-a');
+        await reconcileIOSPushNativeState();
+        setIOSPushEnabled(false, 'session-a');
+        await reconcileIOSPushNativeState();
+
+        // The other account keeps what it shares throughout.
+        expect(reconciled()).toEqual([['tag-b'], ['tag-a', 'tag-b'], ['tag-b']]);
+      });
+
+      it.each(['denied', 'prompt'] as const)(
+        'keeps no account while the permission of iOS is %s, which holds for the whole app',
+        async (receive) => {
+          stubDevice([accountA, accountB]);
+          vi.mocked(PushNotifications.checkPermissions).mockResolvedValue({ receive });
+
+          await reconcileIOSPushNativeState({ clientConfig: fullPushes });
+
+          expect(reconciled()).toEqual([[]]);
+        }
+      );
+
+      it('takes the permission from a caller that knows it', async () => {
+        stubDevice([accountA, accountB]);
+        vi.mocked(PushNotifications.checkPermissions).mockResolvedValue({ receive: 'denied' });
+
+        await reconcileIOSPushNativeState({ permission: 'granted' });
+        await reconcileIOSPushNativeState({ permission: 'denied' });
+
+        expect(reconciled()).toEqual([['tag-a', 'tag-b'], []]);
+        expect(PushNotifications.checkPermissions).not.toHaveBeenCalled();
+      });
+
+      it('given the configuration, keeps no account behind Cloudflare Access', async () => {
+        stubDevice([accountA, accountB]);
+        vi.mocked(hasCloudflareAccess).mockImplementation(
+          (baseUrl) => baseUrl === 'https://a.example'
+        );
+
+        await reconcileIOSPushNativeState({ clientConfig: fullPushes });
+        // Nor one whose server's Access policy keeps pushes off.
+        vi.mocked(cloudflareAccessAllowsPush).mockReturnValue(false);
+        await reconcileIOSPushNativeState({ clientConfig: fullPushes });
+
+        expect(reconciled()).toEqual([['tag-b'], []]);
+      });
+
+      it('never rejects: what the app or iOS refuses is tried again by the next call', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        stubDevice([accountA, accountB]);
+        vi.mocked(reconcileNativeNotificationAccounts).mockRejectedValueOnce(
+          new Error('INTENTS_ERROR')
+        );
+        await expect(reconcileIOSPushNativeState()).resolves.toBeUndefined();
+
+        vi.mocked(PushNotifications.checkPermissions).mockRejectedValueOnce(new Error('no answer'));
+        await expect(reconcileIOSPushNativeState()).resolves.toBeUndefined();
+        // Nothing is removed on a guess of the permission.
+        expect(reconciled()).toEqual([['tag-a', 'tag-b']]);
+        expect(warn).toHaveBeenCalledTimes(2);
+
+        await reconcileIOSPushNativeState();
+        expect(reconciled()).toEqual([
+          ['tag-a', 'tag-b'],
+          ['tag-a', 'tag-b'],
+        ]);
+        warn.mockRestore();
+      });
+
+      it('writes nothing down for a removal that is still owed', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const storage = stubDevice([accountA]);
+        const before = [...storage.keys()];
+        vi.mocked(reconcileNativeNotificationAccounts).mockRejectedValue(
+          new Error('INTENTS_ERROR')
+        );
+
+        await reconcileIOSPushNativeState();
+
+        expect([...storage.keys()]).toEqual(before);
+        warn.mockRestore();
+      });
+    });
+
+    describe('clearIOSPushState', () => {
+      it('removes the account from what the app shares once its stored tag is gone', async () => {
+        const storage = stubDevice(
+          [accountA, accountB],
+          [
+            ['mindroom_ios_push_token::session-b', 'token-b'],
+            ['mindroom_ios_push_profile_tag::session-b', 'tag-b'],
+            ['mindroom_ios_push_enabled::session-b', '1'],
+            ['mindroom_ios_push_profile_tag::session-a', 'tag-a'],
+          ]
+        );
+        let storedTagAtCall: string | undefined;
+        vi.mocked(reconcileNativeNotificationAccounts).mockImplementationOnce(async () => {
+          storedTagAtCall = storage.get('mindroom_ios_push_profile_tag::session-b');
+        });
+
+        await clearIOSPushState('session-b');
+
+        // Asked for after the stored tag went: the app keeps the other account only.
+        expect(reconciled()).toEqual([['tag-a']]);
+        expect(storedTagAtCall).toBeUndefined();
+        expect([...storage.keys()].filter((key) => key.includes('session-b'))).toEqual([]);
+      });
+
+      it('keeps no account once the last one has signed out', async () => {
+        // The sign-out has taken the account out of the registry already.
+        stubDevice([], [['mindroom_ios_push_profile_tag::session-a', 'tag-a']]);
+
+        await clearIOSPushState('session-a');
+
+        expect(reconciled()).toEqual([[]]);
+      });
+
+      it('resolves only once the app has answered, and also when the app refuses', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        stubDevice([accountA]);
+        let answer: () => void = () => undefined;
+        vi.mocked(reconcileNativeNotificationAccounts).mockReturnValueOnce(
+          new Promise<void>((resolve) => {
+            answer = resolve;
+          })
+        );
+
+        let cleared = false;
+        const clearing = clearIOSPushState('session-a').then(() => {
+          cleared = true;
+        });
+        await vi.waitFor(() =>
+          expect(reconcileNativeNotificationAccounts).toHaveBeenCalledTimes(1)
+        );
+        expect(cleared).toBe(false);
+
+        answer();
+        await clearing;
+        expect(cleared).toBe(true);
+
+        // A sign-out goes on all the same; the next reconcile removes what is left.
+        vi.mocked(reconcileNativeNotificationAccounts).mockRejectedValueOnce(
+          new Error('INTENTS_ERROR')
+        );
+        await expect(clearIOSPushState('session-a')).resolves.toBeUndefined();
+        warn.mockRestore();
+      });
     });
   });
 });
