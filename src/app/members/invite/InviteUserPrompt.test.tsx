@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'folds';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,24 +46,32 @@ vi.mock('./InviteUserPrompt.css', () => ({
   ViewportCenter: 'InviteViewportCenter',
   Dialog: 'InviteDialog',
   TitleBar: 'InviteTitleBar',
+  TouchIcon: 'InviteTouchIcon',
   Controls: 'InviteControls',
   SearchField: 'InviteSearchField',
-  FilterChip: 'InviteFilterChip',
+  FilterSegments: 'InviteFilterSegments',
+  FilterSegment: 'InviteFilterSegment',
   Body: 'InviteBody',
   GrantAlert: 'InviteGrantAlert',
+  ListFrame: 'InviteListFrame',
   ListArea: 'InviteListArea',
+  ListScrollbar: 'InviteListScrollbar',
   SectionHeader: 'InviteSectionHeader',
   List: 'InviteList',
   Row: 'InviteRow',
+  RowName: 'InviteRowName',
+  AgentTag: 'InviteAgentTag',
   WrapText: 'InviteWrapText',
   RowError: 'InviteRowError',
   RowAction: 'InviteRowAction',
+  RowActionIdle: 'InviteRowActionIdle',
   RowActionSent: 'InviteRowActionSent',
   CenteredHint: 'InviteCenteredHint',
   EmptyState: 'InviteEmptyState',
   Footer: 'InviteFooter',
+  InfoButton: 'InviteInfoButton',
+  ModeratorHelp: 'InviteModeratorHelp',
   NoteToggle: 'InviteNoteToggle',
-  ModeratorLabel: 'InviteModeratorLabel',
   VisuallyHidden: 'InviteVisuallyHidden',
 }));
 
@@ -321,8 +330,15 @@ const getButtonByText = (r: ReactTestRenderer, label: string) => {
   if (!btn) throw new Error(`Button "${label}" not found`);
   return btn;
 };
-const getCheckbox = (r: ReactTestRenderer) =>
-  r.root.find((n) => n.type === 'input' && n.props.type === 'checkbox');
+const getButtonByLabel = (r: ReactTestRenderer, label: string) => {
+  const btn = r.root.findAllByType('button').find((n) => n.props['aria-label'] === label);
+  if (!btn) throw new Error(`Button with aria-label "${label}" not found`);
+  return btn;
+};
+const getModeratorSwitch = (r: ReactTestRenderer) =>
+  r.root.find((n) => n.type === 'button' && n.props.role === 'switch');
+const getNoteToggle = (r: ReactTestRenderer) =>
+  r.root.find((n) => n.type === 'button' && n.props.className === 'InviteNoteToggle');
 const getAlerts = (r: ReactTestRenderer) =>
   r.root.findAll((n) => typeof n.type === 'string' && n.props.role === 'alert');
 const getStatusTexts = (r: ReactTestRenderer) =>
@@ -359,11 +375,9 @@ const clickAsync = async (button: ReactTestInstance) => {
 };
 
 const openNoteAndType = (r: ReactTestRenderer, text: string) => {
-  const toggle = r.root.find((n) => n.type === 'button' && 'aria-expanded' in n.props);
+  const toggle = getNoteToggle(r);
   if (!toggle.props['aria-expanded']) click(toggle);
-  const input = r.root.find(
-    (n) => n.type === 'input' && n.props.type !== 'search' && n.props.type !== 'checkbox'
-  );
+  const input = r.root.find((n) => n.type === 'input' && n.props.type !== 'search');
   act(() => {
     input.props.onChange({ target: { value: text } });
   });
@@ -519,7 +533,7 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
 });
 
 describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
-  it('frames desktop and phone dialogs, shows live room header & counts, and closes on Done', () => {
+  it('frames desktop and phone dialogs, shows live room header & counts, and closes on Close', () => {
     const requestClose = vi.fn();
     const { renderer, mx, room } = renderPrompt({
       screenSize: ScreenSize.Mobile,
@@ -546,7 +560,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     emitMembership(mx, room, '@maya:example.org', 'join', '!other:example.org');
     expect(getRows(renderer).some((r) => extractText(r).includes('Maya Chen'))).toBe(true);
 
-    click(getButtonByText(renderer, 'Done'));
+    click(getButtonByLabel(renderer, 'Close'));
     expect(requestClose).toHaveBeenCalledTimes(1);
 
     const desktop = renderPrompt({ screenSize: ScreenSize.Desktop, name: '   ' });
@@ -574,7 +588,25 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     click(getButtonByText(renderer, 'People'));
     expect(getRows(renderer)).toHaveLength(2);
-    expect(getCheckbox(renderer)).toBeDefined();
+    expect(getModeratorSwitch(renderer)).toBeDefined();
+
+    // Info disclosure toggles the moderator help callout and wires aria-describedby.
+    const infoBtn = getButtonByLabel(renderer, 'Information');
+    expect(infoBtn.props['aria-expanded']).toBe(false);
+    expect(getModeratorSwitch(renderer).props['aria-describedby']).toBeUndefined();
+    expect(extractText(getDialog(renderer))).not.toContain('fold voice transcripts');
+
+    click(infoBtn);
+    expect(infoBtn.props['aria-expanded']).toBe(true);
+    const helpId = infoBtn.props['aria-controls'] as string;
+    expect(getModeratorSwitch(renderer).props['aria-describedby']).toBe(helpId);
+    expect(extractText(renderer.root.findByProps({ id: helpId }))).toContain(
+      'fold voice transcripts'
+    );
+
+    click(infoBtn);
+    expect(infoBtn.props['aria-expanded']).toBe(false);
+    expect(getModeratorSwitch(renderer).props['aria-describedby']).toBeUndefined();
 
     // Typing a listed agent MXID on the People tab still resolves its directory display name.
     typeSearch(renderer, '@mindroom_coder:example.org');
@@ -597,7 +629,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(extractText(getRows(renderer)[0]!)).toContain('Alpha Agent');
   });
 
-  it('caps browse rows at 100 and wraps unlisted external Matrix IDs instead of truncating', () => {
+  it('caps browse rows at 100, truncates listed MXIDs, and wraps unlisted external Matrix IDs', () => {
     const many = Array.from({ length: 120 }, (_, i) => ({
       userId: `@user_${i}:example.org`,
       displayName: `User ${String(i).padStart(3, '0')}`,
@@ -605,12 +637,24 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     const { renderer } = renderPrompt({ cache: readyCache(many) });
     expect(getRows(renderer)).toHaveLength(100);
 
+    const listedRow = getRowByText(renderer, '@user_0:example.org');
+    const listedTexts = listedRow.findAllByType(Text);
+    const listedName = listedTexts.find((n) => extractText(n) === 'User 000');
+    const listedId = listedTexts.find((n) => extractText(n) === '@user_0:example.org');
+    expect(listedName?.props.truncate).toBe(true);
+    expect(listedId?.props.truncate).toBe(true);
+    expect(listedId?.props.className ?? '').not.toContain('InviteWrapText');
+
     const externalId = '@very.long.external.user.name:another-server.example.org';
     typeSearch(renderer, externalId);
     const row = getRowByText(renderer, externalId);
     expect(extractText(row)).toContain('External Matrix ID');
-    const nameNode = row.find((n) => n.type === 'span' && extractText(n) === externalId);
-    expect(nameNode.props.className).toContain('InviteWrapText');
+    const unlistedTexts = row.findAllByType(Text);
+    const nameText = unlistedTexts.find((n) => extractText(n) === externalId);
+    const subtitleText = unlistedTexts.find((n) => extractText(n) === 'External Matrix ID');
+    expect(nameText?.props.truncate).toBe(false);
+    expect(nameText?.props.className).toContain('InviteWrapText');
+    expect(subtitleText?.props.truncate).toBe(true);
   });
 
   it('shows hints for already-joined, already-invited, banned, and invalid Enter queries', () => {
@@ -729,7 +773,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     openNoteAndType(renderer, 'Welcome aboard');
 
     // Collapsing skips sending the note.
-    const toggle = renderer.root.find((n) => n.type === 'button' && 'aria-expanded' in n.props);
+    const toggle = getNoteToggle(renderer);
     click(toggle);
     await clickAsync(getRowAction(getRowByText(renderer, 'Maya Chen')));
     expect(mx.invite).toHaveBeenCalledWith('!room:example.org', '@maya:example.org', undefined);
@@ -786,7 +830,7 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(mx.searchUserDirectory).toHaveBeenCalled();
   });
 
-  it('hydrates room members lazily, defaults moderator checkbox accurately, and skips ineligible targets', async () => {
+  it('hydrates room members lazily, defaults moderator switch accurately, and skips ineligible targets', async () => {
     let finishLoad!: () => void;
     const loadMembersIfNeeded = vi.fn(
       () =>
@@ -801,14 +845,14 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
 
     expect(loadMembersIfNeeded).toHaveBeenCalledTimes(1);
     // Unchecked until members finish loading.
-    expect(getCheckbox(renderer).props.checked).toBe(false);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(false);
 
     room.state.membersLoaded = true;
     await act(async () => {
       finishLoad();
       await settle();
     });
-    expect(getCheckbox(renderer).props.checked).toBe(true);
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(true);
 
     // Inviting a human never writes power levels.
     await clickAsync(getRowAction(getRowByText(renderer, 'Maya Chen')));
@@ -830,9 +874,9 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       ''
     );
 
-    // Unchecking skips grant on subsequent agent invite.
-    click(getCheckbox(renderer));
-    expect(getCheckbox(renderer).props.checked).toBe(false);
+    // Toggling off skips grant on subsequent agent invite.
+    click(getModeratorSwitch(renderer));
+    expect(getModeratorSwitch(renderer).props['aria-checked']).toBe(false);
     await clickAsync(getRowAction(getRowByText(renderer, 'Helper')));
     expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
 
@@ -844,14 +888,14 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
         events: { 'm.room.power_levels': 100 },
       },
     });
-    expect(getCheckbox(existingMod.renderer).props.checked).toBe(false);
+    expect(getModeratorSwitch(existingMod.renderer).props['aria-checked']).toBe(false);
 
     const v12Creator = renderPrompt({
       createContent: { room_version: '12' },
       createSender: '@me:example.org',
       powerLevels: { users: {}, events: { 'm.room.power_levels': 100 } },
     });
-    expect(getCheckbox(v12Creator.renderer).props.checked).toBe(true);
+    expect(getModeratorSwitch(v12Creator.renderer).props['aria-checked']).toBe(true);
   });
 
   it('shows dismissible inline grant alert when open and detached shell notice when closed', async () => {
