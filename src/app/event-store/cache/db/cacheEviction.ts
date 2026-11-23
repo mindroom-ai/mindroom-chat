@@ -268,12 +268,6 @@ type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & 
   protectedBytes: number;
 };
 
-const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
-  new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-
 type MediaCandidate = { mxcUri: string; roomIds: string[] };
 type MediaPlanResult = {
   bytesBefore: number;
@@ -298,10 +292,13 @@ const planOptionalMediaEviction = (
     const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
     const metaRequest = transaction.objectStore(META_STORE).getAll();
     const referencesRequest = refs.getAll();
+    ledgerRequest.onerror = () => reject(ledgerRequest.error);
+    metaRequest.onerror = () => reject(metaRequest.error);
+    referencesRequest.onerror = () => reject(referencesRequest.error);
     const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
     const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
     let plan: MediaPlanResult;
-    cursorRequest.onsuccess = async () => {
+    cursorRequest.onsuccess = () => {
       try {
         const cursor = cursorRequest.result;
         if (cursor) {
@@ -341,28 +338,43 @@ const planOptionalMediaEviction = (
           ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
           records.reduce((sum, row) => sum + row.byteLength, 0);
         const candidates: MediaCandidate[] = [];
-        if (bytesBefore > budget) {
-          let plannedBytesAfter = bytesBefore;
-          records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-          for (const record of records) {
-            if (plannedBytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
+        plan = { bytesBefore, protectedBytes, protectedIds, candidates };
+        if (bytesBefore <= budget) return;
+        let plannedBytesAfter = bytesBefore;
+        const target = budget * EVICTION_TARGET_UTILIZATION;
+        records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+        const step = (startIndex: number): void => {
+          for (let index = startIndex; index < records.length; index += 1) {
+            if (plannedBytesAfter <= target) return;
+            const record = records[index];
+            if (!record) return;
             const owners = ownersOf(record.mxcUri);
             if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
             // Only eviction candidates need a value read (unowned essentials also survive).
-            // eslint-disable-next-line no-await-in-loop
-            const cached = (await requestResult(blobs.get(record.mxcUri))) as
-              | CachedAttachmentRecord
-              | undefined;
-            if (cached?.essential) continue;
-            if (owners.some((row) => isRoomInUse(sessionId, row.roomId))) continue;
-            candidates.push({
-              mxcUri: record.mxcUri,
-              roomIds: [...new Set(owners.map((row) => row.roomId))],
-            });
-            plannedBytesAfter -= record.byteLength;
+            const request = blobs.get(record.mxcUri);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              try {
+                const cached = request.result as CachedAttachmentRecord | undefined;
+                if (
+                  !cached?.essential &&
+                  !owners.some((row) => isRoomInUse(sessionId, row.roomId))
+                ) {
+                  candidates.push({
+                    mxcUri: record.mxcUri,
+                    roomIds: [...new Set(owners.map((row) => row.roomId))],
+                  });
+                  plannedBytesAfter -= record.byteLength;
+                }
+                step(index + 1);
+              } catch (error) {
+                reject(error);
+              }
+            };
+            return;
           }
-        }
-        plan = { bytesBefore, protectedBytes, protectedIds, candidates };
+        };
+        step(0);
       } catch (error) {
         reject(error);
       }
@@ -397,58 +409,84 @@ const reclaimOptionalMedia = async (
       )
   );
   if (!candidates.length) return empty;
-  const transaction = db.transaction([ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readwrite');
-  const done = new Promise<void>((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
+  return new Promise<MediaPhaseResult>((resolve, reject) => {
+    const transaction = db.transaction(
+      [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      'readwrite'
+    );
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+    const target = budget * EVICTION_TARGET_UTILIZATION;
+    let bytesAfter = plan.bytesBefore;
+    const evictedMxcUris: string[] = [];
+    const fail = (error: unknown): void => {
+      try {
+        transaction.abort();
+      } catch {
+        /* Already completed or aborted. */
+      }
+      reject(error);
+    };
+    const step = (index: number): void => {
+      try {
+        if (index >= candidates.length || bytesAfter <= target) return;
+        const candidate = candidates[index];
+        if (!candidate) return;
+        const blobRequest = blobs.get(candidate.mxcUri);
+        blobRequest.onerror = () => fail(blobRequest.error);
+        blobRequest.onsuccess = () => {
+          try {
+            const cached = blobRequest.result as CachedAttachmentRecord | undefined;
+            if (!cached || cached.essential) {
+              step(index + 1);
+              return;
+            }
+            const ownersRequest = refs
+              .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
+              .getAll(attachmentOwnerUri(candidate.mxcUri));
+            ownersRequest.onerror = () => fail(ownersRequest.error);
+            ownersRequest.onsuccess = () => {
+              try {
+                const currentOwners = ownersRequest.result as CachedAttachmentReferenceRecord[];
+                if (
+                  !currentOwners.some(
+                    (row) =>
+                      row.essential ||
+                      plan.protectedIds.has(row.roomId) ||
+                      isRoomInUse(sessionId, row.roomId)
+                  )
+                ) {
+                  const deleteRequest = blobs.delete(candidate.mxcUri);
+                  deleteRequest.onerror = () => fail(deleteRequest.error);
+                  // A scaled copy leaves the picture's own bytes and references intact.
+                  if (!isScaledPictureKey(candidate.mxcUri)) {
+                    currentOwners.forEach((row) => {
+                      const putRequest = refs.put({ ...row, byteLength: 0, status: 'missing' });
+                      putRequest.onerror = () => fail(putRequest.error);
+                    });
+                  }
+                  bytesAfter -= cached.byteLength;
+                  evictedMxcUris.push(candidate.mxcUri);
+                }
+                step(index + 1);
+              } catch (error) {
+                fail(error);
+              }
+            };
+          } catch (error) {
+            fail(error);
+          }
+        };
+      } catch (error) {
+        fail(error);
+      }
+    };
+    transaction.oncomplete = () =>
+      resolve({ bytesAfter, evictedMxcUris, protectedBytes: plan.protectedBytes });
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
+    step(0);
   });
-  const blobs = transaction.objectStore(ATTACHMENTS_STORE);
-  const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
-  const target = budget * EVICTION_TARGET_UTILIZATION;
-  let bytesAfter = plan.bytesBefore;
-  const evictedMxcUris: string[] = [];
-  try {
-    for (const candidate of candidates) {
-      if (bytesAfter <= target) break;
-      // eslint-disable-next-line no-await-in-loop
-      const [cached, currentOwners] = await Promise.all([
-        requestResult(blobs.get(candidate.mxcUri)) as Promise<CachedAttachmentRecord | undefined>,
-        requestResult(
-          refs
-            .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
-            .getAll(attachmentOwnerUri(candidate.mxcUri))
-        ) as Promise<CachedAttachmentReferenceRecord[]>,
-      ]);
-      if (
-        !cached ||
-        cached.essential ||
-        currentOwners.some(
-          (row) =>
-            row.essential ||
-            plan.protectedIds.has(row.roomId) ||
-            isRoomInUse(sessionId, row.roomId)
-        )
-      )
-        continue;
-      blobs.delete(candidate.mxcUri);
-      // A scaled copy leaves the picture's own bytes, and so its references, as they are.
-      if (!isScaledPictureKey(candidate.mxcUri))
-        currentOwners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
-      bytesAfter -= cached.byteLength;
-      evictedMxcUris.push(candidate.mxcUri);
-    }
-    await done;
-  } catch (error) {
-    try {
-      transaction.abort();
-    } catch {
-      /* Already completed or aborted. */
-    }
-    await done.catch(() => undefined);
-    throw error;
-  }
-  return { bytesAfter, evictedMxcUris, protectedBytes: plan.protectedBytes };
 };
 
 /**
