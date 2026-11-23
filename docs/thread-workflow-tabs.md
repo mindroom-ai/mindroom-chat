@@ -32,12 +32,15 @@ goes by when each thread started, Needs you by when its last run finished or its
 came (a reply still streaming counts from when it was sent), Later by the same return time as the
 sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each section.
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
-folded at first. A section that shows alone, as under its tab, is open and folds nothing: its stored
-fold is kept for when the other sections come back. While the pointer, focus or a card menu is on
-the cards (a mouse with no button down only until it rests for 0.7 s; its next move, or the release of
-a press, starts that again), shown cards keep their sections and order until the hold ends, even
-when a run starts. New cards still join their live sections. A section that showed alone stays
-open while held, even if a new card brings a second section.
+folded at first. Every section header folds and opens its section even when only one section has
+cards (such as on All or in Simple mode when every thread is Working); only under an explicit
+single-bucket workflow tab (Needs you, Working, Later, Done) does that tab's section stay open with
+a plain non-collapsible header without changing its stored fold, so switching to Done still shows
+Done threads immediately and returning to All restores Done's fold. While the pointer, focus or a
+card menu is on the cards (a mouse with no button down only until it rests for 0.7 s; its next move,
+or the release of a press, starts that again), shown cards keep their sections and order until the
+hold ends, even when a run starts. New cards still join their live sections, and switching bucket
+tabs starts live for the new tab even while held.
 
 ## Saved filters and search
 

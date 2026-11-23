@@ -1,6 +1,9 @@
 import React, {
+  ClipboardEvent,
+  DragEvent,
   forwardRef,
   KeyboardEvent,
+  ReactNode,
   RefObject,
   useCallback,
   useContext,
@@ -51,7 +54,9 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
+  getHomeAskDraftKey,
   getRoomInputDraftKey,
+  homeAskDestinationAtomFamily,
   type IReplyDraft,
   keepReplyDraft,
   restoreTextToDraft,
@@ -75,7 +80,7 @@ import { ComposerActionsMenu } from './ComposerActionsMenu';
 import { ComposerAttachButton } from './ComposerAttachButton';
 import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { composeTextMessage, holdsNoText } from './composeTextMessage';
+import { composeTextMessage, holdsNoText, withMention } from './composeTextMessage';
 import {
   type ActingCommand,
   describeCommandFailure,
@@ -129,7 +134,31 @@ export type RoomInputProps = {
    * keeps its text apart from the thread's, and takes no reply.
    */
   forkFrom?: ThreadForkRef;
+  /**
+   * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
+   * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
+   * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
+   * and again for the question on its way, with the room it goes to (`sentTo`), just before its
+   * message goes out, when that room or the agent may have changed. `onSendingChange` hears
+   * while a send is on its way, to its end, and `onLocalEcho` of the message the client made for
+   * it and the room that is in, both also after the composer has gone. A send keeps the three as
+   * they were at its press, whatever the field shows by then. `isDirect` says the room was picked
+   * as the agent's direct chat, which a question returned to Home's draft keeps.
+   */
+  ask?: {
+    agentUserId: string;
+    isDirect?: boolean;
+    placeholder: string;
+    pickers: ReactNode;
+    canSend: (sentTo?: Room) => boolean;
+    onSendingChange?: (sending: boolean) => void;
+    onLocalEcho?: (eventId: string, room: Room) => void;
+  };
 };
+
+// Home's ask field takes text only: nothing dropped goes in, neither a file nor a paste chip
+// dragged out of a room's composer.
+const refuseDrop = (event: DragEvent<HTMLElement>) => event.preventDefault();
 
 const isEnter = isKeyHotkey('enter');
 
@@ -227,6 +256,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       threadingEnabled = true,
       onRoomMessageSent,
       forkFrom,
+      ask,
     },
     ref
   ) => {
@@ -239,21 +269,29 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
-    const draftKey = draftThreadId
-      ? getRoomInputDraftKey(userId, roomId, draftThreadId)
-      : undefined;
+    const textKey = ask
+      ? getHomeAskDraftKey(userId)
+      : getRoomInputDraftKey(userId, roomId, draftThreadId);
+    // Home's ask field scopes paste cleanup to its own draft key, never touching the destination
+    // room's saved pastes.
+    const draftKey = ask || draftThreadId ? textKey : undefined;
     // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
-    const replyDraft = forkFrom ? undefined : viewReplyDraft;
+    const replyDraft = forkFrom || ask ? undefined : viewReplyDraft;
     // The placeholder says where sent text goes: into the thread it joins, or, from the timeline, a
     // new thread only where every agent of the room answers in threads (mode `thread`); mixed or
     // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
     // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
     const roomThreadMode = useRoomThreadMode(roomId, true);
     const newThread =
-      threadingEnabled && !threadId && !forkFrom && !replyDraft && roomThreadMode === 'thread';
+      !ask &&
+      threadingEnabled &&
+      !threadId &&
+      !forkFrom &&
+      !replyDraft &&
+      roomThreadMode === 'thread';
     const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
     const direct = useAtomValue(mDirectAtom).has(roomId);
     let placeholder = t('composer.placeholder');
@@ -265,7 +303,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         ? t('composer.newThreadWith', { name: roomName })
         : t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-    const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
+    // Typing in Home's ask field tells no room: the room it would go to is not open.
+    const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity || !!ask);
     const isComposing = useComposingCheck();
     const [autocompleteQuery, setAutocompleteQuery] = useState<AutocompleteQuery<string>>();
     // Set when the open menu reports that its query matches nothing (an `@` query no member has,
@@ -279,7 +318,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
-    const [noText, setNoText] = useState(() => holdsNoText(editor));
+    const parseCommands = !ask;
+    const [noText, setNoText] = useState(() => holdsNoText(editor, parseCommands));
     // Whether it shows nothing typed, for its layout: a lone `/me` is no text to send but shows.
     const [empty, setEmpty] = useState(() => isEmptyEditor(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
@@ -319,11 +359,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       userId,
       onConfirmedRef: rootConfirmedRef,
     });
-    const saveDraft = useRoomInputDraft(editor, userId, roomId, draftThreadId);
+    const saveDraft = useRoomInputDraft(editor, textKey);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room, threadingEnabled ? threadId : undefined);
-    const commandList = useMemo(() => Object.values(commands), [commands]);
+    // Home's ask field does not run client slash commands (such as /leave) on an unseen room.
+    const commandList = useMemo(() => (ask ? [] : Object.values(commands)), [ask, commands]);
     const [commandProblem, setCommandProblem] = useState<string>();
 
     useEffect(() => {
@@ -371,15 +412,30 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store, userId, view]
     );
 
+    const askedAgent = ask?.agentUserId;
+    const askedDirect = !!ask?.isDirect;
     const restoreComposerFallbackForRoom = useCallback(
-      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) =>
+      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) => {
+        // Home's question returns to Home's draft alone, never to a room's, and that draft goes
+        // where the question went: as it does already, since nothing moves it while a question
+        // is being sent. Set to what it is, it writes nothing.
+        if (askedAgent !== undefined) {
+          store.set(homeAskDestinationAtomFamily(userId), {
+            agentId: askedAgent,
+            roomId: fallbackRoomId,
+            ...(askedDirect ? { isDirect: true } : {}),
+          });
+        }
         // After any text typed there since: a failed caption is never dropped.
         restoreTextToDraft(
           store,
-          getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+          askedAgent === undefined
+            ? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId)
+            : textKey,
           fragment
-        ),
-      [store, userId]
+        );
+      },
+      [askedAgent, askedDirect, store, textKey, userId]
     );
 
     const rootModelContext = useLatestRef({ roomId, newThread });
@@ -447,6 +503,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
+    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
+    // Home's ask field takes text only, so it neither shows nor sends a recording either. Neither
+    // brings one back from disk: it would hold it from a tab that can show it.
+    const voiceActive = !forkFrom && !ask;
     const voice = useRoomInputVoice({
       mx,
       composer,
@@ -455,21 +515,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sessions,
       takeRootModelDraft,
       onRoomMessageSent,
+      recover: voiceActive,
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
-    // in its thread; the send session keeps it on the message for a retry.
+    // in its thread; the send session keeps it on the message for a retry. A question asked from
+    // Home mentions its agent, so that agent answers in a room with several.
     const buildTextContent = useCallback(
       (mode: MidTurnMode): IContent | undefined => {
         const content = composeTextMessage(
           editor,
           isMarkdown,
           mx.getUserId() ?? undefined,
-          linkSchemes
+          linkSchemes,
+          parseCommands
         );
-        return content && { ...content, [MID_TURN_MODE_KEY]: mode };
+        if (!content) return undefined;
+        const addressed = askedAgent ? withMention(content, askedAgent) : content;
+        return { ...addressed, [MID_TURN_MODE_KEY]: mode };
       },
-      [editor, isMarkdown, linkSchemes, mx]
+      [askedAgent, editor, isMarkdown, linkSchemes, mx, parseCommands]
     );
 
     // A command that acts sends nothing: the composer empties while it runs and gets the text
@@ -494,32 +559,33 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [composer, draftThreadId, roomId, sendTypingStatus, t]
     );
 
-    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
-    const voiceActive = !forkFrom;
     const submit = useCallback(
       async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
-        // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
-        // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
-        const unknownCommand = readUnknownCommand(editor.children, commands);
-        if (unknownCommand !== undefined) {
-          setCommandProblem(
-            t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
-          );
-          return;
-        }
-        const acting = readActingCommand(editor.children, commands);
-        if (acting) {
-          if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
-          await runActingCommand(acting);
-          return;
+        if (!ask) {
+          // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
+          // of MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
+          const unknownCommand = readUnknownCommand(editor.children, commands);
+          if (unknownCommand !== undefined) {
+            setCommandProblem(
+              t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
+            );
+            return;
+          }
+          const acting = readActingCommand(editor.children, commands);
+          if (acting) {
+            if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
+            await runActingCommand(acting);
+            return;
+          }
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
-        const settled = settlePastes();
+        // Home's ask field restores and stages none.
+        const settled = ask ? true : settlePastes();
         // Sending the text answers the notices of files and pastes a reload lost.
         const takeText = () => {
           const content = buildTextContent(mode);
-          if (content) {
+          if (content && !ask) {
             dismissLostFiles();
             dismissLostPastes();
           }
@@ -540,17 +606,27 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message' })) return;
         const textContent = takeText();
+        // Home's ask field sends text alone: with none there is no send to tell of.
+        if (ask && !textContent) return;
         setSubmitPending(true);
+        ask?.onSendingChange?.(true);
         try {
-          const sending = sessions.startSendSession({ textContent });
+          const sending = sessions.startSendSession({
+            textContent,
+            // Home's question is asked about, and told of, as it was at this press.
+            beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
+            onLocalEchoCreated: ask?.onLocalEcho,
+          });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;
         } finally {
+          ask?.onSendingChange?.(false);
           if (mountedRef.current) setSubmitPending(false);
         }
       },
       [
+        ask,
         buildTextContent,
         commands,
         dismissLostFiles,
@@ -570,8 +646,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
     // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
+    const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
       (mode?: MidTurnMode, waited = false) => {
+        if (ask && !ask.canSend()) return Promise.resolve();
         const sending = submit(mode ?? midTurnSend, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
@@ -579,7 +657,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         });
         return sending;
       },
-      [midTurnSend, submit]
+      [ask, midTurnSend, submit]
     );
 
     // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
@@ -640,20 +718,28 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       // Only an edit changes the saved draft. A draft put back into the editor (opening its
       // room, switching accounts, reloading) or a moved cursor leaves it as it was, and is
       // not typing.
-      const draftAtom = roomIdToMsgDraftAtomFamily(
-        getRoomInputDraftKey(userId, roomId, draftThreadId)
-      );
+      const draftAtom = roomIdToMsgDraftAtomFamily(textKey);
       const draftBefore = store.get(draftAtom);
       saveDraft();
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
-      setNoText(holdsNoText(editor));
+      setNoText(holdsNoText(editor, parseCommands));
       setEmpty(empty);
       // An empty editor holds no query. The query follows key releases, and a reset (a send by
       // tap, a cleared draft) comes without one, which would leave it naming text that is gone.
       if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
-    }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
+    }, [attachments, editor, parseCommands, saveDraft, sendTypingStatus, store, textKey]);
+
+    // Home's ask field takes text only: of a paste, the plain text, split in lines as Slate
+    // pastes it, never a file or a paste chip copied from a room's composer.
+    const pasteTextOnly = useCallback(
+      (event: ClipboardEvent<HTMLElement>) => {
+        event.preventDefault();
+        editor.insertTextData(event.clipboardData);
+      },
+      [editor]
+    );
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
@@ -732,7 +818,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       focused: focus.focused,
       pressing: focus.pressing,
       empty,
+      // Home's ask field keeps both rows, so its pickers have the row to themselves.
       busy:
+        !!ask ||
         !!replyDraft ||
         !!attachments.board ||
         !!recorder ||
@@ -788,7 +876,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     return (
       <div
         ref={setComposerRef}
-        style={COMPOSER_STYLE}
+        // Home's column sets the field's width itself.
+        style={ask ? undefined : COMPOSER_STYLE}
         data-composer-expanded={expanded}
         // Only a press on the expanded composer holds it open (`isComposerExpanded`).
         onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
@@ -822,7 +911,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             {commandProblem}
           </Text>
         )}
-        {lostFileNames.length > 0 && (
+        {!ask && lostFileNames.length > 0 && (
           <LostNotice
             text={t('composer.lostFiles', {
               files: lostFileNames.map(revealDirectionControls).join(', '),
@@ -831,7 +920,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={dismissLostFiles}
           />
         )}
-        {attachments.lostPastes && (
+        {!ask && attachments.lostPastes && (
           <LostNotice
             text={t('composer.lostPastes')}
             dismissLabel={t('composer.dismissLostFiles')}
@@ -850,11 +939,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           className={glassDenseOverBackdrop}
           // A phone keeps the formatting toolbar in a row of its own however wide its composer.
           inlineBottom={!phone}
-          placeholder={placeholder}
+          placeholder={ask?.placeholder ?? placeholder}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
-          onPaste={attachments.onPaste}
+          onPaste={ask ? pasteTextOnly : attachments.onPaste}
+          onDrop={ask ? refuseDrop : undefined}
           top={
             <>
               {replyDraft ? (
@@ -873,7 +963,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            phone ? (
+            ask?.pickers ??
+            (phone ? (
               <>
                 {modelPicker}
                 <ComposerActionsMenu
@@ -902,12 +993,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onPress={toggleFormatting}
                 />
               </>
-            )
+            ))
           }
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
             <>
-              {!phone && (
+              {!phone && !ask && (
                 <ComposerIconButton
                   label={emojiLabel}
                   icon={Icons.Smile}
@@ -951,6 +1042,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
                 empty={noText}
                 defaultMode={midTurnSend}
+                disabled={askBlocked}
                 onSend={handleSend}
               />
             </>

@@ -24,6 +24,7 @@ export const Scrim = style([
     transition: `opacity ${SLIDE} ${EASE}`,
     selectors: {
       '&[data-open]': { opacity: 1, pointerEvents: 'auto' },
+      '&[data-swiping]': { transition: 'none !important' },
     },
   },
 ]);
@@ -60,6 +61,7 @@ export const Panel = style([
     selectors: {
       '[dir=rtl] &': { transform: 'translateX(-100%)' },
       '&[data-open], [dir=rtl] &[data-open]': { transform: 'none' },
+      '&[data-swiping]': { transition: 'none !important' },
     },
   },
 ]);

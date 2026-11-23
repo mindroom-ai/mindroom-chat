@@ -114,6 +114,41 @@
     "textViewer": {
       "close": "বন্ধ করুন"
     },
+    "eventSourceViewer": {
+      "metaEventId": "ইভেন্ট",
+      "metaType": "ধরন",
+      "metaSender": "প্রেরক",
+      "metaTime": "সময়",
+      "badgeEdited": "সম্পাদিত",
+      "badgeEncrypted": "এনক্রিপ্টেড",
+      "documentTabsLabel": "ইভেন্ট সংস্করণ",
+      "tabEvent": "ইভেন্ট",
+      "tabOriginal": "মূল",
+      "tabLatestEdit": "সর্বশেষ সম্পাদনা",
+      "tabDecrypted": "ডিক্রিপ্টেড",
+      "tabDecryptionError": "ডিক্রিপশন ব্যর্থ",
+      "tabEncrypted": "এনক্রিপ্টেড",
+      "collapseAll": "সংকুচিত করুন",
+      "expandAll": "প্রসারিত করুন",
+      "foldStrings": "স্ট্রিং ভাঁজ করুন",
+      "rawJson": "মূল JSON",
+      "filterPlaceholder": "কী বা মান ফিল্টার করুন…",
+      "noMatches": "“{{query}}”-এর জন্য কোনো মিল নেই",
+      "copyField": "{{field}} কপি করুন",
+      "copyValue": "মান কপি করুন",
+      "expandNode": "{{name}} প্রসারিত করুন",
+      "collapseNode": "{{name}} সংকুচিত করুন",
+      "expandString": "স্ট্রিং প্রসারিত করুন",
+      "collapseString": "স্ট্রিং সংকুচিত করুন",
+      "matchCount_one": "{{count}}টি মিল",
+      "matchCount_other": "{{count}}টি মিল",
+      "keyCount_one": "{{count}}টি কী",
+      "keyCount_other": "{{count}}টি কী",
+      "itemCount_one": "{{count}}টি আইটেম",
+      "itemCount_other": "{{count}}টি আইটেম",
+      "charCount_one": "{{count}} অক্ষর",
+      "charCount_other": "{{count}} অক্ষর"
+    },
     "invites": {
       "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
     },
@@ -258,9 +293,6 @@
       "newIntro": "একটি নতুন রিকভারি পাসওয়ার্ড বেছে নিন। পুরনোটি আর কাজ করবে না।",
       "notCached": "এই সেশনে সব এনক্রিপশন কী নেই। আপনার রিকভারি পাসওয়ার্ড বা অন্য ডিভাইস দিয়ে এটি যাচাই করুন, তারপর আবার চেষ্টা করুন।",
       "incompleteError": "নতুন রিকভারি পাসওয়ার্ড এখনও সব এনক্রিপশন কী কভার করে না। আবার চেষ্টা করুন।",
-      "nudgeTitle": "আপনার বার্তা সুরক্ষিত করুন",
-      "nudgeBody": "একটি রিকভারি পাসওয়ার্ড সেট করুন, যাতে এই ব্রাউজার পরিষ্কার করার পরে বা নতুন ডিভাইসে সাইন ইন করার পরেও আপনার এনক্রিপ্টেড চ্যাট পড়তে পারেন।",
-      "nudgeButton": "রিকভারি পাসওয়ার্ড সেট করুন",
       "unlockWithPassword": "রিকভারি পাসওয়ার্ড দিয়ে আনলক করুন",
       "resetLoss": "এই ডিভাইস এখন যে বার্তাগুলো পড়তে পারে না সেগুলো অপাঠ্যই থাকবে। আপনার অন্য সেশনগুলো আবার যাচাই করতে হবে।",
       "setupCheckFailed": "আপনার এনক্রিপশন সেটআপ যাচাই করা যায়নি।",
@@ -943,6 +975,30 @@
         "earlier_other": "{{count}}টি আগের বার্তা",
         "hide_one": "{{count}}টি বার্তা লুকান",
         "hide_other": "{{count}}টি বার্তা লুকান"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}}টি রুম ইভেন্ট",
+        "summary_other": "{{count}}টি রুম ইভেন্ট",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}}টি রুম ইভেন্ট লুকান",
+        "hide_other": "{{count}}টি রুম ইভেন্ট লুকান",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} জন যোগ দিয়েছেন",
+        "joined_other": "{{count}} জন যোগ দিয়েছেন",
+        "left_one": "{{count}} জন চলে গেছেন",
+        "left_other": "{{count}} জন চলে গেছেন",
+        "invited_one": "{{count}} জন আমন্ত্রিত",
+        "invited_other": "{{count}} জন আমন্ত্রিত",
+        "requested_one": "{{count}} জন যোগদানের অনুরোধ করেছেন",
+        "requested_other": "{{count}} জন যোগদানের অনুরোধ করেছেন",
+        "kicked_one": "{{count}} জনকে সরানো হয়েছে",
+        "kicked_other": "{{count}} জনকে সরানো হয়েছে",
+        "banned_one": "{{count}} জন নিষিদ্ধ",
+        "banned_other": "{{count}} জন নিষিদ্ধ",
+        "unbanned_one": "{{count}} জনের নিষেধাজ্ঞা তোলা হয়েছে",
+        "unbanned_other": "{{count}} জনের নিষেধাজ্ঞা তোলা হয়েছে",
+        "profileChanges_one": "{{count}}টি প্রোফাইল পরিবর্তন",
+        "profileChanges_other": "{{count}}টি প্রোফাইল পরিবর্তন"
       },
       "questionCard": {
         "title": "প্রশ্ন",
@@ -1795,5 +1851,40 @@
     "cancellationSent": "বাতিলের অনুরোধ পাঠানো হয়েছে",
     "editDraftBusy": "এই সময়সূচী সম্পাদনা করার আগে আপনার বর্তমান খসড়া মুছুন।",
     "copyFailed": "কপি করা যায়নি। বিস্তারিত অংশ থেকে টাস্ক আইডি নির্বাচন করুন।"
+  },
+  "home": {
+    "greeting": {
+      "morning": "সুপ্রভাত, {{name}}",
+      "afternoon": "শুভ অপরাহ্ন, {{name}}",
+      "evening": "শুভ সন্ধ্যা, {{name}}"
+    },
+    "ask": {
+      "placeholder": "{{name}}-কে যেকোনো কিছু জিজ্ঞাসা করুন…",
+      "chooseAgent": "কে উত্তর দেবে বেছে নিন",
+      "agentChoice": "{{name}} উত্তর দেবে",
+      "chooseRoom": "থ্রেড কোথায় শুরু হবে বেছে নিন",
+      "roomChoice": "{{room}}-এ",
+      "inRoom": "<avatar/>{{room}}-এ",
+      "directChat": "সরাসরি চ্যাট",
+      "startsDirectChat": "{{name}}-এর সাথে চ্যাট শুরু করে",
+      "startingDirectChat": "{{name}}-এর সাথে চ্যাট শুরু হচ্ছে…",
+      "directChatFailed": "{{name}}-এর সাথে চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।",
+      "waitingForAgent": "{{name}} চ্যাটে যোগ দেওয়ার অপেক্ষায়…",
+      "notSent": "{{room}}-এ {{agent}}-কে পাঠানো হয়নি",
+      "chooseAgain": "এই পছন্দটি আর কাজ করে না। আপনার লেখা রাখা আছে: কে উত্তর দেবে বা কোথায়, বেছে নিন।"
+    },
+    "recent": {
+      "title": "সাম্প্রতিক থ্রেড",
+      "allThreads": "সব থ্রেড",
+      "unread": "অপঠিত"
+    },
+    "recovery": {
+      "action": "রিকভারি পাসওয়ার্ড সেট করুন",
+      "text": "নতুন ডিভাইসেও এনক্রিপ্ট করা চ্যাটে অ্যাক্সেস রাখুন।"
+    },
+    "device": {
+      "action": "এই ডিভাইস যাচাই করুন",
+      "text": "ততক্ষণ এটি আপনার এনক্রিপ্ট করা চ্যাট পড়তে পারবে না।"
+    }
   }
 }

@@ -29,6 +29,9 @@ export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: s
 /** The room page's own messages while they show beside the thread's column (room/RoomView.tsx). */
 export const ROOM_MESSAGES_VIEW = 'room-messages';
 
+/** Home's ask field (shell/HomeAsk.tsx): a composer with no conversation, shown with Home. */
+export const HOME_ASK_VIEW = 'home-ask';
+
 /** Lists the view `view`, which shows `roomId` (and `threadId`), while `shown` holds. */
 export const useShownConversationView = (
   shown: boolean,
@@ -53,7 +56,8 @@ export const useConversationHidden = (): boolean => {
   const view = useContext(ConversationViewContext);
   const pageHidden = useAtomValue(conversationHiddenAtom);
   const shown = useAtomValue(shownConversationViewsAtom);
-  return view === undefined ? pageHidden : !shown.some((place) => place.view === view);
+  if (view === undefined) return pageHidden;
+  return view !== HOME_ASK_VIEW && !shown.some((place) => place.view === view);
 };
 
 /**

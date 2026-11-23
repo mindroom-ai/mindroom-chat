@@ -77,16 +77,38 @@ const placed = (events: unknown[], key: 'body_line' | 'at', end: number): Call[]
     .reverse();
 };
 
+/**
+ * Whether a `placeholder_body` trace is sound. Its text stands in for a reply that is its markers
+ * alone, so the trace says all of the reply: every entry is a named call, at least one has a
+ * position, and each position is `body_line` 0 with `at` 0. The backend's `_placeholder_calls`
+ * holds a trace to the same rule, so both discard the same texts.
+ */
+const isPlaceholderTrace = (events: unknown[]): boolean => {
+  const calls = events.filter(isRecord);
+  const placedCalls = calls.filter((call) => 'body_line' in call || 'at' in call);
+  return (
+    calls.length === events.length &&
+    calls.every((call) => typeof call.tool_name === 'string' && call.tool_name !== '') &&
+    placedCalls.length > 0 &&
+    placedCalls.every((call) => call.body_line === 0 && call.at === 0)
+  );
+};
+
 /** One layer as its version-2 reply, with its version-3 trace's markers back in its text. */
 const layerWithMarkers = (content: Record<string, unknown>): Record<string, unknown> => {
   const trace = positionsOf(content);
   const events = trace?.events;
-  if (!Array.isArray(events)) return content;
+  if (!trace || !Array.isArray(events)) return content;
+  const placeholder = trace.placeholder_body === true;
+  const hasText = typeof content.body === 'string' && typeof content.formatted_body === 'string';
+  if (placeholder && !(hasText && isPlaceholderTrace(events))) return content;
+  const { placeholder_body: _placeholder, ...marked } = trace;
   const restored: Record<string, unknown> = {
     ...content,
-    [MINDROOM_TOOL_TRACE_KEY]: { ...trace, version: 2 },
+    [MINDROOM_TOOL_TRACE_KEY]: { ...(placeholder ? marked : trace), version: 2 },
   };
-  const { body, formatted_body: html } = content;
+  // The markers go back in place of a placeholder's text, which a reader that puts none back shows.
+  const { body, formatted_body: html } = placeholder ? { body: '', formatted_body: '' } : content;
   if (typeof body === 'string') {
     // Before line `body_line` with a blank line after it, or at the end after one.
     const lines = body ? body.split('\n') : [];
@@ -109,11 +131,33 @@ const layerWithMarkers = (content: Record<string, unknown>): Record<string, unkn
   return restored;
 };
 
+const sameJsonValue = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((value, index) => sameJsonValue(value, b[index]))
+    );
+  }
+  if (!isRecord(a) || !isRecord(b)) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every(
+      (key) => Object.prototype.hasOwnProperty.call(b, key) && sameJsonValue(a[key], b[key])
+    )
+  );
+};
+
 /**
  * `content` as its version-2 reply: its markers back in its text, or in an edit's replacement.
  * An edit's fallback is its replacement again with its text after "* ", where an opening marker
  * is no line of its own, so its markers go back where the replacement's do. A fallback that
- * shows other HTML stays as sent.
+ * shows other HTML or its own tool trace stays as sent, and so does one with other text than a
+ * `placeholder_body` replacement, whose markers go back in place of its text. The backend's
+ * `_each_layer` keeps the same fallbacks.
  */
 export const withToolMarkersRestored = (
   content: Record<string, unknown>
@@ -124,10 +168,14 @@ export const withToolMarkersRestored = (
   if (restored === replacement) return layerWithMarkers(content);
   const edit: Record<string, unknown> = { ...content, 'm.new_content': restored };
   const { body } = content;
+  const placeholder = positionsOf(replacement)?.placeholder_body === true;
   const repeats =
     typeof body === 'string' &&
     body.startsWith('* ') &&
-    content.formatted_body === replacement.formatted_body;
+    content.formatted_body === replacement.formatted_body &&
+    (!(MINDROOM_TOOL_TRACE_KEY in content) ||
+      sameJsonValue(content[MINDROOM_TOOL_TRACE_KEY], replacement[MINDROOM_TOOL_TRACE_KEY])) &&
+    (!placeholder || body === `* ${String(replacement.body)}`);
   if (!repeats) return edit;
   if (MINDROOM_TOOL_TRACE_KEY in content) {
     edit[MINDROOM_TOOL_TRACE_KEY] = restored[MINDROOM_TOOL_TRACE_KEY];
@@ -135,6 +183,7 @@ export const withToolMarkersRestored = (
   // The HTML is the replacement's, which has its markers back: only the text differs.
   const fallback = layerWithMarkers({
     body: body.slice(2),
+    formatted_body: replacement.formatted_body,
     [MINDROOM_TOOL_TRACE_KEY]: replacement[MINDROOM_TOOL_TRACE_KEY],
   });
   return { ...edit, body: `* ${String(fallback.body)}`, formatted_body: restored.formatted_body };

@@ -7,11 +7,14 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
+import { UNSAFE_LocationContext } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
@@ -19,6 +22,14 @@ import { settingsAtom } from '../preferences/settings';
 import { createSessionId, getActiveSession } from '../matrix/session/sessions';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
+import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
+import {
+  clearActivePhoneSwipeContext,
+  createThreadBackSwipeScene,
+  createThreadForwardSwipeScene,
+  getCurrentPhoneLocationKey,
+  setActivePhoneSwipeContext,
+} from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -303,13 +314,63 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
+  const locationKey = useContext(UNSAFE_LocationContext)?.location.key;
+
+  useLayoutEffect(() => {
+    const context = { sessionId, roomId, threadId: effectiveThreadId };
+    setActivePhoneSwipeContext(context);
+    return () => clearActivePhoneSwipeContext(context);
+  }, [effectiveThreadId, roomId, sessionId]);
+
+  const resolveFromLocationKey = useCallback(
+    () =>
+      locationKey ??
+      getCurrentPhoneLocationKey() ??
+      (window.history.state as { key?: string } | null)?.key ??
+      '',
+    [locationKey]
+  );
+
+  const beginThreadBackSwipe = useCallback(
+    ({ dirSign }: { dirSign: 1 | -1 }) => {
+      if (!effectiveThreadId) return null;
+      return createThreadBackSwipeScene({
+        key: { sessionId, roomId, threadId: effectiveThreadId },
+        fromLocationKey: resolveFromLocationKey(),
+        onCommit: handleExitThread,
+        dirSign,
+      });
+    },
+    [effectiveThreadId, handleExitThread, resolveFromLocationKey, roomId, sessionId]
+  );
+
+  const beginThreadForwardSwipe = useCallback(
+    ({ dirSign }: { dirSign: 1 | -1 }) => {
+      if (!lastExitedThread || lastExitedThread.roomId !== roomId) return null;
+      return createThreadForwardSwipeScene({
+        key: { sessionId, roomId, threadId: lastExitedThread.threadId },
+        fromLocationKey: resolveFromLocationKey(),
+        onCommit: handleSwipeForwardToThread,
+        dirSign,
+      });
+    },
+    [handleSwipeForwardToThread, lastExitedThread, resolveFromLocationKey, roomId, sessionId]
+  );
+
   // A side panel in the conversation's place leaves the swipes to the page.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   const swipes = effectiveViewMode !== 'classic' && !behindPanel;
-  useEdgeSwipeBack(handleExitThread, swipes && !!threadId);
+  useEdgeSwipeBack(handleExitThread, swipes && !!threadId, {
+    priority: SWIPE_PRIORITY.PAGE,
+    begin: beginThreadBackSwipe,
+  });
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    swipes && !threadId && lastExitedThread?.roomId === roomId
+    swipes && !threadId && lastExitedThread?.roomId === roomId,
+    {
+      priority: SWIPE_PRIORITY.PAGE,
+      begin: beginThreadForwardSwipe,
+    }
   );
 
   // Typed queries apply on a pause, not per keystroke: structured tokens

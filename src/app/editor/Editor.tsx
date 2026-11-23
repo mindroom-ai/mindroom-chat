@@ -1,6 +1,7 @@
 import React, {
   ClipboardEventHandler,
   CSSProperties,
+  DragEventHandler,
   KeyboardEventHandler,
   ReactNode,
   useCallback,
@@ -253,6 +254,8 @@ type CustomEditorProps = EditorSlots & {
   onKeyUp?: KeyboardEventHandler<HTMLDivElement>;
   onChange?: (value: Descendant[]) => void;
   onPaste?: ClipboardEventHandler<HTMLDivElement>;
+  /** Takes a drop before Slate does; one it prevents inserts nothing. */
+  onDrop?: DragEventHandler<HTMLDivElement>;
 };
 
 // Module-level renderers keep one identity for every editor, so Slate never re-renders for them.
@@ -294,7 +297,7 @@ function EditorControls({ children, className }: { children?: ReactNode; classNa
 export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
-  const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
+  const { readOnly, onKeyDown, onKeyUp, onPaste, onDrop, initialValue = emptyDocument } = props;
   const { styleMarkdown, linkSchemes, markdownCommands, inlineBottom } = props;
   const decorate = useMemo(
     () =>
@@ -342,6 +345,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       renderLeaf={renderLeaf}
       decorate={decorate}
       onPaste={onPaste}
+      onDrop={onDrop}
       onKeyUp={onKeyUp}
       onKeyDown={handleKeyDown}
       onDOMBeforeInput={handleBeforeInput}

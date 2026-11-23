@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent,
+  type RefObject,
+} from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, Icons, Spinner, Text, as } from 'folds';
@@ -11,6 +20,11 @@ import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
 import { documentIsRightToLeft, revealDirectionControls } from '../../ui/directional';
 import { isMacOS } from '../../lib/user-agent';
 import { KeySymbol } from '../../lib/key-symbol';
+import {
+  animateSwipeElements,
+  SWIPE_PRIORITY,
+  type InteractiveSwipeBegin,
+} from '../../navigation/interactiveSwipe';
 import { EDGE_START_MAX_X, useEdgeSwipe } from '../../navigation/useEdgeSwipe';
 import * as css from './ImageViewer.css';
 
@@ -72,6 +86,8 @@ type ImageViewerProps = {
   onStep?: (delta: StepDelta) => void;
   /** On phones, the viewer's screen: a swipe from its left edge closes the viewer at fit. */
   edgeSwipeArea?: RefObject<Element>;
+  /** On phones, the overlay surface wrapping the viewer and backdrop so pinches spanning the exposed strip still zoom the image. */
+  pinchSurfaceRef?: RefObject<HTMLElement>;
 };
 
 // Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
@@ -105,7 +121,11 @@ const useSwipe = (enabled: boolean, edgeCloses: boolean, onSwipe: (leftward: boo
     const pointers = pointersRef.current;
     pointers.add(event.pointerId);
     const fromEdge =
-      edgeCloses && event.pointerType !== 'mouse' && event.clientX <= EDGE_START_MAX_X;
+      edgeCloses &&
+      event.pointerType !== 'mouse' &&
+      (documentIsRightToLeft()
+        ? event.clientX >= window.innerWidth - EDGE_START_MAX_X
+        : event.clientX <= EDGE_START_MAX_X);
     startRef.current =
       pointers.size === 1 && !fromEdge
         ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
@@ -125,6 +145,14 @@ const useSwipe = (enabled: boolean, edgeCloses: boolean, onSwipe: (leftward: boo
     if (pointersRef.current.delete(event.pointerId)) startRef.current = undefined;
   };
   return { onPointerDown, onPointerUp, onPointerCancel };
+};
+
+const findImageViewerBackdrop = (modal: HTMLElement): HTMLElement | null => {
+  const overlayRoot = modal.closest('[data-image-viewer-overlay]');
+  if (overlayRoot) {
+    return overlayRoot.querySelector<HTMLElement>('[data-image-viewer-backdrop]');
+  }
+  return modal.ownerDocument.querySelector<HTMLElement>('[data-image-viewer-backdrop]');
 };
 
 const DOWNLOAD_LABEL_KEY = {
@@ -153,6 +181,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       position,
       onStep,
       edgeSwipeArea,
+      pinchSurfaceRef,
       className,
       ...props
     },
@@ -176,9 +205,12 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           step,
           image ? { width: image.offsetWidth, height: image.offsetHeight } : undefined
         );
-      }
+      },
+      pinchSurfaceRef
     );
-    const panning = usePan(zoom !== 1);
+    // Suspended through a pinch: with its second finger on the backdrop strip a close drag
+    // exposed, the image area sees one pointer, whose drag would pan on top of `zoomAround`.
+    const panning = usePan(zoom !== 1, isZooming);
     const { pan, cursor, isPanning } = panning;
     const saving = downloadState === 'saving';
 
@@ -208,14 +240,90 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [paging]);
 
+    const requestCloseRef = useRef(requestClose);
+    requestCloseRef.current = requestClose;
+
     const atFit = zoom === 1 && !isZooming;
     // Zoomed in, a drag from the edge pans.
     const edgeCloses = !!edgeSwipeArea && atFit;
+    const edgeClosesRef = useRef(edgeCloses);
+    edgeClosesRef.current = edgeCloses;
+
+    const beginEdgeClose = useCallback<InteractiveSwipeBegin>(
+      ({ dirSign }) => {
+        const modal = edgeSwipeArea?.current;
+        if (!(modal instanceof HTMLElement)) return null;
+        const extent = modal.getBoundingClientRect().width;
+        if (extent <= 0) return null;
+
+        const backdrop = findImageViewerBackdrop(modal);
+        modal.setAttribute('data-swiping', '');
+        modal.setAttribute('data-swipe-shadow', '');
+        backdrop?.setAttribute('data-swiping', '');
+
+        const clearStyles = () => {
+          modal.style.translate = '';
+          modal.removeAttribute('data-swiping');
+          modal.removeAttribute('data-swipe-shadow');
+          if (backdrop) {
+            backdrop.style.opacity = '';
+            backdrop.removeAttribute('data-swiping');
+          }
+        };
+
+        return {
+          extent,
+          update(offsetPx, progress) {
+            modal.style.translate = `${offsetPx * dirSign}px 0`;
+            if (backdrop) {
+              backdrop.style.opacity = String(1 - progress);
+            }
+          },
+          settle(commit, durationMs, currentOffsetPx) {
+            const clampedOffset = Math.max(0, Math.min(extent, currentOffsetPx));
+            const currentProgress = Math.max(0, Math.min(1, clampedOffset / extent));
+            const targetOffset = commit ? extent : 0;
+            const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
+              {
+                element: modal,
+                keyframes: [
+                  { translate: `${clampedOffset * dirSign}px 0` },
+                  { translate: `${targetOffset * dirSign}px 0` },
+                ],
+              },
+            ];
+            if (backdrop) {
+              animations.push({
+                element: backdrop,
+                keyframes: [
+                  { opacity: String(1 - currentProgress) },
+                  { opacity: commit ? '0' : '1' },
+                ],
+              });
+            }
+            return animateSwipeElements(animations, durationMs);
+          },
+          commit() {
+            if (!modal.isConnected || !edgeClosesRef.current) return;
+            flushSync(() => {
+              requestCloseRef.current();
+            });
+            clearStyles();
+          },
+          cleanup() {
+            clearStyles();
+          },
+        };
+      },
+      [edgeSwipeArea]
+    );
     useEdgeSwipe({
       direction: 'back',
       enabled: edgeCloses,
+      priority: SWIPE_PRIORITY.OVERLAY,
       onSwipe: requestClose,
       within: edgeSwipeArea,
+      begin: beginEdgeClose,
     });
     const swipe = useSwipe(paging && atFit, edgeCloses, (leftward) =>
       stepRef.current?.(arrowStep(leftward))

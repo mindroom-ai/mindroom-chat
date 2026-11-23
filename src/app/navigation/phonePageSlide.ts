@@ -4,6 +4,12 @@ import { NavigationType, type createBrowserRouter } from 'react-router-dom';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { conversationUnderThreadAtom } from './conversationCover';
+import {
+  animateSwipeElements,
+  type InteractiveSwipeScene,
+  resolveLogicalDirectionSign,
+  setInteractivePhoneSlideClaimed,
+} from './interactiveSwipe';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import './phonePageSlide.css';
 
@@ -17,8 +23,25 @@ export const PHONE_PAGE = 'data-phone-page';
 
 /** Marks the top bar in it (sidebar/PhoneTopBar.tsx), which no slide moves. */
 const PHONE_TOP_BAR = 'data-phone-top-bar';
+/** Marks overlay layers inside the stage (such as PhoneNavDrawer) that thread swipes must not slide. */
+const PHONE_OVERLAY_LAYER = 'data-phone-overlay-layer';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
+/** Marks the stage while an interactive thread <-> room swipe is active. */
+const SWIPE_STAGE = 'data-swipe-stage';
+/** Marks an interactive swipe preview or hold layer inside the stage. */
+const SWIPE_PREVIEW = 'data-swipe-preview';
+/** Marks a neutral themed surface backdrop fallback (kept below the top bar). */
+const SWIPE_BACKDROP = 'data-swipe-backdrop';
+/** Marks the subtle dim veil between the upper and lower swipe layers. */
+const SWIPE_DIM = 'data-swipe-dim';
+/**
+ * Marks the input shield below the top bar, from the release of an interactive thread swipe until
+ * it has settled back or its handoff has seen the route commit.
+ */
+const SWIPE_HOLD_SHIELD = 'data-swipe-hold-shield';
+/** Elements inside the stage that belong to active slide/swipe chrome and must never be cloned. */
+const SKIP_CLONE = `[${SWIPE_PREVIEW}], [${SWIPE_DIM}], [${SWIPE_HOLD_SHIELD}], [${COPY}]`;
 /** A vertical scroll clip. */
 const CLIP = '[data-page-slide-clip]';
 /** A row in a clip becomes an empty box once it is more than one screen out of view. */
@@ -28,11 +51,15 @@ const KEYFRAMES = 'phone-page-';
 /** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
 const FRAME_MS = 100;
 const PLAY_MS = 2000;
+const DEFAULT_HANDOFF_TIMEOUT_MS = 1000;
+const DIM_MAX_OPACITY = 0.12;
 /** What would load or play to show in the copy. */
 const MEDIA = 'img, iframe, video, audio, source';
 /** The fields whose value shows as the text a person typed, which may be a secret. */
 const TYPED =
   'textarea, input:not([type]), input:is([type=text], [type=password], [type=search], [type=email], [type=url], [type=tel], [type=number])';
+/** Rich-text editable regions (such as the Slate composer) whose draft text must not be retained. */
+const CONTENTEDITABLE = '[contenteditable]:not([contenteditable="false"])';
 
 /** A change to the page; `sliding` tells whether it runs inside a slide. */
 type Change = (sliding: boolean) => void;
@@ -41,6 +68,40 @@ type Change = (sliding: boolean) => void;
 type Slide = { finished: Promise<void>; skip: () => void };
 
 type Router = ReturnType<typeof createBrowserRouter>;
+
+export type StageSnapshot = {
+  copy: HTMLElement;
+  scrolled: [Element, number, number][];
+  height: number;
+};
+
+export type PhoneSwipePreviewKey = {
+  sessionId: string;
+  roomId: string;
+  threadId?: string;
+};
+
+export type ActivePhoneSwipeContext = PhoneSwipePreviewKey;
+
+type StoredPreviewKey = {
+  sessionId: string;
+  roomId: string;
+  threadId: string;
+  width: number;
+  height: number;
+};
+
+type StoredPreview = {
+  snapshot: StageSnapshot;
+  key: StoredPreviewKey;
+};
+
+type InteractiveHandoff = {
+  fromLocationKey: string;
+  consumed: boolean;
+  finishAfterPaint: () => void;
+  release: () => void;
+};
 
 /**
  * How deep a phone shows: its list (the navigation drawer over the page), a page, or a thread
@@ -52,15 +113,46 @@ const depth = (): number => {
   return store.get(conversationUnderThreadAtom) ? 2 : 1;
 };
 
+const clearInlineTranslate = (element: HTMLElement): void => {
+  element.style.removeProperty('translate');
+  element.style.translate = '';
+};
+
+const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
+  Array.from(stage.children).filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement &&
+      !child.hasAttribute(PHONE_TOP_BAR) &&
+      !child.hasAttribute(PHONE_OVERLAY_LAYER) &&
+      !child.hasAttribute(COPY) &&
+      !child.hasAttribute(SWIPE_PREVIEW) &&
+      !child.hasAttribute(SWIPE_DIM) &&
+      !child.hasAttribute(SWIPE_HOLD_SHIELD)
+  );
+
+const measureStageHeight = (
+  stage: Element,
+  bounds: DOMRect = stage.getBoundingClientRect()
+): number => (bounds.height > 0 ? Math.round(bounds.height) : window.innerHeight);
+
+const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
+  over.append(snapshot.copy);
+  snapshot.scrolled.forEach(([element, scrollTop, scrollLeft]) =>
+    Object.assign(element, { scrollTop, scrollLeft })
+  );
+  return snapshot.copy;
+};
+
 /**
- * A still copy of the phone layout as it is, scrolled as it is, to show in `stage` while the
- * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
- * find twice, and loads and plays nothing: its pictures are drawn from the page's own. Its fields
- * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
- * Copy what lies within one screen (max(screen.height, innerHeight)) of the visible stage in
- * full, pictures included. Beyond that a marked row or clip leaves an empty box of its size.
+ * Captures a still, sanitized snapshot of `stage` and its scrollable descendants' offsets.
+ * Strips typed form values, `[contenteditable]` drafts, media sources, active swipe chrome, and
+ * inline `translate` / swipe attributes so the snapshot always starts cleanly at rest.
  */
-const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
+export const captureStageSnapshot = (
+  stage: Element,
+  options?: { horizontalShiftPx?: number }
+): StageSnapshot => {
+  const horizontalShiftPx = options?.horizontalShiftPx ?? 0;
   const bounds = stage.getBoundingClientRect();
   // Keep a screen of rows on either side: the keyboard can go away or text can shrink mid-slide.
   const buffer = Math.max(window.screen.height, window.innerHeight);
@@ -78,6 +170,7 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     });
   };
   const prepare = (element: Element, twin: Element): Element => {
+    if (element.closest(SKIP_CLONE) || element.closest(CONTENTEDITABLE)) return twin;
     const { scrollTop, scrollLeft } = element;
     if (scrollTop || scrollLeft) scrolled.push([twin, scrollTop, scrollLeft]);
     if (element instanceof HTMLCanvasElement && element.width && element.height) {
@@ -95,14 +188,17 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     if (!(element instanceof HTMLImageElement)) return blank;
     const { complete, naturalWidth, naturalHeight } = element;
     const box = element.getBoundingClientRect();
+    const shift = element.closest(`[${PHONE_TOP_BAR}]`) ? 0 : horizontalShiftPx;
+    const restingLeft = box.left - shift;
+    const restingRight = box.right - shift;
     if (
       !complete ||
       !naturalWidth ||
       !naturalHeight ||
       !box.width ||
       !box.height ||
-      box.right <= bounds.left ||
-      box.left >= bounds.right ||
+      restingRight <= bounds.left ||
+      restingLeft >= bounds.right ||
       box.bottom < buffered.top ||
       box.top > buffered.bottom
     )
@@ -123,6 +219,9 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     return shell;
   };
   const clone = (element: Element, clip?: { top: number; bottom: number }): Element => {
+    if (element.matches(CONTENTEDITABLE)) {
+      return still.importNode(element, false);
+    }
     if (element.matches(CLIP)) {
       const view = element.getBoundingClientRect();
       const { top, bottom } = clip ?? buffered;
@@ -142,6 +241,7 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     const prepared = element === stage ? twin : prepare(element, twin);
     if (split) {
       for (const child of element.childNodes) {
+        if (child instanceof Element && child.matches(SKIP_CLONE)) continue;
         twin.appendChild(
           child instanceof Element ? clone(child, clip) : still.importNode(child, false)
         );
@@ -158,12 +258,24 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     return prepared;
   };
   const copy = clone(stage) as HTMLElement;
+  copy.querySelectorAll(SKIP_CLONE).forEach((element) => element.remove());
+  // Clear editable draft subtrees inside the detached document before adoption so no draft
+  // media (e.g. <img src>) is ever adopted into the live document.
+  copy.querySelectorAll<HTMLElement>(CONTENTEDITABLE).forEach((field) => {
+    field.textContent = '';
+  });
   document.adoptNode(copy);
   drawn.forEach(([canvas, from]) =>
     canvas.getContext('2d')?.drawImage(from, 0, 0, canvas.width, canvas.height)
   );
   copy.removeAttribute(PHONE_STAGE);
   copy.removeAttribute('id');
+  copy.removeAttribute(SWIPE_STAGE);
+  copy.removeAttribute(SWIPE_PREVIEW);
+  copy.removeAttribute(SWIPE_BACKDROP);
+  copy.removeAttribute('data-swiping');
+  copy.removeAttribute('data-swipe-shadow');
+  clearInlineTranslate(copy);
   copy.setAttribute(COPY, '');
   copy.setAttribute('aria-hidden', 'true');
   copy.setAttribute('inert', '');
@@ -178,16 +290,193 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   copy.querySelectorAll('[id], [data-testid], [name], [form], [for]').forEach((element) => {
     ['id', 'data-testid', 'name', 'form', 'for'].forEach((name) => element.removeAttribute(name));
   });
+  copy.querySelectorAll<HTMLElement>('[data-swiping], [data-swipe-shadow]').forEach((element) => {
+    element.removeAttribute('data-swiping');
+    element.removeAttribute('data-swipe-shadow');
+  });
+  copy.querySelectorAll<HTMLElement>('[style]').forEach((element) => {
+    if (element.style.translate || element.style.getPropertyValue('translate')) {
+      clearInlineTranslate(element);
+    }
+  });
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  return (over) => {
-    over.append(copy);
-    scrolled.forEach(([element, scrollTop, scrollLeft]) =>
-      Object.assign(element, { scrollTop, scrollLeft })
-    );
-    return copy;
+  return {
+    copy,
+    scrolled: scrolled.filter(([element]) => copy.contains(element)),
+    height: measureStageHeight(stage, bounds),
   };
+};
+
+/** Two single-entry retained preview slots for finger-following thread <-> room swipes. */
+let roomPreview: StoredPreview | undefined;
+let threadPreview: StoredPreview | undefined;
+let resizeListenerAttached = false;
+/** The currently active room/thread context, synced by `useRoomViewThreadState`. */
+let activeSwipeContext: ActivePhoneSwipeContext | undefined;
+/** The latest router location key observed by `withPhonePageSlide`. */
+let currentPhoneLocationKey: string | undefined;
+let activeRouterSubscribers = 0;
+/** Active interactive swipe handoff waiting for the router to commit the target route. */
+let interactiveHandoff: InteractiveHandoff | undefined;
+
+export const setActivePhoneSwipeContext = (context: ActivePhoneSwipeContext | undefined): void => {
+  activeSwipeContext = context;
+};
+
+export const clearActivePhoneSwipeContext = (context: ActivePhoneSwipeContext): void => {
+  if (activeSwipeContext === context) activeSwipeContext = undefined;
+};
+
+export const getCurrentPhoneLocationKey = (): string | undefined => currentPhoneLocationKey;
+
+export const isInteractivePhoneSlideClaimed = (): boolean => interactiveHandoff !== undefined;
+
+/**
+ * Another width discards a preview. Another height alone (a soft keyboard) keeps it:
+ * `getMatchingPreview` shows it again once the height it was taken at is back.
+ */
+const handlePreviewResize = (): void => {
+  if (typeof window === 'undefined') return;
+  const width = window.innerWidth;
+  if (roomPreview && roomPreview.key.width !== width) {
+    roomPreview = undefined;
+  }
+  if (threadPreview && threadPreview.key.width !== width) {
+    threadPreview = undefined;
+  }
+  syncPreviewResizeListener();
+};
+
+const syncPreviewResizeListener = (): void => {
+  if (typeof window === 'undefined') return;
+  const hasPreview = roomPreview !== undefined || threadPreview !== undefined;
+  if (hasPreview && !resizeListenerAttached) {
+    window.addEventListener('resize', handlePreviewResize);
+    resizeListenerAttached = true;
+  } else if (!hasPreview && resizeListenerAttached) {
+    window.removeEventListener('resize', handlePreviewResize);
+    resizeListenerAttached = false;
+  }
+};
+
+const storePhoneSwipePreview = (
+  kind: 'room' | 'thread',
+  key: PhoneSwipePreviewKey,
+  snapshot: StageSnapshot
+): StoredPreview | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  if (!key.sessionId || !key.roomId || !key.threadId) return undefined;
+  const stored: StoredPreview = {
+    snapshot,
+    key: {
+      sessionId: key.sessionId,
+      roomId: key.roomId,
+      threadId: key.threadId,
+      width: window.innerWidth,
+      height: snapshot.height,
+    },
+  };
+  if (kind === 'room') roomPreview = stored;
+  else threadPreview = stored;
+  syncPreviewResizeListener();
+  return stored;
+};
+
+const capturePhoneSwipePreviewEntry = (
+  kind: 'room' | 'thread',
+  key: PhoneSwipePreviewKey,
+  options?: { horizontalShiftPx?: number }
+): StoredPreview | undefined => {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return undefined;
+  if (!key.sessionId || !key.roomId || !key.threadId) return undefined;
+  const stage = document.querySelector(`[${PHONE_STAGE}]`);
+  if (!stage) return undefined;
+  try {
+    return storePhoneSwipePreview(kind, key, captureStageSnapshot(stage, options));
+  } catch {
+    // Snapshot failures must never block navigation or swipes.
+    return undefined;
+  }
+};
+
+/** Captures `[data-phone-stage]` into the retained `room` or `thread` swipe preview slot. */
+export const capturePhoneSwipePreview = (
+  kind: 'room' | 'thread',
+  key: PhoneSwipePreviewKey,
+  options?: { horizontalShiftPx?: number }
+): void => {
+  capturePhoneSwipePreviewEntry(kind, key, options);
+};
+
+/** Discards both retained phone swipe previews (e.g. on account switch, sign-out, or resize). */
+export const clearPhoneSwipePreviews = (): void => {
+  roomPreview = undefined;
+  threadPreview = undefined;
+  syncPreviewResizeListener();
+};
+
+const getMatchingPreview = (
+  kind: 'room' | 'thread',
+  key: PhoneSwipePreviewKey,
+  stage: Element
+): StageSnapshot | undefined => {
+  const entry = kind === 'room' ? roomPreview : threadPreview;
+  if (!entry || typeof window === 'undefined') return undefined;
+  if (entry.key.width !== window.innerWidth) {
+    handlePreviewResize();
+    return undefined;
+  }
+  if (entry.key.sessionId !== key.sessionId) {
+    clearPhoneSwipePreviews();
+    return undefined;
+  }
+  if (entry.key.roomId !== key.roomId) {
+    if (kind === 'room') roomPreview = undefined;
+    else threadPreview = undefined;
+    syncPreviewResizeListener();
+    return undefined;
+  }
+  if (!key.threadId || entry.key.threadId !== key.threadId) {
+    return undefined;
+  }
+  // Taken at another stage height (the keyboard is open): kept, not shown, as its rows would not fit.
+  if (entry.key.height !== measureStageHeight(stage)) return undefined;
+  if (entry.snapshot.copy.isConnected) return undefined;
+  return entry.snapshot;
+};
+
+const isSceneContextCurrent = (
+  kind: 'back' | 'forward',
+  key: PhoneSwipePreviewKey,
+  fromLocationKey: string,
+  startedWithContext: boolean
+): boolean => {
+  if (
+    fromLocationKey &&
+    activeRouterSubscribers > 0 &&
+    currentPhoneLocationKey !== undefined &&
+    currentPhoneLocationKey !== fromLocationKey
+  ) {
+    return false;
+  }
+  if (startedWithContext && !activeSwipeContext) return false;
+  if (activeSwipeContext) {
+    if (
+      activeSwipeContext.sessionId !== key.sessionId ||
+      activeSwipeContext.roomId !== key.roomId
+    ) {
+      return false;
+    }
+    if (kind === 'back' && activeSwipeContext.threadId !== key.threadId) {
+      return false;
+    }
+    if (kind === 'forward' && activeSwipeContext.threadId !== undefined) {
+      return false;
+    }
+  }
+  return true;
 };
 
 /** The changes of the slide that waits for the frame that shows the page as it is. */
@@ -195,6 +484,482 @@ let waiting: Change[] | undefined;
 let playing = false;
 /** The slide from its call until it has played, waiting for its frame or playing. */
 let active: Slide | undefined;
+
+/**
+ * Claims the next phone navigation leaving `fromLocationKey` for an already-settled interactive
+ * swipe: suppresses `slidePhonePage` (surviving async `history.back()`/`history.go(-n)` `popstate`),
+ * holds `holdElement` over `[data-phone-stage]` through the synchronous route swap + 1 paint frame,
+ * and auto-releases on timeout, tab hide, or stage disconnect so the UI can never strand.
+ */
+export const claimInteractivePhoneSlide = ({
+  fromLocationKey,
+  holdElement,
+  shield: settleShield,
+  timeoutMs = DEFAULT_HANDOFF_TIMEOUT_MS,
+}: {
+  fromLocationKey: string;
+  holdElement?: HTMLElement;
+  /** The shield the scene mounted for its settle: the handoff keeps it, with no second one. */
+  shield?: HTMLElement;
+  timeoutMs?: number;
+}): (() => void) => {
+  if (
+    fromLocationKey &&
+    activeRouterSubscribers > 0 &&
+    currentPhoneLocationKey !== undefined &&
+    currentPhoneLocationKey !== fromLocationKey
+  ) {
+    settleShield?.remove();
+    if (holdElement) {
+      holdElement.remove();
+      holdElement.removeAttribute(SWIPE_PREVIEW);
+      clearInlineTranslate(holdElement);
+    }
+    return () => undefined;
+  }
+
+  if (interactiveHandoff) interactiveHandoff.release();
+  if (active) active.skip();
+
+  const page = typeof document === 'undefined' ? undefined : document;
+  const stage = page?.querySelector(`[${PHONE_STAGE}]`) ?? null;
+
+  if (holdElement) {
+    if (stage && !holdElement.isConnected) stage.append(holdElement);
+    holdElement.setAttribute(SWIPE_PREVIEW, 'hold');
+    holdElement.style.translate = '0px 0';
+  }
+
+  const shield = settleShield ?? (stage ? mountHoldShield(stage) : undefined);
+
+  let released = false;
+  let timer = 0;
+  let frame = 0;
+  let watch: MutationObserver | undefined;
+  let finish: () => void = () => undefined;
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+
+  const onVisibilityChange = () => {
+    if (page?.visibilityState === 'hidden') release();
+  };
+
+  const release = () => {
+    if (released) return;
+    released = true;
+    window.clearTimeout(timer);
+    window.cancelAnimationFrame(frame);
+    watch?.disconnect();
+    page?.removeEventListener('visibilitychange', onVisibilityChange);
+    shield?.remove();
+    if (holdElement) {
+      holdElement.remove();
+      holdElement.removeAttribute(SWIPE_PREVIEW);
+      clearInlineTranslate(holdElement);
+    }
+    if (interactiveHandoff === handoff) {
+      interactiveHandoff = undefined;
+      setInteractivePhoneSlideClaimed(false);
+    }
+    if (active === handoffSlide) {
+      playing = false;
+      active = undefined;
+    }
+    finish();
+  };
+
+  const finishAfterPaint = () => {
+    if (released) return;
+    window.clearTimeout(timer);
+    frame = window.requestAnimationFrame(() => release());
+    timer = window.setTimeout(release, FRAME_MS);
+  };
+
+  const handoff: InteractiveHandoff = {
+    fromLocationKey,
+    consumed: false,
+    finishAfterPaint,
+    release,
+  };
+  const handoffSlide: Slide = {
+    finished,
+    skip: release,
+  };
+
+  playing = true;
+  active = handoffSlide;
+  interactiveHandoff = handoff;
+  setInteractivePhoneSlideClaimed(true);
+
+  timer = window.setTimeout(release, timeoutMs);
+  page?.addEventListener('visibilitychange', onVisibilityChange);
+  if (page && stage) {
+    watch = new MutationObserver(() => {
+      if (!stage.isConnected || !stage.hasAttribute(PHONE_STAGE)) release();
+    });
+    watch.observe(page, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [PHONE_STAGE],
+    });
+  }
+
+  return release;
+};
+
+const getTopBarHeight = (stage: Element): number => {
+  const topBar = Array.from(stage.children).find(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement && child.hasAttribute(PHONE_TOP_BAR)
+  );
+  return topBar ? topBar.getBoundingClientRect().height : 0;
+};
+
+/** Mounts the input shield over `stage`, below its top bar: taps and touches stop at it. */
+const mountHoldShield = (stage: Element): HTMLDivElement => {
+  const shield = document.createElement('div');
+  shield.setAttribute(SWIPE_HOLD_SHIELD, '');
+  shield.setAttribute('aria-hidden', 'true');
+  const topBarHeight = getTopBarHeight(stage);
+  if (topBarHeight > 0) shield.style.insetBlockStart = `${topBarHeight}px`;
+  shield.style.pointerEvents = 'auto';
+  const stopTouch = (event: Event) => {
+    event.stopPropagation();
+  };
+  shield.addEventListener('touchstart', stopTouch, { passive: true });
+  shield.addEventListener('touchmove', stopTouch, { passive: true });
+  shield.addEventListener('touchend', stopTouch, { passive: true });
+  shield.addEventListener('touchcancel', stopTouch, { passive: true });
+  stage.append(shield);
+  return shield;
+};
+
+const createBackdropElement = (
+  mode: 'backdrop' | 'over-backdrop',
+  topBarHeight: number
+): HTMLDivElement => {
+  const backdrop = document.createElement('div');
+  backdrop.setAttribute(SWIPE_PREVIEW, mode);
+  backdrop.setAttribute(SWIPE_BACKDROP, '');
+  backdrop.setAttribute('aria-hidden', 'true');
+  if (topBarHeight > 0) backdrop.style.insetBlockStart = `${topBarHeight}px`;
+  return backdrop;
+};
+
+/**
+ * Interactive finger-following scene for dragging start-edge back from an open thread to its room.
+ * Reveals the retained room preview (or a neutral themed surface backdrop) with -30% parallax and
+ * a subtle dim veil, captures the departing thread preview on commit, and hands off via
+ * `claimInteractivePhoneSlide` so the route change never double-slides.
+ */
+export const createThreadBackSwipeScene = ({
+  key,
+  fromLocationKey,
+  onCommit,
+  dirSign,
+}: {
+  key: PhoneSwipePreviewKey;
+  fromLocationKey: string;
+  onCommit: () => void;
+  dirSign?: 1 | -1;
+}): InteractiveSwipeScene | null => {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || playing) return null;
+  const stage = document.querySelector<HTMLElement>(`[${PHONE_STAGE}]`);
+  if (!stage) return null;
+
+  const rect = stage.getBoundingClientRect();
+  const width = rect.width > 0 ? rect.width : window.innerWidth;
+  if (width <= 0) return null;
+
+  const sign = dirSign ?? resolveLogicalDirectionSign(stage);
+  const topElements = getStageSlidingChildren(stage);
+  const topPage = topElements.find((element) => element.hasAttribute(PHONE_PAGE));
+
+  const topBarHeight = getTopBarHeight(stage);
+  const matchedRoom = getMatchingPreview('room', key, stage);
+  const under = matchedRoom
+    ? mountStageSnapshot(matchedRoom, stage)
+    : (() => {
+        const backdrop = createBackdropElement('backdrop', topBarHeight);
+        stage.append(backdrop);
+        return backdrop;
+      })();
+  if (matchedRoom) under.setAttribute(SWIPE_PREVIEW, 'under');
+  under.setAttribute('data-swiping', '');
+  under.style.translate = `${-0.3 * width * sign}px 0`;
+
+  const dim = document.createElement('div');
+  dim.setAttribute(SWIPE_DIM, 'back');
+  dim.setAttribute('aria-hidden', 'true');
+  dim.setAttribute('data-swiping', '');
+  if (topBarHeight > 0) dim.style.insetBlockStart = `${topBarHeight}px`;
+  dim.style.opacity = String(DIM_MAX_OPACITY);
+  stage.append(dim);
+
+  stage.setAttribute(SWIPE_STAGE, 'back');
+  topElements.forEach((element) => element.setAttribute('data-swiping', ''));
+  topPage?.setAttribute('data-swipe-shadow', '');
+
+  const startedWithContext = activeSwipeContext !== undefined;
+  let handedOff = false;
+  let shield: HTMLElement | undefined;
+  let capturedPreview: StoredPreview | undefined;
+
+  const rollbackCapturedPreview = () => {
+    if (capturedPreview && threadPreview === capturedPreview) {
+      threadPreview = undefined;
+      syncPreviewResizeListener();
+    }
+    capturedPreview = undefined;
+  };
+
+  const clearTopStyles = () => {
+    topElements.forEach((element) => {
+      clearInlineTranslate(element);
+      element.removeAttribute('data-swiping');
+    });
+    topPage?.removeAttribute('data-swipe-shadow');
+    stage.removeAttribute(SWIPE_STAGE);
+  };
+
+  return {
+    extent: width,
+    update(offsetPx, progress) {
+      const topTranslate = `${offsetPx * sign}px 0`;
+      topElements.forEach((element) => {
+        element.style.translate = topTranslate;
+      });
+      under.style.translate = `${-0.3 * width * (1 - progress) * sign}px 0`;
+      dim.style.opacity = String(DIM_MAX_OPACITY * (1 - progress));
+    },
+    settle(commit, durationMs, currentOffsetPx) {
+      // From the release on, whichever way it settles: a tap must not land on what still moves.
+      shield ??= mountHoldShield(stage);
+      const shouldCommit =
+        commit && isSceneContextCurrent('back', key, fromLocationKey, startedWithContext);
+      if (shouldCommit) {
+        capturedPreview = capturePhoneSwipePreviewEntry('thread', key, {
+          horizontalShiftPx: currentOffsetPx * sign,
+        });
+      }
+      const currentProgress = Math.max(0, Math.min(1, currentOffsetPx / width));
+      const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
+        ...topElements.map((element) => ({
+          element,
+          keyframes: [
+            { translate: `${currentOffsetPx * sign}px 0` },
+            { translate: `${shouldCommit ? width * sign : 0}px 0` },
+          ],
+        })),
+        {
+          element: under,
+          keyframes: [
+            { translate: `${-0.3 * width * (1 - currentProgress) * sign}px 0` },
+            { translate: `${shouldCommit ? 0 : -0.3 * width * sign}px 0` },
+          ],
+        },
+        {
+          element: dim,
+          keyframes: [
+            { opacity: String(DIM_MAX_OPACITY * (1 - currentProgress)) },
+            { opacity: String(shouldCommit ? 0 : DIM_MAX_OPACITY) },
+          ],
+        },
+      ];
+      return animateSwipeElements(animations, durationMs);
+    },
+    commit() {
+      if (!isSceneContextCurrent('back', key, fromLocationKey, startedWithContext)) {
+        rollbackCapturedPreview();
+        return;
+      }
+      handedOff = true;
+      dim.remove();
+      under.removeAttribute('data-swiping');
+      under.style.translate = '0px 0';
+      under.setAttribute(SWIPE_PREVIEW, 'hold');
+      if (roomPreview?.snapshot.copy === under) {
+        roomPreview = undefined;
+        syncPreviewResizeListener();
+      }
+      claimInteractivePhoneSlide({ fromLocationKey, holdElement: under, shield });
+      clearTopStyles();
+      onCommit();
+    },
+    cleanup() {
+      dim.remove();
+      clearTopStyles();
+      if (!handedOff) {
+        shield?.remove();
+        rollbackCapturedPreview();
+        under.remove();
+        under.removeAttribute(SWIPE_PREVIEW);
+        under.removeAttribute('data-swiping');
+        clearInlineTranslate(under);
+      }
+    },
+  };
+};
+
+/**
+ * Interactive finger-following scene for dragging end-edge forward from a room back into its last
+ * exited thread. Slides the retained thread preview (or a neutral themed sheet) in over the room
+ * while shifting the live room -30%, captures the departing room preview on commit, and hands off
+ * via `claimInteractivePhoneSlide` so the route change never double-slides.
+ */
+export const createThreadForwardSwipeScene = ({
+  key,
+  fromLocationKey,
+  onCommit,
+  dirSign,
+}: {
+  key: PhoneSwipePreviewKey;
+  fromLocationKey: string;
+  onCommit: () => void;
+  dirSign?: 1 | -1;
+}): InteractiveSwipeScene | null => {
+  if (typeof document === 'undefined' || typeof window === 'undefined' || playing) return null;
+  const stage = document.querySelector<HTMLElement>(`[${PHONE_STAGE}]`);
+  if (!stage) return null;
+
+  const rect = stage.getBoundingClientRect();
+  const width = rect.width > 0 ? rect.width : window.innerWidth;
+  if (width <= 0) return null;
+
+  const sign = dirSign ?? resolveLogicalDirectionSign(stage);
+  const underElements = getStageSlidingChildren(stage);
+
+  const topBarHeight = getTopBarHeight(stage);
+  const dim = document.createElement('div');
+  dim.setAttribute(SWIPE_DIM, 'forward');
+  dim.setAttribute('aria-hidden', 'true');
+  dim.setAttribute('data-swiping', '');
+  if (topBarHeight > 0) dim.style.insetBlockStart = `${topBarHeight}px`;
+  dim.style.opacity = '0';
+  stage.append(dim);
+
+  const matchedThread = getMatchingPreview('thread', key, stage);
+  const over = matchedThread
+    ? mountStageSnapshot(matchedThread, stage)
+    : (() => {
+        const backdrop = createBackdropElement('over-backdrop', topBarHeight);
+        stage.append(backdrop);
+        return backdrop;
+      })();
+  if (matchedThread) over.setAttribute(SWIPE_PREVIEW, 'over');
+  const overShadowTarget = matchedThread
+    ? over.querySelector<HTMLElement>(`[${PHONE_PAGE}]`) ?? over
+    : over;
+  over.setAttribute('data-swiping', '');
+  overShadowTarget.setAttribute('data-swipe-shadow', '');
+  over.style.translate = `${width * sign}px 0`;
+
+  stage.setAttribute(SWIPE_STAGE, 'forward');
+  underElements.forEach((element) => element.setAttribute('data-swiping', ''));
+
+  const startedWithContext = activeSwipeContext !== undefined;
+  let handedOff = false;
+  let shield: HTMLElement | undefined;
+  let capturedPreview: StoredPreview | undefined;
+
+  const rollbackCapturedPreview = () => {
+    if (capturedPreview && roomPreview === capturedPreview) {
+      roomPreview = undefined;
+      syncPreviewResizeListener();
+    }
+    capturedPreview = undefined;
+  };
+
+  const clearUnderStyles = () => {
+    underElements.forEach((element) => {
+      clearInlineTranslate(element);
+      element.removeAttribute('data-swiping');
+    });
+    stage.removeAttribute(SWIPE_STAGE);
+  };
+
+  return {
+    extent: width,
+    update(offsetPx, progress) {
+      over.style.translate = `${(width - offsetPx) * sign}px 0`;
+      const underTranslate = `${-0.3 * width * progress * sign}px 0`;
+      underElements.forEach((element) => {
+        element.style.translate = underTranslate;
+      });
+      dim.style.opacity = String(DIM_MAX_OPACITY * progress);
+    },
+    settle(commit, durationMs, currentOffsetPx) {
+      // From the release on, whichever way it settles: a tap must not land on what still moves.
+      shield ??= mountHoldShield(stage);
+      const currentProgress = Math.max(0, Math.min(1, currentOffsetPx / width));
+      const shouldCommit =
+        commit && isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext);
+      if (shouldCommit) {
+        capturedPreview = capturePhoneSwipePreviewEntry('room', key, {
+          horizontalShiftPx: -0.3 * width * currentProgress * sign,
+        });
+      }
+      const animations: Array<{ element: HTMLElement; keyframes: Keyframe[] }> = [
+        {
+          element: over,
+          keyframes: [
+            { translate: `${(width - currentOffsetPx) * sign}px 0` },
+            { translate: `${shouldCommit ? 0 : width * sign}px 0` },
+          ],
+        },
+        ...underElements.map((element) => ({
+          element,
+          keyframes: [
+            { translate: `${-0.3 * width * currentProgress * sign}px 0` },
+            { translate: `${shouldCommit ? -0.3 * width * sign : 0}px 0` },
+          ],
+        })),
+        {
+          element: dim,
+          keyframes: [
+            { opacity: String(DIM_MAX_OPACITY * currentProgress) },
+            { opacity: String(shouldCommit ? DIM_MAX_OPACITY : 0) },
+          ],
+        },
+      ];
+      return animateSwipeElements(animations, durationMs);
+    },
+    commit() {
+      if (!isSceneContextCurrent('forward', key, fromLocationKey, startedWithContext)) {
+        rollbackCapturedPreview();
+        return;
+      }
+      handedOff = true;
+      dim.remove();
+      over.removeAttribute('data-swiping');
+      overShadowTarget.removeAttribute('data-swipe-shadow');
+      over.style.translate = '0px 0';
+      over.setAttribute(SWIPE_PREVIEW, 'hold');
+      if (threadPreview?.snapshot.copy === over) {
+        threadPreview = undefined;
+        syncPreviewResizeListener();
+      }
+      claimInteractivePhoneSlide({ fromLocationKey, holdElement: over, shield });
+      clearUnderStyles();
+      onCommit();
+    },
+    cleanup() {
+      dim.remove();
+      clearUnderStyles();
+      if (!handedOff) {
+        shield?.remove();
+        rollbackCapturedPreview();
+        over.remove();
+        over.removeAttribute(SWIPE_PREVIEW);
+        over.removeAttribute('data-swiping');
+        overShadowTarget.removeAttribute('data-swipe-shadow');
+        clearInlineTranslate(over);
+      }
+    },
+  };
+};
 
 /**
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
@@ -287,9 +1052,12 @@ export const slidePhonePage = (change: Change): void => {
     // Hidden while it waited for its frame: the page changes, and nothing slides.
     const slides = sliding && from !== 0 && page.visibilityState !== 'hidden';
     const shown = slides ? page.querySelector(`[${PHONE_STAGE}]`) : null;
-    let show: ReturnType<typeof copyOf> | undefined;
+    const departingContext = activeSwipeContext;
+    let snapshot: StageSnapshot | undefined;
     try {
-      show = shown ? copyOf(shown) : undefined;
+      if (shown) {
+        snapshot = captureStageSnapshot(shown);
+      }
     } catch {
       // No copy: the page still changes, with nothing sliding.
     }
@@ -305,9 +1073,31 @@ export const slidePhonePage = (change: Change): void => {
     // Nothing to slide from the list, nor where the page is as deep as it was, and nothing where
     // the copy would not fit: the phone layout is gone (signed out, turned sideways), or a
     // dialog still open over the page would show under it.
-    if (ended || !show || to === from || !stage || hasBlockingPortalOverlay()) {
+    if (ended || !snapshot || to === from || !stage || hasBlockingPortalOverlay()) {
       end();
       return;
+    }
+    if (snapshot && departingContext) {
+      if (from === 1 && to === 2) {
+        const enteredContext = activeSwipeContext;
+        if (
+          enteredContext?.threadId &&
+          enteredContext.sessionId === departingContext.sessionId &&
+          enteredContext.roomId === departingContext.roomId
+        ) {
+          storePhoneSwipePreview(
+            'room',
+            {
+              sessionId: departingContext.sessionId,
+              roomId: departingContext.roomId,
+              threadId: enteredContext.threadId,
+            },
+            snapshot
+          );
+        }
+      } else if (from === 2 && to === 1 && departingContext.threadId) {
+        storePhoneSwipePreview('thread', departingContext, snapshot);
+      }
     }
     const direction = to > from ? 'forward' : 'back';
     root.dataset.pageSlide = direction;
@@ -320,7 +1110,7 @@ export const slidePhonePage = (change: Change): void => {
         trace = undefined;
       }
     }
-    copy = show(stage);
+    copy = mountStageSnapshot(snapshot, stage);
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.
     watch = new MutationObserver(() => {
@@ -363,6 +1153,9 @@ export const slidePhonePage = (change: Change): void => {
  * Runs `change` now, or after the changes that wait for a slide's frame: what it sets is how
  * the page is left when they have run.
  */
+/** Whether a phone page slide is currently waiting for its frame or playing. */
+export const isPhonePageSlideActive = (): boolean => Boolean(waiting || playing || active);
+
 export const afterWaitingSlide = (change: () => void): void => {
   if (waiting) waiting.push(change);
   else change();
@@ -382,19 +1175,22 @@ export const afterWaitingSlide = (change: () => void): void => {
  * Put away, it goes through `slidePhonePage`, so a tap on a link in it and the navigation that
  * follows run together from the list, where nothing slides.
  */
-export const movePhoneNavDrawer = (open: boolean, set: (open: boolean) => void): void => {
+export const movePhoneNavDrawer = (
+  open: boolean,
+  set: (open: boolean) => void
+): Promise<void> | undefined => {
   if (!open) {
     slidePhonePage(() => set(false));
-    return;
+    return undefined;
   }
   const slide = active;
   if (!slide) {
     set(true);
-    return;
+    return undefined;
   }
   slide.skip();
   // After the slide's own end (`end` in `slidePhonePage`), which takes its marker away.
-  void slide.finished.then(() => {
+  return slide.finished.then(() => {
     if (document.querySelector(`[${PHONE_STAGE}]`)) set(true);
   });
 };
@@ -419,15 +1215,44 @@ export const withPhonePageSlide = (router: Router): Router => {
   );
   const subscribe: Router['subscribe'] = (listener) => {
     let shown = router.state.location.key;
-    return router.subscribe((state, opts) => {
+    activeRouterSubscribers += 1;
+    currentPhoneLocationKey = shown;
+    const unsubscribe = router.subscribe((state, opts) => {
       const moved = state.location.key !== shown;
       shown = state.location.key;
+      currentPhoneLocationKey = shown;
+      if (moved && interactiveHandoff) {
+        if (
+          !interactiveHandoff.consumed &&
+          state.location.key !== interactiveHandoff.fromLocationKey
+        ) {
+          browserSlid = false;
+          const handoff = interactiveHandoff;
+          handoff.consumed = true;
+          try {
+            listener(state, { ...opts, flushSync: true });
+          } catch (error) {
+            handoff.release();
+            throw error;
+          }
+          handoff.finishAfterPaint();
+          return;
+        }
+        if (interactiveHandoff.consumed) {
+          interactiveHandoff.release();
+        }
+      }
       const slides = moved && !(browserSlid && state.historyAction === NavigationType.Pop);
       if (moved) browserSlid = false;
       if (slides) {
         slidePhonePage((sliding) => listener(state, sliding ? { ...opts, flushSync: true } : opts));
       } else afterWaitingSlide(() => listener(state, opts));
     });
+    return () => {
+      unsubscribe();
+      activeRouterSubscribers = Math.max(0, activeRouterSubscribers - 1);
+      if (activeRouterSubscribers === 0) currentPhoneLocationKey = undefined;
+    };
   };
   // The router's own properties are read through it: they are getters over its state.
   return Object.create(router, { subscribe: { value: subscribe } }) as Router;

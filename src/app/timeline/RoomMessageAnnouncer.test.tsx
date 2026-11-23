@@ -294,6 +294,62 @@ describe('RoomMessageAnnouncer', () => {
     expect(body).toBe('@Helper could you help? Ask @someone:example.org too.');
   });
 
+  it('keeps tracking a streamed reply across an approval_pending pause and announces the final answer', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+    const earlyRun = {
+      version: 1,
+      model: {
+        config: 'gemini4_neon',
+        display_name: 'Gemini 4 Neon',
+        id: 'google/gemini-4-neon',
+        provider: 'openrouter',
+      },
+    };
+    const reply = message(AGENT, {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+      'io.mindroom.ai_run': earlyRun,
+    });
+    const edit = (body: string, status: string, aiRun: Record<string, unknown> = earlyRun) =>
+      message(AGENT, {
+        msgtype: 'm.text',
+        body: `* ${body}`,
+        'm.new_content': {
+          msgtype: 'm.text',
+          body,
+          'io.mindroom.stream_status': status,
+          'io.mindroom.ai_run': aiRun,
+        },
+        'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
+      });
+
+    receive(reply);
+    receive(edit('Waiting for tool approval...', 'approval_pending'));
+    expect(logLines(view)).toEqual([]);
+
+    receive(edit('Continuing...', 'streaming'));
+    expect(logLines(view)).toEqual([]);
+
+    receive(edit('Final answer', 'completed', { ...earlyRun, status: 'completed' }));
+    expect(logLines(view)).toEqual(['Code: Final answer']);
+  });
+
+  it('reads a message that first arrives waiting for an approval at once', () => {
+    const { room, receive } = createRoom();
+    const view = render(room);
+
+    receive(
+      message(AGENT, {
+        msgtype: 'm.text',
+        body: 'Waiting for your approval',
+        'io.mindroom.stream_status': 'approval_pending',
+      })
+    );
+    expect(logLines(view)).toEqual(['Code: Waiting for your approval']);
+  });
+
   it('reads a canvas notice as its title, not the fallback body for other clients', () => {
     const notice = {
       msgtype: 'm.notice',

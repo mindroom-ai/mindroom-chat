@@ -140,7 +140,3 @@ export const MoreMenuMetaValue = style({
   minWidth: 0,
   color: color.Surface.OnContainer,
 });
-
-export const Audio = style({
-  display: 'none',
-});

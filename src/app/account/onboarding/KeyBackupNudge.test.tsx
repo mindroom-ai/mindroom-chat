@@ -49,19 +49,19 @@ describe('KeyBackupNudge', () => {
       { kind: 'ready', key: KEY },
     ] as RecoveryState[]) {
       renderNudge(state);
-      expect(screen.queryByText('Protect your messages')).toBeNull();
+      expect(screen.queryByText('Set up a recovery password')).toBeNull();
       cleanup();
     }
     renderNudge({ kind: 'none' });
-    expect(screen.getByText('Protect your messages')).toBeTruthy();
-    expect(screen.getByText(/Set a recovery password so you can still read/)).toBeTruthy();
+    expect(screen.getByText('Set up a recovery password')).toBeTruthy();
+    expect(screen.getByText('Keep access to encrypted chats on a new device.')).toBeTruthy();
   });
 
   it('opens the recovery password setup from its button', async () => {
     mockClient();
     const store = renderNudge({ kind: 'none' });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Set up recovery password' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Set up a recovery password' }));
     });
     expect(store.get(recoveryDialogAtom)).toBe('setup');
   });
@@ -75,7 +75,7 @@ describe('KeyBackupNudge', () => {
   it('shows nothing without crypto or when encryption is disabled by policy', () => {
     mockClient(null);
     renderNudge({ kind: 'none' });
-    expect(screen.queryByText('Protect your messages')).toBeNull();
+    expect(screen.queryByText('Set up a recovery password')).toBeNull();
     cleanup();
 
     mockClient();
@@ -83,13 +83,13 @@ describe('KeyBackupNudge', () => {
       { kind: 'none' },
       { createRoom: { showEncryptionOption: false, defaultEncryption: false } }
     );
-    expect(screen.queryByText('Protect your messages')).toBeNull();
+    expect(screen.queryByText('Set up a recovery password')).toBeNull();
     cleanup();
 
     renderNudge(
       { kind: 'none' },
       { createRoom: { showEncryptionOption: false, defaultEncryption: true } }
     );
-    expect(screen.getByText('Protect your messages')).toBeTruthy();
+    expect(screen.getByText('Set up a recovery password')).toBeTruthy();
   });
 });

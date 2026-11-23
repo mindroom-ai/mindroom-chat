@@ -57,7 +57,7 @@ describe('useUnconfirmedRootSends', () => {
       userId: USER,
       onConfirmedRef,
     });
-    const saveDraft = useRoomInputDraft(editor, USER, ROOM, threadId);
+    const saveDraft = useRoomInputDraft(editor, getRoomInputDraftKey(USER, ROOM, threadId));
     editor.onChange = saveDraft;
     return null;
   };

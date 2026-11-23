@@ -5,7 +5,32 @@
         "appIDs": ["DNA6966LGZ.chat.mindroom.app"],
         "components": [
           { "/": "/connect", "comment": "Local MindRoom pairing" },
-          { "/": "/connect/" }
+          { "/": "/connect/" },
+          {
+            "/": "/!*/search",
+            "exclude": true,
+            "caseSensitive": false,
+            "percentEncoded": false,
+            "comment": "Space search routes stay on web, in any letter case or percent-encoding"
+          },
+          { "/": "/!*/search/", "exclude": true, "caseSensitive": false, "percentEncoded": false },
+          { "/": "/#*/search", "exclude": true, "caseSensitive": false, "percentEncoded": false },
+          { "/": "/#*/search/", "exclude": true, "caseSensitive": false, "percentEncoded": false },
+          { "/": "/!*", "comment": "Shared room, space, and message permalinks" },
+          { "/": "/%21*" },
+          { "/": "/%23*" },
+          { "/": "/home/!*", "comment": "Home section room and message links" },
+          { "/": "/home/%21*" },
+          { "/": "/home/%23*" },
+          { "/": "/direct/!*", "comment": "Direct message room and message links" },
+          { "/": "/direct/%21*" },
+          { "/": "/direct/%23*" },
+          { "/": "/threads/!*", "comment": "Threads section room and message links" },
+          { "/": "/threads/%21*" },
+          { "/": "/threads/%23*" },
+          { "/": "/activity/!*", "comment": "Activity section room and message links" },
+          { "/": "/activity/%21*" },
+          { "/": "/activity/%23*" }
         ]
       }
     ]

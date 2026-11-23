@@ -109,18 +109,21 @@ const passMarker = (run: ReplyRun, event: MatrixEvent): ReplyRun => ({
 /**
  * The reply run above `index`, read backwards: the quiet markers below the nearest other row, that
  * row, and the message it and the rows above it all reply to, if that message sits right above
- * them past quiet markers. Matches folding from the top.
+ * them past quiet markers. A closed fold's break ends the run, and is no row of it: the rows
+ * above it, and the event that draws it, are not right above a reply below it. Matches folding
+ * from the top.
  */
 const primeReplyRun = (
   getEvent: (index: number) => MatrixEvent | undefined,
   index: number,
   isSkipped: (event: MatrixEvent) => boolean,
-  isQuietMarker: (event: MatrixEvent) => boolean
+  isQuietMarker: (event: MatrixEvent) => boolean,
+  isBreakRow: (index: number) => boolean
 ): ReplyRun => {
   const markerIds: string[] = [];
   let rowId: string | undefined;
   let targetId: string | undefined;
-  for (let above = index - 1; above >= 0; above -= 1) {
+  for (let above = index - 1; above >= 0 && !isBreakRow(above); above -= 1) {
     const event = getEvent(above);
     if (showsRow(event, isSkipped)) {
       if (rowId !== undefined && event.getId() === targetId) {
@@ -158,6 +161,11 @@ type FoldOptions = {
   isQuietMarker?: (event: MatrixEvent) => boolean;
   /** Of the quiet marker rows, those that show beside others (`quietRunIndexes`). */
   joinsQuietRun?: (event: MatrixEvent) => boolean;
+  /**
+   * A row that draws the break of a closed fold in place of the fold's rows (the room's
+   * membership events): `getAbsoluteIndex` gives the place of the fold's last event.
+   */
+  isFoldBreak?: (index: number) => boolean;
 };
 
 /** The next row with output after `index`, or undefined past the loaded events. */
@@ -186,6 +194,12 @@ const nextRowIndex = (
  * them, show as one row: the run's first marker shows them all side by side. A run that crosses an
  * edge of the window is read from the loaded rows past it, so a row shows or folds the same
  * wherever the window starts or ends.
+ *
+ * A closed fold's break stands for rows that do not show: it takes no date divider and no place
+ * in a group or a reply run, and the row above the next row stays the one above the fold, so a
+ * day that changed inside the fold shows above the next row. With no row above it, the fold's
+ * first event stands for that row. The unread divider goes above the break when the read marker
+ * is before the fold's last event.
  */
 export const foldTimelineRowContexts = ({
   indexes,
@@ -196,6 +210,7 @@ export const foldTimelineRowContexts = ({
   groupStartIndex,
   isQuietMarker: readsAsQuietMarker = () => false,
   joinsQuietRun = () => true,
+  isFoldBreak = () => false,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -228,11 +243,16 @@ export const foldTimelineRowContexts = ({
     while (above >= 0 && !showsRow(getEvent(above), isSkipped)) above -= 1;
     return above;
   };
-  // The last row with output above the window, and above the run of markers the window starts
-  // in. Without one (-1), the row before these rows stands for it: a read marker above that row
-  // puts no unread divider over the first row here.
+  const isBreakRow = (index: number): boolean =>
+    showsRow(getEvent(index), isSkipped) && isFoldBreak(index);
+  // The last row with output above the window, above the run of markers the window starts in,
+  // and above a closed fold's break right over the window, which keeps that row as the row above
+  // the next. Without one (-1), the row before these rows stands for it: a read marker above that
+  // row puts no unread divider over the first row here.
   let before = previousRowIndex(firstIndex);
-  while (before >= 0 && isMarkerRow(before)) before = previousRowIndex(before);
+  while (before >= 0 && (isBreakRow(before) || isMarkerRow(before))) {
+    before = previousRowIndex(before);
+  }
   // The window's last row, or the last marker of the run it ends in.
   let lastIndex = windowLastIndex;
   for (
@@ -246,7 +266,7 @@ export const foldTimelineRowContexts = ({
   let above: MatrixEvent | undefined;
   let aboveHasRow = false;
   let dayChanged = false;
-  let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker);
+  let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker, isBreakRow);
   let quietRun: number[] = [];
   const endQuietRun = () => {
     const [shownIndex, ...folded] = quietRun;
@@ -263,7 +283,23 @@ export const foldTimelineRowContexts = ({
 
   for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
     const event = getEvent(index);
-    if (event?.getId() && !isSkipped(event)) {
+    if (event?.getId() && !isSkipped(event) && isFoldBreak(index)) {
+      endQuietRun();
+      const absoluteIndex = getAbsoluteIndex?.(index);
+      contexts.set(index, {
+        collapse: false,
+        dayDivider: false,
+        unreadDivider: shouldRenderUnreadDividerAt({
+          readUptoAbsoluteIndex,
+          eventAbsoluteIndex: absoluteIndex,
+          prevRenderedEventAbsoluteIndex: lastRowAbsoluteIndex,
+        }),
+      });
+      lastRowAbsoluteIndex = absoluteIndex;
+      above ??= event;
+      aboveHasRow = false;
+      replyRun = {};
+    } else if (event?.getId() && !isSkipped(event)) {
       if (above && !inSameDay(above.getTs(), event.getTs())) dayChanged = true;
       const hasRow = !isRowlessTimelineEvent(event);
       const absoluteIndex = getAbsoluteIndex?.(index);

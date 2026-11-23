@@ -155,7 +155,8 @@ function parseInline(node: ChildNode, marks: Marks, markdown: boolean): InlineCo
             text || permalink.id,
             permalink.id === '@room',
             permalink.eventId,
-            permalink.viaServers
+            permalink.viaServers,
+            href
           ),
         ];
       }

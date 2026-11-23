@@ -34,20 +34,50 @@ type ThreadNavItemProps = {
 };
 
 /**
+ * What a row of one thread shows and does, in the sidebar and on Home: its room, its card's model,
+ * its age, and opening it, as the room's view mode opens a thread.
+ */
+export const useThreadEntryRow = (entry: CrossRoomThreadIndexEntry) => {
+  const { t, i18n } = useTranslation();
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const room = mx.getRoom(entry.roomId);
+  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  const { viewMode } = useRoomViewMode(entry.roomId);
+  const relativeTime = useRelativeTime(entry.lastActivityTs);
+  const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
+  const viewModel = useMemo(
+    () =>
+      room
+        ? buildCompactThreadCardViewModelFromRecord({
+            record: entry.threadRecord,
+            room,
+            currentUserId: mx.getUserId() ?? undefined,
+            mx,
+            useAuthentication,
+            t,
+            locale: i18n.language,
+          })
+        : undefined,
+    [entry.threadRecord, i18n.language, mx, room, t, useAuthentication]
+  );
+  const open = () => {
+    if (viewMode === 'classic') navigateRoom(entry.roomId, entry.threadRootId);
+    else navigateRoomThreadDirect(entry.roomId, entry.threadRootId);
+  };
+  return { room, viewModel, relativeTime, shownRef, open };
+};
+
+/**
  * One thread in the sidebar's THREADS list: its title, an unread dot, and on hover the room,
  * agents, size and age of the thread, what runs in it now and plugins' details, with actions to
  * pin it in the sidebar and resolve it.
  */
 export const ThreadNavItem = memo(
   ({ entry, pinned, onTogglePin, selected }: ThreadNavItemProps) => {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const mx = useMatrixClient();
-    const useAuthentication = useMediaAuthentication();
-    const room = mx.getRoom(entry.roomId);
-    const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
-    const { viewMode } = useRoomViewMode(entry.roomId);
-    const relativeTime = useRelativeTime(entry.lastActivityTs);
-    const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
+    const { room, viewModel, relativeTime, shownRef, open } = useThreadEntryRow(entry);
     const [pinHovered, setPinHovered] = useState(false);
     const engine = useSyncEngine();
 
@@ -60,22 +90,6 @@ export const ThreadNavItem = memo(
       if (rootEvent) saveThreadRoot(engine.persist, room, entry.threadRootId, rootEvent);
       else requestCachedThreadRoot(mx, engine.sessionId, room, entry.threadRootId);
     }, [engine, entry.threadRootId, mx, room, rootEvent]);
-
-    const viewModel = useMemo(
-      () =>
-        room
-          ? buildCompactThreadCardViewModelFromRecord({
-              record: entry.threadRecord,
-              room,
-              currentUserId: mx.getUserId() ?? undefined,
-              mx,
-              useAuthentication,
-              t,
-              locale: i18n.language,
-            })
-          : undefined,
-      [entry.threadRecord, i18n.language, mx, room, t, useAuthentication]
-    );
 
     if (!room) return null;
     return (
@@ -98,13 +112,7 @@ export const ThreadNavItem = memo(
         setPinHovered={setPinHovered}
         onTogglePin={onTogglePin}
         selected={selected}
-        onOpen={() => {
-          if (viewMode === 'classic') {
-            navigateRoom(entry.roomId, entry.threadRootId);
-            return;
-          }
-          navigateRoomThreadDirect(entry.roomId, entry.threadRootId);
-        }}
+        onOpen={open}
         t={t}
       />
     );

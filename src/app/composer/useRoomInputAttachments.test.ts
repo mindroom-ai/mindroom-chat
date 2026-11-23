@@ -90,7 +90,10 @@ const renderHarness = (
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   let saveDraft!: () => void;
   const Harness = ({ threadId, roomId = ROOM_ID }: { threadId?: string; roomId?: string }) => {
-    saveDraft = useRoomInputDraft(editor, '@tester:example.org', roomId, threadId);
+    saveDraft = useRoomInputDraft(
+      editor,
+      getRoomInputDraftKey('@tester:example.org', roomId, threadId)
+    );
     feature = useRoomInputAttachments({
       mx: mx as never,
       userId: '@tester:example.org',
@@ -245,10 +248,7 @@ describe('attachment staging ownership', () => {
     harness.changeThread('$first');
     const item = createPasteItem();
     await act(async () => {
-      Transforms.insertNodes(
-        harness.editor,
-        createRoomInputPasteMarkerElement(pasteMarker)
-      );
+      Transforms.insertNodes(harness.editor, createRoomInputPasteMarkerElement(pasteMarker));
       harness.feature.access.append(ROOM_ID, [item]);
       harness.onEditorChange();
     });
