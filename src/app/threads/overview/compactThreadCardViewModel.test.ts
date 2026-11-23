@@ -97,6 +97,7 @@ const makeRoom = ({
 } = {}): Room =>
   ({
     roomId: '!room:server',
+    currentState: { getStateEvents: () => [] },
     getThread: vi.fn(() => thread),
     findEventById: vi.fn(() => rootEvent),
     getUnfilteredTimelineSet: vi.fn(() => ({

@@ -57,6 +57,7 @@ const listedThread = ({ participated }: { participated: boolean }) => {
   };
   const room = {
     roomId: '!room:server',
+    currentState: { getStateEvents: () => [] },
     getThread: vi.fn(() => thread),
     findEventById: vi.fn(() => root),
     getUnfilteredTimelineSet: vi.fn(() => ({

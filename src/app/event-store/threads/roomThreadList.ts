@@ -181,8 +181,6 @@ const loadRoomThreadsOnce = async (
   shouldContinue: () => boolean,
   retry: ThreadListRetry
 ): Promise<void> => {
-  // The list answers for the streaming replies of the threads it lists.
-  const releaseStreamingChecks = retry.holdStreamingChecks();
   try {
     await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
@@ -233,7 +231,6 @@ const loadRoomThreadsOnce = async (
       }
     }
   } finally {
-    releaseStreamingChecks();
     onSettled();
   }
 };

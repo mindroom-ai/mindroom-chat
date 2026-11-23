@@ -4,9 +4,14 @@ import {
 } from '../../event-store/threads/threadScheduledStatus';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import {
+  type ActiveRunsSnapshot,
+  MINDROOM_ACTIVE_RUNS_EVENT,
+  roomActiveRuns,
+} from '../../matrix/protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
@@ -46,6 +51,7 @@ import {
 import { matchesEnum } from '../../lib/matchesEnum';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
+const MAX_ACTIVE_RUNS_TIMEOUT_MS = 2 ** 31 - 1;
 
 type RoomListenerDisposer = () => void;
 
@@ -187,6 +193,7 @@ export const useCrossRoomThreadIndex = () => {
   const userId = mx.getUserId() ?? activeSession?.userId;
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const recentThreads = useAtomValue(useMemo(() => makeRecentThreadsAtom(userId ?? ''), [userId]));
+  const store = useStore();
   const snapshot = useAtomValue(crossRoomThreadIndexAtom);
   const setSnapshot = useSetAtom(crossRoomThreadIndexAtom);
   const recentThreadsRef = useRef(recentThreads);
@@ -213,6 +220,9 @@ export const useCrossRoomThreadIndex = () => {
     if (!userId) return undefined;
 
     const lastBackgroundJobs = new WeakMap<Room, ReturnType<typeof roomThreadBackgroundJobs>>();
+    const lastActiveRuns = new WeakMap<Room, ActiveRunsSnapshot>();
+    const activeRunsExpiryByRoom = new Map<string, number>();
+    let activeRunsExpiryTimer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
     let idleHandle: number | undefined;
     const effectSessionId = activeSession?.sessionId;
@@ -232,7 +242,8 @@ export const useCrossRoomThreadIndex = () => {
       roomId: string,
       threadRootId: string,
       roomTagSnapshots: Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>,
-      roomSchedules: Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>
+      roomSchedules: Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>,
+      roomActiveRunThreads: Map<string, ReadonlySet<string>>
     ) => {
       if (!roomDisposers.has(roomId)) return undefined;
 
@@ -263,6 +274,11 @@ export const useCrossRoomThreadIndex = () => {
         schedules = getRoomThreadScheduledStatusMap(room);
         roomSchedules.set(roomId, schedules);
       }
+      let activeRunThreads = roomActiveRunThreads.get(roomId);
+      if (!activeRunThreads) {
+        activeRunThreads = roomActiveRuns(room).threads;
+        roomActiveRunThreads.set(roomId, activeRunThreads);
+      }
 
       return buildCrossRoomThreadIndexEntry({
         room,
@@ -271,6 +287,7 @@ export const useCrossRoomThreadIndex = () => {
         currentUserId: userIdRef.current,
         tagSnapshot: tagSnapshots.get(threadRootId) ?? null,
         scheduledStatus: getThreadScheduledStatus(schedules, threadRootId),
+        activeRunThreads,
       });
     };
 
@@ -286,6 +303,7 @@ export const useCrossRoomThreadIndex = () => {
         const roomTagSnapshots = new Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>();
 
         const roomSchedules = new Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>();
+        const roomActiveRunThreads = new Map<string, ReadonlySet<string>>();
 
         keys.forEach((key) => {
           const parsed = parseCrossRoomThreadIndexKey(key);
@@ -295,7 +313,8 @@ export const useCrossRoomThreadIndex = () => {
             parsed.roomId,
             parsed.threadRootId,
             roomTagSnapshots,
-            roomSchedules
+            roomSchedules,
+            roomActiveRunThreads
           );
           if (!entry) {
             removals.push(parsed);
@@ -396,6 +415,55 @@ export const useCrossRoomThreadIndex = () => {
       }
     };
 
+    const scheduleActiveRunsExpiry = () => {
+      clearTimeout(activeRunsExpiryTimer);
+      activeRunsExpiryTimer = undefined;
+      const earliest = Math.min(...activeRunsExpiryByRoom.values());
+      if (!Number.isFinite(earliest)) return;
+      activeRunsExpiryTimer = setTimeout(() => {
+        const now = Date.now();
+        Array.from(activeRunsExpiryByRoom).forEach(([roomId, ts]) => {
+          if (ts > now) return;
+          const room = mx.getRoom(roomId);
+          if (room && roomDisposers.has(roomId)) refreshActiveRuns(room);
+          else activeRunsExpiryByRoom.delete(roomId);
+        });
+        scheduleActiveRunsExpiry();
+      }, Math.max(0, Math.min(earliest - Date.now(), MAX_ACTIVE_RUNS_TIMEOUT_MS)));
+    };
+
+    const refreshActiveRuns = (room: Room) => {
+      const next = roomActiveRuns(room);
+      const nextExpiryTs = next.threads.size > 0 ? next.nextExpiryTs : undefined;
+      const prevExpiry = activeRunsExpiryByRoom.get(room.roomId);
+      const lapsed = prevExpiry !== undefined && prevExpiry <= Date.now();
+      if (nextExpiryTs !== prevExpiry) {
+        if (nextExpiryTs === undefined) activeRunsExpiryByRoom.delete(room.roomId);
+        else activeRunsExpiryByRoom.set(room.roomId, nextExpiryTs);
+        scheduleActiveRunsExpiry();
+      }
+      const previous = lastActiveRuns.get(room);
+      if (previous === next && !lapsed) return;
+      lastActiveRuns.set(room, next);
+      if (!previous) return;
+      // Read the live Jotai index so active_runs updates existing entries only (never creates 0-reply ones).
+      const indexed = store.get(crossRoomThreadIndexAtom).entries;
+      if (lapsed) {
+        next.threads.forEach((id) => {
+          const entry = indexed.get(getCrossRoomThreadIndexKey(room.roomId, id));
+          if (entry && !entry.threadRecord.status.isStreaming) enqueueThread(room.roomId, id);
+        });
+      }
+      if (previous.threads === next.threads) return;
+      const diff = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
+        a.forEach((id) => {
+          if (!b.has(id) && indexed.has(getCrossRoomThreadIndexKey(room.roomId, id)))
+            enqueueThread(room.roomId, id);
+        });
+      diff(previous.threads, next.threads);
+      diff(next.threads, previous.threads);
+    };
+
     const addRoomListeners = (room: Room) => {
       if (roomDisposers.has(room.roomId)) return;
 
@@ -459,6 +527,10 @@ export const useCrossRoomThreadIndex = () => {
         }
       };
 
+      refreshActiveRuns(room);
+      const handleActiveRunsRoomChange = () => refreshActiveRuns(room);
+      room.on(RoomEvent.CurrentStateUpdated, handleActiveRunsRoomChange);
+      room.on(RoomEvent.Redaction, handleActiveRunsRoomChange);
       room.on(RoomEvent.Receipt, handleReceipt);
       room.on(RoomEvent.Timeline, handleTimeline);
       room.on(RoomEvent.LocalEchoUpdated, handleTimeline);
@@ -497,6 +569,9 @@ export const useCrossRoomThreadIndex = () => {
         : undefined;
 
       roomDisposers.set(room.roomId, () => {
+        room.removeListener(RoomEvent.CurrentStateUpdated, handleActiveRunsRoomChange);
+        room.removeListener(RoomEvent.Redaction, handleActiveRunsRoomChange);
+        if (activeRunsExpiryByRoom.delete(room.roomId)) scheduleActiveRunsExpiry();
         room.removeListener(RoomEvent.Receipt, handleReceipt);
         room.removeListener(RoomEvent.Timeline, handleTimeline);
         room.removeListener(RoomEvent.LocalEchoUpdated, handleTimeline);
@@ -601,15 +676,25 @@ export const useCrossRoomThreadIndex = () => {
 
     const handleMembers = (_event: MatrixEvent, roomState: { roomId?: string }) => {
       const room = roomState.roomId ? mx.getRoom(roomState.roomId) : undefined;
-      if (room && roomDisposers.has(room.roomId)) refreshBackgroundJobs(room);
+      if (room && roomDisposers.has(room.roomId)) {
+        refreshBackgroundJobs(room);
+        refreshActiveRuns(room);
+      }
     };
 
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
       const type = event.getType();
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
       const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT;
+      const activeRunsChanged = type === MINDROOM_ACTIVE_RUNS_EVENT;
       const schedulesChanged = type === MINDROOM_SCHEDULED_TASK_EVENT;
-      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged && !schedulesChanged)
+      if (
+        type !== MINDROOM_THREAD_TAGS_EVENT &&
+        !pinsChanged &&
+        !jobsChanged &&
+        !activeRunsChanged &&
+        !schedulesChanged
+      )
         return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
@@ -634,6 +719,8 @@ export const useCrossRoomThreadIndex = () => {
         });
       } else if (jobsChanged) {
         refreshBackgroundJobs(room);
+      } else if (activeRunsChanged) {
+        refreshActiveRuns(room);
       } else if (pinsChanged) {
         handlePinChange(room);
       } else {
@@ -670,6 +757,7 @@ export const useCrossRoomThreadIndex = () => {
 
     return () => {
       disposed = true;
+      if (activeRunsExpiryTimer !== undefined) clearTimeout(activeRunsExpiryTimer);
       if (idleHandle !== undefined) cancelIdle(idleHandle);
       coalescer.clear();
       unsubscribePendingPins();
@@ -682,7 +770,7 @@ export const useCrossRoomThreadIndex = () => {
       mx.removeListener(RoomStateEvent.Members, handleMembers);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
     };
-  }, [activeSession?.sessionId, mx, setSnapshot, userId]);
+  }, [activeSession?.sessionId, mx, setSnapshot, store, userId]);
 
   useEffect(() => {
     controllerRef.current?.syncJoinedRooms(joinedRoomIds);

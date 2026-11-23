@@ -10,6 +10,8 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
 import { getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
+import { useRoomActiveRuns } from '../../matrix/hooks/useRoomActiveRuns';
+import type { ActiveRun } from '../../matrix/protocol/activeRunsContract';
 import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
 import {
   MINDROOM_BACKGROUND_JOBS_EVENT,
@@ -22,7 +24,6 @@ import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../../matrix/thread';
 import {
   getThreadStreamingEvents,
   isEventStreaming,
-  useThreadStreamingState,
 } from '../../event-store/threads/useThreadStreamingState';
 import * as css from './RoomViewTyping.css';
 
@@ -33,25 +34,21 @@ type RoomViewTypingProps = {
 };
 
 /**
- * The senders whose reply in the thread still streams, or undefined outside a thread. A typing
- * notice is the room's and names no thread (an agent keeps one for all its replies in a room), so
- * in a thread only these show as typing.
+ * The agents with an active run in `threadId`, or undefined outside a thread. A typing notice is
+ * the room's and names no thread (an agent keeps one for all its replies in a room), so in a
+ * thread only these show as typing.
  */
-const useThreadStreamingSenders = (room: Room, threadId: string | undefined) => {
-  // Re-renders whenever the thread's latest replies change.
-  useThreadStreamingState(room, threadId);
+const useThreadStreamingSenders = (
+  room: Room,
+  threadId: string | undefined
+): ReadonlySet<string> | undefined => {
+  const { runs } = useRoomActiveRuns(room);
   if (!threadId) return undefined;
-  const timelineSet =
-    room.getThread(threadId)?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
-  return new Set(
-    getThreadStreamingEvents(room, threadId)
-      .filter((event) => {
-        const eventId = event.getId();
-        const reactions = eventId ? getEventReactions(timelineSet, eventId) : undefined;
-        return isEventStreaming(event, reactions, timelineSet);
-      })
-      .map((event) => event.getSender())
-  );
+  const senders = new Set<string>();
+  runs.forEach((run: ActiveRun) => {
+    if (run.threadId === threadId) senders.add(run.agentId);
+  });
+  return senders;
 };
 
 /** Whether part of the timeline row of `eventId` shows on screen, inside every scrolling area. */

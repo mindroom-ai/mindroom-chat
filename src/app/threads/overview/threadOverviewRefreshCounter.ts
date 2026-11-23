@@ -91,9 +91,8 @@ export type ThreadOverviewRefresh = {
  * shows of the room: every event a timeline of the room takes or loses and every event the client
  * hears of the room (the edits kept from the sync are in by then), an edit put on or taken off an
  * event, a local echo's progress, a redaction, a timeline that starts over, every read receipt of
- * the room, every thread that is created, updated, deleted or gets a new reply (a reply that stops
- * streaming by the clock, or that the streaming checks forget, comes as such an update:
- * streamingReplies.ts), a member's new name or membership, the room's encryption, a message
+ * the room, every thread that is created, updated, deleted or gets a new reply, a member's new name
+ * or membership, the room's encryption, a message
  * whose kept edits a full store drops (`onSyncedEditForgotten`), and a root of the room this
  * device takes for read or forgets (`onSeenThreadRootsChange`). It goes up once when the listeners
  * start, for what the room heard before them. An event that decrypts later

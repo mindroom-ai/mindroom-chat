@@ -74,6 +74,8 @@ const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEv
     room.on(RoomStateEvent.Events, onState);
     room.on(RoomStateEvent.Members, onMember);
     room.on(RoomEvent.CurrentStateUpdated, refresh);
+    // Catch state or membership updates that landed between render and passive effect attachment.
+    if (!sameEvents(agentRoomState(room, eventType), renderedEvents.current)) refresh();
     return () => {
       room.removeListener(RoomStateEvent.Events, onState);
       room.removeListener(RoomStateEvent.Members, onMember);

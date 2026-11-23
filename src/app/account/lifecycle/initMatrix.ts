@@ -33,7 +33,6 @@ import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionToke
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
-import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 import type { MarkClientStartup } from '../../lib/startupTimeline';
 import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 
@@ -341,9 +340,6 @@ export const initClient = async (
     markStartup?.('store.startup.done');
     const sync = store.backend?.syncAccumulator;
     if (sync) dropSettledScheduledTasks(sync);
-    const restore = restoreStreamingRepliesFromCache(mx);
-    if (markStartup) void onCompletion(restore, () => markStartup('streaming.restore.done'));
-    return restore;
   });
   const cryptoInit = mx.initRustCrypto({
     cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),

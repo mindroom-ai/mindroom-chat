@@ -5,7 +5,6 @@ import {
   SyncState,
   type Room,
 } from 'matrix-js-sdk';
-import { holdStreamingChecks } from '../../matrix/client/streamingReplies';
 
 // A room's thread list is read page by page, and each page's token stays on the list's timeline.
 // A page that failed used to end the read for good: nothing read on until the room was opened
@@ -13,8 +12,7 @@ import { holdStreamingChecks } from '../../matrix/client/streamingReplies';
 // page the server may still answer (a dropped connection, a rate limit, a server error) and asks
 // for the same page again, as long as someone shows the list. It asks at once when the sync loop
 // gets through again after failing, or when a caller comes (the room is opened again); otherwise
-// after 1, 2, 4, 8 and then every 16 s, or as long as a rate limit says. While it waits, the
-// room's streaming replies are checked one by one, as the list cannot answer for them. A page that
+// after 1, 2, 4, 8 and then every 16 s, or as long as a rate limit says. A page that
 // keeps failing while the sync gets through ends the read after a few tries, as before, so a room
 // whose list the server cannot serve does not hold the other rooms' lists back; the next caller
 // goes on from that page.
@@ -42,8 +40,6 @@ const isReconnect = (state: SyncState, previous: SyncState | null): boolean =>
 
 /** One read of a room's thread list, which may wait between tries of a page. */
 export type ThreadListRetry = {
-  /** Holds the room's streaming checks for the read; returns the function that ends the hold. */
-  holdStreamingChecks: () => () => void;
   /**
    * After `page` (its token; `null` for the first page) failed with `error`: a wait that answers
    * true when the read should ask for the page again and false when its callers left, or
@@ -59,7 +55,6 @@ export const createThreadListRetry = (
   shouldContinue: () => boolean
 ): ThreadListRetry => {
   let wakeWait: (() => void) | undefined;
-  let releaseChecks: (() => void) | undefined;
   /** The page that failed last, how often in a row, and how often while the sync got through. */
   let failing: { page: string | null; failures: number; online: number } | undefined;
 
@@ -83,22 +78,11 @@ export const createThreadListRetry = (
     if (!shouldContinue()) return false;
     // eslint-disable-next-line no-console
     console.warn(`[threadList] a page failed, asking again within ${delayMs} ms:`, error);
-    const held = releaseChecks;
-    releaseChecks = undefined;
-    held?.();
     await wait(delayMs);
-    if (held) releaseChecks = holdStreamingChecks(room);
     return shouldContinue();
   };
 
   return {
-    holdStreamingChecks: () => {
-      releaseChecks = holdStreamingChecks(room);
-      return () => {
-        releaseChecks?.();
-        releaseChecks = undefined;
-      };
-    },
     after: (error, page) => {
       const same = failing?.page === page ? failing : undefined;
       const failures = same?.failures ?? 0;

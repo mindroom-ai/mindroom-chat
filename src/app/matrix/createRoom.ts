@@ -15,6 +15,7 @@ import { getViaServers } from './via-servers';
 import { addRoomIdToMDirect, creatorsSupported } from './matrix';
 import { CreateRoomAccess } from './createRoomTypes';
 import { MINDROOM_AUTO_APPROVE_EVENT } from './protocol/autoApproveContract';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from './protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from './protocol/backgroundJobsContract';
 import { ROOM_THREAD_MODE_EVENT } from './protocol/roomThreadMode';
 
@@ -60,6 +61,7 @@ export const createRoomPowerLevelsOverride = (version?: string) => {
     // tags and the thread mode. Rooms MindRoom creates open the same types.
     'io.mindroom.server': 0,
     [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+    [MINDROOM_ACTIVE_RUNS_EVENT]: 0,
     [MINDROOM_AUTO_APPROVE_EVENT]: 0,
     'io.mindroom.accounts': 0,
     'com.mindroom.thread.tags': 0,

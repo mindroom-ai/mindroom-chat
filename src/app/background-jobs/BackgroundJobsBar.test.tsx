@@ -119,6 +119,8 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
 
 const room = {
   roomId: '!room:example.org',
+  currentState: { getStateEvents: () => [] },
+  getMember: () => null,
   getEventForTxnId: () => undefined,
   // The agent's reply is not loaded, so it never reads as streaming.
   getThread: () => null,

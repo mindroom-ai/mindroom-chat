@@ -11,6 +11,7 @@ import {
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { getStateEvent } from '../../matrix/room';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { setRoomArchived } from '../../matrix/state/archivedRooms';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
@@ -97,8 +98,11 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
     : undefined;
 };
 
-// The agent may publish its background jobs, as in the rooms MindRoom creates, so the call chat shows them.
-const AGENT_JOBS_EVENT_LEVEL = { [MINDROOM_BACKGROUND_JOBS_EVENT]: 0 };
+// The agent may publish its background jobs and active runs, as in rooms MindRoom creates.
+const AGENT_JOBS_EVENT_LEVEL = {
+  [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+  [MINDROOM_ACTIVE_RUNS_EVENT]: 0,
+};
 
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
@@ -190,8 +194,8 @@ export const prepareAgentCallRoom = async (
   if (membership !== Membership.Join && membership !== Membership.Invite) {
     await inviteAgent(mx, room.roomId, agentUserId);
   }
-  // A call room made before agents could publish their background jobs gains that power level before the
-  // agent hears of the call, so its first jobs are not refused; best effort.
+  // A call room made before agents could publish background jobs and active runs gains those power
+  // levels before the agent hears of the call, so its first writes are not refused; best effort.
   const powerLevels = getStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
   if (powerLevels && powerLevels.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] === undefined) {
     await mx
@@ -200,7 +204,11 @@ export const prepareAgentCallRoom = async (
         StateEvent.RoomPowerLevels as never,
         {
           ...powerLevels,
-          events: { ...powerLevels.events, ...AGENT_JOBS_EVENT_LEVEL },
+          events: {
+            ...AGENT_JOBS_EVENT_LEVEL,
+            ...powerLevels.events,
+            [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+          },
         } as never,
         ''
       )

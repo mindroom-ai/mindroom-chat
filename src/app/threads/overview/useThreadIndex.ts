@@ -1,3 +1,4 @@
+import { useRoomActiveRuns } from '../../matrix/hooks/useRoomActiveRuns';
 import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import {
   indexThreadBackgroundJobs,
@@ -598,6 +599,7 @@ export const useThreadIndex = ({
   );
   const { jobs } = useRoomBackgroundJobs(room);
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
+  const { threads: activeRunThreads } = useRoomActiveRuns(room);
   // Keep base records only: background-job overlays never become reuse inputs.
   const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
   const baseRecordMaps = useMemo(() => {
@@ -646,7 +648,7 @@ export const useThreadIndex = ({
     overviewRefreshCounter,
     overviewChanges,
   ]);
-  // Base records read SDK timelines. Job-only updates must only overlay their two flags.
+  // Base records read SDK timelines. Job and active-run updates only overlay their flags.
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.
   const jobOverlays = useMemo(() => new WeakMap<ThreadRecord, ThreadRecord>(), []);
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
@@ -654,14 +656,18 @@ export const useThreadIndex = ({
       let result = records;
       for (const [id, record] of records) {
         const flags = jobStates.get(id);
-        if (!flags) continue;
+        const isStreaming = activeRunThreads.has(id);
+        if (!flags && isStreaming === record.status.isStreaming) continue;
         let joined = jobOverlays.get(record);
         if (
           !joined ||
-          joined.status.hasBackgroundJob !== flags.hasBackgroundJob ||
-          joined.status.hasBackgroundApproval !== flags.hasBackgroundApproval
+          joined.status.isStreaming !== isStreaming ||
+          joined.status.hasBackgroundJob !==
+            (flags?.hasBackgroundJob ?? record.status.hasBackgroundJob) ||
+          joined.status.hasBackgroundApproval !==
+            (flags?.hasBackgroundApproval ?? record.status.hasBackgroundApproval)
         ) {
-          joined = { ...record, status: { ...record.status, ...flags } };
+          joined = { ...record, status: { ...record.status, isStreaming, ...flags } };
           jobOverlays.set(record, joined);
         }
         if (result === records) result = new Map(records);
@@ -677,7 +683,7 @@ export const useThreadIndex = ({
           ? normal
           : overlay(baseRecordMaps.compactThreadRecordMap),
     };
-  }, [baseRecordMaps, jobStates, jobOverlays]);
+  }, [baseRecordMaps, jobStates, activeRunThreads, jobOverlays]);
   // Renewed when a snooze ends, so its thread comes back into the list.
   const snoozeNow = useSnoozeNow(
     useMemo(

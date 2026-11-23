@@ -50,6 +50,7 @@ beforeEach(() => {
   changes = createThreadRecordChanges();
   room = {
     roomId: ROOM_ID,
+    currentState: { getStateEvents: () => [] },
     getThread: () => null,
     findEventById: (eventId: string) => roots.get(eventId),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),

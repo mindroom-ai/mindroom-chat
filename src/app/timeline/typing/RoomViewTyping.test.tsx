@@ -17,11 +17,9 @@ vi.mock('./RoomViewTyping.css', () => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:example.org' }),
 }));
-// The helper's reply streams in every thread, so an agent in a thread shows for its approval
-// state alone; the reply has no row on screen unless a test adds one.
+// The helper's reply has no row on screen unless a test adds one.
 let streamingReplyId: string | undefined;
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
-  useThreadStreamingState: () => true,
   getThreadStreamingEvents: () => [
     { getId: () => streamingReplyId, getSender: () => '@mindroom_helper:example.org' },
   ],
@@ -44,12 +42,32 @@ const NAMES: Record<string, string> = {
   [HELPER]: 'Helper',
 };
 let jobsState: MatrixEvent[] = [];
+let activeRunsState: MatrixEvent[] = [];
+const activeRunsFor = (threads: string[], sender = HELPER, ttlMs = 180_000, ts = Date.now()) =>
+  new MatrixEvent({
+    event_id: `$runs_${ts}_${threads.join('_')}`,
+    type: 'io.mindroom.active_runs',
+    state_key: sender,
+    sender,
+    room_id: ROOM_ID,
+    origin_server_ts: ts,
+    content: {
+      version: 1,
+      updated_at: ts,
+      ttl_ms: ttlMs,
+      threads: threads.map((thread_id) => ({ thread_id })),
+    },
+  });
 const room = {
   roomId: ROOM_ID,
   myUserId: '@me:example.org',
   getMember: (userId: string) => ({ rawDisplayName: NAMES[userId], membership: 'join' }),
   currentState: {
-    getStateEvents: (type: string) => (type === 'io.mindroom.background_jobs' ? jobsState : []),
+    getStateEvents: (type: string) => {
+      if (type === 'io.mindroom.background_jobs') return jobsState;
+      if (type === 'io.mindroom.active_runs') return activeRunsState;
+      return [];
+    },
   },
   getThread: () => null,
   getUnfilteredTimelineSet: () => ({}),
@@ -63,6 +81,7 @@ let container: HTMLDivElement | undefined;
 
 afterEach(() => {
   jobsState = [];
+  activeRunsState = [];
   streamingReplyId = undefined;
   document.querySelectorAll('[data-message-id]').forEach((row) => row.remove());
   vi.useRealTimers();
@@ -187,6 +206,7 @@ it('leaves out an agent whose job in the open thread waits for approval, as it w
       },
     }),
   ];
+  activeRunsState = [activeRunsFor(['$waiting', '$elsewhere'])];
   const store = createStore();
   typing(store, HELPER);
 
@@ -210,6 +230,8 @@ const addRow = (eventId: string, place: { top: number; bottom: number }) => {
 
 it('leaves out an agent whose streaming reply shows on screen, and names it once it is out of view', () => {
   vi.useFakeTimers();
+  vi.setSystemTime(1_763_839_200_000);
+  activeRunsState = [activeRunsFor(['$thread'])];
   streamingReplyId = '$streaming';
   const place = addRow('$streaming', { top: 120, bottom: 600 });
   const store = createStore();
@@ -230,6 +252,8 @@ it('leaves out an agent whose streaming reply shows on screen, and names it once
 
 it('hides the typing agent when its reply mounts after the typing notice, before the next poll', async () => {
   vi.useFakeTimers();
+  vi.setSystemTime(1_763_839_200_000);
+  activeRunsState = [activeRunsFor(['$thread'])];
   streamingReplyId = '$late';
   const store = createStore();
   typing(store, HELPER);
@@ -238,6 +262,27 @@ it('hides the typing agent when its reply mounts after the typing notice, before
 
   await act(async () => {
     addRow('$late', { top: 120, bottom: 600 });
+  });
+  expect(view.querySelector('[role="status"]')).toBeNull();
+});
+
+it('shows an agent typing in a thread only while active_runs lists that thread and has not expired', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(1_763_839_200_000);
+  activeRunsState = [activeRunsFor(['$other-thread'], HELPER, 30_000)];
+  const store = createStore();
+  typing(store, HELPER);
+
+  expect(render(store, '$thread').querySelector('[role="status"]')).toBeNull();
+  act(() => root?.unmount());
+  container?.remove();
+
+  activeRunsState = [activeRunsFor(['$thread'], HELPER, 30_000)];
+  const view = render(store, '$thread');
+  expect(view.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+  act(() => {
+    vi.advanceTimersByTime(30_001);
   });
   expect(view.querySelector('[role="status"]')).toBeNull();
 });
