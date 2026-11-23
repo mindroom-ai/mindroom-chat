@@ -161,6 +161,11 @@ export const showMainWindow = (): BrowserWindow => {
     }
   });
 
+  win.webContents.on('will-prevent-unload', () => {
+    quitting = false;
+    hideAfterFullScreen = false;
+  });
+
   win.on('close', (event) => {
     flush();
     if (process.platform !== 'darwin' || quitting) return;

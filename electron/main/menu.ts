@@ -131,7 +131,7 @@ export const buildContextMenu = (
 ): Electron.MenuItemConstructorOptions[] => {
   const items: Electron.MenuItemConstructorOptions[] = [];
 
-  if (params.misspelledWord && params.dictionarySuggestions.length > 0) {
+  if (params.isEditable && params.misspelledWord && params.dictionarySuggestions.length > 0) {
     for (const suggestion of params.dictionarySuggestions) {
       items.push({
         label: suggestion,

@@ -337,32 +337,36 @@ test.describe('Electron script policy and canvas frame', () => {
         const result = await app.evaluate(async ({ BrowserWindow }, target: string) => {
           const win = BrowserWindow.getAllWindows()[0];
           if (!win) return { rejected: false, code: '' };
-          let stopTimer: ReturnType<typeof setTimeout> | undefined;
-          const settled = new Promise<void>((resolve) => {
-            const done = (): void => {
-              if (stopTimer !== undefined) clearTimeout(stopTimer);
-              win.webContents.removeListener('did-stop-loading', done);
-              resolve();
-            };
-            stopTimer = setTimeout(done, 2_000);
-            win.webContents.once('did-stop-loading', done);
-          });
+          let settled = false;
+          const onStopped = (): void => {
+            settled = true;
+          };
+          win.webContents.once('did-stop-loading', onStopped);
           try {
             await win.loadURL(target);
-            if (stopTimer !== undefined) clearTimeout(stopTimer);
             return { rejected: false, code: '' };
           } catch (err) {
-            await settled;
-            if (win.webContents.isLoading()) {
-              await new Promise<void>((resolve) => {
-                const timer = setTimeout(resolve, 2_000);
-                win.webContents.once('did-stop-loading', () => {
+            if (!settled || win.webContents.isLoading()) {
+              await new Promise<void>((resolve, reject) => {
+                const onDone = (): void => {
                   clearTimeout(timer);
                   resolve();
-                });
+                };
+                const timer = setTimeout(() => {
+                  win.webContents.removeListener('did-stop-loading', onDone);
+                  reject(new Error(`error page did not finish loading for ${target}`));
+                }, 5_000);
+                win.webContents.once('did-stop-loading', onDone);
+                if (settled && !win.webContents.isLoading()) {
+                  win.webContents.removeListener('did-stop-loading', onDone);
+                  clearTimeout(timer);
+                  resolve();
+                }
               });
             }
             return { rejected: true, code: String((err as { code?: unknown }).code ?? '') };
+          } finally {
+            win.webContents.removeListener('did-stop-loading', onStopped);
           }
         }, directUrl);
         expect(result, directUrl).toEqual({ rejected: true, code: 'ERR_BLOCKED_BY_CLIENT' });

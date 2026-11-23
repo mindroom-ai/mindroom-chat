@@ -148,6 +148,17 @@ describe('buildContextMenu', () => {
     expect(buildContextMenu(makeContextParams({ selectionText: '   \n\t ' }))).toEqual([]);
   });
 
+  it('omits spelling suggestions and Add to Dictionary when the target is not editable', () => {
+    const items = buildContextMenu(
+      makeContextParams({
+        isEditable: false,
+        misspelledWord: 'helo',
+        dictionarySuggestions: ['hello', 'halo'],
+      })
+    );
+    expect(items).toEqual([]);
+  });
+
   it('builds spelling suggestions, Add to Dictionary, and edit roles for editable fields', () => {
     const replaceMisspelling = vi.fn();
     const addToDictionary = vi.fn();
