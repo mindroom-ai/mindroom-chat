@@ -3,6 +3,7 @@ import type { Room } from 'matrix-js-sdk';
 import { Profiler } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
@@ -82,7 +83,12 @@ vi.mock('react-i18next', () => ({
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
 const viewMemory: ScrollAnchorMemory = new Map();
-const view = (threadRootIds: string[], sections = true, activeRoom = room) => (
+const view = (
+  threadRootIds: string[],
+  sections = true,
+  activeRoom = room,
+  singleBucketTab?: ThreadWorkflowBucket
+) => (
   <CompactRoomView
     room={activeRoom}
     threadRootIds={threadRootIds}
@@ -90,6 +96,7 @@ const view = (threadRootIds: string[], sections = true, activeRoom = room) => (
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: viewMemory }}
     sectionsNow={sections ? NOW : undefined}
+    singleBucketTab={singleBucketTab}
   />
 );
 
@@ -239,16 +246,59 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('opens a section that shows alone, as the Done tab shows it, and keeps its stored fold', () => {
+  it('opens the section of a single-bucket tab, as the Done tab shows it, and restores its stored fold when cleared', () => {
     state.sections = [{ id: 'done', rootIds: ['$done'] }];
-    render(view(['$done']));
+    const { rerender } = render(view(['$done'], true, room, 'done'));
 
     expect(rows()).toEqual(['#done 1', '$done']);
-    // Nothing to fold: the header is a label, and the stored fold waits for the other sections.
+    // Under the Done tab the header is a plain label, and Done's stored fold is left untouched.
     const row = document.querySelector('[data-compact-section="done"]');
     expect(row?.querySelector('button')).toBeNull();
     expect(row?.textContent).toBe('thread.workflow.done · 1');
     expect(localStorage.getItem(`compactRoomSections:${ME}`)).toBeNull();
+
+    // Returning to All (no singleBucketTab) restores Done's stored fold.
+    rerender(view(['$done'], true, room, undefined));
+    expect(rows()).toEqual(['#done 1']);
+    expect(header('done').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('allows collapsing a lone section when not on a single-bucket tab and persists the fold', () => {
+    state.sections = [{ id: 'working', rootIds: ['$job', '$streaming'] }];
+    render(view(['$job', '$streaming']));
+
+    expect(rows()).toEqual(['#working 2', '$job', '$streaming']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      fireEvent.click(header('working'));
+    });
+
+    expect(rows()).toEqual(['#working 2']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('false');
+    expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+      on: false,
+      folded: ['done', 'working'],
+    });
+  });
+
+  it('starts a lone section folded when its bucket is stored folded and opens it on click', () => {
+    localStorage.setItem(
+      `compactRoomSections:${ME}`,
+      JSON.stringify({ on: true, folded: ['working', 'done'] })
+    );
+    state.sections = [{ id: 'working', rootIds: ['$job'] }];
+    render(view(['$job']));
+
+    expect(rows()).toEqual(['#working 1']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      fireEvent.click(header('working'));
+    });
+
+    expect(rows()).toEqual(['#working 1', '$job']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('true');
   });
 
   it('leads each section with its pinned cards instead of a Pinned list of their own', () => {
@@ -393,7 +443,7 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#needsYou 1', '$b', '#working 2', '$a', '$w']);
     });
 
-    it('keeps a lone section open when a new Working card brings a second, until let go', () => {
+    it('keeps a folded lone section folded when a second section arrives while held and after release', () => {
       localStorage.setItem(
         `compactRoomSections:${ME}`,
         JSON.stringify({ on: true, folded: ['needsYou'] })
@@ -407,77 +457,29 @@ describe('the Compact room in sections', () => {
         ['$a']
       );
 
-      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '$a']);
-
-      release();
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-    });
-
-    it('keeps only the lone section open: other stored folds still apply while held', () => {
-      localStorage.setItem(
-        `compactRoomSections:${ME}`,
-        JSON.stringify({ on: true, folded: ['working', 'done'] })
-      );
-      holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
-        [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
-          { id: 'done', rootIds: ['$d'] },
-        ],
-        ['$a', '$d']
-      );
-
-      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '#done 1']);
-    });
-
-    it('folds a held-open section stored open with one click on its header', () => {
-      const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
-        [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
-        ],
-        ['$a']
-      );
-
-      act(() => {
-        fireEvent.click(header('needsYou'));
-      });
       expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
       expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
 
       release();
       expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
     });
 
-    it('folds the held-open section from its header at once, and keeps it folded after', () => {
-      localStorage.setItem(
-        `compactRoomSections:${ME}`,
-        JSON.stringify({ on: true, folded: ['needsYou'] })
-      );
+    it('keeps a folded section folded when two sections shrink to one under hold and release', () => {
       const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$a'] },
+          { id: 'done', rootIds: ['$done'] },
         ],
-        ['$a']
+        [{ id: 'done', rootIds: ['$a', '$done'] }]
       );
-      expect(header('needsYou').getAttribute('aria-expanded')).toBe('true');
 
-      act(() => {
-        fireEvent.click(header('needsYou'));
-      });
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+      expect(rows()).toEqual(['#needsYou 0', '$a', '#done 2']);
+      expect(header('done').getAttribute('aria-expanded')).toBe('false');
 
       release();
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-      expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
-        on: true,
-        folded: ['needsYou'],
-      });
+      expect(rows()).toEqual(['#done 2']);
+      expect(header('done').getAttribute('aria-expanded')).toBe('false');
     });
 
     it('keeps a held section in its shown order while a new section comes in before it', () => {
@@ -523,6 +525,27 @@ describe('the Compact room in sections', () => {
       );
 
       expect(rows()).toEqual(['#needsYou 2', '$b1', '$b2']);
+    });
+
+    it('starts live for the new bucket tab when switching singleBucketTab under the pointer', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['working', 'done'] })
+      );
+      state.sections = [{ id: 'working', rootIds: ['$a'] }];
+      const { rerender } = render(view(['$a']));
+      expect(rows()).toEqual(['#working 1']);
+
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+
+      state.sections = [{ id: 'done', rootIds: ['$a'] }];
+      rerender(view(['$a'], true, room, 'done'));
+
+      expect(rows()).toEqual(['#done 1', '$a']);
+      expect(document.querySelector('[data-compact-section="done"] button')).toBeNull();
     });
 
     it('shows a new thread under its own header, which comes with it', () => {

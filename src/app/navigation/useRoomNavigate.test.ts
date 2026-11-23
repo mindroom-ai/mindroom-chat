@@ -31,8 +31,18 @@ const mocks = vi.hoisted(() => ({
   activitySelected: false,
   threadsSelected: false,
   aliases: new Map<string, string>(),
+  // The canonical alias of a room that has one, and this account's membership of a room the
+  // client holds with one; a room in neither is as the tests before these had it.
+  canonicalAliases: new Map<string, string>(),
+  memberships: new Map<string, string>(),
   mx: {
-    getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
+    getRoom: (roomId: string) => {
+      const membership = mocks.memberships.get(roomId);
+      return {
+        isSpaceRoom: () => mocks.spaces.has(roomId),
+        ...(membership ? { getMyMembership: () => membership } : {}),
+      };
+    },
   },
   historyState: { idx: 1, key: 'room-entry' },
   replaceState: vi.fn(),
@@ -114,7 +124,8 @@ vi.mock('../matrix/state/mDirectList', () => ({
 }));
 
 vi.mock('../matrix/matrix', () => ({
-  getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
+  getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) =>
+    mocks.canonicalAliases.get(roomId) ?? roomId,
   getCanonicalAliasRoomId: (_mx: unknown, alias: string) => mocks.aliases.get(alias),
   isRoomAlias: (id: string) => id.startsWith('#'),
 }));
@@ -181,6 +192,8 @@ describe('useRoomNavigate', () => {
     mocks.activitySelected = false;
     mocks.threadsSelected = false;
     mocks.aliases.clear();
+    mocks.canonicalAliases.clear();
+    mocks.memberships.clear();
     mocks.historyState = { idx: 1, key: 'room-entry' };
     Object.assign(window.history, { state: mocks.historyState });
     mocks.location.pathname = '/home/!room:example.org';
@@ -387,6 +400,164 @@ describe('useRoomNavigate', () => {
     );
 
     renderer.unmount();
+  });
+
+  describe('a room the account has not joined', () => {
+    const roomId = '!room:example.org';
+    const alias = '#room:example.org';
+    const spaceId = '!space:example.org';
+
+    it('goes by its canonical alias once joined', () => {
+      mocks.canonicalAliases.set(roomId, alias);
+      mocks.memberships.set(roomId, 'join');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId, '$event')).toBe(getHomeRoomPath(alias, '$event'));
+      renderer.unmount();
+    });
+
+    it.each(['invite', 'leave', 'ban', 'knock'])(
+      'keeps its room ID while the membership is %s: its alias may be stale',
+      (membership) => {
+        mocks.canonicalAliases.set(roomId, alias);
+        mocks.memberships.set(roomId, membership);
+        const { getSnapshot, renderer } = renderHookHarness();
+
+        expect(getSnapshot().roomPath(roomId, '$event')).toBe(getHomeRoomPath(roomId, '$event'));
+        renderer.unmount();
+      }
+    );
+
+    it('stays in the selected space when it is one of its rooms', () => {
+      mocks.selectedSpace = spaceId;
+      mocks.spaces.add(spaceId);
+      mocks.roomToParents.set(roomId, new Set([spaceId]));
+      mocks.canonicalAliases.set(roomId, alias);
+      mocks.memberships.set(roomId, 'invite');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(spaceId, roomId));
+      expect(getSnapshot().roomPath(roomId, '$event')).toBe(
+        '/!space%3Aexample.org/!room%3Aexample.org/%24event'
+      );
+      renderer.unmount();
+    });
+
+    it('opens in its space from another section', () => {
+      mocks.spaces.add(spaceId);
+      mocks.roomToParents.set(roomId, new Set([spaceId]));
+      mocks.memberships.set(roomId, 'leave');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(spaceId, roomId));
+      renderer.unmount();
+    });
+
+    it('stays in Direct Messages when it is a direct chat, an invite to one', () => {
+      mocks.directSelected = true;
+      mocks.mDirects.add(roomId);
+      mocks.canonicalAliases.set(roomId, alias);
+      mocks.memberships.set(roomId, 'invite');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getDirectRoomPath(roomId));
+      renderer.unmount();
+    });
+  });
+
+  describe('a space above the room that the account is not in', () => {
+    // The client keeps a space the account left, with the rooms it lists. Its own page is its
+    // join page, so no room opens below it.
+    const roomId = '!child:child.example';
+    const leftSpace = '!parent:parent.example';
+    const joinedSpace = '!crew:crew.example';
+    const outerSpace = '!fleet:fleet.example';
+    const hold = (spaceId: string, membership: string) => {
+      mocks.spaces.add(spaceId);
+      mocks.memberships.set(spaceId, membership);
+    };
+
+    it.each(['leave', 'invite', 'ban', 'knock'])(
+      'opens a room on Home when the only space above it has the membership %s',
+      (membership) => {
+        hold(leftSpace, membership);
+        mocks.roomToParents.set(roomId, new Set([leftSpace]));
+        const { getSnapshot, renderer } = renderHookHarness();
+
+        expect(getSnapshot().roomPath(roomId)).toBe(getHomeRoomPath(roomId));
+        expect(getSnapshot().roomPath(roomId, '$evt')).toBe(getHomeRoomPath(roomId, '$evt'));
+        renderer.unmount();
+      }
+    );
+
+    it('opens a room in the joined space above it whose own parent the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId, '$evt')).toBe(
+        getSpaceRoomPath(joinedSpace, roomId, '$evt')
+      );
+      renderer.unmount();
+    });
+
+    it('opens a room in the highest joined space below a space the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(outerSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([outerSpace]));
+      mocks.roomToParents.set(outerSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(outerSpace, roomId));
+      renderer.unmount();
+    });
+
+    it('prefers a joined space to a left one that also lists the room', () => {
+      hold(leftSpace, 'leave');
+      hold(joinedSpace, 'join');
+      mocks.roomToParents.set(roomId, new Set([leftSpace, joinedSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(joinedSpace, roomId));
+      renderer.unmount();
+    });
+
+    it('prefers a parentless joined space to a joined subspace whose parent the account left', () => {
+      hold(joinedSpace, 'join');
+      hold(outerSpace, 'join');
+      hold(leftSpace, 'leave');
+      mocks.roomToParents.set(roomId, new Set([joinedSpace, outerSpace]));
+      mocks.roomToParents.set(joinedSpace, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getSpaceRoomPath(outerSpace, roomId));
+      renderer.unmount();
+    });
+
+    it('opens no other room below the left space whose join page the route shows', () => {
+      hold(leftSpace, 'leave');
+      mocks.selectedSpace = leftSpace;
+      mocks.roomToParents.set(roomId, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId)).toBe(getHomeRoomPath(roomId));
+      renderer.unmount();
+    });
+
+    it('moves the room the route names below a left space to Home', () => {
+      hold(leftSpace, 'leave');
+      mocks.selectedSpace = leftSpace;
+      mocks.routeRoom = roomId;
+      mocks.roomToParents.set(roomId, new Set([leftSpace]));
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      expect(getSnapshot().roomPath(roomId, '$evt')).toBe(getHomeRoomPath(roomId, '$evt'));
+      renderer.unmount();
+    });
   });
 
   describe('the room the route shows', () => {

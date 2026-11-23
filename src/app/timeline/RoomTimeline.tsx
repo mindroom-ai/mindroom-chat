@@ -216,7 +216,6 @@ import {
   footerProbeStyle,
   listTopSentinelStyle,
   roomViewStyleUnder,
-  threadBannerSlotStyle,
   threadViewStyle,
 } from './RoomTimelineOverlays';
 
@@ -1930,6 +1929,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
+          singleBucketTab={
+            threadSectionsShown && threadFilterState.tab && threadFilterState.tab !== 'all'
+              ? threadFilterState.tab
+              : undefined
+          }
         />
       </Box>
     );
@@ -2079,7 +2083,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >
-                  <div style={threadBannerSlotStyle}>{threadHeader}</div>
+                  {threadHeader}
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.leadingRef}>
