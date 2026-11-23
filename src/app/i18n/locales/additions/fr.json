@@ -562,7 +562,12 @@
         "playSound": "Lire le son",
         "resize": "Redimensionner le panneau d’appel",
         "screenOf": "Écran de {{name}}",
-        "fullScreen": "Plein écran"
+        "fullScreen": "Plein écran",
+        "screenShareStoppedInBackground": "Le partage d’écran s’est arrêté lorsque vous avez quitté l’application.",
+        "shareAgain": "Partager à nouveau",
+        "microphoneStopped": "Votre microphone s’est arrêté.",
+        "cameraStopped": "Votre caméra s’est arrêtée.",
+        "turnBackOn": "Réactiver"
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
@@ -865,6 +870,12 @@
       "copyCommand": "Copier la commande",
       "copyFailed": "Échec de la copie",
       "keywords": "mac, macos, bureau, app, application, télécharger, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Partager cette application",
+        "stopAppShare": "Arrêter de partager cette application"
+      }
     }
   },
   "mindroomUi": {

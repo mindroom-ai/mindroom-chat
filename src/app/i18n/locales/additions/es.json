@@ -562,7 +562,12 @@
         "playSound": "Reproducir sonido",
         "resize": "Cambiar el tamaño del panel de la llamada",
         "screenOf": "Pantalla de {{name}}",
-        "fullScreen": "Pantalla completa"
+        "fullScreen": "Pantalla completa",
+        "screenShareStoppedInBackground": "Se detuvo la pantalla compartida al salir de la aplicación.",
+        "shareAgain": "Compartir de nuevo",
+        "microphoneStopped": "Tu micrófono se ha detenido.",
+        "cameraStopped": "Tu cámara se ha detenido.",
+        "turnBackOn": "Volver a activar"
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
@@ -865,6 +870,12 @@
       "copyCommand": "Copiar comando",
       "copyFailed": "No se pudo copiar",
       "keywords": "mac, macos, escritorio, app, aplicación, descargar, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Compartir esta aplicación",
+        "stopAppShare": "Dejar de compartir esta aplicación"
+      }
     }
   },
   "mindroomUi": {

@@ -548,7 +548,12 @@
         "playSound": "Sesi çal",
         "resize": "Arama panelini yeniden boyutlandır",
         "screenOf": "{{name}} adlı kişinin ekranı",
-        "fullScreen": "Tam ekran"
+        "fullScreen": "Tam ekran",
+        "screenShareStoppedInBackground": "Uygulamadan ayrıldığınızda ekran paylaşımı durdu.",
+        "shareAgain": "Tekrar paylaş",
+        "microphoneStopped": "Mikrofonunuz durdu.",
+        "cameraStopped": "Kameranız durdu.",
+        "turnBackOn": "Tekrar aç"
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
@@ -848,6 +853,12 @@
       "copyCommand": "Komutu kopyala",
       "copyFailed": "Kopyalanamadı",
       "keywords": "mac, macos, masaüstü, uygulama, indir, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Bu uygulamayı paylaş",
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur"
+      }
     }
   },
   "mindroomUi": {

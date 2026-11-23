@@ -534,7 +534,12 @@
         "playSound": "播放声音",
         "resize": "调整通话面板大小",
         "screenOf": "{{name}} 的屏幕",
-        "fullScreen": "全屏"
+        "fullScreen": "全屏",
+        "screenShareStoppedInBackground": "离开应用时屏幕共享已停止。",
+        "shareAgain": "重新共享",
+        "microphoneStopped": "你的麦克风已停止。",
+        "cameraStopped": "你的摄像头已停止。",
+        "turnBackOn": "重新开启"
       },
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
@@ -831,6 +836,12 @@
       "copyCommand": "复制命令",
       "copyFailed": "复制失败",
       "keywords": "mac, macos, 桌面, 应用, 下载, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "共享此应用",
+        "stopAppShare": "停止共享此应用"
+      }
     }
   },
   "mindroomUi": {

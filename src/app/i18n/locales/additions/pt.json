@@ -562,7 +562,12 @@
         "playSound": "Reproduzir som",
         "resize": "Redimensionar o painel da chamada",
         "screenOf": "Tela de {{name}}",
-        "fullScreen": "Tela cheia"
+        "fullScreen": "Tela cheia",
+        "screenShareStoppedInBackground": "A partilha de ecrã parou quando saiu da aplicação.",
+        "shareAgain": "Partilhar novamente",
+        "microphoneStopped": "O seu microfone parou.",
+        "cameraStopped": "A sua câmara parou.",
+        "turnBackOn": "Voltar a ligar"
       },
       "problems": {
         "service": "Não foi possível contactar o serviço de chamadas. Tente novamente mais tarde.",
@@ -865,6 +870,12 @@
       "copyCommand": "Copiar comando",
       "copyFailed": "Falha ao copiar",
       "keywords": "mac, macos, desktop, app, aplicativo, baixar, download, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Partilhar esta aplicação",
+        "stopAppShare": "Parar de partilhar esta aplicação"
+      }
     }
   },
   "mindroomUi": {
