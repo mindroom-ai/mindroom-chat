@@ -353,7 +353,7 @@ export const useTimelineScrollLedgerController = ({
     let baseHeadroom = headroomPxRef.current;
     if (showThreadLoadOlder && threadEvents.length > 0 && !threadUserScrolled) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
-      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 160, 16_000);
+      const desired = protoMode === "zero" ? 0 : Math.max(unloaded * 260, 28_000);
       if (!headroomInitRef.current || baseHeadroom < desired) {
         baseHeadroom = desired;
         initialHeadroomPx = desired;
@@ -381,8 +381,24 @@ export const useTimelineScrollLedgerController = ({
         !threadUserScrolled ||
         idleWheel;
       if (shouldTrim) {
-        headroomScrollDeltaAtRender -= headroomPxAtRender;
-        headroomPxAtRender = 0;
+        const anchorIdx = threadLedgerAnchorRef.current?.index ?? 0;
+        let unmeasuredAbove = 0;
+        if (threadUserScrolled && anchorIdx > 0) {
+          const cache = ledgerFoldSizeCacheRef.current;
+          for (let i = 0; i < anchorIdx; i += 1) {
+            const id = threadEvents[i]?.getId();
+            if (id && !cache?.has(id)) unmeasuredAbove += 1;
+          }
+        }
+        // Keep ~60px/unmeasured row above on narrow screens, 0 once all above are measured or at top
+        const viewW = scroller?.clientWidth ?? 1200;
+        const perUnmeasured = viewW < 600 ? 70 : 20;
+        const keepCushion = threadUserScrolled ? Math.min(headroomPxAtRender, unmeasuredAbove * perUnmeasured) : 0;
+        const trim = Math.min(headroomPxAtRender - keepCushion, scrollTopNow);
+        if (trim > 0) {
+          headroomScrollDeltaAtRender -= trim;
+          headroomPxAtRender -= trim;
+        }
       }
     }
     const scroller = getScrollElement();
