@@ -13,6 +13,7 @@ import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
+import { getSettings, settingsAtom } from '../preferences/settings';
 import { SubagentsPanel } from './SubagentsPanel';
 import { keepCancelsOf } from '../matrix/state/sentCancels';
 import { showToolCalls } from '../../test/utils/showToolCalls';
@@ -658,6 +659,63 @@ describe('SubagentsPanel', () => {
       expect(transcript()?.querySelector('[data-tool-elapsed]')).toBeNull();
       act(() => button(container, 'Back').click());
     });
+  });
+
+  it.each<[string, RunMeta]>([
+    ['interrupted by a restart', meta('failed', { interruptedByRestart: true })],
+    ['failed', meta('failed')],
+    ['cancelled', meta('cancelled')],
+    ['denied', meta('denied')],
+  ])("marks unfinished tool calls as didn't complete once a turn is %s", (_label, runMeta) => {
+    const md = 'Working.\n\n🔧 `read_file` [1]\n\n🔧 `bash` [2] ⏳\n\n';
+    const tools: ToolTraceEvent[] = [
+      { type: 'tool_call_completed', tool_name: 'read_file' },
+      bash('tool_call_started', NOW - 60),
+    ];
+    ingest('run', runMeta, docs(md, tools, false));
+    render();
+    open('run');
+
+    const line = transcript()?.querySelector<HTMLButtonElement>(
+      '[data-message-disclosure] > button'
+    );
+    expect(line?.textContent).toContain("Ran 2 tool calls · 1 didn't complete");
+    expect(line?.textContent).not.toContain('Running');
+    act(() => line?.click());
+    expect(transcript()?.querySelector('[data-tool-index="1"]')?.textContent).not.toContain(
+      "Didn't complete"
+    );
+    expect(transcript()?.querySelector('[data-tool-index="2"]')?.textContent).toContain(
+      "Didn't complete"
+    );
+
+    act(() => getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false }));
+    const cog = transcript()?.querySelector<HTMLElement>('[data-tool-calls-fold]');
+    expect(cog?.dataset.state).toBe('failed');
+    expect(cog?.querySelector('button')?.getAttribute('aria-label')).toBe(
+      "Ran 2 tool calls · 1 didn't complete"
+    );
+  });
+
+  it('settles unfinished calls on completed and older turns, while a running newest turn stays running', () => {
+    const started = (at: number, working = true) =>
+      docs(BASH_MD, [bash('tool_call_started', at)], working);
+    ingest('done', meta('completed'), started(NOW - 60, false));
+    ingest('first', meta('running', { subagent: 'sub', startedAt: NOW - 30 }), started(NOW - 30));
+    ingest('second', meta('running', { subagent: 'sub', startedAt: NOW - 10 }), started(NOW - 10));
+    render();
+
+    open('done');
+    const doneText = transcript()?.textContent;
+    act(() => button(container, 'Back').click());
+    open('sub');
+    const answers = [...(view()?.querySelectorAll('[data-subagent-transcript]') ?? [])];
+    [doneText, answers[0]?.textContent].forEach((text) => {
+      expect(text).toContain('Ran 1 tool call');
+      expect(text).not.toContain('Running');
+      expect(text).not.toContain("didn't complete");
+    });
+    expect(answers[1]?.textContent).toContain('Running 1 tool call');
   });
 
   it('shows the typing dots while an open run is running, not while it waits for approval', () => {

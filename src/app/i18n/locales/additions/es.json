@@ -521,7 +521,6 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "dictation": "dictar, dictado, voz a texto, micrófono, teléfono",
         "plugins": "complementos, plugins, extensiones, integraciones"
       },
       "errorReports": {
@@ -1459,12 +1458,6 @@
       "failedSummary_one": "No se pudo transcribir {{count}} segmento.",
       "failedSummary_many": "No se pudieron transcribir {{count}} segmentos.",
       "failedSummary_other": "No se pudieron transcribir {{count}} segmentos."
-    },
-    "voiceButton": {
-      "settingTitle": "Botón de micrófono en móvil",
-      "settingDescription": "Elige qué hace el botón de micrófono del redactor en teléfonos. La otra acción permanece en el menú +.",
-      "dictate": "Dictar",
-      "voiceMessage": "Mensaje de voz"
     }
   },
   "commandPalette": {

@@ -508,7 +508,6 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
       },
       "errorReports": {
@@ -1412,12 +1411,6 @@
       "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
       "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
       "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi."
-    },
-    "voiceButton": {
-      "settingTitle": "Telefonda mikrofon düğmesi",
-      "settingDescription": "Telefonlarda yazma alanındaki mikrofon düğmesinin ne yapacağını seçin. Diğer eylem + menüsünde kalır.",
-      "dictate": "Dikte et",
-      "voiceMessage": "Sesli mesaj"
     }
   },
   "commandPalette": {

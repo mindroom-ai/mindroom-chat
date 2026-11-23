@@ -526,15 +526,6 @@ export const SETTINGS = [
     scope: 'device',
   },
   {
-    id: 'voiceButtonMode',
-    page: 'chats',
-    group: 'settings.general.editor.sectionTitle',
-    labelKey: 'composer.voiceButton.settingTitle',
-    descriptionKey: 'composer.voiceButton.settingDescription',
-    keywordsKey: `${KEYWORDS}.dictation`,
-    scope: 'device',
-  },
-  {
     id: 'markdown',
     page: 'chats',
     group: 'settings.general.editor.sectionTitle',

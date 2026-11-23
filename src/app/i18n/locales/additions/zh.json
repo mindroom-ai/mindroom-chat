@@ -495,7 +495,6 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "dictation": "听写, 语音输入, 语音转文字, 麦克风, 手机",
         "plugins": "插件, 扩展, 附加组件, 集成"
       },
       "errorReports": {
@@ -1365,12 +1364,6 @@
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
       "failedSummary_other": "无法转写 {{count}} 个片段。"
-    },
-    "voiceButton": {
-      "settingTitle": "手机麦克风按钮",
-      "settingDescription": "选择手机上输入框麦克风按钮的功能。另一项操作保留在 + 菜单中。",
-      "dictate": "听写",
-      "voiceMessage": "语音消息"
     }
   },
   "commandPalette": {

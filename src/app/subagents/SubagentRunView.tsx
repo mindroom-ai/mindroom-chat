@@ -113,15 +113,32 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   // `streaming` documents and a paused or ended one `pending`, and both would read as a reply about
   // to stream. A run that wrote nothing answers with its result, unless that says why it failed.
   const working = newest && meta.status === 'running';
+  const ended = !newest || !isActiveSubagentStatus(meta.status);
+  const didNotComplete =
+    meta.status === 'failed' || meta.status === 'cancelled' || meta.status === 'denied';
   const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
   const interrupted = isRestartInterrupted(meta);
   const docs = useMemo((): LiveDocs => {
     const status = working ? run.docs.status : 'completed';
-    const quiet = run.docs.md === '' && run.docs.tools.length === 0;
+    // An ended turn (or an older turn whose end frame was missed) cannot still run a tool call;
+    // settle any lingering started entries so the transcript and cog stop spinning.
+    const tools =
+      ended && run.docs.tools.some((tool) => tool.type === 'tool_call_started')
+        ? run.docs.tools.map((tool) =>
+            tool.type === 'tool_call_started'
+              ? {
+                  ...tool,
+                  type: 'tool_call_completed',
+                  ...(didNotComplete ? { is_error: true } : {}),
+                }
+              : tool
+          )
+        : run.docs.tools;
+    const quiet = run.docs.md === '' && tools.length === 0;
     return quiet && meta.result && !failed
-      ? { ...run.docs, md: meta.result, status }
-      : { ...run.docs, status };
-  }, [failed, meta.result, run.docs, working]);
+      ? { ...run.docs, md: meta.result, status, tools }
+      : { ...run.docs, status, tools };
+  }, [didNotComplete, ended, failed, meta.result, run.docs, working]);
   const getContent = useDocsContent(docs);
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
   const wrote = docs.md !== '' || docs.tools.length > 0 || working;

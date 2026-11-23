@@ -22,6 +22,7 @@ it('builds the keys under the names the app has always used', () => {
     'mindroom.secondThread:@alice:example.org',
     'mindroom.secondThread.width:@alice:example.org',
     'mindroom_client_model_catalogs::@alice:example.org',
+    'mindroom.dictation.availability:@alice:example.org',
   ]);
   expect(pluginPanelWidthStorageKey('@alice:example.org', 'notes/list')).toBe(
     'mindroom.panel.width:@alice:example.org:notes/list'
