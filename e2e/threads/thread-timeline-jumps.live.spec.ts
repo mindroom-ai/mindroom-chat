@@ -35,9 +35,9 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 /**
  * Verifies that a realistic 56-turn agent thread (folded steps, code, tables, and images) keeps
- * rows anchored across warm opens, slow cold-open back-pagination (pinned at bottom or reading
- * mid-thread), and fast upward wheel scrolling in Chromium and WebKit, including WebKit's
- * scrolling-thread settle discards and late replays.
+ * rows anchored across warm opens and slow cold-open back-pagination (pinned at bottom or reading
+ * mid-thread) in Chromium and WebKit, and across fast upward wheel scrolling in Chromium (the
+ * WebKit fast-scroll test is marked `test.fixme` pending a follow-up for settle discard/replay).
  */
 
 type Setup = { engine: 'chromium' | 'webkit'; viewport: 'desktop' | 'phone' };

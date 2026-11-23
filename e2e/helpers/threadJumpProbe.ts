@@ -80,13 +80,10 @@ export const installThreadJumpProbe = () => {
     stallMs: 0,
     writeDelta: 0,
     wheelPx: 0,
-    pendingWheelPx: 0,
     burstWheelPx: 0,
     burstRowPx: 0,
     burstClamped: false,
     quietFrames: 0,
-    lastWrite: { px: 0, at: 0 },
-    takenBackAt: Number.NEGATIVE_INFINITY,
     scroller: null as HTMLElement | null,
     jumps: [] as JumpFrame[],
     visibleFrames: 0,
@@ -353,53 +350,36 @@ export const installThreadJumpProbe = () => {
           probe.maxAnchorDriftPx = Math.abs(anchorDriftPx);
         }
 
+        const populated = threadCount > 0 || allRows.length > 0;
+        if ((populated || probe.hasVisibleBaseline) && current.size < probe.minVisibleCount) {
+          probe.minVisibleCount = current.size;
+        }
+        let dScroll = 0;
+        let dBottomGap = 0;
+        let median = 0;
+        let spread = 0;
+        let unexplained = 0;
+        const reasons: string[] = [];
         if (probe.hasVisibleBaseline) {
-          if (current.size < probe.minVisibleCount) probe.minVisibleCount = current.size;
-          const dScroll = scrollTop - probe.prevScrollTop;
-          const dBottomGap =
+          dScroll = scrollTop - probe.prevScrollTop;
+          dBottomGap =
             Number.isFinite(bottomGapPx) && Number.isFinite(probe.prevBottomGap)
               ? bottomGapPx - probe.prevBottomGap
               : 0;
           probe.scrolledPx += Math.abs(dScroll);
 
           const ds = [...moved].sort((a, b) => a - b);
-          const median = ds.length > 0 ? ds[Math.floor(ds.length / 2)] ?? 0 : 0;
-          const spread = ds.length > 0 ? Math.max(...ds.map((d) => Math.abs(d - median))) : 0;
+          median = ds.length > 0 ? ds[Math.floor(ds.length / 2)] ?? 0 : 0;
+          spread = ds.length > 0 ? Math.max(...ds.map((d) => Math.abs(d - median))) : 0;
           const movedPx = dScroll - appDelta;
-          if (Math.abs(appDelta) >= 48) probe.lastWrite = { px: appDelta, at: now };
+          unexplained = ds.length > 0 ? median + movedPx : 0;
 
-          // Track cumulative wheel input vs cumulative row travel per unclamped scrollUp burst.
+          // Track cumulative wheel input vs cumulative row travel per scrollUp burst.
           if (probe.mode === 'scrollUp') {
             if (wheelPx !== 0) probe.burstWheelPx += wheelPx;
             if (ds.length > 0) probe.burstRowPx += median;
             if (scrollTop <= 1 && (wheelPx < 0 || probe.burstWheelPx < 0)) {
               probe.burstClamped = true;
-            }
-          }
-
-          const { lastWrite } = probe;
-          const frameWheel = probe.pendingWheelPx + wheelPx;
-          if (movedPx !== 0) probe.pendingWheelPx = 0;
-          else if (wheelPx !== 0) probe.pendingWheelPx += wheelPx;
-          const browserMove =
-            probe.mode === 'scrollUp' && frameWheel < 0 ? movedPx - frameWheel : movedPx;
-          const isUndo = (px: number) =>
-            px * lastWrite.px < 0 && Math.abs(px + lastWrite.px) <= Math.abs(lastWrite.px) / 2;
-          const undone = now - lastWrite.at < 2_000 && (isUndo(movedPx) || isUndo(browserMove));
-          if (undone) probe.lastWrite = { px: 0, at: 0 };
-          if (undone || (probe.mode === 'scrollUp' && movedPx > 0)) probe.takenBackAt = now;
-
-          // Outside a WebKit take-back window, row movement must match scroll movement per frame.
-          // Inside one, keep per-frame reversal checks and never credit rows against themselves;
-          // flag immediate overshoot past cumulative wheel and verify full travel when the burst settles.
-          const inTakeBack =
-            probe.mode === 'scrollUp' && (movedPx > 0 || now - probe.takenBackAt < 2_000);
-          let unexplained = 0;
-          if (ds.length > 0) {
-            if (!inTakeBack) {
-              unexplained = median + movedPx;
-            } else if (probe.burstRowPx + probe.burstWheelPx > 0) {
-              unexplained = probe.burstRowPx + probe.burstWheelPx;
             }
           }
 
@@ -414,11 +394,9 @@ export const installThreadJumpProbe = () => {
           if (spread > probe.maxSpreadPx) probe.maxSpreadPx = spread;
           if (lostPlace) probe.lostPlaceFrames += 1;
 
-          const reasons: string[] = [];
           if (probe.mode === 'open') {
             if (Math.abs(median) >= 4) reasons.push(`rowMove(${Math.round(median)}px)`);
             if (Math.abs(dBottomGap) >= 10) reasons.push(`bottomGap(${Math.round(dBottomGap)}px)`);
-            if (current.size === 0) reasons.push('blankScreen(0 rows)');
           } else {
             if (median <= -6) reasons.push(`reversal(${Math.round(median)}px)`);
             if (Math.abs(unexplained) >= 8) {
@@ -428,38 +406,44 @@ export const installThreadJumpProbe = () => {
             if (lostPlace) reasons.push('lostPlace');
           }
 
-          if (reasons.length > 0 && probe.jumps.length < 40) {
-            const mag = Math.max(
-              Math.abs(median),
-              Math.abs(unexplained),
-              spread,
-              probe.mode === 'open' ? Math.abs(dBottomGap) : 0
-            );
-            probe.jumps.push({
-              t: Math.round(now),
-              frame: probe.visibleFrames,
-              mag: Math.round(mag),
-              reasons,
-              scrollTop: Math.round(scrollTop),
-              dScroll: Math.round(dScroll),
-              appDelta: Math.round(appDelta),
-              median: Math.round(median),
-              spread: Math.round(spread),
-              unexplained: Math.round(unexplained),
-              dBottomGap: Math.round(dBottomGap),
-              bottomGapPx: Number.isFinite(bottomGapPx) ? bottomGapPx : -9999,
-              marginTop: Math.round(marginTop),
-              listHeight: Math.round(listHeight),
-              threadCount,
-              visibleCount: current.size,
-              anchorId: probe.anchorId || undefined,
-              anchorTop: Number.isFinite(anchorTopNow) ? Math.round(anchorTopNow) : undefined,
-              anchorDriftPx: Number.isFinite(anchorDriftPx) ? Math.round(anchorDriftPx) : undefined,
-            });
-          }
-
           const quiet = wheelPx === 0 && dScroll === 0 && appDelta === 0 && Math.abs(median) < 1;
           probe.quietFrames = quiet ? probe.quietFrames + 1 : 0;
+        }
+        if (
+          (populated || probe.hasVisibleBaseline) &&
+          probe.mode === 'open' &&
+          current.size === 0
+        ) {
+          reasons.push('blankScreen(0 rows)');
+        }
+        if (reasons.length > 0 && probe.jumps.length < 40) {
+          const mag = Math.max(
+            Math.abs(median),
+            Math.abs(unexplained),
+            spread,
+            probe.mode === 'open' ? Math.abs(dBottomGap) : 0
+          );
+          probe.jumps.push({
+            t: Math.round(now),
+            frame: probe.visibleFrames,
+            mag: Math.round(mag),
+            reasons,
+            scrollTop: Math.round(scrollTop),
+            dScroll: Math.round(dScroll),
+            appDelta: Math.round(appDelta),
+            median: Math.round(median),
+            spread: Math.round(spread),
+            unexplained: Math.round(unexplained),
+            dBottomGap: Math.round(dBottomGap),
+            bottomGapPx: Number.isFinite(bottomGapPx) ? bottomGapPx : -9999,
+            marginTop: Math.round(marginTop),
+            listHeight: Math.round(listHeight),
+            threadCount,
+            visibleCount: current.size,
+            anchorId: probe.anchorId || undefined,
+            anchorTop: Number.isFinite(anchorTopNow) ? Math.round(anchorTopNow) : undefined,
+            anchorDriftPx: Number.isFinite(anchorDriftPx) ? Math.round(anchorDriftPx) : undefined,
+          });
         }
 
         probe.prevListHeight = Math.round(listHeight);

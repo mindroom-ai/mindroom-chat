@@ -88,16 +88,11 @@ describe('threadJumpProbe scrollUp burst checks', () => {
     origScrollTopDesc?.set?.call(scroller, value);
   };
 
-  it('flags unclamped undershoot during a take-back burst when the burst settles', () => {
+  it('flags unclamped undershoot when the burst settles', () => {
     probe().start('scrollUp');
     stepFrame(); // baseline at scrollTop=500, rowTop=200
 
-    // Programmatic settle write (+200), then browser discards it back (-200) -> enters take-back.
-    scroller.scrollTop = 700;
-    setBrowserScrollTop(500);
-    stepFrame();
-
-    // Next notch (-240) plus late replay lands at 392 (net -108); rows move only +108.
+    // Wheel asks for -240, but scrollTop and rows only move 108 px (median + movedPx === 0).
     wheelUp(-240);
     setBrowserScrollTop(392);
     rowTop += 108;
@@ -128,16 +123,11 @@ describe('threadJumpProbe scrollUp burst checks', () => {
   });
 
   it('never excuses rows travelling MORE than the wheel asked even when top-clamped', () => {
-    setBrowserScrollTop(100);
+    setBrowserScrollTop(360);
     probe().start('scrollUp');
-    stepFrame(); // baseline at scrollTop=100, rowTop=200
+    stepFrame(); // baseline at scrollTop=360, rowTop=200
 
-    // Enter take-back window.
-    scroller.scrollTop = 300;
-    setBrowserScrollTop(100);
-    stepFrame();
-
-    // Wheel asks for -240 and hits scrollTop=0 (clamped), yet rows jump +360 (120 px overshoot).
+    // Wheel asks for -240, yet scrollTop and rows travel 360 px to scrollTop=0 (clamped).
     wheelUp(-240);
     setBrowserScrollTop(0);
     rowTop += 360;
@@ -146,7 +136,6 @@ describe('threadJumpProbe scrollUp burst checks', () => {
     for (let i = 0; i < 4; i += 1) stepFrame();
     const report = probe().stop();
     expect(report.maxUnexplainedPx).toBe(120);
-    expect(report.jumps.some((j) => j.reasons.includes('unexplained(120px)'))).toBe(true);
     expect(report.jumps.some((j) => j.reasons.includes('burstDrift(120px)'))).toBe(true);
   });
 
@@ -154,11 +143,6 @@ describe('threadJumpProbe scrollUp burst checks', () => {
     setBrowserScrollTop(100);
     probe().start('scrollUp');
     stepFrame(); // baseline at scrollTop=100, rowTop=200
-
-    // Enter take-back window.
-    scroller.scrollTop = 300;
-    setBrowserScrollTop(100);
-    stepFrame();
 
     // Wheel asks for -240 and hits scrollTop=0 (clamped), yet rows jump backward -80 px.
     wheelUp(-240);
@@ -169,7 +153,46 @@ describe('threadJumpProbe scrollUp burst checks', () => {
     for (let i = 0; i < 4; i += 1) stepFrame();
     const report = probe().stop();
     expect(report.maxReversalPx).toBe(80);
-    expect(report.maxUnexplainedPx).toBe(80);
+    expect(report.maxUnexplainedPx).toBe(180);
     expect(report.jumps.some((j) => j.reasons.includes('burstDrift(-80px)'))).toBe(true);
+  });
+
+  it('flags a delayed row jump on a stationary frame instead of crediting earlier wheel input', () => {
+    probe().start('scrollUp');
+    stepFrame(); // baseline at scrollTop=500, rowTop=200
+
+    // Previously entered a 2 s take-back window via a discarded settle write.
+    scroller.scrollTop = 700;
+    setBrowserScrollTop(500);
+    stepFrame();
+
+    // After 240 px of wheel, the row moves 60 px, pauses 2 frames, then jumps 180 px with no input.
+    wheelUp(-240);
+    setBrowserScrollTop(440);
+    rowTop += 60;
+    stepFrame();
+    stepFrame();
+    stepFrame();
+    rowTop += 180;
+    stepFrame();
+
+    for (let i = 0; i < 4; i += 1) stepFrame();
+    const report = probe().stop();
+    expect(report.maxUnexplainedPx).toBeGreaterThanOrEqual(180);
+    expect(report.jumps.some((j) => j.reasons.includes('unexplained(180px)'))).toBe(true);
+  });
+
+  it('counts a blank first frame when the revealed list is populated but rows sit below the viewport', () => {
+    rowTop = 1_200; // mounted below the 0..800 viewport while threadCount=100
+    probe().start('open');
+    stepFrame(); // first revealed, populated frame: 0 visible rows
+
+    rowTop = 200;
+    stepFrame(); // rows enter viewport on frame 2
+    stepFrame(); // frame 3
+
+    const report = probe().stop();
+    expect(report.minVisibleCount).toBe(0);
+    expect(report.jumps.some((j) => j.reasons.includes('blankScreen(0 rows)'))).toBe(true);
   });
 });
