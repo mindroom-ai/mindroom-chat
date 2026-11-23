@@ -156,7 +156,7 @@ export function RoomInputThreadIndicator({
 }: RoomInputThreadIndicatorProps) {
   if (relation?.rel_type !== RelationType.Thread) return null;
 
-  return <ThreadIndicator room={room} />;
+  return <ThreadIndicator room={room} style={{ flexShrink: 0 }} />;
 }
 
 export function RoomInputReplyContext({
@@ -175,7 +175,7 @@ export function RoomInputReplyContext({
       style={{ padding: `${config.space.S200} ${config.space.S400} 0` }}
     >
       {leading}
-      <Box direction="Row" gap="200" alignItems="Center">
+      <Box direction="Row" gap="200" alignItems="Center" style={{ minWidth: 0 }}>
         <RoomInputThreadIndicator room={room} relation={relation} />
         {children}
         {pendingSend && <PendingSendIndicator />}

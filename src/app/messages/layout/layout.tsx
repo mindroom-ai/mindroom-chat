@@ -128,8 +128,12 @@ export const ReplyLayout = as<'div', { username?: ReactNode }>(
       {...props}
       ref={ref}
     >
-      {username && <Box shrink="No">{username}</Box>}
-      <Box grow="Yes" style={{ minWidth: 0 }}>
+      {username && (
+        <Box shrink="No" style={{ maxWidth: '40%', minWidth: 0 }}>
+          {username}
+        </Box>
+      )}
+      <Box grow="Yes" basis="No" style={{ minWidth: 0 }}>
         {children}
       </Box>
     </Box>
