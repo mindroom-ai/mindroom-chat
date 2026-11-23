@@ -4,6 +4,7 @@ import { Sidebar, SidebarStack, SidebarStackSeparator } from '../ui/sidebar/Side
 import { SidebarContent } from '../ui/sidebar/SidebarContent';
 import { LocalMindroomTab } from './rail/LocalMindroomTab';
 import { CanvasesTab } from './rail/CanvasesTab';
+import { UsageTab } from './rail/UsageTab';
 import { DirectTab } from './rail/DirectTab';
 import { ExploreTab } from './rail/ExploreTab';
 import { HomeTab } from './rail/HomeTab';
@@ -57,6 +58,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
                 <ActivityTab onSelect={onPageNavSelect} />
                 {shown.threads && <ThreadsTab onSelect={onPageNavSelect} />}
                 {shown.canvases && <CanvasesTab />}
+                {shown.usage && <UsageTab />}
               </SidebarStack>
             }
           >

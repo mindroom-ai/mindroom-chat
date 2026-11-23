@@ -14,8 +14,11 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
+import { formatRelativeTime } from '../lib/time';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { getUsagePath } from '../routes/pathUtils';
 import { mobileOrTablet } from '../lib/user-agent';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
 import { glassExpanded } from '../ui/styles/Glass.css';
@@ -24,6 +27,9 @@ import { EffortGlyph, effortBars } from './EffortGlyph';
 import { ModelEffortColumn, ModelEffortEntry } from './ModelEffortColumn';
 import type { ModelCatalogEntry, ModelInheritedEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
+import type { ProviderUsageSnapshot } from '../usage/providerUsageProtocol';
+import { InlineQuotaSummary, singleAccountForModels } from '../usage/QuotaBar';
+import { useProviderUsage } from '../usage/useProviderUsage';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
 
@@ -54,6 +60,9 @@ type ModelPickerPanelProps = {
    * command.
    */
   roomSetting?: { canReset: boolean };
+  usageSnapshot?: ProviderUsageSnapshot;
+  usageAvailable?: boolean;
+  onOpenUsage?: () => void;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -137,11 +146,18 @@ function ModelPickerPanel({
   room,
   ariaLabel,
   roomSetting,
+  usageSnapshot,
+  usageAvailable,
+  onOpenUsage,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const stacked = useScreenSizeContext() === ScreenSize.Mobile;
+  const checkedAtMs = usageSnapshot ? Date.parse(usageSnapshot.checked_at) : Number.NaN;
+  const usageUpdated = Number.isFinite(checkedAtMs)
+    ? formatRelativeTime(checkedAtMs, i18n?.resolvedLanguage ?? i18n?.language ?? 'en')
+    : '';
   const columnRef = useRef<HTMLDivElement>(null);
   /** On a phone the levels show in place of the models, opened from the Effort row under them. */
   const [levelsShown, setLevelsShown] = useState(false);
@@ -482,25 +498,58 @@ function ModelPickerPanel({
         >
           {defaultVisible && option({ kind: 'default' }, 0)}
 
-          {groups.map(([provider, models]) => (
-            <div key={provider} className={css.Group} role="group" aria-label={provider}>
-              <div className={css.GroupTitle} aria-hidden="true">
-                {provider}
-              </div>
-              {models.map((model) =>
-                option(
-                  { kind: 'model', model },
-                  items.findIndex((item) => item.kind === 'model' && item.model.key === model.key)
+          {groups.map(([provider, models]) => {
+            const account = usageSnapshot
+              ? singleAccountForModels(
+                  usageSnapshot.accounts,
+                  models.map((model) => model.key)
                 )
-              )}
-            </div>
-          ))}
+              : undefined;
+            return (
+              <div key={provider} className={css.Group} role="group" aria-label={provider}>
+                <div className={css.GroupHeader} aria-hidden="true">
+                  <span className={css.GroupTitle}>{provider}</span>
+                  {account && account.windows.length > 0 && (
+                    <InlineQuotaSummary account={account} />
+                  )}
+                </div>
+                {models.map((model) =>
+                  option(
+                    { kind: 'model', model },
+                    items.findIndex((item) => item.kind === 'model' && item.model.key === model.key)
+                  )
+                )}
+              </div>
+            );
+          })}
 
           {!waitingForCatalog && items.length === 0 && (
             <div className={css.Empty}>{t('mindroomUi.models.modelPicker.noResults')}</div>
           )}
         </div>
       </Scroll>
+      {usageAvailable && onOpenUsage && !roomSetting && (
+        <div className={css.UsageFooter} data-usage-footer="">
+          {usageUpdated && (
+            <span className={css.UsageUpdated}>
+              {t('mindroomUi.usage.updatedAgo', { time: usageUpdated })}
+            </span>
+          )}
+          <button
+            type="button"
+            className={css.UsageLink}
+            onClick={onOpenUsage}
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              requestClose();
+            }}
+          >
+            {t('mindroomUi.usage.allUsageAndLimits')}
+          </button>
+        </div>
+      )}
     </>
   );
 
@@ -613,6 +662,8 @@ export function ModelPicker({
   conversationHidden?: boolean;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const usage = useProviderUsage();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const triggerId = useId();
@@ -697,6 +748,12 @@ export function ModelPicker({
     sawPendingRef.current = false;
     setOpen(true);
     state.refresh();
+    usage.ensureLoaded(membersRoom?.roomId);
+  };
+
+  const openUsagePage = () => {
+    setOpen(false);
+    void navigate(getUsagePath());
   };
 
   const anchor = open ? triggerRef.current?.getBoundingClientRect() : undefined;
@@ -721,6 +778,9 @@ export function ModelPicker({
             newThread={newThread}
             defaults={defaults}
             room={room}
+            usageSnapshot={usage.snapshot}
+            usageAvailable={usage.available}
+            onOpenUsage={openUsagePage}
             requestClose={close}
             onCommand={() => {
               if (newThread) close();

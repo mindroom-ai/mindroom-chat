@@ -8,6 +8,7 @@ import {
 const SIDEBAR_SWITCHES = [
   'showThreadsInSidebar',
   'showCanvasesInSidebar',
+  'showUsageInSidebar',
   'showExploreInSidebar',
   'showCreateSpaceInSidebar',
   'showSearchInSidebar',

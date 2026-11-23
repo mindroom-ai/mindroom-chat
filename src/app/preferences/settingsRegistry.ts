@@ -175,6 +175,7 @@ const DEV = 'featureUi.settings.developerTools';
 export const SIDEBAR_SWITCH_SETTINGS = {
   threads: 'sidebarThreads',
   canvases: 'sidebarCanvases',
+  usage: 'sidebarUsage',
   explore: 'sidebarExplore',
   createSpace: 'sidebarCreateSpace',
   search: 'sidebarSearch',
@@ -624,6 +625,7 @@ export const SETTINGS = [
     'settings.general.interface.showCanvasesInSidebar',
     `${SIDEBAR}.canvasesDescription`
   ),
+  sidebarSwitch('usage', `${SIDEBAR}.usage`, `${SIDEBAR}.usageDescription`),
   sidebarSwitch('explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
   sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
   sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),

@@ -13,6 +13,8 @@ import {
   ThreadModelPicker,
   TrappedModelPickerPanel,
 } from './ModelPicker';
+import contractFixture from '../usage/__fixtures__/providerUsageContract.json';
+import type { ProviderUsageSnapshot } from '../usage/providerUsageProtocol';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ModelIcon } from './ModelIcon';
 
@@ -20,6 +22,20 @@ import { ModelIcon } from './ModelIcon';
 
 const mocks = vi.hoisted(() => ({
   useModelPicker: vi.fn(),
+  navigate: vi.fn(),
+  ensureUsageLoaded: vi.fn(),
+  usage: {
+    status: 'idle' as const,
+    available: false,
+    hasLowQuota: false,
+    loading: false,
+    refreshing: false,
+    runtimes: [],
+    selectedRuntimeId: undefined as string | undefined,
+    snapshot: undefined as ProviderUsageSnapshot | undefined,
+    selectRuntime: vi.fn(),
+    refresh: vi.fn(),
+  },
   mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
   touch: false,
   anchors: [] as unknown[],
@@ -46,6 +62,7 @@ vi.mock('./ModelPicker.css', () => ({
   Error: 'Error',
   ErrorActions: 'ErrorActions',
   Group: 'Group',
+  GroupHeader: 'GroupHeader',
   GroupTitle: 'GroupTitle',
   IconImage: 'IconImage',
   Mirrored: 'Mirrored',
@@ -68,6 +85,9 @@ vi.mock('./ModelPicker.css', () => ({
   TextButton: 'TextButton',
   Trigger: 'Trigger',
   TriggerDivider: 'TriggerDivider',
+  UsageFooter: 'UsageFooter',
+  UsageLink: 'UsageLink',
+  UsageUpdated: 'UsageUpdated',
   VisuallyHidden: 'VisuallyHidden',
 }));
 
@@ -173,6 +193,17 @@ vi.mock('../matrix/matrix', () => ({
   mxcUrlToHttp: mocks.mxcUrlToHttp,
 }));
 
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mocks.navigate,
+}));
+
+vi.mock('../usage/useProviderUsage', () => ({
+  useProviderUsage: () => ({
+    ...mocks.usage,
+    ensureLoaded: mocks.ensureUsageLoaded,
+  }),
+}));
+
 vi.mock('./useModelPicker', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useModelPicker: mocks.useModelPicker,
@@ -267,6 +298,10 @@ describe('composer model picker', () => {
 
   beforeEach(() => {
     mocks.useModelPicker.mockReset();
+    mocks.navigate.mockReset();
+    mocks.ensureUsageLoaded.mockReset();
+    mocks.usage.available = false;
+    mocks.usage.snapshot = undefined;
     mocks.mxcUrlToHttp.mockClear();
     mocks.touch = false;
     mocks.anchors = [];
@@ -1616,5 +1651,80 @@ describe('TrappedModelPickerPanel', () => {
       act(() => panelRoot.unmount());
       host.remove();
     }
+  });
+});
+
+describe('ModelPicker inline provider usage', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    mocks.navigate.mockReset();
+    mocks.ensureUsageLoaded.mockReset();
+    mocks.usage.available = false;
+    mocks.usage.snapshot = undefined;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('triggers ensureLoaded(roomId), shows unambiguous single-account quotas, and omits ambiguous groups', async () => {
+    const snapshot = JSON.parse(JSON.stringify(contractFixture)) as ProviderUsageSnapshot;
+    mocks.usage.available = true;
+    mocks.usage.snapshot = snapshot;
+
+    const room = { roomId: '!room:example.org', getMember: () => undefined } as unknown as Room;
+    const state = createState({
+      models: [
+        { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
+        {
+          key: 'sonnet_native',
+          display_name: 'Sonnet',
+          provider: 'Claude Code',
+          id: 'claude-sonnet',
+        },
+        { key: 'neon', display_name: 'Neon', provider: 'OpenRouter', id: 'google/gemini-neon' },
+        { key: 'haiku', display_name: 'Haiku', provider: 'Mixed', id: 'claude-haiku' },
+        { key: 'astra', display_name: 'Astra', provider: 'Mixed', id: 'gpt-astra' },
+      ],
+    });
+
+    act(() => root.render(<ModelPicker state={state} room={room} />));
+    await click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(mocks.ensureUsageLoaded).toHaveBeenCalledWith('!room:example.org');
+
+    const claudeGroup = container.querySelector('[role="group"][aria-label="Claude Code"]')!;
+    expect(
+      claudeGroup.querySelector('[data-inline-quota="claude_code:default"]')?.textContent
+    ).toBe('5h 62%·7d 78%');
+
+    const openRouterGroup = container.querySelector('[role="group"][aria-label="OpenRouter"]')!;
+    expect(openRouterGroup.querySelector('[data-inline-quota="openrouter:1"]')?.textContent).toBe(
+      '63% left'
+    );
+
+    const mixedGroup = container.querySelector('[role="group"][aria-label="Mixed"]')!;
+    expect(mixedGroup.querySelector('[data-inline-quota]')).toBeNull();
+
+    const footerButton = container.querySelector('[data-usage-footer] button') as HTMLButtonElement;
+    expect(footerButton).not.toBeNull();
+    expect(footerButton.textContent).toContain('All usage & limits');
+    await click(footerButton);
+    expect(mocks.navigate).toHaveBeenCalledWith('/usage/');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('hides inline quotas and the footer link when provider usage is unavailable', async () => {
+    act(() => root.render(<ModelPicker state={createState()} />));
+    await click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(container.querySelector('[data-inline-quota]')).toBeNull();
+    expect(container.querySelector('[data-usage-footer]')).toBeNull();
   });
 });

@@ -89,6 +89,7 @@ describe('Settings > General > Sidebar', () => {
     expect(titles(renderer)).toEqual([
       'Show Threads in the sidebar',
       'Show Canvases in the sidebar',
+      'Show Usage in the sidebar',
       'Show Explore Community in the sidebar',
       'Show Create Space in the sidebar',
       'Show Search in the sidebar',
@@ -102,7 +103,7 @@ describe('Settings > General > Sidebar', () => {
       sidebar: { showThreads: false, showExploreCommunity: false },
       mindroom: { canvas: { enabled: false } },
     });
-    expect(titles(renderer)).toEqual(['Show Search in the sidebar']);
+    expect(titles(renderer)).toEqual(['Show Usage in the sidebar', 'Show Search in the sidebar']);
   });
 
   it('says where each hidden page stays reachable', () => {
@@ -110,6 +111,7 @@ describe('Settings > General > Sidebar', () => {
     const description = (title: string) => tile(renderer, title).props['data-description'];
     expect(description('Show Threads in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Canvases in the sidebar')).toContain('⋮ menu in Home');
+    expect(description('Show Usage in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Explore Community in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Create Space in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Create Space in the sidebar')).toContain('command palette (Ctrl + K)');

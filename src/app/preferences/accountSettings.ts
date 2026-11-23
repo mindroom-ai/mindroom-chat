@@ -13,6 +13,8 @@ export const MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 export type AccountSettings = {
   /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
   showCanvasesInSidebar: boolean;
+  /** Show the sidebar's Usage button (once a runtime reports provider usage). */
+  showUsageInSidebar: boolean;
   /** Show the sidebar's Threads button where the deployment offers it. */
   showThreadsInSidebar: boolean;
   /** Show the sidebar's Explore Community button where the deployment offers it. */
@@ -39,6 +41,7 @@ const EMPTY_DISABLED_PLUGINS: readonly string[] = Object.freeze([]);
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showCanvasesInSidebar: false,
+  showUsageInSidebar: false,
   showThreadsInSidebar: false,
   showExploreInSidebar: false,
   showCreateSpaceInSidebar: false,
@@ -102,6 +105,7 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
       typeof content.showCanvasesInSidebar === 'boolean'
         ? content.showCanvasesInSidebar
         : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar,
+    showUsageInSidebar: storedSwitch(content, 'showUsageInSidebar'),
     showThreadsInSidebar: storedSwitch(content, 'showThreadsInSidebar'),
     showExploreInSidebar: storedSwitch(content, 'showExploreInSidebar'),
     showCreateSpaceInSidebar: storedSwitch(content, 'showCreateSpaceInSidebar'),

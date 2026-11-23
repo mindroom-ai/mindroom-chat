@@ -36,6 +36,9 @@ vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: () => React.createElement('div', { 'data-tab': 'canvases' }),
 }));
+vi.mock('./rail/UsageTab', () => ({
+  UsageTab: () => React.createElement('div', { 'data-tab': 'usage' }),
+}));
 vi.mock('./rail/DirectTab', () => ({
   DirectTab: () => React.createElement('div', { 'data-tab': 'direct' }),
 }));
@@ -80,9 +83,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../matrix/hooks/useAccountSettings', async () => {
-  const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import(
-    '../preferences/accountSettings'
-  );
+  const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import('../preferences/accountSettings');
   // An account that turned its rail buttons on; SidebarNav.buttons.test.tsx covers the defaults.
   return {
     useAccountSettings: () => ({

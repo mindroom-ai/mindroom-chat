@@ -8,6 +8,7 @@ import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 export type RailButton =
   | 'threads'
   | 'canvases'
+  | 'usage'
   | 'explore'
   | 'createSpace'
   | 'search'
@@ -19,6 +20,7 @@ export type RailButtons = Record<RailButton, boolean>;
 export const RAIL_BUTTON_SETTING: Record<RailButton, BooleanAccountSetting> = {
   threads: 'showThreadsInSidebar',
   canvases: 'showCanvasesInSidebar',
+  usage: 'showUsageInSidebar',
   explore: 'showExploreInSidebar',
   createSpace: 'showCreateSpaceInSidebar',
   search: 'showSearchInSidebar',
@@ -37,6 +39,7 @@ export function useOfferedRailButtons(): RailButtons {
   return {
     threads: sidebar?.showThreads ?? true,
     canvases: canvasesEnabled(config),
+    usage: true,
     explore: communities,
     createSpace: communities,
     search: true,
@@ -52,6 +55,7 @@ export function useRailButtons(): RailButtons {
   return {
     threads: shown('threads'),
     canvases: shown('canvases'),
+    usage: shown('usage'),
     explore: shown('explore'),
     createSpace: shown('createSpace'),
     search: shown('search'),
