@@ -950,7 +950,9 @@ export const useThreadHeadroomCommit = ({
     }
 
     // If history finished loading while still pinned on open (!threadUserScrolled), release
-    // unused headroom (budget = unloaded * avg = 0) before the reader ever scrolls.
+    // excess headroom before the reader ever scrolls. On narrow phone viewports keep a modest
+    // wrap cushion (capped at 2 viewports) for unmeasured rows above so scrolling up absorbs
+    // mobile line-wrap growth with zero anchor drift; desktop trims cleanly to 0.
     if (
       !threadUserScrolled &&
       !hasMoreHistory &&
@@ -958,15 +960,22 @@ export const useThreadHeadroomCommit = ({
       threadEvents.length > 0 &&
       gate.heldRawEvents === undefined
     ) {
-      const preTop = scrollElement.scrollTop;
-      const trim = gate.committedHeadroomPx;
-      applyHeadroomTransition({
-        nextHeadroom: 0,
-        scrollKind: threadOpenedAtLatest ? "bottom" : "offset",
-        targetScrollTop: Math.max(0, preTop - trim),
-        reason: "trim",
-      });
-      return;
+      const unmeasuredVisible = countUnmeasuredVisible(threadEvents);
+      const keepCushion =
+        viewW < 600
+          ? Math.min(gate.committedHeadroomPx, unmeasuredVisible * 12, Math.round(viewH * 2))
+          : 0;
+      const trim = gate.committedHeadroomPx - keepCushion;
+      if (trim > 1) {
+        const preTop = scrollElement.scrollTop;
+        applyHeadroomTransition({
+          nextHeadroom: keepCushion,
+          scrollKind: threadOpenedAtLatest ? "bottom" : "offset",
+          targetScrollTop: Math.max(0, preTop - trim),
+          reason: "trim",
+        });
+        return;
+      }
     }
 
     if (!gate.idleIntentQueued) {
