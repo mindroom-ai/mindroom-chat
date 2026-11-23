@@ -358,7 +358,9 @@ function RowList({
 }) {
   if (rows.length === 0) return null;
   return (
-    <ul className={css.List} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy}>
+    // Safari's VoiceOver drops the list semantics of a list without markers; the role keeps them.
+    // eslint-disable-next-line jsx-a11y/no-redundant-roles
+    <ul role="list" className={css.List} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy}>
       {rows.map((row, index) => (
         <InviteDirectoryRow
           key={row.user.userId}

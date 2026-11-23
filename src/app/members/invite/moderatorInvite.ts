@@ -192,20 +192,28 @@ const errorDetail = (error: unknown): string =>
 
 /**
  * What the invites of one user to one room mean for their rights, kept while an invite with the
- * grant or its grant is on its way (`active` counts them): `optOutGen` grows with every invite
- * without the grant, `grantGen` with every grant that enters the room's queue.
+ * grant or its grant is on its way (`active` counts them). `optOutGen` grows with every invite
+ * without the grant. Invites with the grant are numbered as they are submitted (`nextSeq`), and
+ * `latestSucceededSeq` is the newest of them whose invite was sent: its grant is the one to write.
  */
-type GrantState = { optOutGen: number; grantGen: number; active: number };
+type GrantState = {
+  optOutGen: number;
+  nextSeq: number;
+  latestSucceededSeq: number;
+  active: number;
+};
 
 const grantStates = new WeakMap<MatrixClient, Map<string, GrantState>>();
 
 const grantKey = (roomId: string, targetId: string): string => `${roomId}\0${targetId}`;
 
 /**
- * An invite of `targetId` without the grant: every invite with the grant that is still on its
- * way, and every grant still in the room's queue or being written, is superseded and writes
- * nothing, also one a sheet started that has closed since. So an invite with the grant, declined
- * and sent again without it, leaves the agent without the rights. Nothing to do when none waits.
+ * An invite of `targetId` without the grant supersedes every invite with the grant that is still
+ * on its way and every grant that waits in the room's queue or reads the live state, also one a
+ * sheet started that has closed since: a grant whose write (`sendStateEvent`) has not started
+ * writes nothing. A write that is already sent cannot be recalled; only its failure is no longer
+ * reported. So an invite with the grant, declined and sent again without it, leaves the agent
+ * without the rights. Nothing to do when none waits.
  */
 export const supersedeModeratorGrant = (
   client: MatrixClient,
@@ -219,7 +227,10 @@ export const supersedeModeratorGrant = (
 type ModeratorGrantIntent = {
   /** The invite failed: no grant follows. Leaves the grants of earlier invites as they are. */
   release: () => void;
-  /** The invite is sent: grants the rights, unless an invite without the grant came since. */
+  /**
+   * The invite is sent: grants the rights, unless an invite without the grant came since, or a
+   * newer invite with the grant was sent first.
+   */
   run: (room: Room, maxLevel: number) => Promise<GrantFailure | null>;
 };
 
@@ -229,9 +240,9 @@ type ModeratorGrantIntent = {
  *
  * `run` serializes moderator grants per room and merges against live `m.room.power_levels` state
  * from the homeserver before writing, so concurrent agent invites before `/sync` never overwrite
- * each other and never lower existing power levels or exceed the shown ceiling. A grant supersedes
- * the ones the same user still has in the queue; a superseded grant writes nothing, reports
- * nothing and returns `null`.
+ * each other and never lower existing power levels or exceed the shown ceiling. Of the invites of
+ * one user, the one submitted last whose invite was sent gives the rights, whatever the order in
+ * which the invites return; a superseded grant writes nothing, reports nothing and returns `null`.
  */
 export const beginModeratorGrantIntent = (
   client: MatrixClient,
@@ -241,9 +252,11 @@ export const beginModeratorGrantIntent = (
   const key = grantKey(roomId, targetId);
   const states = grantStates.get(client) ?? new Map<string, GrantState>();
   grantStates.set(client, states);
-  const state = states.get(key) ?? { optOutGen: 0, grantGen: 0, active: 0 };
+  const state = states.get(key) ?? { optOutGen: 0, nextSeq: 0, latestSucceededSeq: 0, active: 0 };
   states.set(key, state);
+  state.nextSeq += 1;
   state.active += 1;
+  const mySeq = state.nextSeq;
   const intentOptOut = state.optOutGen;
 
   let released = false;
@@ -255,13 +268,12 @@ export const beginModeratorGrantIntent = (
   };
 
   const run = (room: Room, maxLevel: number): Promise<GrantFailure | null> => {
-    if (state.optOutGen !== intentOptOut) {
+    if (state.optOutGen !== intentOptOut || mySeq < state.latestSucceededSeq) {
       release();
       return Promise.resolve(null);
     }
-    state.grantGen += 1;
-    const myGrantGen = state.grantGen;
-    const isSuperseded = () => state.optOutGen !== intentOptOut || state.grantGen !== myGrantGen;
+    state.latestSucceededSeq = mySeq;
+    const isSuperseded = () => state.optOutGen !== intentOptOut || state.latestSucceededSeq > mySeq;
 
     return enqueueRoomGrant<GrantFailure | null>(client, roomId, async () => {
       if (isSuperseded()) return null;

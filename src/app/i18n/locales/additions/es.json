@@ -120,7 +120,7 @@
       "giveRoleRightsAgents": "Dar permisos de {{role}} a los agentes invitados",
       "alreadyInRoom": "Ya está en esta sala",
       "alreadyInvited": "Ya invitado",
-      "bannedFromRoom": "Expulsado de esta sala",
+      "bannedFromRoom": "Vetado en esta sala",
       "retryUser": "Reintentar invitar a {{user}}"
     },
     "joinAddressPrompt": {

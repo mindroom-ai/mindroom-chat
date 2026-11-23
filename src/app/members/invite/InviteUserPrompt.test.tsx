@@ -824,6 +824,43 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
       expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
     });
 
+    it('gives the rights of the invite submitted last, also when the earlier invite returns after it', async () => {
+      const { mx, room, client, holdNextRead } = setup();
+      // The room asks level 100 of its router: within the ceiling of the second invite only.
+      room.state.powerLevels = {
+        ...defaultPowerLevels(),
+        events: { 'm.room.power_levels': 100, 'io.mindroom.router': 100 },
+      };
+      const begin = () => beginModeratorGrantIntent(client, room.roomId, helper);
+      const first = begin();
+      const second = begin();
+
+      // The second invite returns first, and its grant reads the live state.
+      const read = holdNextRead();
+      const secondResult = second.run(room as unknown as Room, 100);
+      await settle();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
+
+      // The first returns late: it is the older one, gives way at once and takes nothing back.
+      expect(await first.run(room as unknown as Room, 50)).toBeNull();
+
+      read.finish();
+      expect(await secondResult).toBeNull();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expectGrant(mx, room, helper, 100);
+    });
+
+    it('still gives the rights of an earlier invite when the invite submitted after it fails', async () => {
+      const { mx, room, client } = setup();
+      const begin = () => beginModeratorGrantIntent(client, room.roomId, helper);
+      const first = begin();
+      const second = begin();
+      second.release();
+      expect(await first.run(room as unknown as Room, 50)).toBeNull();
+      expectGrant(mx, room, helper, 50);
+    });
+
     it('leaves the write to the newest of two grants for one user, and takes a grant again once they finished', async () => {
       const { mx, room, grant, supersede } = setup();
       const [first, second] = await Promise.all([grant(helper), grant(helper)]);
@@ -2702,6 +2739,8 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
       (node) => node.type === 'ul' && node.props.className === 'InviteList'
     );
     expect(lists[0]!.props['aria-label']).toBe('Invite');
+    // Stated, since Safari's VoiceOver drops the role of a list without markers.
+    expect(lists.map((list) => list.props.role)).toEqual(lists.map(() => 'list'));
     expect(lists[0]!.findAllByType('li')).toHaveLength(3);
     // The sections below take their names from their headings.
     lists.slice(1).forEach((list) => {
