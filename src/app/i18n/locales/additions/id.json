@@ -420,6 +420,16 @@
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal."
       },
+      "plugins": {
+        "title": "Plugin",
+        "description": "Aktifkan atau nonaktifkan plugin bawaan untuk akun Anda di semua perangkat Anda."
+      },
+      "storage": {
+        "cacheBudget": "Batas ukuran cache",
+        "cacheBudgetDescription": "Ukuran target per akun untuk ruang dan media dalam cache. Ruang yang baru dibuka dan disematkan tetap disimpan meski melebihi batas ini.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Anda",
@@ -485,7 +495,7 @@
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
         "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
-        "dictation": "dikte, ucapan ke teks, ketik suara, mikrofon, ponsel"
+        "plugins": "plugin, ekstensi, pengaya, integrasi"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -534,7 +544,12 @@
         "playSound": "Putar suara",
         "resize": "Ubah ukuran panel panggilan",
         "screenOf": "Layar {{name}}",
-        "fullScreen": "Layar penuh"
+        "fullScreen": "Layar penuh",
+        "screenShareStoppedInBackground": "Berbagi layar berhenti saat Anda meninggalkan aplikasi.",
+        "shareAgain": "Bagikan lagi",
+        "microphoneStopped": "Mikrofon Anda berhenti.",
+        "cameraStopped": "Kamera Anda berhenti.",
+        "turnBackOn": "Nyalakan lagi"
       },
       "problems": {
         "service": "Layanan panggilan tidak dapat dihubungi. Coba lagi nanti.",
@@ -831,6 +846,12 @@
       "copyCommand": "Salin perintah",
       "copyFailed": "Gagal menyalin",
       "keywords": "mac, macos, desktop, aplikasi, unduh, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Bagikan aplikasi ini",
+        "stopAppShare": "Berhenti membagikan aplikasi ini"
+      }
     }
   },
   "mindroomUi": {
@@ -1334,6 +1355,7 @@
       "insertPartial": "Sisipkan teks sebagian",
       "discard": "Buang",
       "dismissError": "Tutup kesalahan dikte",
+      "previewLabel": "Pratinjau dikte",
       "statusStarting": "Memulai dikte",
       "statusListening": "Mendikte",
       "statusPaused": "Dikte dijeda",
@@ -1342,12 +1364,6 @@
       "capReached": "Batas 5:00 tercapai",
       "micInterrupted": "Mikrofon terputus. Lanjutkan atau selesaikan.",
       "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen."
-    },
-    "voiceButton": {
-      "settingTitle": "Tombol mikrofon di ponsel",
-      "settingDescription": "Pilih tindakan tombol mikrofon di kolom pesan pada ponsel. Tindakan lainnya tetap berada di menu +.",
-      "dictate": "Dikte",
-      "voiceMessage": "Pesan suara"
     }
   },
   "commandPalette": {
@@ -1380,6 +1396,11 @@
     "actions": {
       "goActivity": "Ke Aktivitas",
       "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Baru dibuka",
+      "otherThreads": "Utas lain",
+      "otherRooms": "Ruang lain"
     }
   },
   "shortcuts": {

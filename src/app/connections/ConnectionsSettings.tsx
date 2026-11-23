@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { Box, Button, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../ui/SequenceCard';
@@ -14,7 +14,7 @@ export function ConnectionsSettings({ className }: { className?: string }) {
   const [blocked, setBlocked] = useState(false);
 
   // The native shells have no pop-up window to hand a token to.
-  if (Capacitor.isNativePlatform()) return null;
+  if (isBundledApp()) return null;
 
   // The window must open inside the click itself, so nothing here awaits before the call.
   const open = (backendUrl: string) => {

@@ -14,6 +14,7 @@ const ELLIPSIS = '…';
 // Canvas widths can run a pixel under the rendered text; keep the cut clear of the line's own
 // ellipsis.
 const FIT_SLACK_PX = 2;
+const RESIZE_SETTLE_MS = 100;
 
 /**
  * The longest start of `text` that `fits`, cut after a whole word, without the punctuation before
@@ -67,10 +68,17 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
   const [rowWidthChanges, rowWidthChanged] = useReducer((count: number) => count + 1, 0);
   const [fit, setFit] = useState<{ text: string; rowWidthChanges: number; shown: string }>();
   const fitted = enabled && fit?.text === text && fit.rowWidthChanges === rowWidthChanges;
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useLayoutEffect(() => {
+    if (!enabled) {
+      setFit(undefined);
+      return;
+    }
     const element = ref.current;
-    if (!enabled || fitted || !element) return;
+    if (fitted || !element) return;
+    clearTimeout(resizeTimerRef.current);
+    resizeTimerRef.current = undefined;
     // Text the line holds whole stays whole; only an overflowing line is cut.
     const overflows = element.scrollWidth > element.clientWidth;
     const width = overflows ? textWidth(element) : undefined;
@@ -85,16 +93,25 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
   useLayoutEffect(() => {
     // The row is as wide as the banner; the title's own width follows its text.
     const row = ref.current?.parentElement;
-    if (!row || typeof ResizeObserver === 'undefined') return undefined;
+    if (!enabled || !row || typeof ResizeObserver === 'undefined') return undefined;
     let rowWidth = row.clientWidth;
     const observer = new ResizeObserver(() => {
-      if (row.clientWidth === rowWidth) return;
-      rowWidth = row.clientWidth;
-      rowWidthChanged();
+      const nextWidth = row.clientWidth;
+      if (nextWidth === rowWidth) return;
+      rowWidth = nextWidth;
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        resizeTimerRef.current = undefined;
+        rowWidthChanged();
+      }, RESIZE_SETTLE_MS);
     });
     observer.observe(row);
-    return () => observer.disconnect();
-  }, [ref]);
+    return () => {
+      observer.disconnect();
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = undefined;
+    };
+  }, [enabled, ref]);
 
   return fitted ? fit.shown : text;
 };
@@ -117,9 +134,9 @@ export const getThreadRootTitle = (
 };
 
 /**
- * The banner's title line from the thread's first message, cut at a word to fit one line. `hint`
- * follows the whole text in its tooltip. `whole` shows all of it instead, on as many lines as it
- * takes: the title on a phone.
+ * The banner's title from the thread's first message: one word-fitted line on wide banners, or
+ * clamped to two lines (one in a short room area) when `whole` is set on compact/phone banners.
+ * `hint` follows the whole text in its tooltip.
  */
 export function ThreadRootTitle({
   text,
@@ -139,11 +156,9 @@ export function ThreadRootTitle({
       ref={ref}
       as="span"
       data-thread-context-root-title="true"
-      className={whole ? css.PhoneTitle : css.SummaryText}
+      className={whole ? css.PhoneRootTitle : css.SummaryText}
       size="T300"
       truncate={!whole}
-      // A title taller than its bound scrolls, also from the keyboard.
-      tabIndex={whole ? 0 : undefined}
       title={hint ? `${text}\n${hint}` : text}
       onDoubleClick={onDoubleClick}
       {...(whole ? ownDirectionBlock : ownDirectionLine)}

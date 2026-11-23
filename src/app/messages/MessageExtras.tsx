@@ -1,6 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useMemo, useRef } from 'react';
-import parse, { type HTMLReactParserOptions } from 'html-react-parser';
+import parse, {
+  attributesToProps,
+  domToReact,
+  Element as HtmlElement,
+  type HTMLReactParserOptions,
+} from 'html-react-parser';
+import { isDesktopApp } from '../lib/nativeShell';
+import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { sanitizeCustomHtml, sanitizeText } from '../rich-text/sanitize';
@@ -17,6 +24,7 @@ import {
 } from '../matrix/protocol/messageExtrasData';
 import { sanitizeMessageExtraHtml } from './messageExtrasHtml';
 import { useToolTraceMarkerParserOptions } from './html/HtmlBlocks';
+import { stripLinkTextBidi } from './html/react-custom-html-parser';
 import { InlineSecretRequestsContext, NO_INLINE_SECRET_REQUESTS } from './inlineSecretRequests';
 import { ToolApprovalsByNameContext } from './agent-run/toolCallStatus';
 import * as css from './MessageExtras.css';
@@ -35,6 +43,20 @@ type MessageExtrasProps = {
   markerContent: Record<string, unknown>;
   /** Whether a tool marker draws a row: only an agent's does. */
   toolRows: boolean;
+};
+
+// Desktop app only: a link there opens through the preload, so a misleading one is asked about
+// first. Everywhere else the anchor stays as it is.
+const extraHtmlParserOptions: HTMLReactParserOptions = {
+  replace(node) {
+    if (!(node instanceof HtmlElement) || node.name !== 'a' || !node.attribs.href) return undefined;
+    stripLinkTextBidi(node.children);
+    return (
+      <CheckedMessageLink {...attributesToProps(node.attribs)}>
+        {domToReact(node.children, extraHtmlParserOptions)}
+      </CheckedMessageLink>
+    );
+  },
 };
 
 const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParserOptionsSource) => {
@@ -61,7 +83,11 @@ const renderSectionContent = (
 
     if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
       const sanitizedHtml = sanitizeMessageExtraHtml(content);
-      return <div className={css.Html}>{parse(sanitizedHtml)}</div>;
+      return (
+        <div className={css.Html}>
+          {parse(sanitizedHtml, isDesktopApp() ? extraHtmlParserOptions : undefined)}
+        </div>
+      );
     }
   } catch {
     return null;

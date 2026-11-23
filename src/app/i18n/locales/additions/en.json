@@ -433,6 +433,16 @@
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Turn bundled plugins on or off for your account across your devices."
+      },
+      "storage": {
+        "cacheBudget": "Cache size limit",
+        "cacheBudgetDescription": "Target size per account for cached rooms and media. Recently opened and pinned rooms stay even above this limit.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "You",
@@ -498,7 +508,7 @@
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
-        "dictation": "dictate, dictation, speech to text, voice typing, microphone, phone"
+        "plugins": "plugins, extensions, add-ons, integrations"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -548,7 +558,12 @@
         "playSound": "Play sound",
         "resize": "Resize the call panel",
         "screenOf": "{{name}}'s screen",
-        "fullScreen": "Full screen"
+        "fullScreen": "Full screen",
+        "screenShareStoppedInBackground": "Screen sharing stopped when you left the app.",
+        "shareAgain": "Share again",
+        "microphoneStopped": "Your microphone stopped.",
+        "cameraStopped": "Your camera stopped.",
+        "turnBackOn": "Turn back on"
       },
       "problems": {
         "service": "The call service could not be reached. Try again later.",
@@ -848,6 +863,12 @@
       "copyCommand": "Copy command",
       "copyFailed": "Copy failed",
       "keywords": "mac, macos, desktop, app, download, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Share this app",
+        "stopAppShare": "Stop sharing this app"
+      }
     }
   },
   "mindroomUi": {
@@ -1379,6 +1400,7 @@
       "insertPartial": "Insert partial",
       "discard": "Discard",
       "dismissError": "Dismiss dictation error",
+      "previewLabel": "Dictation preview",
       "statusStarting": "Starting dictation",
       "statusListening": "Dictating",
       "statusPaused": "Dictation paused",
@@ -1389,12 +1411,6 @@
       "micInterrupted": "Microphone disconnected. Resume or finish.",
       "failedSummary_one": "Could not transcribe {{count}} segment.",
       "failedSummary_other": "Could not transcribe {{count}} segments."
-    },
-    "voiceButton": {
-      "settingTitle": "Phone microphone button",
-      "settingDescription": "Choose what the microphone button in the composer does on phones. The other action stays in the + menu.",
-      "dictate": "Dictate",
-      "voiceMessage": "Voice message"
     }
   },
   "commandPalette": {
@@ -1427,6 +1443,11 @@
     "actions": {
       "goActivity": "Go to Activity",
       "goActivityDescription": "Mentions, replies and what waits for you"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Recently opened",
+      "otherThreads": "Other threads",
+      "otherRooms": "Other rooms"
     }
   },
   "shortcuts": {

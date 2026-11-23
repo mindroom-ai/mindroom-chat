@@ -17,6 +17,7 @@ import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { copyToClipboard } from '../lib/dom';
 import { localDigits } from '../lib/localDigits';
+import { DialogCloseButton } from '../ui/DialogChrome';
 import { PageScroll } from '../ui/page/PageScroll';
 import { Header, Modal } from '../ui/glass/GlassPrimitives';
 import { CopyIcon } from '../rich-text/code/CodeBlockIcons';
@@ -688,15 +689,11 @@ export const RoomSchedulesDialog = forwardRef<HTMLDivElement, RoomSchedulesDialo
                 </Text>
                 <span className={css.HeaderCount}>{localDigits(String(tasks.length), locale)}</span>
               </Box>
-              <IconButton
+              <DialogCloseButton
                 ref={closeButtonRef}
-                size="300"
-                radii="300"
-                aria-label={t('roomSchedules.close')}
+                label={t('roomSchedules.close')}
                 onClick={onClose}
-              >
-                <Icon src={Icons.Cross} />
-              </IconButton>
+              />
             </Header>
           }
         >

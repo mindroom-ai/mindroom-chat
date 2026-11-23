@@ -52,6 +52,8 @@ export type ClientPlugin = {
 export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
+  readonly displayName: string;
+  readonly description?: string;
   readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
   readonly pages: readonly PluginPage[];
@@ -67,7 +69,23 @@ export type RegisteredPlugin = {
   readonly threadHeaderSlot: readonly ThreadHeaderSlotComponent[];
 };
 
-const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
+const optionalText = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
+/** Formats a kebab-case plugin ID into Title Case when no explicit display name is provided. */
+const formatPluginId = (id: string): string =>
+  id
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const register = ({ id, version, name, description, plugin }: PluginEntry): RegisteredPlugin => {
+  const displayName = optionalText(name) ?? formatPluginId(id);
+  const trimmedDescription = optionalText(description);
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const pages = isRecord(plugin) ? plugin.pages : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
@@ -84,6 +102,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   return Object.freeze({
     id,
     tag: `${id}@${version}`,
+    displayName,
+    ...(trimmedDescription !== undefined ? { description: trimmedDescription } : {}),
     // The build does not type-check plugins: anything but a list of renderers counts as none.
     messageRenderers: Object.freeze(
       Array.isArray(renderers)

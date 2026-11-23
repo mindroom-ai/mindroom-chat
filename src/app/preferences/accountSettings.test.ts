@@ -3,6 +3,7 @@ import {
   DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
   mergeAccountSettings,
   sanitizeAccountSettings,
+  setPluginDisabled,
 } from './accountSettings';
 
 describe('sanitizeAccountSettings', () => {
@@ -16,12 +17,12 @@ describe('sanitizeAccountSettings', () => {
   it('hides Canvases in the sidebar by default while preserving explicit booleans', () => {
     expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(false);
     expect(sanitizeAccountSettings({}).showCanvasesInSidebar).toBe(false);
-    expect(
-      sanitizeAccountSettings({ showCanvasesInSidebar: true }).showCanvasesInSidebar
-    ).toBe(true);
-    expect(
-      sanitizeAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar
-    ).toBe(false);
+    expect(sanitizeAccountSettings({ showCanvasesInSidebar: true }).showCanvasesInSidebar).toBe(
+      true
+    );
+    expect(sanitizeAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar).toBe(
+      false
+    );
   });
 
   it('reads whether the tour was offered, which it was not unless a boolean says so', () => {
@@ -39,6 +40,29 @@ describe('sanitizeAccountSettings', () => {
     expect(sanitizeAccountSettings({ macAppOffered: 'yes' }).macAppOffered).toBe(false);
   });
 
+  it('sanitizes disabledPlugins as deduplicated non-empty string IDs', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.disabledPlugins).toEqual([]);
+    expect(sanitizeAccountSettings({}).disabledPlugins).toEqual([]);
+    expect(sanitizeAccountSettings({ disabledPlugins: 'example' }).disabledPlugins).toEqual([]);
+    expect(sanitizeAccountSettings({ disabledPlugins: { example: true } }).disabledPlugins).toEqual(
+      []
+    );
+    expect(
+      sanitizeAccountSettings({
+        disabledPlugins: [
+          'pull-requests',
+          '',
+          '  ',
+          42,
+          null,
+          'thread-usage',
+          'pull-requests',
+          ' thread-usage ',
+        ],
+      }).disabledPlugins
+    ).toEqual(['pull-requests', 'thread-usage']);
+  });
+
   it('ignores unknown keys when reading', () => {
     expect(
       sanitizeAccountSettings({
@@ -53,10 +77,7 @@ describe('sanitizeAccountSettings', () => {
 describe('mergeAccountSettings', () => {
   it('overlays the patch onto stored content', () => {
     expect(
-      mergeAccountSettings(
-        { showCanvasesInSidebar: false },
-        { showCanvasesInSidebar: true }
-      )
+      mergeAccountSettings({ showCanvasesInSidebar: false }, { showCanvasesInSidebar: true })
     ).toEqual({
       showCanvasesInSidebar: true,
     });
@@ -73,11 +94,21 @@ describe('mergeAccountSettings', () => {
 
   it('records the tour as offered beside the switches and the keys of other clients', () => {
     expect(
+      mergeAccountSettings({ showThreadsInSidebar: true, futureKey: 'x' }, { tourOffered: true })
+    ).toEqual({ showThreadsInSidebar: true, futureKey: 'x', tourOffered: true });
+  });
+
+  it('preserves unknown keys when updating disabledPlugins', () => {
+    expect(
       mergeAccountSettings(
         { showThreadsInSidebar: true, futureKey: 'x' },
-        { tourOffered: true }
+        { disabledPlugins: ['pull-requests'] }
       )
-    ).toEqual({ showThreadsInSidebar: true, futureKey: 'x', tourOffered: true });
+    ).toEqual({
+      showThreadsInSidebar: true,
+      futureKey: 'x',
+      disabledPlugins: ['pull-requests'],
+    });
   });
 
   it('treats malformed stored content as empty', () => {
@@ -87,5 +118,21 @@ describe('mergeAccountSettings', () => {
     expect(mergeAccountSettings('garbage', { showCanvasesInSidebar: true })).toEqual({
       showCanvasesInSidebar: true,
     });
+  });
+});
+
+describe('setPluginDisabled', () => {
+  it('adds and removes plugin IDs without duplicates and preserves order', () => {
+    expect(setPluginDisabled([], 'pull-requests', true)).toEqual(['pull-requests']);
+    expect(setPluginDisabled(['pull-requests'], 'pull-requests', true)).toEqual(['pull-requests']);
+    expect(setPluginDisabled(['pull-requests'], 'thread-usage', true)).toEqual([
+      'pull-requests',
+      'thread-usage',
+    ]);
+    expect(setPluginDisabled(['pull-requests', 'thread-usage'], 'pull-requests', false)).toEqual([
+      'thread-usage',
+    ]);
+    expect(setPluginDisabled(['thread-usage'], 'missing', false)).toEqual(['thread-usage']);
+    expect(setPluginDisabled(['a', 'a', ''], '  ', true)).toEqual(['a']);
   });
 });

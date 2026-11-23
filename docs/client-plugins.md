@@ -549,7 +549,9 @@ A component that loads its code (a `lazy` component) shows nothing until the cod
 
 ## Turning plugins off
 
-`plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
+`plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions across the deployment and omits the plugin from Settings, and `?plugins=off` in the address hides every plugin's for one page load.
+
+Each account can also turn individual deployment-enabled plugins on or off in **Settings -> Plugins** (synced across web, Mac, and iOS in `io.mindroom.settings` as `disabledPlugins`). Turning off a plugin hides all of its contributions immediately for that account, while leaving **Settings -> Plugins** visible so the account can turn it back on. A plugin can set an optional `mindroomClientPlugin.name` in `package.json` for its display label in Settings (otherwise the client formats its kebab-case `id` in Title Case) alongside its optional `package.json` `description`.
 
 ## Tests
 

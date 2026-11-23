@@ -6,7 +6,14 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import {
+  allowActiveRunsState,
+  joinRoom,
+  matrixFetch,
+  publishActiveRuns,
+  registerAgentAccount,
+  sendRoomMessage,
+} from '../helpers/matrix';
 
 // While an agent replies in a thread, holding Send, or resting a mouse on it, opens Steer, Queue
 // and Auto; the message goes
@@ -30,6 +37,7 @@ const seed = async () => {
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  await allowActiveRunsState(HOMESERVER, reader.accessToken, roomId);
   const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
     body: QUESTION,
@@ -45,6 +53,7 @@ const seed = async () => {
       'm.in_reply_to': { event_id: rootId },
     },
   });
+  await publishActiveRuns(HOMESERVER, agent, roomId, [rootId], 600_000);
   return { reader, roomId, rootId };
 };
 

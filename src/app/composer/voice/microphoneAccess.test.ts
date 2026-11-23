@@ -34,6 +34,17 @@ describe('getMicrophoneAccessErrorMessage', () => {
     );
   });
 
+  it('treats the desktop app as the Mac and points to system settings', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.stubGlobal('window', { mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) } });
+    device('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 'iPhone', 5);
+
+    expect(getMicrophoneAccessErrorMessage({ name: 'NotAllowedError' })).toBe(
+      'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
+    );
+  });
+
   it('maps standard media errors from another realm without relying on DOMException', () => {
     expect(
       getMicrophoneAccessErrorMessage({ name: 'NotFoundError', message: 'foreign realm error' })

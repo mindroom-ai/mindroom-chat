@@ -5,13 +5,21 @@ import {
 } from '../../lib/safeLocalStorage';
 import { isRecord } from '../../lib/isRecord';
 import {
+  CACHE_BYTE_BUDGET_BYTES,
+  CACHE_BYTE_BUDGET_PRESETS,
+  sanitizeCacheStoreByteBudget,
+  type CacheByteBudgetPreset,
+} from '../cache/db/cacheStoreSchema';
+import {
   DEFAULT_PREFETCH_SCOPE,
   type PrefetchScope,
   sanitizePrefetchDepth,
   sanitizePrefetchScope,
 } from './prefetchPolicy';
 
-const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
+export { CACHE_BYTE_BUDGET_PRESETS, type CacheByteBudgetPreset };
+
+export const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
 
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 const MINDROOM_SETTINGS_STORE_VERSION = 2;
@@ -19,6 +27,7 @@ const MINDROOM_SETTINGS_STORE_VERSION = 2;
 export type PrefetchSettings = {
   prefetchScope: PrefetchScope;
   prefetchDepth: number;
+  cacheBudgetBytes: CacheByteBudgetPreset;
 };
 
 type PrefetchSettingsStore = PrefetchSettings & {
@@ -28,6 +37,7 @@ type PrefetchSettingsStore = PrefetchSettings & {
 const DEFAULT_MINDROOM_SETTINGS: PrefetchSettings = {
   prefetchScope: DEFAULT_PREFETCH_SCOPE,
   prefetchDepth: sanitizePrefetchDepth(undefined),
+  cacheBudgetBytes: CACHE_BYTE_BUDGET_BYTES,
 };
 
 export const sanitizePrefetchSettings = (value: unknown): PrefetchSettings => {
@@ -35,6 +45,7 @@ export const sanitizePrefetchSettings = (value: unknown): PrefetchSettings => {
   return {
     prefetchScope: sanitizePrefetchScope(record.prefetchScope),
     prefetchDepth: sanitizePrefetchDepth(record.prefetchDepth),
+    cacheBudgetBytes: sanitizeCacheStoreByteBudget(record.cacheBudgetBytes),
   };
 };
 

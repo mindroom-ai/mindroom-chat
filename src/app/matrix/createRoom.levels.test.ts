@@ -66,6 +66,7 @@ describe('createRoom call membership level', () => {
 const AGENT_STATE = [
   'com.mindroom.thread.tags',
   'io.mindroom.accounts',
+  'io.mindroom.active_runs',
   'io.mindroom.auto_approve',
   'io.mindroom.background_jobs',
   'io.mindroom.server',

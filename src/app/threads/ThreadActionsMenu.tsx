@@ -53,7 +53,7 @@ import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
 import { SnoozePicker } from './tags/SnoozePicker';
-import { useOptionalClientConfig } from '../config/useClientConfig';
+import { usePluginClientConfig } from '../plugins/pluginConfig';
 import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
 import { shownThreadDetails } from '../plugins/threadDetails';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
@@ -235,7 +235,7 @@ export function ThreadActionsMenu({
     onClose();
   };
 
-  const clientConfig = useOptionalClientConfig();
+  const clientConfig = usePluginClientConfig();
   // Keep the contributions selected when this opening mounted.
   const [details] = useState(() =>
     isConfirmedMatrixEventId(rootId) ? shownThreadDetails(plugins, clientConfig, room, rootId) : []

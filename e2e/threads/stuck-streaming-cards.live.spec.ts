@@ -2,9 +2,11 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  allowActiveRunsState,
   createDefaultThreadFilterState,
   joinRoom,
   matrixFetch,
+  publishActiveRuns,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -65,6 +67,7 @@ type World = {
   agents: MatrixSession[];
   roomId: string;
   historyRootId: string;
+  activeRunsByAgent: Map<string, Set<string>>;
 };
 
 const registerAndLogin = (name: string): Promise<Account> =>
@@ -91,8 +94,20 @@ const streamEdit = (world: World, stream: Stream, body: string, status: string) 
     'm.relates_to': { rel_type: 'm.replace', event_id: stream.replyId },
   });
 
-const finish = (world: World, stream: Stream) =>
-  streamEdit(world, stream, finishedText(stream.index), 'completed');
+const syncAgentActiveRuns = (world: World, agent: MatrixSession) =>
+  publishActiveRuns(
+    HOMESERVER,
+    agent,
+    world.roomId,
+    [...(world.activeRunsByAgent.get(agent.userId) ?? [])],
+    600_000
+  );
+
+const finish = async (world: World, stream: Stream) => {
+  await streamEdit(world, stream, finishedText(stream.index), 'completed');
+  world.activeRunsByAgent.get(stream.agent.userId)?.delete(stream.rootId);
+  await syncAgentActiveRuns(world, stream.agent);
+};
 
 const sendTitle = (world: World, sender: MatrixSession, rootId: string, title: string) =>
   send(world, sender, {
@@ -144,9 +159,17 @@ const seed = async (engine: string): Promise<World> => {
   });
   await joinRoom(HOMESERVER, peer.accessToken, roomId);
   for (const agent of agents) await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  await allowActiveRunsState(HOMESERVER, reader.accessToken, roomId);
   for (let index = 1; index <= FILLER_ROOMS; index += 1)
     await createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index}` });
-  const world: World = { reader, peer, agents, roomId, historyRootId: '' };
+  const world: World = {
+    reader,
+    peer,
+    agents,
+    roomId,
+    historyRootId: '',
+    activeRunsByAgent: new Map(agents.map((agent) => [agent.userId, new Set<string>()])),
+  };
   for (let index = 1; index <= HISTORY; index += 1) {
     const agent = agentFor(agents, index);
     const rootId = await send(world, reader, {
@@ -334,8 +357,10 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
       'io.mindroom.stream_status': 'pending',
       ...inThread(rootId),
     });
+    world.activeRunsByAgent.get(agent.userId)?.add(rootId);
     streams.push({ index, rootId, replyId, agent });
   }
+  for (const agent of world.agents) await syncAgentActiveRuns(world, agent);
   for (const stream of streams)
     await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
 

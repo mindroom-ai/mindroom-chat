@@ -6,14 +6,12 @@ import { SettingTile } from '../../ui/SettingTile';
 import { RAIL_BUTTON_SETTING, type RailButton, useOfferedRailButtons } from '../railButtons';
 import { getCommandPaletteShortcutLabel } from '../../shortcuts/paletteShortcut';
 import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
-import type { AccountSettings } from '../../preferences/accountSettings';
+import type { BooleanAccountSetting } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';
 
 type AgentInterfaceSettingsProps = {
   className?: string;
 };
-
-type BooleanAccountSetting = keyof AccountSettings;
 
 type AccountSettingSwitchProps = {
   focusId: string;

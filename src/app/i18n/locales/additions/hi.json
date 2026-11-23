@@ -433,6 +433,16 @@
         "localMindroom": "साइडबार में स्थानीय MindRoom दिखाएँ",
         "localMindroomDescription": "आपके कंप्यूटर पर चल रहे MindRoom को जोड़ता है। छिपा होने पर यह यहीं सेटिंग्स में स्थानीय MindRoom के अंतर्गत रहता है।"
       },
+      "plugins": {
+        "title": "प्लगइन",
+        "description": "अपने सभी डिवाइस पर अपने खाते के लिए शामिल प्लगइन चालू या बंद करें।"
+      },
+      "storage": {
+        "cacheBudget": "कैश आकार की सीमा",
+        "cacheBudgetDescription": "कैश किए गए रूम और मीडिया के लिए प्रति खाता लक्ष्य आकार। हाल ही में खोले गए और पिन किए गए रूम इस सीमा से अधिक होने पर भी बने रहते हैं।",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "आप",
@@ -498,7 +508,7 @@
         "errorReports": "त्रुटियाँ, क्रैश, बग, निदान, टेलीमेट्री, गोपनीयता",
         "midTurn": "दिशा बदलें, कतार, स्वतः, एजेंट, जवाब, रोकें",
         "usage": "टोकन, लागत, कीमत, मॉडल, टूल कॉल, सब-एजेंट, बैकग्राउंड जॉब",
-        "dictation": "डिक्टेट, डिक्टेशन, वॉइस टाइपिंग, स्पीच टू टेक्स्ट, माइक्रोफ़ोन, फ़ोन"
+        "plugins": "प्लगइन, एक्सटेंशन, ऐड-ऑन, इंटीग्रेशन"
       },
       "errorReports": {
         "title": "त्रुटि रिपोर्ट भेजें",
@@ -548,7 +558,12 @@
         "playSound": "आवाज़ चलाएँ",
         "resize": "कॉल पैनल का आकार बदलें",
         "screenOf": "{{name}} की स्क्रीन",
-        "fullScreen": "पूर्ण स्क्रीन"
+        "fullScreen": "पूर्ण स्क्रीन",
+        "screenShareStoppedInBackground": "ऐप छोड़ने पर स्क्रीन शेयरिंग बंद हो गई।",
+        "shareAgain": "फिर से शेयर करें",
+        "microphoneStopped": "आपका माइक्रोफ़ोन बंद हो गया।",
+        "cameraStopped": "आपका कैमरा बंद हो गया।",
+        "turnBackOn": "फिर से चालू करें"
       },
       "problems": {
         "service": "कॉल सेवा तक नहीं पहुँचा जा सका। बाद में फिर से कोशिश करें।",
@@ -848,6 +863,12 @@
       "copyCommand": "कमांड कॉपी करें",
       "copyFailed": "कॉपी नहीं हो सका",
       "keywords": "mac, macos, डेस्कटॉप, ऐप, डाउनलोड, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "यह ऐप शेयर करें",
+        "stopAppShare": "यह ऐप शेयर करना बंद करें"
+      }
     }
   },
   "mindroomUi": {
@@ -1379,6 +1400,7 @@
       "insertPartial": "आंशिक पाठ डालें",
       "discard": "छोड़ें",
       "dismissError": "डिक्टेशन त्रुटि हटाएं",
+      "previewLabel": "डिक्टेशन पूर्वावलोकन",
       "statusStarting": "डिक्टेशन शुरू हो रहा है",
       "statusListening": "बोलकर लिखा जा रहा है",
       "statusPaused": "डिक्टेशन रुका हुआ है",
@@ -1389,12 +1411,6 @@
       "micInterrupted": "माइक्रोफ़ोन डिस्कनेक्ट हो गया। फिर से शुरू करें या समाप्त करें।",
       "failedSummary_one": "{{count}} खंड का ट्रांसक्रिप्शन नहीं हो सका।",
       "failedSummary_other": "{{count}} खंडों का ट्रांसक्रिप्शन नहीं हो सका।"
-    },
-    "voiceButton": {
-      "settingTitle": "फ़ोन माइक्रोफ़ोन बटन",
-      "settingDescription": "चुनें कि फ़ोन पर कंपोज़र का माइक्रोफ़ोन बटन क्या करता है। दूसरा विकल्प + मेनू में रहता है।",
-      "dictate": "बोलकर लिखें",
-      "voiceMessage": "वॉइस संदेश"
     }
   },
   "commandPalette": {
@@ -1427,6 +1443,11 @@
     "actions": {
       "goActivity": "गतिविधि पर जाएँ",
       "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है"
+    },
+    "recentVisits": {
+      "recentlyOpened": "हाल ही में खोला गया",
+      "otherThreads": "अन्य थ्रेड",
+      "otherRooms": "अन्य रूम"
     }
   },
   "shortcuts": {

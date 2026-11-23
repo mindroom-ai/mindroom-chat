@@ -45,18 +45,13 @@ vi.mock('focus-trap-react', () => ({
 vi.mock('./InviteUserPrompt.css', () => ({
   ViewportCenter: 'InviteViewportCenter',
   Dialog: 'InviteDialog',
-  TitleBar: 'InviteTitleBar',
-  TouchIcon: 'InviteTouchIcon',
   Controls: 'InviteControls',
-  SearchField: 'InviteSearchField',
   FilterSegments: 'InviteFilterSegments',
   FilterSegment: 'InviteFilterSegment',
   Body: 'InviteBody',
   GrantAlert: 'InviteGrantAlert',
   ListFrame: 'InviteListFrame',
   ListArea: 'InviteListArea',
-  ListScrollbar: 'InviteListScrollbar',
-  SectionHeader: 'InviteSectionHeader',
   List: 'InviteList',
   Row: 'InviteRow',
   RowName: 'InviteRowName',
@@ -64,7 +59,6 @@ vi.mock('./InviteUserPrompt.css', () => ({
   WrapText: 'InviteWrapText',
   RowError: 'InviteRowError',
   RowAction: 'InviteRowAction',
-  RowActionIdle: 'InviteRowActionIdle',
   RowActionSent: 'InviteRowActionSent',
   CenteredHint: 'InviteCenteredHint',
   EmptyState: 'InviteEmptyState',
@@ -291,7 +285,10 @@ const renderPrompt = (options: RenderOptions = {}) => {
           if (element.type === 'input' && element.props.type === 'search') {
             return { focus: focusInput };
           }
-          if (element.type === 'div' && element.props.className === 'InviteListArea') {
+          if (
+            element.type === 'div' &&
+            String(element.props.className ?? '').includes('InviteListArea')
+          ) {
             return { querySelectorAll: () => rowFocusElements };
           }
           return null;

@@ -20,6 +20,7 @@ const root = (sender: string, ts: number) =>
 const makeRoom = (rootEvent: MatrixEvent, receiptTs?: number): Room =>
   ({
     roomId: '!room:example.org',
+    currentState: { getStateEvents: () => [] },
     getThread: () => null,
     findEventById: (eventId: string) => (eventId === rootEvent.getId() ? rootEvent : undefined),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),

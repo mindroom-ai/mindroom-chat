@@ -75,6 +75,18 @@ export const LEGACY_WIPE_MARKER_META_KEY = '__cacheStore|migration';
 // `THREAD_EDIT_COMPACTION_DEBOUNCE_MS` is mocked in P1.4.
 export const CACHE_BYTE_BUDGET_BYTES = 1_073_741_824;
 
+export const CACHE_BYTE_BUDGET_PRESETS = [
+  512 * 1024 * 1024,
+  1_073_741_824,
+  2 * 1_073_741_824,
+  4 * 1_073_741_824,
+  8 * 1_073_741_824,
+] as const;
+export type CacheByteBudgetPreset = (typeof CACHE_BYTE_BUDGET_PRESETS)[number];
+
+export const sanitizeCacheStoreByteBudget = (value: unknown): CacheByteBudgetPreset =>
+  CACHE_BYTE_BUDGET_PRESETS.find((preset) => preset === value) ?? CACHE_BYTE_BUDGET_BYTES;
+
 // ISSUE-207 P2.2 commit 3 (D9/AC7): eviction tunables.
 //
 // - `EVICTION_TARGET_UTILIZATION` — the eviction pass runs until
@@ -88,13 +100,22 @@ export const CACHE_BYTE_BUDGET_BYTES = 1_073_741_824;
 // - `EVICTION_CHECK_MIN_INTERVAL_MS` — the save-time auto-trigger
 //   dedupes back-to-back checks; a check is scheduled at most this
 //   often per session.
+// - `EVICTION_PROTECTED_VERDICT_TTL_MS`: how long a pass whose protected
+//   bytes alone exceed the budget skips repeat passes.
 export const EVICTION_TARGET_UTILIZATION = 0.9;
 export const EVICTION_RECENT_OPEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const EVICTION_CHECK_MIN_INTERVAL_MS = 60_000;
+export const EVICTION_PROTECTED_VERDICT_TTL_MS = 10 * 60_000;
 
+let configuredCacheByteBudget: CacheByteBudgetPreset | undefined;
 let cacheByteBudgetOverride: number | undefined;
 export const getCacheStoreByteBudget = (): number =>
-  cacheByteBudgetOverride ?? CACHE_BYTE_BUDGET_BYTES;
+  cacheByteBudgetOverride ?? configuredCacheByteBudget ?? CACHE_BYTE_BUDGET_BYTES;
+export const setConfiguredCacheStoreByteBudget = (
+  bytes: CacheByteBudgetPreset | undefined
+): void => {
+  configuredCacheByteBudget = bytes;
+};
 export const __setCacheStoreByteBudgetForTests = (bytes: number | undefined): void => {
   cacheByteBudgetOverride = bytes;
 };

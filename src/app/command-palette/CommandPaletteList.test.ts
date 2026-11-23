@@ -15,6 +15,8 @@ vi.mock('./CommandPalette.css', () => ({
   Group: 'Group',
   GroupTitle: 'GroupTitle',
   GroupCount: 'GroupCount',
+  SubGroupTitle: 'SubGroupTitle',
+  SubGroupDivider: 'SubGroupDivider',
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowAvatar: 'RowAvatar',
@@ -60,6 +62,7 @@ vi.mock('folds', () => ({
     Message: 'message',
     Search: 'search',
     User: 'user',
+    RecentClock: 'recent-clock',
   },
 }));
 
@@ -304,6 +307,79 @@ describe('CommandPaletteList', () => {
         renderAction(item).root.findByProps({ className: 'RowTitle' });
       expect(title({ title: 'Nederlands', lang: 'nl' }).props.lang).toBe('nl');
       expect(title({}).props.lang).toBeUndefined();
+    });
+  });
+
+  describe('recent visit sub-headers', () => {
+    const rooms: CommandPaletteListSection['items'] = [
+      { id: '!a:example.org', kind: 'room', name: 'Alpha', recentVisit: true },
+      { id: '!b:example.org', kind: 'room', name: 'Beta', recentVisit: true },
+      { id: '!c:example.org', kind: 'room', name: 'Gamma' },
+    ];
+
+    it('renders recent and other sub-headers, describes only promoted rows and keeps option count', () => {
+      const renderer = renderList({
+        sections: [
+          {
+            id: 'rooms',
+            title: 'Rooms',
+            items: rooms,
+            recentVisits: { count: 2, recentLabel: 'Recently opened', otherLabel: 'Other rooms' },
+          },
+        ],
+      });
+      const group = renderer.root.findByProps({ role: 'group' });
+      const siblings = group.children.filter(
+        (child): child is Exclude<typeof child, string> =>
+          typeof child !== 'string' && child.props.className !== 'GroupTitle'
+      );
+      expect(
+        siblings.map((node) =>
+          node.props.role === 'option'
+            ? node.findByProps({ className: 'RowTitle' }).children.join('')
+            : node.findByType('span').children.join('')
+        )
+      ).toEqual(['Recently opened', 'Alpha', 'Beta', 'Other rooms', 'Gamma']);
+
+      const recentHeader = renderer.root.findByProps({ 'data-subgroup': 'recent' });
+      const otherHeader = renderer.root.findByProps({ 'data-subgroup': 'other' });
+      expect(recentHeader.props.role).toBe('presentation');
+      expect(recentHeader.findByType('row-icon' as never).props.src).toBe('recent-clock');
+      expect(otherHeader.props.role).toBe('presentation');
+      expect(otherHeader.props.className).toBe('SubGroupTitle SubGroupDivider');
+
+      const options = renderer.root.findAllByProps({ role: 'option' });
+      expect(options.map((node) => node.props['aria-describedby'])).toEqual([
+        recentHeader.props.id,
+        recentHeader.props.id,
+        undefined,
+      ]);
+      expect(renderer.root.findByProps({ className: 'GroupCount' }).children).toEqual(['3']);
+    });
+
+    it('omits the other sub-header when every row is a recent visit', () => {
+      const renderer = renderList({
+        sections: [
+          {
+            id: 'rooms',
+            title: 'Rooms',
+            items: rooms.slice(0, 2),
+            recentVisits: { count: 2, recentLabel: 'Recently opened', otherLabel: 'Other rooms' },
+          },
+        ],
+      });
+      expect(renderer.root.findAllByProps({ 'data-subgroup': 'recent' })).toHaveLength(1);
+      expect(renderer.root.findAllByProps({ 'data-subgroup': 'other' })).toHaveLength(0);
+    });
+
+    it('renders no sub-headers or aria-describedby when recentVisits is absent', () => {
+      const renderer = renderList({ sections: [{ id: 'rooms', title: 'Rooms', items: rooms }] });
+      expect(renderer.root.findAll((node) => 'data-subgroup' in node.props)).toHaveLength(0);
+      expect(
+        renderer.root
+          .findAllByProps({ role: 'option' })
+          .every((node) => node.props['aria-describedby'] === undefined)
+      ).toBe(true);
     });
   });
 });

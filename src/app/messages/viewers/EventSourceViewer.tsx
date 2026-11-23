@@ -13,7 +13,8 @@ import classNames from 'classnames';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Text, as } from 'folds';
 import '../../theme/codeTokenStyles.css';
-import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
+import { DialogCloseButton } from '../../ui/DialogChrome';
+import { Chip, Header } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
 import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
@@ -587,14 +588,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
           >
             <Text size="B300">{t('sharedUi.textViewer.copyAll')}</Text>
           </Chip>
-          <IconButton
-            aria-label={t('sharedUi.textViewer.close')}
-            onClick={requestClose}
-            radii="300"
-            size="300"
-          >
-            <Icon src={Icons.Cross} size="50" />
-          </IconButton>
+          <DialogCloseButton label={t('sharedUi.textViewer.close')} onClick={requestClose} />
         </Header>
 
         {(metaChips.length > 0 || bundle.isEdited || bundle.isEncrypted) && (

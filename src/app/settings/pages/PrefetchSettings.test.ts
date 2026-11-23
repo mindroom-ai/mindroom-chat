@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   prefetchScope: 'current-room-only',
   setPrefetchScope: vi.fn(),
+  cacheBudgetBytes: 1_073_741_824,
+  setCacheBudgetBytes: vi.fn(),
 }));
 
 vi.mock('folds', async () => {
@@ -41,8 +43,12 @@ vi.mock('folds', async () => {
       children?: React.ReactNode;
       onClick?: () => void;
     }) => reactModule.createElement('button', { onClick, ...rest }, children),
-    PopOut: ({ content }: { content?: React.ReactNode }) =>
-      reactModule.createElement('div', { 'data-testid': 'popout' }, content),
+    PopOut: ({ content, anchor }: { content?: React.ReactNode; anchor?: unknown }) =>
+      reactModule.createElement(
+        'div',
+        { 'data-testid': 'popout', 'data-open': Boolean(anchor) },
+        content
+      ),
     Text: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     config: { space: { S100: 4 } },
@@ -62,10 +68,12 @@ vi.mock('../../ui/SequenceCard', () => ({
 
 vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
+    focusId,
     title,
     description,
     after,
   }: {
+    focusId?: string;
     title: string;
     description?: string;
     after?: React.ReactNode;
@@ -73,6 +81,7 @@ vi.mock('../../ui/SettingTile', () => ({
     React.createElement(
       'label',
       {
+        'data-focus-id': focusId,
         'data-title': title,
         'data-description': description,
       },
@@ -81,7 +90,10 @@ vi.mock('../../ui/SettingTile', () => ({
 }));
 
 vi.mock('../../preferences/useSetting', () => ({
-  useSetting: () => [state.prefetchScope, state.setPrefetchScope],
+  useSetting: (_atom: unknown, key: string) =>
+    key === 'cacheBudgetBytes'
+      ? [state.cacheBudgetBytes, state.setCacheBudgetBytes]
+      : [state.prefetchScope, state.setPrefetchScope],
 }));
 
 vi.mock('../../event-store/engine/prefetchSettings', () => ({
@@ -102,6 +114,8 @@ vi.mock('react-i18next', async () => {
 afterEach(() => {
   state.prefetchScope = 'current-room-only';
   state.setPrefetchScope.mockReset();
+  state.cacheBudgetBytes = 1_073_741_824;
+  state.setCacheBudgetBytes.mockReset();
 });
 
 describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
@@ -118,6 +132,12 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
     // One SequenceCard renders as `<section className="settings-card">`.
     expect(renderer!.root.findByType('section').props.className).toBe('settings-card');
     expect(renderer!.root.findByProps({ 'data-title': 'Prefetch scope' })).toBeDefined();
+    expect(
+      renderer!.root.findByProps({
+        'data-focus-id': 'cacheBudget',
+        'data-title': 'Cache size limit',
+      })
+    ).toBeDefined();
     expect(renderer!.root.findAllByType('input')).toHaveLength(0);
   });
 
@@ -129,9 +149,11 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
       renderer = create(React.createElement(SelectPrefetchScope));
     });
 
-    const labels = renderer!.root
-      .findAllByType('button')
-      .map((button) => button.findByType('span').children.join(''));
+    const buttons = renderer!.root.findAllByType('button');
+    expect(buttons[0]!.props['aria-description']).toBe('Prefetch scope');
+    expect(buttons[0]!.props['aria-haspopup']).toBe('menu');
+    expect(buttons[0]!.props['aria-expanded']).toBe(false);
+    const labels = buttons.map((button) => button.findByType('span').children.join(''));
     expect(labels).toEqual(['All rooms', 'Current room only', 'All rooms']);
   });
 
@@ -162,5 +184,60 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
     });
 
     expect(state.setPrefetchScope).toHaveBeenCalledWith('all-rooms');
+  });
+
+  it('opens the cache budget menu with all five presets and commits a selection', async () => {
+    const { SelectCacheBudget } = await import('./PrefetchSettings');
+    state.cacheBudgetBytes = 2 * 1_073_741_824;
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(SelectCacheBudget));
+    });
+
+    const popout = () => renderer!.root.findByProps({ 'data-testid': 'popout' });
+    expect(popout().props['data-open']).toBe(false);
+
+    const trigger = () => renderer!.root.findAllByType('button')[0]!;
+    const items = () => renderer!.root.findAllByType('button').slice(1);
+    expect(trigger().findByType('span').children.join('')).toBe('2 GB');
+    expect(trigger().props['aria-description']).toBe('Cache size limit');
+    expect(trigger().props['aria-haspopup']).toBe('menu');
+    expect(trigger().props['aria-expanded']).toBe(false);
+    expect(items().map((item) => item.findByType('span').children.join(''))).toEqual([
+      '512 MB',
+      '1 GB',
+      '2 GB',
+      '4 GB',
+      '8 GB',
+    ]);
+    expect(items().map((item) => item.props.role)).toEqual([
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+      'menuitemradio',
+    ]);
+    expect(items().map((item) => item.props['aria-checked'])).toEqual([
+      false,
+      false,
+      true,
+      false,
+      false,
+    ]);
+
+    act(() => {
+      trigger().props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 80, height: 32 }) },
+      });
+    });
+    expect(popout().props['data-open']).toBe(true);
+    expect(trigger().props['aria-expanded']).toBe(true);
+
+    act(() => {
+      items()[3]!.props.onClick();
+    });
+    expect(state.setCacheBudgetBytes).toHaveBeenCalledWith(4 * 1_073_741_824);
+    expect(popout().props['data-open']).toBe(false);
+    expect(trigger().props['aria-expanded']).toBe(false);
   });
 });

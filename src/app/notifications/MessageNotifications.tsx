@@ -33,6 +33,7 @@ import {
   getLocalizedThreadMessagePreviewText,
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
+import { desktopBridge, isAppWindowFocused } from '../lib/nativeShell';
 import { playChime } from './playChime';
 import { raiseOnce } from './notifiedOnce';
 import {
@@ -95,11 +96,9 @@ type NotifySettings = {
   t: TFunction;
 };
 
-const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
-
 const showNotice = (client: MatrixClient, notice: MessageNotice, settings: NotifySettings) => {
   const room = client.getRoom(notice.roomId);
-  const focused = windowHasFocus();
+  const focused = isAppWindowFocused();
   if (!room || settings.places.some((place) => isNoticeOnScreen(notice, place, focused))) return;
 
   if (settings.sound && notice.sound) playChime(MessageSound).catch(() => undefined);
@@ -121,6 +120,9 @@ const showNotice = (client: MatrixClient, notice: MessageNotice, settings: Notif
       silent: true,
     });
     note.onclick = () => {
+      void desktopBridge()
+        ?.showMainWindow()
+        ?.catch(() => undefined);
       window.focus();
       note.close();
       settings.open(notice);

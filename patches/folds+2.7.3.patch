@@ -28,16 +28,16 @@ index c405e8f..536059e 100644
 +          return void 0;
 +        return from ?? anchorStart + anchorSize / 2 - size / 2;
 +      };
-+      const clampAxis = (value, size, startInset, endInset) => `clamp(min(calc(env(${startInset}, 0px) + 0.5rem), max(0px, calc(100% - ${size}px))), ${value}px, calc(100% - env(${endInset}, 0px) - 0.5rem - ${size}px))`;
++      const clampAxis = (value, size, startInset, endInset) => `clamp(min(calc(${startInset} + 0.5rem), max(0px, calc(100% - ${size}px))), ${value}px, calc(100% - ${endInset} - 0.5rem - ${size}px))`;
 +      const { clientWidth, clientHeight } = document.documentElement;
 +      const y = fitAxis(pCSS.top, pCSS.bottom, target.height, clientHeight, anchor.y, anchor.height);
 +      if (y !== void 0) {
-+        baseEl.style.top = clampAxis(y, target.height, "safe-area-inset-top", "safe-area-inset-bottom");
++        baseEl.style.top = clampAxis(y, target.height, "var(--app-inset-top, env(safe-area-inset-top, 0px))", "env(safe-area-inset-bottom, 0px)");
 +        baseEl.style.bottom = "unset";
 +      }
 +      const x = fitAxis(pCSS.left, pCSS.right, target.width, clientWidth, anchor.x, anchor.width);
 +      if (x !== void 0) {
-+        baseEl.style.left = clampAxis(x, target.width, "safe-area-inset-left", "safe-area-inset-right");
++        baseEl.style.left = clampAxis(x, target.width, "env(safe-area-inset-left, 0px)", "env(safe-area-inset-right, 0px)");
 +        baseEl.style.right = "unset";
 +      }
      }, [anchor, position, align, offset, alignOffset]);

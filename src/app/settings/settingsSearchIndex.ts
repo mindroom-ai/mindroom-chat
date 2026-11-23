@@ -1,4 +1,5 @@
 import type { ParseKeys } from 'i18next';
+import type { RegisteredPlugin } from '../plugins/registry';
 import { SETTINGS_PAGES, type SettingDefinition } from '../preferences/settingsRegistry';
 
 /** A setting that matches the query, with the text the result list shows. */
@@ -118,36 +119,70 @@ const scoreWord = (word: string, fields: Fields): number => {
  * with a word beats one that holds it, which beats a keyword, and so on down to the page name;
  * equal scores keep the registry's order.
  */
+export type SettingsSearchPlugin = Pick<RegisteredPlugin, 'id' | 'displayName' | 'description'>;
+
 export const searchSettings = (
   query: string,
   settings: readonly SettingDefinition[],
   t: SettingsTranslate,
-  values: SettingsSearchValues = {}
+  values: SettingsSearchValues = {},
+  plugins: readonly SettingsSearchPlugin[] = []
 ): SettingsSearchResult[] => {
   const queryWords = foldSearchText(query).split(' ').filter(Boolean);
   if (queryWords.length === 0) return [];
   const text = translator(t, values);
+  const fullQuery = queryWords.join(' ');
 
-  return settings
-    .map((setting, order) => {
-      const { label, description, keywords, location } = getSettingText(setting, t, values);
-      // The group counts even where the location leaves it out for repeating the page's name.
-      const { page, group } = placeLabels(setting, text);
-      const fields: Fields = {
-        label: foldSearchText(label),
-        keywords: keywords.map(foldSearchText).filter(Boolean),
-        group: foldSearchText(group),
-        description: foldSearchText(description),
-        page: foldSearchText(page),
-      };
-      const scores = queryWords.map((word) => scoreWord(word, fields));
-      const exact = fields.label === queryWords.join(' ') ? WEIGHTS.labelStart : 0;
-      return {
-        result: { setting, label, location },
-        score: scores.includes(0) ? 0 : scores.reduce((sum, score) => sum + score, exact),
-        order,
-      };
-    })
+  const scoredSettings = settings.map((setting, order) => {
+    const { label, description, keywords, location } = getSettingText(setting, t, values);
+    // The group counts even where the location leaves it out for repeating the page's name.
+    const { page, group } = placeLabels(setting, text);
+    const fields: Fields = {
+      label: foldSearchText(label),
+      keywords: keywords.map(foldSearchText).filter(Boolean),
+      group: foldSearchText(group),
+      description: foldSearchText(description),
+      page: foldSearchText(page),
+    };
+    const scores = queryWords.map((word) => scoreWord(word, fields));
+    const exact = fields.label === fullQuery ? WEIGHTS.labelStart : 0;
+    return {
+      result: { setting, label, location },
+      score: scores.includes(0) ? 0 : scores.reduce((sum, score) => sum + score, exact),
+      order,
+    };
+  });
+
+  const pluginsPage = text('featureUi.settings.plugins.title');
+  const foldedPluginsPage = foldSearchText(pluginsPage);
+  const scoredPlugins = plugins.map((plugin, index) => {
+    const fields: Fields = {
+      label: foldSearchText(plugin.displayName),
+      keywords: [foldSearchText(plugin.id)],
+      group: '',
+      description: foldSearchText(plugin.description ?? ''),
+      page: foldedPluginsPage,
+    };
+    const scores = queryWords.map((word) => scoreWord(word, fields));
+    const exact = fields.label === fullQuery ? WEIGHTS.labelStart : 0;
+    const setting: SettingDefinition = {
+      id: `plugin:${plugin.id}`,
+      page: 'plugins',
+      labelKey: 'featureUi.settings.plugins.title',
+      scope: 'account',
+    };
+    return {
+      result: {
+        setting,
+        label: plugin.displayName,
+        location: pluginsPage ? [pluginsPage] : [],
+      },
+      score: scores.includes(0) ? 0 : scores.reduce((sum, score) => sum + score, exact),
+      order: settings.length + index,
+    };
+  });
+
+  return [...scoredSettings, ...scoredPlugins]
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || a.order - b.order)
     .map(({ result }) => result);

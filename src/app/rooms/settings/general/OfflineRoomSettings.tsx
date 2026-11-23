@@ -2,9 +2,6 @@ import { useId, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   Box,
   Button,
-  Icon,
-  IconButton,
-  Icons,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -16,6 +13,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { DialogCloseButton } from '../../../ui/DialogChrome';
 import { Dialog, Header } from '../../../ui/glass/GlassPrimitives';
 import { useSyncEngine } from '../../../event-store/engine/engineContext';
 import type { OfflineRoomSnapshot } from '../../../event-store/engine/roomOffline';
@@ -93,9 +91,7 @@ function ClearContentDialog({ onCancel, onConfirm, clearing, failed }: ClearCont
           {t(`${OFFLINE_KEY}.clearTitle`)}
         </Text>
       </Box>
-      <IconButton aria-label={cancelLabel} size="300" radii="300" onClick={onCancel}>
-        <Icon src={Icons.Cross} />
-      </IconButton>
+      <DialogCloseButton label={cancelLabel} onClick={onCancel} />
     </Header>
   );
 

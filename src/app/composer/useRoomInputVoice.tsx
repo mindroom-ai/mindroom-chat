@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import type { ThreadModelContent } from '../matrix/protocol/threadModel';
 import type { Descendant } from 'slate';
-import { Icon, Icons } from 'folds';
+import { Icon } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
 import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
@@ -97,8 +97,6 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
   /** False in a composer that takes no recording: it brings none back from disk either. */
   recover?: boolean;
-  /** Use the distinct waveform icon when streaming dictation uses the microphone icon. */
-  distinctIcon?: boolean;
 };
 
 type VoiceFeature = {
@@ -148,7 +146,6 @@ export const useRoomInputVoice = ({
   takeRootModelDraft,
   onRoomMessageSent,
   recover = true,
-  distinctIcon = false,
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
   const store = useStore();
@@ -722,7 +719,7 @@ export const useRoomInputVoice = ({
           {...shortcutAttributes(voiceShortcut)}
           className={ComposerIconButton}
         >
-          <Icon src={distinctIcon ? VoiceMessageIcon : Icons.Mic} />
+          <Icon src={VoiceMessageIcon} />
         </IconButton>
       )}
     </IconTooltip>

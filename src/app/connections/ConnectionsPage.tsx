@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../lib/nativeShell';
 import { useHref } from 'react-router-dom';
 import { Page, PageContent } from '../ui/page/Page';
 import { ROOT_PATH } from '../routes/paths';
@@ -21,7 +21,7 @@ export function ConnectionsPage() {
 
   useEffect(() => {
     // The native shells keep the portal out of their web view.
-    if (!onlyBackend || Capacitor.isNativePlatform() || !connectionsHandoffSupported(onlyBackend)) {
+    if (!onlyBackend || isBundledApp() || !connectionsHandoffSupported(onlyBackend)) {
       return undefined;
     }
     const controller = new AbortController();

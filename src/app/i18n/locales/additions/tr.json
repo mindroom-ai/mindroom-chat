@@ -433,6 +433,16 @@
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
       },
+      "plugins": {
+        "title": "Eklentiler",
+        "description": "Tüm cihazlarınızda hesabınız için yerleşik eklentileri açın veya kapatın."
+      },
+      "storage": {
+        "cacheBudget": "Önbellek boyutu sınırı",
+        "cacheBudgetDescription": "Önbelleğe alınan odalar ve medya için hesap başına hedef boyut. Yakın zamanda açılan ve sabitlenen odalar bu sınırın üzerinde bile korunur.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Siz",
@@ -498,7 +508,7 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon"
+        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -548,7 +558,12 @@
         "playSound": "Sesi çal",
         "resize": "Arama panelini yeniden boyutlandır",
         "screenOf": "{{name}} adlı kişinin ekranı",
-        "fullScreen": "Tam ekran"
+        "fullScreen": "Tam ekran",
+        "screenShareStoppedInBackground": "Uygulamadan ayrıldığınızda ekran paylaşımı durdu.",
+        "shareAgain": "Tekrar paylaş",
+        "microphoneStopped": "Mikrofonunuz durdu.",
+        "cameraStopped": "Kameranız durdu.",
+        "turnBackOn": "Tekrar aç"
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
@@ -848,6 +863,12 @@
       "copyCommand": "Komutu kopyala",
       "copyFailed": "Kopyalanamadı",
       "keywords": "mac, macos, masaüstü, uygulama, indir, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Bu uygulamayı paylaş",
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur"
+      }
     }
   },
   "mindroomUi": {
@@ -1379,6 +1400,7 @@
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
+      "previewLabel": "Dikte önizlemesi",
       "statusStarting": "Dikte başlatılıyor",
       "statusListening": "Dikte ediliyor",
       "statusPaused": "Dikte duraklatıldı",
@@ -1389,12 +1411,6 @@
       "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
       "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
       "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi."
-    },
-    "voiceButton": {
-      "settingTitle": "Telefonda mikrofon düğmesi",
-      "settingDescription": "Telefonlarda yazma alanındaki mikrofon düğmesinin ne yapacağını seçin. Diğer eylem + menüsünde kalır.",
-      "dictate": "Dikte et",
-      "voiceMessage": "Sesli mesaj"
     }
   },
   "commandPalette": {
@@ -1427,6 +1443,11 @@
     "actions": {
       "goActivity": "Etkinliğe git",
       "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Son açılanlar",
+      "otherThreads": "Diğer konular",
+      "otherRooms": "Diğer odalar"
     }
   },
   "shortcuts": {

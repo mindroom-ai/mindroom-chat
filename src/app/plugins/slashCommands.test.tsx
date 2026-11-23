@@ -20,6 +20,7 @@ const command = (fields: Partial<PluginSlashCommand> = {}): PluginSlashCommand =
 const plugin = (id: string, slashCommands: PluginSlashCommand[]): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
+  displayName: id,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],

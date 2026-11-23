@@ -77,15 +77,15 @@ describe('RoomInputMindroomExtensions', () => {
       })
     ).toBeNull();
 
-    expect(
-      RoomInputThreadIndicator({
-        room: {} as never,
-        relation: {
-          event_id: '$thread',
-          rel_type: 'm.thread',
-        },
-      })
-    ).not.toBeNull();
+    const indicator = RoomInputThreadIndicator({
+      room: {} as never,
+      relation: {
+        event_id: '$thread',
+        rel_type: 'm.thread',
+      },
+    });
+    expect(indicator).not.toBeNull();
+    expect(indicator?.props.style).toEqual({ flexShrink: 0 });
   });
 
   it('renders the composer context only for replies or pending sends', () => {

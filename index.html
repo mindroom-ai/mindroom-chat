@@ -23,12 +23,7 @@
          page zoom, so below it), and the app's pinch changes the page zoom setting rather than
          magnifying (theme/usePinchToZoom.ts), so nothing could zoom it back out (the iOS app's
          web view switches its own pinch off as that zoom begins). -->
-    <script>
-      document.querySelector('meta[name="viewport"]').content +=
-        !/AppleWebKit/.test(navigator.userAgent) || /Chrome\//.test(navigator.userAgent)
-          ? ', interactive-widget=resizes-content'
-          : ', maximum-scale=1';
-    </script>
+    <script src="/viewport.js"></script>
     <title>MindRoom</title>
     <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />

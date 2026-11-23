@@ -35,8 +35,10 @@ import type {
 } from 'matrix-js-sdk';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
+  getCacheStoreByteBudget,
   noteRoomOpened,
   noteThreadOpened,
+  runCacheEvictionIfOverBudget,
   setEvictionProtectedRoomIds,
   revokeCacheStoreWrites,
   captureCacheStoreWriteLease,
@@ -402,9 +404,15 @@ export const createSyncEngine = ({
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
+    let lastCacheBudgetBytes = getCacheStoreByteBudget();
     unsubscribePrefetchConfig = subscribePrefetchConfig?.(() => {
+      const nextBudget = getCacheStoreByteBudget();
       gapFillExecutor.recheckDeferred();
       offline.recheck();
+      if (nextBudget < lastCacheBudgetBytes) {
+        void runCacheEvictionIfOverBudget(sessionId).catch(() => undefined);
+      }
+      lastCacheBudgetBytes = nextBudget;
     });
   };
 

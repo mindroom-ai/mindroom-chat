@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { DesktopBridge, DesktopShellEvent } from '../lib/desktopBridge';
 import { settingsAtom } from '../preferences/settings';
 import { usePageZoom } from './usePageZoom';
 
@@ -28,8 +29,42 @@ const pressInDialog = (key: string, repeat = false) => {
   return event;
 };
 
+const installDesktopBridge = () => {
+  let listener: ((event: DesktopShellEvent) => void) | undefined;
+  const unsubscribe = vi.fn(() => {
+    listener = undefined;
+  });
+  const bridge: DesktopBridge = {
+    onShellEvent: vi.fn((next: (event: DesktopShellEvent) => void) => {
+      listener = next;
+      return unsubscribe;
+    }),
+    setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+    startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
+    openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+    setBadge: vi.fn(),
+    isWindowFocused: () => true,
+    screenShare: false,
+    appUrl: {
+      addListener: vi.fn(async () => undefined),
+      getLaunchUrl: vi.fn(async () => undefined),
+    },
+  };
+  Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+  return {
+    emit: (event: DesktopShellEvent) => {
+      act(() => {
+        listener?.(event);
+      });
+    },
+    unsubscribe,
+  };
+};
+
 afterEach(() => {
   cleanup();
+  Reflect.deleteProperty(window, 'mindroomDesktop');
   vi.restoreAllMocks();
   setZoom(100);
   document.body.innerHTML = '';
@@ -79,5 +114,44 @@ describe('usePageZoom zoom keys', () => {
     expect(pressInDialog('-', true).defaultPrevented).toBe(false);
     expect(pressInDialog('0').defaultPrevented).toBe(false);
     expect(zoom()).toBe(110);
+  });
+});
+
+describe('usePageZoom desktop shell events', () => {
+  it('steps zoom on desktop zoom shell events and unsubscribes on unmount', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    const { emit, unsubscribe } = installDesktopBridge();
+    setZoom(100);
+    const { unmount } = renderHook(() => usePageZoom());
+
+    emit({ type: 'zoom', action: 'in' });
+    expect(zoom()).toBe(110);
+    emit({ type: 'zoom', action: 'in' });
+    expect(zoom()).toBe(125);
+    emit({ type: 'zoom', action: 'out' });
+    expect(zoom()).toBe(110);
+    emit({ type: 'zoom', action: 'reset' });
+    expect(zoom()).toBe(100);
+    emit({ type: 'fullscreen', value: true });
+    expect(zoom()).toBe(100);
+
+    unmount();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('ignores desktop zoom shell events on /quick-capture/', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    const { emit } = installDesktopBridge();
+    window.history.pushState({}, '', '/quick-capture/');
+    try {
+      setZoom(110);
+      renderHook(() => usePageZoom());
+      emit({ type: 'zoom', action: 'in' });
+      emit({ type: 'zoom', action: 'out' });
+      emit({ type: 'zoom', action: 'reset' });
+      expect(zoom()).toBe(110);
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
   });
 });

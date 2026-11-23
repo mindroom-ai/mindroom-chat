@@ -67,6 +67,7 @@ vi.mock('folds', async () => {
       Space: 'space',
       User: 'user',
       Search: 'search',
+      RecentClock: 'recent-clock',
     },
     color: {
       Warning: { Main: 'warning-main' },
@@ -104,6 +105,8 @@ vi.mock('./CommandPalette.css', () => ({
   Group: 'Group',
   GroupTitle: 'GroupTitle',
   GroupCount: 'GroupCount',
+  SubGroupTitle: 'SubGroupTitle',
+  SubGroupDivider: 'SubGroupDivider',
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowAvatar: 'RowAvatar',
@@ -1505,5 +1508,65 @@ describe('CommandPalette pages and rows that keep it open', () => {
     await type(renderer, 'drac');
     expect(useMessages).toHaveBeenLastCalledWith('drac', false);
     expect(usePeople).toHaveBeenLastCalledWith('drac', false);
+  });
+});
+
+describe('CommandPalette recent visit sub-headers', () => {
+  const SOURCE_WITH_RECENT: CommandPaletteSource = {
+    ...FIXTURE_SOURCE,
+    threads: [{ ...FIXTURE_SOURCE.threads[0]!, recentVisit: true }, FIXTURE_SOURCE.threads[1]!],
+    rooms: [
+      { ...FIXTURE_SOURCE.rooms[0]!, recentVisit: true },
+      FIXTURE_SOURCE.rooms[1]!,
+      FIXTURE_SOURCE.rooms[2]!,
+    ],
+  };
+
+  const sectionSubgroups = (renderer: ReturnType<typeof create>, sectionId: string) =>
+    renderer.root
+      .find((node) => node.type === 'div' && node.props['data-section'] === sectionId)
+      .findAll((node) => typeof node.type === 'string' && 'data-subgroup' in node.props)
+      .map((node) => [node.props['data-subgroup'], textOf(node).trim()]);
+
+  it('shows Recently opened and Other threads/rooms on All, Threads and Rooms when query is empty', async () => {
+    const all = renderPalette({ source: SOURCE_WITH_RECENT });
+    expect(sectionSubgroups(all, 'threads')).toEqual([
+      ['recent', 'Recently opened'],
+      ['other', 'Other threads'],
+    ]);
+    expect(sectionSubgroups(all, 'rooms')).toEqual([
+      ['recent', 'Recently opened'],
+      ['other', 'Other rooms'],
+    ]);
+    expect(sectionSubgroups(all, 'actions')).toEqual([]);
+    expect(selectedId(all)).toBe('$thread-incident');
+    await press(all, 'ArrowDown');
+    expect(selectedId(all)).toBe('$thread-release');
+
+    const threads = renderPalette({ source: SOURCE_WITH_RECENT, initialTab: 'threads' });
+    expect(sectionSubgroups(threads, 'threads')).toEqual([
+      ['recent', 'Recently opened'],
+      ['other', 'Other threads'],
+    ]);
+
+    const rooms = renderPalette({ source: SOURCE_WITH_RECENT, initialTab: 'rooms' });
+    expect(sectionSubgroups(rooms, 'rooms')).toEqual([
+      ['recent', 'Recently opened'],
+      ['other', 'Other rooms'],
+    ]);
+  });
+
+  it('shows no sub-headers when nothing has recentVisit', () => {
+    const renderer = renderPalette({ source: FIXTURE_SOURCE });
+    expect(renderer.root.findAll((node) => 'data-subgroup' in node.props)).toEqual([]);
+  });
+
+  it('hides sub-headers as soon as text is typed and restores them when cleared', async () => {
+    const renderer = renderPalette({ source: SOURCE_WITH_RECENT });
+    expect(sectionSubgroups(renderer, 'rooms')).toHaveLength(2);
+    await type(renderer, 'gen');
+    expect(renderer.root.findAll((node) => 'data-subgroup' in node.props)).toEqual([]);
+    await type(renderer, '');
+    expect(sectionSubgroups(renderer, 'rooms')).toHaveLength(2);
   });
 });

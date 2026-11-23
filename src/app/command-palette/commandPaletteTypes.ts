@@ -68,6 +68,8 @@ export type CommandPaletteRoomItem = CommandPaletteBaseItem & {
   tag?: string;
   unreadCount?: number;
   unreadHighlight?: boolean;
+  /** Promoted by recent visits while nothing is typed. */
+  recentVisit?: boolean;
 };
 
 export type CommandPaletteUserItem = CommandPaletteBaseItem & {
@@ -100,6 +102,8 @@ export type CommandPaletteThreadItem = CommandPaletteBaseItem & {
   tags?: string[];
   isResolved?: boolean;
   messageCount?: number;
+  /** Promoted by recent visits while nothing is typed. */
+  recentVisit?: boolean;
 };
 
 /** One message the server found for the typed text. */

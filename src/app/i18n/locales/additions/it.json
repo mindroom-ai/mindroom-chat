@@ -446,6 +446,16 @@
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
       },
+      "plugins": {
+        "title": "Plugin",
+        "description": "Attiva o disattiva i plugin inclusi per il tuo account su tutti i tuoi dispositivi."
+      },
+      "storage": {
+        "cacheBudget": "Limite dimensione cache",
+        "cacheBudgetDescription": "Dimensione di riferimento per account per stanze e contenuti multimediali nella cache. Le stanze aperte di recente e quelle fissate restano salvate anche oltre questo limite.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Tu",
@@ -511,7 +521,7 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "dictation": "dettare, dettatura, voce in testo, microfono, telefono"
+        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -562,7 +572,12 @@
         "playSound": "Riproduci audio",
         "resize": "Ridimensiona il pannello della chiamata",
         "screenOf": "Schermo di {{name}}",
-        "fullScreen": "Schermo intero"
+        "fullScreen": "Schermo intero",
+        "screenShareStoppedInBackground": "La condivisione dello schermo si è interrotta quando hai lasciato l’app.",
+        "shareAgain": "Condividi di nuovo",
+        "microphoneStopped": "Il tuo microfono si è interrotto.",
+        "cameraStopped": "La tua fotocamera si è interrotta.",
+        "turnBackOn": "Riattiva"
       },
       "problems": {
         "service": "Impossibile raggiungere il servizio di chiamata. Riprova più tardi.",
@@ -865,6 +880,12 @@
       "copyCommand": "Copia il comando",
       "copyFailed": "Copia non riuscita",
       "keywords": "mac, macos, desktop, app, applicazione, scarica, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Condividi questa app",
+        "stopAppShare": "Interrompi la condivisione di questa app"
+      }
     }
   },
   "mindroomUi": {
@@ -1424,6 +1445,7 @@
       "insertPartial": "Inserisci testo parziale",
       "discard": "Scarta",
       "dismissError": "Chiudi errore di dettatura",
+      "previewLabel": "Anteprima dettatura",
       "statusStarting": "Avvio dettatura",
       "statusListening": "Dettatura in corso",
       "statusPaused": "Dettatura in pausa",
@@ -1436,12 +1458,6 @@
       "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
       "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
       "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
-    },
-    "voiceButton": {
-      "settingTitle": "Pulsante microfono su telefono",
-      "settingDescription": "Scegli cosa fa il pulsante microfono nel compositore sui telefoni. L’altra azione resta nel menu +.",
-      "dictate": "Detta",
-      "voiceMessage": "Messaggio vocale"
     }
   },
   "commandPalette": {
@@ -1474,6 +1490,11 @@
     "actions": {
       "goActivity": "Vai ad Attività",
       "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Elementi aperti di recente",
+      "otherThreads": "Altri thread",
+      "otherRooms": "Altre stanze"
     }
   },
   "shortcuts": {

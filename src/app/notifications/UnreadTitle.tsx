@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAtomValue } from 'jotai';
+import { desktopBridge } from '../lib/nativeShell';
 import type { RoomToUnread } from '../matrix/types/room';
 import { navigationRoomToUnreadAtom } from './navigationUnread';
 
@@ -28,11 +29,13 @@ export function UnreadTitleFeature() {
     base.current = document.title;
     return () => {
       if (base.current !== undefined) document.title = base.current;
+      desktopBridge()?.setBadge(0);
     };
   }, []);
 
   useEffect(() => {
     if (base.current !== undefined) document.title = titleWithCount(base.current, count);
+    desktopBridge()?.setBadge(count);
   }, [count]);
 
   return null;

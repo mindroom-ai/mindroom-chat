@@ -30,11 +30,12 @@ and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
 MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
 Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
-and stream-buffers, under @capacitor/cli). It accepts five packages by name:
+and stream-buffers, under @capacitor/cli). It accepts six packages by name:
 require-like and khroma (MIT license text, no license field; khroma is part of
 Mermaid's build for canvases), elkjs (see below), caniuse-lite (CC-BY-4.0
-browser data, build tooling only, not in the bundle), and jsonify (public
-domain, development only).
+browser data, build tooling only, not in the bundle), jsonify (public domain,
+development only), and truncate-utf8-bytes (WTFPL, development only, under
+electron-builder, never shipped).
 
 matrix-rust-sdk (Apple Watch app)
   matrix-sdk-ffi and the other crates of matrix-rust-sdk, Copyright The
@@ -51,6 +52,12 @@ matrix-rust-sdk (Apple Watch app)
   licenses above (an "or later" MPL-2.0 too) and one crate by name:
   xxhash-rust (Boost Software License 1.0, permissive, no notice required in a
   binary; matrix-sdk-base needs it through growable-bloom-filter).
+
+Electron (Mac desktop shell)
+  electron 45.4.1, Copyright (c) Electron contributors and GitHub Inc.,
+  MIT License (https://github.com/electron/electron). Bundles Chromium and
+  Node.js; their third-party notices ship alongside the Electron runtime
+  (LICENSES.chromium.html and LICENSE in the Electron distribution).
 
 Sparkle (Mac app updater)
   Sparkle 2.10.1, Copyright (c) 2006-2013 Andy Matuschak and the other

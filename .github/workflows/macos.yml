@@ -1,33 +1,9 @@
-# The Mac app outside the App Store: a Developer ID signed and notarized Mac Catalyst DMG
-# (scripts/build-macos-app.sh), attached to its release as MindRoom-Chat.dmg, which the Homebrew cask
-# mindroom-ai/tap/mindroom-chat installs (docs/ios-release.md "Mac DMG"):
-# - release.yml calls this workflow after it cuts an automatic release;
-# - the release event covers a release cut by hand (`just release`). A release that a workflow's
-#   GITHUB_TOKEN creates sends no release event, so the two never both run for one release;
-# - a manual run builds the DMG of the release tag it is given, for a release that has none.
-# A published DMG is never replaced. Before it, the job attaches the release's appcast.xml, the
-# update feed item whose DMG is EdDSA-signed (scripts/macos-appcast.sh); once the DMG is up, and while
-# its release is still the newest, the job asks the tap to update its cask. The feed job then copies
-# the appcast.xml to the prerelease mac-appcast, the feed the app reads, unless that names this
-# release or a newer one (docs/ios-release.md "Updates"). Pull requests that change the Mac build
-# build it unsigned and publish nothing.
+# Pull-request unsigned validation for the remaining Mac Catalyst / Mac App Store targets.
+# Release signing and DMG publishing moved to .github/workflows/desktop.yml (Electron Mac app).
+# This workflow builds unsigned only and publishes nothing.
 name: Mac app
 
 on:
-  workflow_call:
-    inputs:
-      tag:
-        description: The release tag (vYYYY.M.N) to build the DMG of.
-        type: string
-        required: true
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: The release tag (vYYYY.M.N) whose DMG is missing.
-        type: string
-        required: true
   pull_request:
     paths:
       - ios/**
@@ -37,8 +13,6 @@ on:
       - scripts/macos-store-preflight.mjs
       - scripts/test-macos-support.sh
       - scripts/fetch-sparkle.sh
-      - scripts/macos-appcast.sh
-      - scripts/macos-publish-appcast.sh
       - scripts/macos-updater-info-plist.sh
       - .github/workflows/macos.yml
 
@@ -47,75 +21,23 @@ permissions:
 
 jobs:
   dmg:
-    name: Build, notarize and publish the DMG
-    # Prereleases (the watch SDK builds) are not app releases.
-    if: github.event_name != 'release' || !github.event.release.prerelease
+    name: Validate Mac Catalyst builds unsigned
     runs-on: macos-26
     timeout-minutes: 60
-    permissions:
-      contents: write
     concurrency:
-      group: macos-${{ inputs.tag || github.event.release.tag_name || github.ref }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-    env:
-      # Empty for a pull request: an unsigned build.
-      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      group: macos-${{ github.ref }}
+      cancel-in-progress: true
     steps:
-      - name: Check the release
-        if: env.RELEASE_TAG
-        id: release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if ! [[ $RELEASE_TAG =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
-            exit 1
-          fi
-          # A draft's DMG is not public, and a prerelease is not for stable apps or their feed.
-          kind=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease \
-            --jq 'if .isDraft or .isPrerelease then "unpublished" else "published" end')
-          if [[ $kind != published ]]; then
-            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
-            exit 1
-          fi
-          # Its bytes and the cask's checksum stay fixed: changes ship in a new release.
-          published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '[.assets[] | select(.name == "MindRoom-Chat.dmg" or .name == "MindRoom.dmg")] | length')
-          if [[ $published != 0 ]]; then
-            echo "::error::$RELEASE_TAG already has its DMG, which is never replaced"
-            exit 1
-          fi
-          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
-      # The one rule for the update feed: a tag from before the updater (no appcast script) gets its
-      # DMG alone and needs no key; any other needs the key before the build and uploads its
-      # appcast.xml before the DMG, or fails.
-      - name: Check the update key
-        if: env.RELEASE_TAG
-        id: updater
-        env:
-          HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
-        run: |
-          if [[ -f scripts/macos-appcast.sh ]]; then
-            if [[ $HAS_SPARKLE_KEY != true ]]; then
-              echo '::error::The secret SPARKLE_ED_PRIVATE_KEY is missing: a release must not ship without its update feed'
-              exit 1
-            fi
-            echo updater=true >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/setup-node@v7
         with:
           node-version: 24
       - run: npm ci
       - name: Check native Mac support
-        if: ${{ !env.RELEASE_TAG }}
         run: scripts/test-macos-support.sh
       - name: Archive the Mac App Store variant unsigned
-        if: ${{ !env.RELEASE_TAG }}
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: |
@@ -124,154 +46,6 @@ jobs:
           MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             scripts/build-macos-store.sh --unsigned
       - name: Build unsigned
-        if: ${{ !env.RELEASE_TAG }}
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh
-      - name: Import the Developer ID certificate
-        if: env.RELEASE_TAG
-        uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
-        with:
-          p12-file-base64: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_BASE64 }}
-          p12-password: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_PASSWORD }}
-          keychain-password: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
-      - name: Find the Developer ID identity
-        if: env.RELEASE_TAG
-        id: codesign
-        run: |
-          set -euo pipefail
-          identity=$(security find-identity -v -p codesigning |
-            awk -F '"' '/Developer ID Application:.*\(DNA6966LGZ\)/ { print $2; exit }')
-          if [[ -z $identity ]]; then
-            echo '::error::No Developer ID Application identity for team DNA6966LGZ'
-            exit 1
-          fi
-          echo "identity=$identity" >> "$GITHUB_OUTPUT"
-      - name: Decode the provisioning profile
-        if: env.RELEASE_TAG
-        id: profile
-        env:
-          MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          set -euo pipefail
-          test -n "$MACOS_PROVISIONING_PROFILE_BASE64"
-          umask 077
-          directory=$(mktemp -d "$RUNNER_TEMP/mindroom-signing.XXXXXX")
-          echo "directory=$directory" >> "$GITHUB_OUTPUT"
-          printf '%s' "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$directory/profile.provisionprofile"
-          test -s "$directory/profile.provisionprofile"
-      - name: Build, sign and notarize
-        if: env.RELEASE_TAG
-        env:
-          CODESIGN_IDENTITY: ${{ steps.codesign.outputs.identity }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          MACOS_PROVISIONING_PROFILE_PATH: ${{ steps.profile.outputs.directory }}/profile.provisionprofile
-          # YYYY.M.N for both: the build number only has to grow from one release to the next.
-          MARKETING_VERSION: ${{ steps.release.outputs.version }}
-          CURRENT_PROJECT_VERSION: ${{ steps.release.outputs.version }}
-          # As image.yml does: GITHUB_SHA, the fallback, is main's head or the dispatching branch's.
-          MINDROOM_BUILD_VERSION: ${{ env.RELEASE_TAG }}
-          MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: scripts/build-macos-app.sh --sign
-      # A tag from before the rename, built by a manual run, makes MindRoom.dmg.
-      - name: Find the DMG
-        if: env.RELEASE_TAG
-        id: dmg
-        run: |
-          for name in MindRoom-Chat.dmg MindRoom.dmg; do
-            if [[ -f build/macos/$name ]]; then echo "name=$name" >> "$GITHUB_OUTPUT" && exit 0; fi
-          done
-          echo '::error::The build made no DMG' && exit 1
-      - name: Make the appcast
-        if: steps.updater.outputs.updater == 'true'
-        env:
-          # This step alone gets the key, and the script reads it from standard input only.
-          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-          VERSION: ${{ steps.release.outputs.version }}
-          DMG: ${{ steps.dmg.outputs.name }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh "build/macos/$DMG" \
-            "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" "$VERSION" build/macos/appcast.xml
-      - name: Attach the appcast and the DMG to the release
-        if: env.RELEASE_TAG
-        env:
-          GH_TOKEN: ${{ github.token }}
-          UPDATER: ${{ steps.updater.outputs.updater }}
-          DMG: ${{ steps.dmg.outputs.name }}
-        # The DMG, never replaced, goes last: a release that has it has the appcast.xml that signs
-        # it. --clobber replaces an appcast.xml a failed earlier run left.
-        run: |
-          set -euo pipefail
-          if [[ $UPDATER == true ]]; then
-            gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
-          fi
-          gh release upload "$RELEASE_TAG" "build/macos/$DMG" --repo "$GITHUB_REPOSITORY"
-      - name: Check that the release is the newest
-        if: env.RELEASE_TAG
-        id: newest
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          newest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
-          if [[ $newest == "$RELEASE_TAG" ]]; then
-            echo 'newest=true' >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::The cask stays as it is: $newest is newer than $RELEASE_TAG"
-          fi
-      - name: Mint a token for the Homebrew tap
-        if: steps.newest.outputs.newest == 'true'
-        id: release-bot
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
-          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
-          owner: mindroom-ai
-          repositories: homebrew-tap
-          permission-contents: write
-      - name: Ask the tap to update its cask
-        if: steps.newest.outputs.newest == 'true'
-        env:
-          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
-          DMG: ${{ steps.dmg.outputs.name }}
-        run: |
-          gh api repos/mindroom-ai/homebrew-tap/dispatches \
-            -f event_type=mindroom-chat-release \
-            -f "client_payload[tag_name]=$RELEASE_TAG" \
-            -f "client_payload[asset_url]=https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$DMG"
-      - name: Remove the provisioning profile
-        if: always() && steps.profile.outputs.directory != ''
-        env:
-          DIRECTORY: ${{ steps.profile.outputs.directory }}
-        run: rm -rf "$DIRECTORY"
-
-  feed:
-    name: Publish the update feed
-    needs: dmg
-    # Also after a dmg job that failed at the tap: the DMG is up then.
-    if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}
-    # One at a time across every release's run, every waiting run kept (queue: max), since a run
-    # that finishes late may be older than one waiting. It publishes its release only above what the
-    # feed names, so the order runs finish in does not matter, and a re-run repairs a failed
-    # publication without a rebuild.
-    concurrency:
-      group: mac-appcast
-      queue: max
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    env:
-      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Point the feed at this release if it is the newest ready one
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/macos-publish-appcast.sh "$RELEASE_TAG"

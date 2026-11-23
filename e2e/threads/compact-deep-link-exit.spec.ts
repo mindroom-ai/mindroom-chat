@@ -9,8 +9,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { COMPACT_VIEW } from '../helpers/compactCards';
 import { createRoom } from '../helpers/createRoom';
 import {
+  allowActiveRunsState,
   createDefaultThreadFilterState,
   joinRoom,
+  publishActiveRuns,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -343,6 +345,7 @@ test('scrollbar End reaches the real end below two short last sections (WebKit)'
   // One thread is being worked on and one is resolved: Working and Done hold a card each, under
   // the long first section, so the last screen is mostly that section's tail.
   const [working, done] = [rootIds[40]!, rootIds[60]!];
+  await allowActiveRunsState(HOMESERVER, reader.accessToken, roomId);
   await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Thinking...',
@@ -354,6 +357,7 @@ test('scrollbar End reaches the real end below two short last sections (WebKit)'
       'm.in_reply_to': { event_id: working },
     },
   });
+  await publishActiveRuns(HOMESERVER, agent, roomId, [working], 600_000);
   await sendStateEvent(
     HOMESERVER,
     reader.accessToken,

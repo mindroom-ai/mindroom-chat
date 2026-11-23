@@ -207,7 +207,7 @@ function StartupRecoveryMenu({ session, mx }: StartupScreenProps) {
       style={{
         position: 'absolute',
         insetInlineEnd: config.space.S400,
-        insetBlockStart: `calc(${config.space.S400} + env(safe-area-inset-top, 0px))`,
+        insetBlockStart: `calc(${config.space.S400} + var(--app-inset-top, env(safe-area-inset-top, 0px)))`,
       }}
     >
       <PopOut anchor={menuAnchor} align="End" position="Bottom" offset={4} content={recoveryMenu}>

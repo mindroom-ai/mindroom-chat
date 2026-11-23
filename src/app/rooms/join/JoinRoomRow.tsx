@@ -1,5 +1,6 @@
 import { FocusEvent, MouseEvent, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import classNames from 'classnames';
 import { Avatar, Button, Spinner, Text } from 'folds';
 import type { JoinRule } from 'matrix-js-sdk';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
@@ -8,6 +9,7 @@ import { RoomAccessControl } from '../RoomAccessControl';
 import { JoinFailure } from '../JoinFailure';
 import { nameInitials } from '../../lib/common';
 import { isRoomId } from '../../matrix/matrix';
+import * as dialogCss from '../../ui/DialogChrome.css';
 import * as css from './JoinRoom.css';
 
 /** Marks the button that arrow keys move between and Enter presses. */
@@ -74,7 +76,7 @@ export function JoinRoomRow({
       variant="Secondary"
       fill="Soft"
       size="300"
-      radii="300"
+      radii="Pill"
       onClick={() => onOpen(target)}
     >
       <Text size="B300">{t('sharedUi.joinAddressPrompt.open')}</Text>
@@ -155,10 +157,14 @@ export function JoinRoomRow({
               <>
                 <Button
                   {...actionProps}
+                  className={classNames(
+                    css.RowAction,
+                    !access.requested && dialogCss.SheetRowActionIdle
+                  )}
                   variant={access.requested ? 'Secondary' : 'Primary'}
-                  fill={access.requested ? 'Soft' : 'Solid'}
+                  fill={access.requested ? 'Soft' : 'None'}
                   size="300"
-                  radii="300"
+                  radii={access.requested ? 'Pill' : '300'}
                   // A busy button keeps focus (a disabled one would drop it); a second press
                   // does nothing while the join runs.
                   aria-disabled={access.loading || access.requested}

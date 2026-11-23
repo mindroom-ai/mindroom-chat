@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp, isDesktopApp } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -9,6 +9,8 @@ import { useClientConfig } from '../config/useClientConfig';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
 import { isServerAdmin } from '../server-admin/accounts';
 import { parseDsn } from '../bug-reports/error-reporting/errorReporting';
+import { isPluginEnabled } from '../plugins/pluginConfig';
+import { registeredPlugins } from '../plugins/registry';
 import { settingsAtom } from '../preferences/settings';
 import { themeSettingsAtom } from '../theme/useTheme';
 import type { SettingsContext } from '../preferences/settingsRegistry';
@@ -20,13 +22,16 @@ export const useSettingsContext = (): SettingsContext => {
   const { developerTools } = useAtomValue(settingsAtom);
   // As the Appearance page shows it, with the deployment's default theme.
   const { useSystemTheme } = useAtomValue(themeSettingsAtom);
-  const errorReporting = parseDsn(useClientConfig().errorReporting?.dsn) !== undefined;
+  const clientConfig = useClientConfig();
+  const errorReporting = parseDsn(clientConfig.errorReporting?.dsn) !== undefined;
   const serverAdmin = isServerAdmin(useCapabilities());
   const macApp = useOffersMacApp();
+  // Check raw deployment config so turning off all plugins never hides Settings -> Plugins.
+  const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
-    native: Capacitor.isNativePlatform(),
+    native: isBundledApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeIOS() || getDebugModeEnabled(),
+    diagnostics: isNativeIOS() || isDesktopApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,
@@ -34,5 +39,6 @@ export const useSettingsContext = (): SettingsContext => {
     errorReporting,
     railButtons,
     macApp,
+    hasPlugins,
   };
 };

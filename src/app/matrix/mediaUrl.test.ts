@@ -208,6 +208,26 @@ describe('mxcUrlToHttp', () => {
     );
   });
 
+  it('never appends an access_token in the desktop app, even on capacitor://localhost', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: { protocol: 'capacitor:' },
+        mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) },
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true });
+    const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => 'desktop-secret-token',
+      mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/download/server/id',
+    } as any;
+
+    expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/id'
+    );
+  });
+
   it('rebases same-origin media urls to the homeserver path on the web', () => {
     Object.defineProperty(globalThis, 'window', {
       value: {

@@ -183,6 +183,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   NarrowPhoneTitleRow: 'NarrowPhoneTitleRow',
   StackedPhoneTitleRow: 'StackedPhoneTitleRow',
   OverflowChip: 'OverflowChip',
+  PhoneRootTitle: 'PhoneRootTitle',
   PhoneTitle: 'PhoneTitle',
   PhoneTitleRow: 'PhoneTitleRow',
   ResolutionByline: 'ResolutionByline',
@@ -440,6 +441,7 @@ describe('ThreadContextBanner rendering', () => {
                 ? { rawDisplayName: 'Alice', name: 'Alice' }
                 : undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1017,10 +1019,10 @@ describe('ThreadContextBanner rendering', () => {
       screenSize = ScreenSize.Mobile;
       const phone = renderBanner();
       expect(rootTitle(phone).props).toMatchObject({
-        className: 'PhoneTitle',
-        tabIndex: 0,
+        className: 'PhoneRootTitle',
         truncate: false,
       });
+      expect(rootTitle(phone).props.tabIndex).toBeUndefined();
       expect(text(rootTitle(phone))).toBe(body);
       phone.unmount();
 
@@ -1409,6 +1411,7 @@ describe('ThreadContextBanner rendering', () => {
                 ? { rawDisplayName: 'Alice', name: 'Alice' }
                 : undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1459,6 +1462,7 @@ describe('ThreadContextBanner rendering', () => {
             getUnfilteredTimelineSet: () => undefined,
             getMember: () => undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1834,6 +1838,7 @@ describe('ThreadContextBanner rendering', () => {
       findEventById: () => undefined,
       getMember: () => undefined,
       hasEncryptionStateEvent: () => false,
+      currentState: { getStateEvents: () => [] },
       on: emitter.on.bind(emitter),
       removeListener: emitter.removeListener.bind(emitter),
     } as unknown as Room;

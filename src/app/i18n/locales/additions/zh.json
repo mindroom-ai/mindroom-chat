@@ -420,6 +420,16 @@
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
       },
+      "plugins": {
+        "title": "插件",
+        "description": "在您的所有设备上为您的账号开启或关闭内置插件。"
+      },
+      "storage": {
+        "cacheBudget": "缓存大小上限",
+        "cacheBudgetDescription": "每个账户用于已缓存房间和媒体的目标大小。最近打开和已置顶的房间即使超出此上限也会保留。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "你",
@@ -485,7 +495,7 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "dictation": "听写, 语音输入, 语音转文字, 麦克风, 手机"
+        "plugins": "插件, 扩展, 附加组件, 集成"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -534,7 +544,12 @@
         "playSound": "播放声音",
         "resize": "调整通话面板大小",
         "screenOf": "{{name}} 的屏幕",
-        "fullScreen": "全屏"
+        "fullScreen": "全屏",
+        "screenShareStoppedInBackground": "离开应用时屏幕共享已停止。",
+        "shareAgain": "重新共享",
+        "microphoneStopped": "你的麦克风已停止。",
+        "cameraStopped": "你的摄像头已停止。",
+        "turnBackOn": "重新开启"
       },
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
@@ -831,6 +846,12 @@
       "copyCommand": "复制命令",
       "copyFailed": "复制失败",
       "keywords": "mac, macos, 桌面, 应用, 下载, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "共享此应用",
+        "stopAppShare": "停止共享此应用"
+      }
     }
   },
   "mindroomUi": {
@@ -1334,6 +1355,7 @@
       "insertPartial": "插入部分文本",
       "discard": "放弃",
       "dismissError": "关闭听写错误",
+      "previewLabel": "听写预览",
       "statusStarting": "正在启动听写",
       "statusListening": "正在听写",
       "statusPaused": "听写已暂停",
@@ -1342,12 +1364,6 @@
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
       "failedSummary_other": "无法转写 {{count}} 个片段。"
-    },
-    "voiceButton": {
-      "settingTitle": "手机麦克风按钮",
-      "settingDescription": "选择手机上输入框麦克风按钮的功能。另一项操作保留在 + 菜单中。",
-      "dictate": "听写",
-      "voiceMessage": "语音消息"
     }
   },
   "commandPalette": {
@@ -1380,6 +1396,11 @@
     "actions": {
       "goActivity": "前往动态",
       "goActivityDescription": "提及、回复和等待你处理的事项"
+    },
+    "recentVisits": {
+      "recentlyOpened": "最近打开",
+      "otherThreads": "其他讨论串",
+      "otherRooms": "其他房间"
     }
   },
   "shortcuts": {

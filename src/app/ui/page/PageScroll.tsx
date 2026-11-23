@@ -35,8 +35,12 @@ export const useStickyHeaderInset = (
     const header = headerRef.current;
     if (!frame) return undefined;
     if (!header || !hasHeader) return undefined;
+    let lastHeight: number | undefined;
     const publish = () => {
-      frame.style.setProperty(SCROLL_HEADER_HEIGHT_PROPERTY, `${header.offsetHeight}px`);
+      const next = header.offsetHeight;
+      if (next === lastHeight) return;
+      lastHeight = next;
+      frame.style.setProperty(SCROLL_HEADER_HEIGHT_PROPERTY, `${next}px`);
     };
     publish();
     if (typeof ResizeObserver === 'undefined') return undefined;

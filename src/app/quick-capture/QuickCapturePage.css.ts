@@ -1,4 +1,10 @@
-import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
+import {
+  createVar,
+  globalStyle,
+  keyframes,
+  style,
+  type GlobalStyleRule,
+} from '@vanilla-extract/css';
 import { toRem } from 'folds';
 
 /**
@@ -117,6 +123,7 @@ globalStyle(
  */
 globalStyle(`html:has(${Page}[data-native])`, {
   fontSize: 'calc(var(--mac-point-scale, 1) * 100%) !important',
+  vars: { '--app-inset-top': '0px' },
 });
 globalStyle(`html:has(${Page}[data-native]) #root`, { paddingBlockStart: 0 });
 
@@ -168,6 +175,16 @@ export const RoomButton = style({
   },
   ':focus-visible': focusRing,
 });
+
+globalStyle(`${Page}[data-native] ${Header}, ${Page}[data-native] ${Notice}`, {
+  WebkitAppRegion: 'drag',
+} as unknown as GlobalStyleRule);
+globalStyle(
+  `${Page}[data-native] ${RoomButton}, ${Page}[data-native] ${Header} button, ${Page}[data-native] ${Notice} button`,
+  {
+    WebkitAppRegion: 'no-drag',
+  } as unknown as GlobalStyleRule
+);
 
 export const RoomName = style({ ...oneLine, minInlineSize: 0 });
 

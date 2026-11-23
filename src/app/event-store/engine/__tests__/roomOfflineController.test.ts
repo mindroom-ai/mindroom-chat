@@ -8,13 +8,16 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import { createStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import * as deepTrace from '../../../diagnostics/deepTrace';
 import { saveAttachmentOwner } from '../../cache/__tests__/attachmentFixtures';
 import { createSyncEngine } from '../syncEngine';
 import { createSessionId } from '../../../matrix/session/sessions';
 import { createRoomOfflineController } from '../roomOffline';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { resolvePrefetchConfig } from '../prefetchPolicy';
+import { prefetchSettingsAtom } from '../prefetchSettings';
 import {
   loadCachedRoomEvent,
   loadRoomTailDiscontinuity,
@@ -22,19 +25,20 @@ import {
   resetCacheStoreForTesting,
 } from '../../cache/db';
 import {
+  CACHE_BYTE_BUDGET_PRESETS,
+  ROOM_LEDGER_STORE,
   __setCacheStoreByteBudgetForTests,
   __resetEvictionForTests,
   clearRoomCachedContent,
   noteRoomOpened,
+  openCacheStore,
   runCacheEvictionIfOverBudget,
   saveRoomEventsToCacheCommitted,
+  setConfiguredCacheStoreByteBudget,
 } from '../../cache/db';
 import { reportCacheWriteError, resetCacheHealthForTesting } from '../../cache/cacheHealth';
 import { persistRoomChunkWithPreferLive } from '../../cache/eventRepository';
-import {
-  readRoomOfflineProgress,
-  updateRoomOfflineProgress,
-} from '../../cache/db/cacheStoreMeta';
+import { readRoomOfflineProgress, updateRoomOfflineProgress } from '../../cache/db/cacheStoreMeta';
 
 const roomId = '!opened:test';
 const raw = (id: string) => ({
@@ -56,6 +60,7 @@ afterEach(() => {
   engines.forEach((engine) => engine.stop());
   engines.length = 0;
   vi.unstubAllGlobals();
+  setConfiguredCacheStoreByteBudget(undefined);
   __setCacheStoreByteBudgetForTests(undefined);
   resetCacheHealthForTesting();
 });
@@ -728,6 +733,36 @@ it('retains text and distinguishes soft pressure from quota read-only', async ()
   await engine.offline.clear(roomId);
   engine.offline.download(roomId);
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('read-only'));
+});
+
+it('does not rerun eviction on repeated page admissions under a protected-pressure verdict', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  await noteRoomOpened(engine.sessionId, roomId);
+  __setCacheStoreByteBudgetForTests(1);
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => ({ scope: 'all-rooms' }),
+    onChanged: () => {},
+  });
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  try {
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(await control.canSavePage(roomId)).toBe(false);
+    expect(trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction')).toHaveLength(1);
+    expect(control.controller.getSnapshot(roomId).status).toBe('space');
+  } finally {
+    trace.mockRestore();
+  }
 });
 it('hidden pages pause and logout revokes a pending page', async () => {
   const document = new EventTarget();
@@ -1803,4 +1838,87 @@ it('SDK-pruned encrypted standalone edits still recover their compacted owner', 
       'm.relations'
     ]?.['m.replace']
   ).toBeUndefined();
+});
+
+const setRoomLedgerBytes = async (
+  sessionId: string,
+  targetRoomId: string,
+  approxBytes: number
+): Promise<void> => {
+  const db = await openCacheStore(sessionId);
+  if (!db) throw new Error('cache store unavailable');
+  await new Promise<void>((resolve, reject) => {
+    const txn = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
+    const store = txn.objectStore(ROOM_LEDGER_STORE);
+    const getReq = store.get(targetRoomId);
+    getReq.onsuccess = () => {
+      store.put({
+        roomId: targetRoomId,
+        eventCount: 1,
+        lastActivityTs: 1,
+        ...(getReq.result ?? {}),
+        approxBytes,
+      });
+    };
+    txn.oncomplete = () => resolve();
+    txn.onerror = () => reject(txn.error);
+    txn.onabort = () => reject(txn.error);
+  });
+};
+
+it('resumes space-paused saving on budget raise and evicts cold rooms on lowering', async () => {
+  const store = createStore();
+  const [smallBudget, defaultBudget] = CACHE_BYTE_BUDGET_PRESETS;
+  const f = fixture();
+  const engine = createSyncEngine({
+    mx: f.mx,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => undefined,
+    },
+    getPrefetchConfig: () => resolvePrefetchConfig(store.get(prefetchSettingsAtom)),
+    subscribePrefetchConfig: (listener) => store.sub(prefetchSettingsAtom, listener),
+    gapTracker: {
+      stop: () => undefined,
+      handleSyncPrepared: async () => undefined,
+      handleTimelineReset: () => undefined,
+    },
+  });
+  engines.push(engine);
+  const setBudget = (cacheBudgetBytes: (typeof CACHE_BYTE_BUDGET_PRESETS)[number]) =>
+    store.set(prefetchSettingsAtom, {
+      ...store.get(prefetchSettingsAtom),
+      cacheBudgetBytes,
+    });
+
+  // Start at 512 MB with a focused room over budget so offline saving pauses at 'space'.
+  setBudget(smallBudget);
+  engine.start();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  await setRoomLedgerBytes(engine.sessionId, roomId, 700 * 1024 * 1024);
+
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+
+  // Raising the budget via prefetchSettingsAtom resumes saving and clears 'space'.
+  setBudget(defaultBudget);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+
+  // With focus cleared, lowering the budget immediately evicts an unprotected room over limit.
+  const coldRoomId = '!cold:test';
+  await noteRoomOpened(engine.sessionId, roomId);
+  engine.clearRoomFocus(roomId);
+  await setRoomLedgerBytes(engine.sessionId, roomId, 100);
+  await saveRoomEventsToCacheCommitted(engine.sessionId, coldRoomId, [
+    { ...raw('$cold'), room_id: coldRoomId },
+  ]);
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  await setRoomLedgerBytes(engine.sessionId, coldRoomId, 700 * 1024 * 1024);
+
+  setBudget(smallBudget);
+  await vi.waitFor(async () =>
+    expect(await loadCachedRoomEvent(engine.sessionId, coldRoomId, '$cold')).toBeUndefined()
+  );
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$retained')).toBeDefined();
 });

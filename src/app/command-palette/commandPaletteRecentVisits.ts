@@ -4,7 +4,7 @@ export const RECENT_VISIT_PINS = 3;
 /** What a visited row gains for typed text: more than an unread thread (10). */
 const RECENT_VISIT_BOOST = 20;
 
-type RankedRow = { id: string; sortRank?: number; boost?: number };
+type RankedRow = { id: string; sortRank?: number; boost?: number; recentVisit?: boolean };
 
 /**
  * Lifts the rows the user visited last. `visitedIds` are row IDs, newest visit first; the open row
@@ -28,10 +28,22 @@ export const withRecentVisits = <T extends RankedRow>(
   return rows.map((row) => {
     const visit = visitOrder.get(row.id);
     if (visit === undefined) return row;
+    const pinned = visit < RECENT_VISIT_PINS;
     return {
       ...row,
-      sortRank: visit < RECENT_VISIT_PINS ? topRank + RECENT_VISIT_PINS - visit : row.sortRank,
+      sortRank: pinned ? topRank + RECENT_VISIT_PINS - visit : row.sortRank,
       boost: (row.boost ?? 0) + RECENT_VISIT_BOOST,
+      ...(pinned ? { recentVisit: true } : undefined),
     };
   });
+};
+
+/** Counts contiguous leading rows marked as promoted recent visits from index 0. */
+export const countLeadingRecentVisits = (items: readonly RankedRow[]): number => {
+  let count = 0;
+  for (const item of items) {
+    if (item.recentVisit !== true) break;
+    count += 1;
+  }
+  return count;
 };

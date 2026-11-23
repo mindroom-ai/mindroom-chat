@@ -160,6 +160,7 @@ export const MessageTextBody = recipe({
 });
 
 export const ReplyLayout = style({
+  width: '100%',
   minWidth: 0,
   gap: config.space.S100,
 });

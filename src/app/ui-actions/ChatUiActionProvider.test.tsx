@@ -73,6 +73,7 @@ describe('Chat UI request buttons', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    Reflect.deleteProperty(window, 'mindroomDesktop');
     vi.restoreAllMocks();
   });
 
@@ -218,6 +219,25 @@ describe('Chat UI request buttons', () => {
     expect(container.querySelector('button')!.disabled).toBe(false);
     await act(async () => container.querySelector('button')!.click());
     expect(perform).toHaveBeenCalledWith(expect.objectContaining({ action: 'show_computer' }));
+  });
+
+  it('does not auto-run a live request while the desktop window is hidden even if document.hasFocus() is true', async () => {
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { isWindowFocused: () => false },
+    });
+    const event = makeUiEvent();
+    const { mx, room, perform } = setup(event);
+    event.event.origin_server_ts = Date.now();
+    await act(() =>
+      mx.emit(RoomEvent.Timeline, event, room, false, false, {
+        liveEvent: true,
+        timeline: room.getLiveTimeline(),
+      })
+    );
+    expect(perform).not.toHaveBeenCalled();
+    await act(async () => container.querySelector('button')!.click());
+    expect(perform).toHaveBeenCalledTimes(1);
   });
 
   it('executes a fresh request once without executing the card during rerender', async () => {

@@ -98,10 +98,13 @@ describe('createDictationSession', () => {
 
     expect(await session.start()).toBe(true);
     await flushMicrotasks();
+    expect(session.getSnapshot().previewText).toBe('');
 
     pushSpeechAndPause(rig.pushFrame);
     pushSpeechAndPause(rig.pushFrame);
     await flushMicrotasks(20);
+    expect(session.getSnapshot().previewText).toBe('First sentence.');
+    expect(session.getSnapshot().hasPartialText).toBe(true);
 
     const finished = await session.finish();
     expect(finished).toEqual({
@@ -114,6 +117,7 @@ describe('createDictationSession', () => {
       { prompt: 'First sentence.', roomId: '!room:example.org' },
     ]);
     expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot().previewText).toBe('');
   });
 
   it('retains failed segment WAV for auto-retry and manual retryFailed without re-uploading completed segments', async () => {
@@ -271,9 +275,41 @@ describe('createDictationSession', () => {
     const finished = await session.finish();
     expect(finished.status).toBe('failed');
     expect(session.getSnapshot().hasPartialText).toBe(true);
+    expect(session.getSnapshot().previewText).toBe('Kept text.');
 
     expect(session.takePartialText()).toBe('Kept text.');
     expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot().previewText).toBe('');
+  });
+
+  it('updates previewText as each segment completes and resets it on discard', async () => {
+    const responses = ['First phrase.', 'Second phrase.'];
+    const transcribe = vi.fn(async () => ({ text: responses.shift() ?? '', seconds: 0.8 }));
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+
+    expect(session.getSnapshot().previewText).toBe('');
+    await session.start();
+    await flushMicrotasks();
+    expect(session.getSnapshot().previewText).toBe('');
+
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(20);
+    expect(session.getSnapshot().previewText).toBe('First phrase.');
+    expect(session.getSnapshot().hasPartialText).toBe(true);
+
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(20);
+    expect(session.getSnapshot().previewText).toBe('First phrase. Second phrase.');
+
+    session.discard();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot().previewText).toBe('');
+    expect(session.getSnapshot().hasPartialText).toBe(false);
   });
 
   it('aborts in-flight uploads and disposes capture immediately on discard', async () => {

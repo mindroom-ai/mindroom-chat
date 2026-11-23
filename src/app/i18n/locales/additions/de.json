@@ -433,6 +433,16 @@
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
       },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Schalte mitgelieferte Plugins für dein Konto auf allen deinen Geräten ein oder aus."
+      },
+      "storage": {
+        "cacheBudget": "Cache-Größenlimit",
+        "cacheBudgetDescription": "Zielgröße pro Konto für zwischengespeicherte Räume und Medien. Kürzlich geöffnete und angeheftete Räume bleiben auch über diesem Limit erhalten.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Du",
@@ -498,7 +508,7 @@
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
-        "dictation": "Diktieren, Diktat, Sprache zu Text, Mikrofon, Telefon"
+        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -548,7 +558,12 @@
         "playSound": "Ton abspielen",
         "resize": "Größe der Anrufansicht ändern",
         "screenOf": "Bildschirm von {{name}}",
-        "fullScreen": "Vollbild"
+        "fullScreen": "Vollbild",
+        "screenShareStoppedInBackground": "Die Bildschirmfreigabe wurde beendet, als du die App verlassen hast.",
+        "shareAgain": "Erneut teilen",
+        "microphoneStopped": "Dein Mikrofon wurde gestoppt.",
+        "cameraStopped": "Deine Kamera wurde gestoppt.",
+        "turnBackOn": "Wieder einschalten"
       },
       "problems": {
         "service": "Der Anrufdienst ist nicht erreichbar. Versuche es später erneut.",
@@ -848,6 +863,12 @@
       "copyCommand": "Befehl kopieren",
       "copyFailed": "Kopieren fehlgeschlagen",
       "keywords": "Mac, macOS, Desktop, App, Herunterladen, Download, dmg, Homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Diese App teilen",
+        "stopAppShare": "Teilen dieser App beenden"
+      }
     }
   },
   "mindroomUi": {
@@ -1379,6 +1400,7 @@
       "insertPartial": "Teiltext einfügen",
       "discard": "Verwerfen",
       "dismissError": "Diktatfehler schließen",
+      "previewLabel": "Diktatvorschau",
       "statusStarting": "Diktat wird gestartet",
       "statusListening": "Diktat läuft",
       "statusPaused": "Diktat pausiert",
@@ -1389,12 +1411,6 @@
       "micInterrupted": "Mikrofon getrennt. Fortsetzen oder beenden.",
       "failedSummary_one": "{{count}} Abschnitt konnte nicht transkribiert werden.",
       "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden."
-    },
-    "voiceButton": {
-      "settingTitle": "Mikrofon-Taste auf Mobilgeräten",
-      "settingDescription": "Wähle aus, was die Mikrofon-Taste im Eingabefeld auf Mobilgeräten ausführt. Die andere Aktion bleibt im +-Menü.",
-      "dictate": "Diktieren",
-      "voiceMessage": "Sprachnachricht"
     }
   },
   "commandPalette": {
@@ -1427,6 +1443,11 @@
     "actions": {
       "goActivity": "Zur Aktivität",
       "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Zuletzt geöffnet",
+      "otherThreads": "Andere Threads",
+      "otherRooms": "Andere Räume"
     }
   },
   "shortcuts": {

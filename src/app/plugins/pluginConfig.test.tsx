@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { Provider, createStore } from 'jotai';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
-import { isPluginEnabled, usePluginConfig } from './pluginConfig';
+import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
+import {
+  isPluginEnabled,
+  usePluginClientConfig,
+  usePluginConfig,
+  withDisabledPlugins,
+} from './pluginConfig';
 
 /** A config.json with this `plugins` section. */
 const withPlugins = (plugins: unknown): ClientConfig => ({ plugins } as unknown as ClientConfig);
@@ -47,5 +54,73 @@ describe('usePluginConfig', () => {
   it('reads nothing outside a configuration provider', () => {
     const { result } = renderHook(() => usePluginConfig('example'));
     expect(result.current).toBeUndefined();
+  });
+});
+
+describe('withDisabledPlugins', () => {
+  it('returns the exact same reference when disabledPlugins is empty', () => {
+    const config = withPlugins({ example: { label: 'Hi' } });
+    expect(withDisabledPlugins(undefined, [])).toBeUndefined();
+    expect(withDisabledPlugins(config, [])).toBe(config);
+  });
+
+  it('disables listed plugins without mutating config or dropping other keys', () => {
+    const original = {
+      hashRouter: true,
+      plugins: { example: { label: 'Hi', enabled: true }, other: { enabled: true } },
+    } as unknown as ClientConfig;
+    const updated = withDisabledPlugins(original, ['example', 'added']);
+
+    expect(updated).not.toBe(original);
+    expect(isPluginEnabled(original, 'example')).toBe(true);
+    expect(isPluginEnabled(updated, 'example')).toBe(false);
+    expect(isPluginEnabled(updated, 'added')).toBe(false);
+    expect(isPluginEnabled(updated, 'other')).toBe(true);
+    expect(updated).toEqual({
+      hashRouter: true,
+      plugins: {
+        example: { label: 'Hi', enabled: false },
+        other: { enabled: true },
+        added: { enabled: false },
+      },
+    });
+  });
+
+  it('handles undefined config and non-record plugins section', () => {
+    expect(isPluginEnabled(withDisabledPlugins(undefined, ['example']), 'example')).toBe(false);
+    expect(isPluginEnabled(withDisabledPlugins(undefined, ['example']), 'other')).toBe(true);
+    expect(isPluginEnabled(withDisabledPlugins(withPlugins('bad'), ['example']), 'example')).toBe(
+      false
+    );
+  });
+});
+
+describe('usePluginClientConfig', () => {
+  it('reacts live to accountSettingsAtom disabledPlugins updates', () => {
+    const store = createStore();
+    const deploymentConfig = withPlugins({ locked: { enabled: false }, example: { label: 'Hi' } });
+    const { result } = renderHook(() => usePluginClientConfig(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider store={store}>
+          <ClientConfigProvider value={deploymentConfig}>{children}</ClientConfigProvider>
+        </Provider>
+      ),
+    });
+
+    expect(result.current).toBe(deploymentConfig);
+    expect(isPluginEnabled(result.current, 'example')).toBe(true);
+    expect(isPluginEnabled(result.current, 'locked')).toBe(false);
+
+    act(() => {
+      store.set(accountSettingsAtom, { disabledPlugins: ['example'] });
+    });
+    expect(isPluginEnabled(result.current, 'example')).toBe(false);
+    expect(isPluginEnabled(result.current, 'locked')).toBe(false);
+
+    act(() => {
+      store.set(accountSettingsAtom, { disabledPlugins: [] });
+    });
+    expect(result.current).toBe(deploymentConfig);
+    expect(isPluginEnabled(result.current, 'example')).toBe(true);
   });
 });

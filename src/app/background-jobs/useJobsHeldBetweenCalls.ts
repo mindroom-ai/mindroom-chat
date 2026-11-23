@@ -40,7 +40,7 @@ export const useJobsHeldBetweenCalls = (
     const finished = holdable ? jobs.map((job) => ({ ...job, status: FINISHED_JOB_STATUS })) : [];
     setHeld({ view, jobs: finished });
   }, [holdable, jobs, shown, view]);
-  const replyStreams = useJobRepliesStreaming(room, shown ? jobs : held.jobs, shown);
+  const replyStreams = useJobRepliesStreaming(room, shown ? jobs : held.jobs);
   // Only the view's jobs ending, or their reply ending after them, starts the release; changes
   // elsewhere in the room do not extend it.
   useEffect(() => {

@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { RECENT_VISIT_PINS, withRecentVisits } from './commandPaletteRecentVisits';
+import {
+  countLeadingRecentVisits,
+  RECENT_VISIT_PINS,
+  withRecentVisits,
+} from './commandPaletteRecentVisits';
 import { matchCommandPaletteSection } from './commandPaletteSearch';
 
 // Rows as the palette builds them: ranked by activity, the open one (`e`) at rank 0.
-const rows = [
+type Row = { id: string; title: string; sortRank: number; boost: number; recentVisit?: boolean };
+const rows: Row[] = [
   { id: 'a', title: 'Alpha notes', sortRank: 5, boost: 0 },
   { id: 'b', title: 'Beta notes', sortRank: 4, boost: 10 },
   { id: 'c', title: 'Gamma notes', sortRank: 3, boost: 0 },
@@ -11,8 +16,6 @@ const rows = [
   { id: 'x', title: 'Omega notes', sortRank: 1, boost: 0 },
   { id: 'e', title: 'Epsilon notes', sortRank: 0, boost: 0 },
 ];
-
-type Row = (typeof rows)[number];
 const config = { fields: [{ key: 'title', get: (row: Row) => row.title, weight: 1 }], limit: 10 };
 const order = (items: readonly Row[], query = '') =>
   matchCommandPaletteSection({ items, query, config }).map((match) => match.item.id);
@@ -49,5 +52,28 @@ describe('withRecentVisits', () => {
 
   it('returns the list itself when nothing was visited', () => {
     expect(withRecentVisits(rows, [], 'e')).toBe(rows);
+  });
+
+  it('marks recentVisit only on the promoted pins, not on 4th+ visits, the open row or unvisited rows', () => {
+    const visited = withRecentVisits(rows, ['e', 'd', 'x', 'c', 'a'], 'e');
+    const byId = new Map(visited.map((row) => [row.id, row]));
+
+    expect(['d', 'x', 'c'].map((id) => byId.get(id)?.recentVisit)).toEqual([true, true, true]);
+    expect(byId.get('a')?.recentVisit).toBeUndefined();
+    expect(byId.get('a')?.boost).toBe(20);
+    expect(byId.get('b')?.recentVisit).toBeUndefined();
+    expect(byId.get('e')?.recentVisit).toBeUndefined();
+  });
+
+  it('counts contiguous leading recentVisit rows from index 0', () => {
+    expect(
+      countLeadingRecentVisits([
+        { id: 'a', recentVisit: true },
+        { id: 'b', recentVisit: true },
+        { id: 'c' },
+        { id: 'd', recentVisit: true },
+      ])
+    ).toBe(2);
+    expect(countLeadingRecentVisits([{ id: 'a' }])).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { STREAM_IDLE_LIMIT_MS } from './replyTiming';
 import { Time } from './Time';
 
 vi.mock('react-i18next', async () => {

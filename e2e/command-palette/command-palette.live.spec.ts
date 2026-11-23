@@ -51,13 +51,17 @@ test.describe('command palette', () => {
     await expect(input).toHaveValue(roomName);
     await input.fill('');
     const firstSelectedId = await input.getAttribute('aria-activedescendant');
-    await dialog.getByRole('listbox').evaluate((list) => {
-      const scroll = list.parentElement!;
+    const previousViewport = page.viewportSize();
+    await page.setViewportSize({ width: 1280, height: 400 });
+    const scrolledTop = await dialog.getByRole('tabpanel').evaluate((scroll) => {
       scroll.scrollTop = scroll.scrollHeight;
+      return scroll.scrollTop;
     });
+    expect(scrolledTop).toBeGreaterThan(0);
     await input.fill(' ');
     await expect(input).toHaveAttribute('aria-activedescendant', firstSelectedId!);
     await expect(dialog.getByRole('option', { selected: true })).toBeInViewport();
+    if (previousViewport) await page.setViewportSize(previousViewport);
     await input.press('ArrowUp');
     const selected = dialog.getByRole('option', { selected: true });
     await expect(selected).toBeInViewport();

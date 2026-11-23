@@ -10,6 +10,7 @@ import {
 import type { Atom } from 'jotai';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { listenForChatUiActions } from './chatUiController';
+import { isAppWindowFocused } from '../lib/nativeShell';
 import { type ChatUiAction, readChatUiAction } from '../matrix/protocol/chatUiProtocol';
 
 export type ChatUiActionOptions = {
@@ -50,9 +51,6 @@ type ChatUiActions = {
 
 /** What message buttons use to run MindRoom UI requests (`io.mindroom.ui_action`). */
 export const ChatUiActionContext = createContext<ChatUiActions | undefined>(undefined);
-
-const isForeground = (): boolean =>
-  typeof document !== 'undefined' && document.visibilityState !== 'hidden' && document.hasFocus();
 
 /**
  * Runs the UI actions agents request (show the computer, a canvas, a settings page, the
@@ -102,7 +100,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
         threadId,
         autoOpenFromHomeservers,
         onAction: run,
-        isForeground,
+        isForeground: isAppWindowFocused,
       }),
     [autoOpenFromHomeservers, mx, room, run, threadId]
   );

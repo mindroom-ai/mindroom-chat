@@ -166,6 +166,7 @@ vi.mock('folds', async () => {
       Space: 'space',
       User: 'user',
       Search: 'search',
+      RecentClock: 'recent-clock',
     },
     color: {
       Warning: { Main: 'warning-main' },
@@ -226,6 +227,8 @@ vi.mock('./CommandPalette.css', () => ({
   Group: 'Group',
   GroupTitle: 'GroupTitle',
   GroupCount: 'GroupCount',
+  SubGroupTitle: 'SubGroupTitle',
+  SubGroupDivider: 'SubGroupDivider',
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowText: 'RowText',

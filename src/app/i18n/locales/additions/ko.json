@@ -420,6 +420,16 @@
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다."
       },
+      "plugins": {
+        "title": "플러그인",
+        "description": "모든 기기에서 계정의 기본 제공 플러그인을 켜거나 끕니다."
+      },
+      "storage": {
+        "cacheBudget": "캐시 크기 한도",
+        "cacheBudgetDescription": "캐시된 방과 미디어의 계정별 목표 크기입니다. 최근에 연 방과 고정된 방은 이 한도를 넘더라도 유지됩니다.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "나",
@@ -485,7 +495,7 @@
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
-        "dictation": "받아쓰기, 음성 입력, 음성 텍스트 변환, 마이크, 휴대전화"
+        "plugins": "플러그인, 확장 기능, 애드온, 연동"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -534,7 +544,12 @@
         "playSound": "소리 재생",
         "resize": "통화 패널 크기 조절",
         "screenOf": "{{name}}님의 화면",
-        "fullScreen": "전체 화면"
+        "fullScreen": "전체 화면",
+        "screenShareStoppedInBackground": "앱을 벗어나 화면 공유가 중지되었습니다.",
+        "shareAgain": "다시 공유",
+        "microphoneStopped": "마이크가 중지되었습니다.",
+        "cameraStopped": "카메라가 중지되었습니다.",
+        "turnBackOn": "다시 켜기"
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
@@ -831,6 +846,12 @@
       "copyCommand": "명령어 복사",
       "copyFailed": "복사하지 못했습니다",
       "keywords": "mac, macos, 데스크톱, 앱, 다운로드, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "이 앱 공유",
+        "stopAppShare": "이 앱 공유 중지"
+      }
     }
   },
   "mindroomUi": {
@@ -1334,6 +1355,7 @@
       "insertPartial": "일부 텍스트 삽입",
       "discard": "폐기",
       "dismissError": "받아쓰기 오류 닫기",
+      "previewLabel": "받아쓰기 미리보기",
       "statusStarting": "받아쓰기 시작 중",
       "statusListening": "받아쓰기 중",
       "statusPaused": "받아쓰기 일시정지됨",
@@ -1342,12 +1364,6 @@
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
       "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다."
-    },
-    "voiceButton": {
-      "settingTitle": "휴대전화 마이크 버튼",
-      "settingDescription": "휴대전화 입력창의 마이크 버튼 동작을 선택합니다. 다른 작업은 + 메뉴에 유지됩니다.",
-      "dictate": "받아쓰기",
-      "voiceMessage": "음성 메시지"
     }
   },
   "commandPalette": {
@@ -1380,6 +1396,11 @@
     "actions": {
       "goActivity": "활동으로 이동",
       "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
+    },
+    "recentVisits": {
+      "recentlyOpened": "최근에 연 항목",
+      "otherThreads": "다른 스레드",
+      "otherRooms": "다른 방"
     }
   },
   "shortcuts": {

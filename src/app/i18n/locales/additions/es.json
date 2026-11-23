@@ -446,6 +446,16 @@
         "localMindroom": "Mostrar MindRoom local en la barra lateral",
         "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local."
       },
+      "plugins": {
+        "title": "Complementos",
+        "description": "Activa o desactiva los complementos incluidos para tu cuenta en todos tus dispositivos."
+      },
+      "storage": {
+        "cacheBudget": "Límite de tamaño de la caché",
+        "cacheBudgetDescription": "Tamaño objetivo por cuenta para salas y archivos multimedia en caché. Las salas abiertas recientemente y las fijadas se conservan incluso por encima de este límite.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Tú",
@@ -511,7 +521,7 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "dictation": "dictar, dictado, voz a texto, micrófono, teléfono"
+        "plugins": "complementos, plugins, extensiones, integraciones"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -562,7 +572,12 @@
         "playSound": "Reproducir sonido",
         "resize": "Cambiar el tamaño del panel de la llamada",
         "screenOf": "Pantalla de {{name}}",
-        "fullScreen": "Pantalla completa"
+        "fullScreen": "Pantalla completa",
+        "screenShareStoppedInBackground": "Se detuvo la pantalla compartida al salir de la aplicación.",
+        "shareAgain": "Compartir de nuevo",
+        "microphoneStopped": "Tu micrófono se ha detenido.",
+        "cameraStopped": "Tu cámara se ha detenido.",
+        "turnBackOn": "Volver a activar"
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
@@ -865,6 +880,12 @@
       "copyCommand": "Copiar comando",
       "copyFailed": "No se pudo copiar",
       "keywords": "mac, macos, escritorio, app, aplicación, descargar, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "Compartir esta aplicación",
+        "stopAppShare": "Dejar de compartir esta aplicación"
+      }
     }
   },
   "mindroomUi": {
@@ -1424,6 +1445,7 @@
       "insertPartial": "Insertar texto parcial",
       "discard": "Descartar",
       "dismissError": "Cerrar error de dictado",
+      "previewLabel": "Vista previa del dictado",
       "statusStarting": "Iniciando dictado",
       "statusListening": "Dictando",
       "statusPaused": "Dictado en pausa",
@@ -1436,12 +1458,6 @@
       "failedSummary_one": "No se pudo transcribir {{count}} segmento.",
       "failedSummary_many": "No se pudieron transcribir {{count}} segmentos.",
       "failedSummary_other": "No se pudieron transcribir {{count}} segmentos."
-    },
-    "voiceButton": {
-      "settingTitle": "Botón de micrófono en móvil",
-      "settingDescription": "Elige qué hace el botón de micrófono del redactor en teléfonos. La otra acción permanece en el menú +.",
-      "dictate": "Dictar",
-      "voiceMessage": "Mensaje de voz"
     }
   },
   "commandPalette": {
@@ -1474,6 +1490,11 @@
     "actions": {
       "goActivity": "Ir a Actividad",
       "goActivityDescription": "Menciones, respuestas y lo que te espera"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Elementos abiertos recientemente",
+      "otherThreads": "Otros hilos",
+      "otherRooms": "Otras salas"
     }
   },
   "shortcuts": {

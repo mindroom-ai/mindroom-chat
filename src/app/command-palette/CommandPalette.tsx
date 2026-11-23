@@ -25,6 +25,7 @@ import {
   rankCommandPalettePeople,
   type CommandPaletteLocalSection,
 } from './commandPaletteResults';
+import { countLeadingRecentVisits } from './commandPaletteRecentVisits';
 import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import {
   CommandPaletteList,
@@ -33,6 +34,7 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import { DialogCloseButton, SheetScrollArea } from '../ui/DialogChrome';
 import { InlineScrollFade } from '../ui/inlineScrollFade.css';
 import { useInlineScrollFade } from '../ui/useInlineScrollFade';
 import {
@@ -201,6 +203,27 @@ const buildStartChatSection = (
       : undefined,
 });
 
+const getSectionRecentVisits = (
+  section: CommandPaletteLocalSection,
+  searchText: string,
+  t: TFunction
+): CommandPaletteListSection['recentVisits'] => {
+  if (searchText.length > 0 || (section.id !== 'threads' && section.id !== 'rooms')) {
+    return undefined;
+  }
+  const count = countLeadingRecentVisits(section.items);
+  if (count === 0) return undefined;
+  return {
+    count,
+    recentLabel: t('commandPalette.recentVisits.recentlyOpened'),
+    otherLabel: t(
+      section.id === 'rooms'
+        ? 'commandPalette.recentVisits.otherRooms'
+        : 'commandPalette.recentVisits.otherThreads'
+    ),
+  };
+};
+
 const getResultCountLabel = (items: readonly ExecutableCommandPaletteItem[], t: TFunction) => {
   const count = items.filter((item) => item.kind !== 'search-page').length;
   if (count === 0) return t('commandPalette.noResults');
@@ -323,7 +346,14 @@ export function CommandPalette({
           const peopleSection = buildPeopleSection(section, people, source, tab, searchText, t);
           return peopleSection ? [peopleSection] : [];
         }
-        return [{ ...section, title: t(TAB_LABEL_KEYS[section.id]) }];
+        const recentVisits = getSectionRecentVisits(section, searchText, t);
+        return [
+          {
+            ...section,
+            title: t(TAB_LABEL_KEYS[section.id]),
+            ...(recentVisits ? { recentVisits } : undefined),
+          },
+        ];
       }
     );
     const listed = new Set(sections.flatMap((section) => section.items.map((item) => item.id)));
@@ -591,19 +621,19 @@ export function CommandPalette({
             navigatingRef.current = false;
           }}
         />
-        <button
-          type="button"
-          className={css.Close}
-          aria-label={t('commandPalette.closeAria')}
-          onClick={requestClose}
-        >
-          {/* In a page Escape goes back, so the button does not name it. */}
-          {mobileSheet || page ? (
-            <Icon src={Icons.Cross} size="200" />
-          ) : (
+        {/* In a page Escape goes back, so the button does not name it. */}
+        {mobileSheet || page ? (
+          <DialogCloseButton label={t('commandPalette.closeAria')} onClick={requestClose} />
+        ) : (
+          <button
+            type="button"
+            className={css.Close}
+            aria-label={t('commandPalette.closeAria')}
+            onClick={requestClose}
+          >
             <kbd className={css.Key}>esc</kbd>
-          )}
-        </button>
+          </button>
+        )}
       </div>
       {!page && (
         <PaletteTabs
@@ -617,10 +647,10 @@ export function CommandPalette({
           }}
         />
       )}
-      <div
-        ref={resultsRef}
+      <SheetScrollArea
+        scrollRef={resultsRef}
         id={panelId}
-        className={css.Results}
+        viewportClassName={css.Results}
         role={page ? undefined : 'tabpanel'}
         aria-labelledby={page ? undefined : tabId(tab)}
       >
@@ -663,7 +693,7 @@ export function CommandPalette({
             )}
           </div>
         )}
-      </div>
+      </SheetScrollArea>
       <div className={css.Footer}>
         <div className={css.KeyboardHints}>
           <span className={css.Hint}>

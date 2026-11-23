@@ -420,6 +420,16 @@
         "localMindroom": "サイドバーに Local MindRoom を表示する",
         "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。"
       },
+      "plugins": {
+        "title": "プラグイン",
+        "description": "すべてのデバイスでアカウントの組み込みプラグインのオン・オフを切り替えます。"
+      },
+      "storage": {
+        "cacheBudget": "キャッシュ容量の上限",
+        "cacheBudgetDescription": "キャッシュされたルームとメディアのアカウントごとの目標サイズです。最近開いたルームやピン留めされたルームは、この上限を超えても保持されます。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "あなた",
@@ -485,7 +495,7 @@
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
-        "dictation": "音声入力, ディクテーション, 音声文字起こし, マイク, スマートフォン"
+        "plugins": "プラグイン, 拡張機能, アドオン, 連携"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -534,7 +544,12 @@
         "playSound": "音声を再生",
         "resize": "通話パネルのサイズを変更",
         "screenOf": "{{name}}さんの画面",
-        "fullScreen": "全画面表示"
+        "fullScreen": "全画面表示",
+        "screenShareStoppedInBackground": "アプリを離れたため、画面共有が停止しました。",
+        "shareAgain": "もう一度共有",
+        "microphoneStopped": "マイクが停止しました。",
+        "cameraStopped": "カメラが停止しました。",
+        "turnBackOn": "もう一度オンにする"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
@@ -831,6 +846,12 @@
       "copyCommand": "コマンドをコピー",
       "copyFailed": "コピーできませんでした",
       "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
+    },
+    "call": {
+      "controls": {
+        "startAppShare": "このアプリを共有",
+        "stopAppShare": "このアプリの共有を停止"
+      }
     }
   },
   "mindroomUi": {
@@ -1334,6 +1355,7 @@
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",
+      "previewLabel": "音声入力のプレビュー",
       "statusStarting": "音声入力を開始しています",
       "statusListening": "音声入力中",
       "statusPaused": "音声入力を一時停止中",
@@ -1342,12 +1364,6 @@
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
       "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。"
-    },
-    "voiceButton": {
-      "settingTitle": "スマートフォンでのマイクボタン",
-      "settingDescription": "スマートフォンで入力欄のマイクボタンを押したときの動作を選びます。もう一方は + メニューに残ります。",
-      "dictate": "音声入力",
-      "voiceMessage": "音声メッセージ"
     }
   },
   "commandPalette": {
@@ -1380,6 +1396,11 @@
     "actions": {
       "goActivity": "アクティビティに移動",
       "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
+    },
+    "recentVisits": {
+      "recentlyOpened": "最近開いた項目",
+      "otherThreads": "他のスレッド",
+      "otherRooms": "他のルーム"
     }
   },
   "shortcuts": {

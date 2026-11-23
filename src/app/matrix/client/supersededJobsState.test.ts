@@ -9,6 +9,7 @@ import {
   RoomStateEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../protocol/activeRunsContract';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContract';
 import { startClient } from './clientSyncPolicy';
 import { emptySupersededJobsState } from './supersededJobsState';
@@ -309,5 +310,34 @@ describe('emptySupersededJobsState', () => {
 
     expect(currentJobs()).toBe('$jobs2');
     expect(room.findEventById('$jobs2')?.getContent()).toHaveProperty('jobs');
+  });
+
+  it('empties superseded active_runs state events while keeping the current one intact', async () => {
+    const { room, live } = await joinedRoom();
+    const first = stateEvent(MINDROOM_ACTIVE_RUNS_EVENT, AGENT, '$runs1', {
+      version: 1,
+      updated_at: 1000,
+      ttl_ms: 180_000,
+      threads: [{ thread_id: '$t1' }],
+    });
+    const second = stateEvent(MINDROOM_ACTIVE_RUNS_EVENT, AGENT, '$runs2', {
+      version: 1,
+      updated_at: 2000,
+      ttl_ms: 180_000,
+      threads: [],
+    });
+    await live(first, second);
+
+    expect(first.getContent()).toEqual({});
+    expect(first.getUnsigned().prev_content).toBeUndefined();
+    expect(room.currentState.getStateEvents(MINDROOM_ACTIVE_RUNS_EVENT, AGENT)?.getId()).toBe(
+      '$runs2'
+    );
+    expect(second.getContent()).toEqual({
+      version: 1,
+      updated_at: 2000,
+      ttl_ms: 180_000,
+      threads: [],
+    });
   });
 });

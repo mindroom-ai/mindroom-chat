@@ -25,6 +25,7 @@ const WEB: SettingsContext = {
   errorReporting: false,
   railButtons: { threads: true, canvases: true, explore: true },
   macApp: false,
+  hasPlugins: false,
 };
 
 const translated = (key: string | undefined) => !!key && translateFromEn(key) !== key;
@@ -102,6 +103,12 @@ describe('settings registry', () => {
     expect(getShownSettingsPages({ ...WEB, serverAdmin: true }).map((page) => page.id)).toContain(
       'server-accounts'
     );
+    // Plugins only when deployment config leaves at least one bundled plugin enabled.
+    expect(webPages).not.toContain('plugins');
+    const withPlugins = getShownSettingsPages({ ...WEB, hasPlugins: true }).map((page) => page.id);
+    expect(withPlugins).toContain('plugins');
+    expect(withPlugins.indexOf('plugins')).toBe(withPlugins.indexOf('sidebar') + 1);
+    expect(withPlugins.indexOf('language')).toBe(withPlugins.indexOf('plugins') + 1);
 
     const webSettings = getShownSettings(WEB).map((setting) => setting.id);
     const appSettings = getShownSettings(app).map((setting) => setting.id);
@@ -170,6 +177,7 @@ describe('settings registry', () => {
       'language',
       'computerServer',
       'prefetchScope',
+      'cacheBudget',
       'developerTools',
       'showHiddenEvents',
       'errorReports',

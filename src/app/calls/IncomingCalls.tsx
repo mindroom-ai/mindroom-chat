@@ -18,6 +18,7 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
+import { desktopBridge, isAppWindowFocused } from '../lib/nativeShell';
 import { isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
@@ -59,8 +60,6 @@ export const useRingLine = (
         : t('featureUi.calls.incoming.callingIn', { name, room: roomName }),
   };
 };
-
-const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
 
 const isRingCallLive = (
   mx: ReturnType<typeof useMatrixClient>,
@@ -128,7 +127,7 @@ function RingAlerts({
       !notify ||
       !desktop ||
       SystemNotification?.permission !== 'granted' ||
-      windowHasFocus()
+      isAppWindowFocused()
     ) {
       return undefined;
     }
@@ -141,6 +140,9 @@ function RingAlerts({
       silent: true,
     });
     note.onclick = () => {
+      void desktopBridge()
+        ?.showMainWindow()
+        ?.catch(() => undefined);
       window.focus();
       note.close();
       latest.current.onOpen();

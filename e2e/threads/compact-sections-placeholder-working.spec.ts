@@ -2,9 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  allowActiveRunsState,
   createDefaultThreadFilterState,
   joinRoom,
   matrixFetch,
+  publishActiveRuns,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -67,6 +69,7 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  await allowActiveRunsState(HOMESERVER, reader.accessToken, roomId);
   const oldRoot = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'An older question',
@@ -98,8 +101,9 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
     timeout: 60_000,
   });
 
-  const think = (rootId: string) =>
-    sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+  const activeThreads = new Set<string>();
+  const think = async (rootId: string) => {
+    const replyId = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Thinking...',
       format: 'org.matrix.custom.html',
@@ -107,6 +111,10 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
       'io.mindroom.stream_status': 'pending',
       ...inThread(rootId),
     });
+    activeThreads.add(rootId);
+    await publishActiveRuns(HOMESERVER, agent, roomId, [...activeThreads]);
+    return replyId;
+  };
   const card = (rootId: string) => page.locator(`[data-thread-root-id="${rootId}"]`).first();
   const orderHeld = () => page.locator('[data-order-held]').count();
 
@@ -169,6 +177,8 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
       },
       'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
     });
+    activeThreads.delete(rootB);
+    await publishActiveRuns(HOMESERVER, agent, roomId, [...activeThreads]);
     await expect(workingHeader).toHaveText(/· 1$/, { timeout: 15_000 });
     expect(await sectionOf(page, rootB)).toBe('working');
   });

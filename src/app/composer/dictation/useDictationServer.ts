@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAtomValue } from 'jotai';
-import { useClientConfig } from '../../config/useClientConfig';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { trustedServerOrigins } from '../../computer/agentServer';
-import { resolveComputerApiUrl } from '../../computer/api';
-import { clientSessions, type ClientSessions } from '../../computer/clientSessions';
+import { isRecord } from '../../lib/isRecord';
 import {
-  computerServicePreferenceAtom,
-  resolveComputerServiceUrl,
-} from '../../computer/computerServiceSettings';
-import { useAgentServerUrls } from '../../computer/useAgentServers';
+  getSafeLocalStorage,
+  getStorageItemSafe,
+  setStorageItemSafe,
+} from '../../lib/safeLocalStorage';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { dictationAvailabilityStorageKey } from '../../preferences/accountStorageKeys';
+import { clientSessions, type ClientSessions } from '../../computer/clientSessions';
+import { useComputerApiUrls } from '../../computer/useComputerApiUrl';
 import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import {
   probeDictationAvailability,
@@ -19,6 +18,7 @@ import {
 
 export type DictationServerInfo = {
   available: boolean;
+  confirmed: boolean;
   apiUrl: string | undefined;
   roomId: string | undefined;
   sessions: ClientSessions | undefined;
@@ -36,61 +36,104 @@ export const isDictationSupported = (): boolean =>
     typeof (globalThis as { webkitAudioContext?: unknown }).webkitAudioContext !== 'undefined') &&
   typeof AudioWorkletNode !== 'undefined';
 
+const MAX_PERSISTED_ROOMS = 128;
+
+const readPersistedAvailabilityMap = (userId: string): Map<string, boolean> => {
+  const raw = getStorageItemSafe(getSafeLocalStorage(), dictationAvailabilityStorageKey(userId));
+  if (!raw) return new Map();
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return new Map();
+    const entries = new Map<string, boolean>();
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === 'boolean') entries.set(key, value);
+    }
+    return entries;
+  } catch {
+    return new Map();
+  }
+};
+
+const readPersistedDictationAvailability = (userId: string, roomId?: string): boolean | undefined =>
+  readPersistedAvailabilityMap(userId).get(roomId ?? '');
+
+const writePersistedDictationAvailability = (
+  userId: string,
+  roomId: string | undefined,
+  value: boolean
+): void => {
+  const entries = readPersistedAvailabilityMap(userId);
+  const roomKey = roomId ?? '';
+  if (entries.get(roomKey) === value && entries.size <= MAX_PERSISTED_ROOMS) return;
+  entries.delete(roomKey);
+  entries.set(roomKey, value);
+  while (entries.size > MAX_PERSISTED_ROOMS) {
+    const oldest = entries.keys().next().value;
+    if (oldest === undefined) break;
+    entries.delete(oldest);
+  }
+  setStorageItemSafe(
+    getSafeLocalStorage(),
+    dictationAvailabilityStorageKey(userId),
+    JSON.stringify(Object.fromEntries(entries))
+  );
+};
+
 /**
  * Resolves the MindRoom server for dictation and probes `/api/dictation/v1/status` using the
  * shared TTL cache:
- * - Waits until `useRoomMindroomServer` settles (`!pending`) before choosing a fallback.
- * - Only uses origins explicitly trusted via the deployment `mindroom.computers.apiUrl`,
- *   `mindroom.computers.trustedApiUrls`, or the user's personal server setting (for both
- *   room-advertised servers and non-room fallbacks). Never sends microphone audio to an unchecked
- *   advertised origin.
+ * - Follows the same server discovery model as `CallTranscription` (`useRoomMindroomServer`) and
+ *   `ComputerSettings` (`useComputerApiUrls`): waits until `useRoomMindroomServer` settles
+ *   (`!pending`), prefers the room's MindRoom server when available, and otherwise falls back to
+ *   `useComputerApiUrls().urls[0]` (for human DMs or when `roomId` is omitted).
+ * - Preserves `trustedServerOrigins` allowlist filtering whenever `mindroom.computers.apiUrl` or
+ *   `mindroom.computers.trustedApiUrls` is set, requires OpenID token binding
+ *   (`useOpenIdBinding() === true`) for discovered servers, respects explicit user disable
+ *   (`preference === ''`) for the non-room fallback, and allows automatic server discovery on
+ *   multi-tenant deployments that leave both deployment fields unset.
  * - After a transient 503/network status failure (30 s TTL), schedules a one-shot retry after the
  *   TTL and also retries on window `online`/`focus` once stale.
  */
 export const useDictationServer = (roomId?: string): DictationServerInfo => {
   const mx = useMatrixClient();
+  const userId = mx.getUserId() || undefined;
   const supported = isDictationSupported();
   const roomServer = useRoomMindroomServer(mx, roomId ?? '');
-  const { computers } = useClientConfig().mindroom ?? {};
-  const preference = useAtomValue(computerServicePreferenceAtom);
-  const discoveredUrls = useAgentServerUrls();
-  const configured = resolveComputerApiUrl(computers?.apiUrl);
-  const personal = preference ? resolveComputerApiUrl(preference) : undefined;
-  const trusted = useMemo(() => trustedServerOrigins(computers), [computers]);
-  const isTrustedOrigin = (url: string): boolean =>
-    url === personal || url === configured || Boolean(trusted?.has(url));
-
-  let apiUrl: string | undefined;
-  if (supported && !roomServer.pending) {
-    if (roomServer.apiUrl && isTrustedOrigin(roomServer.apiUrl)) {
-      apiUrl = roomServer.apiUrl;
-    } else {
-      const explicit = resolveComputerServiceUrl(preference, configured);
-      apiUrl =
-        explicit ??
-        (preference === null && trusted
-          ? discoveredUrls.find((url) => isTrustedOrigin(url))
-          : undefined);
-    }
-  }
+  const computerUrls = useComputerApiUrls();
+  const apiUrl =
+    supported && !roomServer.pending ? roomServer.apiUrl ?? computerUrls.urls[0] : undefined;
 
   const sessions = useMemo(() => (apiUrl ? clientSessions(mx, apiUrl) : undefined), [apiUrl, mx]);
   const [retryTick, setRetryTick] = useState(0);
   const autoRetriedKeyRef = useRef<string | undefined>(undefined);
 
-  const cached = sessions ? readCachedDictationAvailability(sessions, roomId) : false;
-  const [probed, setProbed] = useState<{
-    sessions: ClientSessions | undefined;
-    roomId: string | undefined;
-    value: boolean;
-  }>(() => ({ sessions, roomId, value: cached ?? false }));
+  const cached = sessions ? readCachedDictationAvailability(sessions, roomId) : undefined;
+  const [probed, setProbed] = useState<
+    { sessions: ClientSessions; roomId: string | undefined; value: boolean } | undefined
+  >(undefined);
 
   useEffect(() => {
-    if (!sessions || !apiUrl) return undefined;
+    if (!sessions || !apiUrl) {
+      if (
+        supported &&
+        userId &&
+        !roomServer.pending &&
+        readPersistedDictationAvailability(userId, roomId) === true
+      ) {
+        writePersistedDictationAvailability(userId, roomId, false);
+      }
+      return undefined;
+    }
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let removeListeners: (() => void) | undefined;
     const streakKey = `${apiUrl}|${roomId ?? ''}`;
+
+    const persistIfDefinitive = (value: boolean) => {
+      if (!userId) return;
+      if (!value && readCachedDictationRetryAt(sessions, roomId) !== undefined) return;
+      writePersistedDictationAvailability(userId, roomId, value);
+    };
 
     const attachTransientRecovery = () => {
       const retryAt = readCachedDictationRetryAt(sessions, roomId);
@@ -128,6 +171,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
     const hit = readCachedDictationAvailability(sessions, roomId);
     if (hit !== undefined) {
       setProbed({ sessions, roomId, value: hit });
+      persistIfDefinitive(hit);
       if (hit) autoRetriedKeyRef.current = undefined;
       else attachTransientRecovery();
       return cleanup;
@@ -138,6 +182,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       (value) => {
         if (cancelled || controller.signal.aborted) return;
         setProbed({ sessions, roomId, value });
+        persistIfDefinitive(value);
         if (value) autoRetriedKeyRef.current = undefined;
         else attachTransientRecovery();
       },
@@ -147,12 +192,19 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
       controller.abort();
       cleanup();
     };
-  }, [apiUrl, retryTick, roomId, sessions]);
+  }, [apiUrl, retryTick, roomId, roomServer.pending, sessions, supported, userId]);
 
+  const settled =
+    sessions !== undefined
+      ? cached ??
+        (probed?.sessions === sessions && probed.roomId === roomId ? probed.value : undefined)
+      : roomServer.pending
+      ? undefined
+      : false;
+  const confirmed = supported && sessions !== undefined && settled === true;
   const available =
     supported &&
-    sessions !== undefined &&
-    (cached ?? (probed.sessions === sessions && probed.roomId === roomId ? probed.value : false));
+    (settled ?? (userId ? readPersistedDictationAvailability(userId, roomId) === true : false));
 
-  return { available, apiUrl, roomId, sessions };
+  return { available, confirmed, apiUrl, roomId, sessions };
 };

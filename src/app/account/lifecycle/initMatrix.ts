@@ -13,6 +13,7 @@ import {
 import { getReleasableEdits } from '../../matrix/room';
 import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
+import { restoreCachedReplies } from '../../event-store/sdk/restoreCachedReplies';
 import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
 import {
   type ClientBootstrapSession,
@@ -33,7 +34,6 @@ import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionToke
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
-import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 import type { MarkClientStartup } from '../../lib/startupTimeline';
 import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 
@@ -341,9 +341,7 @@ export const initClient = async (
     markStartup?.('store.startup.done');
     const sync = store.backend?.syncAccumulator;
     if (sync) dropSettledScheduledTasks(sync);
-    const restore = restoreStreamingRepliesFromCache(mx);
-    if (markStartup) void onCompletion(restore, () => markStartup('streaming.restore.done'));
-    return restore;
+    return restoreCachedReplies(mx);
   });
   const cryptoInit = mx.initRustCrypto({
     cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session),

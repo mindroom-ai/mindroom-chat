@@ -9,7 +9,9 @@ import {
   markRoomAndThreadsAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
+import type { DesktopShellEvent } from '../lib/desktopBridge';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
+import { useReaderSees } from './useReaderSees';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import {
   conversationBehindPanelAtom,
@@ -227,6 +229,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
   afterEach(() => {
     act(() => probe?.unmount());
     probe = undefined;
+    Reflect.deleteProperty(window, 'mindroomDesktop');
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -704,6 +707,55 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       reportAnchor(true);
       runFrames();
       expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+
+    it('leaves an open thread unread while the desktop window is hidden even if document.hasFocus() is true, then reads it on window-focus', () => {
+      let windowFocused = false;
+      let shellListener: ((event: DesktopShellEvent) => void) | undefined;
+      Object.defineProperty(window, 'mindroomDesktop', {
+        configurable: true,
+        value: {
+          isWindowFocused: () => windowFocused,
+          onShellEvent: (listener: (event: DesktopShellEvent) => void) => {
+            shellListener = listener;
+            return () => {
+              shellListener = undefined;
+            };
+          },
+        },
+      });
+
+      let readerSees: (() => boolean) | undefined;
+      function ReaderSeesProbe({ options }: { options: ControllerOptions }) {
+        readerSees = useReaderSees();
+        markAsRead = useTimelineReadReceiptController(options).handleMarkAsRead;
+        return null;
+      }
+
+      const store = getDefaultStore();
+      act(() => store.set(conversationCoveredAtom, true));
+      try {
+        act(() => {
+          probe = create(<ReaderSeesProbe options={optionsWith(openThread)} />);
+        });
+        expect(readerSees?.()).toBe(false);
+
+        act(() => store.set(conversationCoveredAtom, false));
+        expect(readerSees?.()).toBe(false);
+        reportAnchor(true);
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+
+        windowFocused = true;
+        expect(readerSees?.()).toBe(true);
+        act(() => {
+          shellListener?.({ type: 'window-focus', focused: true });
+        });
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+      } finally {
+        act(() => store.set(conversationCoveredAtom, false));
+      }
     });
   });
 

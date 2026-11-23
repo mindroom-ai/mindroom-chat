@@ -39,6 +39,8 @@ export type SettingsContext = {
   railButtons: Readonly<Record<string, boolean>>;
   /** The deployment offers the Mac app and this is a browser on a Mac (native/macApp.ts). */
   macApp: boolean;
+  /** At least one bundled client plugin is left enabled by deployment config.json. */
+  hasPlugins: boolean;
 };
 
 export const SETTINGS_GROUPS = [
@@ -55,7 +57,7 @@ export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 /** What decides whether a page is offered: the platform and the account. */
 export type SettingsPageContext = Pick<
   SettingsContext,
-  'native' | 'nativeIOS' | 'localMindroom' | 'serverAdmin'
+  'native' | 'nativeIOS' | 'localMindroom' | 'serverAdmin' | 'hasPlugins'
 >;
 
 type PageDefinition = {
@@ -90,6 +92,12 @@ export const SETTINGS_PAGES = [
   },
   { id: 'chats', group: 'app', labelKey: 'nav.chats', aliases: ['emojis-stickers'] },
   { id: 'sidebar', group: 'app', labelKey: 'featureUi.settings.sidebar.title' },
+  {
+    id: 'plugins',
+    group: 'app',
+    labelKey: 'featureUi.settings.plugins.title',
+    hidden: (context) => !context.hasPlugins,
+  },
   { id: 'language', group: 'app', labelKey: 'featureUi.settings.menu.pages.language' },
   {
     id: 'connections',
@@ -518,15 +526,6 @@ export const SETTINGS = [
     scope: 'device',
   },
   {
-    id: 'voiceButtonMode',
-    page: 'chats',
-    group: 'settings.general.editor.sectionTitle',
-    labelKey: 'composer.voiceButton.settingTitle',
-    descriptionKey: 'composer.voiceButton.settingDescription',
-    keywordsKey: `${KEYWORDS}.dictation`,
-    scope: 'device',
-  },
-  {
     id: 'markdown',
     page: 'chats',
     group: 'settings.general.editor.sectionTitle',
@@ -629,6 +628,15 @@ export const SETTINGS = [
   sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
   sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
   sidebarSwitch('localMindroom', `${SIDEBAR}.localMindroom`, `${SIDEBAR}.localMindroomDescription`),
+  // This app: Plugins
+  {
+    id: 'plugins',
+    page: 'plugins',
+    labelKey: 'featureUi.settings.plugins.title',
+    descriptionKey: 'featureUi.settings.plugins.description',
+    keywordsKey: `${KEYWORDS}.plugins`,
+    scope: 'account',
+  },
   // This app: Language & region
   {
     id: 'language',
@@ -717,6 +725,14 @@ export const SETTINGS = [
     labelKey: 'settings.general.messages.prefetchScope',
     descriptionKey: 'settings.general.messages.prefetchScopeDescription',
     keywordsKey: `${KEYWORDS}.background`,
+    scope: 'device',
+  },
+  {
+    id: 'cacheBudget',
+    page: 'storage',
+    labelKey: 'featureUi.settings.storage.cacheBudget',
+    descriptionKey: 'featureUi.settings.storage.cacheBudgetDescription',
+    keywordsKey: `${KEYWORDS}.cache`,
     scope: 'device',
   },
   {

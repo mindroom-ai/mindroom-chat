@@ -89,4 +89,39 @@ describe('ThreadTimelineHeader', () => {
     expect(header.style.height).toBe('102px');
     expect(scroll.style.scrollPaddingTop).toBe('calc(var(--room-header-height, 0px) + 102px)');
   });
+
+  it('skips DOM style writes when ResizeObserver fires with an unchanged height', () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const onResize = vi.fn();
+    act(() =>
+      root.render(
+        <div ref={scrollRef}>
+          <ThreadTimelineHeader scrollRef={scrollRef} onResize={onResize}>
+            <div />
+          </ThreadTimelineHeader>
+        </div>
+      )
+    );
+    const scroll = scrollRef.current!;
+    const header = scroll.firstElementChild as HTMLElement;
+    const setProperty = vi.spyOn(host.style, 'setProperty');
+    const setHeaderHeight = vi.spyOn(header.style, 'height', 'set');
+    const setScrollPadding = vi.spyOn(scroll.style, 'scrollPaddingTop', 'set');
+
+    resize();
+    frame?.(0);
+
+    expect(onResize).not.toHaveBeenCalled();
+    expect(setHeaderHeight).not.toHaveBeenCalled();
+    expect(setScrollPadding).not.toHaveBeenCalled();
+    expect(setProperty).not.toHaveBeenCalled();
+
+    bannerHeight = 96;
+    resize();
+    frame?.(0);
+
+    expect(setHeaderHeight).toHaveBeenCalledWith('96px');
+    expect(setScrollPadding).toHaveBeenCalledWith('calc(var(--room-header-height, 0px) + 96px)');
+    expect(setProperty).toHaveBeenCalledWith('--room-thread-header-height', '96px');
+  });
 });

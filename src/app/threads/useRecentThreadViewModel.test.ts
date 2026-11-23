@@ -57,6 +57,10 @@ type Listener = () => void;
 class MockRoom {
   roomId = '!room:example.org';
 
+  currentState = {
+    getStateEvents: vi.fn(() => [] as MatrixEvent[]),
+  };
+
   private listeners = new Map<string, Set<Listener>>();
 
   on = vi.fn((event: string, listener: Listener) => {

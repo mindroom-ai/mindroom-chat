@@ -206,10 +206,15 @@ const checkUnlistedId = async (dialog: Locator) => {
 };
 
 const checkDesktopFraming = async (dialog: Locator) => {
+  await expect
+    .poll(async () => {
+      const b = await box(dialog);
+      return Math.abs(b.y + b.height / 2 - DESKTOP.height / 2);
+    })
+    .toBeLessThan(2);
   const bounds = await box(dialog);
   expect(bounds.height).toBeGreaterThan(300);
   expect(bounds.height).toBeLessThanOrEqual(640 + 1);
-  expect(Math.abs(bounds.y + bounds.height / 2 - DESKTOP.height / 2)).toBeLessThan(2);
   const modSwitch = dialog.getByRole('switch');
   await expect(modSwitch).toBeChecked();
   const modBox = await box(modSwitch);
@@ -293,7 +298,8 @@ const checkInviteRetryNoteAndGrant = async (page: Page, seeded: Seed) => {
 
   // Opening the note places the input next in Tab order right after the toggle button.
   const noteToggle = dialog.getByRole('button', { name: '+ Add invite note' });
-  await noteToggle.click();
+  await noteToggle.focus();
+  await noteToggle.press('Enter');
   await page.keyboard.press('Tab');
   const noteField = dialog.getByPlaceholder('Add a note to your invite...');
   await expect(noteField).toBeFocused();

@@ -32,13 +32,14 @@ export const HelpRow = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: config.space.S300,
+  flexWrap: 'wrap',
+  rowGap: config.space.S100,
+  columnGap: config.space.S300,
   minHeight: 32,
 });
 
-export const HelpScroll = style({
+export const HelpScrollFrame = style({
   maxHeight: 'min(70vh, 640px)',
-  overflowY: 'auto',
 });
 
 // The hints sit over the whole window and never take the pointer.

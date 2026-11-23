@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
 import { Provider, createStore } from 'jotai';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, type MatrixClient } from 'matrix-js-sdk';
@@ -23,6 +24,10 @@ class FakeNotification {
 
   static shown: FakeNotification[] = [];
 
+  onclick: (() => void) | null = null;
+
+  close = vi.fn();
+
   constructor(public title: string, public options: NotificationOptions) {
     FakeNotification.shown.push(this);
   }
@@ -40,13 +45,23 @@ const client = emitter as unknown as MatrixClient;
 
 let store = createStore();
 let renderer: ReactTestRenderer | undefined;
+let currentPath = '/home/';
+
+function TrackLocation() {
+  currentPath = useLocation().pathname;
+  return null;
+}
 
 const render = () =>
   act(() => {
+    currentPath = '/home/';
     renderer = create(
       <Provider store={store}>
         <MatrixClientProvider value={client}>
-          <InviteNotifications />
+          <MemoryRouter initialEntries={['/home/']}>
+            <TrackLocation />
+            <InviteNotifications />
+          </MemoryRouter>
         </MatrixClientProvider>
       </Provider>
     );
@@ -116,5 +131,31 @@ describe('InviteNotifications', () => {
     invite('!shared:example.org');
     invite('!mine:example.org');
     expect(bodies()).toEqual(['You have 1 new invitation request.']);
+  });
+
+  it('shows the desktop main window and opens invitations when clicked', () => {
+    const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
+    const focus = vi.spyOn(window, 'focus').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { showMainWindow },
+    });
+    try {
+      sync = { state: 'SYNCING' };
+      render();
+      invite('!open-me:example.org');
+
+      expect(FakeNotification.shown).toHaveLength(1);
+      const note = FakeNotification.shown[0]!;
+      act(() => note.onclick?.());
+
+      expect(showMainWindow).toHaveBeenCalledOnce();
+      expect(focus).toHaveBeenCalledOnce();
+      expect(note.close).toHaveBeenCalledOnce();
+      expect(currentPath).toBe('/activity/invites/');
+    } finally {
+      focus.mockRestore();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

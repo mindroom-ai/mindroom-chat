@@ -23,7 +23,8 @@ const freePort = () =>
  */
 export const withServePy = async (
   files: Record<string, string>,
-  use: (request: (path: string, init?: RequestInit) => Promise<Response>) => Promise<void>
+  use: (request: (path: string, init?: RequestInit) => Promise<Response>) => Promise<void>,
+  env: Record<string, string> = {}
 ): Promise<void> => {
   const root = mkdtempSync(join(tmpdir(), 'serve-py-'));
   Object.entries(files).forEach(([path, content]) => {
@@ -31,7 +32,11 @@ export const withServePy = async (
     writeFileSync(join(root, path), content);
   });
   const port = await freePort();
-  const server = spawn('python3', [SERVE_PY, String(port)], { cwd: root, stdio: 'ignore' });
+  const server = spawn('python3', [SERVE_PY, String(port)], {
+    cwd: root,
+    stdio: 'ignore',
+    env: { ...process.env, ...env },
+  });
   const request = async (path: string, init?: RequestInit): Promise<Response> => {
     for (let attempt = 0; ; attempt += 1) {
       try {

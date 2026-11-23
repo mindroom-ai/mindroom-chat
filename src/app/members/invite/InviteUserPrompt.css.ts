@@ -1,5 +1,6 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { SheetFooter, SheetRow, SheetRowAction } from '../../ui/DialogChrome.css';
 import { Viewport } from '../../ui/InsetScrollbar.css';
 import { Segment, Segments } from '../../ui/styles/Segmented.css';
 import { touchTarget } from '../../ui/styles/touchTarget';
@@ -31,18 +32,6 @@ export const Dialog = style({
   flexDirection: 'column',
 });
 
-export const TitleBar = style({
-  flexShrink: 0,
-  height: 'auto',
-  minBlockSize: toRem(56),
-  gap: config.space.S300,
-  paddingBlockStart: config.space.S300,
-  paddingBlockEnd: config.space.S100,
-  paddingInline: config.space.S400,
-});
-
-export const TouchIcon = style([touchTarget('6px'), { flexShrink: 0 }]);
-
 export const Controls = style({
   flexShrink: 0,
   display: 'flex',
@@ -51,23 +40,6 @@ export const Controls = style({
   paddingBlock: config.space.S200,
   paddingInline: config.space.S400,
 });
-
-// Hide browser search cancel mark; the field renders its own Clear button.
-export const SearchField = style({
-  selectors: {
-    '&&': {
-      backgroundColor: `color-mix(in srgb, ${color.Background.Container} 72%, transparent)`,
-      boxShadow: `inset 0 0 0 ${config.borderWidth.B300} color-mix(in srgb, ${color.Surface.ContainerLine} 80%, transparent)`,
-      transition: 'box-shadow 120ms ease, background-color 120ms ease',
-    },
-    '&&:focus-within': {
-      backgroundColor: color.Background.Container,
-      boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
-    },
-  },
-});
-globalStyle(`${SearchField} input::-webkit-search-cancel-button`, { display: 'none' });
-globalStyle(`${SearchField} > svg`, { flexShrink: 0, color: color.SurfaceVariant.OnContainer });
 
 export const FilterSegments = style([
   Segments,
@@ -102,36 +74,11 @@ export const GrantAlert = style({
   color: color.Critical.OnContainer,
 });
 
-export const ListFrame = style({
-  position: 'relative',
-  flexGrow: 1,
-  minBlockSize: toRem(140),
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-});
+export const ListFrame = style({ selectors: { '&&': { minBlockSize: toRem(140) } } });
 
-export const ListArea = style([
-  Viewport,
-  {
-    flexGrow: 1,
-    minBlockSize: toRem(140),
-    // Override Viewport's contain so scrolling past the list chains to Body on short keyboard viewports.
-    overscrollBehaviorY: 'auto',
-    paddingInline: config.space.S200,
-    paddingBlockEnd: config.space.S200,
-  },
-]);
-
-export const ListScrollbar = style({ insetBlock: toRem(4), zIndex: 2 });
-
-export const SectionHeader = style({
-  paddingBlockStart: config.space.S200,
-  paddingBlockEnd: config.space.S100,
+export const ListArea = style({
   paddingInline: config.space.S200,
-  fontWeight: config.fontWeight.W600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
+  paddingBlockEnd: config.space.S200,
 });
 
 export const List = style([
@@ -139,20 +86,17 @@ export const List = style([
   { listStyle: 'none', display: 'flex', flexDirection: 'column', gap: toRem(2) },
 ]);
 
-export const Row = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S300,
-  minBlockSize: toRem(50),
-  paddingBlock: config.space.S100,
-  paddingInline: config.space.S200,
-  borderRadius: config.radii.R400,
-  selectors: {
-    '&:hover, &:focus-within': {
-      backgroundColor: `color-mix(in srgb, ${color.Surface.ContainerHover} 75%, transparent)`,
-    },
+export const Row = style([
+  SheetRow,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    gap: config.space.S300,
+    minBlockSize: toRem(50),
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
   },
-});
+]);
 
 export const RowName = style({ minInlineSize: 0, fontWeight: config.fontWeight.W500 });
 
@@ -179,35 +123,7 @@ export const RowError = style({
   marginBlockStart: toRem(2),
 });
 
-export const RowAction = style({
-  flexShrink: 0,
-  minInlineSize: toRem(80),
-  transition: 'background-color 120ms ease, border-color 120ms ease, color 120ms ease',
-  '@media': { '(pointer: coarse)': { minBlockSize: toRem(38) } },
-});
-
-const idleActionBg = `color-mix(in srgb, ${color.Surface.Container} 40%, transparent)`;
-export const RowActionIdle = style({
-  selectors: {
-    '&&': {
-      backgroundColor: idleActionBg,
-      border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
-      color: color.Surface.OnContainer,
-    },
-    '&&[aria-disabled="true"]': { backgroundColor: idleActionBg },
-    [`${Row}:hover &:not([aria-disabled="true"]), ${Row}:focus-within &:not([aria-disabled="true"])`]:
-      {
-        backgroundColor: color.Primary.Container,
-        borderColor: color.Primary.ContainerLine,
-        color: color.Primary.OnContainer,
-      },
-    '&&&:not([aria-disabled="true"]):hover, &&&:not([aria-disabled="true"]):focus-visible': {
-      backgroundColor: color.Primary.Main,
-      borderColor: color.Primary.Main,
-      color: color.Primary.OnMain,
-    },
-  },
-});
+export const RowAction = style([SheetRowAction, { minInlineSize: toRem(80) }]);
 
 export const RowActionSent = style({
   vars: { [config.opacity.Disabled]: '1' },
@@ -228,16 +144,14 @@ export const EmptyState = style({
   textAlign: 'center',
 });
 
-export const Footer = style({
-  flexShrink: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: config.space.S200,
-  paddingBlock: config.space.S300,
-  paddingInline: config.space.S400,
-  backgroundColor: `color-mix(in srgb, ${color.Background.Container} 42%, transparent)`,
-  borderBlockStart: `${config.borderWidth.B300} solid color-mix(in srgb, ${color.Surface.ContainerLine} 60%, transparent)`,
-});
+export const Footer = style([
+  SheetFooter,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: config.space.S200,
+  },
+]);
 
 export const ModeratorLabel = style({
   minInlineSize: 0,
