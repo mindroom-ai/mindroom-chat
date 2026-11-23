@@ -45,6 +45,7 @@ describe('DialogCloseButton', () => {
           label="Close tour"
           iconSize="100"
           data-tour-action="close"
+          style={{ width: '2rem', height: '2rem' }}
           disabled
           onClick={onClick}
         />
@@ -60,6 +61,8 @@ describe('DialogCloseButton', () => {
     const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Close tour' });
     expect(buttonRef.current).toBe(button);
     expect(button.getAttribute('data-tour-action')).toBe('close');
+    expect(button.style.width).toBe('2rem');
+    expect(button.style.height).toBe('2rem');
     expect(button.disabled).toBe(true);
 
     const buttonIconClass = button.querySelector('svg')?.getAttribute('class');

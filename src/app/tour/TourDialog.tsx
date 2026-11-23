@@ -210,6 +210,7 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
           </div>
           <DialogCloseButton
             label={t('tour.dialog.close')}
+            iconSize="100"
             data-tour-action="close"
             onClick={dismiss}
           />

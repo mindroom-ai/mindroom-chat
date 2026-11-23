@@ -2,6 +2,7 @@ import {
   forwardRef,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
+  type MouseEventHandler,
   type MutableRefObject,
   type ReactNode,
   type Ref,
@@ -17,9 +18,10 @@ import * as css from './DialogChrome.css';
 
 type DialogCloseButtonProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
-  'children' | 'aria-label' | 'type'
+  'children' | 'aria-label' | 'type' | 'onClick'
 > & {
   label: string;
+  onClick: MouseEventHandler<HTMLButtonElement>;
   iconSize?: '100' | '200';
 };
 
