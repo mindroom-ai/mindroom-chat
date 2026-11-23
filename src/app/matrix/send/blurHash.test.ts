@@ -19,7 +19,7 @@ const decode83 = (text: string) =>
 const stubCanvas = (context: Partial<CanvasRenderingContext2D> | null) => {
   const createElement = document.createElement.bind(document);
   const drawn: { width: number; height: number }[] = [];
-  vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
     const element = createElement(tag);
     if (tag === 'canvas') {
       const canvas = element as HTMLCanvasElement;
@@ -29,7 +29,7 @@ const stubCanvas = (context: Partial<CanvasRenderingContext2D> | null) => {
       });
     }
     return element;
-  });
+  }) as typeof document.createElement);
   return drawn;
 };
 

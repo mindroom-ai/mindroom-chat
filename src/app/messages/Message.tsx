@@ -595,7 +595,9 @@ const POP_OUT_OFFSET = 4;
 const popOutMaxHeight = (anchor: RectCords, side: 'Top' | 'Bottom'): string => {
   const margin = config.space.S200;
   if (side === 'Top') {
-    return `calc(${anchor.y - POP_OUT_OFFSET}px - env(safe-area-inset-top, 0px) - ${margin})`;
+    return `calc(${
+      anchor.y - POP_OUT_OFFSET
+    }px - var(--app-inset-top, env(safe-area-inset-top, 0px)) - ${margin})`;
   }
   const below = anchor.y + anchor.height + POP_OUT_OFFSET;
   return `calc(100dvh - ${below}px - env(safe-area-inset-bottom, 0px) - ${margin})`;

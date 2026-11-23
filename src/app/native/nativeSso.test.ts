@@ -144,6 +144,18 @@ describe('nativeSso', () => {
     expect(isNativeApp()).toBe(false);
   });
 
+  it('treats the desktop bridge as a native app while Capacitor reports web', () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { mindroomDesktop: { onShellEvent: vi.fn(() => vi.fn()) } },
+    });
+
+    expect(isNativeApp()).toBe(true);
+    expect(isNativeIOS()).toBe(false);
+  });
+
   it('detects iOS standalone web apps from display mode and navigator.standalone', () => {
     setWindow(
       {
@@ -449,5 +461,43 @@ describe('nativeSso', () => {
     expect(manifestSource).toContain('android:scheme="mindroom"');
     expect(manifestSource).toContain('android:host="auth"');
     expect(manifestSource).toContain('android:pathPrefix="/login"');
+  });
+
+  it('starts and opens a loopback sign-in through the desktop bridge', async () => {
+    const startSignIn = vi.fn(async () => ({
+      ok: true as const,
+      value: 'http://127.0.0.1:45678/auth/rand/login/matrix.example.org/?ssoNonce=abc',
+    }));
+    const openSignIn = vi.fn(async () => ({ ok: true as const, value: undefined }));
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        mindroomDesktop: {
+          onShellEvent: vi.fn(() => vi.fn()),
+          setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+          startSignIn,
+          openSignIn,
+          appUrl: {
+            addListener: vi.fn(async () => ({ remove: vi.fn() })),
+            getLaunchUrl: vi.fn(async () => undefined),
+          },
+        },
+      },
+    });
+    const rawUrl = `https://matrix.example.org/_matrix/client/v3/login/sso/redirect/apple?redirectUrl=${encodeURIComponent(
+      'mindroom://auth/login/matrix.example.org/?ssoNonce=abc'
+    )}`;
+    await openNativeSsoBrowser(rawUrl, false, 'https://matrix.example.org');
+
+    expect(startSignIn).toHaveBeenCalledWith({
+      homeserver: 'https://matrix.example.org',
+      callback: '/login/matrix.example.org/?ssoNonce=abc',
+    });
+    expect(openSignIn).toHaveBeenCalledWith(
+      `https://matrix.example.org/_matrix/client/v3/login/sso/redirect/apple?redirectUrl=${encodeURIComponent(
+        'http://127.0.0.1:45678/auth/rand/login/matrix.example.org/?ssoNonce=abc'
+      )}`
+    );
+    expect(Browser.open).not.toHaveBeenCalled();
   });
 });

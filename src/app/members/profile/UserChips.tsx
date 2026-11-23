@@ -5,6 +5,7 @@ import { Chip, Icon, Icons, type RectCords, Text, config } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { copyToClipboard } from '../../lib/dom';
+import { externalOpenProps, isDesktopApp } from '../../lib/nativeShell';
 import { stopPropagation } from '../../lib/keyboard';
 import { getMatrixToUser } from '../../matrix/matrix-to';
 
@@ -68,9 +69,17 @@ function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
   );
 }
 
-function ChipMenuItem({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+function ChipMenuItem({
+  onClick,
+  children,
+  ...props
+}: {
+  onClick: () => void;
+  children: ReactNode;
+  'data-open-external'?: string;
+}) {
   return (
-    <MenuItem size="300" radii="300" role="menuitem" onClick={onClick}>
+    <MenuItem size="300" radii="300" role="menuitem" onClick={onClick} {...props}>
       <Text size="B300">{children}</Text>
     </MenuItem>
   );
@@ -88,9 +97,10 @@ export function ServerChip({ server }: ServerChipProps) {
     close();
     if (await copyToClipboard(server)) showCopied();
   };
+  const serverUrl = `https://${server}`;
   const openInBrowser = () => {
     close();
-    window.open(`https://${server}`, '_blank', 'noopener,noreferrer');
+    if (!isDesktopApp()) window.open(serverUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -102,7 +112,7 @@ export function ServerChip({ server }: ServerChipProps) {
           <ChipMenuItem onClick={() => void copyServer()}>
             {t('sharedUi.userChips.copyServer')}
           </ChipMenuItem>
-          <ChipMenuItem onClick={openInBrowser}>
+          <ChipMenuItem onClick={openInBrowser} {...externalOpenProps(serverUrl)}>
             {t('sharedUi.userChips.openInBrowser')}
           </ChipMenuItem>
         </>

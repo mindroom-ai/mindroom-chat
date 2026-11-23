@@ -269,6 +269,21 @@ describe('buildBugReport', () => {
     expect(getBugReportFileName(report)).toBe('mindroom-bug-report-2026-10-03T12-00-00-000Z.json');
   });
 
+  it('reports platform as desktop when the desktop bridge is present', async () => {
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { onShellEvent: vi.fn(() => vi.fn()) },
+    });
+    try {
+      const event = fakeEvent('$e1', 1);
+      const room = fakeRoom({ live: [event] });
+      const report = await buildBugReport(mx as never, room as never, event as never);
+      expect(report.client.platform).toBe('desktop');
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
   it('keeps the original content and relation of an edited event next to its latest edit', async () => {
     const root = fakeEvent('$root', 1, { threadRootId: '$root' });
     const edit = {

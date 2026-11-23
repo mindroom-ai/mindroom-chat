@@ -79,7 +79,12 @@ export default defineConfig({
     environment: 'node',
     include: testsOnly
       ? listedDirs.flatMap(pluginTests)
-      : ['src/**/*.test.{ts,tsx}', ...pluginDirs.flatMap(pluginTests)],
+      : [
+          'src/**/*.test.{ts,tsx}',
+          'electron/**/*.test.ts',
+          'scripts/**/*.test.ts',
+          ...pluginDirs.flatMap(pluginTests),
+        ],
     // Vite, not Node, loads the packages a plugin installed, so that their imports of the shared
     // packages resolve to the app's copies too; a CommonJS `require` still resolves in its directory.
     server: {

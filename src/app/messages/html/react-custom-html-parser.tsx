@@ -627,7 +627,7 @@ const isHeading = (name: string): name is keyof typeof HEADING_SIZES =>
  * Removes bidirectional controls from the text inside a link, in the parsed tree, so a link's
  * text cannot show an address in an order other than the one it holds.
  */
-const stripLinkTextBidi = (nodes: ChildNode[]): void => {
+export const stripLinkTextBidi = (nodes: ChildNode[]): void => {
   nodes.forEach((node) => {
     if (isText(node)) node.data = stripBidiControls(node.data);
     else if (isTag(node)) stripLinkTextBidi(node.children);

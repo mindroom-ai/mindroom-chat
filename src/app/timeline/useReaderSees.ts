@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useStore } from 'jotai';
+import { isAppWindowFocused } from '../lib/nativeShell';
 import { useConversationOutOfSightAtom } from '../navigation/conversationView';
 
 /**
@@ -12,7 +13,7 @@ export const useReaderSees = (): (() => boolean) => {
   const store = useStore();
   const outOfSightAtom = useConversationOutOfSightAtom();
   return useCallback(
-    () => typeof document !== 'undefined' && document.hasFocus() && !store.get(outOfSightAtom),
+    () => isAppWindowFocused() && !store.get(outOfSightAtom),
     [outOfSightAtom, store]
   );
 };

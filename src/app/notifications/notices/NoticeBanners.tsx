@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp } from '../../lib/nativeShell';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Icon, IconButton, Icons, IconSrc, Text } from 'folds';
 import { appUrl } from '../../lib/basePath';
@@ -124,7 +124,7 @@ function NoticeBanner({ notice, onDismiss }: NoticeBannerProps) {
  * Native apps serve their own bundled copy of the file, so they skip it.
  */
 export function NoticeBanners() {
-  const url = useMemo(() => (Capacitor.isNativePlatform() ? undefined : appUrl(NOTICES_FILE)), []);
+  const url = useMemo(() => (isBundledApp() ? undefined : appUrl(NOTICES_FILE)), []);
   const { notices, dismiss } = useNotices(url);
 
   // aria-atomic: announce only the notice that changed, not the whole stack.

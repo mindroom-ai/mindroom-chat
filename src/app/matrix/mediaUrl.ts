@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isCapacitorApp, isDesktopApp } from '../lib/nativeShell';
 import type { MatrixClient } from 'matrix-js-sdk';
 
 // Authenticated media (Matrix 1.11, MSC3916) needs the access token on every download. On the web
@@ -33,10 +33,11 @@ export const supportsAuthenticatedMedia = (versions: VersionsLike): boolean =>
   versions.unstable_features?.['org.matrix.msc3916.stable'] === true;
 
 const runsInNativeShell = (): boolean => {
+  if (isDesktopApp()) return false;
   const protocol = typeof window === 'undefined' ? undefined : window.location?.protocol;
   if (protocol && protocol !== 'http:' && protocol !== 'https:') return true;
   try {
-    return Capacitor.isNativePlatform();
+    return isCapacitorApp();
   } catch {
     return false;
   }

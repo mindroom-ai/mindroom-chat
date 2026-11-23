@@ -1,0 +1,420 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CANVAS_LIBRARY_DIR } from '../../scripts/canvas-libraries.mjs';
+import { framingHeaders } from '../../scripts/frame-headers.mjs';
+import { canvasPolicy } from '../../src/app/messages/canvas/canvasDocument';
+import {
+  CANVAS_LIBRARY_NAMES,
+  canvasLibraries,
+} from '../../src/app/messages/canvas/canvasLibraries';
+
+const protocolMock = vi.hoisted(() => ({
+  registerSchemesAsPrivileged: vi.fn(),
+  handle: vi.fn(),
+}));
+
+vi.mock('electron', () => ({
+  protocol: protocolMock,
+}));
+
+import {
+  APP_ORIGIN,
+  CANVAS_FRAME_POLICY,
+  FRAME_PAGE_FILES,
+  isFramePage,
+  pageHeaders,
+  registerBundleScheme,
+  resolveBundlePath,
+  scriptPolicy,
+  serveBundle,
+} from './bundleProtocol';
+
+describe('bundleProtocol', () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    protocolMock.registerSchemesAsPrivileged.mockReset();
+    protocolMock.handle.mockReset();
+    for (const dir of tempDirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  const makeDist = (files: Record<string, string>): string => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mindroom-bundle-'));
+    tempDirs.push(dir);
+    for (const [relative, content] of Object.entries(files)) {
+      const target = path.join(dir, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, content, 'utf8');
+    }
+    return dir;
+  };
+
+  it('exports the app origin and frame page list', () => {
+    expect(APP_ORIGIN).toBe('capacitor://localhost');
+    expect(FRAME_PAGE_FILES).toEqual(['pdf-frame.html', 'canvas-frame.html']);
+  });
+
+  describe('scriptPolicy and pageHeaders', () => {
+    it('defines script-src and worker-src with no hashes, unsafe-inline, or unsafe-eval', () => {
+      expect(scriptPolicy).toBe("script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:");
+      expect(scriptPolicy).not.toContain('sha256-');
+      expect(scriptPolicy).not.toContain("'unsafe-inline'");
+      expect(scriptPolicy).not.toContain("'unsafe-eval'");
+    });
+
+    it('joins framing headers of the requested path and the script policy into one CSP header', () => {
+      for (const route of ['/connect', '/CONNECT', '/invite', '/invite/']) {
+        expect(pageHeaders(route), route).toEqual({
+          'Content-Security-Policy':
+            "frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:",
+          'X-Frame-Options': 'DENY',
+        });
+      }
+      for (const route of ['/home', '/!abc:server.org/$event']) {
+        expect(pageHeaders(route), route).toEqual({
+          'Content-Security-Policy':
+            "frame-ancestors 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:",
+          'X-Frame-Options': 'SAMEORIGIN',
+        });
+      }
+    });
+  });
+
+  describe('CANVAS_FRAME_POLICY', () => {
+    const parseDirectives = (policy: string): Map<string, string[]> =>
+      new Map(
+        policy
+          .split(';')
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .map((part) => {
+            const [name = '', ...sources] = part.split(/\s+/);
+            return [name, sources] as const;
+          })
+      );
+
+    const sourceAllowedBy = (source: string, outerSources: readonly string[]): boolean => {
+      if (outerSources.includes(source)) return true;
+      if (source.startsWith('https://') && outerSources.includes('https:')) return true;
+      return outerSources.some((outer) => outer.endsWith('/') && source.startsWith(outer));
+    };
+
+    it('sandboxes the frame and allows every source canvasPolicy() can emit', () => {
+      const outer = parseDirectives(CANVAS_FRAME_POLICY);
+      expect(outer.get('sandbox')).toEqual(['allow-scripts', 'allow-forms']);
+
+      const pinned = canvasLibraries(
+        CANVAS_LIBRARY_NAMES,
+        () => `${APP_ORIGIN}/assets/canvas-libs/`
+      );
+      expect(pinned.scripts.length).toBeGreaterThan(0);
+      expect(pinned.styles.length).toBeGreaterThan(0);
+
+      for (const [libraries, remote] of [
+        [false, false],
+        [true, false],
+        [false, true],
+        [true, true],
+      ] as const) {
+        const inner = parseDirectives(canvasPolicy(libraries, remote, pinned));
+        for (const [directive, sources] of inner) {
+          const outerSources = outer.get(directive);
+          expect(outerSources, `${directive} missing in CANVAS_FRAME_POLICY`).toBeDefined();
+          for (const source of sources) {
+            expect(
+              sourceAllowedBy(source, outerSources!),
+              `${directive} source ${source} must be allowed by ${outerSources!.join(' ')}`
+            ).toBe(true);
+          }
+        }
+      }
+    });
+
+    it('pins the real hashed CANVAS_LIBRARY_DIR from the build and allows every canvasPolicy source for it', async () => {
+      expect(CANVAS_LIBRARY_DIR).toMatch(/^assets\/canvas-libs-[0-9a-f]{12}$/);
+      const g = globalThis as { __MINDROOM_CANVAS_LIBRARIES__?: string };
+      const prev = g.__MINDROOM_CANVAS_LIBRARIES__;
+      g.__MINDROOM_CANVAS_LIBRARIES__ = CANVAS_LIBRARY_DIR;
+      vi.resetModules();
+      try {
+        const mod = await import('./bundleProtocol');
+        const expectedDir = `${APP_ORIGIN}/${CANVAS_LIBRARY_DIR}/`;
+        expect(mod.CANVAS_FRAME_POLICY).toContain(expectedDir);
+        const outer = parseDirectives(mod.CANVAS_FRAME_POLICY);
+        const pinned = canvasLibraries(CANVAS_LIBRARY_NAMES, () => expectedDir);
+        const inner = parseDirectives(canvasPolicy(true, true, pinned));
+        for (const [directive, sources] of inner) {
+          const outerSources = outer.get(directive);
+          expect(outerSources, `${directive} missing`).toBeDefined();
+          for (const source of sources) {
+            expect(
+              sourceAllowedBy(source, outerSources!),
+              `${directive} source ${source} must be allowed`
+            ).toBe(true);
+          }
+        }
+      } finally {
+        if (prev === undefined) delete g.__MINDROOM_CANVAS_LIBRARIES__;
+        else g.__MINDROOM_CANVAS_LIBRARIES__ = prev;
+        vi.resetModules();
+      }
+    });
+  });
+
+  describe('resolveBundlePath', () => {
+    const known = new Set(['index.html', 'pdf-frame.html', 'config.json', 'assets/app.js']);
+    const isFile = (relative: string) => known.has(relative);
+
+    it('resolves existing bundle files and SPA routes with dots', () => {
+      expect(resolveBundlePath('/', isFile)).toEqual({ file: 'index.html' });
+      expect(resolveBundlePath('/assets/app.js', isFile)).toEqual({ file: 'assets/app.js' });
+      expect(resolveBundlePath('/config.json', isFile)).toEqual({ file: 'config.json' });
+      expect(resolveBundlePath('/pdf-frame.html', isFile)).toEqual({ file: 'pdf-frame.html' });
+      expect(resolveBundlePath('/!abc:server.org/$event', isFile)).toEqual({ file: 'index.html' });
+      expect(resolveBundlePath('/home/room.with.dots', isFile)).toEqual({ file: 'index.html' });
+    });
+
+    it('returns 404 when index.html is missing even on SPA fallback', () => {
+      const withoutIndex = (relative: string) => relative === 'assets/app.js';
+      expect(resolveBundlePath('/', withoutIndex)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/home', withoutIndex)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/assets/app.js', withoutIndex)).toEqual({ file: 'assets/app.js' });
+    });
+
+    it('returns 404 for missing assets and capacitor paths', () => {
+      expect(resolveBundlePath('/assets/missing.js', isFile)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/assets/', isFile)).toEqual({ status: 404 });
+      expect(resolveBundlePath('/_capacitor_file_/secret', isFile)).toEqual({ status: 404 });
+    });
+
+    it('refuses path traversal, escapes, backslashes, null bytes and malformed encoding', () => {
+      const probed: string[] = [];
+      const trackingIsFile = (relative: string) => {
+        probed.push(relative);
+        return isFile(relative);
+      };
+
+      for (const bad of [
+        '/../../etc/passwd',
+        '/%2e%2e/etc/passwd',
+        '/%2e%2e/',
+        '/%2E%2E/etc/passwd',
+        '/assets/%2e%2e/%2e%2e/etc/passwd',
+        '/..\\etc\\passwd',
+        '/%5c..%5cetc/passwd',
+        '/index.html%00.png',
+        '/%ZZ',
+      ]) {
+        expect(resolveBundlePath(bad, trackingIsFile), bad).toEqual({ status: 404 });
+      }
+      expect(probed).toEqual([]);
+    });
+
+    it('never reads outside dist for absolute paths', () => {
+      const probed: string[] = [];
+      const trackingIsFile = (relative: string) => {
+        probed.push(relative);
+        return relative === 'index.html';
+      };
+      expect(resolveBundlePath('/etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
+      expect(resolveBundlePath('//etc/passwd', trackingIsFile)).toEqual({ file: 'index.html' });
+      expect(
+        probed.every((relative) => !path.isAbsolute(relative) && !relative.includes('..'))
+      ).toBe(true);
+    });
+  });
+
+  describe('isFramePage', () => {
+    const known = new Set(['index.html', 'pdf-frame.html', 'canvas-frame.html', 'assets/app.js']);
+    const isFile = (relative: string) => known.has(relative);
+
+    const spellings: Array<[string, boolean]> = [
+      ['/pdf-frame.html', true],
+      ['/PDF-FRAME.HTML', false],
+      ['/Pdf-Frame.html', false],
+      ['/pdf-frame%2ehtml', true],
+      ['/%70df-frame.html', true],
+      ['/%70df-frame%2ehtml', true],
+      ['//pdf-frame.html', true],
+      ['/pdf-frame.html/', false],
+      ['/index', false],
+      ['/index.html', false],
+      ['/pdf-frame.html?x=1', true],
+      ['/%70df-frame%2ehtml?a=b#blob:capacitor://localhost/1', true],
+      ['/%2e/pdf-frame.html', false],
+      ['/%2e%2e/pdf-frame.html', false],
+      ['/assets/pdf-frame.html', false],
+      ['/canvas-frame.html', true],
+      ['/CANVAS-FRAME.HTML', false],
+      ['/canvas-frame%2ehtml', true],
+      ['/%63anvas-frame.html', true],
+      ['//canvas-frame.html', true],
+      ['/canvas-frame.html/', false],
+      ['/canvas-frame.html?x=1', true],
+      ['/assets/canvas-frame.html', false],
+    ];
+
+    it('matches resolveBundlePath on every spelling', () => {
+      for (const [spelling, expected] of spellings) {
+        const resolved = resolveBundlePath(spelling, isFile);
+        const resolvedToFrame = 'file' in resolved && FRAME_PAGE_FILES.includes(resolved.file);
+        expect(isFramePage(spelling), spelling).toBe(expected);
+        expect(isFramePage(spelling), `${spelling} agrees with resolveBundlePath`).toBe(
+          resolvedToFrame
+        );
+      }
+    });
+  });
+
+  describe('registerBundleScheme', () => {
+    it('registers capacitor as standard, secure, cors, stream, fetch without service workers', () => {
+      registerBundleScheme();
+      expect(protocolMock.registerSchemesAsPrivileged).toHaveBeenCalledWith([
+        {
+          scheme: 'capacitor',
+          privileges: {
+            standard: true,
+            secure: true,
+            corsEnabled: true,
+            stream: true,
+            supportFetchAPI: true,
+            allowServiceWorkers: false,
+          },
+        },
+      ]);
+    });
+  });
+
+  describe('serveBundle', () => {
+    it('serves bundle files, applies framing headers to HTML, and blocks escapes and other hosts', async () => {
+      const parent = makeDist({
+        'secret.txt': 'TOP_SECRET',
+        'dist/index.html': '<!doctype html><title>app</title>',
+        'dist/pdf-frame.html': '<!doctype html><title>pdf</title>',
+        'dist/canvas-frame.html': '<!doctype html><title>canvas</title>',
+        'dist/assets/app.js': 'console.log(1);',
+        'dist/res/svg/icon.svg': '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      });
+      const distDir = path.join(parent, 'dist');
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'leak.txt'));
+
+      serveBundle(distDir);
+      expect(protocolMock.handle).toHaveBeenCalledWith('capacitor', expect.any(Function));
+      const handler = protocolMock.handle.mock.calls[0]?.[1] as (
+        request: Request
+      ) => Promise<Response>;
+
+      const home = await handler(new Request(`${APP_ORIGIN}/!abc:server.org/$event`));
+      expect(home.status).toBe(200);
+      expect(await home.text()).toContain('<title>app</title>');
+      expect({
+        'Content-Security-Policy': home.headers.get('content-security-policy'),
+        'X-Frame-Options': home.headers.get('x-frame-options'),
+      }).toEqual(pageHeaders('/!abc:server.org/$event'));
+
+      for (const unframeable of ['/connect', '/CONNECT', '/invite/', '/invite?code=1']) {
+        const res = await handler(new Request(`${APP_ORIGIN}${unframeable}`));
+        expect(res.status, unframeable).toBe(200);
+        expect(
+          {
+            'Content-Security-Policy': res.headers.get('content-security-policy'),
+            'X-Frame-Options': res.headers.get('x-frame-options'),
+          },
+          unframeable
+        ).toEqual(pageHeaders(unframeable.split('?')[0] ?? unframeable));
+      }
+
+      const pdf = await handler(new Request(`${APP_ORIGIN}/pdf-frame.html`));
+      expect(pdf.status).toBe(200);
+      expect({
+        'Content-Security-Policy': pdf.headers.get('content-security-policy'),
+        'X-Frame-Options': pdf.headers.get('x-frame-options'),
+      }).toEqual(pageHeaders('/pdf-frame.html'));
+
+      const canvas = await handler(new Request(`${APP_ORIGIN}/canvas-frame.html`));
+      expect(canvas.status).toBe(200);
+      expect(canvas.headers.get('content-security-policy')).toBe(
+        `${framingHeaders('/canvas-frame.html')['Content-Security-Policy']}; ${CANVAS_FRAME_POLICY}`
+      );
+      expect(canvas.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+
+      expect(isFramePage('/PDF-FRAME.HTML')).toBe(false);
+      const upperCaseFrame = await handler(new Request(`${APP_ORIGIN}/PDF-FRAME.HTML`));
+      expect(upperCaseFrame.status).toBe(200);
+      expect(await upperCaseFrame.text()).toContain('<title>app</title>');
+
+      const nonHtmlCsp = `${scriptPolicy}; object-src 'none'`;
+      const svg = await handler(new Request(`${APP_ORIGIN}/res/svg/icon.svg`));
+      expect(svg.status).toBe(200);
+      expect(svg.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const missingAsset = await handler(new Request(`${APP_ORIGIN}/assets/missing.js`));
+      expect(missingAsset.status).toBe(404);
+      expect(missingAsset.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const badMethod = await handler(new Request(`${APP_ORIGIN}/index.html`, { method: 'POST' }));
+      expect(badMethod.status).toBe(405);
+      expect(badMethod.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const otherHost = await handler(new Request('capacitor://evil.com/index.html'));
+      expect(otherHost.status).toBe(404);
+      expect(otherHost.headers.get('content-security-policy')).toBe(nonHtmlCsp);
+
+      const otherPort = await handler(new Request('capacitor://localhost:8080/index.html'));
+      expect(otherPort.status).toBe(404);
+
+      const normalizedEscape = await handler(new Request(`${APP_ORIGIN}/%2e%2e/secret.txt`));
+      expect(await normalizedEscape.text()).not.toContain('TOP_SECRET');
+
+      const symlink = await handler(new Request(`${APP_ORIGIN}/leak.txt`));
+      expect(await symlink.text()).not.toContain('TOP_SECRET');
+    });
+
+    it('checks files on each request: symlink swap, removal, and newly added hashed files', async () => {
+      const parent = makeDist({
+        'secret.txt': 'TOP_SECRET',
+        'dist/index.html': '<!doctype html><title>app</title>',
+        'dist/assets/app.js': 'console.log(1);',
+      });
+      const distDir = path.join(parent, 'dist');
+
+      serveBundle(distDir);
+      const handler = protocolMock.handle.mock.calls[0]?.[1] as (
+        request: Request
+      ) => Promise<Response>;
+
+      expect((await handler(new Request(`${APP_ORIGIN}/assets/app.js`))).status).toBe(200);
+
+      // File swapped to a symlink after start -> 404.
+      fs.rmSync(path.join(distDir, 'assets/app.js'));
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'assets/app.js'));
+      const swapped = await handler(new Request(`${APP_ORIGIN}/assets/app.js`));
+      expect(swapped.status).toBe(404);
+      expect(await swapped.text()).not.toContain('TOP_SECRET');
+
+      // File removed after start -> 404 (no throw).
+      fs.rmSync(path.join(distDir, 'assets/app.js'));
+      const removed = await handler(new Request(`${APP_ORIGIN}/assets/app.js`));
+      expect(removed.status).toBe(404);
+
+      // New hashed file added after start -> served.
+      fs.writeFileSync(path.join(distDir, 'assets/app-abc123.js'), 'console.log("new");', 'utf8');
+      const added = await handler(new Request(`${APP_ORIGIN}/assets/app-abc123.js`));
+      expect(added.status).toBe(200);
+      expect(await added.text()).toBe('console.log("new");');
+
+      // index.html swapped to symlink after start -> 404 on SPA fallback too.
+      fs.rmSync(path.join(distDir, 'index.html'));
+      fs.symlinkSync(path.join(parent, 'secret.txt'), path.join(distDir, 'index.html'));
+      for (const route of ['/', '/home', '/index.html']) {
+        const res = await handler(new Request(`${APP_ORIGIN}${route}`));
+        expect(res.status, route).toBe(404);
+        expect(await res.text(), route).not.toContain('TOP_SECRET');
+      }
+    });
+  });
+});

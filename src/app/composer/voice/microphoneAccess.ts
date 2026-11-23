@@ -1,10 +1,11 @@
 import { Capacitor } from '@capacitor/core';
 import { MINDROOM_APP_NAME } from '../../ui/branding/branding';
+import { isDesktopApp } from '../../lib/nativeShell';
 import { isMacOS } from '../../lib/user-agent';
 import { isNativeApp } from '../../native/nativeSso';
 
 const getBlockedMicrophoneMessage = (): string => {
-  const nativePlatform = isNativeApp() ? Capacitor.getPlatform() : undefined;
+  const nativePlatform = !isDesktopApp() && isNativeApp() ? Capacitor.getPlatform() : undefined;
 
   if (nativePlatform === 'android') {
     return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in Android app settings and try again.`;

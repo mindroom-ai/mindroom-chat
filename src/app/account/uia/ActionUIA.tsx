@@ -4,6 +4,7 @@ import { AuthDict, AuthType, IAuthData, UIAFlow } from 'matrix-js-sdk';
 import { Box, Button, Input, Text, color, config } from 'folds';
 import { DialogCloseButton } from '../../ui/DialogChrome';
 import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
+import { externalOpenProps, isDesktopApp } from '../../lib/nativeShell';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { toHttpUrl } from '../../lib/httpUrl';
@@ -110,8 +111,9 @@ function SsoStage({ session, stage, action }: StageProps) {
   const mx = useMatrixClient();
   const [opened, setOpened] = useState(false);
 
+  const ssoUrl = mx.getFallbackAuthUrl(stage, session ?? '');
   const openSso = () => {
-    window.open(mx.getFallbackAuthUrl(stage, session ?? ''), '_blank', 'noopener');
+    if (!isDesktopApp()) window.open(ssoUrl, '_blank', 'noopener');
     setOpened(true);
   };
 
@@ -120,7 +122,11 @@ function SsoStage({ session, stage, action }: StageProps) {
       <Text size="T300">
         {t('sharedUi.sSOStage.toPerformThisActionYouNeedToAuthenticateYourselfBySsoLogin')}
       </Text>
-      <Button variant={opened ? 'Secondary' : 'Primary'} onClick={openSso}>
+      <Button
+        variant={opened ? 'Secondary' : 'Primary'}
+        {...externalOpenProps(ssoUrl)}
+        onClick={openSso}
+      >
         <Text size="B400">{t('sharedUi.sSOStage.continueWithSso')}</Text>
       </Button>
       {opened && (
@@ -151,15 +157,20 @@ function OAuthStage({ session, stage, action, url }: StageProps & { url?: string
   const mx = useMatrixClient();
   const [opened, setOpened] = useState(false);
 
+  const accountUrl = url ?? mx.getFallbackAuthUrl(stage, session ?? '');
   const openAccountPage = () => {
-    window.open(url ?? mx.getFallbackAuthUrl(stage, session ?? ''), '_blank', 'noopener');
+    if (!isDesktopApp()) window.open(accountUrl, '_blank', 'noopener');
     setOpened(true);
   };
 
   return (
     <Box direction="Column" gap="400">
       <Text size="T300">{t('sharedUi.oauthStage.description')}</Text>
-      <Button variant={opened ? 'Secondary' : 'Primary'} onClick={openAccountPage}>
+      <Button
+        variant={opened ? 'Secondary' : 'Primary'}
+        {...externalOpenProps(accountUrl)}
+        onClick={openAccountPage}
+      >
         <Text size="B400">{t('sharedUi.oauthStage.open')}</Text>
       </Button>
       {opened && (

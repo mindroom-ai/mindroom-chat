@@ -76,6 +76,7 @@ const pluginProjects = pluginDirectories(process.env.E2E_PLUGIN_DIRS, ROOT).flat
  */
 const playwrightConfig = defineConfig({
   testDir: './e2e',
+  testIgnore: 'electron/**',
   globalSetup: './e2e/global-setup.ts',
   outputDir: 'test-results',
   timeout: 60_000,

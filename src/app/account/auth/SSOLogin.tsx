@@ -119,7 +119,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
 
   const openInNativeBrowser = async (url: string) => {
     try {
-      await openNativeSsoBrowser(url, hasCloudflareAccess(homeserverUrl));
+      await openNativeSsoBrowser(url, hasCloudflareAccess(homeserverUrl), homeserverUrl);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('[SSO] Failed to open native browser', error);

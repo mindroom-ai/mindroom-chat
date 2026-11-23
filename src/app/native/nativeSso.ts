@@ -1,5 +1,7 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import type { AppUrlPlugin } from '../lib/desktopBridge';
+import { desktopBridge, isDesktopApp } from '../lib/nativeShell';
 import {
   clearPendingUniversalLink,
   getAppPathFromUniversalLink,
@@ -23,13 +25,6 @@ type MindRoomAuthPlugin = {
     callbackScheme: string;
     ephemeral: boolean;
   }): Promise<NativeAppleCredential>;
-};
-type NativeAppUrlPlugin = {
-  addListener(
-    eventName: 'appUrlOpen',
-    listener: (event: { url?: string }) => void
-  ): Promise<unknown>;
-  getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
@@ -90,7 +85,8 @@ export const isNativeIOS = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
 export const isNativeApp = (): boolean =>
-  Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform());
+  isDesktopApp() ||
+  (Capacitor.isNativePlatform() && SUPPORTED_NATIVE_APP_PLATFORMS.has(Capacitor.getPlatform()));
 
 const isIOSWebPlatform = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -141,7 +137,7 @@ const isPageReload = (): boolean => {
   }
 };
 
-export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
+export const registerNativeAppUrlCallbacks = (nativeApp: AppUrlPlugin): void => {
   let handledOpenUrl = false;
   // Capacitor may replay the launch Universal Link on `appUrlOpen` right after `getLaunchUrl()`.
   let launchUrlToRepeat: string | undefined;
@@ -223,7 +219,25 @@ export const authenticateInNativeBrowser = async (
 ): Promise<string | undefined> =>
   (await getMindRoomAuthPlugin().authenticate({ callbackScheme, ephemeral, url })).url;
 
-export const openNativeSsoBrowser = async (url: string, ephemeral = false): Promise<void> => {
+export const openNativeSsoBrowser = async (
+  url: string,
+  ephemeral = false,
+  homeserver?: string
+): Promise<void> => {
+  const bridge = desktopBridge();
+  if (bridge) {
+    const target = new URL(url);
+    const rawRedirect = target.searchParams.get('redirectUrl');
+    const callback = rawRedirect ? getAppPathFromNativeSsoUrl(rawRedirect) : undefined;
+    if (!homeserver || !callback) throw new Error('Desktop SSO requires homeserver and callback');
+    const started = await bridge.startSignIn({ homeserver, callback });
+    if (!started.ok) throw new Error(`Desktop SSO could not start (${started.code})`);
+    target.searchParams.set('redirectUrl', started.value);
+    const opened = await bridge.openSignIn(target.toString());
+    if (!opened.ok) throw new Error(`Desktop SSO could not open (${opened.code})`);
+    return;
+  }
+
   if (isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth')) {
     const callbackUrl = await authenticateInNativeBrowser(url, NATIVE_SSO_SCHEME, ephemeral);
 

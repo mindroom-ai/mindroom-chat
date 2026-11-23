@@ -8,6 +8,7 @@ export const MINDROOM_DEVICE_DISPLAY_NAMES = {
   ios: `${MINDROOM_APP_NAME} iOS`,
   android: `${MINDROOM_APP_NAME} Android`,
   macos: `${MINDROOM_APP_NAME} macOS`,
+  desktop: `${MINDROOM_APP_NAME} Desktop`,
 } as const;
 export const MINDROOM_NOTIFICATION_BRAND = MINDROOM_APP_NAME;
 

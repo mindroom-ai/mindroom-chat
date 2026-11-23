@@ -22,6 +22,9 @@ describe('service worker app shell caching', () => {
     expect(viteConfigSource).toContain('maximumFileSizeToCacheInBytes');
     expect(viteConfigSource).toContain("'runtime-config.js'");
     expect(viteConfigSource).toContain("'version.json'");
+    expect(viteConfigSource).toContain(
+      "shellFiles: ['index.html', 'viewport.js', 'pdf-frame.html', 'pdf-frame.js']"
+    );
   });
 
   it('registers navigation before the precache route and never navigates active clients', () => {

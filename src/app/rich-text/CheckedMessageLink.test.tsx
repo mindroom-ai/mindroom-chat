@@ -73,4 +73,22 @@ describe('CheckedMessageLink with a link card', () => {
     fireEvent.click(link);
     expect(parent).not.toHaveBeenCalled();
   });
+
+  it('marks the Open button for desktop preload and avoids a scripted anchor click in Electron', () => {
+    // Only the bridge's presence matters here.
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
+    try {
+      const link = renderLink(undefined, 'https://good.example', 'https://evil.example/');
+      expect(fireEvent.click(link)).toBe(false);
+      const openButton = screen.getByRole('button', { name: 'Open link' });
+      expect(openButton.getAttribute('data-open-external')).toBe('https://evil.example/');
+      const anchorClicks = vi.fn();
+      link.addEventListener('click', anchorClicks);
+      fireEvent.click(openButton);
+      expect(anchorClicks).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
 });

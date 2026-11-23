@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isBundledApp, isDesktopApp } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -29,9 +29,9 @@ export const useSettingsContext = (): SettingsContext => {
   // Check raw deployment config so turning off all plugins never hides Settings -> Plugins.
   const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
-    native: Capacitor.isNativePlatform(),
+    native: isBundledApp(),
     nativeIOS: isNativeIOS(),
-    diagnostics: isNativeIOS() || getDebugModeEnabled(),
+    diagnostics: isNativeIOS() || isDesktopApp() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

@@ -7,6 +7,7 @@ import {
   captureScreenshot,
   hideQuickCapture,
   isNativeQuickCaptureAvailable,
+  isNativeScreenshotAvailable,
   openScreenRecordingSettings,
   ScreenshotError,
   showMainWindow,
@@ -26,6 +27,7 @@ vi.mock('../matrix/session/useSessionStore', () => ({ useActiveSession: () => mo
 vi.mock('../native/nativeQuickCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../native/nativeQuickCapture')>()),
   isNativeQuickCaptureAvailable: vi.fn(),
+  isNativeScreenshotAvailable: vi.fn(),
   hideQuickCapture: vi.fn(),
   showMainWindow: vi.fn(),
   openScreenRecordingSettings: vi.fn(),
@@ -168,6 +170,7 @@ const setPageVisibility = (state: DocumentVisibilityState) => {
 beforeEach(() => {
   mocks.session = undefined;
   vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(false);
+  vi.mocked(isNativeScreenshotAvailable).mockReturnValue(false);
   vi.mocked(hideQuickCapture).mockResolvedValue(undefined);
   vi.mocked(showMainWindow).mockResolvedValue(undefined);
   vi.mocked(openScreenRecordingSettings).mockResolvedValue(undefined);
@@ -296,6 +299,7 @@ describe('QuickCapturePage and its host', () => {
 
   it("drops a screenshot that finishes after another account's host came", async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     let finish: (file: File) => void = () => undefined;
     vi.mocked(captureScreenshot).mockReturnValueOnce(
       new Promise<File>((resolve) => {
@@ -673,6 +677,7 @@ describe('QuickCapturePage attachments', () => {
 
   it('takes no screenshot while an entry sends', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockResolvedValue(png('Screen.png'));
     const rig = setup();
     type(input(), 'First');
@@ -691,6 +696,7 @@ describe('QuickCapturePage attachments', () => {
 
   it('keeps a screenshot started before a send that comes in while it sends', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     let finish: (file: File) => void = () => undefined;
     vi.mocked(captureScreenshot).mockReturnValue(
       new Promise<File>((resolve) => {
@@ -715,8 +721,18 @@ describe('QuickCapturePage attachments', () => {
     expect(screen.queryByRole('button', { name: 'Screenshot of the whole screen' })).toBeNull();
   });
 
+  it('offers no screenshot buttons when native quick capture is available without screenshots', () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(false);
+    setup();
+    expect(document.querySelector('[data-native]')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Screenshot of the front window' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Screenshot of the whole screen' })).toBeNull();
+  });
+
   it('attaches a screenshot of the window or the screen with the native plugin', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockResolvedValueOnce(png('Window.png'));
     vi.mocked(captureScreenshot).mockResolvedValueOnce(png('Screen.png'));
     setup();
@@ -730,6 +746,7 @@ describe('QuickCapturePage attachments', () => {
 
   it("keeps the caret in the input when the entry's buttons and the peek's are clicked", () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     setup();
     paste([png('a.png')]);
     // A mouse down whose default is prevented moves no focus, in WebKit as in Chromium.
@@ -750,6 +767,7 @@ describe('QuickCapturePage attachments', () => {
 
   it('asks for the Screen Recording permission when it is refused', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('PERMISSION_DENIED'));
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the whole screen' }));
@@ -762,6 +780,7 @@ describe('QuickCapturePage attachments', () => {
 
   it('drops a screenshot error once an entry is sent', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('CAPTURE_FAILED'));
     const rig = setup();
     fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the whole screen' }));
@@ -774,6 +793,7 @@ describe('QuickCapturePage attachments', () => {
 
   it('says when the app in front has no window', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(isNativeScreenshotAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('NO_WINDOW'));
     setup();
     fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the front window' }));

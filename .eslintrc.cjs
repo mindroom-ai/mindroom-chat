@@ -14,14 +14,17 @@ const {
 // program; text linted under a made-up path (as surfaceImports.test.ts does) gets the other rules
 // only.
 function typeScriptFiles() {
-  const sources = ['src', 'e2e'].flatMap((dir) =>
+  const sources = ['src', 'e2e', 'electron', 'scripts'].flatMap((dir) =>
     fs
       .readdirSync(path.join(__dirname, dir), { recursive: true })
       .map((file) => path.posix.join(dir, String(file).split(path.sep).join('/')))
   );
-  return [...sources, 'vitest.config.ts', 'playwright.config.ts'].filter((file) =>
-    /\.tsx?$/.test(file)
-  );
+  return [
+    ...sources,
+    'vitest.config.ts',
+    'playwright.config.ts',
+    'playwright.electron.config.ts',
+  ].filter((file) => /\.tsx?$/.test(file));
 }
 
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
@@ -82,6 +85,25 @@ const IMPORT_RESTRICTIONS = {
 };
 
 const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**'];
+
+const DESKTOP_BRIDGE_MESSAGE =
+  'Use desktopBridge or isDesktopApp from src/app/lib/nativeShell instead.';
+const DESKTOP_BRIDGE_PROPERTIES = [
+  { object: 'window', property: 'mindroomDesktop', message: DESKTOP_BRIDGE_MESSAGE },
+  { object: 'globalThis', property: 'mindroomDesktop', message: DESKTOP_BRIDGE_MESSAGE },
+];
+const DESKTOP_BRIDGE_SYNTAX = [
+  {
+    selector: [
+      "VariableDeclarator[init.name=/^(window|globalThis)$/] > ObjectPattern.id > Property[key.name='mindroomDesktop']",
+      "VariableDeclarator[init.name=/^(window|globalThis)$/] > ObjectPattern.id > Property[key.value='mindroomDesktop']",
+      "AssignmentExpression[right.name=/^(window|globalThis)$/] > ObjectPattern.left > Property[key.name='mindroomDesktop']",
+      "AssignmentExpression[right.name=/^(window|globalThis)$/] > ObjectPattern.left > Property[key.value='mindroomDesktop']",
+      "MemberExpression[computed=true][object.name=/^(window|globalThis)$/][property.value='mindroomDesktop']",
+    ].join(', '),
+    message: DESKTOP_BRIDGE_MESSAGE,
+  },
+];
 
 // Domain layers, lowest first (docs/architecture.md "Layers"). A domain imports only domains of a
 // lower layer: static, type-only and dynamic imports and re-exports count (the rule does not see an
@@ -168,8 +190,32 @@ module.exports = {
       parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: TYPE_AWARE_RULES,
     },
-    // Physical sides in styles (scripts/eslint-shared.cjs).
-    ...logicalSidesOverrides('src/', TESTS),
+    {
+      // Only nativeShell.ts reads the Electron preload bridge (property access, destructuring,
+      // or bracket lookup). Placed before logicalSidesOverrides, which appends the same syntax
+      // checks so neither override drops the other's rules.
+      files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
+      excludedFiles: ['src/app/lib/nativeShell.ts'],
+      rules: {
+        'no-restricted-properties': ['error', ...DESKTOP_BRIDGE_PROPERTIES],
+        'no-restricted-syntax': [
+          'error',
+          ...COMMON.rules['no-restricted-syntax'].slice(1),
+          ...DESKTOP_BRIDGE_SYNTAX,
+        ],
+      },
+    },
+    // Physical sides in styles (scripts/eslint-shared.cjs), keeping the bridge syntax checks.
+    ...logicalSidesOverrides('src/', TESTS).map((override) => ({
+      ...override,
+      rules: {
+        ...override.rules,
+        'no-restricted-syntax': [
+          ...override.rules['no-restricted-syntax'],
+          ...DESKTOP_BRIDGE_SYNTAX,
+        ],
+      },
+    })),
     {
       // Domain layers (LAYERS above). Zones resolve from this directory, so the
       // rule does not depend on the directory ESLint runs in.
