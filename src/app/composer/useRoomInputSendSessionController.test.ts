@@ -1902,26 +1902,38 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     ]);
   });
 
-  it('keeps io.mindroom.mid_turn on an upload when retried after send failure', async () => {
+  it('preserves io.mindroom.mid_turn on ordinary retry and lets an explicit menu pick override it', async () => {
     const { api, mx } = renderHarness({ threadId: '$thread' });
     const file = createFile('retry-photo.png');
     api.selectedFilesRef.current = [createUploadItem(file)];
     api.uploadsRef.current = [successUpload(file)];
-    mx.sendMessage.mockRejectedValueOnce(new Error('transient network error'));
+    mx.sendMessage
+      .mockRejectedValueOnce(new Error('first transient failure'))
+      .mockRejectedValueOnce(new Error('second transient failure'));
 
     await act(async () => {
-      await api.startSendSession({ midTurnMode: 'queue' });
+      await api.startSendSession({ midTurnMode: 'steer', explicitMidTurnMode: true });
     });
     expect(api.hasActiveSendSession()).toBe(true);
 
+    // An ordinary click passes the default mode with explicitMidTurnMode: false -> keeps steer.
     await act(async () => {
-      await api.startSendSession();
+      await api.startSendSession({ midTurnMode: 'auto', explicitMidTurnMode: false });
     });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    // An explicit menu pick on retry overrides steer with queue.
+    await act(async () => {
+      await api.startSendSession({ midTurnMode: 'queue', explicitMidTurnMode: true });
+    });
+    expect(api.hasActiveSendSession()).toBe(false);
 
     const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
-    expect(sent).toHaveLength(2);
-    expect(sent[0]?.[MID_TURN_MODE_KEY]).toBe('queue');
-    expect(sent[1]?.[MID_TURN_MODE_KEY]).toBe('queue');
+    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual([
+      'steer',
+      'steer',
+      'queue',
+    ]);
   });
 });
 

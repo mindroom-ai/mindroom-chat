@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventStatus, type IContent, type Room } from 'matrix-js-sdk';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
+import { UploadStatus, type TUploadItem, type Upload } from '../matrix/state/upload';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -12,6 +13,7 @@ import {
   composerStateKey,
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
+import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
 import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
@@ -36,12 +38,8 @@ const state = vi.hoisted(() => ({
   restoreEditorContent: vi.fn(),
   restoreSentText: vi.fn(),
   plainText: '@zz',
-  staged: [] as Array<{
-    file: File;
-    originalFile: File;
-    prepError?: Error;
-    metadata: Record<string, unknown>;
-  }>,
+  staged: [] as TUploadItem[],
+  uploads: [] as Upload[],
   hasVoice: false,
   sendAtPress: vi.fn(
     (
@@ -182,9 +180,13 @@ vi.mock('../matrix/send/roomInputUploadPreparation', () => ({
 vi.mock('./useRoomInputAttachments', () => ({
   useRoomInputAttachments: () => ({
     access: {
-      snapshot: () => ({ staged: state.staged, enrolled: [], uploads: [] }),
+      snapshot: () => ({ staged: state.staged, enrolled: [], uploads: state.uploads }),
     },
     board: state.staged.length > 0 ? <div data-testid="upload-board" /> : null,
+    hasSendableFiles: hasSendableStagedFiles({
+      staged: state.staged,
+      uploads: state.uploads,
+    }),
     dropZoneVisible: false,
     onEditorChange: vi.fn(),
     onPaste: vi.fn(),
@@ -223,6 +225,7 @@ afterEach(() => {
   state.commandThread = undefined;
   state.plainText = '@zz';
   state.staged = [];
+  state.uploads = [];
   state.hasVoice = false;
   state.sendAtPress.mockReset();
   state.sendAtPress.mockReturnValue(undefined);
@@ -319,12 +322,15 @@ describe('composer', () => {
       expect(sentMode()).toBe('auto');
     });
 
-    it('enables the Send button menu for staged files and passes the picked mode through', async () => {
+    it('enables the Send button menu for staged files and distinguishes explicit picks from taps', async () => {
       state.mentionHasSuggestions = false;
       state.plainText = '';
       const emptyDoc = [{ type: 'paragraph', children: [{ text: '' }] }];
       const file = new File(['chart'], 'chart.png', { type: 'image/png' });
-      state.staged = [{ file, originalFile: file, metadata: { markedAsSpoiler: false } }];
+      state.staged = [
+        { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+      ];
+      state.uploads = [{ file, status: UploadStatus.Success, mxc: 'mxc://example.org/chart' }];
       await mountComposer(emptyDoc, { threadId: '$root:example.org' });
       const sendButtonProps = renderer!.root.findByType(ComposerSendButton).props;
       expect(sendButtonProps.empty).toBe(false);
@@ -335,10 +341,35 @@ describe('composer', () => {
       expect(state.startSendSession).toHaveBeenCalledWith({
         textContent: undefined,
         midTurnMode: 'steer',
+        explicitMidTurnMode: true,
+      });
+      state.startSendSession.mockClear();
+      await act(async () => {
+        await sendButtonProps.onSend();
+      });
+      expect(state.startSendSession).toHaveBeenCalledWith({
+        textContent: undefined,
+        midTurnMode: 'queue',
+        explicitMidTurnMode: false,
       });
     });
 
-    it('enables the Send button menu for an active voice recording and passes the picked mode through', async () => {
+    it('disables the Send button menu when staged files all have upload errors', async () => {
+      state.mentionHasSuggestions = false;
+      state.plainText = '';
+      const emptyDoc = [{ type: 'paragraph', children: [{ text: '' }] }];
+      const file = new File(['huge'], 'huge.bin', { type: 'application/octet-stream' });
+      state.staged = [
+        { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+      ];
+      state.uploads = [{ file, status: UploadStatus.Error, error: new Error('too large') }];
+      await mountComposer(emptyDoc, { threadId: '$root:example.org' });
+      const sendButtonProps = renderer!.root.findByType(ComposerSendButton).props;
+      expect(sendButtonProps.empty).toBe(true);
+      expect(sendButtonProps.hasContent()).toBe(false);
+    });
+
+    it('enables the Send button menu for an active voice recording and passes explicit mode only when picked', async () => {
       state.mentionHasSuggestions = false;
       state.plainText = '';
       state.hasVoice = true;
@@ -352,6 +383,11 @@ describe('composer', () => {
         await sendButtonProps.onSend('steer');
       });
       expect(state.sendAtPress).toHaveBeenCalledWith(expect.any(Function), false, 'steer');
+      state.sendAtPress.mockClear();
+      await act(async () => {
+        await sendButtonProps.onSend();
+      });
+      expect(state.sendAtPress).toHaveBeenCalledWith(expect.any(Function), false, undefined);
       expect(state.startSendSession).not.toHaveBeenCalled();
     });
 

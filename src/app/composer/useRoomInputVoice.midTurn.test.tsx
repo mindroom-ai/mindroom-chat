@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { forwardRef, useImperativeHandle } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
@@ -8,98 +7,71 @@ import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { DEFAULT_SETTINGS, settingsAtom } from '../preferences/settings';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 import type { TUploadItem } from '../matrix/state/upload';
-import type { StartRoomInputSendSessionOptions } from './useRoomInputSendSessionController';
-import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import {
   composerUploadItemsAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
-  type PendingVoiceSendContext,
 } from './roomInputDrafts';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
+import type { StartRoomInputSendSessionOptions } from './useRoomInputSendSessionController';
+import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
 import { liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
-import type { VoiceCaptureSession } from './voice/voiceCaptureSession';
-import type { VoiceRecorderComposerHandle } from './voice/VoiceRecorderDialog';
+import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
 
 vi.mock('../matrix/hooks/useMediaConfig', () => ({ useMediaConfig: () => ({}) }));
-vi.mock('./voice/savedVoiceDraft', () => ({
-  useSavedVoiceDraft: () => undefined,
-  voiceDraftRestoresAtom: {
-    init: new Map(),
-    read: () => new Map(),
-  },
-}));
-
-type MockRecorderProps = {
-  onSendStopRequest?: () => boolean | void;
-  onSendStopFailure?: () => void;
-  onRetryRequest: () => void;
-  onSendRecording: (
-    file: File,
-    duration: number,
-    waveform: number[] | undefined,
-    context: PendingVoiceSendContext
-  ) => Promise<void> | void;
-  getSendContext: () => PendingVoiceSendContext;
-};
-
-const recorderState = vi.hoisted(() => ({
-  props: undefined as MockRecorderProps | undefined,
-  voiceFile: new File(['voice-bytes'], 'voice.ogg', { type: 'audio/ogg' }),
-  store: undefined as ReturnType<typeof createStore> | undefined,
-}));
-
-vi.mock('./voice/VoiceRecorderDialog', () => ({
-  VoiceRecorderComposer: forwardRef<VoiceRecorderComposerHandle, MockRecorderProps>(
-    (props, ref) => {
-      recorderState.props = props;
-      useImperativeHandle(ref, () => ({
-        phase: () => 'recording',
-        send: async () => {
-          if (props.onSendStopRequest?.() === false) return false;
-          const parked = recorderState.store?.get(pendingVoiceSendDraftAtom);
-          const context = parked ? parked.context : props.getSendContext();
-          try {
-            await props.onSendRecording(recorderState.voiceFile, 1500, [100, 200], context);
-            recorderState.store?.set(pendingVoiceSendDraftAtom, undefined);
-            return true;
-          } catch (error) {
-            recorderState.store?.set(pendingVoiceSendDraftAtom, {
-              file: recorderState.voiceFile,
-              duration: 1500,
-              waveform: [100, 200],
-              context,
-              errorMessage: error instanceof Error ? error.message : 'send failed',
-            });
-            props.onSendStopFailure?.();
-            return false;
-          }
-        },
-      }));
-      return null;
-    }
-  ),
-}));
+vi.mock('./voice/savedVoiceDraft', async () => {
+  const { atom } = await import('jotai');
+  return {
+    useSavedVoiceDraft: () => undefined,
+    clearSavedVoiceDraft: async () => undefined,
+    voiceDraftRestoresAtom: atom<ReadonlyMap<string, Promise<void> | null>>(new Map()),
+  };
+});
 
 const ROOM_ID = '!harbour:example.org';
 const THREAD_ID = '$thread-1';
+const SNAPSHOT: VoiceCaptureSnapshot = {
+  phase: 'recording',
+  elapsedMs: 1500,
+  waveform: [100, 200],
+  sampleCount: 2,
+  canPause: true,
+  errorMessage: undefined,
+};
 
-const createRoom = (): Room =>
+const createSession = (name = 'voice.ogg'): VoiceCaptureSession =>
   ({
+    getSnapshot: () => SNAPSHOT,
+    subscribe: () => () => undefined,
+    canStop: () => true,
+    finish: async () => ({
+      status: 'captured',
+      recording: {
+        file: new File(['voice'], name, { type: 'audio/ogg' }),
+        duration: 1500,
+        waveform: [100, 200],
+      },
+    }),
+    reset: () => undefined,
+  }) as unknown as VoiceCaptureSession;
+
+const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+    this: HTMLElement
+  ) {
+    return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+  });
+  const room = {
     roomId: ROOM_ID,
     name: 'Harbour',
     getMyMembership: () => 'join',
     getMembers: () => [],
     hasEncryptionStateEvent: () => false,
-  } as unknown as Room);
-
-const createHarness = (defaultMidTurn: MidTurnMode = 'queue') => {
-  const room = createRoom();
+  } as unknown as Room;
   const store = createStore();
-  recorderState.store = store;
   store.set(settingsAtom, { ...DEFAULT_SETTINGS, midTurnSend: defaultMidTurn });
-  store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
+  store.set(liveVoiceRecordingAtom, createSession());
 
   const mx = {
     getUserId: () => '@alice:example.org',
@@ -117,28 +89,10 @@ const createHarness = (defaultMidTurn: MidTurnMode = 'queue') => {
     protectPasteItems: () => () => undefined,
     subscribe: () => () => undefined,
   };
-
-  const createVoiceUploadItems = vi.fn(
-    async (file: File): Promise<TUploadItem[]> => [
-      {
-        file,
-        originalFile: file,
-        encInfo: undefined,
-        metadata: {
-          markedAsSpoiler: false,
-          voiceMessage: { duration: 1500, waveform: [100, 200] },
-        },
-      },
-    ]
-  );
   const uploadItem = vi.fn(async (item: TUploadItem) => {
     const mxc = `mxc://example.org/${item.file.name}`;
     store.set(roomUploadAtomFamily(item.file), { mxc });
     return mxc;
-  });
-  const uploadItemWhileStaged = vi.fn(async (_listAtom: unknown, item: TUploadItem) => {
-    await uploadItem(item);
-    return item;
   });
   const sendVoiceItem = vi.fn<ReturnType<typeof useRoomInputUploadTransport>['sendVoiceItem']>(
     async () => '$voice-evt'
@@ -146,7 +100,6 @@ const createHarness = (defaultMidTurn: MidTurnMode = 'queue') => {
   const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
     async () => undefined
   );
-  const onRetryRequest = vi.fn<(mode?: MidTurnMode) => void>();
 
   let voice!: ReturnType<typeof useRoomInputVoice>;
   function Harness() {
@@ -166,57 +119,59 @@ const createHarness = (defaultMidTurn: MidTurnMode = 'queue') => {
         clearConsumedReply: vi.fn(),
       },
       attachments,
-      transport: { createVoiceUploadItems, uploadItem, uploadItemWhileStaged, sendVoiceItem },
+      transport: {
+        createVoiceUploadItems: async (file) => [
+          {
+            file,
+            originalFile: file,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1500, waveform: [100] } },
+          },
+        ],
+        uploadItem,
+        uploadItemWhileStaged: async (_list, item) => {
+          await uploadItem(item);
+          return item;
+        },
+        sendVoiceItem,
+      },
       sessions: { hasActiveSendSession: () => false, startSendSession },
     });
-    return <>{voice.renderRecorder(onRetryRequest)}</>;
+    return <>{voice.renderRecorder(() => void voice.sendAtPress(() => undefined, false))}</>;
   }
 
-  const view = render(
+  render(
     <Provider store={store}>
       <Harness />
     </Provider>
   );
-
-  return {
-    store,
-    staged,
-    view,
-    getVoice: () => voice,
-    sendVoiceItem,
-    startSendSession,
-    onRetryRequest,
-  };
+  return { store, staged, getVoice: () => voice, sendVoiceItem, startSendSession };
 };
 
 afterEach(() => {
   cleanup();
-  recorderState.props = undefined;
-  recorderState.store = undefined;
-  vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe('useRoomInputVoice mid-turn mode', () => {
-  it('sends standalone voice with explicit menu mode and default midTurnSend', async () => {
-    const { getVoice, sendVoiceItem } = createHarness('queue');
+  it('sends standalone voice with an explicit pick or the default midTurnSend setting', async () => {
+    const { store, getVoice, sendVoiceItem } = setup('queue');
     expect(getVoice().hasVoice).toBe(true);
 
     await act(async () => {
       await getVoice().sendAtPress(() => undefined, false, 'steer');
     });
-    expect(sendVoiceItem).toHaveBeenCalledTimes(1);
-    expect(sendVoiceItem.mock.calls[0]![4]).toBe('steer');
+    expect(sendVoiceItem.mock.calls[0]?.[4]).toBe('steer');
 
-    sendVoiceItem.mockClear();
+    act(() => store.set(liveVoiceRecordingAtom, createSession('second.ogg')));
     await act(async () => {
       await getVoice().sendAtPress(() => undefined, false);
     });
-    expect(sendVoiceItem).toHaveBeenCalledTimes(1);
-    expect(sendVoiceItem.mock.calls[0]![4]).toBe('queue');
+    expect(sendVoiceItem.mock.calls[1]?.[4]).toBe('queue');
   });
 
   it('passes the picked mid-turn mode to startSendSession for voice + companion bundles', async () => {
-    const { store, staged, getVoice, startSendSession, sendVoiceItem } = createHarness('auto');
+    const { store, staged, getVoice, startSendSession, sendVoiceItem } = setup('auto');
     const companionFile = new File(['photo'], 'pier.png', { type: 'image/png' });
     const companionItem: TUploadItem = {
       file: companionFile,
@@ -228,58 +183,51 @@ describe('useRoomInputVoice mid-turn mode', () => {
     store.set(composerUploadItemsAtom(ROOM_ID, undefined), { type: 'PUT', item: [companionItem] });
     store.set(roomUploadAtomFamily(companionFile), { mxc: 'mxc://example.org/pier.png' });
 
-    const textContent: IContent = {
+    const textContent = (mode?: MidTurnMode): IContent => ({
       msgtype: 'm.text',
       body: 'Look at this',
-      [MID_TURN_MODE_KEY]: 'steer',
-    };
+      [MID_TURN_MODE_KEY]: mode ?? 'auto',
+    });
     await act(async () => {
-      await getVoice().sendAtPress(() => textContent, false, 'steer');
+      await getVoice().sendAtPress(textContent, false, 'steer');
     });
 
     expect(sendVoiceItem).not.toHaveBeenCalled();
-    expect(startSendSession).toHaveBeenCalledTimes(1);
-    const sessionCall = startSendSession.mock.calls[0]?.[0];
-    expect(sessionCall?.midTurnMode).toBe('steer');
-    expect(sessionCall?.textContent).toEqual(textContent);
-    expect(sessionCall?.batch?.fileItems).toHaveLength(2);
+    expect(startSendSession.mock.calls[0]?.[0]).toMatchObject({
+      midTurnMode: 'steer',
+      textContent: { body: 'Look at this', [MID_TURN_MODE_KEY]: 'steer' },
+    });
   });
 
-  it('attaches the current midTurnSend setting when sent directly via onSendRecording without sendAtPress', async () => {
-    const { sendVoiceItem } = createHarness('queue');
-    const context = recorderState.props!.getSendContext();
+  it('preserves a parked voice mode on ordinary Send and lets an explicit pick override it', async () => {
+    const { store, getVoice, sendVoiceItem } = setup('auto');
+    sendVoiceItem
+      .mockRejectedValueOnce(new Error('first failure'))
+      .mockRejectedValueOnce(new Error('second failure'));
 
+    // First attempt with explicit Queue fails and parks through the real draft controller.
     await act(async () => {
-      await recorderState.props!.onSendRecording(recorderState.voiceFile, 1500, [100], context);
+      await getVoice().sendAtPress(() => undefined, false, 'queue');
     });
-
-    expect(sendVoiceItem).toHaveBeenCalledTimes(1);
-    expect(sendVoiceItem.mock.calls[0]![4]).toBe('queue');
-  });
-
-  it('preserves midTurnMode across a failed voice send and retry', async () => {
-    const { store, getVoice, sendVoiceItem, onRetryRequest } = createHarness('auto');
-    sendVoiceItem.mockRejectedValueOnce(new Error('network blip'));
-
-    await act(async () => {
-      await getVoice().sendAtPress(() => undefined, false, 'steer');
-    });
-    // Live recording ended and parked as a pending draft carrying the picked mode.
-    act(() => {
-      store.set(liveVoiceRecordingAtom, undefined);
-    });
-    expect(store.get(pendingVoiceSendDraftAtom)?.context.midTurnMode).toBe('steer');
+    expect(store.get(pendingVoiceSendDraftAtom)?.context.midTurnMode).toBe('queue');
     expect(getVoice().hasVoice).toBe(true);
 
-    // Failure dialog Retry passes the parked mode back to the composer.
-    recorderState.props!.onRetryRequest();
-    expect(onRetryRequest).toHaveBeenCalledWith('steer');
+    // Ordinary main Send (no explicit pick, while default setting is Auto) keeps Queue.
+    const seenModes: Array<MidTurnMode | undefined> = [];
+    await act(async () => {
+      await getVoice().sendAtPress((mode) => {
+        seenModes.push(mode);
+        return undefined;
+      }, false);
+    });
+    expect(seenModes).toEqual(['queue']);
+    expect(sendVoiceItem.mock.calls[1]?.[4]).toBe('queue');
 
-    // Retrying with that mode sends the voice item with steer.
+    // Explicit menu pick on retry overrides the parked Queue mode with Steer.
     await act(async () => {
       await getVoice().sendAtPress(() => undefined, false, 'steer');
     });
-    expect(sendVoiceItem).toHaveBeenCalledTimes(2);
-    expect(sendVoiceItem.mock.calls[1]![4]).toBe('steer');
+    expect(sendVoiceItem.mock.calls[2]?.[4]).toBe('steer');
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
   });
 });

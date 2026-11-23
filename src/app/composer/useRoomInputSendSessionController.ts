@@ -195,6 +195,8 @@ export type RoomInputSendContext = {
 export type StartRoomInputSendSessionOptions = {
   textContent?: IContent;
   midTurnMode?: MidTurnMode;
+  /** True when `midTurnMode` was explicitly picked from the Send menu rather than defaulted. */
+  explicitMidTurnMode?: boolean;
   rootModel?: ThreadModelContent | null;
   batch?: {
     fileItems: TUploadItem[];
@@ -516,10 +518,9 @@ export const useRoomInputSendSessionController = ({
     async (session: SendSession) => {
       if (!session.textContent) return;
 
-      const textContent =
-        session.midTurnMode && session.textContent[MID_TURN_MODE_KEY] === undefined
-          ? { ...session.textContent, [MID_TURN_MODE_KEY]: session.midTurnMode }
-          : session.textContent;
+      const textContent = session.midTurnMode
+        ? { ...session.textContent, [MID_TURN_MODE_KEY]: session.midTurnMode }
+        : session.textContent;
       const { content, relation, settleFork } = await placeMessage(
         session,
         textContent,
@@ -733,6 +734,7 @@ export const useRoomInputSendSessionController = ({
     async ({
       textContent,
       midTurnMode,
+      explicitMidTurnMode = false,
       rootModel,
       batch,
       context,
@@ -776,7 +778,10 @@ export const useRoomInputSendSessionController = ({
         }
         if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
           // Send again: the attachments whose send failed go out again; text being sent stays
-          // in the composer meanwhile.
+          // in the composer meanwhile. An explicit menu pick overrides the session's saved mode.
+          if (explicitMidTurnMode && resolvedMidTurnMode) {
+            existingSession.midTurnMode = resolvedMidTurnMode;
+          }
           existingSession.blockedRoot = false;
           existingSession.failedFiles.clear();
           await processSendSession(sendSlot);

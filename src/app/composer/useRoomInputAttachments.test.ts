@@ -570,4 +570,19 @@ describe('attachment staging ownership', () => {
       expect(access.snapshot('!other:example.org').staged).toEqual([second]);
     });
   });
+
+  it('tracks hasSendableFiles reactively as staged uploads fail and recover', () => {
+    const harness = renderHarness();
+    const item = createUploadItem('oversized.bin');
+    expect(harness.feature.hasSendableFiles).toBe(false);
+
+    act(() => harness.feature.access.append(ROOM_ID, [item]));
+    expect(harness.feature.hasSendableFiles).toBe(true);
+
+    act(() => harness.store.set(roomUploadAtomFamily(item.file), { error: new Error('too large') }));
+    expect(harness.feature.hasSendableFiles).toBe(false);
+
+    act(() => harness.store.set(roomUploadAtomFamily(item.file), { mxc: 'mxc://example.org/ok' }));
+    expect(harness.feature.hasSendableFiles).toBe(true);
+  });
 });

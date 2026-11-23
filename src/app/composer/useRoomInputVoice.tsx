@@ -104,12 +104,12 @@ type VoiceFeature = {
    * there is none here, and the Send goes on without one.
    */
   sendAtPress: (
-    takeText: () => IContent | undefined,
+    takeText: (mode?: MidTurnMode) => IContent | undefined,
     pastesMissing: boolean,
-    midTurnMode?: MidTurnMode
+    explicitMode?: MidTurnMode
   ) => Promise<void> | undefined;
   microphone: React.ReactNode;
-  renderRecorder: (onRetryRequest: (mode?: MidTurnMode) => void) => React.ReactNode;
+  renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
   /** What the voice key (⌃⇧Space, Ctrl+Shift+Space) reads and does here. */
   voiceKey: Pick<VoiceComposer, 'active' | 'offersFailed' | 'phase' | 'start'>;
 };
@@ -560,19 +560,26 @@ export const useRoomInputVoice = ({
   // destination.
   const sendAtPress = useCallback(
     (
-      takeText: () => IContent | undefined,
+      takeText: (mode?: MidTurnMode) => IContent | undefined,
       pastesMissing: boolean,
-      midTurnMode?: MidTurnMode
+      explicitMode?: MidTurnMode
     ): Promise<void> | undefined => {
-      if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
+      const live = store.get(liveVoiceRecordingAtom);
+      if (!live && !ownsPendingVoiceDraft) return undefined;
       const context = getContext();
       // No recording is taken for a thread the server has not confirmed: it stays live, so the
       // next press after confirmation sends it.
       if (isLocalEchoEventId(context.threadId)) return undefined;
       const recorder = voiceRecorderRef.current;
+      const parked = live ? undefined : store.get(pendingVoiceSendDraftAtom);
+      const candidateMode =
+        explicitMode ??
+        (parked && !parked.recovered ? parked.context.midTurnMode : undefined) ??
+        defaultMidTurnModeRef.current;
+      const midTurnMode = isMidTurnMode(candidateMode) ? candidateMode : undefined;
       // Text whose pasted files are not here goes nowhere: its restore reads the editor, which
       // this Send would empty. The audio is taken and parks alone; the text and files stay.
-      const content = pastesMissing ? undefined : takeText();
+      const content = pastesMissing ? undefined : takeText(midTurnMode);
       const staged = pastesMissing ? [] : attachmentAccess.snapshot().staged;
       if (!recorder || hasFailedPasteMarkerInText(content, staged)) return Promise.resolve();
 
@@ -605,7 +612,15 @@ export const useRoomInputVoice = ({
           }
         });
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
+    [
+      attachmentAccess,
+      defaultMidTurnModeRef,
+      getContext,
+      ownsPendingVoiceDraft,
+      snapshotText,
+      store,
+      view,
+    ]
   );
 
   // A confirmed Discard ends the recording at once and deletes its disk copy after: a recorder
@@ -619,7 +634,7 @@ export const useRoomInputVoice = ({
     (discarding && recorderWasShown.current);
   recorderWasShown.current = recorderShown;
   const hasVoice = (liveRecording || ownsPendingVoiceDraft) && !voiceAutoSendPending;
-  const renderRecorder = (onRetryRequest: (mode?: MidTurnMode) => void): React.ReactNode =>
+  const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
     recorderShown ? (
       <VoiceRecorderComposer
         ref={voiceRecorderRef}
@@ -627,7 +642,7 @@ export const useRoomInputVoice = ({
         sendDisabled={voiceAutoSendPending}
         onSendStopRequest={claimVoiceAutoSend}
         onSendStopFailure={releaseVoiceAutoSend}
-        onRetryRequest={() => onRetryRequest(pendingVoiceSendDraft?.context.midTurnMode)}
+        onRetryRequest={onRetryRequest}
         onSendRecording={handleVoiceSend}
         getSendContext={getVoiceSendContext}
       />
