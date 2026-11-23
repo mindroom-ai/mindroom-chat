@@ -1,4 +1,10 @@
-import { RoomEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  EventType,
+  RoomEvent,
+  type MatrixClient,
+  type MatrixEvent,
+} from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EventAttachmentOwner } from '../../../matrix/protocol/eventAttachments';
@@ -361,20 +367,29 @@ describe('VoiceAudioPlaybackController', () => {
   it('handles download failure with retry, audio error only when src is active, and play() rejections cleanly', async () => {
     const idA = getAudioContentSourceIdentity(sourceA);
 
-    // 1. Download failure sets error state and allows retry.
+    // 1. Seek before a failed download sets error state, and retrying with Play preserves the seek.
     mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('offline'));
-    controller.togglePlay(mx, sourceA, defaultOptions);
+    controller.seek(mx, sourceA, 0.5, { duration: 10, rate: 1, volume: 1 });
     await flushMicrotasks();
     expect(controller.getSnapshot(idA)).toMatchObject({
       status: 'error',
       playing: false,
+      currentTime: 5,
       playbackFailed: false,
     });
 
-    // Retry succeeds.
-    controller.togglePlay(mx, sourceA, defaultOptions);
+    // Retry with Play succeeds and applies the preserved pendingSeek on loadedmetadata.
+    controller.togglePlay(mx, sourceA, { duration: 10, rate: 1, volume: 1 });
     await flushMicrotasks();
-    expect(controller.getSnapshot(idA)).toMatchObject({ status: 'ready', playing: true });
+    fakeAudio.duration = 8;
+    fakeAudio.readyState = 1;
+    fakeAudio.dispatchEvent(new Event('loadedmetadata'));
+    expect(fakeAudio.currentTime).toBe(4);
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'ready',
+      playing: true,
+      currentTime: 4,
+    });
 
     // 2. NotAllowedError rejection reverts playing without marking playbackFailed.
     controller.togglePlay(mx, sourceA, defaultOptions); // pause
@@ -464,26 +479,45 @@ describe('VoiceAudioPlaybackController', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
   });
 
-  it('stops playback, revokes blob URL, removes listener, and forgets position when the active event or revision is redacted', async () => {
-    const redactionListeners = new Set<(event: MatrixEvent) => void>();
-    const room = {
-      on: vi.fn((event: RoomEvent, listener: (ev: MatrixEvent) => void) => {
-        if (event === RoomEvent.Redaction) redactionListeners.add(listener);
+  it('stops playback, revokes blob URL, removes listeners, and forgets position on RoomEvent.Redaction, RoomEvent.Timeline, and ClientEvent.Event', async () => {
+    const roomListeners = new Map<RoomEvent, Set<(ev: MatrixEvent) => void>>();
+    const clientListeners = new Map<ClientEvent, Set<(ev: MatrixEvent) => void>>();
+    const makeEmitter = <E extends string>(map: Map<E, Set<(ev: MatrixEvent) => void>>) => ({
+      on: vi.fn((event: E, listener: (ev: MatrixEvent) => void) => {
+        const set = map.get(event) ?? new Set();
+        set.add(listener);
+        map.set(event, set);
       }),
-      removeListener: vi.fn((event: RoomEvent, listener: (ev: MatrixEvent) => void) => {
-        if (event === RoomEvent.Redaction) redactionListeners.delete(listener);
+      removeListener: vi.fn((event: E, listener: (ev: MatrixEvent) => void) => {
+        map.get(event)?.delete(listener);
       }),
-    };
-    const roomMx = { getRoom: vi.fn(() => room) } as unknown as MatrixClient;
-    const emitRedaction = (event: {
-      event?: { redacts?: string };
-      content?: { redacts?: string };
-    }) => {
+    });
+    const room = makeEmitter(roomListeners);
+    const roomMx = {
+      ...makeEmitter(clientListeners),
+      getRoom: vi.fn(() => room),
+    } as unknown as MatrixClient;
+    const listenerCount = () =>
+      [...roomListeners.values(), ...clientListeners.values()].reduce((n, s) => n + s.size, 0);
+    const emit = (
+      map: Map<any, Set<(ev: MatrixEvent) => void>>,
+      name: RoomEvent | ClientEvent,
+      opts: {
+        event?: { redacts?: string };
+        content?: { redacts?: string };
+        isRedaction?: boolean;
+        type?: EventType;
+        roomId?: string;
+      }
+    ) => {
       const matrixEvent = {
-        event: event.event ?? {},
-        getContent: () => event.content ?? {},
+        event: opts.event ?? {},
+        getContent: () => opts.content ?? {},
+        ...(opts.isRedaction !== undefined ? { isRedaction: () => opts.isRedaction } : {}),
+        ...(opts.type !== undefined ? { getType: () => opts.type } : {}),
+        ...(opts.roomId !== undefined ? { getRoomId: () => opts.roomId } : {}),
       } as unknown as MatrixEvent;
-      [...redactionListeners].forEach((listener) => listener(matrixEvent));
+      [...(map.get(name) ?? [])].forEach((listener) => listener(matrixEvent));
     };
 
     const editedSource: AudioContentSource = {
@@ -497,26 +531,24 @@ describe('VoiceAudioPlaybackController', () => {
     };
     const idEdited = getAudioContentSourceIdentity(editedSource);
 
-    // 1. Top-level event.redacts matching owner.eventId.
+    // 1. RoomEvent.Redaction: top-level event.redacts matching owner.eventId.
     controller.togglePlay(roomMx, editedSource, defaultOptions);
     await flushMicrotasks();
     fakeAudio.duration = 12;
     fakeAudio.readyState = 1;
     fakeAudio.currentTime = 4;
     fakeAudio.dispatchEvent(new Event('loadedmetadata'));
-    expect(redactionListeners.size).toBe(1);
+    expect(listenerCount()).toBe(3);
 
-    // Unrelated redaction is ignored.
-    emitRedaction({ event: { redacts: '$other' } });
+    emit(roomListeners, RoomEvent.Redaction, { event: { redacts: '$other' } });
     expect(fakeAudio.paused).toBe(false);
     expect(controller.getSnapshot(idEdited).playing).toBe(true);
 
-    // Matching owner.eventId stops, revokes, forgets position, and detaches room listener.
-    emitRedaction({ event: { redacts: '$a' } });
+    emit(roomListeners, RoomEvent.Redaction, { event: { redacts: '$a' } });
     expect(fakeAudio.paused).toBe(true);
     expect(fakeAudio.getAttribute('src')).toBeNull();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-1');
-    expect(redactionListeners.size).toBe(0);
+    expect(listenerCount()).toBe(0);
     expect(controller.getSnapshot(idEdited)).toMatchObject({
       status: 'idle',
       currentTime: 0,
@@ -524,18 +556,61 @@ describe('VoiceAudioPlaybackController', () => {
       engaged: false,
     });
 
-    // 2. Room v11 content.redacts matching owner.revisionId.
+    // 2. RoomEvent.Timeline: ignores non-redactions and other rooms; matches content.redacts via getType fallback.
     controller.togglePlay(roomMx, editedSource, defaultOptions);
     await flushMicrotasks();
     fakeAudio.currentTime = 3;
     fakeAudio.dispatchEvent(new Event('timeupdate'));
-    expect(redactionListeners.size).toBe(1);
+    expect(listenerCount()).toBe(3);
 
-    emitRedaction({ content: { redacts: '$a-edit' } });
+    emit(roomListeners, RoomEvent.Timeline, {
+      isRedaction: false,
+      roomId: '!room:example.org',
+      content: { redacts: '$a-edit' },
+    });
+    emit(roomListeners, RoomEvent.Timeline, {
+      type: EventType.RoomRedaction,
+      roomId: '!other:example.org',
+      content: { redacts: '$a-edit' },
+    });
+    expect(fakeAudio.paused).toBe(false);
+
+    emit(roomListeners, RoomEvent.Timeline, {
+      type: EventType.RoomRedaction,
+      roomId: '!room:example.org',
+      content: { redacts: '$a-edit' },
+    });
     expect(fakeAudio.paused).toBe(true);
     expect(fakeAudio.getAttribute('src')).toBeNull();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-2');
-    expect(redactionListeners.size).toBe(0);
+    expect(listenerCount()).toBe(0);
+
+    // 3. ClientEvent.Event: ignores non-redactions and other rooms; stops on matching redaction.
+    controller.togglePlay(roomMx, editedSource, defaultOptions);
+    await flushMicrotasks();
+    expect(listenerCount()).toBe(3);
+
+    emit(clientListeners, ClientEvent.Event, {
+      isRedaction: false,
+      roomId: '!room:example.org',
+      event: { redacts: '$a' },
+    });
+    emit(clientListeners, ClientEvent.Event, {
+      isRedaction: true,
+      roomId: '!other:example.org',
+      event: { redacts: '$a' },
+    });
+    expect(fakeAudio.paused).toBe(false);
+
+    emit(clientListeners, ClientEvent.Event, {
+      isRedaction: true,
+      roomId: '!room:example.org',
+      event: { redacts: '$a' },
+    });
+    expect(fakeAudio.paused).toBe(true);
+    expect(fakeAudio.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-3');
+    expect(listenerCount()).toBe(0);
     expect(controller.getSnapshot(idEdited)).toMatchObject({
       status: 'idle',
       currentTime: 0,
@@ -663,6 +738,46 @@ describe('VoiceAudioPlaybackController', () => {
       playing: false,
       currentTime: 0,
       browserDuration: 11,
+      engaged: false,
+      src: undefined,
+    });
+
+    // 3. Unmounting the last subscriber AFTER ended releases blob URL and detaches redaction listeners.
+    let attached = 0;
+    const room = {
+      on: vi.fn(() => void (attached += 1)),
+      removeListener: vi.fn(() => void (attached -= 1)),
+    };
+    const trackedMx = {
+      getRoom: vi.fn(() => room),
+      on: vi.fn(() => void (attached += 1)),
+      removeListener: vi.fn(() => void (attached -= 1)),
+    } as unknown as MatrixClient;
+    const unsub1 = controller.subscribe(idA, vi.fn());
+    const unsub2 = controller.subscribe(idA, vi.fn());
+    controller.togglePlay(trackedMx, sourceA, defaultOptions);
+    await flushMicrotasks();
+    expect(attached).toBe(3);
+    fakeAudio.duration = 9;
+    fakeAudio.readyState = 1;
+    fakeAudio.currentTime = 9;
+    fakeAudio.dispatchEvent(new Event('ended'));
+    expect(fakeAudio.getAttribute('src')).toBe('blob:voice-3');
+
+    // Non-last unmount keeps the finished track loaded.
+    unsub1();
+    expect(fakeAudio.getAttribute('src')).toBe('blob:voice-3');
+    expect(attached).toBe(3);
+
+    // Last unmount releases blob URL, detaches src & redaction listeners, and keeps browserDuration.
+    unsub2();
+    expect(fakeAudio.getAttribute('src')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:voice-3');
+    expect(attached).toBe(0);
+    expect(controller.getSnapshot(idA)).toMatchObject({
+      status: 'idle',
+      currentTime: 0,
+      browserDuration: 9,
       engaged: false,
       src: undefined,
     });
