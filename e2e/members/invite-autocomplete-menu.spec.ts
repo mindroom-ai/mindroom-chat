@@ -222,7 +222,7 @@ const checkPhoneKeyboardViewport = async (page: Page, seeded: Seed) => {
   await expect(dialog.locator('li')).toHaveCount(8, { timeout: 30_000 });
 
   await dialog.getByRole('button', { name: '+ Add invite note' }).click();
-  const noteInput = dialog.getByLabel('Optional invite message');
+  const noteInput = dialog.getByPlaceholder('Add a note to your invite...');
   await noteInput.focus();
 
   await page.evaluate(([visible, top]) => window.__setKeyboardViewport?.(visible, top, 'resize'), [
