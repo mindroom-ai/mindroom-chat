@@ -257,7 +257,6 @@ export const PhoneRootTitle = style({
   fontWeight: config.fontWeight.W500,
   whiteSpace: 'normal',
   overflowWrap: 'anywhere',
-  textOverflow: 'ellipsis',
   '@container': {
     [`${roomArea} (max-height: 15rem)`]: {
       WebkitLineClamp: 1,

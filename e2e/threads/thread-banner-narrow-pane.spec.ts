@@ -16,7 +16,7 @@ import { joinRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 const PASSWORD = 'thread-banner-narrow-pane-spec-password';
 const RUN = Date.now().toString(36);
 const TITLE =
-  '🧪 Example thread with a long title that wraps onto several lines in a narrow pane beside the room, so the buttons stack beside it';
+  '🧪 Example thread with a long summary title that wraps onto five or more lines in a narrow pane beside the room timeline, giving the layout enough vertical height that the action buttons stack cleanly in a column beside it on every browser';
 const TAGS = ['alpha', 'beta'];
 const LAYOUT_KEY = 'mindroom.threadColumn.layout';
 

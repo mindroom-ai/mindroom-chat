@@ -134,9 +134,9 @@ export const getThreadRootTitle = (
 };
 
 /**
- * The banner's title line from the thread's first message, cut at a word to fit one line. `hint`
- * follows the whole text in its tooltip. `whole` clamps it to two lines (one in a short room area)
- * with an ellipsis on compact/phone banners instead of cutting to one word-fitted line.
+ * The banner's title from the thread's first message: one word-fitted line on wide banners, or
+ * clamped to two lines (one in a short room area) when `whole` is set on compact/phone banners.
+ * `hint` follows the whole text in its tooltip.
  */
 export function ThreadRootTitle({
   text,

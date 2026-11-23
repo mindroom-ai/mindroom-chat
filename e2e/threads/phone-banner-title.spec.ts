@@ -49,6 +49,9 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 // Invented data. The long title has 122 characters.
 const LONG_TITLE =
   'Fix the flaky upload retry on slow networks, show progress per file, and keep partial uploads when the app is closed early';
+// A clearly taller AI summary (222 characters) that unambiguously stacks the end buttons on 390 px.
+const TALL_SUMMARY =
+  'Fix the flaky upload retry on slow mobile networks, show per-file transfer progress with batch totals, keep partial uploads resumable across restarts, and surface actionable recovery errors when connections drop mid-flight';
 type Pull = { repo: string; number: number; state: 'open' | 'merged' | 'draft' };
 const PULLS: Pull[] = [
   { repo: 'web-client', number: 128, state: 'open' },
@@ -173,7 +176,27 @@ const seed = async () => {
     body: WALL_REPLY,
     ...inThread(wall, wall),
   });
-  return { reader, roomId, roots, wall };
+  const tall = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Uploads over 20 MB still fail on the train. Can you look at the retry?',
+  });
+  const tallReply = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: WALL_REPLY,
+    ...inThread(tall, tall),
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.notice',
+    body: TALL_SUMMARY,
+    'io.mindroom.thread_summary': {
+      version: 1,
+      summary: TALL_SUMMARY,
+      generated_at: Date.now(),
+      message_count: 2,
+    },
+    ...inThread(tall, tallReply),
+  });
+  return { reader, roomId, roots, wall, tall };
 };
 type World = Awaited<ReturnType<typeof seed>>;
 // One room for the file's tests: the desktop reads a thread the phone leaves as it was.
@@ -810,11 +833,11 @@ test('in WebKit: at 150% Page Zoom on a 320 px phone the title shows whole and t
 
 /** A tall AI summary stacks the buttons beside it; a clamped first message and a short title do not. */
 const checkEndButtons = async (page: Page, world: World) => {
-  await openThread(page, world, 'long');
-  if (WITH_MARKER) {
-    await expect(banner(page).getByRole('button', { name: /pull request/i })).toBeVisible();
-  }
-  await expectRowOnScreen(page, page.viewportSize()!.width, true);
+  await page.goto(threadUrl(world, world.tall));
+  await expect(title(page)).toHaveText(TALL_SUMMARY, { timeout: 90_000 });
+  await expect(banner(page).getByRole('button', { name: 'Thread options' })).toBeVisible();
+  await page.waitForTimeout(500);
+  await expectRowOnScreen(page, page.viewportSize()!.width, false);
   await expectEndButtons(page, '[data-thread-context-summary]', true);
 
   await page.goto(threadUrl(world, world.wall));
