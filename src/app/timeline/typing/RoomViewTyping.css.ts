@@ -30,13 +30,16 @@ export const TypingStrip = style([
     paddingInlineEnd: toRem(2),
     borderRadius: config.radii.R400,
     color: color.SurfaceVariant.OnContainer,
-    '@media': {
-      '(prefers-reduced-motion: no-preference)': {
-        animation: `${arrive} 160ms ease-out`,
-      },
-    },
   },
 ]);
+
+export const TypingStripArriving = style({
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': {
+      animation: `${arrive} 160ms ease-out`,
+    },
+  },
+});
 
 // The ✕ that drops the strip: 24 px, 44 by 44 px to a finger. Its area reaches 6 px past the strip
 // above and below and 8 px past its end, within the gaps to the jobs bar and to the composer.
