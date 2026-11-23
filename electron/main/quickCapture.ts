@@ -1,4 +1,5 @@
 import { app, BrowserWindow, screen } from 'electron';
+import type { FrontTarget } from './helper';
 import { attachContextMenu } from './mainWindow';
 import { guardWebContents, isQuickCaptureUrl } from './security';
 import {
@@ -27,6 +28,10 @@ export type QuickCaptureOptions = {
   userDataDir: string;
   isQuitting: () => boolean;
   isMainWindowVisible: () => boolean;
+  screenshotHelper?: {
+    available: boolean;
+    readFrontTarget(): Promise<FrontTarget | undefined>;
+  };
 };
 
 export type QuickCaptureHandle = {
@@ -34,6 +39,8 @@ export type QuickCaptureHandle = {
   hide(): void;
   contents(): Electron.WebContents | undefined;
   flushState(): void;
+  frontTarget(): FrontTarget | undefined;
+  displayId(): number | undefined;
 };
 
 export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHandle => {
@@ -41,6 +48,8 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
   let ready = false;
   let pendingShow = false;
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastFrontTarget: FrontTarget | undefined;
+  let toggleSeq = 0;
 
   const getWindow = (): BrowserWindow | undefined => (win && !win.isDestroyed() ? win : undefined);
 
@@ -69,6 +78,7 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
   };
 
   const hide = (): void => {
+    toggleSeq += 1;
     pendingShow = false;
     const panel = getWindow();
     if (!panel) return;
@@ -100,7 +110,10 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
       ...(process.platform === 'darwin' ? { type: 'panel', vibrancy: 'popover' as const } : {}),
       webPreferences: {
         preload: options.preload,
-        additionalArguments: ['--mindroom-quick-capture=1'],
+        additionalArguments: [
+          '--mindroom-quick-capture=1',
+          ...(options.screenshotHelper?.available ? ['--mindroom-screenshot-helper=1'] : []),
+        ],
         contextIsolation: true,
         sandbox: true,
         nodeIntegration: false,
@@ -148,21 +161,56 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
     return panel;
   };
 
-  const toggle = (): void => {
+  const showOrCreate = (): void => {
     const existing = getWindow();
     if (!existing) {
       pendingShow = true;
       createWindow();
       return;
     }
-    const action = decideToggleAction({
-      visible: existing.isVisible(),
-      focused: existing.isFocused(),
-    });
-    if (action === 'hide') hide();
-    else if (ready) present(existing);
+    if (ready) present(existing);
     else pendingShow = true;
   };
 
-  return { toggle, hide, contents: () => getWindow()?.webContents, flushState };
+  const toggle = (): void => {
+    const existing = getWindow();
+    if (existing) {
+      const action = decideToggleAction({
+        visible: existing.isVisible(),
+        focused: existing.isFocused(),
+      });
+      if (action === 'hide') {
+        hide();
+        return;
+      }
+    }
+    const helper = options.screenshotHelper;
+    if (!helper?.available) {
+      showOrCreate();
+      return;
+    }
+    const seq = ++toggleSeq;
+    void helper
+      .readFrontTarget()
+      .catch(() => undefined)
+      .then((target) => {
+        if (seq !== toggleSeq) return;
+        lastFrontTarget = target;
+        showOrCreate();
+      });
+  };
+
+  const displayId = (): number | undefined => {
+    const panel = getWindow();
+    return panel ? screen.getDisplayMatching(panel.getBounds()).id : undefined;
+  };
+
+  return {
+    toggle,
+    hide,
+    contents: () => getWindow()?.webContents,
+    flushState,
+    frontTarget: () => lastFrontTarget,
+    displayId,
+  };
 };

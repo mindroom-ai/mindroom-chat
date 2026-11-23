@@ -222,6 +222,131 @@ test('Quick Capture pins navigation to /quick-capture/ and main window cannot in
   }
 });
 
+test('Quick Capture screenshot helper attaches PNG, surfaces PERMISSION_DENIED, and rejects main window', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mindroom-desktop-helper-'));
+  const modeFile = path.join(dir, 'mode');
+  const logFile = path.join(dir, 'calls.log');
+  const helperPath = path.join(dir, 'fake-helper');
+  // Minimal valid 1x1 transparent PNG.
+  const pngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+  fs.writeFileSync(modeFile, 'ok', 'utf8');
+  fs.writeFileSync(
+    helperPath,
+    [
+      '#!/usr/bin/env node',
+      'const fs = require("node:fs");',
+      `const modeFile = ${JSON.stringify(modeFile)};`,
+      `const logFile = ${JSON.stringify(logFile)};`,
+      `const png = Buffer.from(${JSON.stringify(pngBase64)}, "base64");`,
+      'const args = process.argv.slice(2);',
+      'fs.appendFileSync(logFile, JSON.stringify(args) + "\\n");',
+      'if (args[0] === "front") {',
+      '  process.stdout.write(JSON.stringify({ pid: 4242, windowId: 9001 }) + "\\n");',
+      '  process.exit(0);',
+      '}',
+      'const mode = fs.readFileSync(modeFile, "utf8").trim();',
+      'if (mode === "denied") {',
+      '  process.stderr.write("PERMISSION_DENIED\\n");',
+      '  process.exit(2);',
+      '}',
+      'process.stdout.write(png);',
+    ].join('\n') + '\n',
+    { mode: 0o755 }
+  );
+
+  try {
+    const session = await launchDesktop({ offline: true, helper: helperPath });
+    try {
+      const { app, page } = session;
+      await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+
+      // Stub a Quick Capture host on the main page so CaptureInput mounts completely offline.
+      await page.evaluate(() => {
+        const ch = new BroadcastChannel('mindroom.quickCapture');
+        const stateMsg = {
+          v: 1,
+          type: 'state',
+          hostId: 'test-host',
+          state: {
+            userId: '@test:local',
+            roomId: '!inbox:local',
+            rooms: [{ id: '!inbox:local', name: 'Inbox', direct: false }],
+            items: [],
+          },
+        };
+        ch.addEventListener('message', (event) => {
+          if (event.data?.type === 'hello') ch.postMessage(stateMsg);
+        });
+        ch.postMessage(stateMsg);
+        Object.assign(window, { __testCaptureHostChannel: ch });
+      });
+
+      const panelPage = await openQuickCapture(session);
+      const windowBtn = panelPage.getByRole('button', { name: 'Screenshot of the front window' });
+      const screenBtn = panelPage.getByRole('button', { name: 'Screenshot of the whole screen' });
+      await expect(windowBtn).toBeVisible();
+      await expect(screenBtn).toBeVisible();
+
+      await windowBtn.click();
+      await expect(panelPage.getByRole('button', { name: /^Remove Screenshot / })).toBeVisible();
+
+      const calls = fs
+        .readFileSync(logFile, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as string[]);
+      expect(calls).toContainEqual(['front']);
+      expect(calls).toContainEqual(['window', '--pid', '4242', '--window', '9001']);
+
+      fs.writeFileSync(modeFile, 'denied', 'utf8');
+      await screenBtn.click();
+      const settingsBtn = panelPage.getByRole('button', { name: 'Open System Settings' });
+      await expect(settingsBtn).toBeVisible();
+      await settingsBtn.click();
+      await expect
+        .poll(() =>
+          app.evaluate(
+            () =>
+              (globalThis as { __mindroomTestTelemetry?: { externalOpens: string[] } })
+                .__mindroomTestTelemetry?.externalOpens ?? []
+          )
+        )
+        .toContain('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+
+      // Invoking desktop:quick-capture-screenshot from the main window is rejected with FORBIDDEN.
+      const mainWindowResult = await app.evaluate(async ({ BrowserWindow, ipcMain }) => {
+        const mainWin = BrowserWindow.getAllWindows().find(
+          (w) => !w.webContents.getURL().includes('/quick-capture')
+        );
+        if (!mainWin) throw new Error('Main window missing');
+        const handlers = (
+          ipcMain as unknown as {
+            _invokeHandlers: Map<
+              string,
+              (
+                event: { sender: unknown; senderFrame: unknown },
+                ...args: unknown[]
+              ) => Promise<unknown>
+            >;
+          }
+        )._invokeHandlers;
+        const handler = handlers.get('desktop:quick-capture-screenshot');
+        if (!handler) throw new Error('desktop:quick-capture-screenshot handler missing');
+        return handler(
+          { sender: mainWin.webContents, senderFrame: mainWin.webContents.mainFrame },
+          'window'
+        );
+      });
+      expect(mainWindowResult).toEqual({ ok: false, code: 'FORBIDDEN' });
+    } finally {
+      await session.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('@homeserver Quick Capture sends a capture to a room and posts a thread on the main page', async () => {
   const homeserver = process.env.E2E_HOMESERVER_URL ?? DISPOSABLE_HOMESERVER;
   const suffix = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;

@@ -8,7 +8,12 @@ set +x
 die() { echo "$*" >&2; exit 1; }
 
 scratch=""
-trap 'if [[ -n "$scratch" ]]; then rm -rf "$scratch"; fi' EXIT
+helper_scratch=""
+cleanup() {
+  if [[ -n "$scratch" ]]; then rm -rf "$scratch"; fi
+  if [[ -n "$helper_scratch" ]]; then rm -rf "$helper_scratch"; fi
+}
+trap cleanup EXIT
 
 require_files() {
   local f
@@ -31,8 +36,32 @@ verify_codesign_identity() {
   fi
 }
 
+build_screenshot_helper() {
+  local helper_src="electron/native/helper.swift"
+  local helper_out="build/electron/mindroom-screenshot-helper"
+  local arm64_bin x64_bin
+  local flags=(
+    -O
+    -framework AppKit
+    -framework CoreGraphics
+    -framework ScreenCaptureKit
+    -framework ImageIO
+    -framework UniformTypeIdentifiers
+  )
+  helper_scratch=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/mindroom-helper-build.XXXXXX")
+  arm64_bin="$helper_scratch/helper-arm64"
+  x64_bin="$helper_scratch/helper-x64"
+  swiftc "${flags[@]}" -target arm64-apple-macos13.0 "$helper_src" -o "$arm64_bin"
+  swiftc "${flags[@]}" -target x86_64-apple-macos13.0 "$helper_src" -o "$x64_bin"
+  mkdir -p "$(dirname "$helper_out")"
+  lipo -create "$arm64_bin" "$x64_bin" -output "$helper_out"
+  chmod 755 "$helper_out"
+  rm -rf "$helper_scratch"
+  helper_scratch=""
+}
+
 verify_signed_artifacts() {
-  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app
+  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app helper
   require_files "$dmg" "$arm64_zip" "$x64_zip"
 
   verify_codesign_identity "$dmg" 0
@@ -48,7 +77,10 @@ verify_signed_artifacts() {
     ditto -x -k "$zip" "$unpack_dir"
     app="$unpack_dir/MindRoom Chat.app"
     [[ -d "$app" ]] || die "Unpacked $arch ZIP does not contain MindRoom Chat.app: $zip"
+    helper="$app/Contents/Resources/mindroom-screenshot-helper"
+    [[ -s "$helper" ]] || die "Unpacked $arch app is missing screenshot helper: $helper"
     verify_codesign_identity "$app" 1
+    verify_codesign_identity "$helper" 1
     xcrun stapler validate "$app"
     spctl --assess --type execute "$app"
   done
@@ -80,6 +112,7 @@ expected_outputs=(
 if [[ "$mode" == "unsigned" ]]; then
   rm -rf "$out_dir"
   npm run build:desktop
+  build_screenshot_helper
   CSC_IDENTITY_AUTO_DISCOVERY=false MINDROOM_DESKTOP_SIGN=0 \
     npx electron-builder --mac --config electron/builder.config.cjs --publish never
   require_files "${expected_outputs[@]}"
@@ -103,6 +136,7 @@ unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
 
 rm -rf "$out_dir"
 npm run build:desktop
+build_screenshot_helper
 
 # electron-builder 26.18.0 rejects CSC_NAME values that begin with
 # "Developer ID Application:", so pass the identity suffix after that prefix.

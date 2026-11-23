@@ -96,8 +96,9 @@ export const captureScreenshot = async (target: ScreenshotTarget): Promise<File>
   if (desktop) {
     if (!desktop.captureScreenshot) throw new ScreenshotError('UNSUPPORTED');
     try {
-      const { bytes, name } = await desktop.captureScreenshot(target);
-      return new File([new Uint8Array(bytes)], name, { type: 'image/png' });
+      const res = await desktop.captureScreenshot(target);
+      if (!res.ok) throw toScreenshotError({ code: res.code });
+      return new File([new Uint8Array(res.value.bytes)], res.value.name, { type: 'image/png' });
     } catch (error) {
       throw toScreenshotError(error);
     }

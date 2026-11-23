@@ -18,6 +18,7 @@ export type LaunchDesktopOptions = {
   offline?: boolean;
   screenShare?: boolean;
   fakeMedia?: boolean;
+  helper?: string;
 };
 
 export type DesktopSession = {
@@ -81,6 +82,7 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
   env.MINDROOM_DESKTOP_USER_DATA = userData;
   if (options?.dist) env.MINDROOM_DESKTOP_DIST = options.dist;
   if (options?.offline) env.MINDROOM_DESKTOP_OFFLINE = '1';
+  if (options?.helper) env.MINDROOM_DESKTOP_HELPER = options.helper;
   if (options?.screenShare !== undefined) {
     env.MINDROOM_DESKTOP_SCREEN_SHARE = options.screenShare ? '1' : '0';
   }

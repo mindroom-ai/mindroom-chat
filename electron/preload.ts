@@ -97,6 +97,12 @@ const bridge = {
         quickCapture: {
           hide: () => unwrapVoid('desktop:quick-capture-hide'),
           openScreenRecordingSettings: () => unwrapVoid('desktop:open-screen-recording-settings'),
+          ...(process.argv.includes('--mindroom-screenshot-helper=1')
+            ? {
+                captureScreenshot: (target: 'window' | 'screen') =>
+                  ipcRenderer.invoke('desktop:quick-capture-screenshot', target),
+              }
+            : {}),
         },
       }
     : {}),

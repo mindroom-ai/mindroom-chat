@@ -172,10 +172,14 @@ describe('native quick capture plugin', () => {
     await expect(showMainWindow()).rejects.toThrow('FORBIDDEN');
   });
 
-  it('enables desktop screenshots when captureScreenshot is provided on the bridge', async () => {
-    const captureMock = vi
-      .fn()
-      .mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), name: 'Window.png' });
+  it('enables desktop screenshots and maps DesktopResult success and error codes', async () => {
+    const captureMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      value: {
+        bytes: new Uint8Array([137, 80, 78, 71]),
+        name: 'Screenshot 2026-11-22 10.00.00.png',
+      },
+    });
     Object.defineProperty(window, 'mindroomDesktop', {
       configurable: true,
       value: {
@@ -194,7 +198,33 @@ describe('native quick capture plugin', () => {
     const file = await captureScreenshot('window');
     expect(captureMock).toHaveBeenCalledWith('window');
     expect(file).toBeInstanceOf(File);
-    expect(file.name).toBe('Window.png');
+    expect(file.name).toBe('Screenshot 2026-11-22 10.00.00.png');
     expect(file.type).toBe('image/png');
+    const bytes = await new Promise<Uint8Array>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsArrayBuffer(file);
+    });
+    expect(bytes).toEqual(new Uint8Array([137, 80, 78, 71]));
+
+    for (const code of [
+      'PERMISSION_DENIED',
+      'NO_WINDOW',
+      'UNSUPPORTED',
+      'CAPTURE_FAILED',
+    ] as const) {
+      captureMock.mockResolvedValueOnce({ ok: false, code });
+      await expect(captureScreenshot('screen')).rejects.toMatchObject({
+        name: 'ScreenshotError',
+        code,
+      });
+    }
+
+    captureMock.mockResolvedValueOnce({ ok: false, code: 'FORBIDDEN' });
+    await expect(captureScreenshot('window')).rejects.toMatchObject({
+      name: 'ScreenshotError',
+      code: 'CAPTURE_FAILED',
+    });
   });
 });

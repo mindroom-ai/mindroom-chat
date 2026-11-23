@@ -10,7 +10,7 @@ const electronMocks = vi.hoisted(() => ({
   clipboard: { writeText: vi.fn(() => Promise.resolve()) },
   ipcMain: { handle: vi.fn() },
   Menu: { buildFromTemplate: vi.fn(() => ({ popup: vi.fn() })) },
-  screen: { getAllDisplays: vi.fn(() => []) },
+  screen: { getAllDisplays: vi.fn(() => []), getDisplayMatching: vi.fn(() => ({ id: 77 })) },
 }));
 
 vi.mock('electron', () => electronMocks);
@@ -158,7 +158,96 @@ describe('createQuickCapture', () => {
       qc.hide();
       expect(panel.getBounds).toHaveBeenCalledTimes(2);
       expect(electronMocks.app.hide).toHaveBeenCalledTimes(1);
+      expect(ctorOptions?.webPreferences?.additionalArguments).toEqual([
+        '--mindroom-quick-capture=1',
+      ]);
     });
+  });
+
+  it('reads frontTarget before showing, exposes displayId, and preserves frontTarget on hide', async () => {
+    const dir = makeTempDir();
+    let ctorOptions: Electron.BrowserWindowConstructorOptions | undefined;
+    const panel = makeFakePanel();
+    electronMocks.BrowserWindow.mockImplementation(function (
+      opts: Electron.BrowserWindowConstructorOptions
+    ) {
+      ctorOptions = opts;
+      return panel;
+    });
+
+    const events: string[] = [];
+    panel.show.mockImplementation(() => {
+      events.push('show');
+      panel.isVisible.mockReturnValue(true);
+    });
+    panel.focus.mockImplementation(() => {
+      panel.isFocused.mockReturnValue(true);
+    });
+    panel.hide.mockImplementation(() => {
+      panel.isVisible.mockReturnValue(false);
+      panel.isFocused.mockReturnValue(false);
+      panel.emit('hide');
+    });
+
+    let resolveFront: (value: { pid: number; windowId: number | null } | undefined) => void = () =>
+      undefined;
+    const readFrontTarget = vi.fn(
+      () =>
+        new Promise<{ pid: number; windowId: number | null } | undefined>((resolve) => {
+          events.push('front');
+          resolveFront = resolve;
+        })
+    );
+
+    const qc = createQuickCapture({
+      url: `${APP_ORIGIN}/quick-capture/`,
+      preload: '/tmp/preload.cjs',
+      userDataDir: dir,
+      isQuitting: () => false,
+      isMainWindowVisible: () => true,
+      screenshotHelper: { available: true, readFrontTarget },
+    });
+
+    expect(qc.displayId()).toBeUndefined();
+    qc.toggle();
+    // Window is not created or shown before readFrontTarget resolves.
+    expect(electronMocks.BrowserWindow).not.toHaveBeenCalled();
+    resolveFront({ pid: 4242, windowId: 9001 });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(ctorOptions?.webPreferences?.additionalArguments).toEqual([
+      '--mindroom-quick-capture=1',
+      '--mindroom-screenshot-helper=1',
+    ]);
+    expect(qc.frontTarget()).toEqual({ pid: 4242, windowId: 9001 });
+    expect(qc.displayId()).toBe(77);
+
+    panel.emit('ready-to-show');
+    expect(events).toEqual(['front', 'show']);
+
+    // Toggle while visible and focused hides without calling readFrontTarget or clearing frontTarget.
+    qc.toggle();
+    expect(readFrontTarget).toHaveBeenCalledTimes(1);
+    expect(qc.frontTarget()).toEqual({ pid: 4242, windowId: 9001 });
+
+    // Re-show reads a fresh frontTarget (including own PID with null windowId) before showing.
+    qc.toggle();
+    expect(panel.show).toHaveBeenCalledTimes(1);
+    resolveFront({ pid: process.pid, windowId: null });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(qc.frontTarget()).toEqual({ pid: process.pid, windowId: null });
+    expect(panel.show).toHaveBeenCalledTimes(2);
+    expect(events).toEqual(['front', 'show', 'front', 'show']);
+
+    // Rejection in readFrontTarget still shows the panel and clears stale target.
+    qc.hide();
+    readFrontTarget.mockRejectedValueOnce(new Error('boom'));
+    qc.toggle();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(qc.frontTarget()).toBeUndefined();
+    expect(panel.show).toHaveBeenCalledTimes(3);
   });
 });
 

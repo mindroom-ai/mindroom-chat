@@ -1,6 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import {
-  copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -42,20 +49,32 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     };
     const logger = new DebugLogger(false);
     await expect(
-      validateConfiguration(loadBuilderConfig({ MARKETING_VERSION: '', MINDROOM_DESKTOP_SIGN: '0' }), logger)
+      validateConfiguration(
+        loadBuilderConfig({ MARKETING_VERSION: '', MINDROOM_DESKTOP_SIGN: '0' }),
+        logger
+      )
     ).resolves.toBeUndefined();
     await expect(
-      validateConfiguration(loadBuilderConfig({ MARKETING_VERSION: '2026.11.9', MINDROOM_DESKTOP_SIGN: '1' }), logger)
+      validateConfiguration(
+        loadBuilderConfig({ MARKETING_VERSION: '2026.11.9', MINDROOM_DESKTOP_SIGN: '1' }),
+        logger
+      )
     ).resolves.toBeUndefined();
   }, 15_000);
 
   it('pins names, hardened runtime, entitlements, fuses (+ resetAdHocDarwinSignature), and artifacts', () => {
     const rawConfig = read('electron/builder.config.cjs');
-    const signed = loadBuilderConfig({ MARKETING_VERSION: '2026.11.9', MINDROOM_DESKTOP_SIGN: '1' });
+    const signed = loadBuilderConfig({
+      MARKETING_VERSION: '2026.11.9',
+      MINDROOM_DESKTOP_SIGN: '1',
+    });
     const unsigned = loadBuilderConfig({ MARKETING_VERSION: '', MINDROOM_DESKTOP_SIGN: '0' });
 
     expect(signed).toMatchObject({
-      appId: 'chat.mindroom.app', productName: 'MindRoom Chat', asar: true, npmRebuild: false,
+      appId: 'chat.mindroom.app',
+      productName: 'MindRoom Chat',
+      asar: true,
+      npmRebuild: false,
       buildVersion: '2026.11.9',
       publish: {
         provider: 'generic',
@@ -64,13 +83,23 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       },
       extraMetadata: { productName: 'MindRoom Chat', version: '2026.11.9' },
       directories: { output: 'build/desktop-dist' },
+      extraResources: [
+        { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+      ],
       mac: {
         artifactName: 'MindRoom-Chat-${arch}-mac.${ext}',
-        bundleShortVersion: '2026.11.9', bundleVersion: '2026.11.9',
-        hardenedRuntime: true, gatekeeperAssess: false, forceCodeSigning: true, notarize: true,
+        bundleShortVersion: '2026.11.9',
+        bundleVersion: '2026.11.9',
+        hardenedRuntime: true,
+        gatekeeperAssess: false,
+        forceCodeSigning: true,
+        notarize: true,
         entitlements: 'electron/entitlements.mac.plist',
         entitlementsInherit: 'electron/entitlements.helper.plist',
-        target: [{ target: 'dmg', arch: ['universal'] }, { target: 'zip', arch: ['arm64', 'x64'] }],
+        target: [
+          { target: 'dmg', arch: ['universal'] },
+          { target: 'zip', arch: ['arm64', 'x64'] },
+        ],
       },
       dmg: { artifactName: 'MindRoom-Chat.dmg', title: 'MindRoom Chat', writeUpdateInfo: false },
     });
@@ -93,13 +122,21 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
 
     for (const plist of ['electron/entitlements.mac.plist', 'electron/entitlements.helper.plist']) {
       const xml = read(plist);
-      const keys = [...xml.matchAll(/<key>([^<]+)<\/key>\s*<(true|false)\/>/g)].map((m) => [m[1], m[2]]);
+      const keys = [...xml.matchAll(/<key>([^<]+)<\/key>\s*<(true|false)\/>/g)].map((m) => [
+        m[1],
+        m[2],
+      ]);
       expect(keys).toEqual([
         ['com.apple.security.cs.allow-jit', 'true'],
         ['com.apple.security.device.audio-input', 'true'],
         ['com.apple.security.device.camera', 'true'],
       ]);
-      for (const bad of ['aps-environment', 'com.apple.developer.', 'app-sandbox', 'disable-library-validation']) {
+      for (const bad of [
+        'aps-environment',
+        'com.apple.developer.',
+        'app-sandbox',
+        'disable-library-validation',
+      ]) {
         expect(xml).not.toContain(bad);
       }
     }
@@ -123,11 +160,22 @@ case "$cmd" in
         printf 'fake-%s' "$f" > "build/desktop-dist/$f"
       done
     fi ;;
-  ditto) mkdir -p "$target/MindRoom Chat.app" ;;
+  swiftc) printf 'fake-swift-bin' > "$target" ;;
+  lipo) printf 'fake-universal-helper' > "$target" ;;
+  ditto)
+    mkdir -p "$target/MindRoom Chat.app/Contents/Resources"
+    if [[ "$fail" != "helper:missing" ]]; then
+      printf 'fake-helper' > "$target/MindRoom Chat.app/Contents/Resources/mindroom-screenshot-helper"
+    fi ;;
   codesign)
-    if [[ "\${1:-}" == "--verify" && "$fail" == "codesign:app" && "$target" == *.app ]]; then exit 1; fi
+    if [[ "\${1:-}" == "--verify" ]] && {
+      [[ "$fail" == "codesign:app" && "$target" == *.app ]] ||
+      [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]];
+    }; then exit 1; fi
     if [[ "\${1:-}" == "-dv" ]]; then
-      flags="0x0(none)"; if [[ "$target" == *.app ]]; then flags="\${TEST_FLAGS:-0x10000(runtime)}"; fi
+      flags="0x0(none)"
+      if [[ "$target" == *.app ]]; then flags="\${TEST_FLAGS:-0x10000(runtime)}"; fi
+      if [[ "$target" == */mindroom-screenshot-helper ]]; then flags="\${TEST_HELPER_FLAGS:-\${TEST_FLAGS:-0x10000(runtime)}}"; fi
       printf 'Authority=%s\\nTeamIdentifier=%s\\nCodeDirectory v=20500 size=100 flags=%s\\n' \\
         "\${TEST_AUTHORITY:-Developer ID Application: MindRoom AI (DNA6966LGZ)}" "\${TEST_TEAM:-DNA6966LGZ}" "$flags" >&2
     fi ;;
@@ -145,14 +193,21 @@ esac
     }
     symlinkSync(resolve('node_modules'), join(root, 'node_modules'));
     mkdirSync(join(root, 'bin'));
-    for (const tool of ['npm', 'npx', 'codesign', 'xcrun', 'spctl', 'ditto']) {
+    for (const tool of ['npm', 'npx', 'codesign', 'xcrun', 'spctl', 'ditto', 'swiftc', 'lipo']) {
       writeFileSync(join(root, 'bin', tool), FAKE_BIN, { mode: 0o755 });
     }
     const logFile = join(root, 'commands.tsv');
     const dir = join(root, 'artifacts');
     mkdirSync(dir);
-    const [dmg, arm64, x64] = ['MindRoom-Chat.dmg', 'MindRoom-Chat-arm64-mac.zip', 'MindRoom-Chat-x64-mac.zip']
-      .map((name) => { const p = join(dir, name); writeFileSync(p, 'bytes'); return p; }) as [string, string, string];
+    const [dmg, arm64, x64] = [
+      'MindRoom-Chat.dmg',
+      'MindRoom-Chat-arm64-mac.zip',
+      'MindRoom-Chat-x64-mac.zip',
+    ].map((name) => {
+      const p = join(dir, name);
+      writeFileSync(p, 'bytes');
+      return p;
+    }) as [string, string, string];
 
     const run = (args: string[], envOverrides: Record<string, string> = {}) => {
       const bashBin = process.platform === 'darwin' ? '/bin/bash' : 'bash';
@@ -174,10 +229,15 @@ esac
         },
       });
       const commands: Cmd[] = existsSync(logFile)
-        ? readFileSync(logFile, 'utf8').trim().split('\n').filter(Boolean).map((line) => {
-            const [cmd = '', hasNotary = '0', cscName = '', sign = '', rawArgs = ''] = line.split('\t');
-            return { cmd, hasNotary: hasNotary === '1', cscName, sign, args: rawArgs };
-          })
+        ? readFileSync(logFile, 'utf8')
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => {
+              const [cmd = '', hasNotary = '0', cscName = '', sign = '', rawArgs = ''] =
+                line.split('\t');
+              return { cmd, hasNotary: hasNotary === '1', cscName, sign, args: rawArgs };
+            })
         : [];
       return { ...res, commands };
     };
@@ -186,7 +246,11 @@ esac
 
   it.each([
     ['missing APPLE_ID', { APPLE_ID: '' }, 'APPLE_ID'],
-    ['missing APPLE_APP_SPECIFIC_PASSWORD', { APPLE_APP_SPECIFIC_PASSWORD: '' }, 'APPLE_APP_SPECIFIC_PASSWORD'],
+    [
+      'missing APPLE_APP_SPECIFIC_PASSWORD',
+      { APPLE_APP_SPECIFIC_PASSWORD: '' },
+      'APPLE_APP_SPECIFIC_PASSWORD',
+    ],
     ['missing APPLE_TEAM_ID', { APPLE_TEAM_ID: '' }, 'APPLE_TEAM_ID'],
     ['wrong team', { APPLE_TEAM_ID: 'WRONGTEAM1' }, 'DNA6966LGZ'],
     ['wrong identity', { CODESIGN_IDENTITY: 'Mac Developer: Someone (DNA6966LGZ)' }, 'DNA6966LGZ'],
@@ -205,7 +269,14 @@ esac
     const spctl = res.commands.filter((c) => c.cmd === 'spctl');
     expect(spctl).toHaveLength(3);
     expect(spctl[0]?.args).toBe(`--assess --type open --context context:primary-signature ${dmg}`);
-    expect(spctl.slice(1).every((c) => c.args.startsWith('--assess --type execute ') && c.args.endsWith('/MindRoom Chat.app'))).toBe(true);
+    expect(
+      spctl
+        .slice(1)
+        .every(
+          (c) =>
+            c.args.startsWith('--assess --type execute ') && c.args.endsWith('/MindRoom Chat.app')
+        )
+    ).toBe(true);
     expect(spctl.some((c) => c.args.includes('.zip'))).toBe(false);
   }, 15_000);
 
@@ -218,18 +289,40 @@ esac
     ['failed spctl on DMG', { TEST_FAIL: 'spctl:dmg' }],
     ['failed spctl on unpacked app', { TEST_FAIL: 'spctl:app' }],
     ['failed codesign on app', { TEST_FAIL: 'codesign:app' }],
-  ])('--verify-only fails closed on %s', (_label, overrides) => {
-    const { verifyArgs, run } = createFixture();
-    expect(run(verifyArgs, overrides).status).not.toBe(0);
-  }, 15_000);
+    ['missing screenshot helper', { TEST_FAIL: 'helper:missing' }],
+    ['failed codesign on screenshot helper', { TEST_FAIL: 'codesign:helper' }],
+    ['missing hardened runtime on screenshot helper', { TEST_HELPER_FLAGS: '0x0(none)' }],
+  ])(
+    '--verify-only fails closed on %s',
+    (_label, overrides) => {
+      const { verifyArgs, run } = createFixture();
+      expect(run(verifyArgs, overrides).status).not.toBe(0);
+    },
+    15_000
+  );
 
   it('--sign unsets notary creds before npm build:desktop and strips CSC_NAME prefix', () => {
     const { root, run } = createFixture();
     const res = run(['--sign']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.commands.find((c) => c.cmd === 'npm')?.hasNotary).toBe(false);
-    expect(res.commands.find((c) => c.cmd === 'npx' && c.args.startsWith('electron-builder'))).toMatchObject({
-      sign: '1', hasNotary: true, cscName: 'MindRoom AI (DNA6966LGZ)',
+    const swiftc = res.commands.filter((c) => c.cmd === 'swiftc');
+    expect(swiftc).toHaveLength(2);
+    expect(swiftc.every((c) => !c.hasNotary)).toBe(true);
+    expect(swiftc.map((c) => c.args)).toEqual([
+      expect.stringContaining('-target arm64-apple-macos13.0 electron/native/helper.swift'),
+      expect.stringContaining('-target x86_64-apple-macos13.0 electron/native/helper.swift'),
+    ]);
+    expect(res.commands.find((c) => c.cmd === 'lipo')).toMatchObject({
+      hasNotary: false,
+      args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
+    });
+    expect(
+      res.commands.find((c) => c.cmd === 'npx' && c.args.startsWith('electron-builder'))
+    ).toMatchObject({
+      sign: '1',
+      hasNotary: true,
+      cscName: 'MindRoom AI (DNA6966LGZ)',
     });
     const latest = parse(readFileSync(join(root, 'build/desktop-dist/latest-mac.yml'), 'utf8')) as {
       version: string;
@@ -241,7 +334,14 @@ esac
 });
 
 describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
-  type Step = { id?: string; if?: string; name?: string; run?: string; uses?: string; with?: Record<string, unknown> };
+  type Step = {
+    id?: string;
+    if?: string;
+    name?: string;
+    run?: string;
+    uses?: string;
+    with?: Record<string, unknown>;
+  };
 
   it('wires release.yml -> desktop.yml, pins desktop.yml release + feed guards, and keeps macos.yml unsigned PR-only', () => {
     const releaseText = read('.github/workflows/release.yml');
@@ -249,7 +349,10 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     const macosText = read('.github/workflows/macos.yml');
 
     const release = parse(releaseText) as { jobs: { macos: { uses: string; secrets: string } } };
-    expect(release.jobs.macos).toMatchObject({ uses: './.github/workflows/desktop.yml', secrets: 'inherit' });
+    expect(release.jobs.macos).toMatchObject({
+      uses: './.github/workflows/desktop.yml',
+      secrets: 'inherit',
+    });
     expect(releaseText).not.toContain('macos.yml');
 
     const desktop = parse(desktopText) as {
@@ -257,7 +360,14 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
       jobs: {
         e2e: { steps: Step[] };
         release: { if?: string; permissions?: Record<string, string>; steps: Step[] };
-        feed: { needs?: string; if?: string; 'runs-on'?: string; permissions?: Record<string, string>; concurrency?: { group: string; queue: string }; steps: Step[] };
+        feed: {
+          needs?: string;
+          if?: string;
+          'runs-on'?: string;
+          permissions?: Record<string, string>;
+          concurrency?: { group: string; queue: string };
+          steps: Step[];
+        };
       };
     };
     expect(desktop.on.pull_request.paths).toContain('scripts/macos-publish-appcast.sh');
@@ -265,13 +375,21 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     expect(desktop.jobs.release.if).toBe(
       "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"
     );
-    expect(desktop.jobs.e2e.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.['persist-credentials']).toBe(false);
-    expect(desktop.jobs.release.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+    expect(
+      desktop.jobs.e2e.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with?.[
+        'persist-credentials'
+      ]
+    ).toBe(false);
+    expect(
+      desktop.jobs.release.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with
+    ).toEqual({
       ref: 'refs/tags/${{ env.RELEASE_TAG }}',
       'persist-credentials': false,
     });
     expect(desktop.jobs.release.steps.some((s) => s.run?.includes('homebrew-tap'))).toBe(false);
-    const upload = desktop.jobs.release.steps.find((s) => s.name === 'Attach verified artifacts to the release')?.run ?? '';
+    const upload =
+      desktop.jobs.release.steps.find((s) => s.name === 'Attach verified artifacts to the release')
+        ?.run ?? '';
     expect(upload).toContain('build/desktop-dist/MindRoom-Chat-arm64-mac.zip.blockmap');
     expect(upload).toContain('build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap');
     expect(upload).not.toContain('if [[ -f');
@@ -283,7 +401,9 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
       concurrency: { group: 'mac-desktop-feed', queue: 'max' },
     });
     expect(desktop.jobs.feed.if).toContain("needs.release.result == 'success'");
-    expect(desktop.jobs.feed.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with).toEqual({
+    expect(
+      desktop.jobs.feed.steps.find((s) => s.uses?.startsWith('actions/checkout'))?.with
+    ).toEqual({
       ref: 'refs/tags/${{ env.RELEASE_TAG }}',
       'persist-credentials': false,
     });
@@ -298,7 +418,10 @@ describe('workflow wiring (desktop.yml, release.yml, macos.yml)', () => {
     expect(desktopText).not.toContain('PROVISIONING_PROFILE');
     expect(desktopText).not.toContain('provisionprofile');
 
-    const macos = parse(macosText) as { on: Record<string, unknown>; permissions: Record<string, string> };
+    const macos = parse(macosText) as {
+      on: Record<string, unknown>;
+      permissions: Record<string, string>;
+    };
     expect(Object.keys(macos.on)).toEqual(['pull_request']);
     expect(macos.permissions).toEqual({ contents: 'read' });
     expect(macosText).not.toContain('--sign');

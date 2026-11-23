@@ -1,8 +1,10 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, dialog, globalShortcut, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, Menu, screen, session, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { createAuthCallback, registerSignInHandlers } from './authCallback';
 import { APP_ORIGIN, registerBundleScheme, serveBundle } from './bundleProtocol';
+import { createScreenshotHelper, resolveHelperPath, type ScreenshotTarget } from './helper';
 import { handle } from './ipc';
 import {
   configureMainWindow,
@@ -108,12 +110,24 @@ void app.whenReady().then(() => {
   );
   configureMainWindow({ screenShare, updater: app.isPackaged });
 
+  const helperPath = resolveHelperPath({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    unpackagedDir: path.resolve(__dirname),
+    testOverride: unpackaged ? process.env.MINDROOM_DESKTOP_HELPER : undefined,
+  });
+  const helperAvailable = (process.platform === 'darwin' || isTest) && fs.existsSync(helperPath);
+  const screenshotHelper = helperAvailable ? createScreenshotHelper(helperPath) : undefined;
+
   quickCapture = createQuickCapture({
     url: `${APP_ORIGIN}/quick-capture/`,
     preload: path.join(__dirname, 'preload.cjs'),
     userDataDir: app.getPath('userData'),
     isQuitting,
     isMainWindowVisible: () => Boolean(getMainWindow()?.isVisible()),
+    screenshotHelper: screenshotHelper
+      ? { available: true, readFrontTarget: () => screenshotHelper.readFrontTarget() }
+      : undefined,
   });
   const activeQuickCapture = quickCapture;
 
@@ -253,6 +267,20 @@ void app.whenReady().then(() => {
         await openUrl(SCREEN_RECORDING_SETTINGS_URL);
       }
       return { ok: true, value: undefined };
+    }
+  );
+  handle(
+    'desktop:quick-capture-screenshot',
+    quickCaptureOwners,
+    (args): ScreenshotTarget | undefined =>
+      args.length === 1 && (args[0] === 'window' || args[0] === 'screen') ? args[0] : undefined,
+    async (target) => {
+      if (!screenshotHelper) return { ok: false, code: 'UNSUPPORTED' };
+      if (target === 'window') {
+        return screenshotHelper.captureWindow(activeQuickCapture.frontTarget());
+      }
+      const displayId = activeQuickCapture.displayId() ?? screen.getPrimaryDisplay().id;
+      return screenshotHelper.captureScreen(displayId, process.pid);
     }
   );
   handle(

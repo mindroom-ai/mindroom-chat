@@ -23,7 +23,16 @@ module.exports = {
   },
   // Main and preload are self-contained esbuild bundles with only 'electron' external,
   // so no node_modules need to be packed into app.asar.
-  files: ['build/electron/**/*', 'dist/**/*', 'package.json', '!node_modules/**/*'],
+  files: [
+    'build/electron/**/*',
+    '!build/electron/mindroom-screenshot-helper',
+    'dist/**/*',
+    'package.json',
+    '!node_modules/**/*',
+  ],
+  extraResources: [
+    { from: 'build/electron/mindroom-screenshot-helper', to: 'mindroom-screenshot-helper' },
+  ],
   mac: {
     // electron-builder 26.18.0 rejects a top-level `zip` key in schema validation;
     // zip targets inherit mac.artifactName while dmg overrides it below.
