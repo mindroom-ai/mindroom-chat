@@ -1,10 +1,13 @@
+// @vitest-environment jsdom
 import { Capacitor } from '@capacitor/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DesktopQuickCaptureBridge } from '../lib/desktopBridge';
 import {
   ScreenshotError,
   captureScreenshot,
   hideQuickCapture,
   isNativeQuickCaptureAvailable,
+  isNativeScreenshotAvailable,
   openScreenRecordingSettings,
   showMainWindow,
 } from './nativeQuickCapture';
@@ -48,12 +51,19 @@ describe('native quick capture plugin', () => {
     setAvailable(false);
   });
 
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'mindroomDesktop');
+  });
+
   it('is available only on a native iOS platform with the plugin', () => {
     expect(isNativeQuickCaptureAvailable()).toBe(false);
+    expect(isNativeScreenshotAvailable()).toBe(false);
     setAvailable(true);
     expect(isNativeQuickCaptureAvailable()).toBe(true);
+    expect(isNativeScreenshotAvailable()).toBe(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
     expect(isNativeQuickCaptureAvailable()).toBe(false);
+    expect(isNativeScreenshotAvailable()).toBe(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
     expect(isNativeQuickCaptureAvailable()).toBe(false);
@@ -121,5 +131,70 @@ describe('native quick capture plugin', () => {
   it('rejects UNSUPPORTED when unavailable', async () => {
     await expect(captureScreenshot('window')).rejects.toMatchObject({ code: 'UNSUPPORTED' });
     expect(plugin.captureScreenshot).not.toHaveBeenCalled();
+  });
+
+  it('uses the Electron desktop quickCapture bridge when exposed', async () => {
+    // Main window exposes mindroomDesktop without quickCapture.
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
+    expect(isNativeQuickCaptureAvailable()).toBe(false);
+    expect(isNativeScreenshotAvailable()).toBe(false);
+
+    const desktopQuickCapture: DesktopQuickCaptureBridge = {
+      hide: vi.fn().mockResolvedValue(undefined),
+      openScreenRecordingSettings: vi.fn().mockResolvedValue(undefined),
+    };
+    const showMainWindowMock = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: {
+        quickCapture: desktopQuickCapture,
+        showMainWindow: showMainWindowMock,
+      },
+    });
+
+    expect(isNativeQuickCaptureAvailable()).toBe(true);
+    expect(isNativeScreenshotAvailable()).toBe(false);
+
+    await hideQuickCapture();
+    await showMainWindow();
+    await openScreenRecordingSettings();
+
+    expect(desktopQuickCapture.hide).toHaveBeenCalledOnce();
+    expect(showMainWindowMock).toHaveBeenCalledOnce();
+    expect(desktopQuickCapture.openScreenRecordingSettings).toHaveBeenCalledOnce();
+    expect(plugin.hide).not.toHaveBeenCalled();
+    expect(plugin.showMainWindow).not.toHaveBeenCalled();
+    expect(plugin.openScreenRecordingSettings).not.toHaveBeenCalled();
+
+    await expect(captureScreenshot('window')).rejects.toMatchObject({ code: 'UNSUPPORTED' });
+
+    showMainWindowMock.mockResolvedValueOnce({ ok: false, code: 'FORBIDDEN' });
+    await expect(showMainWindow()).rejects.toThrow('FORBIDDEN');
+  });
+
+  it('enables desktop screenshots when captureScreenshot is provided on the bridge', async () => {
+    const captureMock = vi
+      .fn()
+      .mockResolvedValueOnce({ bytes: new Uint8Array([1, 2, 3]), name: 'Window.png' });
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: {
+        quickCapture: {
+          hide: vi.fn().mockResolvedValue(undefined),
+          openScreenRecordingSettings: vi.fn().mockResolvedValue(undefined),
+          captureScreenshot: captureMock,
+        },
+        showMainWindow: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
+      },
+    });
+
+    expect(isNativeQuickCaptureAvailable()).toBe(true);
+    expect(isNativeScreenshotAvailable()).toBe(true);
+
+    const file = await captureScreenshot('window');
+    expect(captureMock).toHaveBeenCalledWith('window');
+    expect(file).toBeInstanceOf(File);
+    expect(file.name).toBe('Window.png');
+    expect(file.type).toBe('image/png');
   });
 });

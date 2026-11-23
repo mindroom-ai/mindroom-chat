@@ -10,6 +10,11 @@ export type DesktopUpdateBridge = {
   status: () => Promise<{ version?: string }>;
   install: () => Promise<void>;
 };
+export type DesktopQuickCaptureBridge = {
+  hide: () => Promise<void>;
+  openScreenRecordingSettings: () => Promise<void>;
+  captureScreenshot?: (target: 'window' | 'screen') => Promise<{ bytes: Uint8Array; name: string }>;
+};
 /** What hands the page a URL the system opened: Capacitor's App plugin, or the desktop bridge. */
 export type AppUrlPlugin = {
   addListener(
@@ -33,6 +38,7 @@ export type DesktopBridge = {
   screenShare: boolean;
   appUrl: AppUrlPlugin;
   update?: DesktopUpdateBridge;
+  quickCapture?: DesktopQuickCaptureBridge;
 };
 
 declare global {

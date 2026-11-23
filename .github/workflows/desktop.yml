@@ -33,6 +33,7 @@ on:
       - src/app/lib/desktopBridge.ts
       - src/app/lib/nativeShell.ts
       - src/app/native/**
+      - src/app/quick-capture/**
       - src/app/composer/voice/liveVoiceRecording.ts
       - src/app/shortcuts/shortcuts.ts
       - src/app/routes/pathUtils.ts

@@ -31,8 +31,29 @@ export const markQuitting = (): void => {
   quitting = true;
 };
 
+export const isQuitting = (): boolean => quitting;
+
 export const flushMainWindowState = (): void => {
   activeFlushWindowState?.();
+};
+
+export const attachContextMenu = (win: BrowserWindow): void => {
+  win.webContents.on('context-menu', (_event, params) => {
+    const items = buildContextMenu(params, {
+      replaceMisspelling: (suggestion) => {
+        if (!win.isDestroyed()) win.webContents.replaceMisspelling(suggestion);
+      },
+      addToDictionary: (word) => {
+        if (!win.isDestroyed()) win.webContents.session.addWordToSpellCheckerDictionary(word);
+      },
+      writeClipboardText: (text) => {
+        void clipboard.writeText(text).catch(() => undefined);
+      },
+    });
+    if (items.length > 0 && !win.isDestroyed()) {
+      Menu.buildFromTemplate(items).popup({ window: win });
+    }
+  });
 };
 
 export const getMainWindow = (): BrowserWindow | undefined =>
@@ -147,22 +168,7 @@ export const showMainWindow = (): BrowserWindow => {
   });
   win.webContents.on('did-finish-load', () => sendFullscreen(win.isFullScreen()));
 
-  win.webContents.on('context-menu', (_event, params) => {
-    const items = buildContextMenu(params, {
-      replaceMisspelling: (suggestion) => {
-        if (!win.isDestroyed()) win.webContents.replaceMisspelling(suggestion);
-      },
-      addToDictionary: (word) => {
-        if (!win.isDestroyed()) win.webContents.session.addWordToSpellCheckerDictionary(word);
-      },
-      writeClipboardText: (text) => {
-        void clipboard.writeText(text).catch(() => undefined);
-      },
-    });
-    if (items.length > 0 && !win.isDestroyed()) {
-      Menu.buildFromTemplate(items).popup({ window: win });
-    }
-  });
+  attachContextMenu(win);
 
   win.webContents.on('will-prevent-unload', () => {
     quitting = false;

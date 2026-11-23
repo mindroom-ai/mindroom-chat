@@ -41,6 +41,11 @@ const onExternalClick = (event: MouseEvent): void => {
 window.addEventListener('click', onExternalClick, true);
 window.addEventListener('auxclick', onExternalClick, true);
 
+const unwrapVoid = async (channel: string): Promise<void> => {
+  const res = (await ipcRenderer.invoke(channel)) as DesktopResult<void>;
+  if (!res.ok) throw new Error(res.code);
+};
+
 const bridge = {
   onShellEvent: (listener: (event: DesktopShellEvent) => void): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, payload: DesktopShellEvent): void => {
@@ -83,10 +88,15 @@ const bridge = {
             }>;
             return res.ok ? res.value : {};
           },
-          install: async () => {
-            const res = (await ipcRenderer.invoke('desktop:update-install')) as DesktopResult<void>;
-            if (!res.ok) throw new Error(res.code);
-          },
+          install: () => unwrapVoid('desktop:update-install'),
+        },
+      }
+    : {}),
+  ...(process.argv.includes('--mindroom-quick-capture=1')
+    ? {
+        quickCapture: {
+          hide: () => unwrapVoid('desktop:quick-capture-hide'),
+          openScreenRecordingSettings: () => unwrapVoid('desktop:open-screen-recording-settings'),
         },
       }
     : {}),

@@ -1,18 +1,20 @@
 import path from 'node:path';
-import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, Menu, session, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { createAuthCallback, registerSignInHandlers } from './authCallback';
-import { registerBundleScheme, serveBundle } from './bundleProtocol';
+import { APP_ORIGIN, registerBundleScheme, serveBundle } from './bundleProtocol';
 import { handle } from './ipc';
 import {
   configureMainWindow,
   flushMainWindowState,
   getMainWindow,
+  isQuitting,
   markQuitting,
   showMainWindow,
 } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
 import { buildMenuTemplate } from './menu';
+import { createQuickCapture, type QuickCaptureHandle } from './quickCapture';
 import {
   guardSession,
   registerExternalOpenHandler,
@@ -20,6 +22,9 @@ import {
   supportsSystemScreenShare,
 } from './security';
 import { startUpdater, type UpdaterHandle } from './updater';
+
+const SCREEN_RECORDING_SETTINGS_URL =
+  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
 app.commandLine.appendSwitch(
@@ -69,6 +74,7 @@ if (!gotLock) app.quit();
 
 const authCallback = createAuthCallback(notifyAppUrl, focusMainWindow);
 let updater: UpdaterHandle | undefined;
+let quickCapture: QuickCaptureHandle | undefined;
 
 app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
@@ -77,6 +83,7 @@ app.on('second-instance', () => {
 app.on('before-quit', () => {
   markQuitting();
   flushMainWindowState();
+  quickCapture?.flushState();
 });
 
 void app.whenReady().then(() => {
@@ -100,6 +107,32 @@ void app.whenReady().then(() => {
     isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
   );
   configureMainWindow({ screenShare, updater: app.isPackaged });
+
+  quickCapture = createQuickCapture({
+    url: `${APP_ORIGIN}/quick-capture/`,
+    preload: path.join(__dirname, 'preload.cjs'),
+    userDataDir: app.getPath('userData'),
+    isQuitting,
+    isMainWindowVisible: () => Boolean(getMainWindow()?.isVisible()),
+  });
+  const activeQuickCapture = quickCapture;
+
+  try {
+    if (!globalShortcut.register('Control+Alt+Space', () => activeQuickCapture.toggle())) {
+      console.warn('Could not register Quick Capture global shortcut (Control+Alt+Space)');
+    }
+  } catch (error) {
+    console.warn('Failed to register Quick Capture global shortcut:', error);
+  }
+
+  if (isTest) {
+    Object.assign(globalThis, {
+      __mindroomTestQuickCapture: {
+        toggle: () => activeQuickCapture.toggle(),
+        hide: () => activeQuickCapture.hide(),
+      },
+    });
+  }
 
   const showUpdateDialog = (
     options: Electron.MessageBoxOptions
@@ -141,7 +174,7 @@ void app.whenReady().then(() => {
       {
         updateReady: Boolean(updater?.readyVersion()),
         canCheck: Boolean(updater),
-        quickCapture: false,
+        quickCapture: true,
       },
       {
         onZoom: (action) => {
@@ -150,6 +183,7 @@ void app.whenReady().then(() => {
         },
         onCheckForUpdates,
         onRestartToUpdate: () => updater?.install(),
+        onQuickCapture: () => activeQuickCapture.toggle(),
       }
     );
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
@@ -160,6 +194,7 @@ void app.whenReady().then(() => {
       onBeforeInstall: () => {
         markQuitting();
         flushMainWindowState();
+        activeQuickCapture.flushState();
       },
     });
   }
@@ -169,10 +204,14 @@ void app.whenReady().then(() => {
     const win = getMainWindow();
     return win ? [win.webContents] : [];
   };
+  const quickCaptureOwners = (): readonly Electron.WebContents[] => {
+    const wc = activeQuickCapture.contents();
+    return wc && !wc.isDestroyed() ? [wc] : [];
+  };
   const appWindows = isTest
     ? (): readonly Electron.WebContents[] =>
         BrowserWindow.getAllWindows().flatMap((w) => (w.isDestroyed() ? [] : [w.webContents]))
-    : mainOwners;
+    : (): readonly Electron.WebContents[] => [...mainOwners(), ...quickCaptureOwners()];
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
@@ -191,6 +230,26 @@ void app.whenReady().then(() => {
     (args) => (args.length === 0 ? true : undefined),
     async () => {
       focusMainWindow();
+      return { ok: true, value: undefined };
+    }
+  );
+  handle(
+    'desktop:quick-capture-hide',
+    quickCaptureOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => {
+      activeQuickCapture.hide();
+      return { ok: true, value: undefined };
+    }
+  );
+  handle(
+    'desktop:open-screen-recording-settings',
+    quickCaptureOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => {
+      if (process.platform === 'darwin' || telemetry) {
+        await openUrl(SCREEN_RECORDING_SETTINGS_URL);
+      }
       return { ok: true, value: undefined };
     }
   );
@@ -225,6 +284,7 @@ void app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
   updater?.stop();
   authCallback.close();
 });

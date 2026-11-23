@@ -70,13 +70,24 @@ export const setBlockedUrlRecorder = (recorder: ((url: string) => void) | undefi
   blockedUrlRecorder = recorder;
 };
 
-export const guardWebContents = (contents: Electron.WebContents): void => {
+export const isQuickCaptureUrl = (url: string): boolean => {
+  const parsed = parseAppUrl(url);
+  return (
+    parsed !== undefined &&
+    (parsed.pathname === '/quick-capture' || parsed.pathname === '/quick-capture/')
+  );
+};
+
+export const guardWebContents = (
+  contents: Electron.WebContents,
+  isAllowedUrl: (url: string) => boolean = isAllowedAppPage
+): void => {
   contents.setWindowOpenHandler(({ url }) => {
     blockedUrlRecorder?.(url);
     return { action: 'deny' };
   });
   contents.on('will-navigate', (event, url) => {
-    if (isAllowedAppPage(url)) return;
+    if (isAllowedUrl(url)) return;
     event.preventDefault();
     blockedUrlRecorder?.(url);
   });
