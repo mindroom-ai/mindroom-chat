@@ -72,6 +72,7 @@ type Router = ReturnType<typeof createBrowserRouter>;
 export type StageSnapshot = {
   copy: HTMLElement;
   scrolled: [Element, number, number][];
+  height: number;
 };
 
 export type PhoneSwipePreviewKey = {
@@ -128,6 +129,11 @@ const getStageSlidingChildren = (stage: Element): HTMLElement[] =>
       !child.hasAttribute(SWIPE_DIM) &&
       !child.hasAttribute(SWIPE_HOLD_SHIELD)
   );
+
+const measureStageHeight = (
+  stage: Element,
+  bounds: DOMRect = stage.getBoundingClientRect()
+): number => (bounds.height > 0 ? Math.round(bounds.height) : window.innerHeight);
 
 const mountStageSnapshot = (snapshot: StageSnapshot, over: Element): HTMLElement => {
   over.append(snapshot.copy);
@@ -296,7 +302,11 @@ export const captureStageSnapshot = (
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
     .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
-  return { copy, scrolled: scrolled.filter(([element]) => copy.contains(element)) };
+  return {
+    copy,
+    scrolled: scrolled.filter(([element]) => copy.contains(element)),
+    height: measureStageHeight(stage, bounds),
+  };
 };
 
 /** Two single-entry retained preview slots for finger-following thread <-> room swipes. */
@@ -365,7 +375,7 @@ const storePhoneSwipePreview = (
       roomId: key.roomId,
       threadId: key.threadId,
       width: window.innerWidth,
-      height: window.innerHeight,
+      height: snapshot.height,
     },
   };
   if (kind === 'room') roomPreview = stored;
@@ -409,7 +419,8 @@ export const clearPhoneSwipePreviews = (): void => {
 
 const getMatchingPreview = (
   kind: 'room' | 'thread',
-  key: PhoneSwipePreviewKey
+  key: PhoneSwipePreviewKey,
+  stage: Element
 ): StageSnapshot | undefined => {
   const entry = kind === 'room' ? roomPreview : threadPreview;
   if (!entry || typeof window === 'undefined') return undefined;
@@ -430,8 +441,8 @@ const getMatchingPreview = (
   if (!key.threadId || entry.key.threadId !== key.threadId) {
     return undefined;
   }
-  // Taken at another height (the keyboard is open): kept, not shown, as its rows would not fit.
-  if (entry.key.height !== window.innerHeight) return undefined;
+  // Taken at another stage height (the keyboard is open): kept, not shown, as its rows would not fit.
+  if (entry.key.height !== measureStageHeight(stage)) return undefined;
   if (entry.snapshot.copy.isConnected) return undefined;
   return entry.snapshot;
 };
@@ -667,7 +678,7 @@ export const createThreadBackSwipeScene = ({
   const topPage = topElements.find((element) => element.hasAttribute(PHONE_PAGE));
 
   const topBarHeight = getTopBarHeight(stage);
-  const matchedRoom = getMatchingPreview('room', key);
+  const matchedRoom = getMatchingPreview('room', key, stage);
   const under = matchedRoom
     ? mountStageSnapshot(matchedRoom, stage)
     : (() => {
@@ -829,7 +840,7 @@ export const createThreadForwardSwipeScene = ({
   dim.style.opacity = '0';
   stage.append(dim);
 
-  const matchedThread = getMatchingPreview('thread', key);
+  const matchedThread = getMatchingPreview('thread', key, stage);
   const over = matchedThread
     ? mountStageSnapshot(matchedThread, stage)
     : (() => {

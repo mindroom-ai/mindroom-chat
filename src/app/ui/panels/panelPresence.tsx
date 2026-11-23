@@ -168,8 +168,10 @@ export const layoutParentOf = (element: HTMLElement | null | undefined): HTMLEle
   let parent = element?.parentElement ?? null;
   while (
     parent &&
-    (parent.style.display === 'contents' ||
-      (typeof getComputedStyle === 'function' && getComputedStyle(parent).display === 'contents'))
+    (parent.style?.display === 'contents' ||
+      (typeof getComputedStyle === 'function' &&
+        parent instanceof Element &&
+        getComputedStyle(parent).display === 'contents'))
   ) {
     parent = parent.parentElement;
   }

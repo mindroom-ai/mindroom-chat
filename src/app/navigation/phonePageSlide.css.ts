@@ -1,5 +1,4 @@
 import { globalKeyframes, globalStyle } from '@vanilla-extract/css';
-import { color } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
 
 // A phone's page slide (phonePageSlide.ts): a still copy of the phone layout as it was, laid over
@@ -51,7 +50,7 @@ globalStyle(PREVIEW, {
 });
 globalStyle(`${PREVIEW}[data-swipe-backdrop]`, {
   insetBlockStart: 0,
-  backgroundColor: color.Surface.Container,
+  backgroundColor: 'var(--app-bg-color)',
 });
 globalStyle("[data-swipe-preview='under'], [data-swipe-preview='backdrop']", {
   zIndex: -1,

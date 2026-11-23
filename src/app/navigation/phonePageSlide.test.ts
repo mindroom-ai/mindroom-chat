@@ -1556,11 +1556,23 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
 
     const origWidth = window.innerWidth;
     const origHeight = window.innerHeight;
+    const setStageHeight = (height: number) => {
+      vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 390,
+        height,
+        top: 0,
+        left: 0,
+        right: 390,
+        bottom: height,
+        toJSON: () => ({}),
+      });
+    };
     try {
-      // Height-only resize (e.g. Android soft keyboard): the preview is kept, but not shown at a
-      // height it was not taken at, where the themed backdrop shows instead.
-      Object.defineProperty(window, 'innerHeight', { value: origHeight - 280, configurable: true });
-      window.dispatchEvent(new Event('resize'));
+      // Stage-height shrink with window.innerHeight unchanged (iOS soft keyboard via --app-height):
+      // the preview is kept, but not shown while stage height differs; themed backdrop shows instead.
+      setStageHeight(844 - 280);
       const whileKeyboardOpen = createThreadBackSwipeScene({
         key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
         fromLocationKey: 'k-t1',
@@ -1571,8 +1583,13 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
       whileKeyboardOpen!.cleanup(false);
 
-      // The keyboard closes: the retained preview shows again, scrolled as it was.
+      // Android soft keyboard also dispatches window resize with unchanged width: preview still kept.
+      Object.defineProperty(window, 'innerHeight', { value: origHeight - 280, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+
+      // The keyboard closes: stage height returns and the retained preview shows again, scrolled as it was.
       Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
+      setStageHeight(844);
       window.dispatchEvent(new Event('resize'));
       const afterKeyboardClosed = createThreadBackSwipeScene({
         key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
