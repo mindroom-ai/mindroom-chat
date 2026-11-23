@@ -8,6 +8,7 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { ScreenSizeProvider, useScreenSize } from '../lib/hooks/useScreenSize';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { watchComposerAccount } from '../composer/roomInputDrafts';
+import { parkLiveVoiceRecording } from '../composer/voice/liveVoiceRecording';
 import {
   ThemeContextProvider,
   deploymentDefaultTheme,
@@ -20,6 +21,7 @@ import {
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
+import { watchDesktopWindowHidden } from '../native/desktopShellLifecycle';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -94,6 +96,7 @@ function App() {
   // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
   useMobileKeyboardViewportFix();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
+  useEffect(() => watchDesktopWindowHidden(() => parkLiveVoiceRecording(appJotaiStore)), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.

@@ -17,6 +17,7 @@ import {
   isOpenable,
   openableHref,
   registerExternalOpenHandler,
+  supportsSystemScreenShare,
 } from './security';
 
 const createFakeWebContents = (
@@ -51,6 +52,10 @@ const createFakeSession = () => {
         details: { isMainFrame: boolean; requestingUrl?: string }
       ) => boolean)
     | undefined;
+  let displayMediaHandler:
+    | ((request: unknown, callback: (streams: Record<string, unknown> | null) => void) => void)
+    | undefined;
+  let displayMediaOpts: { useSystemPicker: boolean } | undefined;
   let permissionRequest:
     | ((
         webContents: Electron.WebContents,
@@ -72,6 +77,18 @@ const createFakeSession = () => {
     setPermissionRequestHandler: vi.fn((handler: typeof permissionRequest) => {
       permissionRequest = handler;
     }),
+    setDisplayMediaRequestHandler: vi.fn(
+      (
+        handler: (
+          request: unknown,
+          callback: (streams: Record<string, unknown> | null) => void
+        ) => void,
+        opts?: { useSystemPicker: boolean }
+      ) => {
+        displayMediaHandler = handler;
+        displayMediaOpts = opts;
+      }
+    ),
   } as unknown as Electron.Session;
 
   return {
@@ -104,6 +121,14 @@ const createFakeSession = () => {
         details
       );
       return granted;
+    },
+    getDisplayMediaOpts: () => displayMediaOpts,
+    runDisplayMediaRequest: () => {
+      let answer: Record<string, unknown> | null | undefined;
+      displayMediaHandler?.({}, (streams) => {
+        answer = streams;
+      });
+      return answer;
     },
   };
 };
@@ -463,5 +488,93 @@ describe('external open IPC channel', () => {
       value: undefined,
     });
     expect(opened).toEqual(['https://example.org/']);
+  });
+});
+
+describe('supportsSystemScreenShare', () => {
+  it('enables system screen share on macOS 15+ and refuses older macOS or other platforms', () => {
+    expect(supportsSystemScreenShare('darwin', '15.0')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '15.3.1')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '26.0')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '14.7.1')).toBe(false);
+    expect(supportsSystemScreenShare('darwin', '14.0')).toBe(false);
+    expect(supportsSystemScreenShare('darwin', '')).toBe(false);
+    expect(supportsSystemScreenShare('darwin', '15abc')).toBe(false);
+    expect(supportsSystemScreenShare('linux', '15.0')).toBe(false);
+    expect(supportsSystemScreenShare('win32', '26.0')).toBe(false);
+  });
+
+  it('honors explicit test overrides 1 and 0 and ignores other values', () => {
+    expect(supportsSystemScreenShare('linux', '6.1', '1')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '14.7.1', '1')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '15.3.1', '0')).toBe(false);
+    expect(supportsSystemScreenShare('darwin', '15.3.1', '')).toBe(true);
+    expect(supportsSystemScreenShare('darwin', '14.7.1', 'other')).toBe(false);
+  });
+});
+
+describe('guardSession screenShare', () => {
+  it('refuses display-capture and disables system picker when screenShare is false', () => {
+    const fake = createFakeSession();
+    const main = createFakeWebContents();
+    guardSession(fake.session, (wc) => wc === main.contents, undefined, { screenShare: false });
+
+    expect(fake.getDisplayMediaOpts()).toEqual({ useSystemPicker: false });
+    expect(fake.runDisplayMediaRequest()).toEqual({});
+    expect(
+      fake.runPermissionCheck(main.contents, 'display-capture', APP_ORIGIN, {
+        isMainFrame: true,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(false);
+    expect(
+      fake.runPermissionRequest(main.contents, 'display-capture', {
+        isMainFrame: true,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(false);
+  });
+
+  it('grants display-capture only to the main window main frame and keeps fallback refusing when screenShare is true', () => {
+    const fake = createFakeSession();
+    const main = createFakeWebContents();
+    const other = createFakeWebContents();
+    guardSession(fake.session, (wc) => wc === main.contents, undefined, { screenShare: true });
+
+    expect(fake.getDisplayMediaOpts()).toEqual({ useSystemPicker: true });
+    expect(fake.runDisplayMediaRequest()).toEqual({});
+
+    expect(
+      fake.runPermissionCheck(main.contents, 'display-capture', APP_ORIGIN, {
+        isMainFrame: true,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(true);
+    expect(
+      fake.runPermissionRequest(main.contents, 'display-capture', {
+        isMainFrame: true,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(true);
+
+    // Denied for subframes and non-main windows.
+    expect(
+      fake.runPermissionCheck(main.contents, 'display-capture', APP_ORIGIN, {
+        isMainFrame: false,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(false);
+    expect(
+      fake.runPermissionRequest(main.contents, 'display-capture', {
+        isMainFrame: false,
+        requestingUrl: `${APP_ORIGIN}/canvas-frame.html`,
+      })
+    ).toBe(false);
+    expect(
+      fake.runPermissionRequest(other.contents, 'display-capture', {
+        isMainFrame: true,
+        requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(false);
   });
 });

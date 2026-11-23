@@ -82,11 +82,33 @@ export const guardWebContents = (contents: Electron.WebContents): void => {
   });
 };
 
+/**
+ * Whether this host supports macOS 15+ system screen sharing (SCContentSharingPicker).
+ * Unpackaged tests may pass an explicit `'1'` or `'0'` override.
+ */
+export const supportsSystemScreenShare = (
+  platform: NodeJS.Platform,
+  systemVersion: string,
+  testOverride?: string
+): boolean => {
+  if (testOverride === '1') return true;
+  if (testOverride === '0') return false;
+  if (platform !== 'darwin') return false;
+  const match = /^(\d+)(?:\.|$)/.exec(systemVersion.trim());
+  return match !== null && Number(match[1]) >= 15;
+};
+
 export const guardSession = (
   session: Electron.Session,
   isMainWindow: (contents: Electron.WebContents) => boolean,
-  onNetworkPermission?: (permission: string) => void
+  onNetworkPermission?: (permission: string) => void,
+  options?: { screenShare?: boolean }
 ): void => {
+  const screenShare = options?.screenShare ?? false;
+  const allowedPermissions = screenShare
+    ? new Set([...ALLOWED_PERMISSIONS, 'display-capture'])
+    : ALLOWED_PERMISSIONS;
+
   session.webRequest.onBeforeRequest({ urls: [`${APP_ORIGIN}/*`] }, (details, callback) => {
     const parsed = parseAppUrl(details.url);
     callback({
@@ -105,7 +127,7 @@ export const guardSession = (
     if (NETWORK_PERMISSIONS.has(perm)) onNetworkPermission?.(perm);
     return (
       isMainFrame &&
-      ALLOWED_PERMISSIONS.has(perm) &&
+      allowedPermissions.has(perm) &&
       wc !== null &&
       isMainWindow(wc) &&
       wc.mainFrame.origin === APP_ORIGIN &&
@@ -121,6 +143,12 @@ export const guardSession = (
   session.setPermissionRequestHandler((wc, perm, cb, d) => {
     cb(canGrant(wc, perm, d.isMainFrame, d.requestingUrl));
   });
+  session.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      callback({});
+    },
+    screenShare ? { useSystemPicker: true } : { useSystemPicker: false }
+  );
 };
 
 export const registerExternalOpenHandler = (

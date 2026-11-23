@@ -337,10 +337,31 @@ test.describe('Electron script policy and canvas frame', () => {
         const result = await app.evaluate(async ({ BrowserWindow }, target: string) => {
           const win = BrowserWindow.getAllWindows()[0];
           if (!win) return { rejected: false, code: '' };
+          let stopTimer: ReturnType<typeof setTimeout> | undefined;
+          const settled = new Promise<void>((resolve) => {
+            const done = (): void => {
+              if (stopTimer !== undefined) clearTimeout(stopTimer);
+              win.webContents.removeListener('did-stop-loading', done);
+              resolve();
+            };
+            stopTimer = setTimeout(done, 2_000);
+            win.webContents.once('did-stop-loading', done);
+          });
           try {
             await win.loadURL(target);
+            if (stopTimer !== undefined) clearTimeout(stopTimer);
             return { rejected: false, code: '' };
           } catch (err) {
+            await settled;
+            if (win.webContents.isLoading()) {
+              await new Promise<void>((resolve) => {
+                const timer = setTimeout(resolve, 2_000);
+                win.webContents.once('did-stop-loading', () => {
+                  clearTimeout(timer);
+                  resolve();
+                });
+              });
+            }
             return { rejected: true, code: String((err as { code?: unknown }).code ?? '') };
           }
         }, directUrl);

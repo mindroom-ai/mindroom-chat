@@ -48,6 +48,8 @@ const makeBridge = (): {
         value: 'http://127.0.0.1:4321/auth/rand/login',
       })),
       openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      screenShare: false,
       appUrl: {
         addListener: vi.fn(async () => ({ remove: vi.fn() })),
         getLaunchUrl: vi.fn(async () => undefined),

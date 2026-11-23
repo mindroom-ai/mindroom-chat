@@ -1,10 +1,23 @@
 import path from 'node:path';
-import { app, BrowserWindow, dialog, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, Menu, session, shell } from 'electron';
 import { createAuthCallback, registerSignInHandlers } from './authCallback';
 import { registerBundleScheme, serveBundle } from './bundleProtocol';
-import { getMainWindow, showMainWindow } from './mainWindow';
+import { handle } from './ipc';
+import {
+  configureMainWindow,
+  flushMainWindowState,
+  getMainWindow,
+  markQuitting,
+  showMainWindow,
+} from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
-import { guardSession, registerExternalOpenHandler, setBlockedUrlRecorder } from './security';
+import { buildMenuTemplate } from './menu';
+import {
+  guardSession,
+  registerExternalOpenHandler,
+  setBlockedUrlRecorder,
+  supportsSystemScreenShare,
+} from './security';
 
 // Prevent dedicated worker fetches from inheriting their creator's main frame in webRequest.
 app.commandLine.appendSwitch(
@@ -58,6 +71,11 @@ app.on('second-instance', () => {
   if (gotLock && app.isReady()) focusMainWindow();
 });
 
+app.on('before-quit', () => {
+  markQuitting();
+  flushMainWindowState();
+});
+
 void app.whenReady().then(() => {
   if (!gotLock) return;
   if (isTest && process.env.MINDROOM_DESKTOP_OFFLINE === '1') {
@@ -72,6 +90,25 @@ void app.whenReady().then(() => {
     app.exit(1);
     return;
   }
+
+  const screenShare = supportsSystemScreenShare(
+    process.platform,
+    typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : '',
+    isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
+  );
+  configureMainWindow({ screenShare });
+
+  const menuTemplate = buildMenuTemplate(
+    { updateReady: false, canCheck: false, quickCapture: false },
+    {
+      onZoom: (action) => {
+        const win = getMainWindow();
+        if (win) win.webContents.send('desktop:shell-event', { type: 'zoom', action });
+      },
+    }
+  );
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
+
   const mainOwners = (): readonly Electron.WebContents[] => {
     const win = getMainWindow();
     return win ? [win.webContents] : [];
@@ -83,7 +120,8 @@ void app.whenReady().then(() => {
   guardSession(
     session.defaultSession,
     (wc) => wc === getMainWindow()?.webContents,
-    telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined
+    telemetry ? (perm) => telemetry.networkPermissions.push(perm) : undefined,
+    { screenShare }
   );
   const openUrl = async (url: string): Promise<void> => {
     if (telemetry) telemetry.externalOpens.push(url);
@@ -91,6 +129,15 @@ void app.whenReady().then(() => {
   };
   registerExternalOpenHandler(appWindows, openUrl);
   registerSignInHandlers(mainOwners, authCallback, openUrl);
+  handle(
+    'desktop:show-main-window',
+    appWindows,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => {
+      focusMainWindow();
+      return { ok: true, value: undefined };
+    }
+  );
   const forgetMedia = installMediaAuth(session.defaultSession, appWindows);
   app.on('web-contents-created', (_e, wc) => {
     const forget = () => forgetMedia(wc.id);

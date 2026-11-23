@@ -13,6 +13,8 @@ on:
       - src/index.tsx
       - src/index.css
       - src/app/shell/App.tsx
+      - src/app/theme/usePageZoom.ts
+      - src/app/calls/callSupport.ts
       - index.html
       - public/*.html
       - scripts/frame-headers.json

@@ -1,5 +1,8 @@
 /** Shell-level events pushed from the Electron main process to the page. */
-export type DesktopShellEvent = { type: 'fullscreen'; value: boolean };
+export type DesktopShellEvent =
+  | { type: 'fullscreen'; value: boolean }
+  | { type: 'zoom'; action: 'in' | 'out' | 'reset' }
+  | { type: 'window-hidden' };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
@@ -22,6 +25,8 @@ export type DesktopBridge = {
   setMediaSession: (session: DesktopMediaSession | null) => DesktopResult<void>;
   startSignIn: (request: DesktopSignInRequest) => Promise<DesktopResult<string>>;
   openSignIn: (url: string) => Promise<DesktopResult<void>>;
+  showMainWindow: () => Promise<DesktopResult<void>>;
+  screenShare: boolean;
   appUrl: AppUrlPlugin;
 };
 

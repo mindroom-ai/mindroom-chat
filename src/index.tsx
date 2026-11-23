@@ -50,6 +50,7 @@ import { leavePage } from './boot/inviteFragment';
 import { markPageStartup } from './app/lib/startupTimeline';
 import { desktopBridge, isDesktopApp, markDesktopShell } from './app/lib/nativeShell';
 import { startDesktopMediaAuth } from './app/native/desktopMediaAuth';
+import { walkHistoryOnMouseButtons } from './app/native/desktopHistoryButtons';
 
 markPageStartup('js.entry');
 
@@ -97,6 +98,9 @@ const prepareDocument = (): void => {
     if (isDesktopApp() && typeof navigator !== 'undefined' && navigator.storage?.persist) {
       void navigator.storage.persist().catch(() => undefined);
     }
+  });
+  runSafely('desktop history buttons', () => {
+    walkHistoryOnMouseButtons(window);
   });
   runSafely('theme', () => applyAppTheme(resolveInitialTheme()));
   runSafely('ride trace flag', () => bootstrapRideTraceFlagFromUrl());

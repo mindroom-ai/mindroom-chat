@@ -16,6 +16,8 @@ export type LaunchDesktopOptions = {
   dist?: string;
   userData?: string;
   offline?: boolean;
+  screenShare?: boolean;
+  fakeMedia?: boolean;
 };
 
 export type DesktopSession = {
@@ -79,8 +81,14 @@ export const launchDesktop = async (options?: LaunchDesktopOptions): Promise<Des
   env.MINDROOM_DESKTOP_USER_DATA = userData;
   if (options?.dist) env.MINDROOM_DESKTOP_DIST = options.dist;
   if (options?.offline) env.MINDROOM_DESKTOP_OFFLINE = '1';
+  if (options?.screenShare !== undefined) {
+    env.MINDROOM_DESKTOP_SCREEN_SHARE = options.screenShare ? '1' : '0';
+  }
 
   const args = [MAIN_ENTRY];
+  if (options?.fakeMedia) {
+    args.push('--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream');
+  }
   if (process.platform === 'linux' && process.env.MINDROOM_E2E_NO_SANDBOX === '1') {
     args.push('--no-sandbox');
   }

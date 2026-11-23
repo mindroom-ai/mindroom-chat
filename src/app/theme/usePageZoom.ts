@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { isBundledApp } from '../lib/nativeShell';
+import { desktopBridge, isBundledApp } from '../lib/nativeShell';
 import { useSetting } from '../preferences/useSetting';
 import { PAGE_ZOOM_DEFAULT, settingsAtom, stepPageZoom } from '../preferences/settings';
 import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
@@ -36,6 +36,19 @@ export const usePageZoom = (): void => {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setPageZoom]);
+
+  // Electron View menu zoom items push shell events from main.
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return undefined;
+    return bridge.onShellEvent((event) => {
+      if (event.type !== 'zoom') return;
+      if (isQuickCapturePath(window.location.pathname)) return;
+      if (event.action === 'in') setPageZoom((zoom) => stepPageZoom(zoom, 1));
+      else if (event.action === 'out') setPageZoom((zoom) => stepPageZoom(zoom, -1));
+      else setPageZoom(PAGE_ZOOM_DEFAULT);
+    });
   }, [setPageZoom]);
 
   useEffect(() => {

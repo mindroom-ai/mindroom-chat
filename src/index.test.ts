@@ -293,6 +293,8 @@ describe('application bootstrap', () => {
       setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
       startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
       openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+      screenShare: false,
       appUrl: {
         addListener: vi.fn(async () => ({ remove: vi.fn() })),
         getLaunchUrl: vi.fn(async () => undefined),

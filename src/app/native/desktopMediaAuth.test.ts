@@ -28,6 +28,8 @@ const installBridge = () => {
     },
     startSignIn: async () => ({ ok: true, value: '' }),
     openSignIn: async () => ({ ok: true, value: undefined }),
+    showMainWindow: async () => ({ ok: true, value: undefined }),
+    screenShare: false,
     appUrl: {
       addListener: async () => ({ remove: () => undefined }),
       getLaunchUrl: async () => undefined,
