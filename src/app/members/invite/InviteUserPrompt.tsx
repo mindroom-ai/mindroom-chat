@@ -65,7 +65,6 @@ import { mergeUserDirectoryUsers, type ServerUserDirectoryUser } from '../userDi
 import { filterInviteUserCandidates } from '../userDirectorySearch';
 import { getDisplayName } from './InviteUserAutocomplete';
 import {
-  advanceModeratorGrantGeneration,
   createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateModeratorGrant,
@@ -74,6 +73,7 @@ import {
   grantRoleName,
   grantRoomModeratorRights,
   hasModeratorMindroomAgent,
+  supersedeModeratorGrant,
   type DetachedGrantError,
 } from './moderatorInvite';
 import * as modalCss from '../../ui/Modal500.css';
@@ -708,8 +708,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     ? pinnedRows.length + directRows.length + directoryRows.length
     : flatRows.length;
   const isDirectoryLoading = !isSearching && cache.status === 'loading' && totalVisibleRows === 0;
-  // The directory never loaded, and nothing retries it by itself.
-  const directoryFailed = !isSearching && cache.status === 'error' && cache.users.length === 0;
+  // The directory failed to load, and nothing retries it by itself. The rows it loaded before,
+  // if any, stay below.
+  const directoryFailed = !isSearching && cache.status === 'error';
 
   const updateAttemptState = (userId: string, state: AttemptState) => {
     setAttempts((current) => {
@@ -763,9 +764,10 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
-    // Whatever grant an earlier invite of this user still has in the queue is superseded: this
-    // invite's choice counts, also when it is to give no rights.
-    const generation = advanceModeratorGrantGeneration(client, room.roomId, targetId);
+    // An invite without the grant withdraws at once the grant an earlier invite of this user
+    // still has in the queue. One with the grant replaces it only once it is sent, by its own
+    // grant below: if it fails, the earlier grant stays.
+    if (grantCeiling === undefined) supersedeModeratorGrant(client, room.roomId, targetId);
     setEnterHint(undefined);
 
     if (options?.clearQuery) {
@@ -826,13 +828,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
 
     // Finish the submitted grant even if the user closed the dialog while invite was in flight.
     if (grantCeiling === undefined) return;
-    const grantFailure = await grantRoomModeratorRights(
-      client,
-      room,
-      targetId,
-      grantCeiling,
-      generation
-    );
+    const grantFailure = await grantRoomModeratorRights(client, room, targetId, grantCeiling);
     if (!grantFailure) return;
     const failure = createDetachedGrantError(
       formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)
@@ -1073,6 +1069,28 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                   )}
                 </div>
 
+                {directoryFailed && (
+                  <div className={css.DirectoryError}>
+                    <Text as="p" size="T200" priority="300" role="alert">
+                      {t('sharedUi.invites.actionFailed')}
+                    </Text>
+                    <Button
+                      type="button"
+                      size="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      radii="300"
+                      onClick={() => {
+                        void cache.refresh();
+                      }}
+                    >
+                      <Text as="span" size="B300">
+                        {t('sharedUi.roomCard.retry')}
+                      </Text>
+                    </Button>
+                  </div>
+                )}
+
                 {showSections ? (
                   <>
                     <RowList
@@ -1140,28 +1158,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                         {t('sharedUi.inviteUserAutocomplete.searching')}
                       </Text>
                     )}
-                  </div>
-                )}
-
-                {directoryFailed && (
-                  <div className={css.DirectoryError}>
-                    <Text as="p" size="T200" priority="300" role="alert">
-                      {t('sharedUi.invites.actionFailed')}
-                    </Text>
-                    <Button
-                      type="button"
-                      size="300"
-                      variant="Secondary"
-                      fill="Soft"
-                      radii="300"
-                      onClick={() => {
-                        void cache.refresh();
-                      }}
-                    >
-                      <Text as="span" size="B300">
-                        {t('sharedUi.roomCard.retry')}
-                      </Text>
-                    </Button>
                   </div>
                 )}
 

@@ -14,11 +14,11 @@ import {
   type UserDirectoryCacheState,
 } from '../userDirectoryCache';
 import {
-  advanceModeratorGrantGeneration,
   createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateRoomModeratorGrant,
   grantRoomModeratorRights,
+  supersedeModeratorGrant,
 } from './moderatorInvite';
 import { ModeratorGrantErrorNotice } from './ModeratorGrantErrorNotice';
 import { InviteUserPrompt } from './InviteUserPrompt';
@@ -650,43 +650,124 @@ describe('evaluateRoomModeratorGrant & grantRoomModeratorRights', () => {
     });
   });
 
-  it('writes nothing for a grant that a newer invite of the same user supersedes, before or after it read the live state', async () => {
+  describe('a superseded grant', () => {
     const helper = '@mindroom_helper:example.org';
-    let roomRef: ReturnType<typeof makeRoom> | null = null;
-    const mx = makeMx(() => roomRef as unknown as Room);
-    const room = makeRoom(mx);
-    roomRef = room;
-    const client = mx as unknown as MatrixClient;
-    const grant = (generation: number) =>
-      grantRoomModeratorRights(client, room as unknown as Room, helper, 50, generation);
+    const coder = '@mindroom_coder:example.org';
 
-    // Superseded while it waits in the queue: it does not even read the state.
-    const waiting = advanceModeratorGrantGeneration(client, room.roomId, helper);
-    advanceModeratorGrantGeneration(client, room.roomId, helper);
-    expect(await grant(waiting)).toBeNull();
-    expect(mx.getStateEvent).not.toHaveBeenCalled();
+    const setup = () => {
+      let roomRef: ReturnType<typeof makeRoom> | null = null;
+      const mx = makeMx(() => roomRef as unknown as Room);
+      const room = makeRoom(mx);
+      roomRef = room;
+      const client = mx as unknown as MatrixClient;
+      const grant = (userId: string) =>
+        grantRoomModeratorRights(client, room as unknown as Room, userId, 50);
+      const supersede = (userId: string) => supersedeModeratorGrant(client, room.roomId, userId);
+      /** The next read of the live power levels, pending until it is finished or failed. */
+      const holdNextRead = () => {
+        let finish: () => void = () => undefined;
+        let fail: (error: Error) => void = () => undefined;
+        vi.mocked(mx.getStateEvent).mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              finish = () => resolve(structuredClone(room.state.powerLevels));
+              fail = reject;
+            })
+        );
+        return { finish: () => finish(), fail: (error: Error) => fail(error) };
+      };
+      return { mx, room, grant, supersede, holdNextRead };
+    };
 
-    // Superseded while it reads the state: it does not write.
-    const reading = advanceModeratorGrantGeneration(client, room.roomId, helper);
-    let finishRead: () => void = () => undefined;
-    vi.mocked(mx.getStateEvent).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishRead = () => resolve(structuredClone(room.state.powerLevels));
-        })
-    );
-    const result = grant(reading);
-    await settle();
-    expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
-    const current = advanceModeratorGrantGeneration(client, room.roomId, helper);
-    finishRead();
-    expect(await result).toBeNull();
-    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    it('reads and writes nothing when an invite without the grant supersedes it while it waits in the queue', async () => {
+      const { mx, room, grant, supersede, holdNextRead } = setup();
+      const coderRead = holdNextRead();
+      const coderGrant = grant(coder);
+      const helperGrant = grant(helper);
+      await settle();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
 
-    // Another user's invite supersedes nothing, and the current generation writes.
-    advanceModeratorGrantGeneration(client, room.roomId, '@mindroom_coder:example.org');
-    expect(await grant(current)).toBeNull();
-    expectGrant(mx, room, helper, 50);
+      // An invite of someone else supersedes nothing; one of Helper does.
+      supersede('@mindroom_scout:example.org');
+      supersede(helper);
+      coderRead.finish();
+      expect(await coderGrant).toBeNull();
+      expect(await helperGrant).toBeNull();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expectGrant(mx, room, coder, 50);
+      expect(room.state.powerLevels.users).not.toHaveProperty(helper);
+    });
+
+    it('writes nothing when it is superseded while it reads the live state', async () => {
+      const { mx, grant, supersede, holdNextRead } = setup();
+      const read = holdNextRead();
+      const result = grant(helper);
+      await settle();
+      supersede(helper);
+      read.finish();
+      expect(await result).toBeNull();
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    });
+
+    it('reports no failure when it is superseded while it reads the live state and the read fails', async () => {
+      const { mx, grant, supersede, holdNextRead } = setup();
+      // A read that fails is a failure for a grant that still counts.
+      const failedRead = holdNextRead();
+      const current = grant(helper);
+      await settle();
+      failedRead.fail(new Error('Server down'));
+      expect(await current).toEqual({ kind: 'failed', detail: 'Server down' });
+
+      const supersededRead = holdNextRead();
+      const superseded = grant(helper);
+      await settle();
+      supersede(helper);
+      supersededRead.fail(new Error('Server down'));
+      expect(await superseded).toBeNull();
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    });
+
+    it('reports no changed requirement when it is superseded while it reads the live state', async () => {
+      const { mx, room, grant, supersede, holdNextRead } = setup();
+      const raise = () => {
+        room.state.powerLevels = {
+          ...room.state.powerLevels,
+          events: { 'm.room.power_levels': 100, 'io.mindroom.router': 75 },
+        };
+      };
+      const currentRead = holdNextRead();
+      const current = grant(helper);
+      await settle();
+      raise();
+      currentRead.finish();
+      expect(await current).toEqual({ kind: 'levelRaised', level: 75 });
+
+      const supersededRead = holdNextRead();
+      const superseded = grant(helper);
+      await settle();
+      supersede(helper);
+      supersededRead.finish();
+      expect(await superseded).toBeNull();
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    });
+
+    it('leaves the write to the newest of two grants for one user, and takes a grant again once they finished', async () => {
+      const { mx, room, grant, supersede } = setup();
+      const [first, second] = await Promise.all([grant(helper), grant(helper)]);
+      expect(first).toBeNull();
+      expect(second).toBeNull();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(1);
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expectGrant(mx, room, helper, 50);
+
+      // Nothing waits any more: an invite without the grant has nothing to supersede, and the
+      // grant of a later invite writes as the first of its user.
+      room.state.powerLevels = defaultPowerLevels();
+      supersede(helper);
+      expect(await grant(helper)).toBeNull();
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
@@ -1883,6 +1964,41 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(extractText(getRowActionButton(getRowByText(renderer, 'Maya Chen')!))).toBe('Invited');
   });
 
+  it('still writes the grant of a first invite when a second invite with the grant fails while that grant waits behind another', async () => {
+    const helper = '@mindroom_helper:example.org';
+    const { renderer, mx, room } = renderPrompt();
+
+    // Coder's grant is being written and stays unanswered; Helper's waits behind it.
+    let finishCoderGrant: () => void = () => undefined;
+    vi.mocked(mx.sendStateEvent).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishCoderGrant = () => resolve({ event_id: '$power_levels' });
+        })
+    );
+    await clickRowInvite(renderer, 'Coder');
+    await clickRowInvite(renderer, 'Helper');
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+
+    // Helper declines and is invited again, with the rights as before: that invite fails.
+    emitMembership(mx, room, helper, 'invite');
+    emitMembership(mx, room, helper, 'leave');
+    expect(findModeratorCheckbox(renderer)!.props.checked).toBe(true);
+    vi.mocked(mx.invite).mockRejectedValueOnce(new Error('Network down'));
+    await clickRowInvite(renderer, 'Helper');
+    expect(mx.invite).toHaveBeenCalledTimes(3);
+    expect(extractText(getRowActionButton(getRowByText(renderer, 'Helper')!))).toBe('Retry');
+
+    // The queue moves on: the first invite's grant is written, as if no second had been tried.
+    await act(async () => {
+      finishCoderGrant();
+      await settle();
+    });
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(2);
+    expectGrant(mx, room, helper, 50);
+    expect(getGrantAlerts(renderer)).toHaveLength(0);
+  });
+
   it('gives no rights to an agent invited again with the checkbox cleared, while the first invite’s grant still waits behind another', async () => {
     const helper = '@mindroom_helper:example.org';
     const { renderer, mx, room } = renderPrompt();
@@ -2134,6 +2250,53 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
     expect(getRowByText(renderer, 'Nora Quinn')).toBeDefined();
     expect(retryButton()).toHaveLength(0);
     expect(textContentByRole(renderer, 'alert')).toBe('');
+  });
+
+  it('offers Retry above the rows it loaded before when the directory fails to load again, also when none of them is left to invite', async () => {
+    const retryButton = () =>
+      renderer.root.findAll((node) => node.type === 'button' && extractText(node) === 'Retry');
+    const { renderer, mx } = renderPrompt({ cache: readyCache(defaultCacheUsers(), 'error') });
+    expect(getRows(renderer)).toHaveLength(4);
+    expect(textContentByRole(renderer, 'alert')).toBe('Something went wrong. Try again.');
+    expect(retryButton()).toHaveLength(1);
+    // The failure stands before the rows, not below the last of them.
+    const listArea = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'InviteListArea'
+    );
+    const parts = listArea.findAll(
+      (node) =>
+        typeof node.type === 'string' &&
+        ['InviteDirectoryError', 'InviteList'].includes(String(node.props.className))
+    );
+    expect(parts[0]!.props.className).toBe('InviteDirectoryError');
+    expect(parts.length).toBeGreaterThan(1);
+
+    // While searching, the search speaks for itself.
+    typeSearch(renderer, 'maya');
+    expect(retryButton()).toHaveLength(0);
+    typeSearch(renderer, '');
+
+    vi.mocked(mx.searchUserDirectory).mockResolvedValueOnce({
+      limited: false,
+      results: [{ user_id: '@nora:example.org', display_name: 'Nora Quinn' }],
+    });
+    await act(async () => {
+      retryButton()[0]!.props.onClick();
+      await settle();
+    });
+    expect(mx.searchUserDirectory).toHaveBeenCalledWith(expect.objectContaining({ term: '@' }));
+    expect(getRowByText(renderer, 'Nora Quinn')).toBeDefined();
+    expect(retryButton()).toHaveLength(0);
+    expect(textContentByRole(renderer, 'alert')).toBe('');
+
+    // Everyone the directory had is in the room already: no row, and still the way to retry.
+    const everyone = renderPrompt({
+      cache: readyCache(defaultCacheUsers(), 'error'),
+      members: defaultCacheUsers().map(({ userId }) => ({ userId, membership: 'join' })),
+    });
+    expect(getRows(everyone.renderer)).toHaveLength(0);
+    expect(textContentByRole(everyone.renderer, 'alert')).toBe('Something went wrong. Try again.');
+    expect(extractText(getDialog(everyone.renderer))).not.toContain('No users to invite yet');
   });
 
   it('scrolls the focused field into view when the body, which scrolls what does not fit, changes its size', () => {
