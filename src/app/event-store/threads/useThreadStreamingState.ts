@@ -6,9 +6,9 @@ import {
   TERMINAL_STREAM_STATUSES,
   getAiRunInfo,
   hasTerminalStreamMetadata,
+  readOwnStreamStatus,
   readStreamStatus,
 } from '../../matrix/protocol/aiRun';
-import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
 import {
   getShallowSerializedReplacementEvent,
@@ -78,11 +78,11 @@ export const isEventStreaming = (
 ): boolean => {
   const content = getPreferredEventContent(mEvent, timelineSet);
   const streamStatus = readStreamStatus(content);
-  // getEditedEvent stamps STREAM_STATUS_TS_KEY only beside a stream status the shown edit borrowed
-  // from an older one. A status the edit carries itself takes precedence over a run status of
-  // 'streaming', which a stop or error note borrows; a borrowed status does not, so an older
-  // finish or approval pause does not veto a retry that says by its run status that it streams.
-  const ownStreamStatus = content[STREAM_STATUS_TS_KEY] === undefined ? streamStatus : undefined;
+  // A status the shown edit carries itself takes precedence over a run status of 'streaming',
+  // which a stop or error note borrows; a status it borrowed from an older edit does not, so an
+  // older finish or approval pause does not veto a retry that says by its run status that it
+  // streams (`readOwnStreamStatus`).
+  const ownStreamStatus = readOwnStreamStatus(content);
   if (ownStreamStatus === 'approval_pending') {
     return false;
   }

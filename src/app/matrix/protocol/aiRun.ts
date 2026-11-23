@@ -1,3 +1,5 @@
+import { STREAM_STATUS_TS_KEY } from './editMetadata';
+
 const AI_RUN_METADATA_KEY = 'io.mindroom.ai_run';
 
 type AiRunModel = {
@@ -268,6 +270,18 @@ export const readStreamStatus = (content: Record<string, unknown>): string | und
 };
 
 /**
+ * The stream status the content carries itself. An edit without one shows the status of an older
+ * edit (`getEditedEvent`, which marks it with `STREAM_STATUS_TS_KEY`): that one says how an earlier
+ * run ended or paused, so it does not outweigh a run status that says the edit's own run goes on.
+ */
+export const readOwnStreamStatus = (content: Record<string, unknown>): string | undefined => {
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
+  const borrowed =
+    newContent?.[STREAM_STATUS_TS_KEY] !== undefined || content[STREAM_STATUS_TS_KEY] !== undefined;
+  return borrowed ? undefined : readStreamStatus(content);
+};
+
+/**
  * True only when the content itself proves the stream reached a terminal
  * state. Absent or unrecognized metadata returns false — callers must not
  * treat "not terminal" as "still streaming".
@@ -282,30 +296,26 @@ export const hasTerminalStreamMetadata = (content: Record<string, unknown>): boo
   return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
+const endsOrPausesStream = (streamStatus: string | undefined): boolean =>
+  streamStatus === 'approval_pending' ||
+  (!!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus));
+
 export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
-  if (hasTerminalStreamMetadata(content)) return false;
+  const metadata = getAiRunMetadata(content);
+  const aiRunStatus =
+    typeof metadata?.status === 'string' && metadata.status.length > 0
+      ? metadata.status.toLowerCase()
+      : undefined;
+  if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return false;
+  // A status the content carries itself ends or pauses the run whatever its run status says; a
+  // borrowed one only when the content has no run status of its own.
+  if (endsOrPausesStream(readOwnStreamStatus(content))) return false;
+  if (aiRunStatus) return true;
 
   const streamStatus = readStreamStatus(content);
-  if (streamStatus === 'approval_pending') return false;
-
-  const metadata = getAiRunMetadata(content);
-  if (metadata) {
-    if (typeof metadata.status === 'string' && metadata.status.length > 0) {
-      return !TERMINAL_AI_RUN_STATUSES.has(metadata.status.toLowerCase());
-    }
-    if (streamStatus) {
-      return (
-        ACTIVE_STREAM_STATUSES.has(streamStatus) && !TERMINAL_STREAM_STATUSES.has(streamStatus)
-      );
-    }
-    return true;
-  }
-
-  if (streamStatus) {
-    return ACTIVE_STREAM_STATUSES.has(streamStatus) && !TERMINAL_STREAM_STATUSES.has(streamStatus);
-  }
-
-  return false;
+  if (endsOrPausesStream(streamStatus)) return false;
+  if (streamStatus) return ACTIVE_STREAM_STATUSES.has(streamStatus);
+  return !!metadata;
 };
 
 export { AI_RUN_METADATA_KEY };

@@ -11,7 +11,7 @@ import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish'
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
-import { getAiRunInfo, readStreamStatus } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, readOwnStreamStatus, readStreamStatus } from '../../matrix/protocol/aiRun';
 import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
@@ -225,7 +225,11 @@ const readOutcome = ({ event, content, editTs }: Shown): ThreadOutcome | undefin
     runStatus && (STOPPED_STATUSES.has(runStatus) || FINISHED_STATUSES.has(runStatus))
       ? runStatus
       : undefined;
-  const status = terminalRunStatus ?? readStreamStatus(content) ?? '';
+  // A run status that says the run goes on outweighs a stream status borrowed from an older edit,
+  // as of a retry after a finished or stopped run; a stop note's own status still gives an outcome.
+  const streamStatus =
+    runStatus && !terminalRunStatus ? readOwnStreamStatus(content) : readStreamStatus(content);
+  const status = terminalRunStatus ?? streamStatus ?? '';
   const borrowedStreamStatusTs =
     !terminalRunStatus && typeof content[STREAM_STATUS_TS_KEY] === 'number'
       ? content[STREAM_STATUS_TS_KEY]

@@ -6,6 +6,8 @@ import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import {
   getThreadStreamingReplies,
   getThreadStreamingState,
@@ -961,8 +963,9 @@ describe('useThreadStreamingState', () => {
 });
 
 // `getEditedEvent` lends the edit a reply shows the metadata it lacks from the older edits, so what
-// the edit says itself counts for more than what it borrowed. Each reply here has a stale 🛑 unless
-// the test says otherwise.
+// the edit says itself counts for more than what it borrowed: for the thread's spinner
+// (`isEventStreaming`) as for the reply's own indicator (`isAiRunStreaming` of the shown content).
+// Each reply here has a stale 🛑 unless the test says otherwise.
 describe('a reply whose shown edit borrows metadata from its older edits', () => {
   const COMPLETED = { 'io.mindroom.stream_status': 'completed' };
   const STREAMING = { 'io.mindroom.stream_status': 'streaming' };
@@ -1008,35 +1011,53 @@ describe('a reply whose shown edit borrows metadata from its older edits', () =>
       return event;
     };
     const isStreaming = () => isEventStreaming(reply, relations as never, timelineSet as never);
-    return { edit, load, isStreaming };
+    /** Whether the reply's shown content says that it streams, as its message row reads it. */
+    const isRunStreaming = () =>
+      isAiRunStreaming(
+        getLatestMessageContent(reply, getEditedEvent(replyId, reply, timelineSet as never))
+      );
+    return { edit, load, isStreaming, isRunStreaming };
   };
 
   it('streams again by the run status of a regenerated edit, though the finished edit is loaded', () => {
-    const { edit, isStreaming } = setup('$regenerated');
+    const { edit, isStreaming, isRunStreaming } = setup('$regenerated');
     edit('$done', 300, { ...COMPLETED, ...runStatus('completed') });
     expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
 
     // The retry says that it streams by its run status alone; the `completed` it shows is borrowed.
     edit('$retry', 400, runStatus('streaming'));
     expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
+  });
+
+  it('streams again by the run status of a retry after a stop note', () => {
+    const { edit, isStreaming, isRunStreaming } = setup('$retried-after-stop');
+    edit('$stop-note', 300, { body: 'Stopped.', 'io.mindroom.stream_status': 'cancelled' });
+    edit('$retry', 400, runStatus('streaming'));
+    expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
   });
 
   it('streams again by the run status of a retry in the same millisecond as the finish', () => {
-    const { edit, isStreaming } = setup('$tied');
+    const { edit, isStreaming, isRunStreaming } = setup('$tied');
     edit('$a-finish', 300, COMPLETED);
     expect(isStreaming()).toBe(false);
 
     edit('$z-retry', 300, runStatus('streaming'));
     expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
   });
 
   it('stays stopped by a stop note that borrows the streaming run of the edit before it', () => {
-    const { edit, isStreaming } = setup('$stopped');
+    const { edit, isStreaming, isRunStreaming } = setup('$stopped');
     edit('$progress', 300, runStatus('streaming'));
     expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
 
     edit('$stop-note', 400, { body: 'Stopped.', 'io.mindroom.stream_status': 'cancelled' });
     expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
   });
 
   it('stays finished through a later correction of its text', () => {
@@ -1059,16 +1080,20 @@ describe('a reply whose shown edit borrows metadata from its older edits', () =>
     expect(borrowed.isStreaming()).toBe(true);
     borrowed.edit('$pause', 400, APPROVAL_PENDING);
     expect(borrowed.isStreaming()).toBe(false);
+    expect(borrowed.isRunStreaming()).toBe(false);
 
-    const { edit, isStreaming } = setup('$paused');
+    const { edit, isStreaming, isRunStreaming } = setup('$paused');
     edit('$pause', 300, { ...APPROVAL_PENDING, ...EARLY_AI_RUN });
     expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
     // A correction of the text borrows the pause.
     edit('$correction', 400, { body: 'Corrected text' });
     expect(isStreaming()).toBe(false);
+    expect(isRunStreaming()).toBe(false);
     // A retry that says by its run status that it streams borrows it too, and streams.
     edit('$retry', 500, runStatus('streaming'));
     expect(isStreaming()).toBe(true);
+    expect(isRunStreaming()).toBe(true);
   });
 
   it('streams by the stream status that an edit with another run status borrows', () => {

@@ -3,8 +3,10 @@ import {
   getAiRunInfo,
   hasTerminalStreamMetadata,
   isAiRunStreaming,
+  readOwnStreamStatus,
   withoutAiRunCost,
 } from './aiRun';
+import { STREAM_STATUS_TS_KEY } from './editMetadata';
 
 describe('getAiRunInfo', () => {
   it('extracts metadata from top-level message content', () => {
@@ -289,6 +291,43 @@ describe('isAiRunStreaming', () => {
 
     // Backward compat: status-less ai_run without stream_status stays streaming
     expect(isAiRunStreaming({ 'io.mindroom.ai_run': earlyRun })).toBe(true);
+  });
+
+  // A regenerated reply's first edit carries only its run status, and shows the stream status of
+  // the run before it, borrowed (`getEditedEvent`): the reply showed no streaming indicator.
+  it('lets a run status that goes on outweigh a borrowed stream status, not one of its own', () => {
+    const streamingRun = { 'io.mindroom.ai_run': { version: 1, status: 'streaming' } };
+    const earlyRun = { 'io.mindroom.ai_run': { version: 1, model: { config: 'gemini4_neon' } } };
+    const borrowed = (status: string) => ({
+      'io.mindroom.stream_status': status,
+      [STREAM_STATUS_TS_KEY]: 2000,
+    });
+
+    for (const status of ['completed', 'cancelled', 'error', 'approval_pending']) {
+      expect(readOwnStreamStatus(borrowed(status))).toBeUndefined();
+      expect(readOwnStreamStatus({ 'io.mindroom.stream_status': status })).toBe(status);
+
+      // A retry, as shown content and as the edit that wraps it.
+      expect(isAiRunStreaming({ ...streamingRun, ...borrowed(status) })).toBe(true);
+      expect(isAiRunStreaming({ 'm.new_content': { ...streamingRun, ...borrowed(status) } })).toBe(
+        true
+      );
+      // A stop note, a finish or a pause with the streaming run of the edit before it.
+      expect(isAiRunStreaming({ ...streamingRun, 'io.mindroom.stream_status': status })).toBe(
+        false
+      );
+      // A correction of the text, which states no run status: the borrowed status stands.
+      expect(isAiRunStreaming({ ...earlyRun, ...borrowed(status) })).toBe(false);
+      expect(isAiRunStreaming(borrowed(status))).toBe(false);
+    }
+
+    expect(isAiRunStreaming({ ...earlyRun, ...borrowed('streaming') })).toBe(true);
+    expect(
+      isAiRunStreaming({
+        'io.mindroom.ai_run': { version: 1, status: 'completed' },
+        ...borrowed('streaming'),
+      })
+    ).toBe(false);
   });
 });
 

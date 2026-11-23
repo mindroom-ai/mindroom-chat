@@ -8,7 +8,10 @@ import {
 } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isEventStreaming } from '../../event-store/threads/useThreadStreamingState';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import type { RegisteredPlugin } from '../../plugins/registry';
 import {
   FINISHED_AFTER_MS,
@@ -577,6 +580,75 @@ describe('readThreadSignals', () => {
     reply.makeReplaced(textOnlyEdit);
 
     expect(readThreadSignals(room, ROOT, ME, NOW).outcome).toBeUndefined();
+  });
+
+  // The shown edit of a reply borrows the stream status it lacks from an older edit. What reads
+  // the reply must agree on what the borrowed status means: the thread's spinner
+  // (`isEventStreaming`), the reply's own indicator (`isAiRunStreaming`) and the card's outcome.
+  describe('a reply whose shown edit borrows from its older edits', () => {
+    const earlyRun = { 'io.mindroom.ai_run': { version: 1, model: { config: 'gemini4_neon' } } };
+    const streamingRun = { 'io.mindroom.ai_run': { version: 1, status: 'streaming' } };
+    const streamStatus = (status: string) => ({ 'io.mindroom.stream_status': status });
+
+    /** How a reply reads whose opened thread holds edits of these new contents, a minute apart. */
+    const read = async (...newContents: Record<string, unknown>[]) => {
+      const reply = event({ id: '$reply', ts: 2000, sender: AGENT });
+      const { room, thread } = await setup(ME, [reply], { opened: true });
+      const edits = newContents.map(
+        (newContent, index) =>
+          new MatrixEvent({
+            event_id: `$edit-${index}`,
+            room_id: ROOM_ID,
+            sender: AGENT,
+            type: 'm.room.message',
+            origin_server_ts: 2000 + (index + 1) * FINISHED_AFTER_MS,
+            content: {
+              msgtype: 'm.text',
+              body: `* edit ${index}`,
+              'm.new_content': { msgtype: 'm.text', body: `edit ${index}`, ...newContent },
+              'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
+            },
+          })
+      );
+      edits.forEach((edit) => thread.timelineSet.addLiveEvent(edit, { addToState: false }));
+      reply.makeReplaced(edits.at(-1));
+      const shown = getEditedEvent('$reply', reply, thread.timelineSet);
+      return {
+        spinner: isEventStreaming(reply, undefined, thread.timelineSet),
+        indicator: isAiRunStreaming(getLatestMessageContent(reply, shown)),
+        outcome: readThreadSignals(room, ROOT, ME, NOW).outcome?.kind,
+      };
+    };
+    const streams = { spinner: true, indicator: true, outcome: undefined };
+    const rests = (outcome?: 'finished' | 'stopped') => ({
+      spinner: false,
+      indicator: false,
+      outcome,
+    });
+
+    it.each(['cancelled', 'completed', 'approval_pending'])(
+      'streams by the run status of a retry after a %s edit',
+      async (status) => {
+        expect(await read(streamStatus(status), streamingRun)).toEqual(streams);
+      }
+    );
+
+    it('is stopped by a stop note that borrows the streaming run of the edit before it', async () => {
+      expect(await read(streamingRun, streamStatus('cancelled'))).toEqual(rests('stopped'));
+    });
+
+    it.each([
+      ['approval_pending', undefined],
+      ['cancelled', 'stopped'],
+      ['completed', 'finished'],
+    ] as const)(
+      'reads %s beside an early run the same in the edit itself and borrowed by a correction',
+      async (status, outcome) => {
+        const own = { ...earlyRun, ...streamStatus(status) };
+        expect(await read(own)).toEqual(rests(outcome));
+        expect(await read(own, { body: 'Corrected text' })).toEqual(rests(outcome));
+      }
+    );
   });
 
   it('calls an agent thread nobody wrote in an automation', async () => {
