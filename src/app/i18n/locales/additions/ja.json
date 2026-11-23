@@ -924,6 +924,20 @@
         "earlier_other": "以前のメッセージ {{count}} 件",
         "hide_other": "{{count}} 件のメッセージを非表示"
       },
+      "membershipFold": {
+        "summary_other": "ルームイベント {{count}} 件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "ルームイベント {{count}} 件を非表示",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人参加",
+        "left_other": "{{count}} 人退出",
+        "invited_other": "{{count}} 人招待",
+        "requested_other": "{{count}} 人参加リクエスト",
+        "kicked_other": "{{count}} 人強制退出",
+        "banned_other": "{{count}} 人BAN",
+        "unbanned_other": "{{count}} 人BAN解除",
+        "profileChanges_other": "プロフィール変更 {{count}} 件"
+      },
       "questionCard": {
         "title": "質問",
         "waiting": "あなたの回答待ち",

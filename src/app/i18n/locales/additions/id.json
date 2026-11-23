@@ -924,6 +924,20 @@
         "earlier_other": "{{count}} pesan sebelumnya",
         "hide_other": "Sembunyikan {{count}} pesan"
       },
+      "membershipFold": {
+        "summary_other": "{{count}} peristiwa ruang",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "Sembunyikan {{count}} peristiwa ruang",
+        "listSeparator": ", ",
+        "joined_other": "{{count}} bergabung",
+        "left_other": "{{count}} keluar",
+        "invited_other": "{{count}} diundang",
+        "requested_other": "{{count}} meminta bergabung",
+        "kicked_other": "{{count}} dikeluarkan",
+        "banned_other": "{{count}} diblokir",
+        "unbanned_other": "{{count}} dibuka blokirnya",
+        "profileChanges_other": "{{count}} perubahan profil"
+      },
       "questionCard": {
         "title": "Pertanyaan",
         "waiting": "Menunggu Anda",

@@ -82,11 +82,11 @@ const DESKTOP_MAX_PILLS = 3;
 
 // A banner narrower than this takes a phone's layout: the tags and the pin in More, the whole
 // title, the buttons beside it stacked. Narrower are a thread column or a second thread beside the
-// messages (440 px of banner until resized), a conversation beside the members panel on a tablet
-// (372 px at 1024 by 768, 528 px at 1180 by 820) and a portrait tablet's beside the room list
-// (442 px at 820 wide). Wider, and keeping the tags, are a tablet's held sideways beside the room
-// list (646 px at 1024 by 768) and a desktop's, also beside the members panel (628 px at 1280 by
-// 800). A phone takes the compact layout at any width: a 750 px one has 710 px of banner, more than
+// messages (456 px of banner until resized), a conversation beside the members panel on a tablet
+// (388 px at 1024 by 768, 544 px at 1180 by 820) and a portrait tablet's beside the room list
+// (458 px at 820 wide). Wider, and keeping the tags, are a tablet's held sideways beside the room
+// list (662 px at 1024 by 768) and a desktop's, also beside the members panel (644 px at 1280 by
+// 800). A phone takes the compact layout at any width: a 750 px one has 726 px of banner, more than
 // that tablet, so no width tells them apart. In rem, as the row's, since Page Zoom scales what the
 // banner holds.
 const COMPACT_BANNER_REM = 36;
@@ -100,8 +100,8 @@ const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
  * Whether the banner is narrower than COMPACT_BANNER_REM. Measured from the banner's slot, the
  * width the banner has expanded, so a collapsed pill gets the same answer; again as the slot
  * resizes and as Page Zoom changes the root's font size. A hidden slot (no width) keeps the last
- * answer. Not measured while `skip`. Assumes the parent is the block slot from
- * `threadBannerSlotStyle`, whose width does not depend on the banner's.
+ * answer. Not measured while `skip`. Assumes the parent is `ThreadTimelineHeader`'s block-level
+ * content box (`display: flow-root`), whose width does not depend on the banner's.
  */
 const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
   const [narrow, setNarrow] = useState(false);
