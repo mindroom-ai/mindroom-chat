@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
+import { Profiler } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
-import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
-import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
+import { stubCompactLayout, tickFrames } from './compactBlocks.test.shared';
 import * as scrollFallback from './useCompactScrollFallback';
 
 const ROOM_ID = '!room:example.org';
@@ -20,6 +21,10 @@ const state = vi.hoisted(() => ({
   pinned: [] as string[],
   sections: undefined as CompactThreadSection[] | undefined,
   enabled: [] as boolean[],
+  unreachable: false,
+}));
+vi.mock('../../matrix/client/homeserverReachability', () => ({
+  useHomeserverUnreachable: () => state.unreachable,
 }));
 
 const viewModel = (threadRootId: string): CompactThreadCardViewModel => ({
@@ -78,6 +83,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
+const viewMemory: ScrollAnchorMemory = new Map();
 const view = (
   threadRootIds: string[],
   sections = true,
@@ -89,7 +95,7 @@ const view = (
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
-    compactRoomScrollStateRef={{ current: new Map() }}
+    compactRoomScrollStateRef={{ current: viewMemory }}
     sectionsNow={sections ? NOW : undefined}
     singleBucketTab={singleBucketTab}
   />
@@ -111,6 +117,7 @@ const header = (id: string) => {
 };
 
 beforeEach(() => {
+  viewMemory.clear();
   state.pinned = [];
   state.enabled = [];
   state.sections = [
@@ -129,6 +136,49 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
+  it('keeps a 730-card room bounded on every commit while discovering its extent', () => {
+    vi.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'],
+    });
+    const ids = Array.from({ length: 730 }, (_, index) => `$card${index}`);
+    state.sections = [
+      { id: 'needsYou', rootIds: ids.slice(0, 40) },
+      { id: 'done', rootIds: ids.slice(40) },
+    ];
+    localStorage.setItem(`compactRoomSections:${ME}`, JSON.stringify({ on: true, folded: [] }));
+    stubCompactLayout({
+      width: () => 390,
+      clientHeight: 810,
+      gap: 4.25,
+      rowHeight: (row) =>
+        row.hasAttribute('data-scroll-anchor')
+          ? 81.25 + (Number(row.dataset.scrollAnchor?.slice(5)) % 3) * 7.5
+          : Number.parseFloat(row.style.height) || 32.25,
+    });
+    const commits: number[] = [];
+    try {
+      render(
+        <Profiler
+          id="compact"
+          onRender={() => {
+            commits.push(document.querySelectorAll('button[data-thread-root-id]').length);
+          }}
+        >
+          {view(ids)}
+        </Profiler>
+      );
+      tickFrames(75);
+      expect(header('needsYou').textContent).toContain('· 40');
+      expect(header('done').textContent).toContain('· 690');
+      expect(document.querySelector('[data-cards-pending]')).toBeNull();
+      expect(Math.max(...commits)).toBeLessThanOrEqual(60);
+    } finally {
+      cleanup();
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  }, 30_000);
+
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
@@ -493,7 +543,18 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('shows the header of the section a mounted card moves to while cards still mount', () => {
+  it('retains the first visible card when it moves to a different section during discovery', () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(450);
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function row(this: HTMLElement) {
+        return new DOMRect(
+          0,
+          this.hasAttribute('data-scroll-anchor') && this.dataset.scrollAnchor !== '$a' ? 500 : 0,
+          390,
+          100
+        );
+      });
     const waiting = Array.from({ length: 100 }, (_unused, index) => `$waiting${index}`);
     const ids = ['$a', ...waiting];
     state.sections = [{ id: 'needsYou', rootIds: ids }];
@@ -509,6 +570,8 @@ describe('the Compact room in sections', () => {
 
     expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
     expect(rows().slice(-2)).toEqual(['#working 1', '$a']);
+    bounds.mockRestore();
+    height.mockRestore();
   });
 
   it('mounts the first screenful on the way back from a card in folded Done', () => {
@@ -538,7 +601,7 @@ describe('the Compact room in sections', () => {
     );
 
     // The first screenful of cards, under their headers, and Done stays folded.
-    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
+    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(24);
     expect(rows()).not.toContain('$done');
   });
 
@@ -668,86 +731,399 @@ describe('a focus request on the mounted Compact room', () => {
   const ROW_HEIGHT = 100;
   const VIEW_HEIGHT = 300;
   const cards = Array.from({ length: 10 }, (_unused, index) => `$card${index}`);
-  let scrollTop = 0;
+  let inset = 0;
+  let layout: ReturnType<typeof stubCompactLayout>;
 
-  // jsdom lays nothing out: each card is ROW_HEIGHT tall, one under the other, in a list
-  // VIEW_HEIGHT tall that scrolls.
   beforeEach(() => {
-    scrollTop = 0;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe = vi.fn();
-        disconnect = vi.fn();
-      }
-    );
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
-      this: HTMLElement
-    ) {
-      if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, VIEW_HEIGHT);
-      const index = [...document.querySelectorAll('[data-scroll-anchor]')].indexOf(this);
-      return new DOMRect(0, index * ROW_HEIGHT - scrollTop, 300, index < 0 ? 0 : ROW_HEIGHT);
-    });
-    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
-    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
-      scrollTop = Math.min(Math.max(0, value), cards.length * ROW_HEIGHT - VIEW_HEIGHT);
+    inset = 0;
+    state.unreachable = false;
+    layout = stubCompactLayout({
+      width: () => 300,
+      clientHeight: VIEW_HEIGHT,
+      inset: () => inset,
+      clampScrollTop: true,
     });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   const memory: ScrollAnchorMemory = new Map();
-  const at = (focusRequest?: CompactFocusRequest) => {
-    // What the room does as it renders the address.
+  const at = (
+    focusRequest?: CompactFocusRequest,
+    ids = cards,
+    indexPending = false,
+    records = new Map<string, ThreadRecord>()
+  ) => {
     if (focusRequest) takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
     return (
       <CompactRoomView
         room={room}
-        threadRootIds={cards}
-        threadRecordMap={new Map()}
+        threadRootIds={ids}
+        threadRecordMap={records}
         onThreadClick={vi.fn()}
         compactRoomScrollStateRef={{ current: memory }}
         focusRequest={focusRequest}
+        indexPending={indexPending}
       />
     );
   };
   const topOf = (key: string) =>
     document.querySelector(`[data-scroll-anchor="${key}"]`)!.getBoundingClientRect().top;
+  const scroller = () => document.querySelector<HTMLElement>('[data-compact-room-view]')!;
+  const inView = () =>
+    [...document.querySelectorAll<HTMLElement>('[data-scroll-anchor]')]
+      .filter((card) => {
+        const { top, bottom } = card.getBoundingClientRect();
+        return bottom > 0 && top < VIEW_HEIGHT;
+      })
+      .map((card) => card.dataset.scrollAnchor);
 
   it('brings a card out of view to its place below the top, once, and leaves one in view', () => {
     memory.clear();
-    // The list was left earlier with the card in view, and the reader is now at its top.
     memory.set(ROOM_ID, { scrollTop: 700, anchors: [{ key: '$card8', offset: 100 }] });
     const { rerender } = render(at());
-    scrollTop = 0;
+    layout.scrollTop = 0;
 
     rerender(at({ eventId: '$card8', entryKey: 'pin', pushed: true }));
     expect(topOf('$card8')).toBe(160);
 
-    // The reader scrolls on; another render of that address keeps their place.
-    scrollTop = 100;
+    layout.scrollTop = 100;
     rerender(at({ eventId: '$card8', entryKey: 'pin', pushed: true }));
-    expect(scrollTop).toBe(100);
+    expect(layout.scrollTop).toBe(100);
 
-    // A card in view stays where it is.
     rerender(at({ eventId: '$card2', entryKey: 'next', pushed: true }));
-    expect(scrollTop).toBe(100);
+    expect(layout.scrollTop).toBe(100);
 
-    // Back to the first entry keeps the reader's place: its request was met.
     rerender(at({ eventId: '$card8', entryKey: 'pin' }));
-    expect(scrollTop).toBe(100);
+    expect(layout.scrollTop).toBe(100);
+  });
+
+  describe('with an already measured window', () => {
+    const large = Array.from({ length: 120 }, (_, index) => `$card${index}`);
+    const measure = () => {
+      let prevScroll = 0;
+      let prevExtent = layout.extent();
+      for (let i = 0; i < 16; i += 1) {
+        const view = document.querySelector('[data-compact-room-view]');
+        if (view && layout.scrollTop !== prevScroll) {
+          prevScroll = layout.scrollTop;
+          act(() => {
+            fireEvent.scroll(view);
+          });
+        }
+        tickFrames(1);
+        if (layout.extent() !== prevExtent) {
+          prevExtent = layout.extent();
+          act(() => layout.resize());
+        }
+      }
+    };
+    const leaveAt = (top: number) => {
+      memory.clear();
+      const { unmount } = render(at(undefined, large));
+      measure();
+      layout.scroll(scroller(), top);
+      unmount();
+      layout.scrollTop = 0;
+    };
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('keeps an off-window pushed target mounted for placement', () => {
+      memory.clear();
+      const { rerender } = render(at(undefined, large));
+      measure();
+      expect(document.querySelector('[data-scroll-anchor="$card100"]')).toBeNull();
+      rerender(at({ eventId: '$card100', entryKey: 'deep-push', pushed: true }, large));
+      expect(layout.scrollTop).toBe(9840);
+      expect(topOf('$card100')).toBe(160);
+      rerender(at({ eventId: '$card100', entryKey: 'deep-push', pushed: true }, large));
+      expect(document.querySelector('[data-scroll-anchor="$card100"]')).not.toBeNull();
+    });
+
+    it.each([
+      ['reader wheel', true, 150],
+      ['browser scroll without reader input', false, 9840],
+    ])('handles a waiting far link after %s', (_, withWheel, expectedTop) => {
+      memory.clear();
+      const cold = large.map((id) => `${id}-${withWheel ? 'cold' : 'unseen'}`);
+      const far = { eventId: cold[100]!, entryKey: `far-${withWheel}`, pushed: true };
+      const { rerender } = render(at(undefined, cold));
+      rerender(at(far, cold));
+      expect(layout.scrollTop).toBe(0);
+      if (withWheel) fireEvent.wheel(scroller());
+      layout.scrollTop = 150;
+      measure();
+      rerender(at(far, cold));
+      expect(layout.scrollTop).toBe(expectedTop);
+      if (!withWheel) expect(topOf(cold[100]!)).toBe(160);
+    });
+
+    it.each([
+      [
+        '48 unseen roots prepended',
+        () => [...Array.from({ length: 48 }, (_, i) => `$new${i}`), ...large],
+        false,
+        undefined,
+        '$card60',
+        0,
+        undefined,
+      ],
+      [
+        'one saved card deleted while indexPending',
+        () => large.filter((id) => id !== '$card61'),
+        true,
+        6000,
+        '$card60',
+        0,
+        undefined,
+      ],
+      [
+        'one saved card left, one moved far down, and 36 measured roots shifted above',
+        () => {
+          const head = large.slice(84);
+          const rest = large.slice(0, 84).filter((id) => id !== '$card60' && id !== '$card62');
+          return [...head, ...rest, '$card60'];
+        },
+        false,
+        9500,
+        '$card61',
+        ROW_HEIGHT,
+        ['$card59', '$card61', '$card63'],
+      ],
+    ] as const)(
+      'places warm Back in its first commit when %s',
+      (_, nextIds, indexPending, expectedTop, card, cardTop, visible) => {
+        leaveAt(6000);
+        expect(memory.get(ROOM_ID)?.anchors.map(({ key }) => key)).toEqual([
+          '$card60',
+          '$card61',
+          '$card62',
+        ]);
+        render(at(undefined, nextIds(), indexPending));
+        if (expectedTop !== undefined) expect(layout.scrollTop).toBe(expectedTop);
+        else expect(layout.scrollTop).toBeGreaterThan(0);
+        expect(topOf(card)).toBe(cardTop);
+        if (visible) expect(inView()).toEqual(visible);
+        measure();
+        if (expectedTop !== undefined) expect(layout.scrollTop).toBe(expectedTop);
+        expect(topOf(card)).toBe(cardTop);
+      }
+    );
+
+    it('goes Back when all saved cards left, waiting only for cards above the saved screen and counting inset', () => {
+      leaveAt(6000);
+      const rest = large.filter((id) => !['$card60', '$card61', '$card62'].includes(id));
+      const below = Array.from({ length: 72 }, (_, i) => `$below${i}`);
+      const first = render(at(undefined, [...rest, ...below]));
+      // Unseen cards below the saved screen do not hold Back up.
+      expect(layout.scrollTop).toBe(6000);
+      expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+      expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
+      measure();
+      expect(document.querySelector('[data-cards-pending]')).toBeNull();
+      expect(layout.scrollTop).toBe(6000);
+      expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+      first.unmount();
+
+      // Unseen cards above move the saved offset: Back waits for them, then places before the tail.
+      const above = Array.from({ length: 24 }, (_, i) => `$above${i}`);
+      const more = Array.from({ length: 48 }, (_, i) => `$more${i}`);
+      memory.set(ROOM_ID, { scrollTop: 6000, anchors: [{ key: '$gone', offset: 0 }] });
+      layout.scrollTop = 0;
+      const waited = render(at(undefined, [...above, ...rest, ...more]));
+      expect(layout.scrollTop).toBe(0);
+      tickFrames(2);
+      expect(layout.scrollTop).toBe(6000);
+      expect(document.querySelector('[data-cards-pending]')).not.toBeNull();
+      waited.unmount();
+
+      // Space above the cards (header + filter inset) counts toward the saved screen end.
+      inset = 160;
+      leaveAt(11560);
+      const left = ['$card114', '$card115', '$card116'];
+      expect(memory.get(ROOM_ID)?.anchors.map(({ key }) => key)).toEqual(left);
+      render(at(undefined, [...large.filter((id) => !left.includes(id)), ...below]));
+      expect(layout.scrollTop).toBe(11560);
+      expect(inView()).toEqual(['$card117', '$card118', '$card119']);
+    });
+
+    it('takes the native end for a link to the last cached card while the homeserver is out of reach', () => {
+      memory.clear();
+      const last = { eventId: '$card9', entryKey: 'offline' };
+      const { unmount } = render(at(last, cards, true));
+      measure();
+      expect(layout.scrollTop).toBe(0);
+      unmount();
+      state.unreachable = true;
+      render(at({ ...last, entryKey: 'offline-2' }, cards, true));
+      expect(layout.scrollTop).toBe(700);
+      expect(inView()).toEqual(['$card7', '$card8', '$card9']);
+    });
+
+    it.each([
+      ['measured', new Map(large.map((id) => [id, {} as ThreadRecord])), false],
+      ['still to be measured', new Map<string, ThreadRecord>(), false],
+      ['reader scrolled away', new Map(large.map((id) => [id, {} as ThreadRecord])), true],
+    ])(
+      'handles a cleared filter revealing the addressed card (%s)',
+      (_, records, scrolled) => {
+        memory.clear();
+        const first = render(at(undefined, large, false, records));
+        measure();
+        first.unmount();
+        memory.clear();
+        const hidden = { eventId: '$card100', entryKey: `filtered-${records.size}-${scrolled}` };
+        const { rerender } = render(at(hidden, large.slice(0, 10), false, records));
+        measure();
+        if (scrolled) {
+          layout.scroll(scroller(), 200);
+          rerender(at(hidden, large, false, records));
+          measure();
+          expect(layout.scrollTop).toBe(200);
+          expect(document.querySelector('[data-scroll-anchor="$card100"]')).toBeNull();
+          return;
+        }
+        expect(layout.scrollTop).toBeLessThanOrEqual(1);
+        rerender(at(hidden, large, false, records));
+        const seen = new Set<number>([layout.scrollTop]);
+        for (let frame = 0; frame < 12; frame += 1) {
+          tickFrames(1);
+          act(() => layout.resize());
+          seen.add(layout.scrollTop);
+        }
+        expect([...seen]).toEqual([1, 9840]);
+        expect(topOf('$card100')).toBe(160);
+      },
+      20_000
+    );
+
+    it('keeps visible cards on live order changes and mounts the new top on Back with scrollTop 0', () => {
+      memory.clear();
+      const { rerender, unmount } = render(at(undefined, large));
+      measure();
+      rerender(at(undefined, [...large].reverse()));
+      expect(layout.scrollTop).toBe(0);
+      expect(inView()).toEqual(['$card119', '$card118', '$card117']);
+
+      rerender(at(undefined, large));
+      measure();
+      layout.scroll(scroller(), 6000);
+      rerender(at(undefined, [...Array.from({ length: 48 }, (_, i) => `$above${i}`), ...large]));
+      expect(inView()).toEqual(['$card60', '$card61', '$card62']);
+      expect(document.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(60);
+      unmount();
+
+      // Back to the top mounts the cards now at index 0, though the old top cards moved far down.
+      leaveAt(0);
+      expect(memory.get(ROOM_ID)?.scrollTop).toBe(0);
+      render(at(undefined, [...large.slice(60), ...large.slice(0, 60)]));
+      expect(layout.scrollTop).toBe(0);
+      expect(document.querySelector('[data-scroll-anchor="$card60"]')).not.toBeNull();
+      expect([60, 61, 62].map((row) => topOf(`$card${row}`) || 0)).toEqual([0, 100, 200]);
+    });
+
+    it('releases a clamped pending Back restore on touch/scroll without wheel', () => {
+      memory.clear();
+      memory.set(ROOM_ID, {
+        scrollTop: 3800,
+        anchors: [
+          { key: '$card38', offset: 0 },
+          { key: '$card39', offset: 100 },
+        ],
+      });
+      render(at(undefined, large.slice(0, 40), true));
+      measure();
+      expect(layout.scrollTop).toBe(3700);
+      layout.scroll(scroller(), 0);
+      expect(document.querySelector('[data-scroll-anchor="$card0"]')).not.toBeNull();
+    });
+
+    it('pins content minHeight across card/spacer swaps when overflow-anchor is absent', () => {
+      memory.clear();
+      const origCSS = globalThis.CSS;
+      Object.defineProperty(globalThis, 'CSS', {
+        configurable: true,
+        value: { supports: () => false },
+      });
+      try {
+        render(at(undefined, large.slice(0, 36)));
+        measure();
+        const content = scroller().firstElementChild as HTMLElement;
+        const observed: string[] = [];
+        const removeChild = content.removeChild.bind(content);
+        vi.spyOn(content, 'removeChild').mockImplementation((child) => {
+          observed.push(content.style.minHeight);
+          return removeChild(child);
+        });
+        layout.scroll(scroller(), 3300);
+        expect(observed.length).toBeGreaterThan(0);
+        expect(observed.every((v) => v === '3600px')).toBe(true);
+        expect(content.style.minHeight).toBe('');
+      } finally {
+        Object.defineProperty(globalThis, 'CSS', { configurable: true, value: origCSS });
+      }
+    });
   });
 
   it('stays where the reader is for a request of an entry the router replaced', () => {
     memory.clear();
     const { rerender } = render(at({ eventId: '$card1', entryKey: 'pin', pushed: true }));
-    scrollTop = 500;
-
-    // A thread opened beside the list closes: its entry gives way to the pin's address.
+    layout.scrollTop = 500;
     rerender(at({ eventId: '$card1', entryKey: 'replaced' }));
-    expect(scrollTop).toBe(500);
+    expect(layout.scrollTop).toBe(500);
+  });
+
+  it('leaves the first restore unconsumed until the saved anchor hydrates', () => {
+    memory.clear();
+    memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$card7', offset: 83 }] });
+    const { rerender } = render(at(undefined, cards.slice(0, 4), true));
+    expect(layout.scrollTop).toBe(0);
+    rerender(at(undefined, [cards[1]!, cards[0]!, ...cards.slice(2)]));
+    expect(topOf('$card7')).toBe(83);
+  });
+
+  it('places cached addresses during a pending index read, without replaying A on POP', () => {
+    memory.clear();
+    const a = { eventId: '$card6', entryKey: 'A' };
+    const { rerender } = render(at(a, cards, true));
+    expect(topOf(a.eventId)).toBe(160);
+    rerender(at({ eventId: '$card8', entryKey: 'B', pushed: true }, cards, true));
+    expect(topOf('$card8')).toBe(160);
+    layout.scroll(scroller(), 250);
+    rerender(at(a));
+    expect(layout.scrollTop).toBe(250);
+  });
+
+  it('retires a waiting Back when a newer address arrives, whether in view or deep', () => {
+    vi.useFakeTimers();
+    try {
+      memory.clear();
+      memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$late', offset: 83 }] });
+      const first = render(at(undefined, cards, true));
+      first.rerender(at({ eventId: '$card1', entryKey: 'in-view', pushed: true }, cards, true));
+      expect(layout.scrollTop).toBe(0);
+      tickFrames(1);
+      first.unmount();
+      expect(memory.get(ROOM_ID)?.scrollTop).toBe(0);
+      expect(memory.get(ROOM_ID)?.anchors[0]?.key).toBe('$card0');
+
+      memory.clear();
+      memory.set(ROOM_ID, { scrollTop: 600, anchors: [{ key: '$late', offset: 83 }] });
+      const second = render(at(undefined, cards, true));
+      expect(layout.scrollTop).toBe(0);
+      const b = { eventId: '$card8', entryKey: 'newer', pushed: true };
+      second.rerender(at(b, cards, true));
+      expect(topOf('$card8')).toBe(160);
+      const top = layout.scrollTop;
+      second.rerender(at(b, [...cards, '$late']));
+      expect(layout.scrollTop).toBe(top);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps the place the list was left at for a card in view', () => {
@@ -757,7 +1133,7 @@ describe('a focus request on the mounted Compact room', () => {
     const { rerender } = render(at());
 
     rerender(at({ eventId: '$card2', entryKey: 'pin', pushed: true }));
-    expect(scrollTop).toBe(100);
+    expect(layout.scrollTop).toBe(100);
     expect(memory.get(ROOM_ID)).toBe(left);
   });
 });

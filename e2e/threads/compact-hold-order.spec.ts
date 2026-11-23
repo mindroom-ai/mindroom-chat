@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -111,12 +112,14 @@ const cardOrder = (page: Page) =>
     .locator('[data-compact-room-view] [data-thread-root-id]')
     .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
 
-let replyRound = 0;
-/** The agent answers in the three threads with the oldest activity, below the held card. */
-const replyBelow = async (page: Page, room: SeededRoom) => {
-  const targets = room.rootIds.slice(replyRound * 3, replyRound * 3 + 3);
-  replyRound += 1;
-  const bodies = targets.map((_rootId, index) => `Update ${replyRound}.${index}: tests pass now.`);
+/** The agent answers in three mounted cards below the held card. */
+const replyBelow = async (page: Page, room: SeededRoom, heldId: string, round: number) => {
+  const order = await cardOrder(page);
+  const indexOfHeld = order.indexOf(heldId);
+  expect(indexOfHeld).toBeGreaterThanOrEqual(0);
+  const targets = order.slice(indexOfHeld + 1, indexOfHeld + 4);
+  expect(targets).toHaveLength(3);
+  const bodies = targets.map((_rootId, index) => `Update ${round}.${index}: tests pass now.`);
   for (const [index, rootId] of targets.entries()) {
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(getHomeserver(), room.agent.accessToken, room.roomId, {
@@ -142,30 +145,35 @@ const replyBelow = async (page: Page, room: SeededRoom) => {
 
 /** After the reader lets go, the threads that got replies lead the list. */
 const expectCaughtUp = async (page: Page, targets: string[]) => {
+  await page.locator(COMPACT_VIEW).evaluate((scroller) => {
+    scroller.scrollTop = 0;
+  });
   await expect
     .poll(async () => (await cardOrder(page)).slice(0, 3).sort())
     .toEqual([...targets].sort());
 };
 
 const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
-  replyRound = 0;
-  await expect(page.locator('[data-compact-room-view] [data-thread-root-id]')).toHaveCount(
-    THREAD_COUNT,
-    { timeout: 60_000 }
-  );
+  const view = page.locator(COMPACT_VIEW);
+  await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+    timeout: 60_000,
+  });
+  const heldId = room.rootIds.at(-13)!;
+  const held = cardOf(page, heldId);
+  const centerHeld = async () => {
+    await walkCompactCards(view, `[data-thread-root-id="${heldId}"]`);
+    await centerCard(held);
+    await expect(held).toBeInViewport();
+  };
 
-  // 1. Hover: the card twelve from the top stays under the pointer.
-  const order = await cardOrder(page);
-  const held = cardOf(page, order[12]!);
-  await centerCard(held);
+  // 1. Hover: a card deep in the list stays under the pointer.
+  await centerHeld();
   let targets = await withMovingMouseOverCard(page, held, async (pointer) => {
-    expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(order[12]);
+    expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(heldId);
     const before = await topOf(held);
-    const updated = await replyBelow(page, room);
+    const updated = await replyBelow(page, room, heldId, 1);
     expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
-    expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(
-      order[12]
-    );
+    expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(heldId);
     return updated;
   });
   // Leaving the list lets the new order in.
@@ -173,20 +181,17 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   await expectCaughtUp(page, targets);
 
   // 2. A card's menu: open from its More button, then the pointer leaves the list.
-  const menuOrder = await cardOrder(page);
-  const menuCard = cardOf(page, menuOrder[12]!);
-  await centerCard(menuCard);
-  const shell = page.locator(`[data-scroll-anchor="${menuOrder[12]}"]`);
+  await centerHeld();
+  const shell = page.locator(`[data-scroll-anchor="${heldId}"]`);
   await shell.hover();
   await shell.getByRole('button', { name: 'Thread options' }).click();
   await expect(page.getByRole('menu')).toBeVisible();
   await page.mouse.move(DESKTOP.width - 5, 5);
-  const menuTop = await topOf(menuCard);
-  targets = await replyBelow(page, room);
-  expect(
-    Math.abs((await topOf(menuCard)) - menuTop),
-    `${engine}: card with menu moved`
-  ).toBeLessThan(1);
+  const menuTop = await topOf(held);
+  targets = await replyBelow(page, room, heldId, 2);
+  expect(Math.abs((await topOf(held)) - menuTop), `${engine}: card with menu moved`).toBeLessThan(
+    1
+  );
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await page.mouse.move(DESKTOP.width - 5, 5);
@@ -196,25 +201,21 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   // 3. Keyboard focus on a card, with the pointer away. WebKit, like Safari by default, moves
   // Tab only between fields and links, not buttons, so this runs in Chromium.
   if (engine !== 'chromium') return;
+  await centerHeld();
   const focusOrder = await cardOrder(page);
-  const focusCard = cardOf(page, focusOrder[12]!);
-  await centerCard(focusCard);
   // Tab from the card above: keyboard focus, as a keyboard user reaches the card.
-  await cardOf(page, focusOrder[11]!).focus();
+  await cardOf(page, focusOrder[focusOrder.indexOf(heldId) - 1]!).focus();
   for (let step = 0; step < 8; step += 1) {
     // eslint-disable-next-line no-await-in-loop
     await page.keyboard.press('Tab');
     // eslint-disable-next-line no-await-in-loop
-    if (await focusCard.evaluate((element) => element === document.activeElement)) break;
+    if (await held.evaluate((element) => element === document.activeElement)) break;
   }
-  await expect(focusCard).toBeFocused();
-  expect(await focusCard.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
-  const focusTop = await topOf(focusCard);
-  targets = await replyBelow(page, room);
-  expect(
-    Math.abs((await topOf(focusCard)) - focusTop),
-    `${engine}: focused card moved`
-  ).toBeLessThan(1);
+  await expect(held).toBeFocused();
+  expect(await held.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+  const focusTop = await topOf(held);
+  targets = await replyBelow(page, room, heldId, 3);
+  expect(Math.abs((await topOf(held)) - focusTop), `${engine}: focused card moved`).toBeLessThan(1);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await expectCaughtUp(page, targets);
 };

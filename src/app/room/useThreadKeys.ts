@@ -8,9 +8,8 @@ import type { RoomViewMode } from '../navigation/roomViewMode';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import {
-  cardBeside,
   compactCardsIn,
-  focusCompactCard,
+  focusCardBeside,
   focusedCompactCard,
 } from '../threads/overview/compactCardKeys';
 
@@ -60,14 +59,9 @@ export const useThreadKeys = ({
   };
 
   const step = (direction: -1 | 1): boolean => {
-    const shown = cards();
-    const focused = focusedCompactCard(areaRef.current);
-    if (focused && shown.includes(focused)) {
-      focusCompactCard(shown[shown.indexOf(focused) + direction]);
-      return true;
-    }
-    // From outside the cards: beside the open thread's card, or that of the thread just left.
-    return focusCompactCard(cardBeside(shown, openThreadId ?? leftThreadId(), direction));
+    if (store.get(conversationHiddenAtom)) return false;
+    const focused = focusedCompactCard(areaRef.current)?.dataset.threadRootId;
+    return focusCardBeside(areaRef.current, focused ?? openThreadId ?? leftThreadId(), direction);
   };
   useShortcut('previousThread', () => step(-1));
   useShortcut('nextThread', () => step(1));
@@ -83,7 +77,7 @@ export const useThreadKeys = ({
     }
     if (openThreadId) return false;
     const left = leftThreadId();
-    if (shown.length > 0) return focusCompactCard(cardBeside(shown, left, 0));
+    if (shown.length > 0) return focusCardBeside(areaRef.current, left, 0);
     if (!left || viewMode === 'classic' || store.get(conversationHiddenAtom)) return false;
     onOpenThread(left);
     return true;
@@ -108,7 +102,8 @@ export const useThreadKeys = ({
     const unclaimed = () =>
       !doc.activeElement || doc.activeElement === doc.body || doc.activeElement === left.focused;
     const focusCard = () =>
-      focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+      !store.get(conversationHiddenAtom) &&
+      focusCardBeside(areaRef.current, left.threadId, 0, true);
     if (!unclaimed() || focusCard()) return;
     // A Compact list that takes the place of a thread that filled the page shows its cards a
     // pass after this effect, in the same task (`RoomTimeline`). The focus goes once, then: to

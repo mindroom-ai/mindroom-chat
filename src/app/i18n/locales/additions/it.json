@@ -1840,6 +1840,9 @@
     }
   },
   "threadNav": {
+    "moreThreads_one": "{{count}} altro thread",
+    "moreThreads_many": "{{count}} di altri thread",
+    "moreThreads_other": "{{count}} altri thread",
     "forMe": "Per me",
     "forMeHint": "Solo i thread a cui partecipi, in cui un agente ha scritto per te o che hai fissato",
     "roomForMeHint": "Solo i thread a cui partecipi o in cui un agente ha scritto per te",

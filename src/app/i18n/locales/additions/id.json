@@ -1732,6 +1732,7 @@
     }
   },
   "threadNav": {
+    "moreThreads_other": "{{count}} utas lagi",
     "forMe": "Untuk saya",
     "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
     "roomForMeHint": "Hanya utas yang Anda ikuti atau yang berisi pesan dari agen atas nama Anda",
