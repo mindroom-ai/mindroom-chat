@@ -151,9 +151,26 @@ export const showMainWindow = (): BrowserWindow => {
     }
   };
 
+  const sendWindowFocus = (): void => {
+    if (!win.isDestroyed()) {
+      win.webContents.send('desktop:shell-event', {
+        type: 'window-focus',
+        focused: win.isVisible() && !win.isMinimized() && win.isFocused(),
+      });
+    }
+  };
+
   win.on('resize', scheduleSave);
   win.on('move', scheduleSave);
-  win.on('hide', flush);
+  win.on('show', sendWindowFocus);
+  win.on('hide', () => {
+    flush();
+    sendWindowFocus();
+  });
+  win.on('minimize', sendWindowFocus);
+  win.on('restore', sendWindowFocus);
+  win.on('focus', sendWindowFocus);
+  win.on('blur', sendWindowFocus);
   win.on('enter-full-screen', () => {
     sendFullscreen(true);
     flush();
@@ -166,7 +183,10 @@ export const showMainWindow = (): BrowserWindow => {
     }
     flush();
   });
-  win.webContents.on('did-finish-load', () => sendFullscreen(win.isFullScreen()));
+  win.webContents.on('did-finish-load', () => {
+    sendFullscreen(win.isFullScreen());
+    sendWindowFocus();
+  });
 
   attachContextMenu(win);
 

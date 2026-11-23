@@ -224,6 +224,7 @@ it('parks the live voice recording when the desktop shell emits window-hidden', 
     openSignIn: async () => ({ ok: true, value: undefined }),
     showMainWindow: async () => ({ ok: true, value: undefined }),
     setBadge: () => undefined,
+    isWindowFocused: () => true,
     screenShare: false,
     appUrl: {
       addListener: async () => undefined,

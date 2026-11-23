@@ -599,7 +599,7 @@ describe('MessageNotificationsFeature', () => {
     const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
     Object.defineProperty(window, 'mindroomDesktop', {
       configurable: true,
-      value: { showMainWindow },
+      value: { showMainWindow, isWindowFocused: () => true },
     });
     try {
       render('/home/');
@@ -617,6 +617,22 @@ describe('MessageNotificationsFeature', () => {
       expect(showMainWindow).toHaveBeenCalledOnce();
       expect(note.close).toHaveBeenCalled();
       expect(navigation.thread).toHaveBeenCalledWith(ROOM, '$root');
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
+  it('notifies for the active room when the desktop window is hidden even if the DOM reports visible and focused', () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    vi.mocked(document.hasFocus).mockReturnValue(true);
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { isWindowFocused: () => false },
+    });
+    try {
+      render(`/home/${encodeURIComponent(ROOM)}/`);
+      arrive(message({ msgtype: 'm.text', body: 'while hidden on macOS' }));
+      expect(FakeNotification.shown).toHaveLength(1);
     } finally {
       Reflect.deleteProperty(window, 'mindroomDesktop');
     }

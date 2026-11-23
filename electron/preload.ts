@@ -46,6 +46,13 @@ const unwrapVoid = async (channel: string): Promise<void> => {
   if (!res.ok) throw new Error(res.code);
 };
 
+let windowFocused = true;
+ipcRenderer.on('desktop:shell-event', (_event, payload: DesktopShellEvent | undefined) => {
+  if (payload?.type === 'window-focus' && typeof payload.focused === 'boolean') {
+    windowFocused = payload.focused;
+  }
+});
+
 const bridge = {
   onShellEvent: (listener: (event: DesktopShellEvent) => void): (() => void) => {
     const handle = (_event: Electron.IpcRendererEvent, payload: DesktopShellEvent): void => {
@@ -63,6 +70,7 @@ const bridge = {
   setBadge: (count) => {
     void ipcRenderer.invoke('desktop:set-badge', count).catch(() => undefined);
   },
+  isWindowFocused: () => windowFocused,
   screenShare: process.argv.includes('--mindroom-screen-share=1'),
   appUrl: {
     // A sign-in return never comes this way: main holds it until the listener below takes it.

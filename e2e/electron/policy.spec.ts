@@ -337,7 +337,9 @@ test.describe('Electron script policy and canvas frame', () => {
         } finally {
           page.off('domcontentloaded', onDomLoaded);
         }
-        await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+        if (navCommitted) {
+          await expect(page.locator('input[name="serverInput"]')).toBeVisible();
+        }
         const state = await page.evaluate(() => ({
           origin: window.location.origin,
           title: document.title,

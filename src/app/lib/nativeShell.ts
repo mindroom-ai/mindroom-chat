@@ -14,6 +14,12 @@ export const isCapacitorApp = (): boolean => Capacitor.isNativePlatform();
 /** Whether the page runs inside any bundled app shell (Capacitor or Electron). */
 export const isBundledApp = (): boolean => isDesktopApp() || isCapacitorApp();
 
+/** Whether the app window is both visible in the DOM and focused by the desktop shell. */
+export const isAppWindowFocused = (): boolean =>
+  document.visibilityState === 'visible' &&
+  document.hasFocus() &&
+  (desktopBridge()?.isWindowFocused() ?? true);
+
 /** Props that mark a button for the Electron preload's trusted-click external opener. */
 export const externalOpenProps = (url: string): { 'data-open-external'?: string } =>
   isDesktopApp() ? { 'data-open-external': url } : {};

@@ -199,6 +199,15 @@ test('desktop:set-badge sets, clamps >99, clears, and rejects Quick Capture and 
     await expect.poll(() => lastBadgeCount(app)).toBe(0);
     if (process.platform === 'darwin') expect(await dockBadge(app)).toBe('');
 
+    await hideMainWindow(app);
+    await expect
+      .poll(() => page.evaluate(() => window.mindroomDesktop?.isWindowFocused()))
+      .toBe(false);
+    await page.evaluate(() => window.mindroomDesktop?.showMainWindow());
+    await expect
+      .poll(() => page.evaluate(() => window.mindroomDesktop?.isWindowFocused()))
+      .toBe(true);
+
     await openQuickCapture(session);
     const ipcChecks = await app.evaluate(async ({ BrowserWindow, ipcMain }) => {
       const wins = BrowserWindow.getAllWindows();

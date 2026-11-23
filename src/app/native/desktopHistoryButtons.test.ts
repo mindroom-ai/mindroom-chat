@@ -10,6 +10,7 @@ const makeDesktopBridge = (): DesktopBridge => ({
   openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
   showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
   setBadge: vi.fn(),
+  isWindowFocused: () => true,
   screenShare: false,
   appUrl: {
     addListener: vi.fn(async () => undefined),

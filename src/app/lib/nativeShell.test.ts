@@ -5,6 +5,7 @@ import type { DesktopBridge, DesktopShellEvent } from './desktopBridge';
 import {
   desktopBridge,
   externalOpenProps,
+  isAppWindowFocused,
   isBundledApp,
   isCapacitorApp,
   isDesktopApp,
@@ -25,7 +26,9 @@ const setDesktopBridge = (bridge: DesktopBridge | undefined): void => {
   }
 };
 
-const makeBridge = (): {
+const makeBridge = (
+  windowFocused = true
+): {
   bridge: DesktopBridge;
   onShellEvent: ReturnType<typeof vi.fn>;
   unsubscribe: ReturnType<typeof vi.fn>;
@@ -50,6 +53,7 @@ const makeBridge = (): {
       openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
       showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
       setBadge: vi.fn(),
+      isWindowFocused: () => windowFocused,
       screenShare: false,
       appUrl: {
         addListener: vi.fn(async () => ({ remove: vi.fn() })),
@@ -135,5 +139,34 @@ describe('nativeShell', () => {
     expect(externalOpenProps('https://example.org')).toEqual({
       'data-open-external': 'https://example.org',
     });
+  });
+
+  it('reports unfocused when the desktop bridge says the window is not focused even if the DOM looks visible and focused', () => {
+    const originalVisibility = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    const hasFocusSpy = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      expect(isAppWindowFocused()).toBe(true);
+
+      setDesktopBridge(makeBridge(true).bridge);
+      expect(isAppWindowFocused()).toBe(true);
+
+      setDesktopBridge(makeBridge(false).bridge);
+      expect(isAppWindowFocused()).toBe(false);
+
+      setDesktopBridge(makeBridge(true).bridge);
+      hasFocusSpy.mockReturnValue(false);
+      expect(isAppWindowFocused()).toBe(false);
+    } finally {
+      hasFocusSpy.mockRestore();
+      if (originalVisibility) {
+        Object.defineProperty(document, 'visibilityState', originalVisibility);
+      } else {
+        Reflect.deleteProperty(document, 'visibilityState');
+      }
+    }
   });
 });

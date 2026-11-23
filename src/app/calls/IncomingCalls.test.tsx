@@ -329,7 +329,7 @@ describe('IncomingCalls ring alerts', () => {
     vi.spyOn(window, 'focus').mockImplementation(() => undefined);
     Object.defineProperty(window, 'mindroomDesktop', {
       configurable: true,
-      value: { showMainWindow },
+      value: { showMainWindow, isWindowFocused: () => false },
     });
     const store = createStore();
     store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
@@ -341,6 +341,37 @@ describe('IncomingCalls ring alerts', () => {
       expect(showMainWindow).toHaveBeenCalledOnce();
       expect(shown[0]?.close).toHaveBeenCalled();
       expect(calls.navigateRoom).toHaveBeenCalledWith(ROOM_ID);
+    } finally {
+      act(() => directRenderer?.unmount());
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
+  it('raises a call notification when the desktop window is hidden even if the DOM reports visible and focused', () => {
+    calls.settings = true;
+    const shown: unknown[] = [];
+    class RecordingNotification {
+      static permission = 'granted';
+
+      close = vi.fn();
+
+      constructor() {
+        shown.push(this);
+      }
+    }
+    vi.stubGlobal('Notification', RecordingNotification);
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { isWindowFocused: () => false },
+    });
+    const store = createStore();
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
+    let directRenderer: ReactTestRenderer | undefined;
+    try {
+      directRenderer = mountAndRing(store, '$desktop-hidden-ring');
+      expect(shown).toHaveLength(1);
     } finally {
       act(() => directRenderer?.unmount());
       Reflect.deleteProperty(window, 'mindroomDesktop');

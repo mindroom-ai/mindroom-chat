@@ -2,7 +2,8 @@
 export type DesktopShellEvent =
   | { type: 'fullscreen'; value: boolean }
   | { type: 'zoom'; action: 'in' | 'out' | 'reset' }
-  | { type: 'window-hidden' };
+  | { type: 'window-hidden' }
+  | { type: 'window-focus'; focused: boolean };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
@@ -38,6 +39,7 @@ export type DesktopBridge = {
   openSignIn: (url: string) => Promise<DesktopResult<void>>;
   showMainWindow: () => Promise<DesktopResult<void>>;
   setBadge: (count: number) => void;
+  isWindowFocused: () => boolean;
   screenShare: boolean;
   appUrl: AppUrlPlugin;
   update?: DesktopUpdateBridge;
