@@ -28,29 +28,30 @@ test.beforeEach(async () => {
 
 const banner = (page: Page) => page.locator('[data-thread-context-banner="true"]');
 
-const readBannerHorizontalGaps = (threadBanner: Locator) =>
-  threadBanner.evaluate((element) => {
-    const scroll = element.closest<HTMLElement>('[data-y-scrollbar-width]');
-    if (!scroll) throw new Error('Thread banner has no scroll container');
-    const bannerRect = element.getBoundingClientRect();
-    const scrollRect = scroll.getBoundingClientRect();
-    return {
-      left: bannerRect.left - scrollRect.left,
-      right: scrollRect.right - bannerRect.right,
-    };
-  });
-
 const expectSymmetricBannerMargins = async (threadBanner: Locator) => {
   await expect
-    .poll(async () => {
-      const { left, right } = await readBannerHorizontalGaps(threadBanner);
-      return Math.abs(left - right);
-    })
-    .toBeLessThanOrEqual(1);
-  const { left, right } = await readBannerHorizontalGaps(threadBanner);
-  expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
-  expect(Math.abs(left - 12)).toBeLessThanOrEqual(1);
-  expect(Math.abs(right - 12)).toBeLessThanOrEqual(1);
+    .poll(() =>
+      threadBanner.evaluate((element) => {
+        const scroll = element.closest<HTMLElement>('[data-y-scrollbar-width]');
+        if (!scroll) throw new Error('Thread banner has no scroll container');
+        const bannerRect = element.getBoundingClientRect();
+        const scrollRect = scroll.getBoundingClientRect();
+        const left = bannerRect.left - scrollRect.left;
+        const right = scrollRect.right - bannerRect.right;
+        return {
+          symmetric: Math.abs(left - right) <= 1,
+          leftNearS300: Math.abs(left - 12) <= 1,
+          rightNearS300: Math.abs(right - 12) <= 1,
+          noHorizontalOverflow: scroll.scrollWidth <= scroll.clientWidth,
+        };
+      })
+    )
+    .toEqual({
+      symmetric: true,
+      leftNearS300: true,
+      rightNearS300: true,
+      noHorizontalOverflow: true,
+    });
 };
 
 test('a narrow thread pane on a desktop gets the compact banner, a full one keeps its tags', async ({

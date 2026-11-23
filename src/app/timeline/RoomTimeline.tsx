@@ -2062,8 +2062,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           clearStart={phone}
         />
       )}
-      {/* InsetScrollbar replaces the native scrollbar; size="0" avoids folds' 8px inline-end gutter. */}
-      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="0">
+      <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
         {latestAtTop && latestEndAnchor}
         <Box
           ref={contentRef}

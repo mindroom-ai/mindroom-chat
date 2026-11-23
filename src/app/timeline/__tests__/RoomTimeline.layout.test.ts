@@ -97,7 +97,7 @@ describe('RoomTimeline layout', () => {
     }
   });
 
-  it('renders threadHeader directly inside ThreadTimelineHeader without asymmetric inline-end padding', async () => {
+  it('renders threadHeader directly inside ThreadTimelineHeader while keeping Scroll size="300"', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const { ThreadTimelineHeader } = await import('../../threads/ThreadTimelineHeader');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -131,8 +131,9 @@ describe('RoomTimeline layout', () => {
       expect(headerContent?.props.style?.paddingInlineEnd).toBeUndefined();
       expect(headerContent?.props.style?.paddingRight).toBeUndefined();
 
+      // Keeps folds' 8px inline-end gutter on the scroller so message hover toolbars stay clear of InsetScrollbar.
       const scroll = renderer!.root.findByType(scrollType);
-      expect(scroll.props.size).toBe('0');
+      expect(scroll.props.size).toBe('300');
     } finally {
       act(() => renderer?.unmount());
     }
