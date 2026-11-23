@@ -12,6 +12,8 @@ import {
   type ToolTraceEvent,
 } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
+import { parseToolRefText } from '../html/blocks';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
 
@@ -167,34 +169,29 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
 };
 
-const TOOL_MARKER_LINE_RE = /^\s*🔧 `[^`]+` \[\d+\](?: ⏳)?\s*$/;
-
-const stripStandaloneToolMarkers = (md: string): string => {
-  const lines = md.split('\n');
+/**
+ * `text` without its tool marker lines, as the backend takes them out of the text it sends: each
+ * goes with the blank line after it, and the markers that end the text with the one before them.
+ */
+const withoutToolMarkerLines = (text: string): string => {
   const kept: string[] = [];
-  let skippedMarker = false;
-  for (const line of lines) {
-    if (TOOL_MARKER_LINE_RE.test(line)) {
-      skippedMarker = true;
-      continue;
-    }
-    if (skippedMarker && line === '') {
-      skippedMarker = false;
-      continue;
-    }
-    skippedMarker = false;
-    kept.push(line);
-  }
-  if (skippedMarker && kept.length > 0 && kept[kept.length - 1] === '') {
-    kept.pop();
-  }
+  let afterMarker = false;
+  let lastMarkerAt = -1;
+  text.split('\n').forEach((line) => {
+    const marker = line === line.trim() && parseToolRefText(line) !== undefined;
+    if (marker) lastMarkerAt = kept.length;
+    else if (line || !afterMarker) kept.push(line);
+    afterMarker = marker;
+  });
+  if (lastMarkerAt === kept.length && kept[kept.length - 1] === '') kept.pop();
   return kept.join('\n');
 };
 
 /**
- * Whether the streaming durable reply is an earlier state of the last shown live frame: its body,
- * or the thinking placeholder, that the live frame grew from. Progress edits and frames show the
- * same text.
+ * Whether the streaming durable reply is an earlier state of the frame the row showed last: its
+ * body, or the thinking placeholder, that the frame's Markdown grew from. Progress edits and
+ * frames show the same text, but the preview of a reply sent as a sidecar shows a part of it, and
+ * neither that preview nor the text sent when the upload failed has the reply's marker lines.
  */
 const isEarlierState = (
   event: MatrixEvent,
@@ -203,25 +200,24 @@ const isEarlierState = (
 ): boolean => {
   const status = getStreamStatusFromContent(content);
   if (event.isRedacted() || !status || !LIVE_DURABLE_STATUSES.has(status)) return false;
+  const { md, tools } = shown.docs;
   const checkpoint = getLiveCheckpoint(content);
+  // The reply is at least as new as the frame, whatever its text shows.
   if (checkpoint && compareLiveOrder(shown.order, checkpoint) <= 0) return false;
-  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
-  const isLongText =
-    LONG_TEXT_KEY in content || (newContent !== undefined && LONG_TEXT_KEY in newContent);
-  if (isLongText) {
-    if (checkpoint) return shown.docs.md.length > 0 || shown.docs.tools.length > 0;
-    const { body } = withWarmupActivity(content);
-    if (typeof body !== 'string') return false;
-    const strippedMd = stripStandaloneToolMarkers(shown.docs.md);
-    if (isThinkingPlaceholderBody(content)) return strippedMd.trim().length > 0;
-    const cleanBody = body.trim();
-    const cleanMd = strippedMd.trim();
-    return cleanBody.length < cleanMd.length && cleanMd.startsWith(cleanBody);
-  }
+  const sidecar = hasLongTextMetadata(content);
+  // A preview cannot be compared with the whole text, so its checkpoint alone says it is older.
+  if (checkpoint && sidecar) return md.length > 0 || tools.length > 0;
   const { body } = withWarmupActivity(content);
   if (typeof body !== 'string') return false;
-  if (isThinkingPlaceholderBody(content)) return shown.docs.md.length > 0;
-  return body.length < shown.docs.md.length && shown.docs.md.startsWith(body);
+  if (isThinkingPlaceholderBody(content)) {
+    // A preview of calls alone has their rows in its sidecar, so only live prose is more than it.
+    return sidecar ? withoutToolMarkerLines(md).trim().length > 0 : md.length > 0;
+  }
+  if (body.length >= md.length) return false;
+  // As it was sent with its marker lines, by an older backend too, or without them.
+  if (md.startsWith(body)) return true;
+  const earlier = withoutToolMarkerLines(body);
+  return earlier.length > 0 && withoutToolMarkerLines(md).startsWith(earlier);
 };
 
 const noSubscription = () => () => undefined;

@@ -430,6 +430,42 @@ describe('hydrateLongTextSource', () => {
     });
   });
 
+  // The backend wraps a reply's row as an edit only when it sends it, after its sidecar went up.
+  it('hydrates an edit whose sidecar holds its replacement alone', async () => {
+    const preview = {
+      msgtype: 'm.file',
+      body: 'Found',
+      url: 'mxc://server/replacement-alone',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    const edit = {
+      ...preview,
+      body: '* Found',
+      'm.new_content': preview,
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    };
+    const source = expectDefined(getLongTextSource(edit));
+    expect(source.previewContent).toBe(preview);
+    const replacement = {
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1]\n\nFound it.',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>🔧 <code>shell</code> [1]</p>\n<p>Found it.</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
+      },
+    };
+
+    const resolved = await hydrateLongTextSource(
+      source,
+      async () => JSON.stringify(replacement),
+      {}
+    );
+
+    expect(resolved).toEqual(replacement);
+  });
+
   it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
     const source = expectDefined(
       getLongTextSource({

@@ -200,39 +200,34 @@ describe('tool positions', () => {
     expect('placeholder_body' in trace).toBe(false);
   });
 
-  it.each([
-    ['zero placed calls', [{ type: 'tool_call_completed', tool_name: 'shell' }]],
-    [
-      'out-of-range positions',
-      [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 1, at: 1 }],
-    ],
-    [
-      'a non-integer position',
-      [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 0.5, at: 0 }],
-    ],
-    ['body_line without at', [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 0 }]],
-    ['at without body_line', [{ type: 'tool_call_completed', tool_name: 'shell', at: 0 }]],
-    ['empty tool_name', [{ type: 'tool_call_completed', tool_name: '', body_line: 0, at: 0 }]],
-  ])(
-    'leaves malformed placeholder_body: true content untouched when events have %s',
-    (_label, events) => {
-      const malformed = {
+  it.each(positions.kept_placeholders.map(({ name, events }) => [name, events as unknown[]]))(
+    'reads a placeholder_body trace that is not sound as it is, in a reply and in an edit: %s',
+    (_name, events) => {
+      const reply = {
         msgtype: 'm.text',
-        body: '2 tool calls',
+        body: 'Thinking...',
         format: 'org.matrix.custom.html',
-        formatted_body: '<p>2 tool calls</p>\n',
-        [TRACE]: {
-          version: 3,
-          placeholder_body: true,
-          events,
-        },
+        formatted_body: '<p>Thinking...</p>\n',
+        [TRACE]: { version: 3, placeholder_body: true, events },
       };
-      const restored = withToolMarkersRestored(malformed);
-      expect(restored).toBe(malformed);
-      expect(restored.body).toBe('2 tool calls');
-      expect(restored.formatted_body).toBe('<p>2 tool calls</p>\n');
+      expect(withToolMarkersRestored(reply)).toBe(reply);
+      const edit = {
+        ...reply,
+        body: '* Thinking...',
+        'm.new_content': reply,
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      };
+      expect(withToolMarkersRestored(edit)).toBe(edit);
     }
   );
+
+  it('reads a placeholder_body that is not true as the positions of the text it has', () => {
+    const wire = wireContent(between);
+    const content = { ...wire, [TRACE]: { ...wire[TRACE], placeholder_body: 1 } };
+    const restored = withToolMarkersRestored(content);
+    expect(restored.body).toBe(between.sent.body);
+    expect(restored[TRACE]).toMatchObject({ version: 2, placeholder_body: 1 });
+  });
 
   it('leaves placeholder_body: true content untouched when formatted_body is absent', () => {
     const plainOnly = {
