@@ -144,6 +144,7 @@ vi.mock('../app/ui/InsetScrollbar.css', () => ({
 }));
 vi.mock('../app/ui/DialogChrome.css', () => ({
   TouchIcon: 'dialog-touch-icon',
+  CloseTouchIcon: 'dialog-close-touch-icon',
   SheetTitleBar: 'dialog-title-bar',
   InsetField: 'dialog-inset-field',
   SheetScrollFrame: 'dialog-scroll-frame',

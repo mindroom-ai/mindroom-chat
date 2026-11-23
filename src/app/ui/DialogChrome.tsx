@@ -27,7 +27,7 @@ export function DialogCloseButton({ label, onClick, className }: DialogCloseButt
       type="button"
       size="300"
       radii="Pill"
-      className={classNames(css.TouchIcon, className)}
+      className={classNames(css.CloseTouchIcon, className)}
       aria-label={label}
       onClick={onClick}
     >
@@ -38,12 +38,14 @@ export function DialogCloseButton({ label, onClick, className }: DialogCloseButt
 
 type SheetScrollAreaProps = Pick<
   HTMLAttributes<HTMLDivElement>,
-  'id' | 'role' | 'aria-labelledby' | 'onKeyDown' | 'className'
+  'id' | 'role' | 'aria-labelledby' | 'onKeyDown'
 > & {
   children: ReactNode;
   scrollRef?: Ref<HTMLDivElement>;
   /** Allows vertical scroll chaining to an outer scroll container on short viewports. */
   chainOverscroll?: boolean;
+  /** Applied to the outer scroll frame; use `viewportClassName` for the scrollable viewport. */
+  className?: string;
   viewportClassName?: string;
 };
 

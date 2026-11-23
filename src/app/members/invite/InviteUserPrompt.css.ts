@@ -74,10 +74,9 @@ export const GrantAlert = style({
   color: color.Critical.OnContainer,
 });
 
-export const ListFrame = style({ minBlockSize: toRem(140) });
+export const ListFrame = style({ selectors: { '&&': { minBlockSize: toRem(140) } } });
 
 export const ListArea = style({
-  minBlockSize: toRem(140),
   paddingInline: config.space.S200,
   paddingBlockEnd: config.space.S200,
 });

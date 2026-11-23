@@ -1,19 +1,24 @@
 // @vitest-environment jsdom
 import { createRef } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DialogCloseButton, SheetScrollArea } from './DialogChrome';
 
-vi.stubGlobal(
-  'ResizeObserver',
-  class {
-    observe() {}
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
 
-    disconnect() {}
-  }
-);
+      disconnect() {}
+    }
+  );
+});
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('DialogCloseButton', () => {
   it('renders an accessible pill close button and handles clicks', () => {
@@ -22,7 +27,7 @@ describe('DialogCloseButton', () => {
 
     const button = screen.getByRole('button', { name: 'Close sheet' });
     expect(button.getAttribute('type')).toBe('button');
-    expect(button.className).toContain('dialog-touch-icon');
+    expect(button.className).toContain('dialog-close-touch-icon');
     expect(button.className).toContain('extra-close');
 
     fireEvent.click(button);

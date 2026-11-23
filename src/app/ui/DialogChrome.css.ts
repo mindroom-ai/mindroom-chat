@@ -5,6 +5,9 @@ import { touchTarget } from './styles/touchTarget';
 
 export const TouchIcon = style([touchTarget('6px'), { flexShrink: 0 }]);
 
+// Close buttons sit at header ends (28px visual pill), so 8px reach expands them to 44x44px on touch.
+export const CloseTouchIcon = style([touchTarget('8px'), { flexShrink: 0 }]);
+
 export const SheetTitleBar = style({
   flexShrink: 0,
   height: 'auto',
@@ -28,6 +31,13 @@ export const InsetField = style({
       boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
     },
   },
+  '@media': {
+    '(forced-colors: active)': {
+      selectors: {
+        '&&:focus-within': { outline: '2px solid Highlight' },
+      },
+    },
+  },
 });
 globalStyle(`${InsetField} input::-webkit-search-cancel-button`, { display: 'none' });
 globalStyle(`${InsetField} > svg`, { flexShrink: 0, color: color.SurfaceVariant.OnContainer });
@@ -41,7 +51,10 @@ export const SheetScrollFrame = style({
   overflow: 'hidden',
 });
 
-export const SheetScrollViewport = style([Viewport, { flexGrow: 1, minHeight: 0 }]);
+export const SheetScrollViewport = style([
+  Viewport,
+  { flexGrow: 1, minHeight: 0, overscrollBehaviorX: 'contain' },
+]);
 
 // Override Viewport's contain so scrolling past a sheet list chains to an outer scroll container.
 export const SheetScrollChain = style({
