@@ -76,6 +76,7 @@ type SwipeRegistration = {
 type ActiveGesture = {
   entry: SwipeRegistration;
   tracker: SwipeTracker;
+  startEvent: Event;
   touchIdentifier: number | undefined;
   axisSign: 1 | -1;
   dirSign: 1 | -1;
@@ -101,6 +102,7 @@ const SETTLE_WATCHDOG_GRACE_MS = 500;
 const edgeEntries = new Set<SwipeRegistration>();
 const elementEntries = new Set<SwipeRegistration>();
 const claimedTouchStartEvents = new WeakSet<Event>();
+const abortedTouchStartEvents = new WeakSet<Event>();
 
 let nextRegistrationId = 1;
 let settleCounter = 0;
@@ -113,6 +115,13 @@ let interactivePhoneSlideClaimed = false;
 export const setInteractivePhoneSlideClaimed = (claimed: boolean): void => {
   interactivePhoneSlideClaimed = claimed;
 };
+
+/** Whether an interactive swipe gesture is currently active. */
+export const isInteractiveSwipeActive = (): boolean => activeGesture !== null;
+
+/** Whether a multi-touch touchstart event just aborted an active interactive swipe. */
+export const wasInteractiveSwipeAbortedEvent = (event: Event): boolean =>
+  abortedTouchStartEvents.has(event);
 
 let attachedEdgeWindow: Window | null = null;
 let attachedInterruptWindow: Window | null = null;
@@ -369,6 +378,7 @@ const abortEntry = (entry: SwipeRegistration) => {
 
 const startGesture = (
   entry: SwipeRegistration,
+  startEvent: Event,
   touch: Touch,
   timeMs: number,
   axisSign: 1 | -1,
@@ -386,6 +396,7 @@ const startGesture = (
       axisSign,
       discreteMinPx,
     }),
+    startEvent,
     touchIdentifier: typeof touch.identifier === 'number' ? touch.identifier : undefined,
     axisSign,
     dirSign,
@@ -495,7 +506,7 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
   }
 };
 
-const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
+const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean, endTimeMs: number) => {
   if (activeGesture !== gesture) return;
 
   if (isCancel && !gesture.entry.cancelCommits) {
@@ -517,7 +528,7 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
   }
 
   if (!gesture.scene) {
-    if (gesture.tracker.shouldCommit(0)) {
+    if (gesture.tracker.shouldCommit(0, endTimeMs)) {
       gesture.entry.onCommitRef.current();
     }
     return;
@@ -530,8 +541,8 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
   }
 
   const extent = gesture.scene.extent;
-  const commit = gesture.tracker.shouldCommit(extent);
-  const durationMs = gesture.tracker.settleDurationMs(commit, extent);
+  const commit = gesture.tracker.shouldCommit(extent, endTimeMs);
+  const durationMs = gesture.tracker.settleDurationMs(commit, extent, endTimeMs);
   const currentOffset = gesture.tracker.offset;
   const settleToken = ++settleCounter;
   const watchdogId = setTimeout(() => {
@@ -553,7 +564,7 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
     try {
       await gesture.scene!.settle(commit, durationMs, currentOffset);
       if (activeSettle?.token !== settleToken || gesture.cleanedUp) return;
-      if (commit) {
+      if (commit && !hasOpenOverlay(gesture.overlayScope)) {
         committed = true;
         gesture.scene!.commit();
       }
@@ -573,10 +584,21 @@ const handleActiveEnd = (gesture: ActiveGesture, isCancel: boolean) => {
   })();
 };
 
+// Runs in window capture phase so multi-touch aborts clear inline translate before
+// document capture listeners (e.g. FocusTrap) and element listeners (e.g. useZoom) observe the touch.
+const handleWindowTouchStartCapture = (event: TouchEvent) => {
+  if (!activeGesture || activeGesture.startEvent === event) return;
+  if (event.touches.length !== 1) {
+    abortedTouchStartEvents.add(event);
+  }
+  abortActiveGesture();
+};
+
 const handleWindowTouchStart = (event: TouchEventWithFlag) => {
   if (claimedTouchStartEvents.has(event)) return;
   if (activeGesture) {
     if (event.touches.length !== 1) {
+      abortedTouchStartEvents.add(event);
       abortActiveGesture();
       return;
     }
@@ -620,7 +642,7 @@ const handleWindowTouchStart = (event: TouchEventWithFlag) => {
       continue;
     }
 
-    startGesture(entry, touch, getEventTimeMs(event), axisSign, dirSign);
+    startGesture(entry, event, touch, getEventTimeMs(event), axisSign, dirSign);
     break;
   }
 };
@@ -633,13 +655,13 @@ const handleWindowTouchMove = (event: TouchEventWithFlag) => {
 const handleWindowTouchEnd = (event: TouchEvent) => {
   if (!activeGesture || activeGesture.entry.zone !== 'edge') return;
   if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-  handleActiveEnd(activeGesture, false);
+  handleActiveEnd(activeGesture, false, getEventTimeMs(event));
 };
 
 const handleWindowTouchCancel = (event: TouchEvent) => {
   if (!activeGesture || activeGesture.entry.zone !== 'edge') return;
   if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-  handleActiveEnd(activeGesture, true);
+  handleActiveEnd(activeGesture, true, getEventTimeMs(event));
 };
 
 const handleWindowResize = () => {
@@ -663,6 +685,7 @@ const detachEdgeListeners = () => {
 
 const detachInterruptListeners = () => {
   if (attachedInterruptWindow) {
+    attachedInterruptWindow.removeEventListener('touchstart', handleWindowTouchStartCapture, true);
     attachedInterruptWindow.removeEventListener('resize', handleWindowResize);
     attachedInterruptWindow = null;
   }
@@ -676,6 +699,21 @@ const syncGlobalListeners = () => {
   const currentWindow = typeof window === 'undefined' ? null : window;
   const currentDocument = typeof document === 'undefined' ? null : document;
 
+  const hasAny = edgeEntries.size > 0 || elementEntries.size > 0;
+  if (attachedInterruptWindow && (!hasAny || attachedInterruptWindow !== currentWindow)) {
+    attachedInterruptWindow.removeEventListener('touchstart', handleWindowTouchStartCapture, true);
+    attachedInterruptWindow.removeEventListener('resize', handleWindowResize);
+    attachedInterruptWindow = null;
+  }
+  if (hasAny && currentWindow && attachedInterruptWindow !== currentWindow) {
+    currentWindow.addEventListener('touchstart', handleWindowTouchStartCapture, {
+      capture: true,
+      passive: true,
+    });
+    currentWindow.addEventListener('resize', handleWindowResize, { passive: true });
+    attachedInterruptWindow = currentWindow;
+  }
+
   if (attachedEdgeWindow && (edgeEntries.size === 0 || attachedEdgeWindow !== currentWindow)) {
     detachEdgeListeners();
   }
@@ -685,16 +723,6 @@ const syncGlobalListeners = () => {
     currentWindow.addEventListener('touchend', handleWindowTouchEnd, { passive: true });
     currentWindow.addEventListener('touchcancel', handleWindowTouchCancel, { passive: true });
     attachedEdgeWindow = currentWindow;
-  }
-
-  const hasAny = edgeEntries.size > 0 || elementEntries.size > 0;
-  if (attachedInterruptWindow && (!hasAny || attachedInterruptWindow !== currentWindow)) {
-    attachedInterruptWindow.removeEventListener('resize', handleWindowResize);
-    attachedInterruptWindow = null;
-  }
-  if (hasAny && currentWindow && attachedInterruptWindow !== currentWindow) {
-    currentWindow.addEventListener('resize', handleWindowResize, { passive: true });
-    attachedInterruptWindow = currentWindow;
   }
 
   if (attachedInterruptDocument && (!hasAny || attachedInterruptDocument !== currentDocument)) {
@@ -795,6 +823,7 @@ export const useInteractiveSwipe = ({
       if (claimedTouchStartEvents.has(event)) return;
       if (activeGesture) {
         if (event.touches.length !== 1) {
+          abortedTouchStartEvents.add(event);
           abortActiveGesture();
           return;
         }
@@ -820,7 +849,7 @@ export const useInteractiveSwipe = ({
 
       const dirSign = resolveLogicalDirectionSign(panel);
       const { axisSign } = resolveAxisGeometry(entry.edge, entry.direction, dirSign);
-      startGesture(entry, touch, getEventTimeMs(event), axisSign, dirSign);
+      startGesture(entry, event, touch, getEventTimeMs(event), axisSign, dirSign);
     };
 
     const onElementTouchMove = (event: TouchEventWithFlag) => {
@@ -831,13 +860,13 @@ export const useInteractiveSwipe = ({
     const onElementTouchEnd = (event: TouchEvent) => {
       if (!activeGesture || activeGesture.entry !== entry) return;
       if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-      handleActiveEnd(activeGesture, false);
+      handleActiveEnd(activeGesture, false, getEventTimeMs(event));
     };
 
     const onElementTouchCancel = (event: TouchEvent) => {
       if (!activeGesture || activeGesture.entry !== entry) return;
       if (!isTrackedTouchEnded(event, activeGesture.touchIdentifier)) return;
-      handleActiveEnd(activeGesture, true);
+      handleActiveEnd(activeGesture, true, getEventTimeMs(event));
     };
 
     elementEntries.add(entry);

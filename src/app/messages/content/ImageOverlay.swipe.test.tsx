@@ -221,6 +221,8 @@ describe('ImageOverlay interactive edge close', () => {
               requestClose={() => {
                 requestCloseSpy();
                 if (stayOpen) return;
+                // Track the open->closed transition separately: FocusTrap's onDeactivate also
+                // invokes requestClose once more when ImageOverlay unmounts.
                 setOpen((wasOpen) => {
                   if (wasOpen) onClose();
                   return false;
@@ -295,7 +297,7 @@ describe('ImageOverlay interactive edge close', () => {
   });
 
   it('commits past threshold, settles offscreen and fades backdrop to 0, closes once, and consumes history entry', async () => {
-    const { store, onClose, modal, backdrop } = mountViewer();
+    const { store, onClose, requestCloseSpy, modal, backdrop } = mountViewer();
 
     dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
     // Lock origin at x=18; move to x=218 -> offset = 200px (50% >= 35%).
@@ -313,6 +315,8 @@ describe('ImageOverlay interactive edge close', () => {
     expect(animations[0]?.keyframes).toEqual([{ translate: '200px 0' }, { translate: '400px 0' }]);
     expect(animations[1]?.keyframes).toEqual([{ opacity: '0.5' }, { opacity: '0' }]);
     expect(onClose).toHaveBeenCalledOnce();
+    // scene.commit() invokes requestClose once, and FocusTrap's onDeactivate invokes it on unmount.
+    expect(requestCloseSpy).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(store.get(imageViewerOpenAtom)).toBe(false);
     expect(backSpy).toHaveBeenCalledOnce();
@@ -384,7 +388,16 @@ describe('ImageOverlay interactive edge close', () => {
     expect(modal.hasAttribute('data-swiping')).toBe(true);
     expect(backdrop.hasAttribute('data-swiping')).toBe(true);
 
-    // 2nd finger lands mid-drag -> interactive close aborts and restores styles immediately.
+    // Probe on useZoom's target element: window capture must clear translate BEFORE element listeners run.
+    let translateDuringElementTouchStart: string | undefined;
+    let swipingDuringElementTouchStart: boolean | undefined;
+    const onProbeTouchStart = () => {
+      translateDuringElementTouchStart = modal.style.translate;
+      swipingDuringElementTouchStart = modal.hasAttribute('data-swiping');
+    };
+    imageArea.addEventListener('touchstart', onProbeTouchStart, { once: true });
+
+    // 2nd finger lands mid-drag -> interactive close aborts in capture phase before useZoom reads rect.
     dispatchTouch(
       imageArea,
       'touchstart',
@@ -394,6 +407,8 @@ describe('ImageOverlay interactive edge close', () => {
       ],
       220
     );
+    expect(translateDuringElementTouchStart).toBe('');
+    expect(swipingDuringElementTouchStart).toBe(false);
     expect(modal.style.translate).toBe('');
     expect(modal.hasAttribute('data-swiping')).toBe(false);
     expect(modal.hasAttribute('data-swipe-shadow')).toBe(false);
@@ -484,5 +499,75 @@ describe('ImageOverlay interactive edge close', () => {
     expect(modal.hasAttribute('data-swipe-shadow')).toBe(false);
     expect(backdrop.style.opacity).toBe('');
     expect(backdrop.hasAttribute('data-swiping')).toBe(false);
+  });
+
+  it('does not deactivate FocusTrap when a 2nd finger lands on the exposed backdrop during drag', () => {
+    const { store, onClose, requestCloseSpy, modal, backdrop } = mountViewer();
+
+    dispatchTouch(modal, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
+    dispatchTouch(modal, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
+    flushRaf();
+    expect(modal.style.translate).toBe('130px 0');
+
+    // 2nd finger lands in the newly exposed strip on the backdrop outside the translated Modal.
+    dispatchTouch(
+      backdrop,
+      'touchstart',
+      [
+        { clientX: 150, clientY: 200, identifier: 0 },
+        { clientX: 40, clientY: 200, identifier: 1 },
+      ],
+      210
+    );
+
+    expect(modal.style.translate).toBe('');
+    expect(modal.hasAttribute('data-swiping')).toBe(false);
+    expect(modal.hasAttribute('data-swipe-shadow')).toBe(false);
+    expect(backdrop.style.opacity).toBe('');
+    expect(backdrop.hasAttribute('data-swiping')).toBe(false);
+    expect(requestCloseSpy).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(backSpy).not.toHaveBeenCalled();
+    expect(store.get(imageViewerOpenAtom)).toBe(true);
+    expect(window.history.state).toEqual({
+      route: 'room',
+      [IMAGE_VIEWER_HISTORY_MARKER]: true,
+    });
+  });
+
+  it('does not commit close if a higher dialog opens while settle(true) is animating', async () => {
+    autoResolveAnimations = false;
+    const { store, onClose, requestCloseSpy, modal, backdrop } = mountViewer();
+
+    dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+    dispatchTouch(modal, 'touchmove', [{ clientX: 218, clientY: 200 }], 200);
+    flushRaf();
+    dispatchTouch(modal, 'touchend', [], 220, [{ clientX: 218, clientY: 200 }]);
+
+    expect(animations).toHaveLength(2);
+    expect(onClose).not.toHaveBeenCalled();
+
+    // A higher dialog opens over the viewer before settle(true) finishes.
+    const higherDialog = document.createElement('div');
+    higherDialog.setAttribute('role', 'dialog');
+    document.body.append(higherDialog);
+
+    await act(async () => {
+      animations.forEach((a) => a.resolve());
+      await flushMicrotasks();
+    });
+
+    expect(requestCloseSpy).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(backSpy).not.toHaveBeenCalled();
+    expect(store.get(imageViewerOpenAtom)).toBe(true);
+    expect(modal.style.translate).toBe('');
+    expect(modal.hasAttribute('data-swiping')).toBe(false);
+    expect(backdrop.style.opacity).toBe('');
+    expect(window.history.state).toEqual({
+      route: 'room',
+      [IMAGE_VIEWER_HISTORY_MARKER]: true,
+    });
+    higherDialog.remove();
   });
 });

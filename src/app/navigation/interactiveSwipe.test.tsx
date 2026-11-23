@@ -439,6 +439,25 @@ describe('interactiveSwipe', () => {
       expect(mock.cleanup).toHaveBeenCalledWith(false);
     });
 
+    it('cancels a fast sub-threshold flick after holding still for 250ms before touchend', async () => {
+      const mock = createMockScene(400);
+      render(<InteractiveEdge begin={() => mock.scene} onCommit={vi.fn()} />);
+
+      act(() => {
+        // Fast 60px move in 50ms on a 400px screen (lock at x=20, offset 60 < 35%).
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 100));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 20, clientY: 200 }], 110));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 80, clientY: 200 }], 150));
+        // Hold still for 250ms before lifting -> stale flick velocity decays to 0.
+        window.dispatchEvent(createTouchEvent('touchend', [], 400));
+      });
+
+      await flushMicrotasks();
+      expect(mock.settle).toHaveBeenCalledWith(false, expect.any(Number), 60);
+      expect(mock.commit).not.toHaveBeenCalled();
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+    });
+
     it('suppresses one stray click immediately after a locked drag and restores clicks next tick', () => {
       vi.useFakeTimers();
       const onClick = vi.fn();
@@ -659,6 +678,48 @@ describe('interactiveSwipe', () => {
       });
       view.unmount();
       expect(mock2.cleanup).toHaveBeenCalledWith(false);
+    });
+
+    it('cancels commit and runs cleanup(false) if a higher dialog opens while settle(true) is pending', async () => {
+      const mock = createMockScene(400);
+      mock.deferSettle();
+
+      function OverlayHarness() {
+        const dialogRef = useRef<HTMLDivElement>(null);
+        useInteractiveSwipe({
+          zone: 'edge',
+          edge: 'start',
+          direction: 'inward',
+          priority: SWIPE_PRIORITY.OVERLAY,
+          enabled: true,
+          within: dialogRef,
+          onCommit: vi.fn(),
+          begin: () => mock.scene,
+        });
+        return <div ref={dialogRef} role="dialog" data-testid="viewer-dialog" />;
+      }
+
+      render(<OverlayHarness />);
+      const viewer = screen.getByTestId('viewer-dialog');
+
+      act(() => {
+        viewer.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 100));
+        viewer.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 240, clientY: 200 }], 150));
+        viewer.dispatchEvent(createTouchEvent('touchend', [], 170));
+      });
+
+      expect(mock.settle).toHaveBeenCalledWith(true, expect.any(Number), 220);
+      expect(mock.commit).not.toHaveBeenCalled();
+
+      // A higher dialog opens over the viewer while settle(true) is still animating.
+      const higherDialog = document.createElement('div');
+      higherDialog.setAttribute('role', 'dialog');
+      document.body.append(higherDialog);
+
+      await mock.finishSettle();
+      expect(mock.commit).not.toHaveBeenCalled();
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+      higherDialog.remove();
     });
 
     it('resets edge swipe on touchcancel, but evaluates commit on element swipe with cancelCommits', async () => {

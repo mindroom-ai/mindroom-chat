@@ -192,6 +192,40 @@ describe('interactiveSwipeMath', () => {
     expect(goodFlick.shouldCommit(extent)).toBe(true);
   });
 
+  it('decays stale flick velocity to 0 after holding still past the velocity window before lift', () => {
+    const extent = 400;
+    const tracker = createSwipeTracker({
+      startX: 0,
+      startY: 100,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    // Fast 60px move in 50ms (offset 60 < 35% of 400, velocity > SWIPE_FLICK_VELOCITY).
+    tracker.move(10, 100, 10, extent);
+    tracker.move(70, 100, 50, extent);
+    expect(tracker.offset).toBe(60);
+    expect(tracker.velocity).toBeGreaterThanOrEqual(SWIPE_FLICK_VELOCITY);
+
+    // Lifting promptly still commits as a flick.
+    expect(tracker.shouldCommit(extent, 60)).toBe(true);
+    // Holding still for 250ms before lift (> 100ms velocity window) decays velocity to 0 and cancels.
+    expect(tracker.shouldCommit(extent, 300)).toBe(false);
+
+    // Settle duration also ignores stale velocity after holding still.
+    const heldFar = createSwipeTracker({
+      startX: 0,
+      startY: 100,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    heldFar.move(10, 100, 10, extent);
+    heldFar.move(310, 100, 50, extent); // offset 300, fast velocity 6.2 px/ms
+    expect(heldFar.settleDurationMs(false, extent, 50)).toBe(120);
+    expect(heldFar.settleDurationMs(false, extent, 300)).toBe(180);
+  });
+
   it('cancels on decisive reversal below 50% extent, but commits at >= 50%', () => {
     const extent = 400;
     const reversedUnderHalf = createSwipeTracker({

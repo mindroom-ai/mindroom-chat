@@ -23,8 +23,8 @@ export interface SwipeTracker {
   readonly rawDx: number;
   readonly maxDriftY: number;
   move(x: number, y: number, timeMs: number, extent: number): SwipeTrackerState;
-  shouldCommit(extent: number): boolean;
-  settleDurationMs(commit: boolean, extent: number): number;
+  shouldCommit(extent: number, endTimeMs?: number): boolean;
+  settleDurationMs(commit: boolean, extent: number, endTimeMs?: number): number;
 }
 
 export interface CreateSwipeTrackerOptions {
@@ -69,6 +69,22 @@ export function createSwipeTracker({
     const newest = samples[samples.length - 1]!;
     const dt = newest.t - oldest.t;
     velocity = dt > 0 ? ((newest.x - oldest.x) * axisSign) / dt : 0;
+  };
+
+  const resolveVelocity = (endTimeMs?: number): number => {
+    if (endTimeMs === undefined) return velocity;
+    const newest = samples[samples.length - 1];
+    if (!newest || endTimeMs - newest.t > SWIPE_VELOCITY_WINDOW_MS) {
+      return 0;
+    }
+    const cutoff = endTimeMs - SWIPE_VELOCITY_WINDOW_MS;
+    let oldestIndex = 0;
+    while (oldestIndex < samples.length - 2 && samples[oldestIndex]!.t < cutoff) {
+      oldestIndex += 1;
+    }
+    const oldest = samples[oldestIndex]!;
+    const dt = Math.max(newest.t, endTimeMs) - oldest.t;
+    return dt > 0 ? ((newest.x - oldest.x) * axisSign) / dt : 0;
   };
 
   const updateOffset = (x: number, extent: number) => {
@@ -132,25 +148,27 @@ export function createSwipeTracker({
       return state;
     },
 
-    shouldCommit(extent: number): boolean {
+    shouldCommit(extent: number, endTimeMs?: number): boolean {
       if (state !== 'locked') return false;
       if (extent <= 0) {
         return rawDx >= discreteMinPx && maxDriftY <= MAX_VERTICAL_DRIFT;
       }
-      if (velocity <= SWIPE_REVERSAL_VELOCITY && offset < extent * 0.5) {
+      const effectiveVelocity = resolveVelocity(endTimeMs);
+      if (effectiveVelocity <= SWIPE_REVERSAL_VELOCITY && offset < extent * 0.5) {
         return false;
       }
       return (
         offset >= extent * SWIPE_COMMIT_RATIO ||
-        (offset >= SWIPE_FLICK_MIN_PX && velocity >= SWIPE_FLICK_VELOCITY)
+        (offset >= SWIPE_FLICK_MIN_PX && effectiveVelocity >= SWIPE_FLICK_VELOCITY)
       );
     },
 
-    settleDurationMs(commit: boolean, extent: number): number {
+    settleDurationMs(commit: boolean, extent: number, endTimeMs?: number): number {
       if (extent <= 0) return 0;
       const remaining = commit ? Math.max(0, extent - offset) : Math.max(0, offset);
       if (remaining <= 0) return 0;
-      const speed = Math.max(Math.abs(velocity), extent / SETTLE_BASE_MS);
+      const effectiveVelocity = resolveVelocity(endTimeMs);
+      const speed = Math.max(Math.abs(effectiveVelocity), extent / SETTLE_BASE_MS);
       return Math.round(Math.min(SETTLE_MAX_MS, Math.max(SETTLE_MIN_MS, remaining / speed)));
     },
   };

@@ -8,6 +8,10 @@ import { ImageViewer } from '../viewers/ImageViewer';
 import { useViewerFrame, viewerTrapOptions } from './viewerFrame';
 import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
+import {
+  isInteractiveSwipeActive,
+  wasInteractiveSwipeAbortedEvent,
+} from '../../navigation/interactiveSwipe';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 
@@ -84,6 +88,11 @@ type ImageOverlayProps = ComponentProps<typeof ImageViewer> & {
 
 const keepContextMenu = (event: React.MouseEvent) => event.stopPropagation();
 
+// A 2nd finger landing in the strip exposed by a right-drag aborts the swipe in capture phase
+// and must not be treated by FocusTrap as an outside click that closes the viewer.
+const shouldDeactivateOnOutsideInteraction = (event: MouseEvent | TouchEvent): boolean =>
+  !wasInteractiveSwipeAbortedEvent(event) && !isInteractiveSwipeActive();
+
 /**
  * The image viewer in a modal over the page, for message attachments, inline pictures and link
  * previews. Escape, a click outside, Back, the viewer's back button or, on phones, a swipe from
@@ -108,7 +117,12 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
       backdrop={<OverlayBackdrop data-image-viewer-backdrop="" />}
     >
       <OverlayCenter className={centerClassName}>
-        <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
+        <FocusTrap
+          focusTrapOptions={{
+            ...viewerTrapOptions(requestClose),
+            clickOutsideDeactivates: shouldDeactivateOnOutsideInteraction,
+          }}
+        >
           <Modal
             {...PINCH_SURFACE}
             ref={screenRef}
