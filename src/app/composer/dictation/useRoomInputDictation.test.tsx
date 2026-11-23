@@ -17,13 +17,20 @@ import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoom
 const serverMock = vi.hoisted(
   (): {
     available: boolean;
+    confirmed: boolean;
     overlay: 'none' | 'help' | 'other';
-    sessions: ClientSessions;
-  } => ({
-    available: true,
-    overlay: 'none',
-    sessions: { send: vi.fn() } as unknown as ClientSessions,
-  })
+    defaultSessions: ClientSessions;
+    sessions: ClientSessions | undefined;
+  } => {
+    const defaultSessions = { send: vi.fn() } as unknown as ClientSessions;
+    return {
+      available: true,
+      confirmed: true,
+      overlay: 'none',
+      defaultSessions,
+      sessions: defaultSessions,
+    };
+  }
 );
 
 vi.mock('../../shortcuts/shortcutDom', () => ({
@@ -33,7 +40,8 @@ vi.mock('../../shortcuts/shortcutDom', () => ({
 vi.mock('./useDictationServer', () => ({
   useDictationServer: () => ({
     available: serverMock.available,
-    apiUrl: serverMock.available ? 'https://mr.example' : undefined,
+    confirmed: serverMock.available && serverMock.confirmed,
+    apiUrl: serverMock.available && serverMock.sessions ? 'https://mr.example' : undefined,
     roomId: '!room:example.org',
     sessions: serverMock.available ? serverMock.sessions : undefined,
   }),
@@ -149,6 +157,8 @@ class TestPointerEvent extends MouseEvent {
 
 beforeEach(() => {
   serverMock.available = true;
+  serverMock.confirmed = true;
+  serverMock.sessions = serverMock.defaultSessions;
   serverMock.overlay = 'none';
   vi.stubGlobal('PointerEvent', TestPointerEvent);
 });
@@ -349,6 +359,50 @@ describe('useRoomInputDictation', () => {
     expect(getFeature().available).toBe(false);
     expect(getFeature().button).toBeNull();
     expect(screen.queryByLabelText('composer.dictation.label')).toBeNull();
+  });
+
+  it('renders the button disabled while seeded availability is unconfirmed and enables once confirmed', () => {
+    serverMock.available = true;
+    serverMock.confirmed = false;
+    serverMock.sessions = undefined;
+    const editor = makeSlateEditor();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    const { getFeature, setConversationHidden } = renderHarness(editor, store, session);
+    const input = screen.getByTestId('editor-focus');
+    input.focus();
+    const btn = screen.getByLabelText<HTMLButtonElement>('composer.dictation.label');
+    expect(getFeature().available).toBe(true);
+    expect(btn.disabled).toBe(true);
+    expect(getFeature().start()).toBe(false);
+    expect(session.start).not.toHaveBeenCalled();
+
+    // Shortcut does not swallow keystrokes before confirmation.
+    const keyEvent = new KeyboardEvent('keydown', {
+      key: 'D',
+      code: 'KeyD',
+      ctrlKey: true,
+      shiftKey: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(keyEvent);
+    expect(keyEvent.defaultPrevented).toBe(false);
+
+    // Sessions resolving while /status is still in flight still keeps Dictate disabled.
+    serverMock.sessions = serverMock.defaultSessions;
+    setConversationHidden(false);
+    expect(btn.disabled).toBe(true);
+    expect(getFeature().start()).toBe(false);
+
+    // Once confirmed with sessions, button enables and start() works.
+    serverMock.confirmed = true;
+    setConversationHidden(false);
+    expect(btn.disabled).toBe(false);
+    act(() => {
+      expect(getFeature().start()).toBe(true);
+    });
+    expect(session.start).toHaveBeenCalledTimes(1);
   });
 
   it('enforces mutual exclusion with liveVoiceRecordingAtom and activeDictationAtom', async () => {

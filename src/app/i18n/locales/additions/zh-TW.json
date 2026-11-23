@@ -495,7 +495,6 @@
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
-        "dictation": "聽寫, 語音輸入, 語音轉文字, 麥克風, 手機",
         "plugins": "外掛程式, 插件, 擴充功能, 整合"
       },
       "errorReports": {
@@ -1365,12 +1364,6 @@
       "capReached": "已達到 5:00 上限",
       "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
       "failedSummary_other": "無法轉寫 {{count}} 個片段。"
-    },
-    "voiceButton": {
-      "settingTitle": "手機麥克風按鈕",
-      "settingDescription": "選擇手機上輸入框麥克風按鈕的功能。另一項操作保留在 + 選單中。",
-      "dictate": "聽寫",
-      "voiceMessage": "語音訊息"
     }
   },
   "commandPalette": {

@@ -521,7 +521,6 @@
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
-        "dictation": "ditar, ditado, voz para texto, microfone, telefone",
         "plugins": "plugins, extensões, complementos, integrações"
       },
       "errorReports": {
@@ -1459,12 +1458,6 @@
       "failedSummary_one": "Não foi possível transcrever {{count}} segmento.",
       "failedSummary_many": "Não foi possível transcrever {{count}} segmentos.",
       "failedSummary_other": "Não foi possível transcrever {{count}} segmentos."
-    },
-    "voiceButton": {
-      "settingTitle": "Botão do microfone no telemóvel",
-      "settingDescription": "Escolha o que o botão do microfone no editor faz em telemóveis. A outra ação fica no menu +.",
-      "dictate": "Ditar",
-      "voiceMessage": "Mensagem de voz"
     }
   },
   "commandPalette": {

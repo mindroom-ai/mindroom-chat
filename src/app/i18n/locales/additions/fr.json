@@ -521,7 +521,6 @@
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
-        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone",
         "plugins": "plugins, extensions, modules, intégrations"
       },
       "errorReports": {
@@ -1459,12 +1458,6 @@
       "failedSummary_one": "Impossible de transcrire {{count}} segment.",
       "failedSummary_many": "Impossible de transcrire {{count}} segments.",
       "failedSummary_other": "Impossible de transcrire {{count}} segments."
-    },
-    "voiceButton": {
-      "settingTitle": "Bouton microphone sur téléphone",
-      "settingDescription": "Choisissez l’action du bouton microphone dans la zone de saisie sur téléphone. L’autre action reste dans le menu +.",
-      "dictate": "Dicter",
-      "voiceMessage": "Message vocal"
     }
   },
   "commandPalette": {

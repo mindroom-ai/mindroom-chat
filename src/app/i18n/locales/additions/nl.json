@@ -508,7 +508,6 @@
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
-        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon",
         "plugins": "plug-ins, plugins, extensies, add-ons, integraties"
       },
       "errorReports": {
@@ -1412,12 +1411,6 @@
       "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
       "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
       "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen."
-    },
-    "voiceButton": {
-      "settingTitle": "Microfoonknop op telefoon",
-      "settingDescription": "Kies wat de microfoonknop in het invoerveld op telefoons doet. De andere actie blijft in het +-menu.",
-      "dictate": "Dicteren",
-      "voiceMessage": "Spraakbericht"
     }
   },
   "commandPalette": {

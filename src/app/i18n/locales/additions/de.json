@@ -508,7 +508,6 @@
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
-        "dictation": "Diktieren, Diktat, Sprache zu Text, Mikrofon, Telefon",
         "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen"
       },
       "errorReports": {
@@ -1412,12 +1411,6 @@
       "micInterrupted": "Mikrofon getrennt. Fortsetzen oder beenden.",
       "failedSummary_one": "{{count}} Abschnitt konnte nicht transkribiert werden.",
       "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden."
-    },
-    "voiceButton": {
-      "settingTitle": "Mikrofon-Taste auf Mobilgeräten",
-      "settingDescription": "Wähle aus, was die Mikrofon-Taste im Eingabefeld auf Mobilgeräten ausführt. Die andere Aktion bleibt im +-Menü.",
-      "dictate": "Diktieren",
-      "voiceMessage": "Sprachnachricht"
     }
   },
   "commandPalette": {

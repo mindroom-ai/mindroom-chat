@@ -6,26 +6,30 @@ import type { Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import type { MatrixClient } from 'matrix-js-sdk';
 import type { ComposerExtraVoiceAction } from '../ComposerActionsMenu';
 import { RoomInput } from '../RoomInput';
+import { VoiceMessageIcon } from '../voice/VoiceMessageIcon';
 
 const layoutState = vi.hoisted(
   (): {
     dictationAvailable: boolean;
     dictationBlocksSubmit: boolean;
-    voiceButtonMode: 'dictate' | 'voiceMessage';
-    voiceDistinctIcon: boolean;
+    hasVoice: boolean;
+    hasSendableFiles: boolean;
     actionsMenuVoiceAction: ComposerExtraVoiceAction | undefined;
     sendDisabled: boolean;
+    sendAlone: boolean | undefined;
     sendOnClick: ReturnType<typeof vi.fn>;
     startSendSession: ReturnType<typeof vi.fn>;
   } => ({
     dictationAvailable: true,
     dictationBlocksSubmit: false,
-    voiceButtonMode: 'dictate',
-    voiceDistinctIcon: false,
+    hasVoice: false,
+    hasSendableFiles: false,
     actionsMenuVoiceAction: undefined,
     sendDisabled: false,
+    sendAlone: undefined,
     sendOnClick: vi.fn(),
     startSendSession: vi.fn(async () => undefined),
   })
@@ -51,31 +55,22 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
 }));
 
 vi.mock('../useRoomInputVoice', () => ({
-  useRoomInputVoice: ({ distinctIcon }: { distinctIcon?: boolean }) => {
-    layoutState.voiceDistinctIcon = Boolean(distinctIcon);
-    return {
-      blocksSubmit: () => false,
-      sendAtPress: () => undefined,
-      renderRecorder: () => null,
-      microphone: (
-        <button
-          type="button"
-          aria-label="Record voice"
-          data-testid="voice-btn"
-          data-distinct={String(Boolean(distinctIcon))}
-        />
-      ),
-      microphoneLabel: 'Record voice',
-      microphoneDisabled: false,
-      startRecording: () => true,
-      voiceKey: {
-        active: () => false,
-        offersFailed: () => false,
-        phase: () => 'none',
-        start: () => false,
-      },
-    };
-  },
+  useRoomInputVoice: () => ({
+    blocksSubmit: () => false,
+    hasVoice: layoutState.hasVoice,
+    sendAtPress: () => undefined,
+    renderRecorder: () => null,
+    microphone: <button type="button" aria-label="Record voice" data-testid="voice-btn" />,
+    microphoneLabel: 'Record voice',
+    microphoneDisabled: false,
+    startRecording: () => true,
+    voiceKey: {
+      active: () => false,
+      offersFailed: () => false,
+      phase: () => 'none',
+      start: () => false,
+    },
+  }),
 }));
 
 vi.mock('../ComposerActionsMenu', () => ({
@@ -90,7 +85,16 @@ vi.mock('../ComposerAttachButton', () => ({
 }));
 
 vi.mock('../ComposerSendButton', () => ({
-  ComposerSendButton: ({ disabled, onSend }: { disabled?: boolean; onSend: () => unknown }) => {
+  ComposerSendButton: ({
+    alone,
+    disabled,
+    onSend,
+  }: {
+    alone?: boolean;
+    disabled?: boolean;
+    onSend: () => unknown;
+  }) => {
+    layoutState.sendAlone = alone;
     layoutState.sendDisabled = Boolean(disabled);
     layoutState.sendOnClick = vi.fn(() => onSend());
     return (
@@ -136,13 +140,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 vi.mock('../useTypingStatusUpdater', () => ({ useTypingStatusUpdater: () => vi.fn() }));
 vi.mock('../../preferences/useSetting', () => ({
-  useSetting: (_atom: unknown, key: string) => [
-    key === 'voiceButtonMode'
-      ? layoutState.voiceButtonMode
-      : key === 'midTurnSend'
-      ? 'auto'
-      : false,
-  ],
+  useSetting: (_atom: unknown, key: string) => [key === 'midTurnSend' ? 'auto' : false],
 }));
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
@@ -157,6 +155,7 @@ vi.mock('../useRoomInputSendSessionController', () => ({
 vi.mock('../useRoomInputAttachments', () => ({
   useRoomInputAttachments: () => ({
     access: { snapshot: () => ({ staged: [] }) },
+    hasSendableFiles: layoutState.hasSendableFiles,
     board: null,
     dropZoneVisible: false,
     onEditorChange: vi.fn(),
@@ -187,12 +186,13 @@ const room = {
 const renderInput = (
   opts: {
     screenSize?: ScreenSize;
+    text?: string;
     forkFrom?: { threadId: string; eventId: string };
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
   } = {}
 ) => {
   const editor = createEditor();
-  editor.children = [{ type: 'paragraph', children: [{ text: '' }] }] as never;
+  editor.children = [{ type: 'paragraph', children: [{ text: opts.text ?? '' }] }] as never;
   const store = createStore();
   return render(
     <Provider store={store}>
@@ -213,70 +213,138 @@ const renderInput = (
 beforeEach(() => {
   layoutState.dictationAvailable = true;
   layoutState.dictationBlocksSubmit = false;
-  layoutState.voiceButtonMode = 'dictate';
-  layoutState.voiceDistinctIcon = false;
+  layoutState.hasVoice = false;
+  layoutState.hasSendableFiles = false;
   layoutState.actionsMenuVoiceAction = undefined;
   layoutState.sendDisabled = false;
+  layoutState.sendAlone = undefined;
   layoutState.startSendSession.mockClear();
 });
 
 afterEach(() => cleanup());
 
+const inSlot = (slot: 'before' | 'after', id: string) =>
+  screen.getByTestId(`slot-${slot}`).querySelector(`[data-testid="${id}"]`);
+
 describe('RoomInput dictation layout and submit guard', () => {
-  it('makes zero UI change when dictation is unavailable', () => {
+  it('renders fixed waveform voice icon and keeps desktop layout across dictation states', async () => {
+    const { useRoomInputVoice: actualUseRoomInputVoice } = await vi.importActual<
+      typeof import('../useRoomInputVoice')
+    >('../useRoomInputVoice');
+    function RealVoiceButton() {
+      const voice = actualUseRoomInputVoice({
+        mx: {
+          getUserId: () => '@alice:example.org',
+          getRoom: () => room,
+        } as unknown as MatrixClient,
+        composer: {
+          getContext: () => ({
+            roomId: room.roomId,
+            room,
+            threadId: undefined,
+            replyDraft: undefined,
+            threadingEnabled: true,
+          }),
+          snapshotText: () => [],
+          resetText: vi.fn(),
+          restoreText: vi.fn(),
+          clearConsumedReply: vi.fn(),
+        },
+        attachments: {} as never,
+        transport: {} as never,
+        sessions: {} as never,
+        recover: false,
+      });
+      return <>{voice.microphone}</>;
+    }
+    const voiceRender = render(
+      <Provider store={createStore()}>
+        <RealVoiceButton />
+      </Provider>
+    );
+    expect(
+      voiceRender.container.querySelector('path[d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"]')
+    ).not.toBeNull();
+    voiceRender.unmount();
+
     layoutState.dictationAvailable = false;
-    renderInput({ screenSize: ScreenSize.Desktop });
-
+    const unavailable = renderInput({ screenSize: ScreenSize.Desktop });
     expect(screen.queryByTestId('dictate-btn')).toBeNull();
-    expect(screen.getByTestId('voice-btn').getAttribute('data-distinct')).toBe('false');
-  });
+    expect(inSlot('before', 'voice-btn')).not.toBeNull();
+    unavailable.unmount();
 
-  it('places Dictate in after beside Send and uses distinct voice icon in before on desktop', () => {
+    layoutState.dictationAvailable = true;
     renderInput({ screenSize: ScreenSize.Desktop });
-
-    const before = screen.getByTestId('slot-before');
-    const after = screen.getByTestId('slot-after');
-    expect(before.querySelector('[data-testid="voice-btn"]')).not.toBeNull();
-    expect(screen.getByTestId('voice-btn').getAttribute('data-distinct')).toBe('true');
-    expect(after.querySelector('[data-testid="dictate-btn"]')).not.toBeNull();
-    expect(after.querySelector('[data-testid="send-btn"]')).not.toBeNull();
+    expect(inSlot('before', 'voice-btn')).not.toBeNull();
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(layoutState.sendAlone).toBe(false);
   });
 
-  it('enables Dictate in forkFrom drafts even while Matrix voice messages are hidden', () => {
-    renderInput({
-      screenSize: ScreenSize.Desktop,
-      forkFrom: { threadId: '$root', eventId: '$point' },
-    });
-
+  it('enables Dictate with Send in forkFrom drafts on desktop and phone while hiding voice messages', () => {
+    const forkFrom = { threadId: '$root', eventId: '$point' };
+    const desktop = renderInput({ screenSize: ScreenSize.Desktop, forkFrom });
     expect(screen.queryByTestId('voice-btn')).toBeNull();
-    expect(screen.getByTestId('dictate-btn')).toBeTruthy();
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    desktop.unmount();
+
+    renderInput({ screenSize: ScreenSize.Mobile, forkFrom });
+    expect(screen.queryByTestId('voice-btn')).toBeNull();
+    expect(layoutState.actionsMenuVoiceAction).toBeUndefined();
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(layoutState.sendAlone).toBe(false);
   });
 
-  it('uses voiceButtonMode on phones and places the alternate action in ComposerActionsMenu', () => {
-    layoutState.voiceButtonMode = 'dictate';
-    const { unmount } = renderInput({ screenSize: ScreenSize.Mobile });
-    expect(
-      screen.getByTestId('slot-before').querySelector('[data-testid="dictate-btn"]')
-    ).not.toBeNull();
-    expect(screen.getByTestId('slot-before').querySelector('[data-testid="voice-btn"]')).toBeNull();
-    expect(
-      screen.getByTestId('slot-after').querySelector('[data-testid="dictate-btn"]')
-    ).toBeNull();
+  it('swaps Send for Voice message in after when phone composer is empty and restores Send with text, files, or voice', () => {
+    const emptyPhone = renderInput({ screenSize: ScreenSize.Mobile });
+    expect(inSlot('before', 'voice-btn')).toBeNull();
+    expect(inSlot('before', 'dictate-btn')).toBeNull();
+    expect(layoutState.actionsMenuVoiceAction).toBeUndefined();
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'voice-btn')).not.toBeNull();
+    expect(screen.queryByTestId('send-btn')).toBeNull();
+    emptyPhone.unmount();
+
+    const typedPhone = renderInput({ screenSize: ScreenSize.Mobile, text: 'hello' });
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(screen.queryByTestId('voice-btn')).toBeNull();
+    expect(layoutState.sendAlone).toBe(false);
+    expect(layoutState.actionsMenuVoiceAction).toMatchObject({
+      label: 'Record voice',
+      icon: VoiceMessageIcon,
+    });
+    typedPhone.unmount();
+
+    layoutState.hasSendableFiles = true;
+    const filesPhone = renderInput({ screenSize: ScreenSize.Mobile });
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
     expect(layoutState.actionsMenuVoiceAction?.label).toBe('Record voice');
-    unmount();
+    filesPhone.unmount();
 
-    layoutState.voiceButtonMode = 'voiceMessage';
+    layoutState.hasSendableFiles = false;
+    layoutState.hasVoice = true;
     renderInput({ screenSize: ScreenSize.Mobile });
-    expect(
-      screen.getByTestId('slot-before').querySelector('[data-testid="voice-btn"]')
-    ).not.toBeNull();
-    expect(
-      screen.getByTestId('slot-before').querySelector('[data-testid="dictate-btn"]')
-    ).toBeNull();
-    expect(layoutState.actionsMenuVoiceAction?.label).toBe('Dictate');
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(screen.queryByTestId('voice-btn')).toBeNull();
   });
 
-  it('keeps Dictate available in after on phones when ask.pickers replaces the before slot', () => {
+  it('keeps Voice message in before and Send alone in after on phones when dictation is unavailable', () => {
+    layoutState.dictationAvailable = false;
+    renderInput({ screenSize: ScreenSize.Mobile });
+
+    expect(inSlot('before', 'voice-btn')).not.toBeNull();
+    expect(layoutState.actionsMenuVoiceAction).toBeUndefined();
+    expect(inSlot('after', 'dictate-btn')).toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(layoutState.sendAlone).toBe(true);
+  });
+
+  it('keeps Dictate beside Send in after on phones when ask.pickers replaces the before slot', () => {
     renderInput({
       screenSize: ScreenSize.Mobile,
       ask: {
@@ -287,20 +355,25 @@ describe('RoomInput dictation layout and submit guard', () => {
       },
     });
 
-    expect(
-      screen.getByTestId('slot-before').querySelector('[data-testid="ask-pickers"]')
-    ).not.toBeNull();
-    expect(
-      screen.getByTestId('slot-after').querySelector('[data-testid="dictate-btn"]')
-    ).not.toBeNull();
+    expect(inSlot('before', 'ask-pickers')).not.toBeNull();
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(inSlot('after', 'send-btn')).not.toBeNull();
+    expect(screen.queryByTestId('voice-btn')).toBeNull();
+    expect(layoutState.sendAlone).toBe(false);
   });
 
-  it('disables Send and guards submission while dictating', () => {
+  it('shows disabled Send in after and guards submission while dictating on desktop and phone', () => {
     layoutState.dictationBlocksSubmit = true;
-    renderInput({ screenSize: ScreenSize.Desktop });
-
+    const desktop = renderInput({ screenSize: ScreenSize.Desktop });
     expect(screen.getByTestId('dictation-capsule')).toBeTruthy();
     expect(layoutState.sendDisabled).toBe(true);
     expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(true);
+    desktop.unmount();
+
+    renderInput({ screenSize: ScreenSize.Mobile });
+    expect(inSlot('after', 'dictate-btn')).not.toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(true);
+    expect(screen.queryByTestId('voice-btn')).toBeNull();
+    expect(layoutState.actionsMenuVoiceAction?.label).toBe('Record voice');
   });
 });

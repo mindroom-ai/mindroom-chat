@@ -495,7 +495,6 @@
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
-        "dictation": "받아쓰기, 음성 입력, 음성 텍스트 변환, 마이크, 휴대전화",
         "plugins": "플러그인, 확장 기능, 애드온, 연동"
       },
       "errorReports": {
@@ -1365,12 +1364,6 @@
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
       "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다."
-    },
-    "voiceButton": {
-      "settingTitle": "휴대전화 마이크 버튼",
-      "settingDescription": "휴대전화 입력창의 마이크 버튼 동작을 선택합니다. 다른 작업은 + 메뉴에 유지됩니다.",
-      "dictate": "받아쓰기",
-      "voiceMessage": "음성 메시지"
     }
   },
   "commandPalette": {

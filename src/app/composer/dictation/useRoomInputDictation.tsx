@@ -93,7 +93,7 @@ export const useRoomInputDictation = ({
 }: UseRoomInputDictationOptions): RoomInputDictationFeature => {
   const { t } = useTranslation();
   const store = useStore();
-  const { available, sessions } = useDictationServer(roomId);
+  const { available, confirmed, sessions } = useDictationServer(roomId);
   const activeDictation = useAtomValue(activeDictationAtom);
   const liveVoice = useAtomValue(liveVoiceRecordingAtom);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
@@ -176,7 +176,7 @@ export const useRoomInputDictation = ({
   const start = useCallback((): boolean => {
     const pendingFocus = pendingButtonFocusRef.current;
     pendingButtonFocusRef.current = undefined;
-    if (!available || !session) return false;
+    if (!confirmed || !session) return false;
     if (
       store.get(liveVoiceRecordingAtom) !== undefined ||
       store.get(voiceAutoSendPendingAtom) ||
@@ -198,7 +198,7 @@ export const useRoomInputDictation = ({
       }
     });
     return true;
-  }, [available, clearSelectionRef, editor, ownerKey, releaseOwnership, rootRef, session, store]);
+  }, [clearSelectionRef, confirmed, editor, ownerKey, releaseOwnership, rootRef, session, store]);
 
   const handleFinish = useCallback(() => {
     if (!session) return;
@@ -279,7 +279,7 @@ export const useRoomInputDictation = ({
   // Keyboard shortcuts: Mod+Shift+D starts/finishes (capture); Escape cancels in bubble phase
   // only when no overlay or inline AutocompleteMenu listbox is open to consume it first.
   useEffect(() => {
-    if (!available) return undefined;
+    if (!confirmed) return undefined;
     const onCaptureKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || isComposingKey(event)) return;
       if (!matchesShortcut(event, 'dictate')) return;
@@ -315,7 +315,7 @@ export const useRoomInputDictation = ({
       window.removeEventListener('keydown', onCaptureKeyDown, true);
       window.removeEventListener('keydown', onBubbleKeyDown);
     };
-  }, [available, handleDiscard, handleFinish, rootRef, snapshot.phase, start]);
+  }, [confirmed, handleDiscard, handleFinish, rootRef, snapshot.phase, start]);
 
   // Pause active recording when the conversation is covered (Canvas, plugin cover, side panel).
   useEffect(() => {
@@ -342,7 +342,11 @@ export const useRoomInputDictation = ({
   const active = snapshot.phase !== 'idle';
   const blocksSubmit = active;
   const disabled =
-    !available || liveVoice !== undefined || voiceAutoSendPending || activeDictation !== undefined;
+    !confirmed ||
+    !session ||
+    liveVoice !== undefined ||
+    voiceAutoSendPending ||
+    activeDictation !== undefined;
   const label = t('composer.dictation.label');
 
   const button = available ? (

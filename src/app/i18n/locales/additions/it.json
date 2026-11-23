@@ -521,7 +521,6 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "dictation": "dettare, dettatura, voce in testo, microfono, telefono",
         "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
       },
       "errorReports": {
@@ -1459,12 +1458,6 @@
       "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
       "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
       "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
-    },
-    "voiceButton": {
-      "settingTitle": "Pulsante microfono su telefono",
-      "settingDescription": "Scegli cosa fa il pulsante microfono nel compositore sui telefoni. L’altra azione resta nel menu +.",
-      "dictate": "Detta",
-      "voiceMessage": "Messaggio vocale"
     }
   },
   "commandPalette": {
