@@ -120,13 +120,18 @@ const listedDirectRooms = (mx: MatrixClient, agentId: string): Room[] => {
 
 /**
  * The account's direct chats with `agentId`, in `m.direct`'s order: the rooms it lists that are
- * one (`isDirectRoomWith`) the agent has joined, and the first it is invited to.
+ * one (`isDirectRoomWith`) the agent has joined, and the first it is invited to. `unloaded`: the
+ * agent may be in another yet, a room of two whose members the client has still to load.
  */
-const readDirects = (mx: MatrixClient, agentId: string): { joined: Room[]; invited?: Room } => {
+type Directs = { joined: Room[]; invited?: Room; unloaded: boolean };
+const readDirects = (mx: MatrixClient, agentId: string): Directs => {
   const rooms = listedDirectRooms(mx, agentId);
   return {
     joined: rooms.filter((room) => isDirectRoomWith(room, agentId)),
     invited: rooms.find((room) => isDirectRoomWith(room, agentId, ['invite'])),
+    unloaded: rooms.some(
+      (room) => isDirectRoomWith(room, agentId, [undefined]) && !room.membersLoaded()
+    ),
   };
 };
 
@@ -182,8 +187,10 @@ const readLastAnswers = (
   }
   for (const { roomId, threadRootId, threadRecord } of threads) {
     const { lastSenderId, latestReplyTs } = threadRecord.presentation;
-    const known = !lastSenderId || inThread.has(answerKey(threadRootId, lastSenderId));
-    if (roomIds.has(roomId) && !known) note(roomId, lastSenderId, latestReplyTs ?? 0);
+    const known = !!lastSenderId && inThread.has(answerKey(threadRootId, lastSenderId));
+    if (roomIds.has(roomId) && lastSenderId && !known) {
+      note(roomId, lastSenderId, latestReplyTs ?? 0);
+    }
   }
   return newest;
 };
@@ -191,17 +198,18 @@ const readLastAnswers = (
 /**
  * The account's direct chat with `agentId` among `directs` (`readDirects`): of the chats it has
  * joined, the one it last answered in by `answers` (`readLastAnswers`), else the first `m.direct`
- * lists; with none joined, the first it is invited to, waiting.
+ * lists; with none joined, the first it is invited to, waiting. An invitation is not it while the
+ * agent may be in a chat whose members are still to load: that is found by starting the chat.
  */
 const pickDirect = (
-  { joined, invited }: ReturnType<typeof readDirects>,
+  { joined, invited, unloaded }: Directs,
   agentId: string,
   answers: Map<string, number>
 ): HomeAgent['direct'] => {
   const answered = (room: Room) => answers.get(answerKey(room.roomId, agentId)) ?? 0;
   const [chat] = [...joined].sort((a, b) => answered(b) - answered(a));
   if (chat) return { roomId: chat.roomId, waiting: false };
-  return invited && { roomId: invited.roomId, waiting: true };
+  return invited && !unloaded ? { roomId: invited.roomId, waiting: true } : undefined;
 };
 
 /**
@@ -287,12 +295,19 @@ const loadDirect = async (
     failed = true;
   };
   await Promise.all(unloaded.map((room) => room.loadMembersIfNeeded().catch(fail)));
-  const directs = readDirects(mx, agentId);
+  // Loaded, the agent is in a listed chat or in none; one that did not load may still be it.
+  const directs = { ...readDirects(mx, agentId), unloaded: failed };
   const answers = readLastAnswers(directs.joined, threads);
   const direct = pickDirect(directs, agentId, answers)?.roomId;
   if (!direct && failed) throw new Error('The members of a listed direct chat did not load.');
   return direct;
 };
+
+/** The direct chat with `agentId` that `startDirectChat` is starting, until that ends. */
+export const pendingDirectStart = (
+  mx: MatrixClient,
+  agentId: string
+): Promise<string> | undefined => directStarts.get(mx)?.get(agentId)?.start;
 
 /**
  * Starts the account's direct chat with `agentId`, once: a second call while it starts gets the

@@ -24,6 +24,7 @@ import {
 import { useEditor } from '../editor/Editor';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { nameInitials } from '../lib/common';
+import { useAlive } from '../lib/hooks/useAlive';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -41,7 +42,13 @@ import {
   revealDirectionControls,
 } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
-import { canAskIn, type HomeAgent, isDirectRoomWith, startDirectChat } from './homeAgents';
+import {
+  canAskIn,
+  type HomeAgent,
+  isDirectRoomWith,
+  pendingDirectStart,
+  startDirectChat,
+} from './homeAgents';
 import * as css from './Home.css';
 
 const AVATAR_PX = 40;
@@ -223,28 +230,31 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
     }
   );
   const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
+  // The starts this field follows to their end.
+  const following = useRef(new WeakSet<Promise<string>>());
+  const alive = useAlive();
   const [focusOnMount, setFocusOnMount] = useState(false);
   const typed = useAtomValue(draftAtom).length > 0;
   const selected = choice ?? destinationOf(first, first.defaultRoomId ?? null);
   const agent =
     agents.find((candidate) => candidate.userId === selected.agentId) ??
     goneAgent(selected.agentId);
+  // The agent's chat being started: by this field, or by one before it on this page, whose start
+  // is known still (`pendingDirectStart`) though that field is gone.
+  const lookup = agent.userId ? pendingDirectStart(mx, agent.userId) : undefined;
+  const starting = starts[agent.userId] ?? (lookup && 'busy');
   // A direct chat yet to be started is the agent's direct chat once it has one, and stays that
   // chat whichever the agent prefers later: the field shows no composer before it is held to it.
-  // Not while this field starts the chat: of several chats whose members load one by one, the
+  // Not while the chat is being started: of several chats whose members load one by one, the
   // first is the agent's direct chat for a moment, and the start says which it is.
-  if (
-    choice &&
-    choice.roomId === null &&
-    choice.isDirect &&
-    agent.direct &&
-    starts[choice.agentId] !== 'busy'
-  ) {
+  if (choice && choice.roomId === null && choice.isDirect && agent.direct && starting !== 'busy') {
     setChoice({ agentId: choice.agentId, roomId: agent.direct.roomId, isDirect: true });
   }
   const { roomId } = selected;
   const isDirect = !!selected.isDirect;
-  if (typed && !choice) setChoice(selected);
+  // The first text is for where the field went as it was typed, which is stored with it: not for
+  // where an agent's answer, arriving with it, would move a field without text.
+  if (typed && !choice) setChoice(store.get(destinationAtom) ?? { agentId: '', roomId: null });
   // The draft's text is stored with where it goes, in one entry. This keeps that current, with
   // nothing typed too, so the first letter typed is stored with it. Storage is written only as
   // it changes while there is text, not as the page opens on what is stored.
@@ -283,7 +293,6 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   // A direct chat the agent has yet to join.
   const waiting =
     isDirect && valid && !!room && isDirectRoomWith(room, agent.userId, ['invite', undefined]);
-  const starting = starts[agent.userId];
   const composerShown = !!room && !waiting;
   // The direct chat to pick: the one the field is on (one just started that `m.direct` has yet to
   // list, or one another chat has replaced since), then the agent's; with neither, the one yet to
@@ -317,14 +326,13 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   // A chat being started, or started but not yet in the client.
   const busy = starting === 'busy' || (!!choice?.started && roomId !== null && !room);
 
-  const startDirect = (agentId: string) => {
-    // The field stays with the agent pressed: another that answers meanwhile comes first, and
-    // would take it. A pick already made stays as it is.
-    if (!choice) setChoice({ agentId, roomId: null, isDirect: true });
+  // Follows a chat being started for `agentId` to its end, while the field is there.
+  const followStart = (agentId: string, start: Promise<string>) => {
+    following.current.add(start);
     setStarts((all) => ({ ...all, [agentId]: 'busy' }));
-    const threads = store.get(crossRoomThreadIndexAtom).entries.values();
-    startDirectChat(mx, agentId, version, threads).then(
+    start.then(
       (started) => {
+        if (!alive()) return;
         setStarts(({ [agentId]: done, ...others }) => others);
         // A choice made meanwhile stands; the chat itself, picked meanwhile as `m.direct` lists
         // it, is no other choice.
@@ -333,8 +341,19 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
         setFocusOnMount(true);
         setChoice({ agentId, roomId: started, isDirect: true, started: true });
       },
-      () => setStarts((all) => ({ ...all, [agentId]: 'failed' }))
+      () => alive() && setStarts((all) => ({ ...all, [agentId]: 'failed' }))
     );
+  };
+  // A start found under way, begun before this field opened, is followed as its own are.
+  useEffect(() => {
+    if (lookup && !following.current.has(lookup)) followStart(agent.userId, lookup);
+  });
+  const startDirect = (agentId: string) => {
+    // The field stays with the agent pressed: another that answers meanwhile comes first, and
+    // would take it. A pick already made stays as it is.
+    if (!choice) setChoice({ agentId, roomId: null, isDirect: true });
+    const threads = store.get(crossRoomThreadIndexAtom).entries.values();
+    followStart(agentId, startDirectChat(mx, agentId, version, threads));
   };
   // A pick, which nothing takes while a question is being sent: where that goes stays put.
   const pick = (picker: 'agent' | 'room', destination: HomeAskDestination) => {
@@ -409,11 +428,12 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
               option.userId,
               option === agent,
               { label: option.name, badge: agentBadge(option) },
-              // The agent the field is on, picked again, changes nothing: its room stays the
-              // one picked for it. Any other pick goes to the agent's default room.
+              // The agent the field is on, picked again, is held with where its question goes
+              // now: its room stays the one picked for it, and an agent's later answer no longer
+              // moves the field. Any other pick goes to the agent's default room.
               choose(() => {
-                if (option === agent && valid) return;
-                pick('agent', destinationOf(option, option.defaultRoomId ?? null));
+                if (option === agent && valid) setChoice(selected);
+                else pick('agent', destinationOf(option, option.defaultRoomId ?? null));
               }),
               // Agents of one name are told apart by their IDs.
               agents.some((other) => other !== option && other.name === option.name)

@@ -125,6 +125,7 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
       Object.entries(room.members).map(([userId, membership]) => ({ userId, membership })),
     getJoinedMemberCount: () => room.joined,
     getInvitedMemberCount: () => 0,
+    membersLoaded: () => true,
     currentState: {
       getStateEvents: (_type: string, stateKey?: string) => (stateKey === undefined ? [] : null),
     },
@@ -148,6 +149,32 @@ const message = (sender: string, ts: number) =>
     getRelation: () => null,
     getContent: () => ({}),
   } as unknown as MatrixEvent);
+
+/**
+ * A chat of two with Quill, which answered in it at `answeredTs`, its members yet to load: `load`
+ * loads them, Quill among them.
+ */
+const unloadedChat = (roomId: string, answeredTs: number) => {
+  const room = makeRoom(roomId, 'Quill', [], 2);
+  room.events = [message(QUILL, answeredTs)];
+  let loaded!: (fromServer: boolean) => void;
+  const loading = new Promise<boolean>((resolve) => {
+    loaded = resolve;
+  });
+  Object.assign(room, { loadMembersIfNeeded: () => loading });
+  const load = () => {
+    room.members[QUILL] = 'join';
+    loaded(true);
+  };
+  return { room, load };
+};
+
+/** Quill, with `roomId` its direct chat. */
+const chatting = (roomId: string): HomeAgent => ({
+  ...quillAgent,
+  direct: { roomId, waiting: false },
+  defaultRoomId: roomId,
+});
 
 /** A client with `rooms`; `direct` is what `m.direct` lists. */
 const makeClient = (rooms: Room[], direct: Record<string, string[]> = {}) => {
@@ -823,28 +850,9 @@ describe('HomeAsk', () => {
     vi.mocked(startDirectChat).mockImplementation(actual.startDirectChat);
     // Two chats `m.direct` lists, Quill's membership in neither loaded yet. Quill answered
     // last in the second.
-    const chat = (roomId: string, answeredTs: number) => {
-      const room = makeRoom(roomId, 'Quill', [], 2);
-      room.events = [message(QUILL, answeredTs)];
-      let loaded!: (fromServer: boolean) => void;
-      const loading = new Promise<boolean>((resolve) => {
-        loaded = resolve;
-      });
-      Object.assign(room, { loadMembersIfNeeded: () => loading });
-      const load = () => {
-        room.members[QUILL] = 'join';
-        loaded(true);
-      };
-      return { room, load };
-    };
-    const older = chat('!dm-older', 200);
-    const newer = chat('!dm-newer', 500);
+    const older = unloadedChat('!dm-older', 200);
+    const newer = unloadedChat('!dm-newer', 500);
     const mx = makeClient([older.room, newer.room], { [QUILL]: ['!dm-older', '!dm-newer'] });
-    const chatting = (roomId: string): HomeAgent => ({
-      ...quillAgent,
-      direct: { roomId, waiting: false },
-      defaultRoomId: roomId,
-    });
     const { refresh } = renderAsk(mx, [quillAgent]);
     fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
 
@@ -866,6 +874,105 @@ describe('HomeAsk', () => {
     refresh([chatting('!dm-newer')]);
     expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
     expect(ask()?.isDirect).toBe(true);
+  });
+
+  it('follows a start begun before the page closed, and opens the chat that finds', async () => {
+    const actual = await vi.importActual<typeof import('./homeAgents')>('./homeAgents');
+    vi.mocked(startDirectChat).mockImplementation(actual.startDirectChat);
+    const older = unloadedChat('!dm-older', 200);
+    const newer = unloadedChat('!dm-newer', 500);
+    const mx = makeClient([older.room, newer.room], { [QUILL]: ['!dm-older', '!dm-newer'] });
+    const store = createStore();
+    const first = renderAsk(mx, [quillAgent], store);
+    // A draft for Quill's direct chat, which the press starts.
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+    await act(async () => older.load());
+    first.refresh([chatting('!dm-older')]);
+    first.unmount();
+
+    // Opened again before the newer chat's members load: the start is still under way, so the
+    // draft is not held to the older chat, Quill's direct chat for now.
+    const again = renderAsk(mx, [chatting('!dm-older')], store);
+    expect(screen.queryByTestId('room-input')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Starting/ }).getAttribute('aria-busy')).toBe(
+      'true'
+    );
+    expect(storedDestination()).toEqual({ agentId: QUILL, roomId: null, isDirect: true });
+
+    // The start ends, which this page hears of too: the draft is for the chat it found, before
+    // the agents are read again and after.
+    await act(async () => {
+      newer.load();
+      await vi.mocked(startDirectChat).mock.results[0]?.value;
+    });
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
+    again.refresh([chatting('!dm-newer')]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
+    expect(storedDestination()).toEqual({ agentId: QUILL, roomId: '!dm-newer', isDirect: true });
+  });
+
+  it('keeps the first text for where the field was, as an answer moves the agents with it', () => {
+    const mx = makeClient([
+      makeRoom('!dm', 'Helper', [HELPER], 2),
+      makeRoom('!shared', 'Shared', [QUILL]),
+    ]);
+    const helper: HomeAgent = {
+      ...helperAgent,
+      roomIds: [],
+      direct: { roomId: '!dm', waiting: false },
+      defaultRoomId: '!dm',
+    };
+    const quill: HomeAgent = { ...quillAgent, roomIds: ['!shared'], defaultRoomId: '!shared' };
+    const store = createStore();
+    const { refresh } = renderAsk(mx, [helper, quill], store);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+
+    // The first letter, and Quill's answer elsewhere, which puts Quill first: in one update.
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+      refresh([{ ...quill, lastUsedTs: 900 }, helper]);
+    });
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(ask()).toMatchObject({ agentUserId: HELPER, isDirect: true });
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!dm', isDirect: true });
+  });
+
+  it('holds the field to the agent shown once that agent is picked, before any text', () => {
+    const mx = makeClient([
+      makeRoom('!dm', 'Helper', [HELPER], 2),
+      makeRoom('!shared', 'Shared', [QUILL]),
+    ]);
+    const helper: HomeAgent = {
+      ...helperAgent,
+      roomIds: [],
+      direct: { roomId: '!dm', waiting: false },
+      defaultRoomId: '!dm',
+    };
+    const quill: HomeAgent = { ...quillAgent, roomIds: ['!shared'], defaultRoomId: '!shared' };
+    const store = createStore();
+    const { refresh } = renderAsk(mx, [helper, quill], store);
+    fireEvent.click(screen.getByRole('button', { name: 'Helper answers' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Helper' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Helper answers' }));
+
+    // Quill answers, and comes first: the field stays Helper's, and so does a draft written then.
+    refresh([{ ...quill, lastUsedTs: 900 }, helper]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+    });
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(storedDestination()).toEqual({ agentId: HELPER, roomId: '!dm', isDirect: true });
   });
 
   it('focuses the chat it started once the start is over, also when `m.direct` lists it before', async () => {

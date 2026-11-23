@@ -102,6 +102,7 @@ const room = (roomId: string, spec: RoomSpec = {}) => {
       })),
     getJoinedMemberCount: () => count,
     getInvitedMemberCount: () => 0,
+    membersLoaded: () => true,
     currentState: { getStateEvents: stateEvents },
     getLiveTimeline: () => ({
       getEvents: () => events(messages),
@@ -518,6 +519,48 @@ describe('startDirectChat', () => {
       getRoom: () => null,
     };
   };
+
+  it('takes no invitation for the direct chat while the agent may be in a chat not loaded yet', async () => {
+    // `m.direct` lists a chat of two whose members are yet to load, then one Scout is invited
+    // to. Loaded, Scout is in the first (`joins`), or is not.
+    const listing = (joins: boolean) => {
+      let loaded = false;
+      const unloaded = Object.assign(room('!dm-unloaded', { count: 2 }), {
+        membersLoaded: () => loaded,
+        getMember: (userId: string) =>
+          loaded && joins && userId === SCOUT ? { membership: 'join' } : null,
+        loadMembersIfNeeded: vi.fn(async () => {
+          loaded = true;
+          return true;
+        }),
+      });
+      const rooms = [
+        room('!lobby', { agents: [SCOUT] }),
+        unloaded,
+        room('!dm-invited', { members: { [SCOUT]: 'invite' }, count: 1 }),
+      ];
+      const mx = Object.assign(client(rooms, { [SCOUT]: ['!dm-unloaded', '!dm-invited'] }), {
+        createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+        setAccountData: vi.fn(async () => undefined),
+      });
+      const direct = () => readHomeAgents(mx, ['!lobby'], [])[0]?.direct;
+      return { mx, direct };
+    };
+
+    // Not known yet: no direct chat, so Home offers to start one, which loads the members.
+    const joined = listing(true);
+    expect(joined.direct()).toBeUndefined();
+    await expect(startDirectChat(joined.mx, SCOUT)).resolves.toBe('!dm-unloaded');
+    expect(joined.direct()).toEqual({ roomId: '!dm-unloaded', waiting: false });
+
+    // Scout is not in the first after all: the invitation stands, and no chat is made beside it.
+    const elsewhere = listing(false);
+    expect(elsewhere.direct()).toBeUndefined();
+    await expect(startDirectChat(elsewhere.mx, SCOUT)).resolves.toBe('!dm-invited');
+    expect(elsewhere.direct()).toEqual({ roomId: '!dm-invited', waiting: true });
+    expect(joined.mx.createRoom).not.toHaveBeenCalled();
+    expect(elsewhere.mx.createRoom).not.toHaveBeenCalled();
+  });
 
   it('makes no second chat beside a listed one whose members were not loaded', async () => {
     // A chat of two `m.direct` lists, the agent's membership in it not loaded yet.

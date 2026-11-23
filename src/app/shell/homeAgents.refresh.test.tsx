@@ -106,6 +106,7 @@ describe('useHomeAgents', () => {
     const dm = Object.assign(room('!dm', []), {
       getJoinedMemberCount: () => 2,
       getInvitedMemberCount: () => 0,
+      membersLoaded: () => members.length > 0,
       getMembers: () => members,
       getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
     });
