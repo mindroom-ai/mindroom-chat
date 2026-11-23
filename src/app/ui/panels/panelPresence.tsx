@@ -170,6 +170,7 @@ export const layoutParentOf = (element: HTMLElement | null | undefined): HTMLEle
     parent &&
     (parent.style?.display === 'contents' ||
       (typeof getComputedStyle === 'function' &&
+        typeof Element !== 'undefined' &&
         parent instanceof Element &&
         getComputedStyle(parent).display === 'contents'))
   ) {
