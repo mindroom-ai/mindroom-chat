@@ -41,6 +41,14 @@ const quickCaptureVisibility = (app: ElectronApplication) =>
     return panel ? panel.isVisible() : false;
   });
 
+const mainWindowVisibility = (app: ElectronApplication) =>
+  app.evaluate(({ BrowserWindow }) => {
+    const mainWin = BrowserWindow.getAllWindows().find(
+      (w) => !w.webContents.getURL().includes('/quick-capture')
+    );
+    return mainWin ? mainWin.isVisible() : false;
+  });
+
 const openQuickCapture = async (
   session: DesktopSession,
   via: 'menu' | 'test' = 'test'
@@ -70,6 +78,11 @@ test('Window -> Quick Capture lazily opens /quick-capture/ with 0px inset, no sc
 
     const panelPage = await openQuickCapture(session, 'menu');
     expect(panelPage.url()).toBe(QC_URL);
+    if (process.platform === 'darwin') {
+      expect(await app.evaluate(({ app: electronApp }) => electronApp.dock?.isVisible())).toBe(
+        true
+      );
+    }
 
     await expect(panelPage.locator('[data-native]')).toBeVisible();
     await expect
@@ -92,15 +105,18 @@ test('Window -> Quick Capture lazily opens /quick-capture/ with 0px inset, no sc
     await expect(panelPage.getByText('Sign in to MindRoom', { exact: true })).toBeVisible();
     await panelPage.keyboard.press('Escape');
     await expect.poll(() => quickCaptureVisibility(app)).toBe(false);
-    expect(
-      await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible())
-    ).toBe(true);
+    expect(await mainWindowVisibility(app)).toBe(true);
     await expect(page.locator('input[name="serverInput"]')).toBeVisible();
 
     // Direct toggle re-shows the existing Quick Capture window without creating a third one.
     await toggleQuickCapture(app);
     await expect.poll(() => quickCaptureVisibility(app)).toBe(true);
     expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2);
+    if (process.platform === 'darwin') {
+      expect(await app.evaluate(({ app: electronApp }) => electronApp.dock?.isVisible())).toBe(
+        true
+      );
+    }
   } finally {
     await session.close();
   }

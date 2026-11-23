@@ -179,7 +179,9 @@ void app.whenReady().then(() => {
       {
         onZoom: (action) => {
           const win = getMainWindow();
-          if (win) win.webContents.send('desktop:shell-event', { type: 'zoom', action });
+          if (win && BrowserWindow.getFocusedWindow() === win) {
+            win.webContents.send('desktop:shell-event', { type: 'zoom', action });
+          }
         },
         onCheckForUpdates,
         onRestartToUpdate: () => updater?.install(),

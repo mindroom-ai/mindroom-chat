@@ -45,10 +45,8 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
   const getWindow = (): BrowserWindow | undefined => (win && !win.isDestroyed() ? win : undefined);
 
   const clearSaveTimer = (): void => {
-    if (saveTimer !== undefined) {
-      clearTimeout(saveTimer);
-      saveTimer = undefined;
-    }
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
   };
 
   const flushState = (): void => {
@@ -68,7 +66,6 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
     if (panel.isDestroyed()) return;
     panel.show();
     panel.focus();
-    if (process.platform === 'darwin') app.focus({ steal: true });
   };
 
   const hide = (): void => {
@@ -76,7 +73,6 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
     const panel = getWindow();
     if (!panel) return;
     const wasVisible = panel.isVisible();
-    flushState();
     panel.hide();
     if (wasVisible && process.platform === 'darwin' && !options.isMainWindowVisible()) {
       app.hide();
@@ -109,14 +105,16 @@ export const createQuickCapture = (options: QuickCaptureOptions): QuickCaptureHa
         sandbox: true,
         nodeIntegration: false,
         webviewTag: false,
-        backgroundThrottling: false,
       },
     });
     win = panel;
     ready = false;
 
     panel.setAlwaysOnTop(true, 'floating');
-    panel.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    panel.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: true,
+    });
     guardWebContents(panel.webContents, isQuickCaptureUrl);
     attachContextMenu(panel);
 

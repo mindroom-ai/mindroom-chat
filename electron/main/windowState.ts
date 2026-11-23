@@ -27,6 +27,9 @@ export type QuickCapturePlace = {
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
 const isFiniteRect = (rect: { x: unknown; y: unknown; width: unknown; height: unknown }): boolean =>
   isFiniteNumber(rect.x) &&
   isFiniteNumber(rect.y) &&
@@ -35,24 +38,16 @@ const isFiniteRect = (rect: { x: unknown; y: unknown; width: unknown; height: un
   rect.width > 0 &&
   rect.height > 0;
 
-const isValidWindowState = (value: unknown): value is WindowState => {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    isFiniteRect({
-      x: candidate.x,
-      y: candidate.y,
-      width: candidate.width,
-      height: candidate.height,
-    }) && typeof candidate.fullScreen === 'boolean'
-  );
-};
+const isValidWindowState = (value: unknown): value is WindowState =>
+  isRecord(value) &&
+  isFiniteRect({ x: value.x, y: value.y, width: value.width, height: value.height }) &&
+  typeof value.fullScreen === 'boolean';
 
-const isValidQuickCapturePlace = (value: unknown): value is QuickCapturePlace => {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return isFiniteNumber(candidate.x) && isFiniteNumber(candidate.y);
-};
+const isValidQuickCapturePlace = (value: unknown): value is QuickCapturePlace =>
+  isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.round(Math.min(max, Math.max(min, value)));
 
 const findBestDisplay = (
   rect: Electron.Rectangle,
@@ -63,15 +58,20 @@ const findBestDisplay = (
 
   for (const area of workAreas) {
     if (!isFiniteRect(area)) continue;
-    const left = Math.max(rect.x, area.x);
-    const right = Math.min(rect.x + rect.width, area.x + area.width);
-    const top = Math.max(rect.y, area.y);
-    const bottom = Math.min(rect.y + rect.height, area.y + area.height);
-    const overlapWidth = Math.max(0, right - left);
-    const overlapHeight = Math.max(0, bottom - top);
-    const requiredWidth = Math.min(MIN_VISIBLE_WIDTH, area.width);
-    const requiredHeight = Math.min(MIN_VISIBLE_HEIGHT, area.height);
-    if (overlapWidth < requiredWidth || overlapHeight < requiredHeight) continue;
+    const overlapWidth = Math.max(
+      0,
+      Math.min(rect.x + rect.width, area.x + area.width) - Math.max(rect.x, area.x)
+    );
+    const overlapHeight = Math.max(
+      0,
+      Math.min(rect.y + rect.height, area.y + area.height) - Math.max(rect.y, area.y)
+    );
+    if (
+      overlapWidth < Math.min(MIN_VISIBLE_WIDTH, area.width) ||
+      overlapHeight < Math.min(MIN_VISIBLE_HEIGHT, area.height)
+    ) {
+      continue;
+    }
     const intersection = overlapWidth * overlapHeight;
     if (intersection > bestIntersection) {
       bestIntersection = intersection;
@@ -91,22 +91,11 @@ export const fitToDisplays = (
   const bestArea = findBestDisplay(state, workAreas);
   if (!bestArea) return undefined;
 
-  const minWidth = Math.min(MIN_WIDTH, bestArea.width);
-  const minHeight = Math.min(MIN_HEIGHT, bestArea.height);
-  const width = Math.round(Math.min(bestArea.width, Math.max(minWidth, state.width)));
-  const height = Math.round(Math.min(bestArea.height, Math.max(minHeight, state.height)));
-  const maxX = bestArea.x + bestArea.width - width;
-  const maxY = bestArea.y + bestArea.height - height;
-  const x = Math.round(Math.min(maxX, Math.max(bestArea.x, state.x)));
-  const y = Math.round(Math.min(maxY, Math.max(bestArea.y, state.y)));
-
-  return {
-    x,
-    y,
-    width,
-    height,
-    fullScreen: state.fullScreen,
-  };
+  const width = clamp(state.width, Math.min(MIN_WIDTH, bestArea.width), bestArea.width);
+  const height = clamp(state.height, Math.min(MIN_HEIGHT, bestArea.height), bestArea.height);
+  const x = clamp(state.x, bestArea.x, bestArea.x + bestArea.width - width);
+  const y = clamp(state.y, bestArea.y, bestArea.y + bestArea.height - height);
+  return { x, y, width, height, fullScreen: state.fullScreen };
 };
 
 export const fitQuickCaptureToDisplays = (
@@ -121,25 +110,32 @@ export const fitQuickCaptureToDisplays = (
   );
   if (!bestArea) return undefined;
 
-  const maxX = Math.max(bestArea.x, bestArea.x + bestArea.width - WIDGET_WIDTH);
-  const maxY = Math.max(bestArea.y, bestArea.y + bestArea.height - WIDGET_HEIGHT);
-  const x = Math.round(Math.min(maxX, Math.max(bestArea.x, place.x)));
-  const y = Math.round(Math.min(maxY, Math.max(bestArea.y, place.y)));
+  const x = clamp(
+    place.x,
+    bestArea.x,
+    Math.max(bestArea.x, bestArea.x + bestArea.width - WIDGET_WIDTH)
+  );
+  const y = clamp(
+    place.y,
+    bestArea.y,
+    Math.max(bestArea.y, bestArea.y + bestArea.height - WIDGET_HEIGHT)
+  );
   return { x, y };
 };
 
-const readJsonFile = (target: string): unknown => {
+const loadJson = <T>(target: string, isValid: (value: unknown) => value is T): T | undefined => {
   try {
-    return JSON.parse(fs.readFileSync(target, 'utf8'));
+    const parsed: unknown = JSON.parse(fs.readFileSync(target, 'utf8'));
+    return isValid(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 };
 
-const writeJsonAtomic = (userDataDir: string, target: string, data: unknown): void => {
+const writeJsonAtomic = (target: string, data: unknown): void => {
   const temp = `${target}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
   try {
-    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(temp, JSON.stringify(data), 'utf8');
     fs.renameSync(temp, target);
   } catch {
@@ -154,25 +150,19 @@ const writeJsonAtomic = (userDataDir: string, target: string, data: unknown): vo
 export const windowStatePath = (userDataDir: string): string =>
   path.join(userDataDir, STATE_FILENAME);
 
-export const loadWindowState = (userDataDir: string): WindowState | undefined => {
-  const parsed = readJsonFile(windowStatePath(userDataDir));
-  return isValidWindowState(parsed) ? parsed : undefined;
-};
+export const loadWindowState = (userDataDir: string): WindowState | undefined =>
+  loadJson(windowStatePath(userDataDir), isValidWindowState);
 
 export const saveWindowState = (userDataDir: string, state: WindowState): void => {
-  if (!isValidWindowState(state)) return;
-  writeJsonAtomic(userDataDir, windowStatePath(userDataDir), state);
+  if (isValidWindowState(state)) writeJsonAtomic(windowStatePath(userDataDir), state);
 };
 
 export const quickCaptureStatePath = (userDataDir: string): string =>
   path.join(userDataDir, QUICK_CAPTURE_STATE_FILENAME);
 
-export const loadQuickCapturePlace = (userDataDir: string): QuickCapturePlace | undefined => {
-  const parsed = readJsonFile(quickCaptureStatePath(userDataDir));
-  return isValidQuickCapturePlace(parsed) ? parsed : undefined;
-};
+export const loadQuickCapturePlace = (userDataDir: string): QuickCapturePlace | undefined =>
+  loadJson(quickCaptureStatePath(userDataDir), isValidQuickCapturePlace);
 
 export const saveQuickCapturePlace = (userDataDir: string, place: QuickCapturePlace): void => {
-  if (!isValidQuickCapturePlace(place)) return;
-  writeJsonAtomic(userDataDir, quickCaptureStatePath(userDataDir), place);
+  if (isValidQuickCapturePlace(place)) writeJsonAtomic(quickCaptureStatePath(userDataDir), place);
 };

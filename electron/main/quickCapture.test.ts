@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('electron', () => ({
+const electronMocks = vi.hoisted(() => ({
   app: { focus: vi.fn(), hide: vi.fn() },
   BrowserWindow: vi.fn(),
   clipboard: { writeText: vi.fn(() => Promise.resolve()) },
@@ -13,8 +13,10 @@ vi.mock('electron', () => ({
   screen: { getAllDisplays: vi.fn(() => []) },
 }));
 
+vi.mock('electron', () => electronMocks);
+
 import { APP_ORIGIN } from './bundleProtocol';
-import { decideToggleAction } from './quickCapture';
+import { createQuickCapture, decideToggleAction } from './quickCapture';
 import { guardWebContents, isQuickCaptureUrl, setBlockedUrlRecorder } from './security';
 import {
   WIDGET_HEIGHT,
@@ -34,6 +36,7 @@ const makeTempDir = (): string => {
 };
 
 afterEach(() => {
+  vi.clearAllMocks();
   setBlockedUrlRecorder(undefined);
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -43,12 +46,119 @@ afterEach(() => {
 const PRIMARY: Electron.Rectangle = { x: 0, y: 25, width: 1440, height: 875 };
 const RIGHT_MONITOR: Electron.Rectangle = { x: 1440, y: 0, width: 2560, height: 1400 };
 
+const withPlatform = <T>(platform: NodeJS.Platform, fn: () => T): T => {
+  const original = process.platform;
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+  try {
+    return fn();
+  } finally {
+    Object.defineProperty(process, 'platform', { value: original, configurable: true });
+  }
+};
+
+type FakePanel = EventEmitter & {
+  webContents: EventEmitter & { setWindowOpenHandler: ReturnType<typeof vi.fn> };
+  isDestroyed: ReturnType<typeof vi.fn>;
+  isVisible: ReturnType<typeof vi.fn>;
+  isFocused: ReturnType<typeof vi.fn>;
+  show: ReturnType<typeof vi.fn>;
+  focus: ReturnType<typeof vi.fn>;
+  hide: ReturnType<typeof vi.fn>;
+  getBounds: ReturnType<typeof vi.fn>;
+  setAlwaysOnTop: ReturnType<typeof vi.fn>;
+  setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>;
+  loadURL: ReturnType<typeof vi.fn>;
+};
+
+const makeFakePanel = (): FakePanel => {
+  let visible = false;
+  let focused = false;
+  const emitter = new EventEmitter();
+  const webContents = Object.assign(new EventEmitter(), {
+    setWindowOpenHandler: vi.fn(),
+  });
+  const panel: FakePanel = Object.assign(emitter, {
+    webContents,
+    isDestroyed: vi.fn(() => false),
+    isVisible: vi.fn(() => visible),
+    isFocused: vi.fn(() => focused),
+    show: vi.fn(() => {
+      visible = true;
+    }),
+    focus: vi.fn(() => {
+      focused = true;
+    }),
+    hide: vi.fn(() => {
+      if (!visible) return;
+      visible = false;
+      focused = false;
+      emitter.emit('hide');
+    }),
+    getBounds: vi.fn(() => ({ x: 120, y: 80, width: WIDGET_WIDTH, height: WIDGET_HEIGHT })),
+    setAlwaysOnTop: vi.fn(),
+    setVisibleOnAllWorkspaces: vi.fn(),
+    loadURL: vi.fn(() => Promise.resolve()),
+  });
+  return panel;
+};
+
 describe('decideToggleAction', () => {
   it('returns show when hidden, hide when visible and focused, and focus when visible and unfocused', () => {
     expect(decideToggleAction({ visible: false, focused: false })).toBe('show');
     expect(decideToggleAction({ visible: false, focused: true })).toBe('show');
     expect(decideToggleAction({ visible: true, focused: true })).toBe('hide');
     expect(decideToggleAction({ visible: true, focused: false })).toBe('focus');
+  });
+});
+
+describe('createQuickCapture', () => {
+  it('preserves Dock icon, leaves background throttling enabled, avoids app.focus, and flushes once on hide', () => {
+    withPlatform('darwin', () => {
+      const dir = makeTempDir();
+      let ctorOptions: Electron.BrowserWindowConstructorOptions | undefined;
+      const panel = makeFakePanel();
+      electronMocks.BrowserWindow.mockImplementation(function (
+        opts: Electron.BrowserWindowConstructorOptions
+      ) {
+        ctorOptions = opts;
+        return panel;
+      });
+
+      let mainVisible = true;
+      const qc = createQuickCapture({
+        url: `${APP_ORIGIN}/quick-capture/`,
+        preload: '/tmp/preload.cjs',
+        userDataDir: dir,
+        isQuitting: () => false,
+        isMainWindowVisible: () => mainVisible,
+      });
+
+      qc.toggle();
+      expect(ctorOptions?.webPreferences?.backgroundThrottling).toBeUndefined();
+      expect(panel.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true,
+      });
+
+      panel.emit('ready-to-show');
+      expect(panel.show).toHaveBeenCalledTimes(1);
+      expect(panel.focus).toHaveBeenCalledTimes(1);
+      expect(electronMocks.app.focus).not.toHaveBeenCalled();
+
+      // Hiding while main window is visible flushes once (via the hide event) and does not hide the app.
+      qc.hide();
+      expect(panel.getBounds).toHaveBeenCalledTimes(1);
+      expect(loadQuickCapturePlace(dir)).toEqual({ x: 120, y: 80 });
+      expect(electronMocks.app.hide).not.toHaveBeenCalled();
+
+      // Re-show then hide with main window hidden: calls app.hide() and still flushes once per hide.
+      qc.toggle();
+      expect(electronMocks.app.focus).not.toHaveBeenCalled();
+      mainVisible = false;
+      qc.hide();
+      expect(panel.getBounds).toHaveBeenCalledTimes(2);
+      expect(electronMocks.app.hide).toHaveBeenCalledTimes(1);
+    });
   });
 });
 
