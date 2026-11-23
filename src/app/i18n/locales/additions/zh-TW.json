@@ -123,6 +123,7 @@
       "tabOriginal": "原始",
       "tabLatestEdit": "最新編輯",
       "tabDecrypted": "已解密",
+      "tabDecryptionError": "解密失敗",
       "tabEncrypted": "已加密",
       "collapseAll": "摺疊",
       "expandAll": "展開",

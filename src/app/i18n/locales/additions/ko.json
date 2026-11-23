@@ -123,6 +123,7 @@
       "tabOriginal": "원본",
       "tabLatestEdit": "최근 수정",
       "tabDecrypted": "복호화됨",
+      "tabDecryptionError": "복호화 실패",
       "tabEncrypted": "암호화됨",
       "collapseAll": "접기",
       "expandAll": "펼치기",

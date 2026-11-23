@@ -33,8 +33,9 @@ export const TextViewer = as<'div', TextViewerProps>(
     const [copied, setCopied] = useState(false);
     const shownName = revealDirectionControls(name);
     const revealedText = useMemo(() => revealDirectionControls(text), [text]);
+    const safeLangName = typeof langName === 'string' ? langName.trim() : '';
     const shouldHighlight =
-      !PLAIN_LANGUAGES.has(langName.trim().toLowerCase()) &&
+      !PLAIN_LANGUAGES.has(safeLangName.toLowerCase()) &&
       revealedText.length <= MAX_TEXT_HIGHLIGHT_LENGTH;
 
     // The check mark clears itself a moment after a successful copy.
@@ -76,9 +77,11 @@ export const TextViewer = as<'div', TextViewerProps>(
           </IconButton>
         </Header>
         <PageScroll className={css.TextViewerContent}>
-          <pre className={classNames(css.TextViewerPre, `language-${langName}`)}>
+          <pre
+            className={classNames(css.TextViewerPre, safeLangName && `language-${safeLangName}`)}
+          >
             {shouldHighlight ? (
-              <PrismCode code={revealedText} language={langName} />
+              <PrismCode code={revealedText} language={safeLangName} />
             ) : (
               <code>{revealedText}</code>
             )}

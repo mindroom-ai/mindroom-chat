@@ -126,6 +126,7 @@
       "tabOriginal": "Origineel",
       "tabLatestEdit": "Laatste bewerking",
       "tabDecrypted": "Ontsleuteld",
+      "tabDecryptionError": "Ontsleuteling mislukt",
       "tabEncrypted": "Versleuteld",
       "collapseAll": "Inklappen",
       "expandAll": "Uitklappen",

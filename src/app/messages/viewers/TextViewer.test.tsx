@@ -136,4 +136,22 @@ describe('TextViewer', () => {
     expect(code.findAllByType('span')).toHaveLength(0);
     renderer.unmount();
   });
+
+  it('guards against non-string langName values without crashing', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <TextViewer
+          name="notes.constructor"
+          langName={Object.prototype.constructor as unknown as string}
+          text="plain attachment body"
+          requestClose={vi.fn()}
+        />
+      );
+    });
+
+    const code = renderer.root.findByType('code');
+    expect(code.props.children).toBe('plain attachment body');
+    renderer.unmount();
+  });
 });

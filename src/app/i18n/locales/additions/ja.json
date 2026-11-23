@@ -123,6 +123,7 @@
       "tabOriginal": "元データ",
       "tabLatestEdit": "最新の編集",
       "tabDecrypted": "復号済み",
+      "tabDecryptionError": "復号失敗",
       "tabEncrypted": "暗号化済み",
       "collapseAll": "折りたたむ",
       "expandAll": "展開",

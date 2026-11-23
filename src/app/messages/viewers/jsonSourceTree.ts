@@ -1,13 +1,11 @@
+import { dateTimeFormat } from '../../lib/time';
 import { revealDirectionControls } from '../../ui/directional';
-import { safeStringifyJson } from './eventSourceDocuments';
+import { isValidTimestampMs, safeStringifyJson } from './eventSourceDocuments';
 
 export const LONG_STRING_THRESHOLD = 120;
 export const LONG_STRING_SNIPPET_LENGTH = 48;
 export const MAX_TREE_NODES = 5_000;
 export const MAX_RAW_HIGHLIGHT_LENGTH = 200_000;
-
-const MIN_TIMESTAMP_MS = 1e12;
-const MAX_TIMESTAMP_MS = 1e14;
 
 const DEFAULT_COLLAPSED_CONTENT_KEYS = new Set([
   'm.mentions',
@@ -32,55 +30,60 @@ export const encodePointerSegment = (segment: string): string =>
 export const joinPointer = (parentPath: string, segment: string): string =>
   `${parentPath}/${encodePointerSegment(segment)}`;
 
-/** Entries of a container in display order, skipping `undefined` object properties just like JSON. */
+/** Entries of a sanitized JSON container in display order. */
 export const getContainerEntries = (container: JsonContainer): JsonEntry[] => {
   if (Array.isArray(container)) {
     return container.map((value, index) => ({
       key: undefined,
       segment: String(index),
-      value: value === undefined ? null : value,
+      value,
     }));
   }
-  const entries: JsonEntry[] = [];
-  for (const [key, value] of Object.entries(container)) {
-    if (value !== undefined) {
-      entries.push({ key, segment: key, value });
-    }
-  }
-  return entries;
+  return Object.entries(container).map(([key, value]) => ({
+    key,
+    segment: key,
+    value,
+  }));
 };
 
 /** Whether a numeric value looks like a millisecond epoch timestamp on a `*_ts` field. */
 export const isTimestampField = (key: string | undefined, value: unknown): value is number =>
-  typeof value === 'number' &&
-  Number.isFinite(value) &&
-  value >= MIN_TIMESTAMP_MS &&
-  value <= MAX_TIMESTAMP_MS &&
+  isValidTimestampMs(value) &&
   key !== undefined &&
   (key === 'origin_server_ts' || key.endsWith('_ts'));
 
-/** Counts total nodes in `value`, stopping once `limit` is reached. */
-export const countTreeNodes = (value: unknown, limit = MAX_TREE_NODES + 1): number => {
-  let count = 0;
-  const ancestors = new Set<object>();
+/** Safely formats a millisecond epoch timestamp for display, returning `undefined` if out of range. */
+export const formatTimestampHint = (ts: number, language: string): string | undefined => {
+  if (!isValidTimestampMs(ts)) return undefined;
+  try {
+    return dateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'medium' }).format(ts);
+  } catch {
+    return undefined;
+  }
+};
 
-  const visit = (node: unknown): void => {
-    if (count >= limit) return;
+/**
+ * Formats a JSON key or string value as valid JSON string inner text (without outer quotes) with
+ * bidirectional controls revealed as `<U+XXXX>` code points.
+ */
+export const formatJsonStringInner = (value: string): string =>
+  revealDirectionControls(JSON.stringify(value).slice(1, -1));
+
+/** Fast short-circuit check for whether a sanitized JSON tree exceeds `limit` nodes. */
+export const exceedsTreeNodeLimit = (root: unknown, limit = MAX_TREE_NODES): boolean => {
+  let count = 0;
+
+  const visit = (node: unknown): boolean => {
     count += 1;
-    if (!isJsonContainer(node) || ancestors.has(node)) return;
-    ancestors.add(node);
-    try {
-      for (const entry of getContainerEntries(node)) {
-        if (count >= limit) break;
-        visit(entry.value);
-      }
-    } finally {
-      ancestors.delete(node);
+    if (count > limit) return true;
+    if (!isJsonContainer(node)) return false;
+    for (const entry of getContainerEntries(node)) {
+      if (visit(entry.value)) return true;
     }
+    return false;
   };
 
-  visit(value);
-  return count;
+  return visit(root);
 };
 
 export const shouldCollapseByDefault = (
@@ -100,14 +103,22 @@ export const shouldCollapseByDefault = (
 };
 
 export type TreeStructureMeta = {
+  nodeCount: number;
   allCollapsibleAtDepthGte1: string[];
   defaultCollapsed: Set<string>;
 };
 
+export const EMPTY_TREE_STRUCTURE: TreeStructureMeta = {
+  nodeCount: 0,
+  allCollapsibleAtDepthGte1: [],
+  defaultCollapsed: new Set(),
+};
+
+/** Single-pass structural analysis collecting node count, collapsible paths, and default folds. */
 export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
+  let nodeCount = 0;
   const allCollapsibleAtDepthGte1: string[] = [];
   const defaultCollapsed = new Set<string>();
-  const ancestors = new Set<object>();
 
   const visit = (
     node: unknown,
@@ -116,7 +127,8 @@ export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
     parentKey: string | undefined,
     depth: number
   ): void => {
-    if (!isJsonContainer(node) || ancestors.has(node)) return;
+    nodeCount += 1;
+    if (!isJsonContainer(node)) return;
     const entries = getContainerEntries(node);
     if (entries.length === 0) return;
 
@@ -127,18 +139,13 @@ export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
       defaultCollapsed.add(path);
     }
 
-    ancestors.add(node);
-    try {
-      for (const entry of entries) {
-        visit(entry.value, joinPointer(path, entry.segment), entry.key, key, depth + 1);
-      }
-    } finally {
-      ancestors.delete(node);
+    for (const entry of entries) {
+      visit(entry.value, joinPointer(path, entry.segment), entry.key, key, depth + 1);
     }
   };
 
   visit(root, '', undefined, undefined, 0);
-  return { allCollapsibleAtDepthGte1, defaultCollapsed };
+  return { nodeCount, allCollapsibleAtDepthGte1, defaultCollapsed };
 };
 
 export type TreeFilterResult = {
@@ -149,26 +156,30 @@ export type TreeFilterResult = {
   matchedValuePaths: Set<string>;
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildSearchRegex = (query: string, global: boolean): RegExp =>
+  new RegExp(escapeRegExp(query), global ? 'giu' : 'iu');
+
 const formatPrimitiveForSearch = (value: unknown): string => {
-  if (typeof value === 'string') return revealDirectionControls(value);
-  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'string') return formatJsonStringInner(value);
   if (value === null) return 'null';
   return String(value);
 };
 
 /**
- * Case-insensitive substring filter over keys and primitive values. Matching branches are marked
- * for auto-expansion, and when a container's own key matches its descendants remain accessible.
+ * Case-insensitive substring filter over rendered keys and primitive values. Matching branches are
+ * marked for auto-expansion, and when a container's own key matches its descendants remain visible.
  */
 export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterResult | null => {
   const trimmed = rawQuery.trim();
   if (trimmed.length === 0) return null;
 
-  const needle = revealDirectionControls(trimmed).toLowerCase();
+  const query = revealDirectionControls(trimmed);
+  const matcher = buildSearchRegex(query, false);
   const visiblePaths = new Set<string>();
   const autoExpandPaths = new Set<string>();
   const matchedValuePaths = new Set<string>();
-  const ancestors = new Set<object>();
   let matchCount = 0;
 
   const visit = (
@@ -177,14 +188,10 @@ export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterRe
     key: string | undefined,
     ancestorMatched: boolean
   ): boolean => {
-    const keyText = key !== undefined ? revealDirectionControls(key).toLowerCase() : '';
-    const keyMatches = key !== undefined && keyText.includes(needle);
+    const keyMatches = key !== undefined && matcher.test(formatJsonStringInner(key));
 
-    if (!isJsonContainer(node) || ancestors.has(node)) {
-      const valueText = isJsonContainer(node)
-        ? '[circular]'
-        : formatPrimitiveForSearch(node).toLowerCase();
-      const valueMatches = valueText.includes(needle);
+    if (!isJsonContainer(node)) {
+      const valueMatches = matcher.test(formatPrimitiveForSearch(node));
       if (valueMatches) matchedValuePaths.add(path);
       const selfMatches = keyMatches || valueMatches;
       if (selfMatches) matchCount += 1;
@@ -197,19 +204,14 @@ export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterRe
     if (keyMatches) matchCount += 1;
     let descendantMatched = false;
 
-    ancestors.add(node);
-    try {
-      for (const entry of getContainerEntries(node)) {
-        const childMatched = visit(
-          entry.value,
-          joinPointer(path, entry.segment),
-          entry.key,
-          ancestorMatched || keyMatches
-        );
-        if (childMatched) descendantMatched = true;
-      }
-    } finally {
-      ancestors.delete(node);
+    for (const entry of getContainerEntries(node)) {
+      const childMatched = visit(
+        entry.value,
+        joinPointer(path, entry.segment),
+        entry.key,
+        ancestorMatched || keyMatches
+      );
+      if (childMatched) descendantMatched = true;
     }
 
     if (descendantMatched) {
@@ -223,7 +225,7 @@ export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterRe
 
   visit(root, '', undefined, false);
   return {
-    query: revealDirectionControls(trimmed),
+    query,
     matchCount,
     visiblePaths,
     autoExpandPaths,
@@ -236,35 +238,44 @@ export type HighlightSegment = {
   match: boolean;
 };
 
-/** Splits `text` case-insensitively on `query` for `<mark>` highlighting. */
+/** Splits `text` case-insensitively on `query` for `<mark>` highlighting, preserving Unicode indices. */
 export const splitHighlightSegments = (text: string, query: string): HighlightSegment[] => {
   if (!query) return [{ text, match: false }];
-  const lowerText = text.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  if (!lowerQuery) return [{ text, match: false }];
 
+  const regex = buildSearchRegex(query, true);
   const segments: HighlightSegment[] = [];
   let cursor = 0;
-  let found = lowerText.indexOf(lowerQuery, cursor);
-  while (found !== -1) {
-    if (found > cursor) {
-      segments.push({ text: text.slice(cursor, found), match: false });
+
+  for (const match of text.matchAll(regex)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (end === start) continue;
+    if (start > cursor) {
+      segments.push({ text: text.slice(cursor, start), match: false });
     }
-    segments.push({ text: text.slice(found, found + query.length), match: true });
-    cursor = found + query.length;
-    found = lowerText.indexOf(lowerQuery, cursor);
+    segments.push({ text: text.slice(start, end), match: true });
+    cursor = end;
   }
+
   if (cursor < text.length) {
     segments.push({ text: text.slice(cursor), match: false });
   }
   return segments.length > 0 ? segments : [{ text, match: false }];
 };
 
-/** Single-line snippet for folded long strings (takes already direction-revealed text). */
-export const makeStringSnippet = (revealedText: string): string => {
-  const singleLine = revealedText.replace(/\s+/g, ' ');
-  if (singleLine.length <= LONG_STRING_SNIPPET_LENGTH) return singleLine;
-  return `${singleLine.slice(0, LONG_STRING_SNIPPET_LENGTH).trimEnd()}…`;
+/**
+ * Single-line JSON-escaped quoted preview for folded long strings (`> LONG_STRING_THRESHOLD` chars),
+ * with whitespace normalized and bidirectional controls revealed.
+ */
+export const makeStringSnippet = (rawString: string): string => {
+  const singleLine = rawString.replace(/\s+/g, ' ');
+  const isTruncated = singleLine.length > LONG_STRING_SNIPPET_LENGTH || singleLine !== rawString;
+  const snippet =
+    singleLine.length > LONG_STRING_SNIPPET_LENGTH
+      ? singleLine.slice(0, LONG_STRING_SNIPPET_LENGTH).trimEnd()
+      : singleLine;
+  const escaped = formatJsonStringInner(snippet);
+  return isTruncated ? `"${escaped}…"` : `"${escaped}"`;
 };
 
 /** Raw copy payload for a JSON node: raw string for string leaves, formatted JSON otherwise. */

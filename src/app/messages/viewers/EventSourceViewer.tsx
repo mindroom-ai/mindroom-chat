@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Text, as } from 'folds';
 import '../../theme/codeTokenStyles.css';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
 import { revealDirectionControls } from '../../ui/directional';
-import { dateTimeFormat } from '../../lib/time';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import {
   buildEventSourceBundle,
@@ -17,13 +16,16 @@ import {
   type EventSourceDocKind,
 } from './eventSourceDocuments';
 import {
+  EMPTY_TREE_STRUCTURE,
   LONG_STRING_THRESHOLD,
   MAX_RAW_HIGHLIGHT_LENGTH,
   MAX_TREE_NODES,
   analyzeTreeStructure,
   computeTreeFilter,
-  countTreeNodes,
+  exceedsTreeNodeLimit,
   formatCopyValue,
+  formatJsonStringInner,
+  formatTimestampHint,
   getContainerEntries,
   isJsonContainer,
   isTimestampField,
@@ -36,6 +38,20 @@ import * as css from './EventSourceViewer.css';
 
 const COPIED_ALL_FEEDBACK_MS = 2000;
 const COPIED_ITEM_FEEDBACK_MS = 1500;
+const MAX_INDENT_DEPTH = 6;
+
+const eventInstanceIds = new WeakMap<MatrixEvent, number>();
+let nextEventInstanceId = 1;
+
+const getEventIdentityKey = (mEvent: MatrixEvent): string => {
+  let id = eventInstanceIds.get(mEvent);
+  if (id === undefined) {
+    id = nextEventInstanceId;
+    nextEventInstanceId += 1;
+    eventInstanceIds.set(mEvent, id);
+  }
+  return String(id);
+};
 
 type EventSourceViewerProps = {
   name: string;
@@ -96,42 +112,46 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   );
 }
 
+type JsonTreeContextValue = {
+  docKey: string;
+  collapsedPaths: ReadonlySet<string>;
+  foldStrings: boolean;
+  stringOverrides: Readonly<Record<string, boolean>>;
+  filterResult: TreeFilterResult | null;
+  copiedRowKey: string | null;
+  language: string;
+  onToggleContainer: (path: string) => void;
+  onToggleString: (path: string) => void;
+  onCopyRow: (path: string, value: unknown) => void;
+};
+
+const JsonTreeContext = React.createContext<JsonTreeContextValue | null>(null);
+
 type JsonNodeRenderProps = {
   value: unknown;
   path: string;
   keyName: string | undefined;
   depth: number;
   hasTrailingComma: boolean;
-  ancestors: ReadonlySet<object>;
-  collapsedPaths: ReadonlySet<string>;
-  foldStrings: boolean;
-  stringOverrides: Readonly<Record<string, boolean>>;
-  filterResult: TreeFilterResult | null;
-  copiedRowPath: string | null;
-  onToggleContainer: (path: string) => void;
-  onToggleString: (path: string) => void;
-  onCopyRow: (path: string, value: unknown) => void;
-  formatTimestamp: (ts: number) => string;
 };
 
-function JsonTreeNode({
-  value,
-  path,
-  keyName,
-  depth,
-  hasTrailingComma,
-  ancestors,
-  collapsedPaths,
-  foldStrings,
-  stringOverrides,
-  filterResult,
-  copiedRowPath,
-  onToggleContainer,
-  onToggleString,
-  onCopyRow,
-  formatTimestamp,
-}: JsonNodeRenderProps) {
+function JsonTreeNode({ value, path, keyName, depth, hasTrailingComma }: JsonNodeRenderProps) {
   const { t } = useTranslation();
+  const ctx = useContext(JsonTreeContext);
+  if (!ctx) return null;
+
+  const {
+    docKey,
+    collapsedPaths,
+    foldStrings,
+    stringOverrides,
+    filterResult,
+    copiedRowKey,
+    language,
+    onToggleContainer,
+    onToggleString,
+    onCopyRow,
+  } = ctx;
 
   if (filterResult && !filterResult.visiblePaths.has(path)) {
     return null;
@@ -139,40 +159,39 @@ function JsonTreeNode({
 
   const highlightQuery = filterResult?.query ?? '';
   const shownKey = keyName !== undefined ? revealDirectionControls(keyName) : undefined;
+  const escapedKey = keyName !== undefined ? formatJsonStringInner(keyName) : undefined;
   const comma = hasTrailingComma ? <span className="token punctuation">,</span> : null;
-  const showRowCopy = depth >= 1;
-  const isRowCopied = copiedRowPath === path;
+  const isRowCopied = copiedRowKey === `${docKey}:${path}`;
 
   const renderKeyPrefix = () =>
-    shownKey !== undefined ? (
+    escapedKey !== undefined ? (
       <>
         <span className="token property">
           &quot;
-          <HighlightedText text={shownKey} query={highlightQuery} />
+          <HighlightedText text={escapedKey} query={highlightQuery} />
           &quot;
         </span>
         <span className="token punctuation">: </span>
       </>
     ) : null;
 
-  const renderRowCopyButton = () =>
-    showRowCopy ? (
-      <button
-        type="button"
-        className={classNames(css.RowCopyBtn, isRowCopied && css.RowCopyBtnCopied)}
-        onClick={() => onCopyRow(path, value)}
-        aria-label={
-          shownKey !== undefined
-            ? t('sharedUi.eventSourceViewer.copyField', { field: shownKey })
-            : t('sharedUi.eventSourceViewer.copyValue')
-        }
-      >
-        {isRowCopied ? <CheckMiniIcon /> : <CopyMiniIcon />}
-      </button>
-    ) : null;
+  const renderRowCopyButton = () => (
+    <button
+      type="button"
+      className={classNames(css.RowCopyBtn, isRowCopied && css.RowCopyBtnCopied)}
+      onClick={() => onCopyRow(path, value)}
+      aria-label={
+        shownKey !== undefined
+          ? t('sharedUi.eventSourceViewer.copyField', { field: shownKey })
+          : t('sharedUi.eventSourceViewer.copyValue')
+      }
+    >
+      {isRowCopied ? <CheckMiniIcon /> : <CopyMiniIcon />}
+    </button>
+  );
 
-  // Container (object or array), guarding against circular references.
-  if (isJsonContainer(value) && !ancestors.has(value)) {
+  // Container (object or array) — `doc.data` is already sanitized and cycle-free.
+  if (isJsonContainer(value)) {
     const isArray = Array.isArray(value);
     const entries = getContainerEntries(value);
     const openBrace = isArray ? '[' : '{';
@@ -222,6 +241,7 @@ function JsonTreeNode({
               <button
                 type="button"
                 className={css.FoldPill}
+                aria-expanded={false}
                 onClick={() => onToggleContainer(path)}
               >
                 {summaryPill}
@@ -235,8 +255,6 @@ function JsonTreeNode({
       );
     }
 
-    const nextAncestors = new Set(ancestors);
-    nextAncestors.add(value);
     const visibleEntries = filterResult
       ? entries.filter((entry) => filterResult.visiblePaths.has(joinPointer(path, entry.segment)))
       : entries;
@@ -248,9 +266,10 @@ function JsonTreeNode({
             <button
               type="button"
               className={css.FoldButton}
+              disabled={forceExpanded}
               aria-expanded
               aria-label={t('sharedUi.eventSourceViewer.collapseNode', { name: displayLabel })}
-              onClick={() => onToggleContainer(path)}
+              onClick={forceExpanded ? undefined : () => onToggleContainer(path)}
             >
               <Icon src={Icons.ChevronBottom} size="50" />
             </button>
@@ -261,7 +280,7 @@ function JsonTreeNode({
           </span>
           {renderRowCopyButton()}
         </div>
-        <div className={css.TreeChildren}>
+        <div className={depth < MAX_INDENT_DEPTH ? css.TreeChildren : css.TreeChildrenFlat}>
           {visibleEntries.map((entry, index) => (
             <JsonTreeNode
               key={entry.segment}
@@ -270,16 +289,6 @@ function JsonTreeNode({
               keyName={entry.key}
               depth={depth + 1}
               hasTrailingComma={index < visibleEntries.length - 1}
-              ancestors={nextAncestors}
-              collapsedPaths={collapsedPaths}
-              foldStrings={foldStrings}
-              stringOverrides={stringOverrides}
-              filterResult={filterResult}
-              copiedRowPath={copiedRowPath}
-              onToggleContainer={onToggleContainer}
-              onToggleString={onToggleString}
-              onCopyRow={onCopyRow}
-              formatTimestamp={formatTimestamp}
             />
           ))}
         </div>
@@ -294,25 +303,44 @@ function JsonTreeNode({
     );
   }
 
-  // Primitive or circular placeholder leaf.
-  const renderPrimitiveValue = () => {
-    if (isJsonContainer(value)) {
-      return (
-        <>
-          <span className="token string">&quot;[Circular]&quot;</span>
-          {comma}
-        </>
-      );
+  // Primitive leaf.
+  const isLongString = typeof value === 'string' && value.length > LONG_STRING_THRESHOLD;
+  const matchedInFilter = filterResult?.matchedValuePaths.has(path) ?? false;
+  const hasStringOverride = Object.hasOwn(stringOverrides, path);
+  const isStringFolded =
+    isLongString &&
+    !matchedInFilter &&
+    (hasStringOverride ? Boolean(stringOverrides[path]) : foldStrings);
+  const stringLabel = shownKey ?? '""';
+
+  const renderGutter = () => {
+    if (!isLongString) {
+      return <span className={css.TreeGutter} aria-hidden="true" />;
     }
+    return (
+      <span className={css.TreeGutter}>
+        <button
+          type="button"
+          className={css.FoldButton}
+          disabled={matchedInFilter}
+          aria-expanded={!isStringFolded}
+          aria-label={
+            isStringFolded
+              ? t('sharedUi.eventSourceViewer.expandNode', { name: stringLabel })
+              : t('sharedUi.eventSourceViewer.collapseNode', { name: stringLabel })
+          }
+          onClick={matchedInFilter ? undefined : () => onToggleString(path)}
+        >
+          <Icon src={isStringFolded ? Icons.ChevronRight : Icons.ChevronBottom} size="50" />
+        </button>
+      </span>
+    );
+  };
 
+  const renderPrimitiveValue = () => {
     if (typeof value === 'string') {
-      const revealed = revealDirectionControls(value);
-      const isLong = value.length > LONG_STRING_THRESHOLD;
-      const matchedInFilter = filterResult?.matchedValuePaths.has(path) ?? false;
-      const isFolded = isLong && !matchedInFilter && (stringOverrides[path] ?? foldStrings);
-
-      if (isFolded) {
-        const snippet = makeStringSnippet(revealed);
+      if (isStringFolded) {
+        const snippet = makeStringSnippet(value);
         return (
           <>
             <button
@@ -321,13 +349,13 @@ function JsonTreeNode({
               onClick={() => onToggleString(path)}
               aria-expanded={false}
             >
-              <span className="token string">{`"${snippet}"`}</span>
+              <span className="token string">{snippet}</span>
             </button>
-            <span className={css.NoWrap}>
-              {' '}
+            <span className={css.StringPillWrap}>
               <button
                 type="button"
                 className={css.StringLenPill}
+                aria-expanded={false}
                 onClick={() => onToggleString(path)}
                 aria-label={t('sharedUi.eventSourceViewer.expandString')}
               >
@@ -339,20 +367,22 @@ function JsonTreeNode({
         );
       }
 
-      if (isLong) {
+      const escapedValue = formatJsonStringInner(value);
+
+      if (isLongString) {
         return (
           <>
             <span className="token string">
               &quot;
-              <HighlightedText text={revealed} query={highlightQuery} />
+              <HighlightedText text={escapedValue} query={highlightQuery} />
               &quot;
             </span>
-            <span className={css.NoWrap}>
-              {' '}
+            <span className={css.StringPillWrap}>
               <button
                 type="button"
                 className={css.StringLenPill}
-                onClick={() => onToggleString(path)}
+                disabled={matchedInFilter}
+                onClick={matchedInFilter ? undefined : () => onToggleString(path)}
                 aria-expanded
                 aria-label={t('sharedUi.eventSourceViewer.collapseString')}
               >
@@ -368,7 +398,7 @@ function JsonTreeNode({
         <>
           <span className="token string">
             &quot;
-            <HighlightedText text={revealed} query={highlightQuery} />
+            <HighlightedText text={escapedValue} query={highlightQuery} />
             &quot;
           </span>
           {comma}
@@ -376,9 +406,11 @@ function JsonTreeNode({
       );
     }
 
-    if (typeof value === 'number' || typeof value === 'bigint') {
-      const numText = typeof value === 'bigint' ? value.toString() : String(value);
-      const timestampHint = isTimestampField(keyName, value) ? formatTimestamp(value) : undefined;
+    if (typeof value === 'number') {
+      const numText = String(value);
+      const timestampHint = isTimestampField(keyName, value)
+        ? formatTimestampHint(value, language)
+        : undefined;
       return (
         <>
           <span className="token number">
@@ -420,7 +452,7 @@ function JsonTreeNode({
       <>
         <span className="token string">
           &quot;
-          <HighlightedText text={revealDirectionControls(String(value))} query={highlightQuery} />
+          <HighlightedText text={formatJsonStringInner(String(value))} query={highlightQuery} />
           &quot;
         </span>
         {comma}
@@ -431,7 +463,7 @@ function JsonTreeNode({
   return (
     <div className={css.TreeNode}>
       <div className={css.TreeLine}>
-        <span className={css.TreeGutter} aria-hidden="true" />
+        {renderGutter()}
         <span className={css.TreeText}>
           {renderKeyPrefix()}
           {renderPrimitiveValue()}
@@ -450,11 +482,20 @@ const getDocTabLabelKey = (kind: EventSourceDocKind) => {
       return 'sharedUi.eventSourceViewer.tabLatestEdit';
     case 'decrypted':
       return 'sharedUi.eventSourceViewer.tabDecrypted';
+    case 'decryptionError':
+      return 'sharedUi.eventSourceViewer.tabDecryptionError';
     case 'encrypted':
       return 'sharedUi.eventSourceViewer.tabEncrypted';
     case 'event':
       return 'sharedUi.eventSourceViewer.tabEvent';
   }
+};
+
+type MetaChipDescriptor = {
+  key: 'event_id' | 'type' | 'sender' | 'origin_server_ts';
+  label: string;
+  displayValue: string;
+  rawValue: string;
 };
 
 /**
@@ -464,47 +505,109 @@ const getDocTabLabelKey = (kind: EventSourceDocKind) => {
 export const EventSourceViewer = as<'div', EventSourceViewerProps>(
   ({ className, mEvent, name, requestClose, ...props }, ref) => {
     const { t, i18n } = useTranslation();
+    const idBase = useId();
     const shownName = revealDirectionControls(name);
 
-    const bundle = useMemo(() => buildEventSourceBundle(mEvent), [mEvent]);
-    const [selectedDocId, setSelectedDocId] = useState<string>(bundle.docs[0]?.id ?? 'event');
-    const activeDoc: EventSourceDoc = bundle.docs.find((doc) => doc.id === selectedDocId) ??
-      bundle.docs[0] ?? { id: 'event', kind: 'event', data: {}, rawJson: '{}' };
+    const eventKey = getEventIdentityKey(mEvent);
+    const [revision, setRevision] = useState(0);
+    const replacingEvent = mEvent.replacingEvent?.() ?? undefined;
 
-    const summary = useMemo(() => extractEventSummary(activeDoc.data), [activeDoc.data]);
-    const { eventId, type: eventType, sender, timestamp } = summary;
-    const treeExceedsLimit = useMemo(
-      () => countTreeNodes(activeDoc.data, MAX_TREE_NODES + 1) > MAX_TREE_NODES,
-      [activeDoc.data]
-    );
-    const structure = useMemo(() => analyzeTreeStructure(activeDoc.data), [activeDoc.data]);
+    // Live updates when the event decrypts or receives an edit while the viewer is open.
+    useEffect(() => {
+      const bump = () => setRevision((prev) => prev + 1);
+      if (typeof mEvent.on === 'function' && typeof mEvent.off === 'function') {
+        mEvent.on(MatrixEventEvent.Decrypted, bump);
+        mEvent.on(MatrixEventEvent.Replaced, bump);
+      }
+      if (
+        replacingEvent &&
+        typeof replacingEvent.on === 'function' &&
+        typeof replacingEvent.off === 'function'
+      ) {
+        replacingEvent.on(MatrixEventEvent.Decrypted, bump);
+      }
+      return () => {
+        if (typeof mEvent.off === 'function') {
+          mEvent.off(MatrixEventEvent.Decrypted, bump);
+          mEvent.off(MatrixEventEvent.Replaced, bump);
+        }
+        if (replacingEvent && typeof replacingEvent.off === 'function') {
+          replacingEvent.off(MatrixEventEvent.Decrypted, bump);
+        }
+      };
+    }, [mEvent, replacingEvent]);
+
+    const bundle = useMemo(() => {
+      if (revision < 0) return buildEventSourceBundle(mEvent);
+      return buildEventSourceBundle(mEvent);
+    }, [mEvent, revision]);
+
+    const [selectedDocByEvent, setSelectedDocByEvent] = useState<
+      Record<string, EventSourceDocKind>
+    >({});
+    const selectedKind = Object.hasOwn(selectedDocByEvent, eventKey)
+      ? selectedDocByEvent[eventKey]
+      : undefined;
+    const activeDoc: EventSourceDoc =
+      bundle.docs.find((doc) => doc.kind === selectedKind) ?? bundle.docs[0];
+    const docKey = `${eventKey}:${activeDoc.kind}`;
 
     const [collapsedByDoc, setCollapsedByDoc] = useState<Record<string, Set<string>>>({});
     const [stringOverridesByDoc, setStringOverridesByDoc] = useState<
       Record<string, Record<string, boolean>>
     >({});
-    const [foldStrings, setFoldStrings] = useState(true);
-    const [rawModeOverride, setRawModeOverride] = useState<boolean | null>(null);
-    const [filterQuery, setFilterQuery] = useState('');
+    const [foldStringsByDoc, setFoldStringsByDoc] = useState<Record<string, boolean>>({});
+    const [rawModeByDoc, setRawModeByDoc] = useState<Record<string, boolean>>({});
+    const [filterQueryByEvent, setFilterQueryByEvent] = useState<Record<string, string>>({});
 
     const [copiedAll, setCopiedAll] = useState(false);
     const [copiedMetaKey, setCopiedMetaKey] = useState<string | null>(null);
-    const [copiedRowPath, setCopiedRowPath] = useState<string | null>(null);
+    const [copiedRowKey, setCopiedRowKey] = useState<string | null>(null);
 
-    const isRaw = rawModeOverride ?? treeExceedsLimit;
-    const collapsedPaths = collapsedByDoc[activeDoc.id] ?? structure.defaultCollapsed;
-    const stringOverrides = stringOverridesByDoc[activeDoc.id] ?? {};
+    const mountedRef = useRef(true);
+    useEffect(() => {
+      mountedRef.current = true;
+      return () => {
+        mountedRef.current = false;
+      };
+    }, []);
+    const activeDocKeyRef = useRef(docKey);
+    activeDocKeyRef.current = docKey;
+    const copyTokenRef = useRef({ all: 0, meta: 0, row: 0 });
+    const tabRefs = useRef<Partial<Record<EventSourceDocKind, HTMLButtonElement | null>>>({});
+
+    const summary = useMemo(() => extractEventSummary(activeDoc.data), [activeDoc.data]);
+    const { eventId, type: eventType, sender, timestamp } = summary;
+
+    const treeExceedsLimit = useMemo(
+      () => exceedsTreeNodeLimit(activeDoc.data, MAX_TREE_NODES),
+      [activeDoc.data]
+    );
+    const rawOverride = Object.hasOwn(rawModeByDoc, docKey) ? rawModeByDoc[docKey] : undefined;
+    const isRaw = rawOverride ?? treeExceedsLimit;
+
+    // Skip full tree fold analysis while in Raw mode.
+    const structure = useMemo(
+      () => (isRaw ? EMPTY_TREE_STRUCTURE : analyzeTreeStructure(activeDoc.data)),
+      [activeDoc.data, isRaw]
+    );
+
+    const collapsedPaths = Object.hasOwn(collapsedByDoc, docKey)
+      ? collapsedByDoc[docKey]!
+      : structure.defaultCollapsed;
+    const stringOverrides = useMemo(
+      () => (Object.hasOwn(stringOverridesByDoc, docKey) ? stringOverridesByDoc[docKey]! : {}),
+      [docKey, stringOverridesByDoc]
+    );
+    const foldStrings = Object.hasOwn(foldStringsByDoc, docKey) ? foldStringsByDoc[docKey]! : true;
+    const filterQuery = Object.hasOwn(filterQueryByEvent, eventKey)
+      ? filterQueryByEvent[eventKey]!
+      : '';
 
     const filterResult = useMemo(
       () => (isRaw ? null : computeTreeFilter(activeDoc.data, filterQuery)),
       [activeDoc.data, filterQuery, isRaw]
     );
-
-    const timestampFormatter = useMemo(
-      () => dateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'medium' }),
-      [i18n.language]
-    );
-    const formatTimestamp = (ts: number): string => timestampFormatter.format(ts);
 
     useEffect(() => {
       if (!copiedAll) return undefined;
@@ -519,75 +622,142 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     }, [copiedMetaKey]);
 
     useEffect(() => {
-      if (!copiedRowPath) return undefined;
-      const timer = setTimeout(setCopiedRowPath, COPIED_ITEM_FEEDBACK_MS, null);
+      if (!copiedRowKey) return undefined;
+      const timer = setTimeout(setCopiedRowKey, COPIED_ITEM_FEEDBACK_MS, null);
       return () => clearTimeout(timer);
-    }, [copiedRowPath]);
+    }, [copiedRowKey]);
+
+    const selectDocKind = useCallback(
+      (kind: EventSourceDocKind) => {
+        setSelectedDocByEvent((prev) => ({ ...prev, [eventKey]: kind }));
+      },
+      [eventKey]
+    );
+
+    const setFilterQuery = useCallback(
+      (nextQuery: string) => {
+        setFilterQueryByEvent((prev) => ({ ...prev, [eventKey]: nextQuery }));
+      },
+      [eventKey]
+    );
 
     const handleCopyAll = () => {
-      copyToClipboard(activeDoc.rawJson).then(setCopiedAll, () => undefined);
+      const targetEventKey = eventKey;
+      copyTokenRef.current.all += 1;
+      const token = copyTokenRef.current.all;
+      copyToClipboard(bundle.rawAll).then(
+        (ok) => {
+          if (
+            ok &&
+            mountedRef.current &&
+            copyTokenRef.current.all === token &&
+            activeDocKeyRef.current.startsWith(`${targetEventKey}:`)
+          ) {
+            setCopiedAll(true);
+          }
+        },
+        () => undefined
+      );
     };
 
     const handleCopyMeta = (metaKey: string, rawValue: string) => {
+      const targetDocKey = docKey;
+      copyTokenRef.current.meta += 1;
+      const token = copyTokenRef.current.meta;
       copyToClipboard(rawValue).then(
         (ok) => {
-          if (ok) setCopiedMetaKey(metaKey);
+          if (
+            ok &&
+            mountedRef.current &&
+            copyTokenRef.current.meta === token &&
+            activeDocKeyRef.current === targetDocKey
+          ) {
+            setCopiedMetaKey(`${targetDocKey}:${metaKey}`);
+          }
         },
         () => undefined
       );
     };
 
-    const handleCopyRow = (path: string, rowValue: unknown) => {
-      copyToClipboard(formatCopyValue(rowValue)).then(
-        (ok) => {
-          if (ok) setCopiedRowPath(path);
-        },
-        () => undefined
-      );
-    };
+    const handleCopyRow = useCallback(
+      (path: string, rowValue: unknown) => {
+        const targetDocKey = docKey;
+        copyTokenRef.current.row += 1;
+        const token = copyTokenRef.current.row;
+        copyToClipboard(formatCopyValue(rowValue)).then(
+          (ok) => {
+            if (
+              ok &&
+              mountedRef.current &&
+              copyTokenRef.current.row === token &&
+              activeDocKeyRef.current === targetDocKey
+            ) {
+              setCopiedRowKey(`${targetDocKey}:${path}`);
+            }
+          },
+          () => undefined
+        );
+      },
+      [docKey]
+    );
 
-    const handleToggleContainer = (path: string) => {
-      setCollapsedByDoc((prev) => {
-        const current = prev[activeDoc.id] ?? structure.defaultCollapsed;
-        const next = new Set(current);
-        if (next.has(path)) {
-          next.delete(path);
-        } else {
-          next.add(path);
-        }
-        return { ...prev, [activeDoc.id]: next };
-      });
-    };
+    const handleToggleContainer = useCallback(
+      (path: string) => {
+        setCollapsedByDoc((prev) => {
+          const current = Object.hasOwn(prev, docKey) ? prev[docKey]! : structure.defaultCollapsed;
+          const next = new Set(current);
+          if (next.has(path)) {
+            next.delete(path);
+          } else {
+            next.add(path);
+          }
+          return { ...prev, [docKey]: next };
+        });
+      },
+      [docKey, structure.defaultCollapsed]
+    );
 
-    const handleToggleString = (path: string) => {
-      setStringOverridesByDoc((prev) => {
-        const docOverrides = prev[activeDoc.id] ?? {};
-        const currentFolded = docOverrides[path] ?? foldStrings;
-        return {
-          ...prev,
-          [activeDoc.id]: { ...docOverrides, [path]: !currentFolded },
-        };
-      });
-    };
+    const handleToggleString = useCallback(
+      (path: string) => {
+        setStringOverridesByDoc((prev) => {
+          const docOverrides = Object.hasOwn(prev, docKey) ? prev[docKey]! : {};
+          const currentFolded = Object.hasOwn(docOverrides, path)
+            ? Boolean(docOverrides[path])
+            : foldStrings;
+          return {
+            ...prev,
+            [docKey]: { ...docOverrides, [path]: !currentFolded },
+          };
+        });
+      },
+      [docKey, foldStrings]
+    );
 
     const handleCollapseAll = () => {
       setCollapsedByDoc((prev) => ({
         ...prev,
-        [activeDoc.id]: new Set(structure.allCollapsibleAtDepthGte1),
+        [docKey]: new Set(structure.allCollapsibleAtDepthGte1),
       }));
-      setFoldStrings(true);
-      setStringOverridesByDoc((prev) => ({ ...prev, [activeDoc.id]: {} }));
+      setFoldStringsByDoc((prev) => ({ ...prev, [docKey]: true }));
+      setStringOverridesByDoc((prev) => ({ ...prev, [docKey]: {} }));
     };
 
     const handleExpandAll = () => {
-      setCollapsedByDoc((prev) => ({ ...prev, [activeDoc.id]: new Set() }));
-      setFoldStrings(false);
-      setStringOverridesByDoc((prev) => ({ ...prev, [activeDoc.id]: {} }));
+      setCollapsedByDoc((prev) => ({ ...prev, [docKey]: new Set() }));
+      setFoldStringsByDoc((prev) => ({ ...prev, [docKey]: false }));
+      setStringOverridesByDoc((prev) => ({ ...prev, [docKey]: {} }));
     };
 
     const handleToggleFoldStrings = () => {
-      setFoldStrings((prev) => !prev);
-      setStringOverridesByDoc((prev) => ({ ...prev, [activeDoc.id]: {} }));
+      setFoldStringsByDoc((prev) => {
+        const current = Object.hasOwn(prev, docKey) ? prev[docKey]! : true;
+        return { ...prev, [docKey]: !current };
+      });
+      setStringOverridesByDoc((prev) => ({ ...prev, [docKey]: {} }));
+    };
+
+    const handleToggleRawMode = () => {
+      setRawModeByDoc((prev) => ({ ...prev, [docKey]: !isRaw }));
     };
 
     const handleFilterKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -598,17 +768,98 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       }
     };
 
-    const hasMetaStrip =
-      Boolean(eventId) ||
-      Boolean(eventType) ||
-      Boolean(sender) ||
-      timestamp !== undefined ||
-      bundle.isEdited ||
-      bundle.isEncrypted;
+    const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      let nextIndex: number | undefined;
+      if (event.key === 'ArrowRight') {
+        nextIndex = (index + 1) % bundle.docs.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (index - 1 + bundle.docs.length) % bundle.docs.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = bundle.docs.length - 1;
+      }
+      if (nextIndex === undefined) return;
+      event.preventDefault();
+      const nextDoc = bundle.docs[nextIndex];
+      if (!nextDoc) return;
+      selectDocKind(nextDoc.kind);
+      tabRefs.current[nextDoc.kind]?.focus();
+    };
+
+    const metaChips = useMemo<MetaChipDescriptor[]>(() => {
+      const chips: MetaChipDescriptor[] = [];
+      if (eventId) {
+        chips.push({
+          key: 'event_id',
+          label: t('sharedUi.eventSourceViewer.metaEventId'),
+          displayValue: revealDirectionControls(eventId),
+          rawValue: eventId,
+        });
+      }
+      if (eventType) {
+        chips.push({
+          key: 'type',
+          label: t('sharedUi.eventSourceViewer.metaType'),
+          displayValue: revealDirectionControls(eventType),
+          rawValue: eventType,
+        });
+      }
+      if (sender) {
+        chips.push({
+          key: 'sender',
+          label: t('sharedUi.eventSourceViewer.metaSender'),
+          displayValue: revealDirectionControls(sender),
+          rawValue: sender,
+        });
+      }
+      if (timestamp !== undefined) {
+        chips.push({
+          key: 'origin_server_ts',
+          label: t('sharedUi.eventSourceViewer.metaTime'),
+          displayValue: formatTimestampHint(timestamp, i18n.language) ?? String(timestamp),
+          rawValue: String(timestamp),
+        });
+      }
+      return chips;
+    }, [eventId, eventType, i18n.language, sender, t, timestamp]);
+
+    const hasMetaStrip = metaChips.length > 0 || bundle.isEdited || bundle.isEncrypted;
+    const hasMultipleDocs = bundle.docs.length > 1;
+    const panelId = `${idBase}-panel`;
+    const getTabId = (kind: EventSourceDocKind) => `${idBase}-tab-${kind}`;
+    const activeTabId = getTabId(activeDoc.kind);
 
     const revealedRaw = useMemo(
       () => (isRaw ? revealDirectionControls(activeDoc.rawJson) : ''),
       [activeDoc.rawJson, isRaw]
+    );
+
+    const treeContextValue = useMemo<JsonTreeContextValue>(
+      () => ({
+        docKey,
+        collapsedPaths,
+        foldStrings,
+        stringOverrides,
+        filterResult,
+        copiedRowKey,
+        language: i18n.language,
+        onToggleContainer: handleToggleContainer,
+        onToggleString: handleToggleString,
+        onCopyRow: handleCopyRow,
+      }),
+      [
+        collapsedPaths,
+        copiedRowKey,
+        docKey,
+        filterResult,
+        foldStrings,
+        handleCopyRow,
+        handleToggleContainer,
+        handleToggleString,
+        i18n.language,
+        stringOverrides,
+      ]
     );
 
     const rootClassName = classNames(css.EventSourceViewer, className);
@@ -642,77 +893,27 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
 
         {hasMetaStrip && (
           <div className={css.MetaStrip}>
-            {eventId && (
-              <button
-                type="button"
-                className={classNames(
-                  css.MetaChip,
-                  copiedMetaKey === 'event_id' && css.MetaChipCopied
-                )}
-                title={revealDirectionControls(eventId)}
-                aria-label={t('sharedUi.eventSourceViewer.copyField', { field: 'event_id' })}
-                onClick={() => handleCopyMeta('event_id', eventId)}
-              >
-                <span className={css.MetaChipLabel}>
-                  {t('sharedUi.eventSourceViewer.metaEventId')}
-                </span>
-                <span className={css.MetaChipValue}>{revealDirectionControls(eventId)}</span>
-                {copiedMetaKey === 'event_id' && <CheckMiniIcon />}
-              </button>
-            )}
-            {eventType && (
-              <button
-                type="button"
-                className={classNames(css.MetaChip, copiedMetaKey === 'type' && css.MetaChipCopied)}
-                title={revealDirectionControls(eventType)}
-                aria-label={t('sharedUi.eventSourceViewer.copyField', { field: 'type' })}
-                onClick={() => handleCopyMeta('type', eventType)}
-              >
-                <span className={css.MetaChipLabel}>
-                  {t('sharedUi.eventSourceViewer.metaType')}
-                </span>
-                <span className={css.MetaChipValue}>{revealDirectionControls(eventType)}</span>
-                {copiedMetaKey === 'type' && <CheckMiniIcon />}
-              </button>
-            )}
-            {sender && (
-              <button
-                type="button"
-                className={classNames(
-                  css.MetaChip,
-                  copiedMetaKey === 'sender' && css.MetaChipCopied
-                )}
-                title={revealDirectionControls(sender)}
-                aria-label={t('sharedUi.eventSourceViewer.copyField', { field: 'sender' })}
-                onClick={() => handleCopyMeta('sender', sender)}
-              >
-                <span className={css.MetaChipLabel}>
-                  {t('sharedUi.eventSourceViewer.metaSender')}
-                </span>
-                <span className={css.MetaChipValue}>{revealDirectionControls(sender)}</span>
-                {copiedMetaKey === 'sender' && <CheckMiniIcon />}
-              </button>
-            )}
-            {timestamp !== undefined && (
-              <button
-                type="button"
-                className={classNames(
-                  css.MetaChip,
-                  copiedMetaKey === 'origin_server_ts' && css.MetaChipCopied
-                )}
-                title={String(timestamp)}
-                aria-label={t('sharedUi.eventSourceViewer.copyField', {
-                  field: 'origin_server_ts',
-                })}
-                onClick={() => handleCopyMeta('origin_server_ts', String(timestamp))}
-              >
-                <span className={css.MetaChipLabel}>
-                  {t('sharedUi.eventSourceViewer.metaTime')}
-                </span>
-                <span className={css.MetaChipValue}>{formatTimestamp(timestamp)}</span>
-                {copiedMetaKey === 'origin_server_ts' && <CheckMiniIcon />}
-              </button>
-            )}
+            {metaChips.map((chip) => {
+              const isCopied = copiedMetaKey === `${docKey}:${chip.key}`;
+              const copyActionLabel = t('sharedUi.eventSourceViewer.copyField', {
+                field: chip.label,
+              });
+              const accessibleLabel = `${copyActionLabel}: ${chip.displayValue}`;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  className={classNames(css.MetaChip, isCopied && css.MetaChipCopied)}
+                  title={accessibleLabel}
+                  aria-label={accessibleLabel}
+                  onClick={() => handleCopyMeta(chip.key, chip.rawValue)}
+                >
+                  <span className={css.MetaChipLabel}>{chip.label}</span>
+                  <span className={css.MetaChipValue}>{chip.displayValue}</span>
+                  {isCopied && <CheckMiniIcon />}
+                </button>
+              );
+            })}
             {bundle.isEdited && (
               <span className={css.MetaBadgeEdited}>
                 {t('sharedUi.eventSourceViewer.badgeEdited')}
@@ -727,22 +928,29 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
         )}
 
         <div className={css.SubToolbar}>
-          {bundle.docs.length > 1 && (
+          {hasMultipleDocs && (
             <div
               role="tablist"
               aria-label={t('sharedUi.eventSourceViewer.documentTabsLabel')}
               className={css.DocTabs}
             >
-              {bundle.docs.map((doc) => {
-                const selected = doc.id === activeDoc.id;
+              {bundle.docs.map((doc, index) => {
+                const selected = doc.kind === activeDoc.kind;
                 return (
                   <button
-                    key={doc.id}
+                    key={doc.kind}
+                    id={getTabId(doc.kind)}
+                    ref={(el) => {
+                      tabRefs.current[doc.kind] = el;
+                    }}
                     type="button"
                     role="tab"
                     aria-selected={selected}
+                    aria-controls={panelId}
+                    tabIndex={selected ? 0 : -1}
                     className={classNames(css.DocTab, selected && css.DocTabActive)}
-                    onClick={() => setSelectedDocId(doc.id)}
+                    onClick={() => selectDocKind(doc.kind)}
+                    onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
                     {t(getDocTabLabelKey(doc.kind))}
                   </button>
@@ -780,7 +988,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             type="button"
             className={css.ToolbarButton}
             aria-pressed={isRaw}
-            onClick={() => setRawModeOverride(!isRaw)}
+            onClick={handleToggleRawMode}
           >
             {t('sharedUi.eventSourceViewer.rawJson')}
           </button>
@@ -804,7 +1012,12 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
           </div>
         </div>
 
-        <PageScroll className={css.ViewerContent}>
+        <PageScroll
+          className={css.ViewerContent}
+          id={hasMultipleDocs ? panelId : undefined}
+          role={hasMultipleDocs ? 'tabpanel' : undefined}
+          aria-labelledby={hasMultipleDocs ? activeTabId : undefined}
+        >
           {isRaw ? (
             <pre className={classNames(css.RawPre, 'language-json')}>
               {revealedRaw.length <= MAX_RAW_HIGHLIGHT_LENGTH ? (
@@ -819,23 +1032,15 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             </div>
           ) : (
             <div className={css.TreeRoot}>
-              <JsonTreeNode
-                value={activeDoc.data}
-                path=""
-                keyName={undefined}
-                depth={0}
-                hasTrailingComma={false}
-                ancestors={new Set()}
-                collapsedPaths={collapsedPaths}
-                foldStrings={foldStrings}
-                stringOverrides={stringOverrides}
-                filterResult={filterResult}
-                copiedRowPath={copiedRowPath}
-                onToggleContainer={handleToggleContainer}
-                onToggleString={handleToggleString}
-                onCopyRow={handleCopyRow}
-                formatTimestamp={formatTimestamp}
-              />
+              <JsonTreeContext.Provider value={treeContextValue}>
+                <JsonTreeNode
+                  value={activeDoc.data}
+                  path=""
+                  keyName={undefined}
+                  depth={0}
+                  hasTrailingComma={false}
+                />
+              </JsonTreeContext.Provider>
             </div>
           )}
         </PageScroll>

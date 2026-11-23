@@ -129,6 +129,7 @@
       "tabOriginal": "Original",
       "tabLatestEdit": "Última edição",
       "tabDecrypted": "Descriptografado",
+      "tabDecryptionError": "Falha na descriptografia",
       "tabEncrypted": "Criptografado",
       "collapseAll": "Recolher",
       "expandAll": "Expandir",

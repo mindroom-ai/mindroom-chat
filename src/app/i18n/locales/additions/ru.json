@@ -132,6 +132,7 @@
       "tabOriginal": "Исходное",
       "tabLatestEdit": "Последняя правка",
       "tabDecrypted": "Расшифровано",
+      "tabDecryptionError": "Ошибка расшифровки",
       "tabEncrypted": "Зашифровано",
       "collapseAll": "Свернуть",
       "expandAll": "Развернуть",

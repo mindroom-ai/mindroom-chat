@@ -126,6 +126,7 @@
       "tabOriginal": "Özgün",
       "tabLatestEdit": "Son düzenleme",
       "tabDecrypted": "Şifresi çözülmüş",
+      "tabDecryptionError": "Şifre çözme başarısız",
       "tabEncrypted": "Şifreli",
       "collapseAll": "Daralt",
       "expandAll": "Genişlet",

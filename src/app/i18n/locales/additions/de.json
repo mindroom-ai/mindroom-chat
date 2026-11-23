@@ -126,6 +126,7 @@
       "tabOriginal": "Original",
       "tabLatestEdit": "Letzte Bearbeitung",
       "tabDecrypted": "Entschlüsselt",
+      "tabDecryptionError": "Entschlüsselung fehlgeschlagen",
       "tabEncrypted": "Verschlüsselt",
       "collapseAll": "Einklappen",
       "expandAll": "Ausklappen",

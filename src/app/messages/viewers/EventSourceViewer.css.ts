@@ -1,7 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
-const MONO_FONT = "'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace";
+const MONO_FONT = 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)';
 
 export const EventSourceViewer = style([
   DefaultReset,
@@ -78,7 +78,6 @@ export const MetaChipLabel = style({
   fontWeight: config.fontWeight.W600,
   textTransform: 'uppercase',
   letterSpacing: '0.03em',
-  opacity: 0.72,
   flexShrink: 0,
 });
 
@@ -142,13 +141,14 @@ export const SubToolbar = style({
 
 export const DocTabs = style({
   display: 'inline-flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
+  maxInlineSize: '100%',
   padding: toRem(2),
   gap: toRem(2),
   borderRadius: config.radii.R300,
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   backgroundColor: color.SurfaceVariant.Container,
-  flexShrink: 0,
 });
 
 export const DocTab = style({
@@ -156,7 +156,6 @@ export const DocTab = style({
   border: `${config.borderWidth.B300} solid transparent`,
   backgroundColor: 'transparent',
   color: color.SurfaceVariant.OnContainer,
-  opacity: 0.78,
   font: 'inherit',
   fontSize: toRem(12),
   fontWeight: config.fontWeight.W500,
@@ -167,11 +166,9 @@ export const DocTab = style({
   whiteSpace: 'nowrap',
   selectors: {
     '&:hover': {
-      opacity: 1,
       backgroundColor: color.SurfaceVariant.ContainerHover,
     },
     '&:focus-visible': {
-      opacity: 1,
       outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
     },
   },
@@ -179,7 +176,6 @@ export const DocTab = style({
 
 // Declared after DocTab so selected styling wins specificity.
 export const DocTabActive = style({
-  opacity: 1,
   backgroundColor: color.Primary.Container,
   borderColor: color.Primary.ContainerLine,
   color: color.Primary.OnContainer,
@@ -208,7 +204,7 @@ export const ToolbarButton = style({
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   selectors: {
-    '&:hover': {
+    '&:hover:not(:disabled)': {
       backgroundColor: color.SurfaceVariant.ContainerHover,
     },
     '&[aria-pressed="true"]': {
@@ -230,7 +226,7 @@ export const ToolbarButton = style({
 export const FilterGroup = style({
   display: 'inline-flex',
   alignItems: 'center',
-  gap: config.space.S100,
+  gap: config.space.S200,
   flex: '1 1 9rem',
   minInlineSize: '7.5rem',
 });
@@ -261,7 +257,7 @@ export const FilterInput = style({
 export const FilterCount = style({
   fontSize: toRem(11.5),
   color: color.Surface.OnContainer,
-  opacity: 0.72,
+  marginInlineStart: config.space.S100,
   whiteSpace: 'nowrap',
   flexShrink: 0,
 });
@@ -277,6 +273,8 @@ export const ViewerContent = style({
 export const RawPre = style({
   margin: 0,
   padding: config.space.S300,
+  direction: 'ltr',
+  unicodeBidi: 'isolate',
   fontFamily: MONO_FONT,
   fontSize: toRem(13),
   lineHeight: 1.55,
@@ -289,6 +287,8 @@ export const RawPre = style({
 export const TreeRoot = style({
   paddingBlock: config.space.S300,
   paddingInline: config.space.S300,
+  direction: 'ltr',
+  unicodeBidi: 'isolate',
   fontFamily: MONO_FONT,
   fontSize: toRem(13),
   lineHeight: 1.55,
@@ -313,7 +313,10 @@ export const TreeLine = style({
   minInlineSize: 0,
   selectors: {
     '&:hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+      boxShadow: `inset 2px 0 0 ${color.Primary.Main}`,
+    },
+    '&:focus-within': {
+      boxShadow: `inset 2px 0 0 ${color.Primary.Main}`,
     },
   },
 });
@@ -332,7 +335,6 @@ export const FoldButton = style({
   border: 0,
   backgroundColor: 'transparent',
   color: color.SurfaceVariant.OnContainer,
-  opacity: 0.7,
   cursor: 'pointer',
   padding: 0,
   inlineSize: toRem(18),
@@ -342,12 +344,14 @@ export const FoldButton = style({
   justifyContent: 'center',
   borderRadius: config.radii.R300,
   selectors: {
-    '&:hover': {
-      opacity: 1,
+    '&:hover:not(:disabled)': {
       backgroundColor: color.SurfaceVariant.ContainerActive,
     },
+    '&:disabled': {
+      opacity: 0.45,
+      cursor: 'default',
+    },
     '&:focus-visible': {
-      opacity: 1,
       outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
     },
   },
@@ -371,6 +375,11 @@ export const TreeChildren = style({
       paddingInlineStart: toRem(4),
     },
   },
+});
+
+export const TreeChildrenFlat = style({
+  marginInlineStart: 0,
+  paddingInlineStart: 0,
 });
 
 export const FoldPill = style({
@@ -434,9 +443,13 @@ export const StringLenPill = style({
   whiteSpace: 'nowrap',
   cursor: 'pointer',
   selectors: {
-    '&:hover': {
+    '&:hover:not(:disabled)': {
       borderColor: color.Primary.ContainerLine,
       backgroundColor: color.Surface.ContainerHover,
+    },
+    '&:disabled': {
+      opacity: 0.45,
+      cursor: 'default',
     },
     '&:focus-visible': {
       outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
@@ -444,13 +457,16 @@ export const StringLenPill = style({
   },
 });
 
-export const NoWrap = style({
+export const StringPillWrap = style({
+  display: 'inline-flex',
+  alignItems: 'baseline',
+  gap: 0,
+  marginInlineStart: toRem(6),
   whiteSpace: 'nowrap',
 });
 
 export const TimestampHint = style({
   fontSize: toRem(11.5),
-  opacity: 0.9,
 });
 
 export const MatchMark = style({
@@ -519,6 +535,13 @@ globalStyle(`${TreeLine}:hover ${RowCopyBtn}, ${TreeLine}:focus-within ${RowCopy
   opacity: 0.85,
 });
 
+globalStyle(
+  `${TreeLine}:hover ${RowCopyBtn}:hover, ${TreeLine}:focus-within ${RowCopyBtn}:hover, ${TreeLine}:hover ${RowCopyBtn}:focus-visible, ${TreeLine}:focus-within ${RowCopyBtn}:focus-visible, ${TreeLine}:hover ${RowCopyBtnCopied}, ${TreeLine}:focus-within ${RowCopyBtnCopied}`,
+  {
+    opacity: 1,
+  }
+);
+
 export const RowCopyIcon = style({
   inlineSize: toRem(13),
   blockSize: toRem(13),
@@ -529,5 +552,4 @@ export const EmptyFilter = style({
   paddingInline: config.space.S300,
   fontSize: toRem(13),
   color: color.SurfaceVariant.OnContainer,
-  opacity: 0.78,
 });

@@ -1,16 +1,22 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 
-export type EventSourceDocKind = 'event' | 'original' | 'latestEdit' | 'decrypted' | 'encrypted';
+export type EventSourceDocKind =
+  | 'event'
+  | 'original'
+  | 'latestEdit'
+  | 'decrypted'
+  | 'decryptionError'
+  | 'encrypted';
 
 export type EventSourceDoc = {
-  id: string;
   kind: EventSourceDocKind;
   data: unknown;
   rawJson: string;
 };
 
 export type EventSourceBundle = {
-  docs: EventSourceDoc[];
+  docs: [EventSourceDoc, ...EventSourceDoc[]];
+  rawAll: string;
   isEdited: boolean;
   isEncrypted: boolean;
 };
@@ -22,26 +28,52 @@ export type EventSummary = {
   timestamp?: number;
 };
 
+export const MIN_TIMESTAMP_MS = 1e12;
+export const MAX_TIMESTAMP_MS = 1e14;
+
+/** Whether `value` is a finite millisecond epoch timestamp safely within `Intl.DateTimeFormat` bounds. */
+export const isValidTimestampMs = (value: unknown): value is number =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  value >= MIN_TIMESTAMP_MS &&
+  value <= MAX_TIMESTAMP_MS;
+
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-const shallowCloneRecord = (value: unknown): unknown =>
-  isPlainRecord(value) ? { ...value } : value;
+const createNullProtoRecord = (): Record<string, unknown> =>
+  Object.create(null) as Record<string, unknown>;
 
-const sanitizeForJson = (value: unknown, ancestors: Set<object>): unknown => {
+/**
+ * Produces a cycle-free, BigInt-free, `__proto__`-safe JSON snapshot using null-prototype objects
+ * so the JSON tree, Raw view, Copy All, and per-field copy share one identical representation.
+ */
+export const sanitizeJsonValue = (value: unknown, ancestors: Set<object> = new Set()): unknown => {
   if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (value === null || typeof value !== 'object') return value;
   if (ancestors.has(value)) return '[Circular]';
 
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => sanitizeForJson(item, ancestors));
+      return value.map((item) => {
+        if (item === undefined || typeof item === 'function' || typeof item === 'symbol') {
+          return null;
+        }
+        return sanitizeJsonValue(item, ancestors);
+      });
     }
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (entry !== undefined) {
-        out[key] = sanitizeForJson(entry, ancestors);
+    const out = createNullProtoRecord();
+    for (const key of Object.keys(value)) {
+      let entry: unknown;
+      try {
+        entry = (value as Record<string, unknown>)[key];
+      } catch {
+        entry = '[Unreadable]';
+      }
+      if (entry !== undefined && typeof entry !== 'function' && typeof entry !== 'symbol') {
+        out[key] = sanitizeJsonValue(entry, ancestors);
       }
     }
     return out;
@@ -50,25 +82,37 @@ const sanitizeForJson = (value: unknown, ancestors: Set<object>): unknown => {
   }
 };
 
-/**
- * Formats any value as indented JSON without throwing on circular references, BigInt values, or
- * throwing getters.
- */
-export const safeStringifyJson = (value: unknown): string => {
+const stringifySanitized = (sanitized: unknown): string => {
   try {
-    const serialized = JSON.stringify(sanitizeForJson(value, new Set()), null, 2);
+    const serialized = JSON.stringify(sanitized, null, 2);
     return serialized ?? 'null';
   } catch {
-    return JSON.stringify(String(value));
+    return JSON.stringify(String(sanitized));
   }
 };
 
-const makeDoc = (kind: EventSourceDocKind, data: unknown): EventSourceDoc => ({
-  id: kind,
-  kind,
-  data,
-  rawJson: safeStringifyJson(data),
-});
+/**
+ * Formats any value as indented JSON without throwing on circular references, BigInt values,
+ * throwing getters, or `__proto__` keys.
+ */
+export const safeStringifyJson = (value: unknown): string =>
+  stringifySanitized(sanitizeJsonValue(value));
+
+const makeDoc = (kind: EventSourceDocKind, rawData: unknown): EventSourceDoc => {
+  const data = sanitizeJsonValue(rawData);
+  return {
+    kind,
+    data,
+    rawJson: stringifySanitized(data),
+  };
+};
+
+const buildEncryptedPairJson = (encryptedData: unknown, decryptedData: unknown): string => {
+  const pair = createNullProtoRecord();
+  pair.encrypted = encryptedData;
+  pair.decrypted = decryptedData;
+  return stringifySanitized(pair);
+};
 
 const readEffectiveEvent = (mEvent: MatrixEvent): unknown => {
   try {
@@ -78,41 +122,53 @@ const readEffectiveEvent = (mEvent: MatrixEvent): unknown => {
   }
 };
 
-const readEditData = (edit: MatrixEvent): unknown => {
-  if (edit.isEncrypted()) {
-    return shallowCloneRecord(readEffectiveEvent(edit) ?? edit.event);
+const readOriginalEffectiveEvent = (mEvent: MatrixEvent): unknown => {
+  const effective = readEffectiveEvent(mEvent);
+  if (isPlainRecord(effective) && typeof mEvent.getOriginalContent === 'function') {
+    const merged = createNullProtoRecord();
+    for (const key of Object.keys(effective)) {
+      merged[key] = effective[key];
+    }
+    merged.content = mEvent.getOriginalContent();
+    return merged;
   }
-  return shallowCloneRecord(edit.event);
+  return effective ?? mEvent.event;
 };
+
+const readEditData = (edit: MatrixEvent): unknown =>
+  edit.isEncrypted() ? readEffectiveEvent(edit) ?? edit.event : edit.event;
 
 /**
  * Extracts structured source documents for a Matrix event:
  * - Plain unedited: `[event]`
- * - Encrypted unedited: `[decrypted, encrypted]` when decrypted differs, otherwise `[encrypted]`
+ * - Encrypted unedited: `[decrypted | decryptionError, encrypted]` when effective differs, otherwise `[encrypted]`
  * - Plain edited: `[original, latestEdit]`
- * - Encrypted edited: `[original, latestEdit, encrypted]`
+ * - Encrypted edited: `[original | decryptionError, latestEdit, encrypted]`
  */
 export const buildEventSourceBundle = (mEvent: MatrixEvent): EventSourceBundle => {
   const isEncrypted = Boolean(mEvent.isEncrypted());
   const edit = mEvent.replacingEvent?.() ?? undefined;
-  const rawEvent = shallowCloneRecord(mEvent.event);
+  const decryptionFailed = Boolean(mEvent.isDecryptionFailure?.());
 
-  if (!isEncrypted && !edit) {
-    return {
-      docs: [makeDoc('event', rawEvent)],
-      isEdited: false,
-      isEncrypted: false,
-    };
-  }
+  if (!edit) {
+    if (!isEncrypted) {
+      const eventDoc = makeDoc('event', mEvent.event);
+      return {
+        docs: [eventDoc],
+        rawAll: eventDoc.rawJson,
+        isEdited: false,
+        isEncrypted: false,
+      };
+    }
 
-  if (isEncrypted && !edit) {
-    const encryptedDoc = makeDoc('encrypted', rawEvent);
+    const encryptedDoc = makeDoc('encrypted', mEvent.event);
     const effective = readEffectiveEvent(mEvent);
     if (effective !== undefined) {
-      const decryptedDoc = makeDoc('decrypted', shallowCloneRecord(effective));
-      if (decryptedDoc.rawJson !== encryptedDoc.rawJson) {
+      const effectiveDoc = makeDoc(decryptionFailed ? 'decryptionError' : 'decrypted', effective);
+      if (effectiveDoc.rawJson !== encryptedDoc.rawJson) {
         return {
-          docs: [decryptedDoc, encryptedDoc],
+          docs: [effectiveDoc, encryptedDoc],
+          rawAll: buildEncryptedPairJson(encryptedDoc.data, effectiveDoc.data),
           isEdited: false,
           isEncrypted: true,
         };
@@ -120,31 +176,33 @@ export const buildEventSourceBundle = (mEvent: MatrixEvent): EventSourceBundle =
     }
     return {
       docs: [encryptedDoc],
+      rawAll: encryptedDoc.rawJson,
       isEdited: false,
       isEncrypted: true,
     };
   }
 
-  if (!edit) {
-    return { docs: [makeDoc('event', rawEvent)], isEdited: false, isEncrypted };
-  }
-  const latestEditData = readEditData(edit);
+  const latestEditDoc = makeDoc('latestEdit', readEditData(edit));
 
   if (!isEncrypted) {
+    const originalDoc = makeDoc('original', mEvent.event);
     return {
-      docs: [makeDoc('original', rawEvent), makeDoc('latestEdit', latestEditData)],
+      docs: [originalDoc, latestEditDoc],
+      rawAll: `${originalDoc.rawJson}\n\n${latestEditDoc.rawJson}`,
       isEdited: true,
       isEncrypted: false,
     };
   }
 
-  const originalData = shallowCloneRecord(readEffectiveEvent(mEvent) ?? mEvent.event);
+  const originalDoc = makeDoc(
+    decryptionFailed ? 'decryptionError' : 'original',
+    readOriginalEffectiveEvent(mEvent)
+  );
+  const encryptedDoc = makeDoc('encrypted', mEvent.event);
+  const encryptedAndDecrypted = buildEncryptedPairJson(encryptedDoc.data, originalDoc.data);
   return {
-    docs: [
-      makeDoc('original', originalData),
-      makeDoc('latestEdit', latestEditData),
-      makeDoc('encrypted', rawEvent),
-    ],
+    docs: [originalDoc, latestEditDoc, encryptedDoc],
+    rawAll: `${encryptedAndDecrypted}\n\n${latestEditDoc.rawJson}`,
     isEdited: true,
     isEncrypted: true,
   };
@@ -154,16 +212,17 @@ export const buildEventSourceBundle = (mEvent: MatrixEvent): EventSourceBundle =
 export const extractEventSummary = (data: unknown): EventSummary => {
   if (!isPlainRecord(data)) return {};
 
-  const eventId =
-    typeof data.event_id === 'string' && data.event_id.length > 0 ? data.event_id : undefined;
-  const type = typeof data.type === 'string' && data.type.length > 0 ? data.type : undefined;
-  const sender =
-    typeof data.sender === 'string' && data.sender.length > 0 ? data.sender : undefined;
+  const rawEventId = Object.hasOwn(data, 'event_id') ? data.event_id : undefined;
+  const rawType = Object.hasOwn(data, 'type') ? data.type : undefined;
+  const rawSender = Object.hasOwn(data, 'sender') ? data.sender : undefined;
+  const rawTimestamp = Object.hasOwn(data, 'origin_server_ts') ? data.origin_server_ts : undefined;
+
+  const eventId = typeof rawEventId === 'string' && rawEventId.length > 0 ? rawEventId : undefined;
+  const type = typeof rawType === 'string' && rawType.length > 0 ? rawType : undefined;
+  const sender = typeof rawSender === 'string' && rawSender.length > 0 ? rawSender : undefined;
   const timestamp =
-    typeof data.origin_server_ts === 'number' &&
-    Number.isFinite(data.origin_server_ts) &&
-    data.origin_server_ts > 0
-      ? data.origin_server_ts
+    typeof rawTimestamp === 'number' && Number.isFinite(rawTimestamp) && rawTimestamp > 0
+      ? rawTimestamp
       : undefined;
 
   return { eventId, type, sender, timestamp };

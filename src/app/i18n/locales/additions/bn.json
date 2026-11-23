@@ -126,6 +126,7 @@
       "tabOriginal": "মূল",
       "tabLatestEdit": "সর্বশেষ সম্পাদনা",
       "tabDecrypted": "ডিক্রিপ্টেড",
+      "tabDecryptionError": "ডিক্রিপশন ব্যর্থ",
       "tabEncrypted": "এনক্রিপ্টেড",
       "collapseAll": "সংকুচিত করুন",
       "expandAll": "প্রসারিত করুন",

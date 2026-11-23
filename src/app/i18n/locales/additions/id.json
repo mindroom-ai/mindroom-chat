@@ -123,6 +123,7 @@
       "tabOriginal": "Asli",
       "tabLatestEdit": "Editan terbaru",
       "tabDecrypted": "Terdekripsi",
+      "tabDecryptionError": "Dekripsi gagal",
       "tabEncrypted": "Terenkripsi",
       "collapseAll": "Ciutkan",
       "expandAll": "Luaskan",

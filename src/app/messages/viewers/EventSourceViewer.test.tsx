@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import enAdditions from '../../i18n/locales/additions/en.json';
 import deAdditions from '../../i18n/locales/additions/de.json';
@@ -36,7 +36,12 @@ vi.mock('../../ui/glass/GlassPrimitives', () => {
 });
 
 vi.mock('../../ui/page/PageScroll', () => ({
-  PageScroll: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  PageScroll: ({
+    children,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }) => (
+    <div {...props}>{children}</div>
+  ),
 }));
 
 vi.mock('../../lib/dom', () => ({ copyToClipboard }));
@@ -61,17 +66,18 @@ vi.mock('./EventSourceViewer.css', () => ({
   MetaChipLabel: 'MetaChipLabel',
   MetaChipValue: 'MetaChipValue',
   MetaStrip: 'MetaStrip',
-  NoWrap: 'NoWrap',
   RawPre: 'RawPre',
   RowCopyBtn: 'RowCopyBtn',
   RowCopyBtnCopied: 'RowCopyBtnCopied',
   RowCopyIcon: 'RowCopyIcon',
   StringLenPill: 'StringLenPill',
+  StringPillWrap: 'StringPillWrap',
   StringPreviewBtn: 'StringPreviewBtn',
   SubToolbar: 'SubToolbar',
   TimestampHint: 'TimestampHint',
   ToolbarButton: 'ToolbarButton',
   TreeChildren: 'TreeChildren',
+  TreeChildrenFlat: 'TreeChildrenFlat',
   TreeGutter: 'TreeGutter',
   TreeLine: 'TreeLine',
   TreeNode: 'TreeNode',
@@ -121,11 +127,13 @@ const makeMockEvent = (options: {
   event: Record<string, unknown>;
   encrypted?: boolean;
   effectiveEvent?: Record<string, unknown>;
+  decryptionFailure?: boolean;
   edit?: MatrixEvent;
 }): MatrixEvent =>
   ({
     event: options.event,
     isEncrypted: () => Boolean(options.encrypted),
+    isDecryptionFailure: () => Boolean(options.decryptionFailure),
     getEffectiveEvent: () => options.effectiveEvent,
     replacingEvent: () => options.edit,
   } as unknown as MatrixEvent);
@@ -161,7 +169,8 @@ const buildRichEvent = () => {
 
 describe('EventSourceViewer', () => {
   beforeEach(() => {
-    copyToClipboard.mockClear();
+    copyToClipboard.mockReset();
+    copyToClipboard.mockResolvedValue(true);
   });
 
   it('renders quick-copy metadata strip, smart default folds, timestamp hints, and copies raw values', async () => {
@@ -200,14 +209,22 @@ describe('EventSourceViewer', () => {
       const btn = renderer.root.findByProps({ 'aria-label': `Expand ${key}` });
       expect(btn.props['aria-expanded']).toBe(false);
     }
+    const foldPills = renderer.root.findAllByProps({ className: 'FoldPill' });
+    expect(foldPills.length).toBe(collapsedNames.length);
+    for (const pill of foldPills) {
+      expect(pill.props['aria-expanded']).toBe(false);
+    }
     expect(fullText).toContain('2 keys');
     expect(fullText).toContain('6 items');
 
-    // Long string (> 120 chars) starts folded with char count pill; clicking unfolds only that string.
+    // Long string (> 120 chars) starts folded with left gutter chevron AND char count pill; clicking unfolds only that string.
     const foldStringsBtn = renderer.root
       .findAllByType('button')
       .find((b) => collectText(b) === 'Fold strings');
     expect(foldStringsBtn?.props['aria-pressed']).toBe(true);
+
+    const bodyGutterChevron = renderer.root.findByProps({ 'aria-label': 'Expand body' });
+    expect(bodyGutterChevron.props['aria-expanded']).toBe(false);
 
     const expandStringBtn = renderer.root.findByProps({ 'aria-label': 'Expand string' });
     expect(collectText(expandStringBtn)).toBe(`${longBody.length} chars`);
@@ -218,14 +235,19 @@ describe('EventSourceViewer', () => {
     // Global Fold strings toggle remains pressed after individual string toggle.
     expect(foldStringsBtn?.props['aria-pressed']).toBe(true);
 
-    // Meta chip copy: event_id copies raw ID, origin_server_ts copies raw numeric string.
-    const copyEventIdMeta = renderer.root.findAllByProps({ 'aria-label': 'Copy event_id' })[0];
+    // Meta chip copy: accessible name includes label + value; copies raw ID / numeric ms string.
+    const copyEventIdMeta = renderer.root.findByProps({
+      'aria-label': 'Copy Event: $evt_garden_1',
+    });
     await act(async () => {
-      copyEventIdMeta?.props.onClick();
+      copyEventIdMeta.props.onClick();
     });
     expect(copyToClipboard).toHaveBeenCalledWith('$evt_garden_1');
 
-    const copyTsMeta = renderer.root.findAllByProps({ 'aria-label': 'Copy origin_server_ts' })[0];
+    const copyTsMeta = renderer.root
+      .findAllByType('button')
+      .find((btn) => String(btn.props['aria-label'] ?? '').startsWith('Copy Time: '));
+    expect(copyTsMeta).toBeDefined();
     await act(async () => {
       copyTsMeta?.props.onClick();
     });
@@ -244,7 +266,13 @@ describe('EventSourceViewer', () => {
     });
     expect(copyToClipboard).toHaveBeenCalledWith(JSON.stringify(raw.unsigned, null, 2));
 
-    // Copy All copies active document rawJson.
+    // Root copy button copies active document JSON; Copy All copies bundle.rawAll.
+    const rootCopyBtn = renderer.root.findByProps({ 'aria-label': 'Copy value' });
+    await act(async () => {
+      rootCopyBtn.props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenCalledWith(JSON.stringify(raw, null, 2));
+
     const copyAllBtn = renderer.root
       .findAllByType('button')
       .find((b) => collectText(b) === 'Copy All');
@@ -273,7 +301,7 @@ describe('EventSourceViewer', () => {
     renderer.unmount();
   });
 
-  it('filters keys and values, auto-expands matching branches, highlights matches, and handles Escape', async () => {
+  it('filters keys and values, disables forced-open fold buttons, and handles Escape cleanly', async () => {
     const i18n = await createTestI18n();
     const { raw } = buildRichEvent();
     const mEvent = makeMockEvent({ event: raw });
@@ -289,7 +317,7 @@ describe('EventSourceViewer', () => {
 
     const input = renderer.root.findByType('input');
 
-    // Filter inside collapsed `unsigned` branch auto-expands it and highlights with <mark>.
+    // Filter inside collapsed `unsigned` branch auto-expands it, highlights with <mark>, and disables its fold button.
     act(() => {
       input.props.onChange({ target: { value: 'txn_demo_99' } });
     });
@@ -298,11 +326,30 @@ describe('EventSourceViewer', () => {
     expect(marks.length).toBeGreaterThan(0);
     expect(collectText(marks[0]!)).toBe('txn_demo_99');
 
+    const forcedUnsignedCollapseBtn = renderer.root.findByProps({
+      'aria-label': 'Collapse unsigned',
+    });
+    expect(forcedUnsignedCollapseBtn.props.disabled).toBe(true);
+    expect(forcedUnsignedCollapseBtn.props.onClick).toBeUndefined();
+
+    // Filter matching a long string forces it open and disables its fold controls.
+    act(() => {
+      renderer.root.findByType('input').props.onChange({ target: { value: 'ceramic probes' } });
+    });
+    const forcedBodyChevron = renderer.root.findByProps({ 'aria-label': 'Collapse body' });
+    expect(forcedBodyChevron.props.disabled).toBe(true);
+    expect(forcedBodyChevron.props.onClick).toBeUndefined();
+    const forcedStringCollapsePill = renderer.root.findByProps({
+      'aria-label': 'Collapse string',
+    });
+    expect(forcedStringCollapsePill.props.disabled).toBe(true);
+    expect(forcedStringCollapsePill.props.onClick).toBeUndefined();
+
     // Escape when filter has text clears the filter and stops propagation so modal stays open.
     const stopNonEmpty = vi.fn();
     const preventNonEmpty = vi.fn();
     act(() => {
-      input.props.onKeyDown({
+      renderer.root.findByType('input').props.onKeyDown({
         key: 'Escape',
         stopPropagation: stopNonEmpty,
         preventDefault: preventNonEmpty,
@@ -332,7 +379,7 @@ describe('EventSourceViewer', () => {
     renderer.unmount();
   });
 
-  it('switches document tabs for encrypted edited events and supports Raw Prism JSON toggle', async () => {
+  it('provides accessible tabs, keyboard navigation, all-versions Copy All, and active-tab root copy', async () => {
     const i18n = await createTestI18n();
     const decryptedOriginal = {
       event_id: '$evt_enc_1',
@@ -348,15 +395,14 @@ describe('EventSourceViewer', () => {
       origin_server_ts: 1731500000000,
       content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'cipher-demo-1' },
     };
-    const edit = makeMockEvent({
-      event: {
-        event_id: '$evt_enc_2',
-        type: 'm.room.message',
-        sender: '@alex:example.org',
-        origin_server_ts: 1731500010000,
-        content: { msgtype: 'm.text', body: '* Updated valve closed' },
-      },
-    });
+    const editPayload = {
+      event_id: '$evt_enc_2',
+      type: 'm.room.message',
+      sender: '@alex:example.org',
+      origin_server_ts: 1731500010000,
+      content: { msgtype: 'm.text', body: '* Updated valve closed' },
+    };
+    const edit = makeMockEvent({ event: editPayload });
     const mEvent = makeMockEvent({
       event: encryptedEnvelope,
       encrypted: true,
@@ -364,12 +410,27 @@ describe('EventSourceViewer', () => {
       edit,
     });
 
+    const focusSpies: Record<string, ReturnType<typeof vi.fn>> = {
+      Original: vi.fn(),
+      'Latest edit': vi.fn(),
+      Encrypted: vi.fn(),
+    };
+
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
         <I18nextProvider i18n={i18n}>
           <EventSourceViewer name="Source Code" mEvent={mEvent} requestClose={vi.fn()} />
-        </I18nextProvider>
+        </I18nextProvider>,
+        {
+          createNodeMock: (element) => {
+            if (element.type === 'button' && element.props.role === 'tab') {
+              const label = String(element.props.children ?? '');
+              return { focus: focusSpies[label] ?? vi.fn() };
+            }
+            return null;
+          },
+        }
       );
     });
 
@@ -381,13 +442,58 @@ describe('EventSourceViewer', () => {
     const tabs = renderer.root.findAllByProps({ role: 'tab' });
     expect(tabs.map((tab) => collectText(tab))).toEqual(['Original', 'Latest edit', 'Encrypted']);
     expect(tabs[0]?.props['aria-selected']).toBe(true);
+    expect(tabs[0]?.props.tabIndex).toBe(0);
+    expect(tabs[1]?.props.tabIndex).toBe(-1);
 
-    // Switch to Latest edit tab.
+    const panel = renderer.root.findByProps({ role: 'tabpanel' });
+    expect(panel.props.id).toBe(tabs[0]?.props['aria-controls']);
+    expect(panel.props['aria-labelledby']).toBe(tabs[0]?.props.id);
+
+    // ArrowRight moves selection and focus to Latest edit; End jumps to Encrypted; Home jumps to Original.
     act(() => {
-      tabs[1]?.props.onClick();
+      tabs[0]?.props.onKeyDown({ key: 'ArrowRight', preventDefault: vi.fn() });
     });
+    expect(focusSpies['Latest edit']).toHaveBeenCalledTimes(1);
     expect(collectText(renderer.root)).toContain('$evt_enc_2');
     expect(collectText(renderer.root)).toContain('Updated valve closed');
+
+    // Root copy copies ONLY the active tab JSON (Latest edit).
+    const rootCopyBtn = renderer.root.findByProps({ 'aria-label': 'Copy value' });
+    await act(async () => {
+      rootCopyBtn.props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenLastCalledWith(JSON.stringify(editPayload, null, 2));
+
+    // Header Copy All copies ALL versions (encrypted + decrypted + edit) with origin/main parity.
+    const copyAllBtn = renderer.root
+      .findAllByType('button')
+      .find((b) => collectText(b) === 'Copy All');
+    await act(async () => {
+      copyAllBtn?.props.onClick();
+    });
+    const copiedAllPayload = copyToClipboard.mock.calls.at(-1)?.[0] ?? '';
+    expect(copiedAllPayload).toContain('"ciphertext": "cipher-demo-1"');
+    expect(copiedAllPayload).toContain('"body": "Initial valve open"');
+    expect(copiedAllPayload).toContain('"body": "* Updated valve closed"');
+
+    // End / Home keyboard navigation.
+    act(() => {
+      renderer.root.findAllByProps({ role: 'tab' })[1]?.props.onKeyDown({
+        key: 'End',
+        preventDefault: vi.fn(),
+      });
+    });
+    expect(focusSpies['Encrypted']).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findAllByProps({ role: 'tab' })[2]?.props['aria-selected']).toBe(true);
+
+    act(() => {
+      renderer.root.findAllByProps({ role: 'tab' })[2]?.props.onKeyDown({
+        key: 'Home',
+        preventDefault: vi.fn(),
+      });
+    });
+    expect(focusSpies['Original']).toHaveBeenCalledTimes(1);
+    expect(renderer.root.findAllByProps({ role: 'tab' })[0]?.props['aria-selected']).toBe(true);
 
     // Toggle Raw mode and verify Prism JSON token spans render.
     const rawBtn = renderer.root.findAllByType('button').find((b) => collectText(b) === 'Raw');
@@ -404,14 +510,130 @@ describe('EventSourceViewer', () => {
     renderer.unmount();
   });
 
-  it('defaults to Raw mode automatically when the JSON tree exceeds 5,000 nodes', async () => {
+  it('scopes Raw-mode overrides per document so toggling Raw on a small tab keeps auto-Raw on a >5,000-node tab', async () => {
     const i18n = await createTestI18n();
     const manyItems = Array.from({ length: 5005 }, (_, index) => index);
-    const mEvent = makeMockEvent({
+    const smallOriginal = {
+      event_id: '$evt_small_1',
+      type: 'm.room.message',
+      content: { body: 'compact original' },
+    };
+    const hugeEdit = makeMockEvent({
       event: {
-        event_id: '$evt_huge_1',
+        event_id: '$evt_huge_edit',
         type: 'm.room.message',
         content: { readings: manyItems },
+      },
+    });
+    const mEvent = makeMockEvent({ event: smallOriginal, edit: hugeEdit });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={mEvent} requestClose={vi.fn()} />
+        </I18nextProvider>
+      );
+    });
+
+    const getRawBtn = () =>
+      renderer.root.findAllByType('button').find((b) => collectText(b) === 'Raw');
+
+    // Toggle Raw ON then OFF on the small Original tab.
+    expect(getRawBtn()?.props['aria-pressed']).toBe(false);
+    act(() => {
+      getRawBtn()?.props.onClick();
+    });
+    expect(getRawBtn()?.props['aria-pressed']).toBe(true);
+    act(() => {
+      getRawBtn()?.props.onClick();
+    });
+    expect(getRawBtn()?.props['aria-pressed']).toBe(false);
+
+    // Switching to the >5,000-node Latest edit tab STILL auto-enables Raw mode.
+    const tabs = renderer.root.findAllByProps({ role: 'tab' });
+    act(() => {
+      tabs[1]?.props.onClick();
+    });
+    expect(getRawBtn()?.props['aria-pressed']).toBe(true);
+    expect(renderer.root.findAllByType('pre')).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('preserves __proto__, constructor, and hasOwnProperty identically in tree, Raw view, Copy All, and per-field copy', async () => {
+    const i18n = await createTestI18n();
+    const parsed = JSON.parse(
+      '{"content":{"body":"hi","__proto__":{"hidden":"payload"},"constructor":"c","hasOwnProperty":"h"}}'
+    ) as Record<string, unknown>;
+    const mEvent = makeMockEvent({ event: parsed });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={mEvent} requestClose={vi.fn()} />
+        </I18nextProvider>
+      );
+    });
+
+    // Tree view renders all three keys and nested payload.
+    const treeText = collectText(renderer.root);
+    expect(treeText).toContain('"__proto__":');
+    expect(treeText).toContain('"hidden": "payload"');
+    expect(treeText).toContain('"constructor": "c"');
+    expect(treeText).toContain('"hasOwnProperty": "h"');
+
+    // Per-field copy on __proto__ copies its formatted JSON object.
+    const copyProtoBtn = renderer.root.findByProps({ 'aria-label': 'Copy __proto__' });
+    await act(async () => {
+      copyProtoBtn.props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenLastCalledWith('{\n  "hidden": "payload"\n}');
+
+    // Per-field copy on constructor and hasOwnProperty copies their raw strings.
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': 'Copy constructor' }).props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenLastCalledWith('c');
+
+    await act(async () => {
+      renderer.root.findByProps({ 'aria-label': 'Copy hasOwnProperty' }).props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenLastCalledWith('h');
+
+    // Copy All preserves all three keys identically.
+    const copyAllBtn = renderer.root
+      .findAllByType('button')
+      .find((b) => collectText(b) === 'Copy All');
+    await act(async () => {
+      copyAllBtn?.props.onClick();
+    });
+    const copiedAll = copyToClipboard.mock.calls.at(-1)?.[0] ?? '';
+    expect(copiedAll).toContain('"__proto__"');
+    expect(copiedAll).toContain('"hidden": "payload"');
+    expect(copiedAll).toContain('"constructor": "c"');
+    expect(copiedAll).toContain('"hasOwnProperty": "h"');
+
+    // Raw view displays the exact same JSON.
+    const rawBtn = renderer.root.findAllByType('button').find((b) => collectText(b) === 'Raw');
+    act(() => {
+      rawBtn?.props.onClick();
+    });
+    const rawText = collectText(renderer.root.findByType('pre'));
+    expect(rawText).toBe(copiedAll);
+
+    renderer.unmount();
+  });
+
+  it('JSON-escapes quotes, backslashes, and newlines in tree view while per-field copy copies the raw string', async () => {
+    const i18n = await createTestI18n();
+    const specialValue = 'line 1\n"quoted" \\ end';
+    const mEvent = makeMockEvent({
+      event: {
+        event_id: '$evt_escape_1',
+        type: 'm.room.message',
+        content: { body: specialValue },
       },
     });
 
@@ -424,9 +646,167 @@ describe('EventSourceViewer', () => {
       );
     });
 
-    const rawBtn = renderer.root.findAllByType('button').find((b) => collectText(b) === 'Raw');
-    expect(rawBtn?.props['aria-pressed']).toBe(true);
-    expect(renderer.root.findAllByType('pre')).toHaveLength(1);
+    expect(collectText(renderer.root)).toContain('"line 1\\n\\"quoted\\" \\\\ end"');
+
+    const copyBodyBtn = renderer.root.findByProps({ 'aria-label': 'Copy body' });
+    await act(async () => {
+      copyBodyBtn.props.onClick();
+    });
+    expect(copyToClipboard).toHaveBeenLastCalledWith(specialValue);
+
+    renderer.unmount();
+  });
+
+  it('renders cleanly without throwing when origin_server_ts is out of Intl.DateTimeFormat range', async () => {
+    const i18n = await createTestI18n();
+    const mEvent = makeMockEvent({
+      event: {
+        event_id: '$evt_future_ts',
+        type: 'm.room.message',
+        sender: '@alex:example.org',
+        origin_server_ts: 9e15,
+        content: { body: 'far future reading' },
+      },
+    });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={mEvent} requestClose={vi.fn()} />
+        </I18nextProvider>
+      );
+    });
+
+    expect(collectText(renderer.root)).toContain('9000000000000000');
+    const copyTsMeta = renderer.root.findByProps({
+      'aria-label': 'Copy Time: 9000000000000000',
+    });
+    expect(copyTsMeta).toBeDefined();
+
+    renderer.unmount();
+  });
+
+  it('updates live when a real MatrixEvent emits Decrypted or Replaced while the viewer is open', async () => {
+    const i18n = await createTestI18n();
+    const liveEvent = new MatrixEvent({
+      event_id: '$evt_live_1',
+      room_id: '!greenhouse:example.org',
+      sender: '@alex:example.org',
+      type: 'm.room.encrypted',
+      origin_server_ts: 1731500000000,
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'live-cipher' },
+    });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={liveEvent} requestClose={vi.fn()} />
+        </I18nextProvider>
+      );
+    });
+
+    // Initially only encrypted wire event is present (no version tabs yet).
+    expect(renderer.root.findAllByProps({ role: 'tab' })).toHaveLength(0);
+    expect(collectText(renderer.root)).toContain('live-cipher');
+
+    // Decrypt live while mounted -> Decrypted + Encrypted tabs appear immediately.
+    await act(async () => {
+      await liveEvent.attemptDecryption({
+        decryptEvent: async () => ({
+          clearEvent: {
+            type: 'm.room.message',
+            content: { msgtype: 'm.text', body: 'Decrypted live body' },
+          },
+        }),
+      } as never);
+    });
+
+    expect(renderer.root.findAllByProps({ role: 'tab' }).map((tab) => collectText(tab))).toEqual([
+      'Decrypted',
+      'Encrypted',
+    ]);
+    expect(collectText(renderer.root)).toContain('Decrypted live body');
+
+    // Receive an edit live while mounted -> Original + Latest edit + Encrypted tabs appear immediately.
+    const liveEdit = new MatrixEvent({
+      event_id: '$evt_live_edit_2',
+      room_id: '!greenhouse:example.org',
+      sender: '@alex:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 1731500005000,
+      content: {
+        msgtype: 'm.text',
+        body: '* Live edited body',
+        'm.new_content': { msgtype: 'm.text', body: 'Live edited body' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$evt_live_1' },
+      },
+    });
+    act(() => {
+      liveEvent.makeReplaced(liveEdit);
+    });
+
+    const tabsAfterEdit = renderer.root.findAllByProps({ role: 'tab' });
+    expect(tabsAfterEdit.map((tab) => collectText(tab))).toEqual([
+      'Original',
+      'Latest edit',
+      'Encrypted',
+    ]);
+    // Original tab retains original plaintext.
+    expect(collectText(renderer.root)).toContain('Decrypted live body');
+
+    renderer.unmount();
+  });
+
+  it('scopes copied feedback per tab and ignores stale async copy completions after switching tabs', async () => {
+    const i18n = await createTestI18n();
+    let resolveCopy!: (value: boolean) => void;
+    copyToClipboard.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveCopy = resolve;
+        })
+    );
+
+    const original = {
+      event_id: '$evt_tab_copy_1',
+      type: 'm.room.message',
+      content: { body: 'original text' },
+    };
+    const edit = makeMockEvent({
+      event: {
+        event_id: '$evt_tab_copy_2',
+        type: 'm.room.message',
+        content: { body: 'edited text' },
+      },
+    });
+    const mEvent = makeMockEvent({ event: original, edit });
+
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={mEvent} requestClose={vi.fn()} />
+        </I18nextProvider>
+      );
+    });
+
+    // Start copying `body` on Original tab, then switch to Latest edit before clipboard resolves.
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Copy body' }).props.onClick();
+    });
+    act(() => {
+      renderer.root.findAllByProps({ role: 'tab' })[1]?.props.onClick();
+    });
+
+    await act(async () => {
+      resolveCopy(true);
+    });
+
+    // Latest edit's `Copy body` button must NOT be highlighted as copied.
+    const editCopyBodyBtn = renderer.root.findByProps({ 'aria-label': 'Copy body' });
+    expect(String(editCopyBodyBtn.props.className)).not.toContain('RowCopyBtnCopied');
 
     renderer.unmount();
   });
@@ -458,9 +838,11 @@ describe('EventSourceViewer', () => {
     expect(collectText(renderer.root)).toContain('@alex<U+202E>_admin<U+202C>:example.org');
     expect(collectText(renderer.root)).toContain('sensor <U+202E>spoof<U+202C> ok');
 
-    const copySenderMeta = renderer.root.findAllByProps({ 'aria-label': 'Copy sender' })[0];
+    const copySenderMeta = renderer.root.findByProps({
+      'aria-label': 'Copy Sender: @alex<U+202E>_admin<U+202C>:example.org',
+    });
     await act(async () => {
-      copySenderMeta?.props.onClick();
+      copySenderMeta.props.onClick();
     });
     expect(copyToClipboard).toHaveBeenCalledWith(rawSender);
 

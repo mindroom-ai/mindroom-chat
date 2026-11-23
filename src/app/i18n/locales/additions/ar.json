@@ -138,6 +138,7 @@
       "tabOriginal": "الأصلي",
       "tabLatestEdit": "آخر تعديل",
       "tabDecrypted": "مفكوك التشفير",
+      "tabDecryptionError": "فشل فك التشفير",
       "tabEncrypted": "مشفّر",
       "collapseAll": "طي",
       "expandAll": "توسيع",

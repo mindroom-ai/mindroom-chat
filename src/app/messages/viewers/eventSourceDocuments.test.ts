@@ -1,8 +1,9 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   buildEventSourceBundle,
   extractEventSummary,
+  isValidTimestampMs,
   safeStringifyJson,
 } from './eventSourceDocuments';
 
@@ -10,17 +11,23 @@ const makeMockEvent = (options: {
   event: Record<string, unknown>;
   encrypted?: boolean;
   effectiveEvent?: Record<string, unknown>;
+  originalContent?: Record<string, unknown>;
+  decryptionFailure?: boolean;
   edit?: MatrixEvent;
 }): MatrixEvent =>
   ({
     event: options.event,
     isEncrypted: () => Boolean(options.encrypted),
+    isDecryptionFailure: () => Boolean(options.decryptionFailure),
     getEffectiveEvent: () => options.effectiveEvent,
+    ...(options.originalContent !== undefined
+      ? { getOriginalContent: () => options.originalContent }
+      : {}),
     replacingEvent: () => options.edit,
   } as unknown as MatrixEvent);
 
 describe('buildEventSourceBundle', () => {
-  it('returns a single event document for a plain unedited event', () => {
+  it('returns a single event document for a plain unedited event with matching rawAll', () => {
     const raw = {
       event_id: '$evt_demo_1',
       room_id: '!garden:example.org',
@@ -35,12 +42,13 @@ describe('buildEventSourceBundle', () => {
     expect(bundle.isEdited).toBe(false);
     expect(bundle.isEncrypted).toBe(false);
     expect(bundle.docs).toHaveLength(1);
-    expect(bundle.docs[0]?.kind).toBe('event');
-    expect(bundle.docs[0]?.data).toEqual(raw);
-    expect(JSON.parse(bundle.docs[0]?.rawJson ?? '')).toEqual(raw);
+    expect(bundle.docs[0].kind).toBe('event');
+    expect(bundle.docs[0].data).toEqual(raw);
+    expect(JSON.parse(bundle.docs[0].rawJson)).toEqual(raw);
+    expect(bundle.rawAll).toBe(bundle.docs[0].rawJson);
   });
 
-  it('returns [decrypted, encrypted] for an encrypted event with a decrypted effective event', () => {
+  it('returns [decrypted, encrypted] for an encrypted event with origin/main rawAll parity', () => {
     const encryptedRaw = {
       event_id: '$evt_enc_1',
       type: 'm.room.encrypted',
@@ -67,7 +75,45 @@ describe('buildEventSourceBundle', () => {
     expect(bundle.isEncrypted).toBe(true);
     expect(bundle.isEdited).toBe(false);
     expect(bundle.docs.map((doc) => doc.kind)).toEqual(['decrypted', 'encrypted']);
-    expect(bundle.docs[0]?.data).toEqual(decryptedRaw);
+    expect(bundle.docs[0].data).toEqual(decryptedRaw);
+    expect(bundle.docs[1]?.data).toEqual(encryptedRaw);
+    expect(JSON.parse(bundle.rawAll)).toEqual({
+      encrypted: encryptedRaw,
+      decrypted: decryptedRaw,
+    });
+  });
+
+  it('labels failed decryption honestly as decryptionError instead of decrypted', () => {
+    const encryptedRaw = {
+      event_id: '$evt_bad_dec_1',
+      type: 'm.room.encrypted',
+      sender: '@alex:example.org',
+      origin_server_ts: 1731500001500,
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'Unreadable...' },
+    };
+    const badDecrypted = {
+      event_id: '$evt_bad_dec_1',
+      type: 'm.room.message',
+      sender: '@alex:example.org',
+      origin_server_ts: 1731500001500,
+      content: {
+        msgtype: 'm.bad.encrypted',
+        body: '** Unable to decrypt: The sender has not sent us the key **',
+      },
+    };
+
+    const bundle = buildEventSourceBundle(
+      makeMockEvent({
+        event: encryptedRaw,
+        encrypted: true,
+        decryptionFailure: true,
+        effectiveEvent: badDecrypted,
+      })
+    );
+
+    expect(bundle.isEncrypted).toBe(true);
+    expect(bundle.docs.map((doc) => doc.kind)).toEqual(['decryptionError', 'encrypted']);
+    expect(bundle.docs[0].data).toEqual(badDecrypted);
     expect(bundle.docs[1]?.data).toEqual(encryptedRaw);
   });
 
@@ -90,9 +136,10 @@ describe('buildEventSourceBundle', () => {
 
     expect(bundle.isEncrypted).toBe(true);
     expect(bundle.docs.map((doc) => doc.kind)).toEqual(['encrypted']);
+    expect(bundle.rawAll).toBe(bundle.docs[0].rawJson);
   });
 
-  it('returns [original, latestEdit] for a plain edited event', () => {
+  it('returns [original, latestEdit] for a plain edited event with combined rawAll', () => {
     const original = {
       event_id: '$evt_orig_1',
       type: 'm.room.message',
@@ -100,72 +147,127 @@ describe('buildEventSourceBundle', () => {
       origin_server_ts: 1731500003000,
       content: { msgtype: 'm.text', body: 'Temp is 21C' },
     };
-    const edit = makeMockEvent({
-      event: {
-        event_id: '$evt_edit_1',
-        type: 'm.room.message',
-        sender: '@alex:example.org',
-        origin_server_ts: 1731500009000,
-        content: {
-          msgtype: 'm.text',
-          body: '* Temp is 22C',
-          'm.new_content': { msgtype: 'm.text', body: 'Temp is 22C' },
-        },
+    const editRaw = {
+      event_id: '$evt_edit_1',
+      type: 'm.room.message',
+      sender: '@alex:example.org',
+      origin_server_ts: 1731500009000,
+      content: {
+        msgtype: 'm.text',
+        body: '* Temp is 22C',
+        'm.new_content': { msgtype: 'm.text', body: 'Temp is 22C' },
       },
-    });
+    };
+    const edit = makeMockEvent({ event: editRaw });
 
     const bundle = buildEventSourceBundle(makeMockEvent({ event: original, edit }));
 
     expect(bundle.isEdited).toBe(true);
     expect(bundle.isEncrypted).toBe(false);
     expect(bundle.docs.map((doc) => doc.kind)).toEqual(['original', 'latestEdit']);
-    expect(bundle.docs[0]?.data).toEqual(original);
+    expect(bundle.docs[0].data).toEqual(original);
     expect((bundle.docs[1]?.data as Record<string, unknown>).event_id).toBe('$evt_edit_1');
+    expect(bundle.rawAll).toBe(
+      `${JSON.stringify(original, null, 2)}\n\n${JSON.stringify(editRaw, null, 2)}`
+    );
   });
 
-  it('returns [original, latestEdit, encrypted] for an encrypted edited event', () => {
-    const encryptedOriginal = {
-      event_id: '$evt_enc_edit_orig',
+  it('keeps the true original decrypted plaintext on real MatrixEvent instances after makeReplaced()', async () => {
+    const originalEvent = new MatrixEvent({
+      event_id: '$evt_real_enc_orig',
+      room_id: '!greenhouse:example.org',
+      sender: '@alex:example.org',
       type: 'm.room.encrypted',
-      sender: '@alex:example.org',
       origin_server_ts: 1731500010000,
-      content: { ciphertext: 'orig-cipher' },
-    };
-    const decryptedOriginal = {
-      event_id: '$evt_enc_edit_orig',
-      type: 'm.room.message',
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'orig-cipher-payload' },
+    });
+    await originalEvent.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: {
+          type: 'm.room.message',
+          content: { msgtype: 'm.text', body: 'Original valve reading: 18C' },
+        },
+      }),
+    } as never);
+
+    const editEvent = new MatrixEvent({
+      event_id: '$evt_real_enc_edit',
+      room_id: '!greenhouse:example.org',
       sender: '@alex:example.org',
-      origin_server_ts: 1731500010000,
-      content: { msgtype: 'm.text', body: 'First reading' },
-    };
-    const decryptedEdit = {
-      event_id: '$evt_enc_edit_2',
-      type: 'm.room.message',
-      sender: '@alex:example.org',
+      type: 'm.room.encrypted',
       origin_server_ts: 1731500020000,
-      content: { msgtype: 'm.text', body: '* Revised reading' },
-    };
-    const edit = makeMockEvent({
-      event: { event_id: '$evt_enc_edit_2', type: 'm.room.encrypted', content: {} },
-      encrypted: true,
-      effectiveEvent: decryptedEdit,
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'edit-cipher-payload' },
+    });
+    await editEvent.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: {
+          type: 'm.room.message',
+          content: {
+            msgtype: 'm.text',
+            body: '* Revised valve reading: 24C',
+            'm.new_content': { msgtype: 'm.text', body: 'Revised valve reading: 24C' },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$evt_real_enc_orig' },
+          },
+        },
+      }),
+    } as never);
+
+    originalEvent.makeReplaced(editEvent);
+
+    // Confirm matrix-js-sdk itself replaces getEffectiveEvent().content with the edited text.
+    expect(originalEvent.getEffectiveEvent().content).toMatchObject({
+      body: 'Revised valve reading: 24C',
     });
 
-    const bundle = buildEventSourceBundle(
-      makeMockEvent({
-        event: encryptedOriginal,
-        encrypted: true,
-        effectiveEvent: decryptedOriginal,
-        edit,
-      })
-    );
-
+    const bundle = buildEventSourceBundle(originalEvent);
     expect(bundle.isEdited).toBe(true);
     expect(bundle.isEncrypted).toBe(true);
     expect(bundle.docs.map((doc) => doc.kind)).toEqual(['original', 'latestEdit', 'encrypted']);
-    expect(bundle.docs[0]?.data).toEqual(decryptedOriginal);
-    expect(bundle.docs[1]?.data).toEqual(decryptedEdit);
-    expect(bundle.docs[2]?.data).toEqual(encryptedOriginal);
+
+    const originalDocData = bundle.docs[0].data as Record<string, unknown>;
+    const editDocData = bundle.docs[1]?.data as Record<string, unknown>;
+    const encryptedDocData = bundle.docs[2]?.data as Record<string, unknown>;
+
+    expect(originalDocData.event_id).toBe('$evt_real_enc_orig');
+    expect(originalDocData.type).toBe('m.room.message');
+    expect(originalDocData.content).toEqual({
+      msgtype: 'm.text',
+      body: 'Original valve reading: 18C',
+    });
+    expect(editDocData.event_id).toBe('$evt_real_enc_edit');
+    expect((editDocData.content as Record<string, unknown>).body).toBe(
+      '* Revised valve reading: 24C'
+    );
+    expect(encryptedDocData.type).toBe('m.room.encrypted');
+
+    const [encryptedPairRaw, editRawPart] = bundle.rawAll.split('\n\n');
+    expect(JSON.parse(encryptedPairRaw ?? '')).toEqual({
+      encrypted: encryptedDocData,
+      decrypted: originalDocData,
+    });
+    expect(JSON.parse(editRawPart ?? '')).toEqual(editDocData);
+  });
+
+  it('preserves __proto__, constructor, and hasOwnProperty keys identically in data, rawJson, and rawAll', () => {
+    const parsed = JSON.parse(
+      '{"event_id":"$evt_proto_1","type":"m.room.message","content":{"body":"hi","__proto__":{"hidden":"payload"},"constructor":"c","hasOwnProperty":"h"}}'
+    ) as Record<string, unknown>;
+
+    const bundle = buildEventSourceBundle(makeMockEvent({ event: parsed }));
+    const doc = bundle.docs[0];
+    const content = (doc.data as Record<string, unknown>).content as Record<string, unknown>;
+
+    expect(Object.getPrototypeOf(doc.data)).toBeNull();
+    expect(Object.getPrototypeOf(content)).toBeNull();
+    expect(Object.keys(content)).toEqual(['body', '__proto__', 'constructor', 'hasOwnProperty']);
+    expect(content['__proto__']).toEqual({ hidden: 'payload' });
+    expect(content['constructor']).toBe('c');
+    expect(content['hasOwnProperty']).toBe('h');
+
+    expect(doc.rawJson).toContain('"__proto__": {\n      "hidden": "payload"\n    }');
+    expect(doc.rawJson).toContain('"constructor": "c"');
+    expect(doc.rawJson).toContain('"hasOwnProperty": "h"');
+    expect(bundle.rawAll).toBe(doc.rawJson);
   });
 });
 
@@ -188,8 +290,8 @@ describe('safeStringifyJson', () => {
   });
 });
 
-describe('extractEventSummary', () => {
-  it('extracts valid Matrix metadata fields and ignores malformed ones', () => {
+describe('extractEventSummary and isValidTimestampMs', () => {
+  it('extracts valid Matrix metadata fields, keeps out-of-range finite timestamps, and ignores malformed ones', () => {
     expect(
       extractEventSummary({
         event_id: '$evt_demo_1',
@@ -203,6 +305,20 @@ describe('extractEventSummary', () => {
       sender: '@alex:example.org',
       timestamp: 1731500000000,
     });
+
+    expect(
+      extractEventSummary({
+        event_id: '$evt_far_future',
+        origin_server_ts: 9e15,
+      })
+    ).toEqual({
+      eventId: '$evt_far_future',
+      type: undefined,
+      sender: undefined,
+      timestamp: 9e15,
+    });
+    expect(isValidTimestampMs(9e15)).toBe(false);
+    expect(isValidTimestampMs(1731500000000)).toBe(true);
 
     expect(
       extractEventSummary({

@@ -180,13 +180,17 @@ const check = async (page: Page, world: World, label: string, canRead: boolean) 
   // View Source of the plain message.
   await openMessageMenu(page, row(page, world.plainId), 'Rename', label.endsWith('phone'));
   await page.getByRole('menuitem', { name: 'View Source' }).click({ timeout: 30_000 });
-  const source = page.locator('pre.language-json');
-  await expect(source).toBeVisible({ timeout: 30_000 });
-  await expectShown(source, `"body": "${PLAIN_SHOWN}"`);
+  const sourceDialog = page.getByRole('dialog').filter({ has: page.getByText('Source Code') });
+  await expect(sourceDialog).toBeVisible({ timeout: 30_000 });
+  await expectShown(sourceDialog, `"body": "${PLAIN_SHOWN}"`);
   await shot(page, `${label}-view-source`);
   if (canRead) await expectCopyAll(page, (text) => text.includes(`"body": "${PLAIN}"`));
+  await sourceDialog.getByRole('button', { name: 'Raw' }).click();
+  const rawPre = sourceDialog.locator('pre.language-json');
+  await expect(rawPre).toBeVisible({ timeout: 30_000 });
+  await expectShown(rawPre, `"body": "${PLAIN_SHOWN}"`);
   await page.keyboard.press('Escape');
-  await expect(source).toBeHidden();
+  await expect(sourceDialog).toBeHidden();
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
