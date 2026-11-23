@@ -1,6 +1,18 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { getConnectPath } from '../routes/pathUtils';
+import { isRoomAlias, isRoomId } from '../lib/matrixIds';
+import {
+  getActivityRoomPath,
+  getConnectPath,
+  getDirectRoomPath,
+  getHomeRoomPath,
+  getSpaceLobbyPath,
+  getSpacePath,
+  getSpaceRoomPath,
+  getThreadsRoomPath,
+  withSearchParam,
+} from '../routes/pathUtils';
+import { NATIVE_APP_WEB_ORIGIN } from './nativeAppOrigin';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
@@ -127,7 +139,99 @@ export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
   return true;
 };
 
-const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
+// eslint-disable-next-line no-control-regex
+const ASCII_CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+
+const SECTION_ROOM_PATH_BUILDERS: Record<
+  string,
+  (roomIdOrAlias: string, eventId?: string) => string
+> = {
+  home: getHomeRoomPath,
+  direct: getDirectRoomPath,
+  threads: getThreadsRoomPath,
+  activity: getActivityRoomPath,
+};
+
+const decodeUniversalLinkSegment = (segment: string): string | undefined => {
+  if (!segment) return undefined;
+  try {
+    const decoded = decodeURIComponent(segment);
+    if (!decoded || ASCII_CONTROL_CHARS.test(decoded)) return undefined;
+    return decoded;
+  } catch {
+    return undefined;
+  }
+};
+
+const isRoomOrAlias = (value: string): boolean =>
+  !ASCII_CONTROL_CHARS.test(value) && (isRoomId(value) || isRoomAlias(value));
+
+const isEventId = (value: string): boolean =>
+  !ASCII_CONTROL_CHARS.test(value) && /^\$\S+$/.test(value);
+
+const readSafeViaServers = (searchParams: URLSearchParams): string[] => {
+  const rawValues = [
+    ...searchParams.getAll('via'),
+    ...searchParams.getAll('viaServers').flatMap((value) => value.split(',')),
+  ];
+  const servers: string[] = [];
+  const seen = new Set<string>();
+  for (const value of rawValues) {
+    if (!value || /[\s,]/.test(value) || ASCII_CONTROL_CHARS.test(value) || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    servers.push(value);
+  }
+  return servers;
+};
+
+const resolveUniversalLinkBaseRoute = (
+  segments: readonly string[]
+): { basePath: string; isLobby: boolean } | undefined => {
+  const [first, second, third] = segments;
+  if (!first) return undefined;
+
+  if (Object.hasOwn(SECTION_ROOM_PATH_BUILDERS, first)) {
+    const buildSectionRoomPath = SECTION_ROOM_PATH_BUILDERS[first];
+    if (!buildSectionRoomPath || !second || !isRoomOrAlias(second)) return undefined;
+    if (segments.length === 2) {
+      return { basePath: buildSectionRoomPath(second), isLobby: false };
+    }
+    if (segments.length === 3 && third && isEventId(third)) {
+      return { basePath: buildSectionRoomPath(second, third), isLobby: false };
+    }
+    return undefined;
+  }
+
+  if (!isRoomOrAlias(first)) return undefined;
+
+  if (segments.length === 1) {
+    return { basePath: getSpacePath(first), isLobby: false };
+  }
+
+  if (segments.length === 2 && second) {
+    if (isEventId(second)) {
+      return { basePath: getSpaceRoomPath(first, second), isLobby: false };
+    }
+    if (second === 'lobby') {
+      return { basePath: getSpaceLobbyPath(first), isLobby: true };
+    }
+    if (isRoomOrAlias(second)) {
+      return { basePath: getSpaceRoomPath(first, second), isLobby: false };
+    }
+    return undefined;
+  }
+
+  if (segments.length === 3 && second && third && isRoomOrAlias(second) && isEventId(third)) {
+    return { basePath: getSpaceRoomPath(first, second, third), isLobby: false };
+  }
+
+  return undefined;
+};
+
+export const getAppPathFromUniversalLink = (incomingUrl: string): string | undefined => {
+  if (incomingUrl.split(/[?#]/, 1)[0]?.includes('\\')) return undefined;
   let url: URL;
   try {
     url = new URL(incomingUrl);
@@ -135,14 +239,44 @@ const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
     return undefined;
   }
   if (
-    url.origin !== 'https://chat.mindroom.chat' ||
+    url.origin !== NATIVE_APP_WEB_ORIGIN ||
     url.username ||
     url.password ||
-    (url.pathname !== '/connect' && url.pathname !== '/connect/')
+    url.pathname.includes('//') ||
+    url.pathname.includes('\\')
   ) {
     return undefined;
   }
-  return getConnectPath(url.searchParams.get('code') ?? undefined);
+  if (url.pathname === '/connect' || url.pathname === '/connect/') {
+    return getConnectPath(url.searchParams.get('code') ?? undefined);
+  }
+
+  const pathname = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
+  if (!pathname.startsWith('/')) return undefined;
+  const rawSegments = pathname.slice(1).split('/');
+  if (rawSegments.length < 1 || rawSegments.length > 3) return undefined;
+
+  const segments: string[] = [];
+  for (const rawSegment of rawSegments) {
+    const decoded = decodeUniversalLinkSegment(rawSegment);
+    if (!decoded) return undefined;
+    segments.push(decoded);
+  }
+
+  const route = resolveUniversalLinkBaseRoute(segments);
+  if (!route) return undefined;
+
+  const viaServers = readSafeViaServers(url.searchParams);
+  const rawThreadId = url.searchParams.get('threadId');
+  const threadId =
+    !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const focusEvent = !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined;
+
+  return withSearchParam(route.basePath, {
+    viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
+    threadId,
+    focusEvent,
+  });
 };
 
 // Capacitor keeps returning the last opened URL from `getLaunchUrl()` after the
@@ -163,7 +297,7 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
   let handledOpenUrl = false;
   const handleNativeAppUrl = (url: string): boolean => {
     if (routeNativeSsoCallback(url)) return true;
-    const appPath = getAppPathFromPairingUrl(url);
+    const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
       navigateNativeAppPath(appPath);
       return true;

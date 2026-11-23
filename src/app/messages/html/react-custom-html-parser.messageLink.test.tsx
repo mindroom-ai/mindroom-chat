@@ -90,6 +90,17 @@ describe('links to messages', () => {
     expect(linkOf(root).props['data-mention-event-id']).toBe(PLAIN_ID);
   });
 
+  it('renders canonical Universal Links as MessageLinkPill even on another origin', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}/${PLAIN_ID}?via=example.org`;
+    const root = render(mention(href));
+    expect(textOf(root)).toBe('Message in #Harbor operations');
+    expect(linkOf(root).props.title).toBe(href);
+    expect(linkOf(root).props.className).toBe('Mention MessageLinkPill');
+    expect(linkOf(root).props['data-mention-id']).toBe(ROOM_ID);
+    expect(linkOf(root).props['data-mention-event-id']).toBe(PLAIN_ID);
+    expect(linkOf(root).props['data-mention-via']).toBe('example.org');
+  });
+
   it('say thread for a thread root or a reply the client knows', () => {
     expect(textOf(render(mention(LINK(ROOM_ID, ROOT_ID))))).toBe('Thread in #Harbor operations');
     expect(textOf(render(mention(LINK(ROOM_ID, REPLY_ID))))).toBe('Thread in #Harbor operations');

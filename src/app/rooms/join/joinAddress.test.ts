@@ -28,6 +28,22 @@ describe('parseJoinAddress', () => {
     });
   });
 
+  it('reads canonical Universal Links to a room or event with routing servers', () => {
+    expect(
+      parseJoinAddress('https://chat.mindroom.chat/!abc123:example.org?via=example.org')
+    ).toEqual({
+      roomIdOrAlias: '!abc123:example.org',
+      viaServers: ['example.org'],
+    });
+    expect(
+      parseJoinAddress('https://chat.mindroom.chat/!abc123:example.org/$event1?via=example.org')
+    ).toEqual({
+      roomIdOrAlias: '!abc123:example.org',
+      eventId: '$event1',
+      viaServers: ['example.org'],
+    });
+  });
+
   it('leaves search words, half-typed aliases, users and other links as a search', () => {
     ['lounge', '#lounge', 'lounge:example.org', '@ada:example.org', 'https://example.org/#/x', '']
       .concat(['https://matrix.to/#/@ada:example.org'])

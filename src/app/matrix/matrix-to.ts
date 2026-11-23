@@ -1,5 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { appUrl, getAppBasePath } from '../lib/basePath';
+import { NATIVE_APP_WEB_ORIGIN } from '../native/nativeAppOrigin';
+
+export { NATIVE_APP_WEB_ORIGIN };
 
 declare global {
   /** The path the app is served under, set by the bootstrap script (`src/boot/runtimeConfig.ts`). */
@@ -9,10 +12,11 @@ declare global {
 
 // Links to users go to matrix.to, which every Matrix client understands. Links to rooms and
 // events open this app on the current web origin (`<origin><base>/<room>/<event>?via=...`), so a
-// copied link brings the reader straight back to the message; on native Capacitor shells (iOS
-// `capacitor://localhost`, Android `https://localhost`) or without an `http:`/`https:` page
-// origin (such as `file:` or no `location`), they fall back to matrix.to so the link stays
-// portable.
+// copied link brings the reader straight back to the message; on native Capacitor shells (iOS,
+// Mac Catalyst, Android) they use `NATIVE_APP_WEB_ORIGIN` so Universal Links open the native app
+// and fall back to the web app when it is not installed; without an `http:`/`https:` page origin
+// (such as `file:`, non-native `capacitor:`, or no `location`), they fall back to matrix.to so
+// the link stays portable.
 
 const MATRIX_TO_ORIGIN = 'https://matrix.to';
 
@@ -26,7 +30,7 @@ const viaQuery = (viaServers?: string[]): string =>
     : '';
 
 const appLink = (path: string): string => {
-  if (Capacitor.isNativePlatform()) return `${MATRIX_TO_ORIGIN}/#/${path}`;
+  if (Capacitor.isNativePlatform()) return `${NATIVE_APP_WEB_ORIGIN}/${path}`;
   const location = globalThis.location;
   const origin =
     (location?.protocol === 'http:' || location?.protocol === 'https:') &&
@@ -120,13 +124,30 @@ const parsePermalink = (href: string): Permalink | undefined => {
       ? fromPathAndQuery(fragment, '')
       : fromPathAndQuery(fragment.slice(0, queryStart), fragment.slice(queryStart + 1));
   }
-  if (typeof window === 'undefined' || url.origin !== window.location.origin) return undefined;
-  const base = getAppBasePath();
-  const prefix = base === '/' ? '/' : `${base}/`;
-  if (!url.pathname.startsWith(prefix)) return undefined;
-  const permalink = fromPathAndQuery(url.pathname.slice(prefix.length), url.search.slice(1));
-  // App links name a room or a user first; any other path is a page of the app.
-  return permalink && /^[!#@]/.test(permalink.identifier) ? permalink : undefined;
+  if (url.username || url.password) return undefined;
+  const isCurrentOrigin = typeof window !== 'undefined' && url.origin === window.location.origin;
+  const isNativeWebOrigin = url.origin === NATIVE_APP_WEB_ORIGIN;
+  if (!isCurrentOrigin && !isNativeWebOrigin) return undefined;
+
+  let relativePath: string | undefined;
+  if (isCurrentOrigin) {
+    const base = getAppBasePath();
+    const prefix = base === '/' ? '/' : `${base}/`;
+    if (url.pathname.startsWith(prefix)) {
+      relativePath = url.pathname.slice(prefix.length);
+    }
+  }
+  if (relativePath === undefined && isNativeWebOrigin && url.pathname.startsWith('/')) {
+    relativePath = url.pathname.slice(1);
+  }
+  if (relativePath === undefined) return undefined;
+
+  const permalink = fromPathAndQuery(relativePath, url.search.slice(1));
+  // App links name a room or a user first, and any second segment must be an event ID so space
+  // sub-routes such as `/!space:example.org/lobby` are not misread as event permalinks.
+  if (!permalink || !/^[!#@]/.test(permalink.identifier)) return undefined;
+  if (permalink.eventId && !permalink.eventId.startsWith('$')) return undefined;
+  return permalink;
 };
 
 /** Whether `href` is a Matrix permalink: matrix.to, a `matrix:` URI or a link into this app. */
