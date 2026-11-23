@@ -104,7 +104,8 @@ struct ThreadView: View {
                         .labelStyle(.iconOnly)
                         .foregroundStyle(WatchTheme.tealInk)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.circle)
                 .tint(WatchTheme.teal)
             }
         }

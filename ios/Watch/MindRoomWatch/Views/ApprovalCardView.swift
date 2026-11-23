@@ -9,7 +9,7 @@ struct ApprovalCardView: View {
     let decide: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "lock.shield.fill")
                     .font(.footnote)
@@ -43,7 +43,7 @@ struct ApprovalCardView: View {
                         }
                     }
                 }
-                .padding(6)
+                .padding(5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -90,9 +90,9 @@ struct ApprovalCardView: View {
                 StatusPill(text: "Expired", foreground: .secondary, background: Color.white.opacity(0.10), systemImage: "clock")
             }
         }
-        .padding(.leading, card.status == .pending ? 12 : 10)
-        .padding(.trailing, 10)
-        .padding(.vertical, 9)
+        .padding(.leading, card.status == .pending ? 10 : 8)
+        .padding(.trailing, 8)
+        .padding(.vertical, 7)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             GlassCardBackground(
