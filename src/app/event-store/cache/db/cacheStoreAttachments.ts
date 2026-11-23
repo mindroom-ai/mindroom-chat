@@ -20,6 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
+import { invalidateEvictionVerdict } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -439,12 +440,14 @@ export const setRoomAttachmentPinned = async (
   const lease = captureCacheStoreWriteLease(sessionId, roomId);
   const db = await openCacheStore(sessionId);
   if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return;
+  let changed = false;
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
     const ledger = transaction.objectStore(ROOM_LEDGER_STORE);
     const request = ledger.get(roomId);
     request.onsuccess = () => {
       const previous = request.result as CachedRoomLedgerRecord | undefined;
+      changed = (previous?.pinned === true) !== pinned;
       ledger.put({
         ...previous,
         roomId,
@@ -454,7 +457,10 @@ export const setRoomAttachmentPinned = async (
         lastActivityTs: previous?.lastActivityTs ?? 0,
       });
     };
-    transaction.oncomplete = () => resolve();
+    transaction.oncomplete = () => {
+      if (changed) invalidateEvictionVerdict(sessionId);
+      resolve();
+    };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
