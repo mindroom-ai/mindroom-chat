@@ -258,9 +258,6 @@
       "newIntro": "Choose a new recovery password. The old one stops working.",
       "notCached": "This session does not hold every encryption key. Verify it with your recovery password or another device, then try again.",
       "incompleteError": "The new recovery password does not cover every encryption key yet. Try again.",
-      "nudgeTitle": "Protect your messages",
-      "nudgeBody": "Set a recovery password so you can still read your encrypted chats after clearing this browser or signing in on a new device.",
-      "nudgeButton": "Set up recovery password",
       "unlockWithPassword": "Unlock with recovery password",
       "resetLoss": "Messages this device cannot read now stay unreadable. Your other sessions need to be verified again.",
       "setupCheckFailed": "Couldn't check your encryption setup.",
@@ -1819,5 +1816,40 @@
     "cancellationSent": "Cancellation sent",
     "editDraftBusy": "Clear your current draft before editing this schedule.",
     "copyFailed": "Could not copy. Select the Task ID in Details."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Good morning, {{name}}",
+      "afternoon": "Good afternoon, {{name}}",
+      "evening": "Good evening, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Ask {{name}} anything…",
+      "chooseAgent": "Choose who answers",
+      "agentChoice": "{{name}} answers",
+      "chooseRoom": "Choose where the thread starts",
+      "roomChoice": "In {{room}}",
+      "inRoom": "in <avatar/>{{room}}",
+      "directChat": "Direct chat",
+      "startsDirectChat": "Starts a chat with {{name}}",
+      "startingDirectChat": "Starting a chat with {{name}}…",
+      "directChatFailed": "Could not start a chat with {{name}}. Try again.",
+      "waitingForAgent": "Waiting for {{name}} to join the chat…",
+      "notSent": "Not sent to {{agent}} in {{room}}",
+      "chooseAgain": "That choice no longer works. Your text is kept: choose who answers, or where."
+    },
+    "recent": {
+      "title": "Recent threads",
+      "allThreads": "All threads",
+      "unread": "Unread"
+    },
+    "recovery": {
+      "action": "Set up a recovery password",
+      "text": "Keep access to encrypted chats on a new device."
+    },
+    "device": {
+      "action": "Verify this device",
+      "text": "Until then it cannot read your encrypted chats."
+    }
   }
 }

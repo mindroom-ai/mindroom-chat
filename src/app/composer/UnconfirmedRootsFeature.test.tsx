@@ -25,9 +25,7 @@ const draftAtom = (threadId?: string) =>
 function ShownDraft({ threadId }: { threadId: string }) {
   useRoomInputDraft(
     React.useMemo(() => createEditor(), []),
-    USER,
-    ROOM,
-    threadId
+    getRoomInputDraftKey(USER, ROOM, threadId)
   );
   return null;
 }

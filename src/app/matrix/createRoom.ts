@@ -217,12 +217,17 @@ export const findDirectRoom = (client: MatrixClient, userId: string): string | u
 /**
  * Starts a direct chat with `userId` and returns its room ID: a private room that invites them
  * with the invite marked `is_direct`, encrypted unless `encryption` is false, then listed under
- * them in the account's `m.direct`. `version` is the room version the server will use.
+ * them in the account's `m.direct`. `version` is the room version the server will use;
+ * `onCreated` hears of the room before it is listed, which may fail.
  */
 export const createDirectRoom = async (
   client: MatrixClient,
   userId: string,
-  { encryption = true, version }: { encryption?: boolean; version?: string } = {}
+  {
+    encryption = true,
+    version,
+    onCreated,
+  }: { encryption?: boolean; version?: string; onCreated?: (roomId: string) => void } = {}
 ): Promise<string> => {
   const { room_id: roomId } = await client.createRoom({
     invite: [userId],
@@ -235,6 +240,7 @@ export const createDirectRoom = async (
     // invited later publishes its state.
     power_level_content_override: createRoomPowerLevelsOverride(version),
   });
+  onCreated?.(roomId);
   await addRoomIdToMDirect(client, roomId, userId);
   return roomId;
 };
