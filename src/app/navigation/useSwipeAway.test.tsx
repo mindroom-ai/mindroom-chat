@@ -75,4 +75,53 @@ describe('useSwipeAway', () => {
     touch(row, 'touchcancel');
     expect(onSwipe).toHaveBeenCalledTimes(1);
   });
+
+  it('leaves the drag of the account quick switcher alone', () => {
+    const { onSwipe, row } = setup('start');
+    const quickMenu = document.createElement('div');
+    quickMenu.setAttribute('role', 'menu');
+    quickMenu.setAttribute('data-quick-account-menu', '');
+
+    try {
+      // A finger holds the avatar in the panel, the quick menu opens, and the finger drags
+      // toward the panel's edge to an account; the menu closes as it lifts.
+      touch(row, 'touchstart', { x: 200, y: 300 });
+      document.body.append(quickMenu);
+      touch(row, 'touchmove', { x: 100, y: 300 });
+      quickMenu.remove();
+      touch(row, 'touchend');
+      expect(onSwipe).not.toHaveBeenCalled();
+
+      // The same while the menu is still open at the lift, and for a touch that starts under it.
+      touch(row, 'touchstart', { x: 200, y: 300 });
+      document.body.append(quickMenu);
+      touch(row, 'touchmove', { x: 100, y: 300 });
+      touch(row, 'touchend');
+      swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+      expect(onSwipe).not.toHaveBeenCalled();
+
+      // Once it is gone the panel swipes away again.
+      quickMenu.remove();
+      swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+      expect(onSwipe).toHaveBeenCalledTimes(1);
+    } finally {
+      quickMenu.remove();
+    }
+  });
+
+  it.each(['alertdialog', 'menu', 'dialog'])(
+    'still swipes away while another layer is open, such as an incoming-call card (%s)',
+    (role) => {
+      const { onSwipe, row } = setup('start');
+      const layer = document.createElement('div');
+      layer.setAttribute('role', role);
+      document.body.append(layer);
+      try {
+        swipe(row, { x: 200, y: 300 }, { x: 100, y: 300 });
+        expect(onSwipe).toHaveBeenCalledTimes(1);
+      } finally {
+        layer.remove();
+      }
+    }
+  );
 });

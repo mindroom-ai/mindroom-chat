@@ -23,18 +23,35 @@ import {
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
 import { useRoomRouteParams } from './useRoomRouteParams';
+import { isJoinedRoom } from './routeVisibility';
 import { currentHistoryLocation } from '../routes/historyStack';
 
 /**
- * The top-level space to open a room in: the first root space found walking up from the room,
- * where a root space is one no other space contains. Falls back to the nearest space above the
- * room when the tree has a cycle. The chat rooms a sub-room sits under are no spaces.
+ * Whether a room the client holds is known not to be joined: invited, left, or removed from. A
+ * room it does not hold, or one that tells no membership, is not.
+ */
+const isKnownUnjoined = (room: ReturnType<MatrixClient['getRoom']>): boolean =>
+  !!room?.getMyMembership?.() && !isJoinedRoom(room);
+
+/**
+ * The top-level space to open a room in: the first of the joined spaces above the room that no
+ * other of them contains, walking up from the room. A space the account left stays in the tree
+ * while the client holds it, and is never the one: its own page is its join page, which would
+ * take the room's place. Falls back to the nearest joined space above the room when the tree has
+ * a cycle. The chat rooms a sub-room sits under are no spaces.
  */
 const getRoomTopSpace = (mx: MatrixClient, parentsByRoom: RoomToParents, roomId: string) => {
-  const spaceIds = getAncestorSpaceIds(parentsByRoom, roomId).filter(
-    (id) => mx.getRoom(id)?.isSpaceRoom() === true
-  );
-  return spaceIds.find((spaceId) => (parentsByRoom.get(spaceId)?.size ?? 0) === 0) ?? spaceIds[0];
+  const spaceIds = getAncestorSpaceIds(parentsByRoom, roomId).filter((id) => {
+    const space = mx.getRoom(id);
+    return space?.isSpaceRoom() === true && !isKnownUnjoined(space);
+  });
+  const topSpaceId =
+    spaceIds.find((spaceId) => (parentsByRoom.get(spaceId)?.size ?? 0) === 0) ??
+    spaceIds.find((spaceId) => {
+      const parents = parentsByRoom.get(spaceId);
+      return !parents || !spaceIds.some((other) => parents.has(other));
+    });
+  return topSpaceId ?? spaceIds[0];
 };
 
 /**
@@ -64,7 +81,11 @@ const getRoomPath = (
   roomId: string,
   eventId?: string
 ): string => {
-  const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
+  // A room the account is in goes by its canonical alias. One it is invited to, left or was
+  // removed from keeps its room ID: its alias may no longer lead to it.
+  const roomIdOrAlias = isKnownUnjoined(mx.getRoom(roomId))
+    ? roomId
+    : getCanonicalAliasOrRoomId(mx, roomId);
   // The room the route shows stays in the route's section: another section is another page,
   // which mounts the room view again (a phone's keyboard closes, the view starts over).
   const shown = routeShowsRoom(mx, route.roomSegment, roomId);
@@ -74,7 +95,12 @@ const getRoomPath = (
       ? getActivityRoomPath(roomIdOrAlias, eventId)
       : getThreadsRoomPath(roomIdOrAlias, eventId);
   }
-  if (route.spaceId && (shown || isInSpace(roomToParents, roomId, route.spaceId))) {
+  // A space that is not joined shows its own join page, never a room: the room goes elsewhere.
+  if (
+    route.spaceId &&
+    !isKnownUnjoined(mx.getRoom(route.spaceId)) &&
+    (shown || isInSpace(roomToParents, roomId, route.spaceId))
+  ) {
     return getSpaceRoomPath(getCanonicalAliasOrRoomId(mx, route.spaceId), roomIdOrAlias, eventId);
   }
   if (shown) {
