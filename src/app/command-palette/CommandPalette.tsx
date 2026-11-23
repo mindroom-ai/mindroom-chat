@@ -25,6 +25,7 @@ import {
   rankCommandPalettePeople,
   type CommandPaletteLocalSection,
 } from './commandPaletteResults';
+import { countLeadingRecentVisits } from './commandPaletteRecentVisits';
 import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import {
   CommandPaletteList,
@@ -202,10 +203,6 @@ const buildStartChatSection = (
       : undefined,
 });
 
-const isRecentVisit = (item: ExecutableCommandPaletteItem): boolean =>
-  (item.kind === 'room' || item.kind === 'space' || item.kind === 'thread') &&
-  item.recentVisit === true;
-
 const getSectionRecentVisits = (
   section: CommandPaletteLocalSection,
   searchText: string,
@@ -214,11 +211,7 @@ const getSectionRecentVisits = (
   if (searchText.length > 0 || (section.id !== 'threads' && section.id !== 'rooms')) {
     return undefined;
   }
-  let count = 0;
-  for (const item of section.items) {
-    if (!isRecentVisit(item)) break;
-    count += 1;
-  }
+  const count = countLeadingRecentVisits(section.items);
   if (count === 0) return undefined;
   return {
     count,

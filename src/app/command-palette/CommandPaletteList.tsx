@@ -379,10 +379,8 @@ export function CommandPaletteList({
     <div id={id} role="listbox" aria-label={label}>
       {sections.map((section) => {
         const count = section.items.filter((item) => item.kind !== 'search-page').length;
-        const recentCount = section.recentVisits
-          ? Math.min(section.recentVisits.count, section.items.length)
-          : 0;
-        const recentVisits = recentCount > 0 ? section.recentVisits : undefined;
+        const recentVisits =
+          section.recentVisits && section.recentVisits.count > 0 ? section.recentVisits : undefined;
         const recentSubgroupId = `${id}-${section.id}-recent`;
         return (
           <div
@@ -429,7 +427,7 @@ export function CommandPaletteList({
                   aria-selected={isSelected}
                   aria-checked={getChecked(item)}
                   aria-describedby={
-                    recentVisits && index < recentCount ? recentSubgroupId : undefined
+                    recentVisits && index < recentVisits.count ? recentSubgroupId : undefined
                   }
                   tabIndex={-1}
                   className={css.Row}
@@ -462,7 +460,7 @@ export function CommandPaletteList({
                   </span>
                 </div>
               );
-              if (recentVisits && index === recentCount) {
+              if (recentVisits && index === recentVisits.count) {
                 return (
                   <Fragment key={item.id}>
                     <div

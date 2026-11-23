@@ -187,9 +187,9 @@ export const SubGroupTitle = style({
   alignItems: 'center',
   gap: 5,
   padding: '4px 10px 3px',
-  color: `color-mix(in srgb, ${color.SurfaceVariant.OnContainer} 82%, transparent)`,
+  color: color.SurfaceVariant.OnContainer,
   fontSize: 11,
-  fontWeight: 600,
+  fontWeight: 500,
   lineHeight: '16px',
   letterSpacing: '0.03em',
 });

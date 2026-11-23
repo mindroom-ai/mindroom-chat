@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { RECENT_VISIT_PINS, withRecentVisits } from './commandPaletteRecentVisits';
+import {
+  countLeadingRecentVisits,
+  RECENT_VISIT_PINS,
+  withRecentVisits,
+} from './commandPaletteRecentVisits';
 import { matchCommandPaletteSection } from './commandPaletteSearch';
 
 // Rows as the palette builds them: ranked by activity, the open one (`e`) at rank 0.
@@ -59,5 +63,17 @@ describe('withRecentVisits', () => {
     expect(byId.get('a')?.boost).toBe(20);
     expect(byId.get('b')?.recentVisit).toBeUndefined();
     expect(byId.get('e')?.recentVisit).toBeUndefined();
+  });
+
+  it('counts contiguous leading recentVisit rows from index 0', () => {
+    expect(
+      countLeadingRecentVisits([
+        { id: 'a', recentVisit: true },
+        { id: 'b', recentVisit: true },
+        { id: 'c' },
+        { id: 'd', recentVisit: true },
+      ])
+    ).toBe(2);
+    expect(countLeadingRecentVisits([{ id: 'a' }])).toBe(0);
   });
 });

@@ -37,3 +37,13 @@ export const withRecentVisits = <T extends RankedRow>(
     };
   });
 };
+
+/** Counts contiguous leading rows marked as promoted recent visits from index 0. */
+export const countLeadingRecentVisits = (items: readonly RankedRow[]): number => {
+  let count = 0;
+  for (const item of items) {
+    if (item.recentVisit !== true) break;
+    count += 1;
+  }
+  return count;
+};

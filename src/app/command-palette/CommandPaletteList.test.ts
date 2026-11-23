@@ -328,21 +328,27 @@ describe('CommandPaletteList', () => {
           },
         ],
       });
+      const group = renderer.root.findByProps({ role: 'group' });
+      const siblings = group.children.filter(
+        (child): child is Exclude<typeof child, string> =>
+          typeof child !== 'string' && child.props.className !== 'GroupTitle'
+      );
+      expect(
+        siblings.map((node) =>
+          node.props.role === 'option'
+            ? node.findByProps({ className: 'RowTitle' }).children.join('')
+            : node.findByType('span').children.join('')
+        )
+      ).toEqual(['Recently opened', 'Alpha', 'Beta', 'Other rooms', 'Gamma']);
+
       const recentHeader = renderer.root.findByProps({ 'data-subgroup': 'recent' });
       const otherHeader = renderer.root.findByProps({ 'data-subgroup': 'other' });
       expect(recentHeader.props.role).toBe('presentation');
       expect(recentHeader.findByType('row-icon' as never).props.src).toBe('recent-clock');
-      expect(recentHeader.findByType('span').children).toEqual(['Recently opened']);
       expect(otherHeader.props.role).toBe('presentation');
       expect(otherHeader.props.className).toBe('SubGroupTitle SubGroupDivider');
-      expect(otherHeader.findByType('span').children).toEqual(['Other rooms']);
 
       const options = renderer.root.findAllByProps({ role: 'option' });
-      expect(options.map((node) => node.props['data-item-id'])).toEqual([
-        '!a:example.org',
-        '!b:example.org',
-        '!c:example.org',
-      ]);
       expect(options.map((node) => node.props['aria-describedby'])).toEqual([
         recentHeader.props.id,
         recentHeader.props.id,
