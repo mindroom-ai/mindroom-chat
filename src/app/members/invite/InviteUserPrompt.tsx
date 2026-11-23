@@ -30,15 +30,12 @@ import {
   Text,
 } from 'folds';
 import {
-  EventType,
   KnownMembership,
   RoomEvent,
   RoomMemberEvent,
-  RoomStateEvent,
   type MatrixEvent,
   type Room,
   type RoomMember,
-  type RoomState,
 } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -68,6 +65,7 @@ import { mergeUserDirectoryUsers, type ServerUserDirectoryUser } from '../userDi
 import { filterInviteUserCandidates } from '../userDirectorySearch';
 import { getDisplayName } from './InviteUserAutocomplete';
 import {
+  advanceModeratorGrantGeneration,
   createDetachedGrantError,
   detachedGrantErrorAtom,
   evaluateModeratorGrant,
@@ -111,19 +109,11 @@ type InviteRow = Candidate & {
   state?: AttemptState;
 };
 
+/** The invites started from the sheet, placed for the query and filter they show under. */
 type Attempts = {
-  viewKey: string;
+  query: string;
+  filter: InviteFilter;
   byUser: Record<string, Attempt>;
-};
-
-/**
- * One call of `client.invite` from the moment it starts, so room updates that arrive before its
- * response still count: `/sync` can deliver the invite (and the invitee's answer) first.
- */
-type Submission = {
-  /** The invitee's membership event in the room when the call started; none for a stranger. */
-  priorEventId: string | undefined;
-  membershipSeen: boolean;
 };
 
 type Announcement = {
@@ -225,20 +215,6 @@ const dialogTrapOptions = (
   escapeDeactivates: stopPropagation,
   clickOutsideDeactivates: true,
 });
-
-const isReflectedMembership = (membership: string | undefined): boolean =>
-  membership === KnownMembership.Invite ||
-  membership === KnownMembership.Join ||
-  membership === KnownMembership.Ban;
-
-/** Users whose invite the room state has not answered yet, each with their `priorEventId`. */
-type PendingSync = ReadonlyMap<string, string | undefined>;
-
-const withoutPending = (pending: PendingSync, userId: string): PendingSync => {
-  const next = new Map(pending);
-  next.delete(userId);
-  return next;
-};
 
 const withoutAttempt = (
   byUser: Readonly<Record<string, Attempt>>,
@@ -424,7 +400,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const listRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const inFlightRef = useRef(new Set<string>());
-  const submissionsRef = useRef(new Map<string, Submission>());
   // The note as last typed, read when an invite starts: two invites started before the next
   // render must not both take it.
   const noteRef = useRef('');
@@ -438,17 +413,6 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [grantOverride, setGrantOverride] = useState<boolean>();
   const [announcements, setAnnouncements] = useState<readonly Announcement[]>([]);
   const [enterHint, setEnterHint] = useState<string>();
-  // Invited here and not yet in the synced room state: kept out of the lists, so nobody is invited
-  // twice before /sync. Each comes with the ID of the membership event the room had for them when
-  // their invite started, which says nothing about that invite however often /sync repeats it.
-  const [pendingSyncInvited, setPendingSyncInvited] = useState<PendingSync>(() => new Map());
-  // The same map for the membership listener, which must not wait for a render to see an invite
-  // that has just returned.
-  const pendingSyncRef = useRef(pendingSyncInvited);
-  const updatePendingSync = useCallback((next: PendingSync) => {
-    pendingSyncRef.current = next;
-    setPendingSyncInvited(next);
-  }, []);
   // Grants that failed while the sheet is open, shown above the list until dismissed. They belong
   // to the sheet and to no row: a row can leave (another filter, a decline) and be invited again
   // while its alert is still to be read.
@@ -459,19 +423,26 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const memberLoads = useLoadedRoomMembers(client, [room.roomId]);
 
   const trimmedQuery = query.trim();
-  const viewKey = `${filter}|${trimmedQuery}`;
-  const [attempts, setAttempts] = useState<Attempts>({ viewKey, byUser: {} });
+  // Invariant, the one of `MembersInviteSection`: the room's own state alone says who can be
+  // invited (`isInvitable`), and `attempts` holds only what the sheet did in the current view, an
+  // invite on its way (`inviting`), sent (`invited`) or failed (`failed`) per user. Another query
+  // or filter carries over the first and the last and leaves a sent invite behind. In the moment
+  // before /sync has a sent invite, another view can offer its user again: the homeserver answers
+  // that invite, and nothing here guesses the order of /sync and the invite's response.
+  const [attempts, setAttempts] = useState<Attempts>({
+    query: trimmedQuery,
+    filter,
+    byUser: {},
+  });
 
   // Filter before ranking, limiting, and server-fallback threshold so 8 people never crowd out
-  // agents and 8 just-invited users never hide a ninth match. A new predicate on every roster
-  // change makes the search drop members who joined or arrived with the member list before it
-  // limits, too.
+  // agents. A new predicate on every roster change makes the search drop people who joined, were
+  // invited or arrived with the member list before it limits, too.
   const searchPredicate = useMemo(() => {
     void rosterVersion;
     void memberLoads;
-    return (user: ServerUserDirectoryUser) =>
-      !pendingSyncInvited.has(user.userId) && matchesFilter(user.userId, filter, me);
-  }, [filter, me, pendingSyncInvited, rosterVersion, memberLoads]);
+    return (user: ServerUserDirectoryUser) => matchesFilter(user.userId, filter, me);
+  }, [filter, me, rosterVersion, memberLoads]);
   const { suggestions, isFetching } = useInviteUserSearch(room, trimmedQuery, searchPredicate);
 
   // Room-level moderator grant offer for MindRoom agents (always visible when offered so consent
@@ -483,70 +454,33 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const membersLoaded = room.membersLoaded();
 
   useEffect(() => {
-    // A membership that changed changes who the lists offer, and settles nothing: it fires for
-    // /sync and for the member list loaded on request alike, with nothing to tell them apart.
+    // A membership that changed and a new room summary change who the lists offer and what the
+    // header counts: both re-read the room.
     const onMembership = (event: MatrixEvent | undefined, member?: RoomMember) => {
-      if ((event?.getRoomId() ?? member?.roomId) === room.roomId) bumpRoster();
-    };
-    // What a membership event of this room's state says about its user, and about nobody else.
-    // `RoomState.members` fires for every such event, also where the membership stays as it was
-    // (someone who had left, is invited again and declines at once goes from `leave` to `leave`
-    // in one /sync), which `RoomMember.membership` passes over.
-    const onStateMember = (event: MatrixEvent, _state: RoomState, member: RoomMember) => {
-      if (event.getRoomId() !== room.roomId) return;
-      // It also fires with the power levels event for a member whose level changed: no word on
-      // their membership.
-      if (event.getType() !== (EventType.RoomMember as string)) return;
-      const memberId = member.userId;
-      const eventId = event.getId();
-      const submission = submissionsRef.current.get(memberId);
-      const pending = pendingSyncRef.current;
-      if (member.isOutOfBand()) {
-        // A member loaded on request (out of band, while the lazy-loaded list fills) is the room
-        // as it was when it was asked, perhaps before the invite: only /sync answers an invite.
-        // For an invite that started before the room knew this member, their event is what the
-        // room had then, which a /sync can repeat like any other.
-        if (eventId) {
-          if (submission && submission.priorEventId === undefined) {
-            submission.priorEventId = eventId;
-          }
-          if (pending.has(memberId) && pending.get(memberId) === undefined) {
-            updatePendingSync(new Map(pending).set(memberId, eventId));
-          }
-        }
+      if ((event?.getRoomId() ?? member?.roomId) !== room.roomId) return;
+      bumpRoster();
+      const userId = member?.userId;
+      const membership = member?.membership;
+      if (
+        userId === undefined ||
+        (membership !== KnownMembership.Leave && membership !== KnownMembership.Knock)
+      ) {
         return;
       }
-      // The event the room already had when the invite started (a /sync repeats known state)
-      // says nothing about the invite: the user stays held back.
-      const priorEventId = submission?.priorEventId ?? pending.get(memberId);
-      if (eventId !== undefined && eventId === priorEventId) return;
-      // The room state speaks for this user from here on, also when the invite's own response
-      // is still on its way.
-      if (submission) submission.membershipSeen = true;
-      if (pending.has(memberId)) updatePendingSync(withoutPending(pending, memberId));
-      if (!isReflectedMembership(member.membership)) {
-        // The invitee declined or was removed, and may knock since: the row offers the invite
-        // again.
-        setAttempts((current) =>
-          current.byUser[memberId]?.state.status === 'invited'
-            ? { ...current, byUser: withoutAttempt(current.byUser, memberId) }
-            : current
-        );
-      }
+      // The invitee declined or was removed, and may knock since: the row offers the invite again.
+      setAttempts((current) =>
+        current.byUser[userId]?.state.status === 'invited'
+          ? { ...current, byUser: withoutAttempt(current.byUser, userId) }
+          : current
+      );
     };
-    // Invariant: a room summary is for display only. It re-renders the header's joined and invited
-    // counts and settles nobody. Who can be invited (`pendingSyncInvited` and the rows' attempts)
-    // settles from that user's own membership event alone, which /sync delivers for a joined
-    // room; a summary's counts name no user, and can be stale or about someone else.
     client.on(RoomMemberEvent.Membership, onMembership);
-    client.on(RoomStateEvent.Members, onStateMember);
     room.on(RoomEvent.Summary, bumpRoster);
     return () => {
       client.removeListener(RoomMemberEvent.Membership, onMembership);
-      client.removeListener(RoomStateEvent.Members, onStateMember);
       room.removeListener(RoomEvent.Summary, bumpRoster);
     };
-  }, [client, room, bumpRoster, updatePendingSync]);
+  }, [client, room, bumpRoster]);
 
   // When the keyboard comes up, the body scrolls what no longer fits, with the focused field (the
   // note, at its foot) out of sight below. The browser scrolled to it on focus, before the
@@ -581,12 +515,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     (userId: string): boolean => {
       void rosterVersion;
       void memberLoads;
-      return (
-        !pendingSyncInvited.has(userId) &&
-        filterInviteUserCandidates([{ userId }], room, me).length > 0
-      );
+      return filterInviteUserCandidates([{ userId }], room, me).length > 0;
     },
-    [pendingSyncInvited, room, me, rosterVersion, memberLoads]
+    [room, me, rosterVersion, memberLoads]
   );
 
   // The room's own counts, as the members panel shows them; the listeners above refresh them.
@@ -623,17 +554,22 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const isAttemptCarried = (attempt: Attempt) =>
     isAttemptOffered(attempt) && attempt.state.status !== 'invited';
 
-  if (attempts.viewKey !== viewKey) {
-    setAttempts({ viewKey, byUser: carryOver(attempts.byUser, isAttemptCarried) });
+  const inView = attempts.query === trimmedQuery && attempts.filter === filter;
+  if (!inView) {
+    setAttempts({
+      query: trimmedQuery,
+      filter,
+      byUser: carryOver(attempts.byUser, isAttemptCarried),
+    });
   } else if (!Object.values(attempts.byUser).every(isAttemptOffered)) {
     setAttempts({
-      viewKey,
+      ...attempts,
       byUser: Object.fromEntries(
         Object.entries(attempts.byUser).filter(([, attempt]) => isAttemptOffered(attempt))
       ),
     });
   }
-  const placed = attempts.viewKey === viewKey ? attempts.byUser : {};
+  const placed = inView ? attempts.byUser : {};
 
   // Build browse & search candidate lists.
   const directUserSet = useMemo(() => new Set(directUsers), [directUsers]);
@@ -655,10 +591,8 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const eligibleLocalUsers = useMemo(() => {
     void rosterVersion;
     void memberLoads;
-    return filterInviteUserCandidates(allLocalUsers, room, me).filter(
-      (user) => !pendingSyncInvited.has(user.userId)
-    );
-  }, [allLocalUsers, room, me, rosterVersion, memberLoads, pendingSyncInvited]);
+    return filterInviteUserCandidates(allLocalUsers, room, me);
+  }, [allLocalUsers, room, me, rosterVersion, memberLoads]);
 
   // Memoize sorting separately from note/attempt edits so typing never re-sorts a large directory.
   const sortedBrowse = useMemo(() => {
@@ -761,7 +695,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const membership = room.getMember(trimmedQuery)?.membership;
     if (trimmedQuery === me || membership === KnownMembership.Join) {
       nonInvitableHint = t('sharedUi.inviteUserPrompt.alreadyInRoom');
-    } else if (membership === KnownMembership.Invite || pendingSyncInvited.has(trimmedQuery)) {
+    } else if (membership === KnownMembership.Invite) {
       nonInvitableHint = t('sharedUi.inviteUserPrompt.alreadyInvited');
     } else if (membership === KnownMembership.Ban) {
       nonInvitableHint = t('sharedUi.inviteUserPrompt.bannedFromRoom');
@@ -829,22 +763,20 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     const grantCeiling = targetOffer?.kind === 'grant' ? targetOffer.level : undefined;
 
     inFlightRef.current.add(targetId);
-    const submission: Submission = {
-      priorEventId: room.getMember(targetId)?.events.member?.getId(),
-      membershipSeen: false,
-    };
-    submissionsRef.current.set(targetId, submission);
+    // Whatever grant an earlier invite of this user still has in the queue is superseded: this
+    // invite's choice counts, also when it is to give no rights.
+    const generation = advanceModeratorGrantGeneration(client, room.roomId, targetId);
     setEnterHint(undefined);
 
     if (options?.clearQuery) {
-      const nextViewKey = `${filter}|`;
       // Below every index a carried-over row has, and below the last pinned one: the newest
       // pinned row leads, and no two share a place.
       pinOrderRef.current -= 1;
       const pinnedIndex = pinOrderRef.current;
       setQuery('');
       setAttempts((current) => ({
-        viewKey: nextViewKey,
+        query: '',
+        filter,
         byUser: {
           ...carryOver(current.byUser, isAttemptCarried),
           [targetId]: {
@@ -883,37 +815,24 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       }
       return;
     } finally {
-      // The invite is answered: from here the row and the room state speak for this user, and a
-      // decline while the grant below is still written lets them be invited again at once.
-      submissionsRef.current.delete(targetId);
       inFlightRef.current.delete(targetId);
     }
 
     if (alive()) {
-      // Only an invite the room state has not answered yet is tracked here. Once a membership
-      // event for the invitee arrived (the invite, or already their answer to it), the room state
-      // is the truth, and tracking a decline as pending would block a new invite.
-      const reflected = isReflectedMembership(room.getMember(targetId)?.membership);
-      if (!submission.membershipSeen && !reflected) {
-        updatePendingSync(new Map(pendingSyncRef.current).set(targetId, submission.priorEventId));
-      }
-      if (submission.membershipSeen && !reflected) {
-        // Invited and already declined or removed (and perhaps knocking since): the row offers
-        // the invite again.
-        setAttempts((current) => ({
-          ...current,
-          byUser: withoutAttempt(current.byUser, targetId),
-        }));
-      } else {
-        updateAttemptState(targetId, { status: 'invited' });
-      }
       // The invite is sent, whatever becomes of the grant: the row and the live region say so now.
+      updateAttemptState(targetId, { status: 'invited' });
       announce(t('sharedUi.inviteUserPrompt.invited', { user: targetId }));
     }
 
     // Finish the submitted grant even if the user closed the dialog while invite was in flight.
     if (grantCeiling === undefined) return;
-    const grantFailure = await grantRoomModeratorRights(client, room, targetId, grantCeiling);
+    const grantFailure = await grantRoomModeratorRights(
+      client,
+      room,
+      targetId,
+      grantCeiling,
+      generation
+    );
     if (!grantFailure) return;
     const failure = createDetachedGrantError(
       formatGrantFailure(grantFailure, targetId, grantCeiling, tags, t)

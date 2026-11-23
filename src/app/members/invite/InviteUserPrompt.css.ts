@@ -91,7 +91,8 @@ export const Body = style({
 });
 
 // Moderator grants that failed, between the controls and the rows. A long error or a row of them
-// scrolls inside the strip, so the rows keep their room. No list: a list item here is a person.
+// scrolls inside the strip, so the rows keep their room; on a short viewport the strip is as high
+// as its alerts and scrolls with the rest. No list: a list item here is a person.
 export const GrantAlerts = style({
   flexShrink: 0,
   display: 'flex',
@@ -102,6 +103,9 @@ export const GrantAlerts = style({
   overscrollBehavior: 'contain',
   marginInline: config.space.S400,
   marginBlockEnd: config.space.S200,
+  '@container': {
+    [shortViewport]: { maxBlockSize: 'none', overflowY: 'visible' },
+  },
 });
 
 // The dismiss button stays at the top, in sight however long the message is.
@@ -127,12 +131,12 @@ export const GrantAlertText = style({
 
 // The rows scroll in a box of their own that never gets lower than two and a half of them,
 // whatever stands above and below it. On a short viewport they are as high as they are and
-// scroll with the rest: one scroller, never one inside another.
+// scroll with the rest: one scroller, never one inside another. Where the body scrolls as well,
+// scrolling past the last row goes on in the body, down to the footer.
 export const ListArea = style({
   flexGrow: 1,
   minBlockSize: toRem(160),
   overflowY: 'auto',
-  overscrollBehavior: 'contain',
   paddingInline: config.space.S200,
   paddingBlockEnd: config.space.S200,
   '@container': {

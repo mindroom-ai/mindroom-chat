@@ -190,18 +190,47 @@ const clonePowerLevelsContent = (content: Record<string, unknown>): Record<strin
 const errorDetail = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : String(error);
 
+const grantGenerations = new WeakMap<MatrixClient, Map<string, number>>();
+
+const grantKey = (roomId: string, targetId: string): string => `${roomId}\0${targetId}`;
+
+const moderatorGrantGeneration = (client: MatrixClient, roomId: string, targetId: string): number =>
+  grantGenerations.get(client)?.get(grantKey(roomId, targetId)) ?? 0;
+
+/**
+ * Starts a new invite of `targetId` to the room and returns its generation. A grant of an earlier
+ * generation that still waits in the room's queue is superseded and writes nothing, so an invite
+ * with the grant, declined and sent again without it, leaves the agent without the rights.
+ */
+export const advanceModeratorGrantGeneration = (
+  client: MatrixClient,
+  roomId: string,
+  targetId: string
+): number => {
+  const generations = grantGenerations.get(client) ?? new Map<string, number>();
+  grantGenerations.set(client, generations);
+  const generation = moderatorGrantGeneration(client, roomId, targetId) + 1;
+  generations.set(grantKey(roomId, targetId), generation);
+  return generation;
+};
+
 /**
  * Serializes moderator grants per room and merges against live `m.room.power_levels` state from
  * the homeserver before writing, so concurrent agent invites before `/sync` never overwrite each
- * other and never lower existing power levels or exceed the shown ceiling.
+ * other and never lower existing power levels or exceed the shown ceiling. A grant whose
+ * `generation` a newer invite of the same user has superseded writes nothing and returns `null`.
  */
 export const grantRoomModeratorRights = (
   client: MatrixClient,
   room: Room,
   targetId: string,
-  maxLevel: number
+  maxLevel: number,
+  generation: number = moderatorGrantGeneration(client, room.roomId, targetId)
 ): Promise<GrantFailure | null> =>
   enqueueRoomGrant(client, room.roomId, async () => {
+    const superseded = () => moderatorGrantGeneration(client, room.roomId, targetId) !== generation;
+    if (superseded()) return null;
+
     const createEvent = getStateEvent(room, StateEvent.RoomCreate);
     const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
 
@@ -233,6 +262,7 @@ export const grantRoomModeratorRights = (
 
     const nextContent = clonePowerLevelsContent(liveContent ?? {});
     (nextContent.users as Record<string, number>)[targetId] = decision.level;
+    if (superseded()) return null;
     try {
       await client.sendStateEvent(room.roomId, EventType.RoomPowerLevels, nextContent, '');
       return null;
