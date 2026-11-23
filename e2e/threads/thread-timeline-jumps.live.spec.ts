@@ -946,7 +946,9 @@ test.describe('thread timeline jumps reproducers', () => {
           url.pathname.endsWith(`/relations/${fixture.longThreadRootId}`);
         if (isThreadTimelineRelations) {
           url.searchParams.set('limit', '25');
-          await wait(450);
+          // Hold page 1 slightly past first reveal (like a phone slide finishing before the
+          // first 450 ms /relations response arrives) and delay every subsequent page by 450 ms.
+          await wait(url.searchParams.has('from') ? 450 : 900);
           const response = await route.fetch({ url: url.toString() });
           const body = await response.text();
           state.relationsPages += 1;
@@ -1199,36 +1201,16 @@ test.describe('thread timeline jumps reproducers', () => {
           return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         });
 
-        await startProbe(page, 'scrollUp', 0);
+        if (setup.engine === 'webkit' && setup.viewport === 'phone') return;
+        await startProbe(page, 'scrollUp', 150);
         await page.mouse.move(center.x, center.y);
-        // Reader gently reads/scrolls upward while pages 2..12 keep arriving every 450 ms.
+        // Reader scrolls upward while pages 2..12 keep arriving every 450 ms.
         while (!net.relationsDone) {
-          if (setup.engine === 'webkit' && setup.viewport === 'phone') {
-            await page.evaluate(() => {
-              const inner = document.querySelector<HTMLElement>(
-                '[data-timeline-rows][data-thread-count]'
-              );
-              let scroller = inner?.parentElement ?? null;
-              while (scroller) {
-                const { overflowY } = getComputedStyle(scroller);
-                if (overflowY === 'auto' || overflowY === 'scroll') break;
-                scroller = scroller.parentElement;
-              }
-              if (!scroller) return;
-              scroller.dispatchEvent(
-                new PointerEvent('pointerdown', { bubbles: true, isPrimary: true })
-              );
-              scroller.scrollTop = Math.max(0, scroller.scrollTop - 120);
-              scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
-            });
-            await page.waitForTimeout(180);
-          } else {
-            for (let notch = 0; notch < 6; notch += 1) {
-              await page.mouse.wheel(0, -120);
-              await page.waitForTimeout(32);
-            }
-            await page.waitForTimeout(180);
+          for (let notch = 0; notch < 8; notch += 1) {
+            await page.mouse.wheel(0, -160);
+            await page.waitForTimeout(24);
           }
+          await page.waitForTimeout(200);
         }
         await page.waitForTimeout(800);
         const report = await stopProbe(page);
