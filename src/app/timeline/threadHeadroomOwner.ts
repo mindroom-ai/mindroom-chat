@@ -71,6 +71,7 @@ export type HeadroomOwnerStats = {
   lastHeadroom: number;
   lastAvgRowHeight: number;
   deltas: number[];
+  holdLog?: Array<{ rawLen: number; presLen: number; est: number; req: number; comm: number; avg: number; anchorIdx: number | undefined }>;
 };
 
 declare global {
@@ -403,6 +404,18 @@ export const useThreadHeadroomEventsGate = ({
     if (gate.heldRawEvents !== undefined || requiredHeadroomPx > gate.committedHeadroomPx) {
       if (gate.heldRawEvents !== rawThreadEvents) {
         gate.stats.heldPages += 1;
+        gate.stats.holdLog = [
+          ...(gate.stats.holdLog ?? []),
+          {
+            rawLen: rawThreadEvents.length,
+            presLen: gate.presentedEvents.length,
+            est: Math.round(estimatedPrependPx),
+            req: requiredHeadroomPx,
+            comm: Math.round(gate.committedHeadroomPx),
+            avg: Math.round(gate.lastAvgRowHeight),
+            anchorIdx: gate.anchorRef?.current?.index,
+          },
+        ];
       }
       gate.heldRawEvents = rawThreadEvents;
       gate.heldPrependEstimatePx = Math.max(gate.heldPrependEstimatePx, estimatedPrependPx);
