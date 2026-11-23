@@ -19,8 +19,8 @@ const headerHeight = 'var(--room-thread-header-height, 0px)';
  *
  * Folds' `<Scroll size="300">` reserves an 8 px (`0.5rem` / `S200`) inline-end gutter when native
  * scrollbars are hidden (`data-y-scrollbar-width="0"`), keeping message rows and hover toolbars
- * clear of `InsetScrollbar`. Because `ThreadTimelineHeader` sits above `InsetScrollbar`
- * (`top: controlsTopInset`), reaching across that gutter makes the banner's inline-start and
+ * clear of `InsetScrollbar`. Because `ThreadTimelineHeader` sits above `InsetScrollbar` (whose
+ * track starts below the header), reaching across that gutter makes the banner's inline-start and
  * inline-end gaps symmetric (12 px / `S300` on both sides) and keeps `GapAbove` edge-to-edge in
  * side-panel mode without introducing horizontal overflow (`scrollWidth === clientWidth`).
  */
