@@ -111,6 +111,36 @@
     "textViewer": {
       "close": "關閉"
     },
+    "eventSourceViewer": {
+      "metaEventId": "事件",
+      "metaType": "類型",
+      "metaSender": "傳送者",
+      "metaTime": "時間",
+      "badgeEdited": "已編輯",
+      "badgeEncrypted": "已加密",
+      "documentTabsLabel": "事件版本",
+      "tabEvent": "事件",
+      "tabOriginal": "原始",
+      "tabLatestEdit": "最新編輯",
+      "tabDecrypted": "已解密",
+      "tabEncrypted": "已加密",
+      "collapseAll": "摺疊",
+      "expandAll": "展開",
+      "foldStrings": "摺疊長文字",
+      "rawJson": "原始",
+      "filterPlaceholder": "篩選鍵或值…",
+      "noMatches": "找不到「{{query}}」的相符項目",
+      "copyField": "複製 {{field}}",
+      "copyValue": "複製值",
+      "expandNode": "展開 {{name}}",
+      "collapseNode": "摺疊 {{name}}",
+      "expandString": "展開文字",
+      "collapseString": "摺疊文字",
+      "matchCount_other": "{{count}} 個相符項目",
+      "keyCount_other": "{{count}} 個鍵",
+      "itemCount_other": "{{count}} 個項目",
+      "charCount_other": "{{count}} 個字元"
+    },
     "invites": {
       "actionFailed": "發生錯誤，請再試一次。"
     },

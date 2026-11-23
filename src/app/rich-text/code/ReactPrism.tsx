@@ -1,6 +1,7 @@
 import React, { ReactNode, useMemo } from 'react';
 import classNames from 'classnames';
 // Prism must not highlight the page by itself, so manual mode is set before it loads.
+import '../../theme/codeTokenStyles.css';
 import './prismManual';
 import Prism from 'prismjs';
 // Languages, each after the ones it builds on. Prism's core has markup, CSS, C-like and JavaScript.

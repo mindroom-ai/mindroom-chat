@@ -111,6 +111,36 @@
     "textViewer": {
       "close": "关闭"
     },
+    "eventSourceViewer": {
+      "metaEventId": "事件",
+      "metaType": "类型",
+      "metaSender": "发送者",
+      "metaTime": "时间",
+      "badgeEdited": "已编辑",
+      "badgeEncrypted": "已加密",
+      "documentTabsLabel": "事件版本",
+      "tabEvent": "事件",
+      "tabOriginal": "原始",
+      "tabLatestEdit": "最新编辑",
+      "tabDecrypted": "已解密",
+      "tabEncrypted": "已加密",
+      "collapseAll": "折叠",
+      "expandAll": "展开",
+      "foldStrings": "折叠长文本",
+      "rawJson": "原始",
+      "filterPlaceholder": "筛选键或值…",
+      "noMatches": "未找到“{{query}}”的匹配项",
+      "copyField": "复制 {{field}}",
+      "copyValue": "复制值",
+      "expandNode": "展开 {{name}}",
+      "collapseNode": "折叠 {{name}}",
+      "expandString": "展开文本",
+      "collapseString": "折叠文本",
+      "matchCount_other": "{{count}} 个匹配项",
+      "keyCount_other": "{{count}} 个键",
+      "itemCount_other": "{{count}} 项",
+      "charCount_other": "{{count}} 个字符"
+    },
     "invites": {
       "actionFailed": "出了点问题，请重试。"
     },
