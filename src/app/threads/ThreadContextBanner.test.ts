@@ -440,6 +440,7 @@ describe('ThreadContextBanner rendering', () => {
                 ? { rawDisplayName: 'Alice', name: 'Alice' }
                 : undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1409,6 +1410,7 @@ describe('ThreadContextBanner rendering', () => {
                 ? { rawDisplayName: 'Alice', name: 'Alice' }
                 : undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1459,6 +1461,7 @@ describe('ThreadContextBanner rendering', () => {
             getUnfilteredTimelineSet: () => undefined,
             getMember: () => undefined,
             hasEncryptionStateEvent: () => false,
+            currentState: { getStateEvents: () => [] },
             on: vi.fn(),
             removeListener: vi.fn(),
           } as unknown as Room,
@@ -1834,6 +1837,7 @@ describe('ThreadContextBanner rendering', () => {
       findEventById: () => undefined,
       getMember: () => undefined,
       hasEncryptionStateEvent: () => false,
+      currentState: { getStateEvents: () => [] },
       on: emitter.on.bind(emitter),
       removeListener: emitter.removeListener.bind(emitter),
     } as unknown as Room;

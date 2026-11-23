@@ -48,6 +48,7 @@ const makeRoom = (rootEvent?: MatrixEvent): Room =>
       },
     })),
     getMember: vi.fn(() => undefined),
+    currentState: { getStateEvents: vi.fn(() => []) },
   } as unknown as Room);
 
 const visibleRootData = {
