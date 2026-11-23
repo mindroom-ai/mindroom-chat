@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 
-export type ProbeMode = 'open' | 'scrollUp';
+export type ProbeMode = 'open' | 'scrollUp' | 'touchScrollUp';
 
 export type JumpFrame = {
   t: number;
@@ -216,7 +216,9 @@ export const installThreadJumpProbe = () => {
     if (!probe.scroller || !probe.scroller.isConnected) probe.scroller = probe.findScroller();
     if (!probe.scroller || el !== probe.scroller) return 0;
     const from = probe.scroller.scrollTop;
-    if (probe.mode === 'scrollUp' && from <= 1) probe.burstClamped = true;
+    if ((probe.mode === 'scrollUp' || probe.mode === 'touchScrollUp') && from <= 1) {
+      probe.burstClamped = true;
+    }
     const delta = value - from;
     probe.writeDelta += delta;
     return delta;
@@ -310,7 +312,7 @@ export const installThreadJumpProbe = () => {
 
         const lostPlace =
           moved.length === 0 && carried.length === 0 && current.size > 0 && probe.prevRows.size > 0;
-        if (moved.length === 0 && carried.length > 0) {
+        if (moved.length === 0 && carried.length > 0 && probe.prevRows.size > 0) {
           const distance = (row: { before: number }) => Math.abs(row.before - view.top);
           moved.push(
             carried.reduce((near, row) => (distance(row) < distance(near) ? row : near)).px
@@ -375,9 +377,13 @@ export const installThreadJumpProbe = () => {
           unexplained = ds.length > 0 ? median + movedPx : 0;
 
           // Track cumulative wheel input vs cumulative row travel per scrollUp burst.
-          if (probe.mode === 'scrollUp') {
+          const headroomPx = Number(inner.dataset.headroomPx ?? 0);
+          const inHeadroomReserve =
+            ds.length === 0 && current.size === 0 && headroomPx > 0 && scrollTop < headroomPx;
+          if (probe.mode === 'scrollUp' || probe.mode === 'touchScrollUp') {
             if (wheelPx !== 0) probe.burstWheelPx += wheelPx;
             if (ds.length > 0) probe.burstRowPx += median;
+            else if (inHeadroomReserve) probe.burstRowPx += -movedPx;
             if (scrollTop <= 1 && (wheelPx < 0 || probe.burstWheelPx < 0)) {
               probe.burstClamped = true;
             }
@@ -494,7 +500,10 @@ export const scrollProbeMidThread = (page: Page) =>
     if (!scroller) return { ok: false, before: 0, after: 0 };
     scroller.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
     const before = scroller.scrollTop;
-    scroller.scrollTop = Math.min(Math.max(0, before - 600), 400);
+    const headroomPx =
+      Number(scroller.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0) ||
+      0;
+    scroller.scrollTop = Math.min(Math.max(headroomPx, before - 600), headroomPx + 400);
     scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
     return { ok: before - scroller.scrollTop >= 150, before, after: scroller.scrollTop };
   });

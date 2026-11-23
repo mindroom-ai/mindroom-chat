@@ -80,6 +80,11 @@ test.describe('scrolling a room with many agent threads', () => {
           ...VIEWPORTS[viewport],
         });
         await context.addInitScript(instrumentScrolling);
+        if (process.env.MR_THREAD_SCROLL_OWNER === '1') {
+          await context.addInitScript(() =>
+            window.localStorage.setItem('mindroom.threadScrollOwner', '1')
+          );
+        }
         const page = await context.newPage();
         const cdp = engine === 'chromium' ? await context.newCDPSession(page) : undefined;
         // Chromium's synthetic touch gestures do not scroll the list at a reading pace, so a phone

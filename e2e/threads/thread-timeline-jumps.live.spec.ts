@@ -1,46 +1,32 @@
-import { randomUUID } from 'node:crypto';
-import {
-  type BrowserContextOptions,
-  type Page,
-  type Route,
-  chromium,
-  expect,
-  test,
-} from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
-import { png, send, wait } from '../helpers/busyThreadRoom';
-import {
-  CHROMIUM_WITH_SCROLLBARS,
-  DISPOSABLE_HOMESERVER,
-  type DisposableUser,
-  disposableHomeserverIsUp,
-  registerDisposableUser,
-} from '../helpers/disposableAccounts';
-import {
-  createDefaultThreadFilterState,
-  createPrivateRoom,
-  joinRoom,
-  seedRoomOverviewState,
-} from '../helpers/matrix';
+import { type Page, expect, test } from '@playwright/test';
+import { wait } from '../helpers/busyThreadRoom';
+import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import {
   clearProbeCacheStore,
   getProbeScrollerCenter,
-  installThreadJumpProbe,
   scrollProbeMidThread,
   startProbe,
   stopProbe,
   tapProbeScroller,
 } from '../helpers/threadJumpProbe';
-import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import {
+  THREAD_ROWS_SELECTOR as THREAD_ROWS,
+  type ThreadJumpFixtureWorld as FixtureWorld,
+  type ThreadJumpSetup as Setup,
+  buildThreadJumpFixtureWorld,
+  delayMediaAndRelations,
+  gotoThreadCard,
+  openAndRunThreadJump,
+  routeQuietly,
+} from '../helpers/threadScrollJumpsFixture';
+import { WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 /**
  * Verifies that a realistic 56-turn agent thread (folded steps, code, tables, and images) keeps
- * rows anchored across warm opens and slow cold-open back-pagination (pinned at bottom or reading
- * mid-thread) in Chromium and WebKit, and across fast upward wheel scrolling in Chromium (the
- * WebKit fast-scroll test is marked `test.fixme` pending a follow-up for settle discard/replay).
+ * rows anchored across warm opens, slow cold-open back-pagination (pinned at bottom or reading
+ * mid-thread), and fast upward wheel scrolling on both the legacy and thread-scroll-owner paths.
  */
 
-type Setup = { engine: 'chromium' | 'webkit'; viewport: 'desktop' | 'phone' };
 const OPEN_SETUPS: Setup[] = [
   { engine: 'chromium', viewport: 'desktop' },
   { engine: 'chromium', viewport: 'phone' },
@@ -51,207 +37,6 @@ const SCROLL_SETUPS: Setup[] = [
   { engine: 'chromium', viewport: 'desktop' },
   { engine: 'webkit', viewport: 'desktop' },
 ];
-const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
-  desktop: { viewport: { width: 1440, height: 900 } },
-  phone: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
-};
-
-const PASSWORD = 'thread-timeline-jumps-password';
-const THREAD_ROWS = '[data-timeline-rows][data-thread-count]';
-
-const inThread = (rootId: string, replyTo: string) => ({
-  'm.relates_to': {
-    rel_type: 'm.thread',
-    event_id: rootId,
-    is_falling_back: true,
-    'm.in_reply_to': { event_id: replyTo },
-  },
-});
-
-const uploadPng = async (token: string, width: number, height: number, hue: number) => {
-  const res = await fetch(`${DISPOSABLE_HOMESERVER}/_matrix/media/v3/upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/png' },
-    body: png(width, height, hue),
-  });
-  return ((await res.json()) as { content_uri: string }).content_uri;
-};
-
-const longCollapsibleText = (turn: number): string =>
-  [
-    `User detailed log paste for turn #${turn}:`,
-    ...Array.from(
-      { length: 48 },
-      (_, i) =>
-        `line ${i + 1}: worker=${turn} trace=0x${((turn * 100 + i) * 2654435761)
-          .toString(16)
-          .slice(0, 8)} checking thread timeline scroll anchoring and layout heights`
-    ),
-  ].join('\n');
-
-const longAgentAnswer = (turn: number) => {
-  const extraCode = turn % 3 === 0 ? 55 : turn % 2 === 0 ? 28 : 10;
-  const codeLines = Array.from(
-    { length: extraCode },
-    (_, i) =>
-      `const step_${turn}_${i} = computeAnchorOffset(rows[${i}], scrollTop + inset - listTop);`
-  ).join('\n');
-  const tableRows = Array.from(
-    { length: 5 },
-    (_, i) => `<tr><td>metric_${turn}_${i}</td><td>${120 + i * 37}px</td><td>verified</td></tr>`
-  ).join('');
-  return {
-    msgtype: 'm.text',
-    body: `🔧 bash [1]\n\nTurn #${turn} summary.\n\n\`\`\`ts\n${codeLines}\n\`\`\`\n\nDone for turn #${turn}.`,
-    format: 'org.matrix.custom.html',
-    formatted_body: [
-      '<p>🔧 <code>bash</code> [1]</p>',
-      `<p>Turn #${turn} summary: investigated layout and scroll measurements with folded steps, code blocks, and images.</p>`,
-      `<pre><code class="language-ts">${codeLines}</code></pre>`,
-      `<table><thead><tr><th>Metric</th><th>Delta</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table>`,
-      `<p>Follow-up notes for turn #${turn}.</p>`,
-    ].join('\n'),
-    'io.mindroom.stream_status': 'completed',
-    'io.mindroom.tool_trace': {
-      version: 2,
-      events: [
-        {
-          type: 'tool_call_completed',
-          tool_name: 'bash',
-          args_preview: `rg "scrollTop" src/app/timeline/ # turn ${turn}`,
-          result_preview: `Found 14 matches across 6 files for turn ${turn}\n`.repeat(8),
-          truncated: false,
-        },
-      ],
-    },
-  };
-};
-
-type FixtureWorld = {
-  reader: DisposableUser;
-  agent: DisposableUser;
-  roomId: string;
-  longThreadRootId: string;
-};
-
-const buildFixtureWorld = async (): Promise<FixtureWorld> => {
-  const tag = randomUUID().slice(0, 8);
-  const reader = await registerDisposableUser(`jreader_${tag}`, PASSWORD);
-  const agent = await registerDisposableUser(`mindroom_dev_${tag}`, PASSWORD);
-  const roomId = await createPrivateRoom(DISPOSABLE_HOMESERVER, reader.accessToken, {
-    name: `Timeline Jumps ${tag}`,
-    topic: 'Realistic agent thread timeline jump regression fixture',
-    invite: [agent.userId],
-  });
-  await joinRoom(DISPOSABLE_HOMESERVER, agent.accessToken, roomId);
-
-  const imgSized = await uploadPng(agent.accessToken, 800, 520, 40);
-  const imgUnsized = await uploadPng(agent.accessToken, 680, 560, 160);
-  const longThreadRootId = await send(reader, roomId, 'm.room.message', {
-    msgtype: 'm.text',
-    body: `Realistic agent thread (${tag})`,
-  });
-  let lastId = longThreadRootId;
-  const sendInThread = async (user: DisposableUser, content: Record<string, unknown>) => {
-    lastId = await send(user, roomId, 'm.room.message', {
-      ...content,
-      ...inThread(longThreadRootId, lastId),
-    });
-  };
-
-  for (let turn = 1; turn <= 56; turn += 1) {
-    const body =
-      turn % 3 === 0
-        ? longCollapsibleText(turn)
-        : `Turn #${turn}: check scroll stability across folded turns and older history pages.`;
-    await sendInThread(reader, { msgtype: 'm.text', body });
-    // 3 intermediate agent messages -> folded behind TurnBreak by planThreadTurnFolds
-    for (let step = 1; step <= 3; step += 1) {
-      await sendInThread(agent, {
-        msgtype: 'm.text',
-        body: `Step ${step}/3 for turn #${turn}: inspecting scroll ledger measurements.\n`.repeat(
-          4
-        ),
-        'io.mindroom.stream_status': 'completed',
-      });
-    }
-    if (turn % 4 === 1) {
-      const hasDims = turn % 8 === 1;
-      await sendInThread(agent, {
-        msgtype: 'm.image',
-        body: `screenshot-turn-${turn}.png`,
-        url: hasDims ? imgSized : imgUnsized,
-        info: hasDims ? { mimetype: 'image/png', w: 800, h: 520 } : { mimetype: 'image/png' },
-      });
-    }
-    await sendInThread(agent, longAgentAnswer(turn));
-  }
-
-  await sendInThread(agent, {
-    msgtype: 'm.notice',
-    body: 'Realistic agent thread timeline jump regression',
-    'io.mindroom.thread_summary': {
-      version: 1,
-      summary: 'Realistic agent thread timeline jump regression',
-      message_count: 295,
-      generated_at: new Date().toISOString(),
-      model: 'test',
-    },
-  });
-  return { reader, agent, roomId, longThreadRootId };
-};
-
-const routeQuietly = (page: Page, pattern: string, handler: (route: Route) => Promise<void>) =>
-  page.route(pattern, async (route) => {
-    try {
-      await handler(route);
-    } catch {
-      // Page closed while a delayed background request was in flight.
-    }
-  });
-
-const openAndRun = async (
-  setup: Setup,
-  baseURL: string | undefined,
-  fixture: FixtureWorld,
-  body: (page: Page) => Promise<void>,
-  beforeLogin?: (page: Page) => Promise<void>
-) => {
-  const browser =
-    setup.engine === 'webkit'
-      ? await launchWebKit()
-      : await chromium.launch({
-          executablePath: process.env.CHROMIUM_PATH || undefined,
-          args: CHROMIUM_WITH_SCROLLBARS.args,
-        });
-  try {
-    const context = await browser.newContext({ ...VIEWPORTS[setup.viewport], baseURL });
-    const page = await context.newPage();
-    await page.addInitScript(installThreadJumpProbe);
-    if (beforeLogin) await beforeLogin(page);
-
-    await loginWithPassword(page, {
-      homeserver: DISPOSABLE_HOMESERVER,
-      username: fixture.reader.username,
-      password: PASSWORD,
-    });
-    await seedRoomOverviewState({
-      page,
-      roomId: fixture.roomId,
-      userId: fixture.reader.userId,
-      viewMode: 'compact',
-      filterState: createDefaultThreadFilterState(),
-    });
-    try {
-      await body(page);
-    } finally {
-      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => undefined);
-      await context.close().catch(() => undefined);
-    }
-  } finally {
-    await browser.close();
-  }
-};
 
 test.use({ trace: 'off', video: 'off' });
 
@@ -261,7 +46,7 @@ test.describe('thread timeline jumps reproducers', () => {
 
   test.beforeAll(async () => {
     test.setTimeout(4 * 60_000);
-    if (await disposableHomeserverIsUp()) world = await buildFixtureWorld();
+    if (await disposableHomeserverIsUp()) world = await buildThreadJumpFixtureWorld();
   });
 
   const requireFixture = (setup: Setup): FixtureWorld => {
@@ -273,38 +58,16 @@ test.describe('thread timeline jumps reproducers', () => {
     return world!;
   };
 
-  const delayMediaAndRelations = async (page: Page, mediaMs: number, relationsMs: number) => {
-    await routeQuietly(page, '**/_matrix/client/v1/media/**', async (route) => {
-      await wait(mediaMs);
-      await route.continue();
-    });
-    await routeQuietly(page, '**/relations/**', async (route) => {
-      if (route.request().url().includes('from=')) await wait(relationsMs);
-      await route.continue();
-    });
-  };
-
-  const gotoThreadCard = async (page: Page, fixture: FixtureWorld) => {
-    await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-    const card = page.locator(
-      `[data-compact-room-view="true"] [data-thread-root-id="${fixture.longThreadRootId}"]`
-    );
-    await expect(card).toBeVisible({ timeout: 30_000 });
-    return card;
-  };
-
   const setupColdThreadRoutes = async (
     page: Page,
     fixture: FixtureWorld,
     net: { relationsPages: number; relationsDone: boolean }
   ) => {
     const encodedRoot = encodeURIComponent(fixture.longThreadRootId);
-    // Delay images into the ~150 ms unsettled window right after page 1 mounts Load Older.
     await routeQuietly(page, '**/_matrix/client/v1/media/**', async (route) => {
       await wait(960);
       await route.continue();
     });
-    // Keep room /messages backfill from pre-populating the thread SDK timeline before cold open.
     await routeQuietly(page, '**/_matrix/client/*/rooms/*/messages**', (route) =>
       route.fulfill({
         status: 200,
@@ -340,7 +103,7 @@ test.describe('thread timeline jumps reproducers', () => {
       baseURL,
     }) => {
       const fixture = requireFixture(setup);
-      await openAndRun(setup, baseURL, fixture, async (page) => {
+      await openAndRunThreadJump(setup, baseURL, fixture, async (page) => {
         await delayMediaAndRelations(page, 350, 350);
         const card = await gotoThreadCard(page, fixture);
         await page.waitForTimeout(600);
@@ -370,7 +133,7 @@ test.describe('thread timeline jumps reproducers', () => {
       }) => {
         const fixture = requireFixture(setup);
         const net = { relationsPages: 0, relationsDone: false };
-        await openAndRun(
+        await openAndRunThreadJump(
           setup,
           baseURL,
           fixture,
@@ -383,17 +146,17 @@ test.describe('thread timeline jumps reproducers', () => {
               await startProbe(page, 'open');
               await card.click();
               await expect(page.locator(THREAD_ROWS)).toBeVisible({ timeout: 30_000 });
-              // Tapping hands anchoring from the open-pin loop to the ledger + useFooterBottomPin.
               await page.waitForTimeout(250);
               await tapProbeScroller(page);
-              // Once page 1 mounts Load Older (marginTop < 0), add a composer line inside the
-              // unsettled window so useFooterBottomPin and useListEndClamp both run.
               await expect
                 .poll(
                   () =>
                     page.evaluate((sel) => {
                       const inner = document.querySelector<HTMLElement>(sel);
-                      return Number.parseFloat(inner?.style.marginTop || '0') < 0;
+                      return (
+                        Number.parseFloat(inner?.style.marginTop || '0') < 0 ||
+                        Number(inner?.dataset.headroomPx || '0') > 0
+                      );
                     }, THREAD_ROWS),
                   { timeout: 30_000, intervals: [15] }
                 )
@@ -460,11 +223,11 @@ test.describe('thread timeline jumps reproducers', () => {
       baseURL,
     }) => {
       test.fixme(
-        setup.engine === 'webkit',
-        'Follow-up: WebKit settle discard/replay under fast wheel scrolling'
+        setup.engine === 'webkit' && process.env.MR_THREAD_SCROLL_OWNER !== '1',
+        'Legacy ledger WebKit settle discard/replay under fast wheel scrolling (fixed by mindroom.threadScrollOwner=1)'
       );
       const fixture = requireFixture(setup);
-      await openAndRun(setup, baseURL, fixture, async (page) => {
+      await openAndRunThreadJump(setup, baseURL, fixture, async (page) => {
         await delayMediaAndRelations(page, 350, 650);
         const card = await gotoThreadCard(page, fixture);
         await page.waitForTimeout(600);
@@ -477,15 +240,16 @@ test.describe('thread timeline jumps reproducers', () => {
         await page.waitForTimeout(250);
 
         const center = await getProbeScrollerCenter(page);
-        // Bursts pause 220 ms or 450 ms: the ledger settles 150 ms in, and the 150 ms stall
-        // after its write reaches into the next burst of the shorter pauses.
         await startProbe(page, 'scrollUp', 150);
         await page.mouse.move(center.x, center.y);
         for (let burst = 0; burst < 24; burst += 1) {
           for (let notch = 0; notch < 16; notch += 1) {
+            // eslint-disable-next-line no-await-in-loop
             await page.mouse.wheel(0, -240);
+            // eslint-disable-next-line no-await-in-loop
             await page.waitForTimeout(16);
           }
+          // eslint-disable-next-line no-await-in-loop
           await page.waitForTimeout(burst % 3 === 0 ? 450 : 220);
         }
         await page.waitForTimeout(1_000);

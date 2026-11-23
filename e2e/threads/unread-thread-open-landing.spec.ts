@@ -371,6 +371,11 @@ test('an unread thread opened from a link lands at its newest reply (phone, Chro
     isMobile: true,
     baseURL,
   });
+  if (process.env.MR_THREAD_SCROLL_OWNER === '1') {
+    await context.addInitScript(() =>
+      window.localStorage.setItem('mindroom.threadScrollOwner', '1')
+    );
+  }
   try {
     await unreadThreadOpensAtItsNewestReply(await context.newPage(), 'chromium-phone');
   } finally {

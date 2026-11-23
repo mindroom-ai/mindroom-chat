@@ -28,8 +28,15 @@ export const launchWebKit = async (): Promise<Browser> => {
   const browser = await webkit.launch({ executablePath: WEBKIT_EXECUTABLE, args: [] });
   const newContext = browser.newContext.bind(browser);
   // Browser.newPage creates its context through newContext, so this covers pages too.
-  browser.newContext = (options?: BrowserContextOptions) =>
-    newContext({ userAgent: undefined, serviceWorkers: 'block', ...options });
+  browser.newContext = async (options?: BrowserContextOptions) => {
+    const context = await newContext({ userAgent: undefined, serviceWorkers: 'block', ...options });
+    if (process.env.MR_THREAD_SCROLL_OWNER === '1') {
+      await context.addInitScript(() =>
+        window.localStorage.setItem('mindroom.threadScrollOwner', '1')
+      );
+    }
+    return context;
+  };
   return browser;
 };
 
