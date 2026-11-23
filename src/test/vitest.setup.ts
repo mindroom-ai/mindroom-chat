@@ -3,6 +3,31 @@ import { initReactI18next } from 'react-i18next';
 import { vi } from 'vitest';
 import en from '../app/i18n/englishResources';
 
+// React 19's React.act (now re-exported by react-test-renderer too) checks this flag on every call.
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+// React 19 logs a deprecation warning on every react-test-renderer create() call. Silence only
+// that exact message while letting every other console.error reach test spies unchanged.
+const REACT_TEST_RENDERER_DEPRECATION =
+  'react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer';
+
+vi.mock('react-test-renderer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-test-renderer')>();
+  const create: typeof actual.create = (...args) => {
+    const currentError = console.error;
+    console.error = (...errorArgs: unknown[]) => {
+      if (errorArgs[0] === REACT_TEST_RENDERER_DEPRECATION) return;
+      currentError.apply(console, errorArgs);
+    };
+    try {
+      return actual.create(...args);
+    } finally {
+      console.error = currentError;
+    }
+  };
+  return { ...actual, default: { ...actual, create }, create };
+});
+
 // Component tests do not transform vanilla-extract files. Browser coverage
 // exercises the real material recipe; unit tests only need its composed class.
 vi.mock('../app/ui/styles/Glass.css', () => ({

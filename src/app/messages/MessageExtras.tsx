@@ -3,6 +3,7 @@ import React, { useCallback, useMemo, useRef } from 'react';
 import parse, {
   attributesToProps,
   domToReact,
+  type DOMNode,
   Element as HtmlElement,
   type HTMLReactParserOptions,
 } from 'html-react-parser';
@@ -53,7 +54,7 @@ const extraHtmlParserOptions: HTMLReactParserOptions = {
     stripLinkTextBidi(node.children);
     return (
       <CheckedMessageLink {...attributesToProps(node.attribs)}>
-        {domToReact(node.children, extraHtmlParserOptions)}
+        {domToReact(node.children as DOMNode[], extraHtmlParserOptions)}
       </CheckedMessageLink>
     );
   },

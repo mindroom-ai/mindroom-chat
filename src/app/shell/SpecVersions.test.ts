@@ -269,15 +269,18 @@ describe('SpecVersions', () => {
       return React.createElement('div', null, versions.join(','));
     };
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement(VersionText)
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement(VersionText)
+        )
+      );
+    });
 
     expect(renderer.root.findByType('div').children).toEqual(['v1.10']);
     expect(specVersionsLoaderRenderCount).toBe(0);
@@ -368,15 +371,18 @@ describe('SpecVersions', () => {
     const key = 'mindroom_client_spec_versions::https://example.com::@alice:example.com';
     storageState.set(key, '{"versions":1}');
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
     expect(storageState.has(key)).toBe(false);
@@ -500,15 +506,18 @@ describe('SpecVersions', () => {
       lastUsedAt: 1,
     });
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     const continueButton = renderer.root
       .findAllByType('button')
@@ -538,15 +547,18 @@ describe('SpecVersions', () => {
       versions: ['v1.11'],
     });
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
     expect(specVersionsLoaderRenderCount).toBe(1);
@@ -564,15 +576,18 @@ describe('SpecVersions', () => {
       lastUsedAt: 1,
     });
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     const cancelButton = renderer.root
       .findAllByType('button')
@@ -595,15 +610,18 @@ describe('SpecVersions', () => {
     specVersionsLoaderMode = 'fallback';
     vi.mocked(useActiveSession).mockReturnValue(undefined);
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
   });
@@ -612,15 +630,18 @@ describe('SpecVersions', () => {
     specVersionsLoaderMode = 'error';
     vi.mocked(useActiveSession).mockReturnValue(undefined);
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     const clearCacheButton = renderer.root
       .findAllByType('button')
@@ -651,15 +672,18 @@ describe('SpecVersions', () => {
         })
     );
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
 
     const getButtonByLabel = (label: string) =>
       renderer.root

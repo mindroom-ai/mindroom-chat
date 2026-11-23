@@ -70,17 +70,20 @@ const getNodeText = (value: ReactTestInstance | string | number): string => {
 
 describe('MessageExtras', () => {
   it('renders one details element per section', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({ title: 'First' }),
-          section({ title: 'Second', content: 'two' }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({ title: 'First' }),
+            section({ title: 'Second', content: 'two' }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(2);
     expect(getNodeText(renderer.root)).toContain('First');
@@ -223,18 +226,21 @@ describe('MessageExtras', () => {
   });
 
   it('renders text/plain literally without markdown or HTML parsing', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            content: '<strong>literal</strong>\n**not bold**',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              content: '<strong>literal</strong>\n**not bold**',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('pre')).toHaveLength(1);
     expect(renderer.root.findAllByType('strong')).toHaveLength(0);
@@ -245,19 +251,22 @@ describe('MessageExtras', () => {
   });
 
   it('renders text/markdown through sanitized markdown output', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            contentType: 'text/markdown',
-            content: '**bold**\n```ts\nconst value = 1;\n```',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              contentType: 'text/markdown',
+              content: '**bold**\n```ts\nconst value = 1;\n```',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('strong')).toHaveLength(1);
     expect(renderer.root.findAllByType('pre')).toHaveLength(1);
@@ -269,20 +278,23 @@ describe('MessageExtras', () => {
   });
 
   it('escapes raw dangerous markdown input before HTML parsing', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            contentType: 'text/markdown',
-            content:
-              '<details open><summary>raw</summary>expanded</details><script>alert(1)</script>',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              contentType: 'text/markdown',
+              content:
+                '<details open><summary>raw</summary>expanded</details><script>alert(1)</script>',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('script')).toHaveLength(0);
@@ -293,18 +305,21 @@ describe('MessageExtras', () => {
   });
 
   it('renders titles as escaped React text', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            title: '<img src=x onerror=alert(1)>',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              title: '<img src=x onerror=alert(1)>',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<img src=x onerror=alert(1)>');
@@ -313,23 +328,26 @@ describe('MessageExtras', () => {
   });
 
   it('renders sanitized text/html as elements inside one client-owned details wrapper', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<h2>Evidence</h2><p><strong>safe</strong></p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table><a href="https://example.test">link</a>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<h2>Evidence</h2><p><strong>safe</strong></p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table><a href="https://example.test">link</a>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('summary')).toHaveLength(1);
@@ -347,23 +365,26 @@ describe('MessageExtras', () => {
   });
 
   it('renders sanitized text/html SVG sections as React SVG elements', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<svg viewBox="0 0 200 40"><polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"/></svg>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<svg viewBox="0 0 200 40"><polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"/></svg>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     const svg = renderer.root.findByType('svg');
     const polyline = renderer.root.findByType('polyline');
@@ -377,23 +398,26 @@ describe('MessageExtras', () => {
   });
 
   it('removes sender-owned disclosure controls from text/html sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<details open><summary>sender summary</summary><p>sender body</p></details><p>safe</p>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<details open><summary>sender summary</summary><p>sender body</p></details><p>safe</p>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('summary')).toHaveLength(1);
@@ -451,25 +475,28 @@ describe('MessageExtras', () => {
   });
 
   it('sanitizes malicious html sections while preserving sibling sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              title: 'HTML',
-              contentType: 'text/html',
-              content:
-                '<p onclick="alert(1)">safe</p><script>alert(1)</script><img src="https://example.test/x.png"><a href="javascript:alert(1)">bad link</a>',
-            }),
-            section({ title: 'Plain', content: '<strong>literal</strong>' }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                title: 'HTML',
+                contentType: 'text/html',
+                content:
+                  '<p onclick="alert(1)">safe</p><script>alert(1)</script><img src="https://example.test/x.png"><a href="javascript:alert(1)">bad link</a>',
+              }),
+              section({ title: 'Plain', content: '<strong>literal</strong>' }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('script')).toHaveLength(0);
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
@@ -482,34 +509,37 @@ describe('MessageExtras', () => {
   });
 
   it('does not linkify disallowed plain-text URL schemes inside text/html sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              title: 'HTML',
-              contentType: 'text/html',
-              content:
-                '<p>magnet:?xt=urn:btih:abc ftp://example.test/file https://example.test</p><a href="mailto:user@example.test">mail</a>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {
-          replace: (domNode) => {
-            if ('type' in domNode && isText(domNode)) {
-              const data = 'data' in domNode ? domNode.data : '';
-              if (typeof data === 'string' && data.includes('magnet:')) {
-                return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                title: 'HTML',
+                contentType: 'text/html',
+                content:
+                  '<p>magnet:?xt=urn:btih:abc ftp://example.test/file https://example.test</p><a href="mailto:user@example.test">mail</a>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {
+            replace: (domNode) => {
+              if ('type' in domNode && isText(domNode)) {
+                const data = 'data' in domNode ? domNode.data : '';
+                if (typeof data === 'string' && data.includes('magnet:')) {
+                  return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);
+                }
               }
-            }
-            return undefined;
+              return undefined;
+            },
           },
-        },
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     const links = renderer.root.findAllByType('a');
     expect(links).toHaveLength(1);

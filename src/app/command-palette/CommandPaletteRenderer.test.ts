@@ -255,9 +255,12 @@ vi.mock('./CommandPalette.css', () => ({
 const renderRenderer = (open: CommandPaletteTab | undefined) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
-  const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(CommandPaletteRenderer))
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(Provider, { store }, React.createElement(CommandPaletteRenderer))
+    );
+  });
 
   return { renderer, store };
 };

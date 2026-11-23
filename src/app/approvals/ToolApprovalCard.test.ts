@@ -72,7 +72,7 @@ vi.mock('folds', () => ({
     React.createElement(
       'button',
       { ...props, onClick, ref, type: props.type ?? 'button' },
-      children
+      children as React.ReactNode
     )
   ),
   Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
@@ -1356,7 +1356,7 @@ describe('ToolApprovalCard', () => {
       denyTrigger?: { focus: ReturnType<typeof vi.fn> };
     } = {};
 
-    const createNodeMock = (element: React.ReactElement) => {
+    const createNodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
       if (element.type === 'button') {
         const label = getReactNodeText(element.props.children as React.ReactNode);
         const node = { focus: vi.fn() };
@@ -1377,13 +1377,16 @@ describe('ToolApprovalCard', () => {
       return null;
     };
 
-    const renderer = create(
-      React.createElement(ToolApprovalCard, {
-        approval: pendingApproval,
-        ...approvalContext,
-      }),
-      { createNodeMock }
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ToolApprovalCard, {
+          approval: pendingApproval,
+          ...approvalContext,
+        }),
+        { createNodeMock }
+      );
+    });
 
     act(() => {
       findButtonByText(renderer.root, 'Deny').props.onClick();

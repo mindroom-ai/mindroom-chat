@@ -26,7 +26,7 @@ vi.mock('folds', async (importOriginal) => {
     Tooltip: passthrough,
     TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) => children(null),
     as: <T extends React.ElementType, P>(component: React.ForwardRefRenderFunction<any, P>) =>
-      React.forwardRef(component) as unknown as T,
+      React.forwardRef(component as React.ForwardRefRenderFunction<any, any>) as unknown as T,
     toRem: (value: number) => `${value / 16}rem`,
   };
 });
@@ -137,11 +137,7 @@ const streamingReply = () =>
     getSender: () => AGENT,
     getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
   } as MatrixEvent);
-const stopProps = (
-  relations: MockRelations,
-  targetEvent: MatrixEvent,
-  onReactionToggle: Mock
-) => ({
+const stopProps = (relations: MockRelations, targetEvent: MatrixEvent, onReactionToggle: Mock) => ({
   room: {} as never,
   mEventId: '$event',
   targetEvent,

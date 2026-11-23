@@ -1,6 +1,11 @@
 import React, { type JSX } from 'react';
 import classNames from 'classnames';
-import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
+import {
+  type DOMNode,
+  HTMLReactParserOptions,
+  attributesToProps,
+  domToReact,
+} from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import Linkify from 'linkify-react';
 import { Opts as LinkifyOpts } from 'linkifyjs';
@@ -47,7 +52,7 @@ export const renderMatrixMathHtmlElement = (
 
   const props = attributesToProps(attribs);
   const latex = attribs['data-mx-maths'];
-  const fallback = children.length > 0 ? domToReact(children, opts) : undefined;
+  const fallback = children.length > 0 ? domToReact(children as DOMNode[], opts) : undefined;
 
   return (
     <MatrixMathHtml

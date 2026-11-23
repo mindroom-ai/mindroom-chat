@@ -51,9 +51,11 @@ vi.mock('../../avatars/UserAvatar', () => ({
 }));
 
 const findButtonByText = (renderer: ReturnType<typeof create>, text: string) =>
-  renderer.root.findAllByType('button').find((node) =>
-    node.findAllByType('span').some((textNode) => textNode.children.join('') === text)
-  );
+  renderer.root
+    .findAllByType('button')
+    .find((node) =>
+      node.findAllByType('span').some((textNode) => textNode.children.join('') === text)
+    );
 
 describe('AccountSwitcher', () => {
   const activeSession = {
@@ -75,27 +77,30 @@ describe('AccountSwitcher', () => {
   };
 
   it('renders active and inactive account actions', () => {
-    const renderer = create(
-      React.createElement(AccountSwitcher, {
-        accounts: [
-          {
-            session: activeSession,
-            active: true,
-            displayName: 'Alice',
-          },
-          {
-            session: inactiveSession,
-            active: false,
-            displayName: 'Bob',
-          },
-        ],
-        onOpenSettings: () => undefined,
-        onSwitchAccount: () => undefined,
-        onRemoveAccount: () => undefined,
-        onAddAccount: () => undefined,
-        onClose: () => undefined,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(AccountSwitcher, {
+          accounts: [
+            {
+              session: activeSession,
+              active: true,
+              displayName: 'Alice',
+            },
+            {
+              session: inactiveSession,
+              active: false,
+              displayName: 'Bob',
+            },
+          ],
+          onOpenSettings: () => undefined,
+          onSwitchAccount: () => undefined,
+          onRemoveAccount: () => undefined,
+          onAddAccount: () => undefined,
+          onClose: () => undefined,
+        })
+      );
+    });
 
     expect(findButtonByText(renderer, 'Open Settings')).toBeDefined();
     expect(findButtonByText(renderer, 'Switch')).toBeDefined();
@@ -106,27 +111,30 @@ describe('AccountSwitcher', () => {
   it('invokes switch and remove callbacks for inactive accounts', async () => {
     const onSwitchAccount = vi.fn();
     const onRemoveAccount = vi.fn();
-    const renderer = create(
-      React.createElement(AccountSwitcher, {
-        accounts: [
-          {
-            session: activeSession,
-            active: true,
-            displayName: 'Alice',
-          },
-          {
-            session: inactiveSession,
-            active: false,
-            displayName: 'Bob',
-          },
-        ],
-        onOpenSettings: () => undefined,
-        onSwitchAccount,
-        onRemoveAccount,
-        onAddAccount: () => undefined,
-        onClose: () => undefined,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(AccountSwitcher, {
+          accounts: [
+            {
+              session: activeSession,
+              active: true,
+              displayName: 'Alice',
+            },
+            {
+              session: inactiveSession,
+              active: false,
+              displayName: 'Bob',
+            },
+          ],
+          onOpenSettings: () => undefined,
+          onSwitchAccount,
+          onRemoveAccount,
+          onAddAccount: () => undefined,
+          onClose: () => undefined,
+        })
+      );
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Switch')?.props.onClick();
@@ -138,21 +146,24 @@ describe('AccountSwitcher', () => {
   });
 
   it('omits Add Account when no add callback is provided', () => {
-    const renderer = create(
-      React.createElement(AccountSwitcher, {
-        accounts: [
-          {
-            session: activeSession,
-            active: true,
-            displayName: 'Alice',
-          },
-        ],
-        onOpenSettings: () => undefined,
-        onSwitchAccount: () => undefined,
-        onRemoveAccount: () => undefined,
-        onClose: () => undefined,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(AccountSwitcher, {
+          accounts: [
+            {
+              session: activeSession,
+              active: true,
+              displayName: 'Alice',
+            },
+          ],
+          onOpenSettings: () => undefined,
+          onSwitchAccount: () => undefined,
+          onRemoveAccount: () => undefined,
+          onClose: () => undefined,
+        })
+      );
+    });
 
     expect(findButtonByText(renderer, 'Add Account')).toBeUndefined();
     expect(findButtonByText(renderer, 'Close')).toBeDefined();

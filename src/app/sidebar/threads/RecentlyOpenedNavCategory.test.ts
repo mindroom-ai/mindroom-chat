@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { makeClosedNavCategoriesAtom } from '../../ui/nav/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
-import { clearRecentThreadsStore, makeRecentThreadsAtom } from '../../event-store/threads/recentThreads';
+import {
+  clearRecentThreadsStore,
+  makeRecentThreadsAtom,
+} from '../../event-store/threads/recentThreads';
 import { blockSelection } from '../../ui/dragSelection';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {
@@ -152,7 +155,7 @@ describe('RecentlyOpenedNavCategory', () => {
 
   const renderCategory = (
     limit?: number,
-    createNodeMock?: (element: React.ReactElement) => unknown
+    createNodeMock?: (element: React.ReactElement<any>) => unknown
   ) => {
     const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
     act(() => {

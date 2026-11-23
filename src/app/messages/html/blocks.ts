@@ -1,6 +1,5 @@
 import { Element, htmlToDOM } from 'html-react-parser';
-import { isText } from 'domhandler';
-import type { DOMNode } from 'html-react-parser';
+import { isText, type ChildNode } from 'domhandler';
 import { parseInlineMD } from '../../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../../rich-text/markdown/block/parser';
 import {
@@ -147,9 +146,9 @@ const normalizeMarkdownDashLists = (markdown: string): string =>
       .join('\n')
   );
 
-const isDomElementNode = (node: DOMNode): node is Element => matchesEnum(node.type, 'tag');
+const isDomElementNode = (node: ChildNode): node is Element => matchesEnum(node.type, 'tag');
 
-const extractDomText = (nodes: DOMNode[]): string =>
+const extractDomText = (nodes: ChildNode[]): string =>
   nodes
     .map((node) => {
       if (isText(node)) return node.data;
@@ -240,8 +239,7 @@ export const formatMessageTextBodyAsHtml = (body: string): string | undefined =>
   };
 
   lines.forEach((line) => {
-    const markerHtml =
-      formatToolRefLineAsHtml(line) ?? formatPasteMarkerTextAsHtml(line);
+    const markerHtml = formatToolRefLineAsHtml(line) ?? formatPasteMarkerTextAsHtml(line);
     if (markerHtml) {
       flushParagraph();
       hasMarker = true;
@@ -324,9 +322,7 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
       /^(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line) &&
       (index === 0 || lines[index - 1]!.trim() === '') &&
       (index === lines.length - 1 || lines[index + 1]!.trim() === '');
-    const markerHtml = separator
-      ? '<hr/>'
-      : formatStandaloneMarkerAsHtml(line, allowRichMarkers);
+    const markerHtml = separator ? '<hr/>' : formatStandaloneMarkerAsHtml(line, allowRichMarkers);
     if (markerHtml) {
       flushMarkdown(true);
       htmlParts.push(markerHtml);

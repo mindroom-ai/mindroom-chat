@@ -21,12 +21,15 @@ vi.mock('./VoiceWaveform.css', () => ({
 
 describe('VoiceWaveform', () => {
   it('renders normalized SVG bars with active progress bars', () => {
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: [0, 512, 1024],
-        progress: 0.5,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: [0, 512, 1024],
+          progress: 0.5,
+        })
+      );
+    });
 
     const rects = renderer.root.findAllByType('rect');
     const [svg, fill] = renderer.root.findAllByType('svg');
@@ -55,13 +58,16 @@ describe('VoiceWaveform', () => {
 
   it('maps native slider scrubbing and keyboard input to seek progress', () => {
     const onSeekProgress = vi.fn();
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: [100, 200],
-        progress: 0.5,
-        onSeekProgress,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: [100, 200],
+          progress: 0.5,
+          onSeekProgress,
+        })
+      );
+    });
 
     const button = renderer.root.findByType('input');
     expect(button.props.type).toBe('range');
@@ -92,12 +98,15 @@ describe('VoiceWaveform', () => {
   });
 
   it('right-anchors compact recording bars without resampling them to Matrix width', () => {
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: Array.from({ length: 96 }, (_value, index) => index),
-        compact: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: Array.from({ length: 96 }, (_value, index) => index),
+          compact: true,
+        })
+      );
+    });
 
     const container = renderer.root.findByType('div');
     const svg = renderer.root.findByType('svg');
@@ -120,12 +129,15 @@ describe('VoiceWaveform', () => {
   });
 
   it('left-pads early compact recording samples with visible silence bars', () => {
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: [0, 512],
-        compact: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: [0, 512],
+          compact: true,
+        })
+      );
+    });
 
     const svg = renderer.root.findByType('svg');
     const rects = renderer.root.findAllByType('rect');
@@ -144,12 +156,15 @@ describe('VoiceWaveform', () => {
   });
 
   it('keeps quiet compact recording samples restrained while preserving the peak cap', () => {
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: [64, 256, 1024],
-        compact: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: [64, 256, 1024],
+          compact: true,
+        })
+      );
+    });
 
     const rects = renderer.root.findAllByType('rect');
 
@@ -162,11 +177,14 @@ describe('VoiceWaveform', () => {
   });
 
   it('keeps non-compact playback waveform amplitude unchanged', () => {
-    const renderer = create(
-      React.createElement(VoiceWaveform, {
-        waveform: [512],
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceWaveform, {
+          waveform: [512],
+        })
+      );
+    });
 
     const rects = renderer.root.findAllByType('rect');
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { cleanup, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
@@ -73,6 +73,7 @@ const hiddenOf = (event: PluginEvent, config: ClientConfig = {}) => {
 };
 
 afterEach(() => {
+  cleanup();
   registry.splice(0);
   vi.restoreAllMocks();
 });

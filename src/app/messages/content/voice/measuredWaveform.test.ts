@@ -78,15 +78,18 @@ describe('useMeasuredWaveform', () => {
 
   it('shows a real waveform as sent', () => {
     let shown: number[] | undefined;
-    const renderer = create(
-      React.createElement(Probe, {
-        identity: 'real',
-        waveform: [0, 512, 1024],
-        onShow: (waveform) => {
-          shown = waveform;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Probe, {
+          identity: 'real',
+          waveform: [0, 512, 1024],
+          onShow: (waveform) => {
+            shown = waveform;
+          },
+        })
+      );
+    });
     expect(shown).toEqual([0, 512, 1024]);
     act(() => renderer.unmount());
   });

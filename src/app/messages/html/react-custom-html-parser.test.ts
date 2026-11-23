@@ -1,5 +1,10 @@
 import React from 'react';
-import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import parse, {
+  type DOMNode,
+  Element,
+  HTMLReactParserOptions,
+  domToReact,
+} from 'html-react-parser';
 import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -204,7 +209,7 @@ const createBaseOpts = (): HTMLReactParserOptions => {
   const opts: HTMLReactParserOptions = {
     replace: (domNode) => {
       if (domNode instanceof Element && domNode.name === 'p') {
-        return React.createElement('p', null, domToReact(domNode.children, opts));
+        return React.createElement('p', null, domToReact(domNode.children as DOMNode[], opts));
       }
 
       return undefined;
@@ -281,12 +286,17 @@ describe('CodeBlock clipboard feedback', () => {
     }
   });
 
-  const renderCodeBlock = () =>
-    create(
-      React.createElement(CodeBlock, { opts: {} }, [
-        new DOMText('copy me'),
-      ] as unknown as React.ReactNode)
-    );
+  const renderCodeBlock = () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CodeBlock, { opts: {} }, [
+          new DOMText('copy me'),
+        ] as unknown as React.ReactNode)
+      );
+    });
+    return renderer;
+  };
 
   const getCopyControl = (renderer: ReactTestRenderer) =>
     renderer.root.find(
@@ -1649,7 +1659,7 @@ describe('useToolTraceMarkerParserOptions', () => {
 
     // Each marker used to parse the rest of its paragraph one level deeper,
     // which overflowed the stack for a long paragraph.
-    const parsed = parse(html, opts) as React.ReactElement;
+    const parsed = parse(html, opts) as React.ReactElement<{ children?: React.ReactNode }>;
     const shown = React.Children.toArray(parsed.props.children);
     const toolBlocks = shown.filter(
       (node) => React.isValidElement<{ tools?: unknown }>(node) && Array.isArray(node.props.tools)

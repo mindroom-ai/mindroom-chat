@@ -57,8 +57,8 @@ const withHighlight = (
   if (!regex) return options;
   return {
     ...options,
-    replace: (domNode: DOMNode) => {
-      const replaced = options.replace?.(domNode);
+    replace: (domNode: DOMNode, index: number) => {
+      const replaced = options.replace?.(domNode, index);
       if (replaced) return replaced;
       if (!isText(domNode)) return replaced;
       const parts = highlightText(regex, domNode.data);

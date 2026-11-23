@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { AvatarModelMark, ModelBadge } from './ModelBadge';
 import { getAiRunInfo } from '../../matrix/protocol/aiRun';
@@ -12,8 +12,15 @@ vi.mock('./ModelBadge.css', () => ({
 }));
 
 const avatar = <img alt="Agent" />;
+const render = (element: React.ReactElement) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(element);
+  });
+  return renderer;
+};
 const markOf = (info: Parameters<typeof AvatarModelMark>[0]['info']) =>
-  create(<AvatarModelMark info={info}>{avatar}</AvatarModelMark>).root;
+  render(<AvatarModelMark info={info}>{avatar}</AvatarModelMark>).root;
 
 describe('ModelBadge', () => {
   it.each([
@@ -30,7 +37,10 @@ describe('ModelBadge', () => {
           model: { config: 'friendly_alias', display_name: displayName, provider: 'openai' },
         },
       });
-      const renderer = create(<ModelBadge info={info!} />);
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(<ModelBadge info={info!} />);
+      });
 
       expect(renderer.root.findByProps({ className: 'Label' }).children).toEqual([expectedLabel]);
       const badge = renderer.root.findByType('button');
@@ -42,7 +52,7 @@ describe('ModelBadge', () => {
 
   it('uses the Anthropic mark for Claude models routed through Vertex AI', () => {
     const info = { modelConfig: 'fable', modelProvider: 'vertexai', modelId: 'claude-fable-5' };
-    const badge = create(<ModelBadge info={info} />).root.findByType('button');
+    const badge = render(<ModelBadge info={info} />).root.findByType('button');
     expect(badge.props['aria-label']).toBe('Model: fable (vertexai / claude-fable-5)');
     expect(badge.findByProps({ className: 'Label' }).children).toEqual(['Fable']);
     expect(badge.findAllByType('svg')).toHaveLength(0);
@@ -63,7 +73,7 @@ describe('ModelBadge', () => {
 
     expect(root.findByType('img').props.alt).toBe('Agent');
     expect(root.findAllByProps({ className: 'Mark' })).toHaveLength(0);
-    expect(create(<ModelBadge info={{ runId: 'run-1' }} />).toJSON()).toBeNull();
+    expect(render(<ModelBadge info={{ runId: 'run-1' }} />).toJSON()).toBeNull();
   });
 
   it.each([

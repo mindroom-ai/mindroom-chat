@@ -10,7 +10,8 @@ const { mx } = vi.hoisted(() => ({ mx: { getUrlPreview: vi.fn() } }));
 vi.mock('folds', () => {
   const tag = (name: string, extra = {}) =>
     React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, style }, ref) => React.createElement(name, { ref, style, ...extra }, children)
+      ({ children, style }, ref) =>
+        React.createElement(name, { ref, style, ...extra }, children as React.ReactNode)
     );
   return {
     Box: tag('div'),

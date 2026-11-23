@@ -106,7 +106,13 @@ const renderMenu = (overrides: Partial<ThreadActionsMenuProps> = {}) => (
     {...overrides}
   />
 );
-const render = (overrides: Partial<ThreadActionsMenuProps> = {}) => create(renderMenu(overrides));
+const render = (overrides: Partial<ThreadActionsMenuProps> = {}) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(renderMenu(overrides));
+  });
+  return renderer;
+};
 const click = (renderer: ReturnType<typeof create>, label: string) =>
   act(() => {
     renderer.root

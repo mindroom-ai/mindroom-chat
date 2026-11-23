@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { readFileSync } from 'node:fs';
 import React, { type JSX } from 'react';
-import { create, ReactTestInstance } from 'react-test-renderer';
+import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ThreadSummaryCard } from './ThreadSummaryCard';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
@@ -60,35 +60,41 @@ const getNodeText = (value: ReactTestInstance | string): string => {
 
 describe('ThreadSummaryCard', () => {
   it('labels a manually authored summary without claiming AI generation', () => {
-    const renderer = create(
-      React.createElement(ThreadSummaryCard, {
-        summaryInfo: getThreadSummaryInfo({
-          msgtype: 'm.notice',
-          body: 'Handwritten summary',
-          'io.mindroom.thread_summary': {
-            version: 1,
-            model: 'manual',
-            summary: 'Handwritten summary',
-          },
-        })!,
-        renderBody: ({ body }) => React.createElement('span', null, body),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ThreadSummaryCard, {
+          summaryInfo: getThreadSummaryInfo({
+            msgtype: 'm.notice',
+            body: 'Handwritten summary',
+            'io.mindroom.thread_summary': {
+              version: 1,
+              model: 'manual',
+              summary: 'Handwritten summary',
+            },
+          })!,
+          renderBody: ({ body }) => React.createElement('span', null, body),
+        })
+      );
+    });
     expect(getNodeText(renderer.root)).toContain('Manually edited summary');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('AI');
     renderer.unmount();
   });
   it('shows AI provenance, message count and generation time', () => {
-    const renderer = create(
-      React.createElement(ThreadSummaryCard, {
-        summaryInfo: {
-          summaryText: 'Deployment completed and health checks passed.',
-          messageCount: 3,
-          generatedTs: 1_775_000_000_000,
-        },
-        renderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ThreadSummaryCard, {
+          summaryInfo: {
+            summaryText: 'Deployment completed and health checks passed.',
+            messageCount: 3,
+            generatedTs: 1_775_000_000_000,
+          },
+          renderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
+        })
+      );
+    });
 
     const text = getNodeText(renderer.root);
 

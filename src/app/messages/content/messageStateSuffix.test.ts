@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 
@@ -8,7 +8,10 @@ vi.mock('../../ui/PendingSendIndicator.css', () => ({
 }));
 
 const renderSuffix = (renderSuffixFn: (() => React.ReactNode) | undefined): string => {
-  const renderer = create(React.createElement(React.Fragment, null, renderSuffixFn?.()));
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(React.createElement(React.Fragment, null, renderSuffixFn?.()));
+  });
   const rendered = JSON.stringify(renderer.toJSON());
   renderer.unmount();
   return rendered;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { ToolCallMessageContext } from '../../agent-run/toolCallStatus';
@@ -169,18 +169,21 @@ describe('RenderMessageContent', () => {
       renderAgentMessageContentMock.mockReturnValue(null);
       const content = { msgtype: 'm.text', body: 'Updated answer', ...metadata };
 
-      const renderer = create(
-        React.createElement(RenderMessageContent, {
-          mEvent: messageFrom(sender),
-          displayName: 'Sender',
-          msgType: 'm.text',
-          ts: 0,
-          edited: true,
-          getContent: (() => content) as <T>() => T,
-          htmlReactParserOptions: {},
-          linkifyOpts: {},
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(RenderMessageContent, {
+            mEvent: messageFrom(sender),
+            displayName: 'Sender',
+            msgType: 'm.text',
+            ts: 0,
+            edited: true,
+            getContent: (() => content) as <T>() => T,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        );
+      });
 
       expect(renderAgentMessageContentMock).toHaveBeenCalledWith(
         expect.objectContaining({ edited, content })
@@ -197,17 +200,20 @@ describe('RenderMessageContent', () => {
     (urlPreview, preview) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(null);
-      const renderer = create(
-        React.createElement(RenderMessageContent, {
-          displayName: 'Sender',
-          msgType: 'm.text',
-          ts: 0,
-          urlPreview,
-          getContent: (() => ({ msgtype: 'm.text', body: 'https://example.org' })) as <T>() => T,
-          htmlReactParserOptions: {},
-          linkifyOpts: {},
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(RenderMessageContent, {
+            displayName: 'Sender',
+            msgType: 'm.text',
+            ts: 0,
+            urlPreview,
+            getContent: (() => ({ msgtype: 'm.text', body: 'https://example.org' })) as <T>() => T,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        );
+      });
 
       expect(renderAgentMessageContentMock).toHaveBeenCalledWith(
         expect.objectContaining({ renderUrlsPreview: preview })
@@ -221,19 +227,22 @@ describe('RenderMessageContent', () => {
       React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'Helper',
-        eventId: '$reply',
-        roomId: '!room:example.org',
-        threadId: '$root',
-        msgType: 'm.text',
-        ts: 0,
-        getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Helper',
+          eventId: '$reply',
+          roomId: '!room:example.org',
+          threadId: '$root',
+          msgType: 'm.text',
+          ts: 0,
+          getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     expect(renderer.root.findByType('span').children).toEqual([
       JSON.stringify({ eventId: '$reply', roomId: '!room:example.org', threadId: '$root' }),
@@ -246,24 +255,27 @@ describe('RenderMessageContent', () => {
       React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'Helper',
-        mEvent: new MatrixEvent({
-          type: 'm.room.message',
-          sender: AGENT,
-          room_id: '!room:example.org',
-          event_id: '$reply',
-          content: { msgtype: 'm.text' },
-        }),
-        eventId: '$reply',
-        msgType: 'm.text',
-        ts: 0,
-        getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Helper',
+          mEvent: new MatrixEvent({
+            type: 'm.room.message',
+            sender: AGENT,
+            room_id: '!room:example.org',
+            event_id: '$reply',
+            content: { msgtype: 'm.text' },
+          }),
+          eventId: '$reply',
+          msgType: 'm.text',
+          ts: 0,
+          getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     expect(JSON.parse(renderer.root.findByType('span').children[0] as string)).toMatchObject({
       eventId: '$reply',
@@ -277,24 +289,27 @@ describe('RenderMessageContent', () => {
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
     );
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'MindRoom',
-        eventType: 'io.mindroom.tool_approval',
-        roomId: '!room:example.org',
-        eventId: '$approval',
-        threadId: '$thread-root',
-        msgType: 'm.notice',
-        ts: 0,
-        showMessageExtras: true,
-        getContent: (() => ({
-          msgtype: 'm.notice',
-          body: 'Summary body',
-        })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'MindRoom',
+          eventType: 'io.mindroom.tool_approval',
+          roomId: '!room:example.org',
+          eventId: '$approval',
+          threadId: '$thread-root',
+          msgType: 'm.notice',
+          ts: 0,
+          showMessageExtras: true,
+          getContent: (() => ({
+            msgtype: 'm.notice',
+            body: 'Summary body',
+          })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -325,20 +340,23 @@ describe('RenderMessageContent', () => {
     );
     const summary = { version: 1, summary: 'Rendered summary text' };
 
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'MindRoom',
-        msgType: 'm.notice',
-        ts: 0,
-        getContent: (() => ({
-          msgtype: 'm.notice',
-          body: 'Summary body',
-          'io.mindroom.thread_summary': summary,
-        })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'MindRoom',
+          msgType: 'm.notice',
+          ts: 0,
+          getContent: (() => ({
+            msgtype: 'm.notice',
+            body: 'Summary body',
+            'io.mindroom.thread_summary': summary,
+          })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -372,17 +390,20 @@ describe('RenderMessageContent', () => {
       },
     };
 
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'MindRoom',
-        msgType: 'm.notice',
-        ts: 0,
-        edited: true,
-        getContent: (() => content) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'MindRoom',
+          msgType: 'm.notice',
+          ts: 0,
+          edited: true,
+          getContent: (() => content) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -401,32 +422,35 @@ describe('RenderMessageContent', () => {
       React.createElement('div', { 'data-renderer': 'tool-approval' }, 'web_search')
     );
 
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        mEvent: messageFrom(AGENT),
-        displayName: 'MindRoom',
-        eventType: 'io.mindroom.tool_approval',
-        roomId: '!room:example.org',
-        eventId: '$approval',
-        threadId: '$thread-root',
-        msgType: '',
-        ts: 0,
-        getContent: (() => ({
-          approval_id: 'approval-1',
-          tool_name: 'web_search',
-          arguments: { query: 'release date' },
-          agent_name: 'research',
-          status: 'pending',
-          requested_at: '2026-04-10T12:00:00Z',
-          expires_at: '2026-04-17T12:00:00Z',
-          resolved_at: null,
-          resolved_by: null,
-          resolution_reason: null,
-        })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          mEvent: messageFrom(AGENT),
+          displayName: 'MindRoom',
+          eventType: 'io.mindroom.tool_approval',
+          roomId: '!room:example.org',
+          eventId: '$approval',
+          threadId: '$thread-root',
+          msgType: '',
+          ts: 0,
+          getContent: (() => ({
+            approval_id: 'approval-1',
+            tool_name: 'web_search',
+            arguments: { query: 'release date' },
+            agent_name: 'research',
+            status: 'pending',
+            requested_at: '2026-04-10T12:00:00Z',
+            expires_at: '2026-04-17T12:00:00Z',
+            resolved_at: null,
+            resolved_by: null,
+            resolution_reason: null,
+          })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -457,25 +481,28 @@ describe('RenderMessageContent', () => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(undefined);
 
-      const renderer = create(
-        React.createElement(RenderMessageContent, {
-          mEvent: messageFrom(sender),
-          displayName: 'MindRoom',
-          msgType: 'm.image',
-          ts: 0,
-          edited: true,
-          pendingSend: true,
-          getContent: (() => ({
-            msgtype: 'm.image',
-            body: 'Caption text',
-            filename: 'image.png',
-            url: 'mxc://example/image',
-            ...metadata,
-          })) as <T>() => T,
-          htmlReactParserOptions: {},
-          linkifyOpts: {},
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(RenderMessageContent, {
+            mEvent: messageFrom(sender),
+            displayName: 'MindRoom',
+            msgType: 'm.image',
+            ts: 0,
+            edited: true,
+            pendingSend: true,
+            getContent: (() => ({
+              msgtype: 'm.image',
+              body: 'Caption text',
+              filename: 'image.png',
+              url: 'mxc://example/image',
+              ...metadata,
+            })) as <T>() => T,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        );
+      });
 
       const rendered = JSON.stringify(renderer.toJSON());
 
@@ -491,22 +518,25 @@ describe('RenderMessageContent', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(undefined);
 
-    const renderer = create(
-      React.createElement(RenderMessageContent, {
-        displayName: 'Sender',
-        msgType: 'm.image',
-        ts: 0,
-        getContent: (() => ({
-          msgtype: 'm.image',
-          body: 'Architecture diagram',
-          filename: 'diagram.svg',
-          url: 'mxc://example/diagram',
-          info: { mimetype: 'image/svg+xml' },
-        })) as <T>() => T,
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RenderMessageContent, {
+          displayName: 'Sender',
+          msgType: 'm.image',
+          ts: 0,
+          getContent: (() => ({
+            msgtype: 'm.image',
+            body: 'Architecture diagram',
+            filename: 'diagram.svg',
+            url: 'mxc://example/diagram',
+            info: { mimetype: 'image/svg+xml' },
+          })) as <T>() => T,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+        })
+      );
+    });
 
     expect(renderer.root.findAllByProps({ 'data-renderer': 'text' })).toHaveLength(1);
 

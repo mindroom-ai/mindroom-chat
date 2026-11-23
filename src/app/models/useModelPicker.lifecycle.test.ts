@@ -88,15 +88,14 @@ const setup = () => {
   const mount = async (strict = false) => {
     root = createRoot(node);
     await act(async () => {
-      root!.render(
-        React.createElement(
-          MatrixClientProvider,
-          { value: mx },
-          strict
-            ? React.createElement(StrictMode, null, React.createElement(App))
-            : React.createElement(App)
-        )
+      const tree = React.createElement(
+        MatrixClientProvider,
+        { value: mx },
+        React.createElement(App)
       );
+      // Wrap at the root: React 19.3 StrictMode double-invokes mount effects from the outermost
+      // newly mounted fiber, so nesting StrictMode inside a fresh provider skips replay.
+      root!.render(strict ? React.createElement(StrictMode, null, tree) : tree);
       await flush();
     });
   };

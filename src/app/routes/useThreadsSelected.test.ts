@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { useThreadsSelected } from './useThreadsSelected';
@@ -11,17 +11,19 @@ function Probe({ onValue }: { onValue: (value: boolean) => void }) {
 
 const readSelected = (path: string): boolean => {
   let selected = false;
-  create(
-    React.createElement(
-      MemoryRouter,
-      { initialEntries: [path] },
-      React.createElement(Probe, {
-        onValue: (value) => {
-          selected = value;
-        },
-      })
-    )
-  );
+  act(() => {
+    create(
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: [path] },
+        React.createElement(Probe, {
+          onValue: (value) => {
+            selected = value;
+          },
+        })
+      )
+    );
+  });
   return selected;
 };
 

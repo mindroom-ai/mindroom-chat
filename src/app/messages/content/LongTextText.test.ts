@@ -766,15 +766,23 @@ describe('LongTextText hydration identity', () => {
     );
     longTextMocks.hydrateMindroomLongTextSource.mockClear();
 
-    // No act(): this inspects the FIRST render, before any effect runs.
-    const renderer = create(
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
-        content,
-        longTextSource: source,
-        renderBody: (_content, props) => props.body,
-      })
-    );
+    // Capture every render body so the first render (before any effect runs) is checked directly.
+    const renderedBodies: string[] = [];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        React.createElement(LongTextText, {
+          kind: LongTextKind.Text,
+          content,
+          longTextSource: source,
+          renderBody: (_content, props) => {
+            renderedBodies.push(props.body);
+            return props.body;
+          },
+        })
+      );
+    });
+    expect(renderedBodies[0]).toBe('Full prewarmed response');
     expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
       'Full prewarmed response'
     );
@@ -805,13 +813,17 @@ describe('LongTextText hydration identity', () => {
     );
     longTextMocks.hydrateMindroomLongTextSource.mockClear();
 
+    const renderedBodies: string[] = [];
     const render = (hydrate: boolean) =>
       React.createElement(LongTextText, {
         kind: LongTextKind.Text,
         hydrate,
         content,
         longTextSource: source,
-        renderBody: (_content, props) => props.body,
+        renderBody: (_content, props) => {
+          renderedBodies.push(props.body);
+          return props.body;
+        },
       });
 
     // Overscan mount: cold render keeps the cheap preview despite the warm
@@ -824,9 +836,13 @@ describe('LongTextText hydration identity', () => {
       'Preview response'
     );
 
-    // Viewport entry flips hydrate: the flip's OWN render (no act, effects
-    // not yet flushed) must already show the cached full content.
-    renderer.update(render(true));
+    // Viewport entry flips hydrate: the flip's OWN first render (before effects
+    // run) must already show the cached full content without a preview flash.
+    renderedBodies.length = 0;
+    act(() => {
+      renderer.update(render(true));
+    });
+    expect(renderedBodies[0]).toBe('Full prewarmed response');
     expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
       'Full prewarmed response'
     );
@@ -906,7 +922,7 @@ describe('LongTextText hydration identity', () => {
             )
           ),
           {
-            createNodeMock: (element) => {
+            createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => {
               if (element.props.className === 'collapsible-content') {
                 return { clientHeight: 72, scrollHeight: 160 };
               }

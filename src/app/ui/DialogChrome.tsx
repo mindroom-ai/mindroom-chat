@@ -3,7 +3,6 @@ import {
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type MouseEventHandler,
-  type MutableRefObject,
   type ReactNode,
   type Ref,
   useCallback,
@@ -72,9 +71,9 @@ export function SheetScrollArea({
   const contentRef = useRef<HTMLDivElement>(null);
   const setScrollNode = useCallback(
     (node: HTMLDivElement | null) => {
-      (internalScrollRef as MutableRefObject<HTMLDivElement | null>).current = node;
+      internalScrollRef.current = node;
       if (typeof scrollRef === 'function') scrollRef(node);
-      else if (scrollRef) (scrollRef as MutableRefObject<HTMLDivElement | null>).current = node;
+      else if (scrollRef) scrollRef.current = node;
     },
     [scrollRef]
   );

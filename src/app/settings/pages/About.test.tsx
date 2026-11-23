@@ -237,14 +237,20 @@ describe('About diagnostics export', () => {
     ['unavailable', 'Diagnostics storage unavailable.'],
   ])('renders the %s status', (status, description) => {
     mocks.getFlightRecorderStatus.mockReturnValue(status);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     expect(diagnosticsTile(renderer).props['data-description']).toBe(description);
     renderer.unmount();
   });
 
   it('shows the release version the client was built from', () => {
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     expect(
       renderer.root
@@ -261,7 +267,10 @@ describe('About diagnostics export', () => {
       debugMode = enabled;
       return true;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     const debugSwitch = () =>
       renderer.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
     expect(diagnosticsTile(renderer)).toBeDefined();
@@ -290,7 +299,10 @@ describe('About diagnostics export', () => {
       debugMode = enabled;
       return true;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     const shown = (title: string) =>
       renderer.root.findAllByProps({ 'data-setting-title': title }).length;
     const debugSwitch = () =>
@@ -324,17 +336,20 @@ describe('About diagnostics export', () => {
     Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
     let renderer: ReactTestRenderer | undefined;
     try {
-      renderer = create(<About requestClose={vi.fn()} />);
+      act(() => {
+        renderer = create(<About requestClose={vi.fn()} />);
+      });
+      const mounted = renderer!;
       const debugSwitch = () =>
-        renderer!.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
-      expect(diagnosticsTile(renderer)).toBeDefined();
-      expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+        mounted.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
+      expect(diagnosticsTile(mounted)).toBeDefined();
+      expect(deepTraceSwitch(mounted).props.checked).toBe(false);
 
       await act(async () => {
         debugSwitch().props.onChange({ target: { checked: true } });
       });
       expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(true, { keepRecorders: true });
-      expect(diagnosticsTile(renderer)).toBeDefined();
+      expect(diagnosticsTile(mounted)).toBeDefined();
     } finally {
       renderer?.unmount();
       Reflect.deleteProperty(window, 'mindroomDesktop');
@@ -347,7 +362,10 @@ describe('About diagnostics export', () => {
       resolveSave = resolve;
     });
     mocks.saveFile.mockReturnValue(savePending);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     act(() => {
       void diagnosticsButton(renderer).props.onClick();
@@ -370,7 +388,10 @@ describe('About diagnostics export', () => {
 
   it('shows an export error and clears it when a retry starts', async () => {
     mocks.saveFile.mockRejectedValueOnce(new Error('save failed')).mockResolvedValueOnce(true);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       await diagnosticsButton(renderer).props.onClick();
@@ -389,7 +410,10 @@ describe('About diagnostics export', () => {
   it('does not offer a retry when unavailable diagnostics cannot be read', async () => {
     mocks.getFlightRecorderStatus.mockReturnValue('unavailable');
     mocks.buildDiagnosticsExport.mockRejectedValue(new Error('Diagnostics storage unavailable'));
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       await diagnosticsButton(renderer).props.onClick();
@@ -404,7 +428,10 @@ describe('About diagnostics export', () => {
 
   it('treats native picker cancellation as neither success nor failure', async () => {
     mocks.saveFile.mockResolvedValue(false);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       await diagnosticsButton(renderer).props.onClick();
@@ -421,7 +448,10 @@ describe('About diagnostics export', () => {
   });
 
   it('enables and disables deep tracing through the device-local switch', async () => {
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -442,7 +472,10 @@ describe('About diagnostics export', () => {
 
   it('keeps the switch unchanged and reports unavailable trace storage when persistence fails', async () => {
     mocks.setDeepTraceEnabled.mockResolvedValue(false);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -464,7 +497,10 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('unavailable');
       return false;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -525,7 +561,10 @@ describe('About diagnostics export', () => {
       };
     });
 
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     expect(deepTraceSwitch(renderer).props.checked).toBe(true);
     expect(deepTraceTile(renderer).props['data-description']).toContain(
@@ -537,7 +576,10 @@ describe('About diagnostics export', () => {
 
   it('reports an unexpected trace preference rejection without an unhandled failure', async () => {
     mocks.setDeepTraceEnabled.mockRejectedValue(new Error('unexpected rejection'));
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -559,7 +601,10 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('disabled');
       return false;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     await act(async () => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: false } });
@@ -584,7 +629,10 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('starting');
       return pendingEnable;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     act(() => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -619,7 +667,10 @@ describe('About diagnostics export', () => {
       deepTraceStatusListener?.('recording');
       return pendingEnable;
     });
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
 
     act(() => {
       deepTraceSwitch(renderer).props.onChange({ target: { checked: true } });
@@ -645,7 +696,10 @@ describe('About diagnostics export', () => {
   it('clears retained deep trace without changing its enabled state', async () => {
     deepTracePreference = true;
     deepTraceRuntimeStatus = 'recording';
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     const clearButton = deepTraceTile(renderer).findByType('button');
 
     await act(async () => {
@@ -692,13 +746,16 @@ describe('About tour', () => {
     screenSize: ScreenSize = ScreenSize.Desktop
   ) => {
     const store = createStore();
-    const renderer = create(
-      <Provider store={store}>
-        <ScreenSizeProvider value={screenSize}>
-          <About {...callbacks} />
-        </ScreenSizeProvider>
-      </Provider>
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <ScreenSizeProvider value={screenSize}>
+            <About {...callbacks} />
+          </ScreenSizeProvider>
+        </Provider>
+      );
+    });
     return { store, renderer };
   };
 
@@ -806,7 +863,10 @@ describe('About Mac app', () => {
     mocks.isMacOS.mockReturnValue(true);
     for (const config of [{}, { macApp: { offer: false } }]) {
       mocks.config = config;
-      const renderer = create(<About requestClose={vi.fn()} />);
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(<About requestClose={vi.fn()} />);
+      });
       expect(macTile(renderer)).toHaveLength(0);
       renderer.unmount();
     }
@@ -814,12 +874,18 @@ describe('About Mac app', () => {
 
   it('is shown only in a browser on a Mac', () => {
     mocks.isMacOS.mockReturnValue(false);
-    const elsewhere = create(<About requestClose={vi.fn()} />);
+    let elsewhere!: ReturnType<typeof create>;
+    act(() => {
+      elsewhere = create(<About requestClose={vi.fn()} />);
+    });
     expect(macTile(elsewhere)).toHaveLength(0);
     elsewhere.unmount();
 
     mocks.isMacOS.mockReturnValue(true);
-    const mac = create(<About requestClose={vi.fn()} />);
+    let mac!: ReturnType<typeof create>;
+    act(() => {
+      mac = create(<About requestClose={vi.fn()} />);
+    });
     const [tile] = macTile(mac);
     expect(tile?.props['data-setting-title']).toBe('MindRoom for Mac');
     const download = mac.root.findByProps({ 'data-mac-app-download': 'about' });
@@ -837,7 +903,10 @@ describe('About Mac app', () => {
   ])('copies the Homebrew command and says how it went (copied: %s)', async (works, status) => {
     mocks.isMacOS.mockReturnValue(true);
     mocks.copyToClipboard.mockResolvedValue(works);
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     const copy = () => renderer.root.findByProps({ 'data-mac-app-copy-brew': '' });
     const said = () =>
       String(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props.children);

@@ -68,12 +68,15 @@ describe('SSOLogin return', () => {
   });
 
   it('sends the homeserver back to an address with a nonce, noted when the button is pressed', async () => {
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        redirectUrl: 'https://chat.example/login/example.org/?addAccount=1',
-        action: SSOAction.LOGIN,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'https://chat.example/login/example.org/?addAccount=1',
+          action: SSOAction.LOGIN,
+        })
+      );
+    });
     const nonce = nonceOfReturn();
     expect(nonce).toMatch(/^[0-9a-f]{32}$/);
     const [returnUrl] = getSsoLoginUrl.mock.calls.at(-1) as unknown as [string];
@@ -97,13 +100,16 @@ describe('SSOLogin return', () => {
     );
     const replaceState = vi.spyOn(window.history, 'replaceState');
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        action: SSOAction.LOGIN,
-        providers: [{ id: 'apple', name: 'Apple', brand: 'apple' }],
-        redirectUrl: 'mindroom://auth/login/example.org',
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          action: SSOAction.LOGIN,
+          providers: [{ id: 'apple', name: 'Apple', brand: 'apple' }],
+          redirectUrl: 'mindroom://auth/login/example.org',
+        })
+      );
+    });
     await act(async () => {
       await buttonByText(renderer, 'Sign in with Apple')?.props.onClick({
         preventDefault: vi.fn(),
@@ -145,13 +151,16 @@ describe('SSOLogin return', () => {
         )}`
     );
     try {
-      const renderer = create(
-        React.createElement(SSOLogin, {
-          action: SSOAction.LOGIN,
-          providers: [{ id: 'apple', name: 'Apple', brand: 'apple' }],
-          redirectUrl: 'mindroom://auth/login/example.org',
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(SSOLogin, {
+            action: SSOAction.LOGIN,
+            providers: [{ id: 'apple', name: 'Apple', brand: 'apple' }],
+            redirectUrl: 'mindroom://auth/login/example.org',
+          })
+        );
+      });
       const nonce = nonceOfReturn();
       await act(async () => {
         buttonByText(renderer, 'Sign in with Apple')?.props.onClick({
