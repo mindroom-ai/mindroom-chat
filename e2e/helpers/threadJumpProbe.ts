@@ -375,9 +375,13 @@ export const installThreadJumpProbe = () => {
           unexplained = ds.length > 0 ? median + movedPx : 0;
 
           // Track cumulative wheel input vs cumulative row travel per scrollUp burst.
+          const headroomPx = Number(inner.dataset.headroomPx ?? 0);
+          const inHeadroomReserve =
+            ds.length === 0 && current.size === 0 && headroomPx > 0 && scrollTop < headroomPx;
           if (probe.mode === 'scrollUp' || probe.mode === 'touchScrollUp') {
             if (wheelPx !== 0) probe.burstWheelPx += wheelPx;
             if (ds.length > 0) probe.burstRowPx += median;
+            else if (inHeadroomReserve) probe.burstRowPx += -movedPx;
             if (scrollTop <= 1 && (wheelPx < 0 || probe.burstWheelPx < 0)) {
               probe.burstClamped = true;
             }
