@@ -44,7 +44,7 @@ it('shows the whole title once whole, though its line had cut it at the same wid
   expect(shown(renderer)).toBe(text);
 });
 
-it('coalesces rapid row resizes into one re-fit and skips widening an already-fitting title', () => {
+const mountResizable = (initialText: string, initialWidth: number) => {
   vi.useFakeTimers();
   let notifyResize: (() => void) | undefined;
   vi.stubGlobal(
@@ -56,13 +56,15 @@ it('coalesces rapid row resizes into one re-fit and skips widening an already-fi
 
       observe() {}
 
-      disconnect() {}
+      disconnect() {
+        notifyResize = undefined;
+      }
     }
   );
   stubMeasureText();
 
-  let text = 'Notes from the upload review of the second floor';
-  let rowWidth = 240;
+  let text = initialText;
+  let rowWidth = initialWidth;
   let fitReads = 0;
   const row = document.createElement('div');
   Object.defineProperty(row, 'clientWidth', { get: () => rowWidth });
@@ -78,44 +80,76 @@ it('coalesces rapid row resizes into one re-fit and skips widening an already-fi
     row.append(span);
     return span;
   };
-
   let renderer!: ReturnType<typeof create>;
   act(() => {
     renderer = create(<ThreadRootTitle text={text} />, { createNodeMock });
   });
-  expect(shown(renderer)).toBe('Notes from the upload…');
-  fitReads = 0;
+  return {
+    renderer,
+    get fitReads() {
+      return fitReads;
+    },
+    resetFitReads: () => {
+      fitReads = 0;
+    },
+    setWidth: (next: number) => {
+      rowWidth = next;
+    },
+    resizeTo: (next: number) => {
+      rowWidth = next;
+      act(() => notifyResize?.());
+    },
+    update: (nextText: string, whole?: boolean) => {
+      text = nextText;
+      act(() => renderer.update(<ThreadRootTitle text={nextText} whole={whole} />));
+    },
+  };
+};
+
+it('coalesces rapid row resizes into one re-fit after settling', () => {
+  const host = mountResizable('Notes from the upload review of the second floor', 240);
+  expect(shown(host.renderer)).toBe('Notes from the upload…');
+  host.resetFitReads();
 
   for (const nextWidth of [220, 190, 160, 130]) {
-    rowWidth = nextWidth;
+    host.resizeTo(nextWidth);
     act(() => {
-      notifyResize?.();
       vi.advanceTimersByTime(40);
     });
   }
-  expect(fitReads).toBe(0);
-  expect(shown(renderer)).toBe('Notes from the upload…');
+  expect(host.fitReads).toBe(0);
+  expect(shown(host.renderer)).toBe('Notes from the upload…');
 
   act(() => {
     vi.advanceTimersByTime(60);
   });
-  expect(fitReads).toBe(1);
-  expect(shown(renderer)).toBe('Notes from…');
+  expect(host.fitReads).toBe(1);
+  expect(shown(host.renderer)).toBe('Notes from…');
+  act(() => host.renderer.unmount());
+});
 
-  text = 'Short title';
-  rowWidth = 200;
-  act(() => renderer.update(<ThreadRootTitle text={text} />));
-  expect(shown(renderer)).toBe('Short title');
-  fitReads = 0;
+it('re-measures after returning from whole mode at a new width and re-fits wide first words', () => {
+  const title = 'Notes from the upload review of the second floor';
+  const host = mountResizable(title, 130);
+  expect(shown(host.renderer)).toBe('Notes from…');
 
-  for (const nextWidth of [240, 280, 320]) {
-    rowWidth = nextWidth;
-    act(() => notifyResize?.());
-  }
+  host.update(title, true);
+  expect(shown(host.renderer)).toBe(title);
+  // Row grows while ResizeObserver is disconnected in whole mode.
+  host.setWidth(240);
+  host.update(title, false);
+  expect(shown(host.renderer)).toBe('Notes from the upload…');
+
+  act(() => host.renderer.unmount());
+
+  const wideFirstWord = 'Supercalifragilistic expialidocious';
+  const wideHost = mountResizable(wideFirstWord, 150);
+  expect(shown(wideHost.renderer)).toBe(wideFirstWord);
+
+  wideHost.resizeTo(220);
   act(() => {
-    vi.runAllTimers();
+    vi.advanceTimersByTime(100);
   });
-  expect(fitReads).toBe(0);
-
-  act(() => renderer.unmount());
+  expect(shown(wideHost.renderer)).toBe('Supercalifragilistic…');
+  act(() => wideHost.renderer.unmount());
 });

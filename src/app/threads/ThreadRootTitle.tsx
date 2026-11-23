@@ -68,16 +68,15 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
   const [rowWidthChanges, rowWidthChanged] = useReducer((count: number) => count + 1, 0);
   const [fit, setFit] = useState<{ text: string; rowWidthChanges: number; shown: string }>();
   const fitted = enabled && fit?.text === text && fit.rowWidthChanges === rowWidthChanges;
-  const shown = fitted ? fit.shown : text;
-  const shownRef = useRef(shown);
-  const textRef = useRef(text);
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  shownRef.current = shown;
-  textRef.current = text;
 
   useLayoutEffect(() => {
+    if (!enabled) {
+      setFit(undefined);
+      return;
+    }
     const element = ref.current;
-    if (!enabled || fitted || !element) return;
+    if (fitted || !element) return;
     clearTimeout(resizeTimerRef.current);
     resizeTimerRef.current = undefined;
     // Text the line holds whole stays whole; only an overflowing line is cut.
@@ -99,14 +98,6 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
     const observer = new ResizeObserver(() => {
       const nextWidth = row.clientWidth;
       if (nextWidth === rowWidth) return;
-      if (
-        resizeTimerRef.current === undefined &&
-        shownRef.current === textRef.current &&
-        nextWidth > rowWidth
-      ) {
-        rowWidth = nextWidth;
-        return;
-      }
       rowWidth = nextWidth;
       clearTimeout(resizeTimerRef.current);
       resizeTimerRef.current = setTimeout(() => {
@@ -122,7 +113,7 @@ const useWordFitText = (ref: RefObject<HTMLElement>, text: string, enabled: bool
     };
   }, [enabled, ref]);
 
-  return shown;
+  return fitted ? fit.shown : text;
 };
 
 /**
