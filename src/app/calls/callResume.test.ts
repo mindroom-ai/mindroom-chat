@@ -180,14 +180,27 @@ describe('withdrawLeftoverMemberships', () => {
     vi.unstubAllGlobals();
   });
 
-  it("withdraws only this device's memberships, in joined rooms other than the resumed one", async () => {
+  it("withdraws only this device's primary and companion screen memberships, in joined rooms other than the resumed one", async () => {
+    const myScreen = {
+      sender: ME,
+      stateKey: `_${ME}_${DEVICE}-screen_m.call`,
+      content: { device_id: `${DEVICE}-screen` },
+    };
+    const otherScreen = {
+      sender: ME,
+      stateKey: `_${ME}_PHONE-screen_m.call`,
+      content: { device_id: 'PHONE-screen' },
+    };
     const { mx, sendStateEvent } = clientWith([
-      roomWithCallState('!a', [mine, otherDevice, someoneElse]),
-      roomWithCallState('!resumed', [mine]),
-      roomWithCallState('!left', [mine], 'leave'),
+      roomWithCallState('!a', [mine, myScreen, otherDevice, otherScreen, someoneElse]),
+      roomWithCallState('!resumed', [mine, myScreen]),
+      roomWithCallState('!left', [mine, myScreen], 'leave'),
     ]);
     await withdrawLeftoverMemberships(mx, '!resumed');
-    expect(sendStateEvent.mock.calls).toEqual([['!a', CALL_MEMBER, {}, mine.stateKey]]);
+    expect(sendStateEvent.mock.calls).toEqual([
+      ['!a', CALL_MEMBER, {}, mine.stateKey],
+      ['!a', CALL_MEMBER, {}, myScreen.stateKey],
+    ]);
   });
 
   it('leaves them while another tab of this device is in a call', async () => {

@@ -7,6 +7,7 @@ import {
   hasVideo,
   pickFocus,
   pickScope,
+  screenKey,
   sharedScreens,
   stageView,
 } from './stageLayout';
@@ -119,6 +120,23 @@ describe('byPerson', () => {
 
   it("counts this person's other device as this device's person", () => {
     expect(byPerson([phone(me), mind, me])).toEqual([{ ...phone(me), local: true }, mind]);
+  });
+});
+
+describe('screenKey', () => {
+  it('keeps the same screen key when a companion is folded onto its primary or temporarily unmatched', () => {
+    const foldedPrimary = { ...ada, screen: track };
+    const unmatchedCompanion: CallParticipant = {
+      ...ada,
+      key: `${ada.userId}:${ada.deviceId}-screen`,
+      deviceId: `${ada.deviceId}-screen`,
+      screenParentDeviceId: ada.deviceId,
+      screen: track,
+    };
+
+    expect(screenKey(unmatchedCompanion)).toBe(screenKey(foldedPrimary));
+    expect(pickFocus([me, unmatchedCompanion], undefined)).toBe(pickFocus([me, foldedPrimary], undefined));
+    expect(pickScope([me, unmatchedCompanion])).toBe(pickScope([me, foldedPrimary]));
   });
 });
 

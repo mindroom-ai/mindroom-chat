@@ -90,4 +90,23 @@ describe('sendCallKey', () => {
 
     await expect(sendCallKey(mx, delivery)).rejects.toThrow('M_LIMIT_EXCEEDED');
   });
+
+  it('uses an explicit claimedDeviceId for synthetic companion screen keys', async () => {
+    const { mx, encryptToDeviceMessages } = clientKnowing(true);
+
+    await sendCallKey(mx, {
+      ...delivery,
+      memberId: '@alice:example.com:IPHONE-screen',
+      claimedDeviceId: 'IPHONE-screen',
+    });
+
+    expect(encryptToDeviceMessages).toHaveBeenCalledWith(
+      'io.element.call.encryption_keys',
+      [agent],
+      expect.objectContaining({
+        member_id: '@alice:example.com:IPHONE-screen',
+        member: { claimed_device_id: 'IPHONE-screen', id: '@alice:example.com:IPHONE-screen' },
+      })
+    );
+  });
 });
