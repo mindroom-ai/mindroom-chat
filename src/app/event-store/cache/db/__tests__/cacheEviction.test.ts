@@ -530,3 +530,33 @@ it('invalidates memoized irreclaimable pressure when a shared photo loses its la
   });
   expect(await store.loadCachedAttachment(session, mxcUri)).toBeUndefined();
 });
+
+it('re-measures bytes and skips room eviction when a planned media blob disappears before Phase 2', async () => {
+  await save('photo', 'room-media');
+  await saveText('room-cold', 1);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const originalTransaction = IDBDatabase.prototype.transaction;
+  let injected = false;
+  vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function txSpy(
+    this: IDBDatabase,
+    storeNames: string | Iterable<string>,
+    mode?: IDBTransactionMode,
+    options?: IDBTransactionOptions
+  ) {
+    if (!injected && mode === 'readwrite') {
+      injected = true;
+      const otherTab = originalTransaction.call(this, [store.ATTACHMENTS_STORE], 'readwrite');
+      otherTab.objectStore(store.ATTACHMENTS_STORE).delete('mxc://test/photo');
+    }
+    return originalTransaction.call(this, storeNames, mode, options);
+  });
+  const result = await store.runCacheEvictionIfOverBudget(session);
+  expect(result).toMatchObject({
+    evictedMxcUris: [],
+    evictedRoomIds: [],
+    underPressure: false,
+  });
+  expect(result.bytesAfter).toBeLessThan(1000);
+  expect(await hasText('room-cold')).toBe(true);
+});

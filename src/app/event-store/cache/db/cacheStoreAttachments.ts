@@ -21,7 +21,7 @@ import {
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
 import { invalidateEvictionPressureCache } from './cacheEviction';
-import { deleteScaledPictures } from './cacheStoreScaledPictures';
+import { deleteScaledPictures, scaledPictureKey } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
   references: CachedAttachmentReferenceRecord[];
@@ -234,12 +234,12 @@ const pruneAttachmentBytes = async (
   transaction: IDBTransaction,
   mxcUris: Iterable<string>,
   sessionId?: string,
-  removedMedia = false
+  removedMxcUris?: ReadonlySet<string>
 ) => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
-  let reclaimedOrDemoted = removedMedia;
+  let changed = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -247,19 +247,27 @@ const pruneAttachmentBytes = async (
       refs.index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX).getAll(mxcUri)
     )) as CachedAttachmentReferenceRecord[];
     if (!remaining.length) unowned.push(mxcUri);
-    if (!cached) continue;
+    if (!cached) {
+      if (
+        remaining.length &&
+        removedMxcUris?.has(mxcUri) &&
+        (await requestResult(blobs.get(scaledPictureKey(mxcUri))))
+      )
+        changed = true;
+      continue;
+    }
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
     if (!remaining.length) {
       blobs.delete(mxcUri);
-      reclaimedOrDemoted = true;
-    } else if (cached.essential !== essential) {
-      blobs.put({ ...cached, essential });
-      if (cached.essential && !essential) reclaimedOrDemoted = true;
+      changed = true;
+    } else {
+      if (cached.essential !== essential) blobs.put({ ...cached, essential });
+      if ((cached.essential && !essential) || removedMxcUris?.has(mxcUri)) changed = true;
     }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
   const freedScaledBytes = await deleteScaledPictures(blobs, unowned);
-  if (reclaimedOrDemoted || freedScaledBytes > 0) {
+  if (changed || freedScaledBytes > 0) {
     transaction.addEventListener('complete', () => invalidateEvictionPressureCache(sessionId), {
       once: true,
     });
@@ -362,14 +370,16 @@ export const replaceCachedAttachmentReferences = async (
       updatedAt: Date.now(),
     } satisfies CachedAttachmentReferenceRecord);
   }
-  const removedMedia = removed.some(
-    (row) => !!row.mxcUri && !entries.some((entry) => entry.mxcUri === row.mxcUri)
+  const removedMxcUris = new Set(
+    removed
+      .map((row) => row.mxcUri)
+      .filter((uri) => !!uri && !entries.some((entry) => entry.mxcUri === uri))
   );
   await pruneAttachmentBytes(
     transaction,
     [...removed, ...entries].map((row) => row.mxcUri),
     sessionId,
-    removedMedia
+    removedMxcUris
   );
 };
 
@@ -404,7 +414,7 @@ export const invalidateCachedAttachmentReferences = async (
     transaction,
     removed.map((row) => row.mxcUri),
     sessionId,
-    removed.some((row) => !!row.mxcUri)
+    new Set(removed.map((row) => row.mxcUri).filter(Boolean))
   );
 };
 

@@ -398,7 +398,8 @@ const reclaimOptionalMedia = async (
       protectedBytes: plan.protectedBytes,
     };
   }
-  return new Promise<MediaPhaseResult>((resolve, reject) => {
+  let skippedMissing = false;
+  const media = await new Promise<MediaPhaseResult>((resolve, reject) => {
     const transaction = db.transaction(
       [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
       'readwrite'
@@ -426,7 +427,12 @@ const reclaimOptionalMedia = async (
         blobRequest.onsuccess = () => {
           try {
             const cached = blobRequest.result as CachedAttachmentRecord | undefined;
-            if (!cached || cached.essential) {
+            if (!cached) {
+              skippedMissing = true;
+              step(index + 1);
+              return;
+            }
+            if (cached.essential) {
               step(index + 1);
               return;
             }
@@ -476,6 +482,9 @@ const reclaimOptionalMedia = async (
     transaction.onabort = () => reject(transaction.error);
     step(0);
   });
+  if (skippedMissing && media.bytesAfter > budget)
+    return { ...media, bytesAfter: await readCachedBytes(db) };
+  return media;
 };
 
 /**

@@ -1325,6 +1325,78 @@ it('runs only one eviction pass across repeated live observe calls under irrecla
   }
 });
 
+it('runs only one eviction pass across streamed sidecar edits under irreclaimable pressure', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true, exhausted: true });
+  await noteRoomOpened(engine.sessionId, roomId);
+  const root = new MatrixEvent(raw('$stream'));
+  f.room.findEventById = (id) => (id === '$stream' ? root : undefined);
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  __setCacheStoreByteBudgetForTests(1);
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => resolvePrefetchConfig({ prefetchScope: 'all-rooms' }),
+    onChanged: () => {},
+  });
+  control.start();
+  const unsubscribe = control.controller.subscribe(roomId, () => {});
+  try {
+    for (const revision of [1, 2, 3]) {
+      const content = {
+        msgtype: 'm.text',
+        body: 'preview '.repeat(revision),
+        url: `mxc://test/stream-${revision}`,
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      };
+      const edit = new MatrixEvent({
+        ...raw(`$edit-${revision}`),
+        origin_server_ts: revision + 1,
+        content: {
+          ...content,
+          'm.new_content': content,
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$stream' },
+        },
+      });
+      root.makeReplaced(edit);
+      // eslint-disable-next-line no-await-in-loop
+      const saved = await persistRoomChunkWithPreferLive({
+        mx: f.mx,
+        sessionId: engine.sessionId,
+        room: f.room,
+        chunk: [edit.event],
+        mappedEvents: [edit],
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await control.observe(saved!.events, roomId);
+    }
+    expect(control.controller.getSnapshot(roomId)).toMatchObject({
+      status: 'space',
+      missingEssential: 1,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction')).toHaveLength(1);
+    const cached = await loadCachedRoomEvent(engine.sessionId, roomId, '$stream');
+    expect(JSON.stringify(cached)).toContain('stream-3');
+  } finally {
+    trace.mockRestore();
+    unsubscribe();
+    control.stop();
+  }
+});
+
 it('second idle focus does not rewrite complete retained history or attachment bytes', async () => {
   const body = {
     ...raw('$saved-body'),
