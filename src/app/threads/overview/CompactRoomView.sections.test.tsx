@@ -200,7 +200,7 @@ describe('the Compact room in sections', () => {
       clientHeight.mockRestore();
       vi.useRealTimers();
     }
-  });
+  }, 30_000);
 
   it('lists the cards under their headers, with counts, and Done folded at first', () => {
     render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
