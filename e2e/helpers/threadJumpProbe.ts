@@ -310,7 +310,7 @@ export const installThreadJumpProbe = () => {
 
         const lostPlace =
           moved.length === 0 && carried.length === 0 && current.size > 0 && probe.prevRows.size > 0;
-        if (moved.length === 0 && carried.length > 0) {
+        if (moved.length === 0 && carried.length > 0 && probe.prevRows.size > 0) {
           const distance = (row: { before: number }) => Math.abs(row.before - view.top);
           moved.push(
             carried.reduce((near, row) => (distance(row) < distance(near) ? row : near)).px

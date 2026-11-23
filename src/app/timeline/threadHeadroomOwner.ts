@@ -84,28 +84,28 @@ export const computeAverageMeasuredRowHeight = (
   fallbackPx = DEFAULT_ROW_HEIGHT_PX,
   measurementsCache?: readonly { key: unknown; size: number }[]
 ): number => {
+  if (measurementsCache && measurementsCache.length > 0) {
+    // Combine actual measured DOM heights (from sizeCache) with 0-height folded/hidden rows
+    // and estimates for unmeasured rows so the per-event running average matches real totalSize / N.
+    let total = 0;
+    for (let i = 0; i < measurementsCache.length; i += 1) {
+      const size = measurementsCache[i]?.size ?? 0;
+      if (Number.isFinite(size) && size > 0) total += size;
+    }
+    if (total > 0) {
+      return Math.max(40, total / measurementsCache.length);
+    }
+  }
   if (!sizeCache || sizeCache.size === 0) return fallbackPx;
   let sum = 0;
   let count = 0;
   sizeCache.forEach((size) => {
-    if (Number.isFinite(size) && size > 0) {
+    if (Number.isFinite(size) && size >= 0) {
       sum += size;
       count += 1;
     }
   });
-  if (count === 0) return fallbackPx;
-  const avgVisibleRowPx = sum / count;
-  // Scale by the visible-row fraction of loaded events so 0-height folded/hidden/relation
-  // events are not billed at full visible-reply height.
-  if (measurementsCache && measurementsCache.length > 0) {
-    let visibleCount = 0;
-    for (let i = 0; i < measurementsCache.length; i += 1) {
-      if ((measurementsCache[i]?.size ?? 0) > 0) visibleCount += 1;
-    }
-    const visibleFraction = visibleCount / measurementsCache.length;
-    return Math.max(40, avgVisibleRowPx * visibleFraction);
-  }
-  return avgVisibleRowPx;
+  return count > 0 ? Math.max(40, sum / count) : fallbackPx;
 };
 
 export const computeHeadroomBudget = ({
