@@ -574,4 +574,25 @@ describe('useSavedVoiceDraft', () => {
       expect(store.get(reloadedAtom())).toBeUndefined();
     }
   );
+
+  it('round-trips midTurnMode across reload and ignores invalid stored values', async () => {
+    const page = openPage();
+    await settle();
+    const draft = failedDraft();
+    draft.context.midTurnMode = 'queue';
+    act(() => page.store.set(pendingVoiceSendDraftAtom, draft));
+    await settle();
+    act(() => page.renderer.unmount());
+
+    const restoredStore = await reloadPage();
+    expect(restoredStore.get(reloadedAtom())?.context.midTurnMode).toBe('queue');
+
+    const db = await openDB('mindroom-voice-drafts', 1);
+    const record = await db.get('drafts', userId);
+    await db.put('drafts', { ...record, midTurnMode: 'bogus' });
+    db.close();
+
+    const sanitizedStore = await reloadPage();
+    expect(sanitizedStore.get(reloadedAtom())?.context.midTurnMode).toBeUndefined();
+  });
 });

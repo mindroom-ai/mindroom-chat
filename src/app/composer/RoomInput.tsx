@@ -98,6 +98,7 @@ import {
 import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
@@ -560,8 +561,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const submit = useCallback(
-      async (mode: MidTurnMode, waited: boolean) => {
+      async (explicitMode: MidTurnMode | undefined, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
+        const mode = explicitMode ?? midTurnSend;
         if (!ask) {
           // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
           // of MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
@@ -583,8 +585,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // Home's ask field restores and stages none.
         const settled = ask ? true : settlePastes();
         // Sending the text answers the notices of files and pastes a reload lost.
-        const takeText = () => {
-          const content = buildTextContent(mode);
+        const takeText = (resolvedMode: MidTurnMode = mode) => {
+          const content = buildTextContent(resolvedMode);
           if (content && !ask) {
             dismissLostFiles();
             dismissLostPastes();
@@ -595,7 +597,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // anything here waits: what follows is only for a Send without a voice message. One that
         // `waited` for its root and goes out now is no press, and takes no recording made since.
         const voiceSend =
-          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+          voiceActive && !waited
+            ? voice.sendAtPress(takeText, settled !== true, explicitMode)
+            : undefined;
         if (voiceSend) {
           setSubmitPending(true);
           await voiceSend.finally(() => {
@@ -604,7 +608,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           return;
         }
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) return;
+        if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
         const textContent = takeText();
         // Home's ask field sends text alone: with none there is no send to tell of.
         if (ask && !textContent) return;
@@ -613,6 +617,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         try {
           const sending = sessions.startSendSession({
             textContent,
+            midTurnMode: mode,
+            explicitMidTurnMode: explicitMode !== undefined,
             // Home's question is asked about, and told of, as it was at this press.
             beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
             onLocalEchoCreated: ask?.onLocalEcho,
@@ -633,6 +639,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         dismissLostPastes,
         editor,
         holdForRoot,
+        midTurnSend,
         runActingCommand,
         sendTypingStatus,
         sessions,
@@ -648,16 +655,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
-      (mode?: MidTurnMode, waited = false) => {
+      (explicitMode?: MidTurnMode, waited = false) => {
         if (ask && !ask.canSend()) return Promise.resolve();
-        const sending = submit(mode ?? midTurnSend, waited);
+        const sending = submit(explicitMode, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
         });
         return sending;
       },
-      [ask, midTurnSend, submit]
+      [ask, submit]
     );
 
     // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
@@ -773,13 +780,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend(undefined, true);
+        else void handleSend(send.mode, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
       setEmojiAnchor(anchor);
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
+    const hasVoice = voiceActive && voice.hasVoice;
     const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
     // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
@@ -1039,8 +1047,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 label={sendLabel}
                 alone={phone}
                 agentReplying={agentReplying}
-                hasText={() => buildTextContent(midTurnSend) !== undefined}
-                empty={noText}
+                hasContent={() =>
+                  buildTextContent(midTurnSend) !== undefined ||
+                  hasSendableStagedFiles(attachments.access.snapshot()) ||
+                  hasVoice
+                }
+                empty={noText && !attachments.hasSendableFiles && !hasVoice}
                 defaultMode={midTurnSend}
                 disabled={askBlocked}
                 onSend={handleSend}
