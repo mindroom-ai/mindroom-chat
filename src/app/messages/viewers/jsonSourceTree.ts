@@ -7,52 +7,40 @@ export const LONG_STRING_SNIPPET_LENGTH = 48;
 export const MAX_TREE_NODES = 5_000;
 export const MAX_RAW_HIGHLIGHT_LENGTH = 200_000;
 
-const DEFAULT_COLLAPSED_CONTENT_KEYS = new Set([
-  'm.mentions',
-  'm.relates_to',
-  'io.mindroom.tool_trace',
-]);
+const DEFAULT_COLLAPSED_KEYS = new Set(['m.mentions', 'm.relates_to', 'io.mindroom.tool_trace']);
 
 export type JsonContainer = Record<string, unknown> | unknown[];
-
-export type JsonEntry = {
-  key: string | undefined;
-  segment: string;
-  value: unknown;
+export type JsonEntry = { key: string | undefined; segment: string; path: string; value: unknown };
+export type TreeStructureMeta = {
+  allCollapsibleAtDepthGte1: string[];
+  defaultCollapsed: Set<string>;
 };
+export type TreeFilterResult = {
+  query: string;
+  matchCount: number;
+  visiblePaths: Set<string>;
+  autoExpandPaths: Set<string>;
+  matchedValuePaths: Set<string>;
+};
+export type HighlightSegment = { text: string; match: boolean };
 
-export const isJsonContainer = (value: unknown): value is JsonContainer =>
-  value !== null && typeof value === 'object';
-
-export const encodePointerSegment = (segment: string): string =>
-  segment.replace(/~/g, '~0').replace(/\//g, '~1');
-
-export const joinPointer = (parentPath: string, segment: string): string =>
-  `${parentPath}/${encodePointerSegment(segment)}`;
-
-/** Entries of a sanitized JSON container in display order. */
-export const getContainerEntries = (container: JsonContainer): JsonEntry[] => {
-  if (Array.isArray(container)) {
-    return container.map((value, index) => ({
-      key: undefined,
-      segment: String(index),
-      value,
-    }));
-  }
-  return Object.entries(container).map(([key, value]) => ({
+export const getContainerEntries = (container: JsonContainer, parentPath = ''): JsonEntry[] => {
+  const make = (segment: string, value: unknown, key?: string): JsonEntry => ({
     key,
-    segment: key,
+    segment,
+    path: `${parentPath}/${segment.replace(/~/g, '~0').replace(/\//g, '~1')}`,
     value,
-  }));
+  });
+  return Array.isArray(container)
+    ? container.map((value, i) => make(String(i), value))
+    : Object.entries(container).map(([key, value]) => make(key, value, key));
 };
 
-/** Whether a numeric value looks like a millisecond epoch timestamp on a `*_ts` field. */
 export const isTimestampField = (key: string | undefined, value: unknown): value is number =>
   isValidTimestampMs(value) &&
   key !== undefined &&
   (key === 'origin_server_ts' || key.endsWith('_ts'));
 
-/** Safely formats a millisecond epoch timestamp for display, returning `undefined` if out of range. */
 export const formatTimestampHint = (ts: number, language: string): string | undefined => {
   if (!isValidTimestampMs(ts)) return undefined;
   try {
@@ -62,57 +50,20 @@ export const formatTimestampHint = (ts: number, language: string): string | unde
   }
 };
 
-/**
- * Formats a JSON key or string value as valid JSON string inner text (without outer quotes) with
- * bidirectional controls revealed as `<U+XXXX>` code points.
- */
+/** JSON string inner text (without quotes) with bidirectional controls revealed as `<U+XXXX>`. */
 export const formatJsonStringInner = (value: string): string =>
   revealDirectionControls(JSON.stringify(value).slice(1, -1));
 
-/** Fast short-circuit check for whether a sanitized JSON tree exceeds `limit` nodes. */
 export const exceedsTreeNodeLimit = (root: unknown, limit = MAX_TREE_NODES): boolean => {
   let count = 0;
-
   const visit = (node: unknown): boolean => {
-    count += 1;
-    if (count > limit) return true;
-    if (!isJsonContainer(node)) return false;
-    for (const entry of getContainerEntries(node)) {
-      if (visit(entry.value)) return true;
-    }
-    return false;
+    if ((count += 1) > limit) return true;
+    if (node === null || typeof node !== 'object') return false;
+    return (Array.isArray(node) ? node : Object.values(node)).some(visit);
   };
-
   return visit(root);
 };
 
-export const shouldCollapseByDefault = (
-  key: string | undefined,
-  parentKey: string | undefined,
-  value: JsonContainer,
-  depth: number
-): boolean => {
-  const entries = getContainerEntries(value);
-  if (entries.length === 0) return false;
-  if (depth === 1 && key === 'unsigned') return true;
-  if (depth === 2 && parentKey === 'content' && key !== undefined) {
-    if (DEFAULT_COLLAPSED_CONTENT_KEYS.has(key)) return true;
-  }
-  if (Array.isArray(value) && depth >= 2 && entries.length > 5) return true;
-  return false;
-};
-
-export type TreeStructureMeta = {
-  allCollapsibleAtDepthGte1: string[];
-  defaultCollapsed: Set<string>;
-};
-
-export const EMPTY_TREE_STRUCTURE: TreeStructureMeta = {
-  allCollapsibleAtDepthGte1: [],
-  defaultCollapsed: new Set(),
-};
-
-/** Single-pass structural analysis collecting collapsible paths and default folds. */
 export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
   const allCollapsibleAtDepthGte1: string[] = [];
   const defaultCollapsed = new Set<string>();
@@ -124,55 +75,37 @@ export const analyzeTreeStructure = (root: unknown): TreeStructureMeta => {
     parentKey: string | undefined,
     depth: number
   ): void => {
-    if (!isJsonContainer(node)) return;
-    const entries = getContainerEntries(node);
+    if (node === null || typeof node !== 'object') return;
+    const entries = getContainerEntries(node as JsonContainer, path);
     if (entries.length === 0) return;
 
-    if (depth >= 1) {
-      allCollapsibleAtDepthGte1.push(path);
-    }
-    if (shouldCollapseByDefault(key, parentKey, node, depth)) {
+    if (depth >= 1) allCollapsibleAtDepthGte1.push(path);
+    if (
+      (depth === 1 && key === 'unsigned') ||
+      (depth === 2 &&
+        parentKey === 'content' &&
+        key !== undefined &&
+        DEFAULT_COLLAPSED_KEYS.has(key)) ||
+      (Array.isArray(node) && depth >= 2 && entries.length > 5)
+    ) {
       defaultCollapsed.add(path);
     }
-
-    for (const entry of entries) {
-      visit(entry.value, joinPointer(path, entry.segment), entry.key, key, depth + 1);
-    }
+    for (const entry of entries) visit(entry.value, entry.path, entry.key, key, depth + 1);
   };
 
   visit(root, '', undefined, undefined, 0);
   return { allCollapsibleAtDepthGte1, defaultCollapsed };
 };
 
-export type TreeFilterResult = {
-  query: string;
-  matchCount: number;
-  visiblePaths: Set<string>;
-  autoExpandPaths: Set<string>;
-  matchedValuePaths: Set<string>;
-};
+const searchRegex = (query: string, flags: 'iu' | 'giu'): RegExp =>
+  new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const buildSearchRegex = (query: string, global: boolean): RegExp =>
-  new RegExp(escapeRegExp(query), global ? 'giu' : 'iu');
-
-const formatPrimitiveForSearch = (value: unknown): string => {
-  if (typeof value === 'string') return formatJsonStringInner(value);
-  if (value === null) return 'null';
-  return String(value);
-};
-
-/**
- * Case-insensitive substring filter over rendered keys and primitive values. Matching branches are
- * marked for auto-expansion, and when a container's own key matches its descendants remain visible.
- */
 export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterResult | null => {
   const trimmed = rawQuery.trim();
-  if (trimmed.length === 0) return null;
+  if (!trimmed) return null;
 
   const query = revealDirectionControls(trimmed);
-  const matcher = buildSearchRegex(query, false);
+  const matcher = searchRegex(query, 'iu');
   const visiblePaths = new Set<string>();
   const autoExpandPaths = new Set<string>();
   const matchedValuePaths = new Set<string>();
@@ -185,100 +118,60 @@ export const computeTreeFilter = (root: unknown, rawQuery: string): TreeFilterRe
     ancestorMatched: boolean
   ): boolean => {
     const keyMatches = key !== undefined && matcher.test(formatJsonStringInner(key));
-
-    if (!isJsonContainer(node)) {
-      const valueMatches = matcher.test(formatPrimitiveForSearch(node));
+    if (node === null || typeof node !== 'object') {
+      const text = typeof node === 'string' ? formatJsonStringInner(node) : String(node);
+      const valueMatches = matcher.test(text);
       if (valueMatches) matchedValuePaths.add(path);
-      const selfMatches = keyMatches || valueMatches;
-      if (selfMatches) matchCount += 1;
-      if (selfMatches || ancestorMatched) {
-        visiblePaths.add(path);
-      }
-      return selfMatches;
+      if (keyMatches || valueMatches) matchCount += 1;
+      if (keyMatches || valueMatches || ancestorMatched) visiblePaths.add(path);
+      return keyMatches || valueMatches;
     }
 
     if (keyMatches) matchCount += 1;
     let descendantMatched = false;
-
-    for (const entry of getContainerEntries(node)) {
-      const childMatched = visit(
-        entry.value,
-        joinPointer(path, entry.segment),
-        entry.key,
-        ancestorMatched || keyMatches
-      );
-      if (childMatched) descendantMatched = true;
+    for (const entry of getContainerEntries(node as JsonContainer, path)) {
+      if (visit(entry.value, entry.path, entry.key, ancestorMatched || keyMatches)) {
+        descendantMatched = true;
+      }
     }
-
-    if (descendantMatched) {
-      autoExpandPaths.add(path);
-    }
-    if (keyMatches || descendantMatched || ancestorMatched) {
-      visiblePaths.add(path);
-    }
+    if (descendantMatched) autoExpandPaths.add(path);
+    if (keyMatches || descendantMatched || ancestorMatched) visiblePaths.add(path);
     return keyMatches || descendantMatched;
   };
 
   visit(root, '', undefined, false);
-  return {
-    query,
-    matchCount,
-    visiblePaths,
-    autoExpandPaths,
-    matchedValuePaths,
-  };
-};
-
-export type HighlightSegment = {
-  text: string;
-  match: boolean;
+  return { query, matchCount, visiblePaths, autoExpandPaths, matchedValuePaths };
 };
 
 /** Splits `text` case-insensitively on `query` for `<mark>` highlighting, preserving Unicode indices. */
 export const splitHighlightSegments = (text: string, query: string): HighlightSegment[] => {
   if (!query) return [{ text, match: false }];
-
-  const regex = buildSearchRegex(query, true);
   const segments: HighlightSegment[] = [];
   let cursor = 0;
-
-  for (const match of text.matchAll(regex)) {
+  for (const match of text.matchAll(searchRegex(query, 'giu'))) {
     const start = match.index ?? 0;
     const end = start + match[0].length;
     if (end === start) continue;
-    if (start > cursor) {
-      segments.push({ text: text.slice(cursor, start), match: false });
-    }
+    if (start > cursor) segments.push({ text: text.slice(cursor, start), match: false });
     segments.push({ text: text.slice(start, end), match: true });
     cursor = end;
   }
-
-  if (cursor < text.length) {
-    segments.push({ text: text.slice(cursor), match: false });
-  }
+  if (cursor < text.length) segments.push({ text: text.slice(cursor), match: false });
   return segments.length > 0 ? segments : [{ text, match: false }];
 };
 
-/**
- * Single-line JSON-escaped quoted preview for folded long strings (`> LONG_STRING_THRESHOLD` chars),
- * with whitespace normalized and bidirectional controls revealed. It is cut by code points, so a
- * character outside the Basic Multilingual Plane, such as an emoji, is never split in half.
- */
+/** Code-point-safe quoted preview for folded long strings, normalizing whitespace and revealing bidi controls. */
 export const makeStringSnippet = (rawString: string): string => {
   const singleLine = rawString.replace(/\s+/g, ' ');
-  // Twice the limit in UTF-16 units holds at least the limit in code points, so a very long
-  // string is not split into an array of all its characters on every render.
   const headUnits = LONG_STRING_SNIPPET_LENGTH * 2;
   const codePoints = Array.from(singleLine.slice(0, headUnits));
   const isCut = singleLine.length > headUnits || codePoints.length > LONG_STRING_SNIPPET_LENGTH;
-  const isTruncated = isCut || singleLine !== rawString;
   const snippet = isCut
     ? codePoints.slice(0, LONG_STRING_SNIPPET_LENGTH).join('').trimEnd()
     : singleLine;
   const escaped = formatJsonStringInner(snippet);
-  return isTruncated ? `"${escaped}…"` : `"${escaped}"`;
+  return isCut || singleLine !== rawString ? `"${escaped}…"` : `"${escaped}"`;
 };
 
-/** Raw copy payload for a JSON node: raw string for string leaves, formatted JSON otherwise. */
 export const formatCopyValue = (value: unknown): string =>
   typeof value === 'string' ? value : safeStringifyJson(value);
