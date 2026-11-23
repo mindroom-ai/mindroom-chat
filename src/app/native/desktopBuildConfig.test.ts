@@ -103,7 +103,7 @@ describe('electron/builder.config.cjs', () => {
       '!node_modules/**/*',
     ]);
     expect(cfg.buildVersion).toBe('2026.11.9');
-    expect(cfg.extraMetadata).toEqual({ version: '2026.11.9' });
+    expect(cfg.extraMetadata).toEqual({ productName: 'MindRoom Chat', version: '2026.11.9' });
     expect(cfg.publish).toBeNull();
 
     expect(cfg.mac.hardenedRuntime).toBe(true);
@@ -167,7 +167,7 @@ describe('electron/builder.config.cjs', () => {
     });
     expect(unsignedCfg.mac.notarize).toBe(false);
     expect(unsignedCfg.mac.forceCodeSigning).toBe(false);
-    expect(unsignedCfg.extraMetadata).toBeUndefined();
+    expect(unsignedCfg.extraMetadata).toEqual({ productName: 'MindRoom Chat' });
     expect(unsignedCfg.buildVersion).toBeUndefined();
   });
 });
@@ -309,7 +309,8 @@ if (name === 'spctl') {
     }
 
     const run = (args: string[], envOverrides: Record<string, string> = {}) => {
-      const result = spawnSync('/bin/bash', [join(root, 'scripts/build-desktop-app.sh'), ...args], {
+      const bashBin = process.platform === 'darwin' ? '/bin/bash' : 'bash';
+      const result = spawnSync(bashBin, [join(root, 'scripts/build-desktop-app.sh'), ...args], {
         cwd: root,
         env: {
           ...process.env,
@@ -479,7 +480,13 @@ describe('desktop.yml and release.yml workflow wiring', () => {
   });
 
   it('signs and publishes only for a published stable release tag, never replaces assets, and uses no provisioning profile', () => {
-    type Step = { name?: string; run?: string; uses?: string; if?: string };
+    type Step = {
+      name?: string;
+      run?: string;
+      uses?: string;
+      if?: string;
+      with?: Record<string, unknown>;
+    };
     const parsed = parse(desktopWorkflow) as {
       on: {
         workflow_call: { inputs: Record<string, unknown> };
@@ -488,7 +495,7 @@ describe('desktop.yml and release.yml workflow wiring', () => {
         pull_request: { paths: string[] };
       };
       jobs: {
-        e2e: { if?: string };
+        e2e: { if?: string; steps: Step[] };
         release: {
           if?: string;
           permissions?: Record<string, string>;
@@ -502,23 +509,37 @@ describe('desktop.yml and release.yml workflow wiring', () => {
     expect(Object.keys(parsed.on.workflow_dispatch.inputs)).toEqual(['tag']);
     expect(parsed.on.release.types).toEqual(['published']);
     expect(parsed.jobs.e2e.if).toBe("github.event_name == 'pull_request'");
+    const e2eCheckout = parsed.jobs.e2e.steps.find((s) => s.uses?.startsWith('actions/checkout'));
+    expect(e2eCheckout?.with?.['persist-credentials']).toBe(false);
 
     const releaseJob = parsed.jobs.release;
     expect(releaseJob.permissions).toEqual({ contents: 'write' });
-    expect(releaseJob.if).toContain('!github.event.release.prerelease');
+    expect(releaseJob.if).toBe(
+      "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"
+    );
     expect(releaseJob.concurrency?.['cancel-in-progress']).toBe(false);
 
     const checkStep = releaseJob.steps.find((s) => s.name === 'Check the release');
+    expect(checkStep?.run).toContain('if [[ -z ${RELEASE_TAG:-} ]]; then');
     expect(checkStep?.run).toContain('^v[0-9]{4}\\.([1-9]|1[0-2])\\.(0|[1-9][0-9]*)$');
     expect(checkStep?.run).toContain('--json isDraft,isPrerelease');
     expect(checkStep?.run).toContain('MindRoom-Chat.dmg');
     expect(checkStep?.run).toContain('MindRoom-Chat-arm64-mac.zip');
     expect(checkStep?.run).toContain('MindRoom-Chat-x64-mac.zip');
 
+    const releaseCheckout = releaseJob.steps.find((s) => s.uses?.startsWith('actions/checkout'));
+    expect(releaseCheckout?.with).toEqual({
+      ref: 'refs/tags/${{ env.RELEASE_TAG }}',
+      'persist-credentials': false,
+    });
+
     const uploadStep = releaseJob.steps.find(
       (s) => s.name === 'Attach verified artifacts to the release'
     );
     expect(uploadStep?.run).toContain('gh release upload "$RELEASE_TAG"');
+    expect(uploadStep?.run).toContain('build/desktop-dist/MindRoom-Chat-arm64-mac.zip.blockmap');
+    expect(uploadStep?.run).toContain('build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap');
+    expect(uploadStep?.run).not.toContain('if [[ -f');
     expect(uploadStep?.run).not.toContain('--clobber');
 
     expect(desktopWorkflow).not.toContain('PROVISIONING_PROFILE');

@@ -11,12 +11,13 @@ module.exports = {
   asar: true,
   npmRebuild: false,
   electronVersion: pkg.devDependencies.electron,
-  ...(marketingVersion
-    ? {
-        buildVersion: marketingVersion,
-        extraMetadata: { version: marketingVersion },
-      }
-    : {}),
+  ...(marketingVersion ? { buildVersion: marketingVersion } : {}),
+  // Always set productName in packaged package.json so Electron derives app.getName()
+  // and the userData profile folder as "MindRoom Chat" (not "mindroom-client").
+  extraMetadata: {
+    productName: 'MindRoom Chat',
+    ...(marketingVersion ? { version: marketingVersion } : {}),
+  },
   directories: {
     output: 'build/desktop-dist',
   },

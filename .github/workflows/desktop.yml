@@ -66,6 +66,8 @@ jobs:
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -78,10 +80,9 @@ jobs:
 
   release:
     name: Build, sign, notarize and publish the Mac app
-    if: >-
-      github.event_name == 'workflow_call' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'release' && !github.event.release.prerelease)
+    # When release.yml calls this workflow via workflow_call, github.event_name is the caller's
+    # event (workflow_run), never workflow_call.
+    if: github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
@@ -98,6 +99,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [[ -z ${RELEASE_TAG:-} ]]; then
+            echo '::error::RELEASE_TAG is empty'
+            exit 1
+          fi
           if ! [[ $RELEASE_TAG =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
             echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
             exit 1
@@ -117,7 +122,7 @@ jobs:
           echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: refs/tags/${{ env.RELEASE_TAG }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
@@ -158,20 +163,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          assets=(
-            build/desktop-dist/MindRoom-Chat.dmg
-            build/desktop-dist/MindRoom-Chat-arm64-mac.zip
-            build/desktop-dist/MindRoom-Chat-x64-mac.zip
-            build/desktop-dist/latest-mac.yml
-          )
-          for blockmap in \
+          gh release upload "$RELEASE_TAG" \
+            build/desktop-dist/MindRoom-Chat.dmg \
+            build/desktop-dist/MindRoom-Chat-arm64-mac.zip \
+            build/desktop-dist/MindRoom-Chat-x64-mac.zip \
             build/desktop-dist/MindRoom-Chat-arm64-mac.zip.blockmap \
-            build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap; do
-            if [[ -f "$blockmap" ]]; then
-              assets+=("$blockmap")
-            fi
-          done
-          gh release upload "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY"
+            build/desktop-dist/MindRoom-Chat-x64-mac.zip.blockmap \
+            build/desktop-dist/latest-mac.yml \
+            --repo "$GITHUB_REPOSITORY"
       - name: Check that the release is the newest
         id: newest
         env:
