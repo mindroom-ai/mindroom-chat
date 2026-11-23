@@ -1057,27 +1057,6 @@ describe('the minimized bar', () => {
         failures.visible = { eventId: '$deaf', message: 'Voice call error: no audio arrives' };
       },
     ],
-    [
-      'screen sharing stops in the background',
-      'Share again',
-      () => {
-        calls.state = {
-          ...joined([me, person('@mindroom_helper:panel.test')]),
-          screenShareStoppedInBackground: true,
-        };
-      },
-    ],
-    [
-      'the microphone stops unexpectedly',
-      'Turn back on',
-      () => {
-        calls.state = {
-          ...joined([me, person('@mindroom_helper:panel.test')]),
-          microphone: false,
-          microphoneStopped: true,
-        };
-      },
-    ],
   ])('expands when %s, so the notice and its action show', (_problem, action, comesUp) => {
     agentCall({ roomId: room.roomId });
     // The window's Expand is one function, minimized or not.
@@ -1337,14 +1316,9 @@ describe('in-app screen share and stopped-device notices', () => {
     expect(button('Stop Screenshare')).toBeNull();
   });
 
-  it('shows the background screen share stopped notice with Share again and Dismiss, and bar status', () => {
+  it('shows the background screen share stopped notice with Share again and Dismiss', () => {
     roomCall([me, person('@ana:panel.test')]);
     calls.state = { ...calls.state!, screenShareStoppedInBackground: true };
-    renderPanel({ frame: frame(true) });
-    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
-    expect(within(bar).getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
-    cleanup();
-
     renderPanel();
     expect(screen.getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
     press('Share again');
@@ -1353,7 +1327,7 @@ describe('in-app screen share and stopped-device notices', () => {
     expect(dismissScreenShareNotice).toHaveBeenCalledOnce();
   });
 
-  it('shows stopped microphone and camera notices with Turn back on and Dismiss, and bar status', () => {
+  it('shows stopped microphone and camera notices with Turn back on and Dismiss', () => {
     roomCall([me, person('@ana:panel.test')]);
     calls.state = {
       ...calls.state!,
@@ -1362,11 +1336,6 @@ describe('in-app screen share and stopped-device notices', () => {
       microphoneStopped: true,
       cameraStopped: true,
     };
-    renderPanel({ frame: frame(true) });
-    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
-    expect(within(bar).getByText('Your microphone stopped.')).toBeTruthy();
-    cleanup();
-
     renderPanel();
     expect(screen.getByText('Your microphone stopped.')).toBeTruthy();
     expect(screen.getByText('Your camera stopped.')).toBeTruthy();
@@ -1468,22 +1437,25 @@ describe('in-app screen share and stopped-device notices', () => {
     expect(onlyAction('Turn back on')).toBe('call-panel');
   });
 
-  it('expands a minimized window for a newly raised stop notice only, not when one of two goes', () => {
+  it('moves a dead camera to the page place while the floating window is minimized to its bar', () => {
     roomCall([me, person('@ana:panel.test')]);
+    calls.state = { ...calls.state!, cameraStopped: true };
     const expand = vi.fn();
+    const expanded = { ...frame(), expand };
     const asBar = { ...frame(true), expand };
-    const { rerender } = render(scene({ inFrame: asBar }));
-    const stops = (stopped: Partial<CallState>) => {
-      calls.state = { ...joined([me, person('@ana:panel.test')]), ...stopped };
-      rerender(scene({ inFrame: asBar }));
-    };
+    const { rerender } = render(scene({ inFrame: expanded }));
+    expect(onlyAction('Turn back on')).toBe('call-panel');
 
-    stops({ microphoneStopped: true, cameraStopped: true });
-    expect(expand).toHaveBeenCalledOnce();
-    // Minimized again; the microphone recovers and the camera's notice stands.
-    stops({ cameraStopped: true });
-    expect(expand).toHaveBeenCalledOnce();
-    stops({ cameraStopped: true, screenShareStoppedInBackground: true });
-    expect(expand).toHaveBeenCalledTimes(2);
+    // The bar has no room for the action and says nothing of its own: the page shows the notice.
+    rerender(scene({ inFrame: asBar }));
+    expect(onlyAction('Turn back on')).toBe('page-place');
+    expect(screen.getAllByText('Your camera stopped.')).toHaveLength(1);
+    press('Turn back on');
+    expect(setCamera).toHaveBeenCalledWith(true);
+    // The window stays as the person left it.
+    expect(expand).not.toHaveBeenCalled();
+
+    rerender(scene({ inFrame: expanded }));
+    expect(onlyAction('Turn back on')).toBe('call-panel');
   });
 });

@@ -99,13 +99,10 @@ const STOP_NOTICES = [
   },
 ] as const;
 
-/** The stop notices `state` raises now; the first is the one a minimized window's bar names. */
-export const stopNoticesOf = (state: CallState) => STOP_NOTICES.filter(({ flag }) => state[flag]);
-
 /** Actionable notices for an interrupted screen share or dead local mic/camera. */
 export function CallStopNotices({ call, state }: { call: RoomCall; state: CallState }) {
   const { t } = useTranslation();
-  return stopNoticesOf(state).map(({ flag, act, dismiss }) => {
+  return STOP_NOTICES.filter(({ flag }) => state[flag]).map(({ flag, act, dismiss }) => {
     const share = flag === 'screenShareStoppedInBackground';
     return (
       <ActionNotice
@@ -122,8 +119,9 @@ export function CallStopNotices({ call, state }: { call: RoomCall; state: CallSt
 }
 
 /**
- * The stop notices while no call view shows them (closed, in another room, folded, or under what
- * covers the page): in the app's notice place (ui/noticeSlots.tsx) inside that cover, else the page's.
+ * The stop notices while no call view shows them (closed, in another room, minimized, folded, or
+ * under what covers the page): in the app's notice place (ui/noticeSlots.tsx) inside that cover,
+ * else the page's.
  */
 export function CallStopNoticesOutOfView() {
   const active = useActiveCall();

@@ -2459,6 +2459,9 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     setVisibility('hidden');
     setVisibility('visible');
     await settle();
+    // LiveKit still lists the share meanwhile; a refresh does not read it as on again.
+    media.emit('LocalTrackPublished', oldShare);
+    expect(call.getState().screenShare).toBe(false);
     const sharing = call.setScreenShare(true);
     // The old publication went before the start looked for one to unmute: the picker opens.
     expect(media.localParticipant.setScreenShareEnabled.mock.calls.map(([on]) => on)).toEqual([
@@ -2472,6 +2475,37 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     // The stop that was under way leaves the new share alone.
     expect(media.localParticipant.setScreenShareEnabled).toHaveBeenCalledTimes(2);
     expect(publicationOf(media, 'screen_share')).not.toBe(oldShare);
+    expect(call.getState()).toMatchObject({
+      screenShare: true,
+      screenShareStoppedInBackground: false,
+    });
+  });
+
+  it('keeps the notice when the picker of Share again is closed, and clears it once a share is on', async () => {
+    vi.stubGlobal('navigator', IPHONE_NAV);
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    await call.setScreenShare(true);
+    setVisibility('hidden');
+    await settle();
+    setVisibility('visible');
+    expect(call.getState().screenShareStoppedInBackground).toBe(true);
+
+    // Closed or refused, the picker rejects and nothing is shared.
+    media.localParticipant.setScreenShareEnabled.mockRejectedValueOnce(
+      new Error('NotAllowedError')
+    );
+    const cancelled = call.setScreenShare(true);
+    // Standing while the picker is open too.
+    expect(call.getState().screenShareStoppedInBackground).toBe(true);
+    await cancelled;
+    expect(call.getState()).toMatchObject({
+      screenShare: false,
+      screenShareStoppedInBackground: true,
+    });
+
+    await call.setScreenShare(true);
     expect(call.getState()).toMatchObject({
       screenShare: true,
       screenShareStoppedInBackground: false,

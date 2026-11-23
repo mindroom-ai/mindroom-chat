@@ -216,6 +216,9 @@ export class RoomCall {
   /** A screen-share start in flight; `hid` records if an in-app-only page hid before it settled. */
   private screenShareStart?: { hid: boolean };
 
+  /** The share the background stop mutes and then unpublishes, until it is gone. */
+  private retiringShare?: LocalTrackPublication;
+
   private readonly toggleOps: Record<InputKind, number> = { microphone: 0, camera: 0 };
 
   private readonly switchOps: Record<CallDeviceKind, number> = {
@@ -341,7 +344,10 @@ export class RoomCall {
     const audioBlocked =
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
     // Sharing also ends from the browser's own "Stop sharing" control.
-    const screenShare = !!media?.localParticipant.isScreenShareEnabled;
+    // Nor is a share on that the background stop is still letting go of.
+    const share = media?.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+    const screenShare =
+      !!media?.localParticipant.isScreenShareEnabled && !(share && share === this.retiringShare);
     const microphoneStopped = this.stoppedInputs.get('microphone') === 'shown';
     const cameraStopped = this.stoppedInputs.get('camera') === 'shown';
     const microphoneTrack = this.readMicrophoneTrack();
@@ -609,12 +615,14 @@ export class RoomCall {
     const participant = media?.localParticipant;
     if (!participant) return;
     const publication = participant.getTrackPublication(Track.Source.ScreenShare);
+    this.retiringShare = publication;
     this.update({ screenShare: false, screenShareStoppedInBackground: true });
     // Await mute so LiveKit signals `updateMuteStatus` before unpublish removes its listener.
     await publication?.mute().catch(() => undefined);
     // The share that was on goes, whatever started since; one started since is the person's own.
     const replaced = participant.getTrackPublication(Track.Source.ScreenShare) !== publication;
     if (this.media === media && !(publication && replaced)) await this.setScreenShare(false);
+    if (this.retiringShare === publication) this.retiringShare = undefined;
   }
 
   private onVisibilityChange = () => {
@@ -1016,12 +1024,9 @@ export class RoomCall {
     const participant = media?.localParticipant;
     if (!participant || this.state.phase === 'connecting' || this.rejoin) return;
     if (on) {
-      this.dismissScreenShareNotice();
       // A share the background stop has not let go of yet would only be unmuted, without the
       // picker: LiveKit drops it before its first wait, so the start below finds none.
-      if (!this.state.screenShare && participant.getTrackPublication(Track.Source.ScreenShare)) {
-        void participant.setScreenShareEnabled(false).catch(() => undefined);
-      }
+      if (this.retiringShare) void participant.setScreenShareEnabled(false).catch(() => undefined);
       const start = { hid: false };
       this.screenShareStart = start;
       await participant
@@ -1036,8 +1041,11 @@ export class RoomCall {
         .catch(() => undefined);
       if (this.screenShareStart === start) this.screenShareStart = undefined;
       if (this.media !== media) return;
-      if (start.hid && participant.isScreenShareEnabled) await this.stopScreenShareInBackground();
-      else this.refresh();
+      const sharing = participant.isScreenShareEnabled;
+      if (start.hid && sharing) return this.stopScreenShareInBackground();
+      // The notice stays until a share is on: the picker closed or refused leaves it standing.
+      if (sharing) this.dismissScreenShareNotice();
+      this.refresh();
       return;
     }
     await participant.setScreenShareEnabled(false).catch(() => undefined);

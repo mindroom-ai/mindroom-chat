@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -40,7 +40,7 @@ import {
 } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { ActionNotice, CallStopNotices, Notice, stopNoticesOf } from './CallNotices';
+import { ActionNotice, CallStopNotices, Notice } from './CallNotices';
 import { CallMemberAvatar } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo, pickScope, type StageView } from './stageLayout';
@@ -181,18 +181,12 @@ function JoinedCall({
   useEffect(() => {
     if (failureId || state.audioBlocked) expandWindow?.();
   }, [expandWindow, failureId, state.audioBlocked]);
-  // A stop notice newly raised brings the window up too; one that only went leaves it a bar.
-  const stopNotices = stopNoticesOf(state);
-  const raisedBefore = useRef<typeof stopNotices>([]);
-  useEffect(() => {
-    const raised = stopNotices.some((notice) => !raisedBefore.current.includes(notice));
-    raisedBefore.current = stopNotices;
-    if (raised) expandWindow?.();
-  });
-  // The view shows them only where they can be reached: not folded to its tab, nor under what
-  // covers the page (a phone's drawer or sheet, a dialog). CallStopNoticesOutOfView shows the rest.
+  // The view shows the stop notices only where they can be reached: not minimized to its bar or
+  // folded to its tab, nor under what covers the page (a phone's drawer or sheet, a dialog).
+  // CallStopNoticesOutOfView shows the rest.
   const folded = usePanelFrame()?.layout === 'folded';
-  const noticesInView = useAtomValue(coverNoticeSlotAtom) === null && !folded;
+  const covered = useAtomValue(coverNoticeSlotAtom) !== null;
+  const noticesInView = !covered && !folded && !frame?.bar;
   const setNoticesInView = useSetAtom(callNoticesInViewAtom);
   useLayoutEffect(() => {
     if (!noticesInView) return undefined;
@@ -344,7 +338,7 @@ function JoinedCall({
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
     // or why the microphone it just turned on stays off.
-    status: problem ?? (stopNotices[0] && t(`featureUi.calls.panel.${stopNotices[0].flag}`)),
+    status: problem,
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
