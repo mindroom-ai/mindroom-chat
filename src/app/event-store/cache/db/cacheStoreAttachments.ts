@@ -251,7 +251,7 @@ const pruneAttachmentBytes = async (
       if (
         remaining.length &&
         removedMxcUris?.has(mxcUri) &&
-        (await requestResult(blobs.get(scaledPictureKey(mxcUri))))
+        (await requestResult(blobs.getKey(scaledPictureKey(mxcUri))))
       )
         changed = true;
       continue;

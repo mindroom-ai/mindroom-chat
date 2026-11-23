@@ -531,11 +531,17 @@ it('invalidates memoized irreclaimable pressure when a shared photo loses its la
   expect(await store.loadCachedAttachment(session, mxcUri)).toBeUndefined();
 });
 
-it('re-measures bytes and skips room eviction when a planned media blob disappears before Phase 2', async () => {
-  await save('photo', 'room-media');
+it('accounts for vanished planned media before Phase 2, keeping newer photos and rooms', async () => {
+  let now = Date.now();
+  vi.spyOn(Date, 'now').mockImplementation(() => {
+    now += 1000;
+    return now;
+  });
+  await save('photo-1', 'room-media-1');
+  await save('photo-2', 'room-media-2');
   await saveText('room-cold', 1);
   await store.runCacheEvictionIfOverBudget(session);
-  store.__setCacheStoreByteBudgetForTests(1000);
+  store.__setCacheStoreByteBudgetForTests(3000);
   const originalTransaction = IDBDatabase.prototype.transaction;
   let injected = false;
   vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function txSpy(
@@ -547,7 +553,7 @@ it('re-measures bytes and skips room eviction when a planned media blob disappea
     if (!injected && mode === 'readwrite') {
       injected = true;
       const otherTab = originalTransaction.call(this, [store.ATTACHMENTS_STORE], 'readwrite');
-      otherTab.objectStore(store.ATTACHMENTS_STORE).delete('mxc://test/photo');
+      otherTab.objectStore(store.ATTACHMENTS_STORE).delete('mxc://test/photo-1');
     }
     return originalTransaction.call(this, storeNames, mode, options);
   });
@@ -557,6 +563,7 @@ it('re-measures bytes and skips room eviction when a planned media blob disappea
     evictedRoomIds: [],
     underPressure: false,
   });
-  expect(result.bytesAfter).toBeLessThan(1000);
+  expect(result.bytesAfter).toBe(result.bytesBefore - 2000);
+  expect(await store.loadCachedAttachment(session, 'mxc://test/photo-2')).toBeDefined();
   expect(await hasText('room-cold')).toBe(true);
 });

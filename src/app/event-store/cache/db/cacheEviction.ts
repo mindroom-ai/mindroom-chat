@@ -268,11 +268,12 @@ type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & 
   protectedBytes: number;
 };
 
+type MediaCandidate = Pick<CachedAttachmentRecord, 'mxcUri' | 'byteLength'>;
 type MediaPlanResult = {
   bytesBefore: number;
   protectedBytes: number;
   protectedIds: Set<string>;
-  candidates: string[];
+  candidates: MediaCandidate[];
 };
 
 /** Plan optional media eviction readonly so zero-effect passes take no write locks. */
@@ -295,7 +296,7 @@ const planOptionalMediaEviction = (
     metaRequest.onerror = () => reject(metaRequest.error);
     referencesRequest.onerror = () => reject(referencesRequest.error);
     // The index yields records in lastAccessedAt ascending order already.
-    const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'byteLength'>[] = [];
+    const records: MediaCandidate[] = [];
     const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
     let plan: MediaPlanResult;
     cursorRequest.onsuccess = () => {
@@ -337,7 +338,7 @@ const planOptionalMediaEviction = (
         const bytesBefore =
           ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
           records.reduce((sum, row) => sum + row.byteLength, 0);
-        const candidates: string[] = [];
+        const candidates: MediaCandidate[] = [];
         plan = { bytesBefore, protectedBytes, protectedIds, candidates };
         if (bytesBefore <= budget) return;
         const step = (startIndex: number): void => {
@@ -355,7 +356,7 @@ const planOptionalMediaEviction = (
                 )
               )
                 continue;
-              candidates.push(record.mxcUri);
+              candidates.push(record);
               continue;
             }
             // Unowned blobs may still be marked essential; read before opening a write txn.
@@ -364,7 +365,7 @@ const planOptionalMediaEviction = (
             request.onsuccess = () => {
               try {
                 const cached = request.result as CachedAttachmentRecord | undefined;
-                if (!cached?.essential) candidates.push(record.mxcUri);
+                if (!cached?.essential) candidates.push(record);
                 step(index + 1);
               } catch (error) {
                 reject(error);
@@ -420,8 +421,9 @@ const reclaimOptionalMedia = async (
     const step = (index: number): void => {
       try {
         if (index >= plan.candidates.length || bytesAfter <= target) return;
-        const mxcUri = plan.candidates[index];
-        if (!mxcUri) return;
+        const candidate = plan.candidates[index];
+        if (!candidate) return;
+        const { mxcUri } = candidate;
         const blobRequest = blobs.get(mxcUri);
         blobRequest.onerror = () => fail(blobRequest.error);
         blobRequest.onsuccess = () => {
@@ -429,6 +431,7 @@ const reclaimOptionalMedia = async (
             const cached = blobRequest.result as CachedAttachmentRecord | undefined;
             if (!cached) {
               skippedMissing = true;
+              bytesAfter = Math.max(0, bytesAfter - candidate.byteLength);
               step(index + 1);
               return;
             }
