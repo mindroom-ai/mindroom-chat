@@ -737,6 +737,14 @@ export const SETTINGS = [
     scope: 'device',
   },
   {
+    id: 'cacheBudget',
+    page: 'storage',
+    labelKey: 'featureUi.settings.storage.cacheBudget',
+    descriptionKey: 'featureUi.settings.storage.cacheBudgetDescription',
+    keywordsKey: `${KEYWORDS}.cache`,
+    scope: 'device',
+  },
+  {
     id: 'clearCache',
     page: 'storage',
     labelKey: `${ABOUT}.clearCacheAndReload`,

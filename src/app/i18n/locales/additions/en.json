@@ -437,6 +437,12 @@
         "title": "Plugins",
         "description": "Turn bundled plugins on or off for your account across your devices."
       },
+      "storage": {
+        "cacheBudget": "Cache size limit",
+        "cacheBudgetDescription": "Target size per account for cached rooms and media. Recently opened and pinned rooms stay even above this limit.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "You",

@@ -424,6 +424,12 @@
         "title": "插件",
         "description": "在您的所有设备上为您的账号开启或关闭内置插件。"
       },
+      "storage": {
+        "cacheBudget": "缓存大小上限",
+        "cacheBudgetDescription": "每个账户用于已缓存房间和媒体的目标大小。最近打开和已置顶的房间即使超出此上限也会保留。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "你",

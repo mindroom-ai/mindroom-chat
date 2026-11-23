@@ -437,6 +437,12 @@
         "title": "Plugins",
         "description": "Schalte mitgelieferte Plugins für dein Konto auf allen deinen Geräten ein oder aus."
       },
+      "storage": {
+        "cacheBudget": "Cache-Größenlimit",
+        "cacheBudgetDescription": "Zielgröße pro Konto für zwischengespeicherte Räume und Medien. Kürzlich geöffnete und angeheftete Räume bleiben auch über diesem Limit erhalten.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Du",

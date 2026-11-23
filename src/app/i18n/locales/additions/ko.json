@@ -424,6 +424,12 @@
         "title": "플러그인",
         "description": "모든 기기에서 계정의 기본 제공 플러그인을 켜거나 끕니다."
       },
+      "storage": {
+        "cacheBudget": "캐시 크기 한도",
+        "cacheBudgetDescription": "캐시된 방과 미디어의 계정별 목표 크기입니다. 최근에 연 방과 고정된 방은 이 한도를 넘더라도 유지됩니다.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "나",

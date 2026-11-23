@@ -424,6 +424,12 @@
         "title": "プラグイン",
         "description": "すべてのデバイスでアカウントの組み込みプラグインのオン・オフを切り替えます。"
       },
+      "storage": {
+        "cacheBudget": "キャッシュ容量の上限",
+        "cacheBudgetDescription": "キャッシュされたルームとメディアのアカウントごとの目標サイズです。最近開いたルームやピン留めされたルームは、この上限を超えても保持されます。",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "あなた",

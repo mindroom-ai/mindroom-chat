@@ -450,6 +450,12 @@
         "title": "Plugins",
         "description": "Ative ou desative os plugins incluídos para a sua conta em todos os seus dispositivos."
       },
+      "storage": {
+        "cacheBudget": "Limite de tamanho da cache",
+        "cacheBudgetDescription": "Tamanho-alvo por conta para salas e multimédia em cache. As salas abertas recentemente e fixadas mantêm-se mesmo acima deste limite.",
+        "megabytes": "{{size}} MB",
+        "gigabytes": "{{size}} GB"
+      },
       "menu": {
         "groups": {
           "you": "Você",
