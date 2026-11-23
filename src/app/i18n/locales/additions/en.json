@@ -508,7 +508,6 @@
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
-        "dictation": "dictate, dictation, speech to text, voice typing, microphone, phone",
         "plugins": "plugins, extensions, add-ons, integrations"
       },
       "errorReports": {

@@ -521,7 +521,6 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "dictation": "dettare, dettatura, voce in testo, microfono, telefono",
         "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
       },
       "errorReports": {

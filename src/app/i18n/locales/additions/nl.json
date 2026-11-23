@@ -508,7 +508,6 @@
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
-        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon",
         "plugins": "plug-ins, plugins, extensies, add-ons, integraties"
       },
       "errorReports": {

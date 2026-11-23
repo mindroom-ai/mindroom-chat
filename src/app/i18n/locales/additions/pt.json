@@ -521,7 +521,6 @@
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
-        "dictation": "ditar, ditado, voz para texto, microfone, telefone",
         "plugins": "plugins, extensões, complementos, integrações"
       },
       "errorReports": {

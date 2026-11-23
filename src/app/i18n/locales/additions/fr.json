@@ -521,7 +521,6 @@
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
-        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone",
         "plugins": "plugins, extensions, modules, intégrations"
       },
       "errorReports": {

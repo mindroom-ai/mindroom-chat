@@ -495,7 +495,6 @@
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
         "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
-        "dictation": "dikte, ucapan ke teks, ketik suara, mikrofon, ponsel",
         "plugins": "plugin, ekstensi, pengaya, integrasi"
       },
       "errorReports": {

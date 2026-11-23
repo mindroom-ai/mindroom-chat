@@ -508,7 +508,6 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
       },
       "errorReports": {
