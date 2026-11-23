@@ -22,8 +22,10 @@
 		2A5E5246A3B9F2950ACBE0F1 /* MacWindowingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DE23D5631526A255AD86CB /* MacWindowingStore.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		3239663AB279ED0721CDAFB0 /* MindRoomNotificationKit in Frameworks */ = {isa = PBXBuildFile; productRef = E38C9CB3D65D811FC3476DDC /* MindRoomNotificationKit */; };
+		33D7DDBBE28F6BBDEF15686C /* LiveKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = E8DFDD686DABB015F4B22925 /* LiveKit */; };
 		43058421F5AFF09E2B626793 /* MindRoomWatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */; };
 		4426B337DBA8F5597EA1AD57 /* MindRoomQuickCapturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */; };
+		4EC0A1F63CFCAB19D0606315 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4DF5A0AA9E2DC01FE49DFFD5 /* LiveKit */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -31,6 +33,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		525804A9D89766D91C052708 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
+		5598EE96180F586ABD545699 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C3E1F32E1DFBBE9CCBB9A3 /* Foundation.framework */; };
 		5607C77C2B08948DA0FE7236 /* MindRoomMacSupportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */; };
 		5A0000000000000000000002 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
 		5A0000000000000000000003 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
@@ -53,6 +56,7 @@
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 		A1532E46DC0DF3FA23B0F23C /* MindRoomNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18A00000000000000000002 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A18A00000000000000000001 /* InfoPlist.strings */; };
+		A1F518E898910793290EB476 /* MindRoomBroadcast.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9810C3FD34F568F08B7B5FF7 /* MindRoomBroadcast.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A69E05E1A38204028A89636C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCBD0D43D3B49B4ABDD0FAA0 /* Foundation.framework */; };
 		AA9CA4E64A547450890799C9 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		AE3B0275A3F4DAF6184EAA44 /* MindRoomMacSupportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */; };
@@ -68,6 +72,7 @@
 		C0DEC0DE000000000000000B /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE000000000000000A /* SceneDelegate.swift */; };
 		C41100000000000000000002 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
 		C41100000000000000000003 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
+		D168FD4D04AB3645D2D41D60 /* MindRoomScreenSharePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40F7B2AB2800B94A49207DC7 /* MindRoomScreenSharePlugin.swift */; platformFilter = ios; };
 		D1A600000000000000000002 /* MindRoomDiagnosticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */; };
 		D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */; };
 		D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */; };
@@ -121,6 +126,13 @@
 			remoteGlobalIDString = 446E82D0D196A0881E219AA3;
 			remoteInfo = MindRoomMacSupport;
 		};
+		FE443C69EB413706700CE3E6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DF19FE4BEBFF8D457AC65440;
+			remoteInfo = MindRoomBroadcast;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -131,6 +143,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				A1532E46DC0DF3FA23B0F23C /* MindRoomNotificationService.appex in Embed Foundation Extensions */,
+				A1F518E898910793290EB476 /* MindRoomBroadcast.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -203,6 +216,7 @@
 		22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		40F7B2AB2800B94A49207DC7 /* MindRoomScreenSharePlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomScreenSharePlugin.swift; sourceTree = "<group>"; };
 		4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUpdater.swift; sourceTree = "<group>"; };
 		47042207AB0736B60BAA16FF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4C88F1D4F4557F374B2C4440 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle/Sparkle.framework; sourceTree = "<group>"; };
@@ -220,6 +234,7 @@
 		7653CE543FC53D1DA0B46A8D /* MindRoomNotificationsPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomNotificationsPlugin.swift; sourceTree = "<group>"; };
 		87795339677153DEC6826E2F /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		8AE896A6002904AFA4E475C8 /* Pods_AppStoreMac.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppStoreMac.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		9810C3FD34F568F08B7B5FF7 /* MindRoomBroadcast.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomBroadcast.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A02C0E28C92536C30CEA5B63 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A18A00000000000000000065 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		A18A00000000000000000066 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -289,6 +304,13 @@
 			);
 			target = 926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */;
 		};
+		8AB37D331B8C12539441E625 /* Exceptions for "MindRoomBroadcast" folder in "MindRoomBroadcast" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DF19FE4BEBFF8D457AC65440 /* MindRoomBroadcast */;
+		};
 		C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -312,6 +334,14 @@
 				C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */,
 			);
 			path = MindRoomWatch;
+			sourceTree = "<group>";
+		};
+		C56B397A46DCB0C3FF6B2112 /* MindRoomBroadcast */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8AB37D331B8C12539441E625 /* Exceptions for "MindRoomBroadcast" folder in "MindRoomBroadcast" target */,
+			);
+			path = MindRoomBroadcast;
 			sourceTree = "<group>";
 		};
 		C7ACE818649573806C3799A7 /* MindRoomWatchWidgets */ = {
@@ -360,6 +390,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4EADD4D8A2AFD8A224034D78 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5598EE96180F586ABD545699 /* Foundation.framework in Frameworks */,
+				4EC0A1F63CFCAB19D0606315 /* LiveKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4F7A32C5C34B68BDB32047A9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -375,6 +414,7 @@
 			files = (
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
 				04BF986D5944CED16F35DEA0 /* MindRoomNotificationKit in Frameworks */,
+				33D7DDBBE28F6BBDEF15686C /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -428,6 +468,15 @@
 			name = watchOS;
 			sourceTree = "<group>";
 		};
+		483225A31C8729983C452DC8 /* BroadcastExtension */ = {
+			isa = PBXGroup;
+			children = (
+				C56B397A46DCB0C3FF6B2112 /* MindRoomBroadcast */,
+			);
+			name = BroadcastExtension;
+			path = ../BroadcastExtension;
+			sourceTree = "<group>";
+		};
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
@@ -439,6 +488,7 @@
 				DEDC196FCB1459F390F5C7AA /* MacSupport */,
 				B8C82D41895B109719E70195 /* MacUpdater */,
 				AC1C97CA67E7ECEAF3971FEF /* NotificationService */,
+				483225A31C8729983C452DC8 /* BroadcastExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -452,6 +502,7 @@
 				C5EC83EEE765DAD7BD0560F5 /* MindRoomMacSupport.bundle */,
 				E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */,
 				22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */,
+				9810C3FD34F568F08B7B5FF7 /* MindRoomBroadcast.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -489,6 +540,7 @@
 				13DE23D5631526A255AD86CB /* MacWindowingStore.swift */,
 				BF78A59379D59B831E38D806 /* App-macOS-AppStore.entitlements */,
 				7653CE543FC53D1DA0B46A8D /* MindRoomNotificationsPlugin.swift */,
+				40F7B2AB2800B94A49207DC7 /* MindRoomScreenSharePlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -611,10 +663,12 @@
 				F115A9556690951FA84C772F /* PBXTargetDependency */,
 				F37D490DFA7E030205D77EEB /* PBXTargetDependency */,
 				00F643A7454981652A2EC1AE /* PBXTargetDependency */,
+				219BDE3DE745DEB92308927C /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
 				D59117155A8FD663E0B64F59 /* MindRoomNotificationKit */,
+				E8DFDD686DABB015F4B22925 /* LiveKit */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
@@ -713,6 +767,29 @@
 			productReference = 0C534A4503B3860B63E31A5E /* MindRoomWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
+		DF19FE4BEBFF8D457AC65440 /* MindRoomBroadcast */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C2ACCFD523A38156430B561D /* Build configuration list for PBXNativeTarget "MindRoomBroadcast" */;
+			buildPhases = (
+				062796BA7F7C9636D6672AFD /* Sources */,
+				4EADD4D8A2AFD8A224034D78 /* Frameworks */,
+				3DD29524796005A3D673220A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C56B397A46DCB0C3FF6B2112 /* MindRoomBroadcast */,
+			);
+			name = MindRoomBroadcast;
+			packageProductDependencies = (
+				4DF5A0AA9E2DC01FE49DFFD5 /* LiveKit */,
+			);
+			productName = MindRoomBroadcast;
+			productReference = 9810C3FD34F568F08B7B5FF7 /* MindRoomBroadcast.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -775,6 +852,7 @@
 				F28409DC59EB2A009449E2CA /* XCLocalSwiftPackageReference "MatrixRustSDK" */,
 				8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */,
 				20B7A210BC82426F8B3DD2AB /* XCLocalSwiftPackageReference "MindRoomNotificationKit" */,
+				A5DAC071D9C01464CB59F933 /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -787,11 +865,19 @@
 				446E82D0D196A0881E219AA3 /* MindRoomMacSupport */,
 				431B2DB6E4F0EC913A9FB2B1 /* MindRoomMacUpdater */,
 				D1E0D1FB66F4A7CE9B110B6E /* MindRoomNotificationService */,
+				DF19FE4BEBFF8D457AC65440 /* MindRoomBroadcast */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		3DD29524796005A3D673220A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -954,6 +1040,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		062796BA7F7C9636D6672AFD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -976,6 +1069,7 @@
 				FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */,
 				B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */,
 				9C13823873EFC353A8CAB26F /* MindRoomNotificationsPlugin.swift in Sources */,
+				D168FD4D04AB3645D2D41D60 /* MindRoomScreenSharePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1049,6 +1143,13 @@
 			platformFilter = ios;
 			target = D1E0D1FB66F4A7CE9B110B6E /* MindRoomNotificationService */;
 			targetProxy = 336B16C858A22DF495F801E4 /* PBXContainerItemProxy */;
+		};
+		219BDE3DE745DEB92308927C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MindRoomBroadcast;
+			platformFilter = ios;
+			target = DF19FE4BEBFF8D457AC65440 /* MindRoomBroadcast */;
+			targetProxy = FE443C69EB413706700CE3E6 /* PBXContainerItemProxy */;
 		};
 		3020E115B7C64D46801D614C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1218,6 +1319,35 @@
 				MARKETING_VERSION = 4.12.6;
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.NotificationService;
 				PRODUCT_NAME = MindRoomNotificationService;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0F5CD2F93F15A121E4F3DD5A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ../BroadcastExtension/MindRoomBroadcast/MindRoomBroadcast.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ../BroadcastExtension/MindRoomBroadcast/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.broadcast;
+				PRODUCT_NAME = MindRoomBroadcast;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -1468,6 +1598,36 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		64C7D2FD8378403DF7C7D9DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ../BroadcastExtension/MindRoomBroadcast/MindRoomBroadcast.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ../BroadcastExtension/MindRoomBroadcast/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.broadcast;
+				PRODUCT_NAME = MindRoomBroadcast;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -1766,6 +1926,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C2ACCFD523A38156430B561D /* Build configuration list for PBXNativeTarget "MindRoomBroadcast" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				64C7D2FD8378403DF7C7D9DD /* Release */,
+				0F5CD2F93F15A121E4F3DD5A /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E13E45C16A724CCE9CDACE20 /* Build configuration list for PBXNativeTarget "AppStoreMac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1792,7 +1961,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A5DAC071D9C01464CB59F933 /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.19.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		4DF5A0AA9E2DC01FE49DFFD5 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A5DAC071D9C01464CB59F933 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
 		B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */;
@@ -1812,6 +1997,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 20B7A210BC82426F8B3DD2AB /* XCLocalSwiftPackageReference "MindRoomNotificationKit" */;
 			productName = MindRoomNotificationKit;
+		};
+		E8DFDD686DABB015F4B22925 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A5DAC071D9C01464CB59F933 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
 		};
 		FE89B787D18AF34B13E63160 /* MatrixRustSDK */ = {
 			isa = XCSwiftPackageProductDependency;
