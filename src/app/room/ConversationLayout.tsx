@@ -83,13 +83,20 @@ const useOverlayInsets = (
   useLayoutEffect(() => {
     const area = areaRef.current;
     if (!area || typeof ResizeObserver === 'undefined') return undefined;
+    let lastHeader: number | undefined;
+    let lastComposer: number | undefined;
+    let lastFooter: number | undefined;
     const measure = () => {
       const header = headerRef.current?.offsetHeight ?? 0;
       const composer = footerRef.current?.offsetHeight ?? 0;
-      const dock = dockRef.current?.offsetHeight ?? 0;
-      area.style.setProperty('--room-header-height', `${header}px`);
-      area.style.setProperty('--room-composer-height', `${composer}px`);
-      area.style.setProperty('--room-footer-height', `${composer + dock}px`);
+      const footer = composer + (dockRef.current?.offsetHeight ?? 0);
+      if (header !== lastHeader) area.style.setProperty('--room-header-height', `${header}px`);
+      if (composer !== lastComposer)
+        area.style.setProperty('--room-composer-height', `${composer}px`);
+      if (footer !== lastFooter) area.style.setProperty('--room-footer-height', `${footer}px`);
+      lastHeader = header;
+      lastComposer = composer;
+      lastFooter = footer;
     };
     measure();
     const observer = new ResizeObserver(measure);

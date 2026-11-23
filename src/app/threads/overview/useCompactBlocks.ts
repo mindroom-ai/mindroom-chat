@@ -5,6 +5,7 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 
 const BLOCK_CARDS = 12;
 const BUFFER_BLOCKS = 1;
+const WIDTH_SETTLE_MS = 80;
 const SHELL = '[data-scroll-anchor]';
 const HEARD = 'pointerdown pointerup pointercancel dragstart dragend blur wheel keydown'.split(' ');
 const cardId = (element?: Element | null) =>
@@ -49,6 +50,7 @@ export function useCompactBlocks(options: Options) {
       onWrite: undefined as (() => void) | undefined,
       measure: undefined as ((advance?: boolean) => boolean) | undefined,
       wake: undefined as (() => void) | undefined,
+      clearResizeTimer: undefined as (() => void) | undefined,
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
   }, [memory, roomId]);
@@ -174,6 +176,12 @@ export function useCompactBlocks(options: Options) {
     const idle = [...cache.keys()].filter((id) => id !== roomId && !memory.get(id)?.scrollTop);
     if (idle.length > 7) cache.delete(idle[0]!);
     let frame = 0;
+    let observedWidth = content.getBoundingClientRect().width;
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearResizeTimer = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = undefined;
+    };
     const schedule = () => {
       if (!frame)
         frame = requestAnimationFrame(() => {
@@ -182,19 +190,43 @@ export function useCompactBlocks(options: Options) {
         });
     };
     const scroll = () => {
+      clearResizeTimer();
       const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
       if (takeover) state.placed = state.left = true;
       const wake = takeover || state.end;
       state.end = false;
       if (state.measure?.() || wake) flushSync(render);
     };
+    const onResize = () => {
+      const nextWidth = content.getBoundingClientRect().width;
+      if (
+        observedWidth > 0 &&
+        nextWidth > 0 &&
+        (nextWidth !== observedWidth || resizeTimer !== undefined)
+      ) {
+        observedWidth = nextWidth;
+        cancelAnimationFrame(frame);
+        frame = 0;
+        clearResizeTimer();
+        resizeTimer = setTimeout(() => {
+          resizeTimer = undefined;
+          schedule();
+        }, WIDTH_SETTLE_MS);
+        return;
+      }
+      clearResizeTimer();
+      observedWidth = nextWidth;
+      schedule();
+    };
     const observer =
-      typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : undefined;
+      typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : undefined;
     // A card that resizes resizes the content.
     for (const node of [view, content]) observer?.observe(node);
     state.wake = schedule;
+    state.clearResizeTimer = clearResizeTimer;
     schedule();
     const fontsChanged = () => {
+      clearResizeTimer();
       geometry.metrics = undefined;
       schedule();
     };
@@ -217,6 +249,8 @@ export function useCompactBlocks(options: Options) {
     view.addEventListener('scroll', scroll, { passive: true });
     return () => {
       state.wake = undefined;
+      state.clearResizeTimer = undefined;
+      clearResizeTimer();
       observer?.disconnect();
       HEARD.forEach((event) => window.removeEventListener(event, track, true));
       document.fonts?.removeEventListener('loadingdone', fontsChanged);
@@ -302,6 +336,7 @@ export function useCompactBlocks(options: Options) {
   // it), nor for a small list, all mounted. An End that scrolls nothing ends with the next frame.
   const prepareEnd = () => {
     if (small) return;
+    state.clearResizeTimer?.();
     state.end = true;
     flushSync(render);
     flushSync(render);

@@ -187,3 +187,38 @@ it("keeps the element a plugin's cover hides across a collapse, so the cover sti
   rerender(layout({ conversationRef }));
   expect(conversationRef.current).toBe(element);
 });
+
+it('skips rewriting overlay inset CSS properties when heights are unchanged on resize', () => {
+  let notifyResize: (() => void) | undefined;
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        notifyResize = callback;
+      }
+
+      observe() {}
+
+      disconnect() {}
+    }
+  );
+  try {
+    const areaRef = createRef<HTMLDivElement>();
+    render(layout({ areaRef, header: () => <div data-testid="header" /> }));
+    const header = screen.getByTestId('header').parentElement as HTMLElement;
+    let headerHeight = 56;
+    Object.defineProperty(header, 'offsetHeight', { configurable: true, get: () => headerHeight });
+    notifyResize?.();
+    const setProperty = vi.spyOn(areaRef.current!.style, 'setProperty');
+
+    notifyResize?.();
+    expect(setProperty).not.toHaveBeenCalled();
+
+    headerHeight = 72;
+    notifyResize?.();
+    expect(setProperty).toHaveBeenCalledTimes(1);
+    expect(setProperty).toHaveBeenCalledWith('--room-header-height', '72px');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
