@@ -43,6 +43,7 @@ export function useCompactBlocks(options: Options) {
       blank: new Map<string, boolean>(),
       reachable: undefined as string | undefined,
       placed: false,
+      left: false,
       end: false,
       input: 0,
       onWrite: undefined as (() => void) | undefined,
@@ -75,13 +76,15 @@ export function useCompactBlocks(options: Options) {
   // Offsets through a block are real once it and its buffer are measured.
   const known = (slot: number | undefined) =>
     slot !== undefined && (extentComplete || slot + BUFFER_BLOCKS < missing);
-  // One destination places the list: `target` (its caller places it once it is ready), else a
-  // Back to the saved cards that are still shown. Warm ones were in view when the list was left
-  // and place at once on their cached heights; cold ones wait for their prefix, and an address's
-  // one card, while the index loads, for a native range that reaches it. With none shown, Back
-  // waits for cards the index may still bring, then until the layout finds every card down to
-  // the saved screen measured (`reachable`, like the range).
-  const back = !state.placed && !!saved?.scrollTop;
+  // One destination places the list: `target` (its caller places it once it is ready), else the
+  // saved place, for as long as the anchor memory follows it (`back` until its first write): its
+  // cards that are shown stay mounted, also one that joins the order later. Warm ones were in
+  // view when the list was left and place at once on their cached heights; cold ones wait for
+  // their prefix, and an address's one card, while the index loads, for a native range that
+  // reaches it. With none shown, Back waits for cards the index may still bring, then until the
+  // layout finds every card down to the saved screen measured (`reachable`, like the range).
+  const follows = !!saved?.scrollTop && !state.left;
+  const back = follows && !state.placed;
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
   const survivors = savedKeys.filter((id) => index.has(id));
   const backSlot = slots(survivors).at(-1);
@@ -90,10 +93,10 @@ export function useCompactBlocks(options: Options) {
   const reached = state.reachable === order;
   const first = blocks[missing]?.find((id) => !heights.has(id) && drawn(id));
   const placeReady =
-    !back ||
+    !follows ||
     warm ||
     (backSlot === undefined
-      ? !arriving && (extentComplete || reached)
+      ? !back || (!arriving && (extentComplete || reached))
       : known(backSlot) && (!indexPending || savedKeys.length > 1 || reached));
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = known(targetSlot);
@@ -109,7 +112,7 @@ export function useCompactBlocks(options: Options) {
     if (end > offset) break;
   }
   const reader = seen.length ? seen : [here];
-  const held = back ? survivors : moved && state.order ? geometry.visible : [];
+  const held = [...(follows ? survivors : []), ...(moved && state.order ? geometry.visible : [])];
   // Beside them stay the target's block and, for End, the blocks that fill the last screen.
   const wanted = targetReady ? [...reader, targetSlot!] : [...reader];
   const screen = state.end ? scrollRef.current?.clientHeight ?? 0 : 0;
@@ -180,7 +183,7 @@ export function useCompactBlocks(options: Options) {
     };
     const scroll = () => {
       const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
-      if (takeover) state.placed = true;
+      if (takeover) state.placed = state.left = true;
       const wake = takeover || state.end;
       state.end = false;
       if (state.measure?.() || wake) flushSync(render);
@@ -272,7 +275,7 @@ export function useCompactBlocks(options: Options) {
         }
       }
       for (const id of liveIds) if (!heights.has(id)) state.blank.set(id, !!records?.has(id));
-      hole = back && !placeReady && state.reachable !== order && goal <= reach;
+      hole = follows && !placeReady && state.reachable !== order && goal <= reach;
       if (hole) state.reachable = order;
       if (back && !state.placed) return changed || hole;
       if (visible.length) geometry.visible = visible;

@@ -1076,6 +1076,57 @@ describe('a focus request on the mounted Compact room', () => {
       expect(inView()).toEqual(['$card7', '$card8', '$card9']);
     });
 
+    // A filtered card keeps its record, and with it its height; without one it is measured anew.
+    it.each([
+      ['measured', new Map(large.map((id) => [id, {} as ThreadRecord]))],
+      ['still to be measured', new Map<string, ThreadRecord>()],
+    ])(
+      'goes to the card of its address once a cleared filter shows it (%s)',
+      (_, records) => {
+        memory.clear();
+        const first = render(at(undefined, large, false, records));
+        measure();
+        first.unmount();
+        memory.clear();
+        // The address names a card the filter hides: the list opens at its top.
+        const hidden = { eventId: '$card100', entryKey: `filtered ${records.size}` };
+        const { rerender } = render(at(hidden, large.slice(0, 10), false, records));
+        measure();
+        expect(scrollTop).toBeLessThanOrEqual(1);
+        rerender(at(hidden, large, false, records));
+        // The list goes there in one step, after the cards before it are measured.
+        const seen = new Set<number>([scrollTop]);
+        for (let frame = 0; frame < 12; frame += 1) {
+          act(() => {
+            vi.advanceTimersByTime(17);
+            resizeCallbacks.forEach((deliver) => deliver());
+          });
+          seen.add(scrollTop);
+        }
+        expect([...seen]).toEqual([1, 9840]);
+        expect(topOf('$card100')).toBe(160);
+      },
+      20_000
+    );
+
+    it('leaves a reader who scrolled where they are when a cleared filter shows the address', () => {
+      memory.clear();
+      const records = new Map(large.map((id) => [id, {} as ThreadRecord]));
+      const first = render(at(undefined, large, false, records));
+      measure();
+      first.unmount();
+      memory.clear();
+      const hidden = { eventId: '$card100', entryKey: 'filtered, then scrolled' };
+      const { rerender } = render(at(hidden, large.slice(0, 10), false, records));
+      measure();
+      scrollTop = 200;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      rerender(at(hidden, large, false, records));
+      measure();
+      expect(scrollTop).toBe(200);
+      expect(document.querySelector('[data-scroll-anchor="$card100"]')).toBeNull();
+    });
+
     it('draws the cards at the top in the commit that reverses the order', () => {
       memory.clear();
       const { rerender } = render(at(undefined, large));

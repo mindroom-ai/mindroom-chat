@@ -116,7 +116,7 @@ type ScrollAnchorMemoryOptions = {
   /** False until the rows to restore against have rendered. */
   ready: boolean;
   /** Optional handoff for a window that waits for the first write. */
-  progress?: { placed?: boolean; onWrite?: () => void };
+  progress?: { placed?: boolean; left?: boolean; onWrite?: () => void };
 };
 
 /**
@@ -160,7 +160,7 @@ export function useScrollAnchorMemory({
     let observer: ResizeObserver | undefined;
     const stopFollowing = () => {
       state.snapshot = undefined;
-      if (progress) progress.placed = true;
+      if (progress) progress.placed = progress.left = true;
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
