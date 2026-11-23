@@ -132,7 +132,11 @@ const surfaceOwning = (touches: TouchList): Element | null => {
  * with PINCH_SURFACE_ATTRIBUTE is that element's own, and goes to its onPinch if usePinchSurface
  * marked it, unless it is over PINCH_CHROME_ATTRIBUTE inside it.
  */
-export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => void): void => {
+export const usePinchToZoom = (
+  pageZoom: number,
+  setPageZoom: (zoom: number) => void,
+  enabled = true
+): void => {
   const pageZoomRef = useRef(pageZoom);
   const setPageZoomRef = useRef(setPageZoom);
   const pendingZoomRef = useRef<number | null>(null);
@@ -153,7 +157,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
   }, [setPageZoom]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    if (!enabled || typeof window === 'undefined' || typeof document === 'undefined') {
+      return undefined;
+    }
 
     // The pinch under way: how many fingers are down, by each touch event's `touches`, and
     // the pinch surface that owns it, decided as the second finger lands. A pinch ends only in
@@ -459,5 +465,5 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, []);
+  }, [enabled]);
 };

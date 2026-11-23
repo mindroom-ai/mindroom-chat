@@ -176,12 +176,15 @@ export const RoomButton = style({
   ':focus-visible': focusRing,
 });
 
-globalStyle(`${Page}[data-native] ${Header}`, {
+globalStyle(`${Page}[data-native] ${Header}, ${Page}[data-native] ${Notice}`, {
   WebkitAppRegion: 'drag',
 } as unknown as GlobalStyleRule);
-globalStyle(`${Page}[data-native] ${RoomButton}, ${Page}[data-native] ${Header} button`, {
-  WebkitAppRegion: 'no-drag',
-} as unknown as GlobalStyleRule);
+globalStyle(
+  `${Page}[data-native] ${RoomButton}, ${Page}[data-native] ${Header} button, ${Page}[data-native] ${Notice} button`,
+  {
+    WebkitAppRegion: 'no-drag',
+  } as unknown as GlobalStyleRule
+);
 
 export const RoomName = style({ ...oneLine, minInlineSize: 0 });
 

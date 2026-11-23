@@ -20,7 +20,9 @@ const ZOOM_KEYS = [
  */
 export const usePageZoom = (): void => {
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
-  usePinchToZoom(pageZoom, setPageZoom);
+  const pinchEnabled =
+    typeof window === 'undefined' || !isQuickCapturePath(window.location.pathname);
+  usePinchToZoom(pageZoom, setPageZoom, pinchEnabled);
 
   // From any field or dialog, signed in or out; held keys repeat. The Quick Capture window keeps
   // its own size whatever the page zoom (QuickCapturePage.css.ts), so its keys change nothing.
