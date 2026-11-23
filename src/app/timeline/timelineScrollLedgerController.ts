@@ -588,22 +588,8 @@ export const useTimelineScrollLedgerController = ({
       const offset = readerTopOffset(scrollTop);
       const item =
         offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
-      let index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
-      let eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
-      if (
-        ownerEnabled &&
-        headroomHasMoreHistoryRef.current &&
-        view &&
-        index === 0 &&
-        eventId === view.rows.threadId &&
-        view.rows.events.length > 1
-      ) {
-        const nextId = view.rows.events[1]?.getId();
-        if (nextId) {
-          index = 1;
-          eventId = nextId;
-        }
-      }
+      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+      const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
       threadLedgerAnchorRef.current =
         view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
     },

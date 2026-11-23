@@ -304,20 +304,17 @@ const SKELETON_ROWS = [
 export function ThreadHeadroomReserve({
   headroomPx,
   topInset,
-  loadError,
   showLoadOlder,
   paginatingBack,
   loading,
-  onLoadOlder,
 }: {
   headroomPx: number;
   topInset: string;
-  loadError: boolean;
   showLoadOlder: boolean;
   paginatingBack: boolean;
   loading: boolean;
-  onLoadOlder: () => void;
 }) {
+  const { t } = useTranslation();
   if (headroomPx <= 0) return null;
   const rounded = Math.round(headroomPx);
   return (
@@ -350,15 +347,14 @@ export function ThreadHeadroomReserve({
           boxSizing: "border-box",
         }}
       >
-        <div style={{ pointerEvents: "auto" }}>
-          <ThreadLoadingLines
-            loadError={loadError}
-            showLoadOlder={showLoadOlder}
-            paginatingBack={paginatingBack}
-            loading={loading}
-            onLoadOlder={onLoadOlder}
-          />
-        </div>
+        {(showLoadOlder || paginatingBack || loading) && (
+          <Box justifyContent="Center" alignItems="Center" gap="200" style={{ padding: config.space.S200 }}>
+            <Spinner size="50" variant="Secondary" />
+            <Text size="L400" priority="300">
+              {t("mindroomUi.threads.mindroomRoomTimeline.loading")}
+            </Text>
+          </Box>
+        )}
         {SKELETON_ROWS.map((row, idx) => (
           <div
             key={idx}

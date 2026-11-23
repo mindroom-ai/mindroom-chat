@@ -196,20 +196,11 @@ export const estimatePrependedHeight = ({
   if (!threadId || rawEvents === presentedEvents) {
     return 0;
   }
-  // Anchor on the reader's first visible reply (skipping index 0 root since older replies
-  // prepend at index 1..k below the root).
-  let boundaryEventId =
-    anchor && anchor.threadId === threadId && anchor.eventId !== threadId
-      ? anchor.eventId
-      : undefined;
-  if (!boundaryEventId && presentedEvents.length > 1) {
-    const firstReply = presentedEvents.find((event) => {
-      const id = event.getId();
-      return !!id && id !== threadId;
-    });
-    boundaryEventId = firstReply?.getId();
+  // If the reader is anchored at the root itself, history lands below it (foldPx = 0).
+  if (!anchor || anchor.threadId !== threadId || anchor.eventId === threadId) {
+    return 0;
   }
-  if (!boundaryEventId) return 0;
+  const boundaryEventId = anchor.eventId;
   const boundaryIndex = rawEvents.findIndex((event) => event.getId() === boundaryEventId);
   if (boundaryIndex <= 0) return 0;
   const presentedIds = new Set<string>();
@@ -836,6 +827,30 @@ export const useThreadHeadroomCommit = ({
           gate.bumpCommitTick();
           return;
         }
+      }
+    }
+
+    // If history finished loading while still pinned on open (!threadUserScrolled), release
+    // excess headroom above the unmeasured-row wrap cushion before the reader ever scrolls.
+    if (
+      !threadUserScrolled &&
+      !hasMoreHistory &&
+      gate.committedHeadroomPx > 0 &&
+      threadEvents.length > 0 &&
+      gate.heldRawEvents === undefined
+    ) {
+      const unmeasuredVisible = countUnmeasuredVisible(threadEvents);
+      const keepCushion =
+        viewW < 600 ? Math.min(gate.committedHeadroomPx, unmeasuredVisible * 60) : 0;
+      if (gate.committedHeadroomPx - keepCushion > 1) {
+        const preTop = scrollElement.scrollTop;
+        const trim = gate.committedHeadroomPx - keepCushion;
+        gate.committedHeadroomPx = keepCushion;
+        gate.pendingAbsoluteScroll = threadOpenedAtLatest
+          ? { kind: "bottom", reason: "trim" }
+          : { kind: "offset", target: Math.max(0, preTop - trim), reason: "trim" };
+        gate.bumpCommitTick();
+        return;
       }
     }
 

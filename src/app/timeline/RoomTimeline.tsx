@@ -2272,15 +2272,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                 </ThreadTimelineHeader>
               )}
               <div ref={ledger.leadingRef}>
-                {!(ownerEnabled && ledger.headroomPxAtRender > 0) && (
-                  <ThreadLoadingLines
-                    loadError={threadLoadError}
-                    showLoadOlder={showThreadLoadOlder}
-                    paginatingBack={threadPaginatingBack || hasHeldThreadEvents}
-                    loading={threadLoading}
-                    onLoadOlder={handleLoadOlderThread}
-                  />
-                )}
+                <ThreadLoadingLines
+                  loadError={threadLoadError}
+                  showLoadOlder={showThreadLoadOlder}
+                  paginatingBack={threadPaginatingBack || hasHeldThreadEvents}
+                  loading={threadLoading}
+                  onLoadOlder={handleLoadOlderThread}
+                />
               </div>
             </>
           ) : (
@@ -2313,11 +2311,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                     <ThreadHeadroomReserve
                       headroomPx={ledger.headroomPxAtRender}
                       topInset={overlay.topInset}
-                      loadError={threadLoadError}
                       showLoadOlder={showThreadLoadOlder}
                       paginatingBack={threadPaginatingBack || hasHeldThreadEvents}
                       loading={threadLoading}
-                      onLoadOlder={handleLoadOlderThread}
                     />
                   )}
                   {latestAtTop ? frontSentinel : backSentinel}

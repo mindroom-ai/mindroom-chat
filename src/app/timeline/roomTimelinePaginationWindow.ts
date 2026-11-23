@@ -480,7 +480,7 @@ export const useThreadAutoPaginateBack = ({
       const inOrNearReserve =
         !!current.ownerEnabled &&
         reservePx > 0 &&
-        scrollElement.scrollTop <= reservePx + scrollElement.clientHeight;
+        scrollElement.scrollTop < reservePx;
       const shouldPaginate = shouldAutoPaginateThreadBack({
         threadId: current.threadId,
         firstRenderedIndex: inOrNearReserve
@@ -519,7 +519,7 @@ export const useThreadAutoPaginateBack = ({
     ) {
       return;
     }
-    if (scrollElement.scrollTop <= headroomPx + scrollElement.clientHeight) {
+    if (scrollElement.scrollTop < headroomPx) {
       countCacheProbe('threadAutoPaginateBackFired');
       void autoPaginateRef.current.paginateBack();
     }
