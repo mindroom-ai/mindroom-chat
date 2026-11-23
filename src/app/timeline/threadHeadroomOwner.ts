@@ -166,8 +166,12 @@ export const computeTrimPlan = ({
       targetScrollTop: 0,
     };
   }
-  const perUnmeasured = viewWidth < 600 ? 70 : 20;
-  const keepCushion = Math.min(headroomPx, Math.max(0, unmeasuredAbove) * perUnmeasured);
+  const perUnmeasured = viewWidth < 600 ? 20 : 0;
+  const keepCushion = Math.min(
+    headroomPx,
+    Math.max(0, unmeasuredAbove) * perUnmeasured,
+    Math.round(safeViewH * 0.5)
+  );
   const nextHeadroom = keepCushion;
   const trim = headroomPx - nextHeadroom;
   if (trim <= 0.5) return undefined;
@@ -185,6 +189,7 @@ export const estimatePrependedHeight = ({
   threadId,
   sizeCache,
   avgRowHeight,
+  fillReserve = false,
 }: {
   rawEvents: MatrixEvent[];
   presentedEvents: MatrixEvent[];
@@ -192,15 +197,32 @@ export const estimatePrependedHeight = ({
   threadId: string | undefined;
   sizeCache: ReadonlyMap<unknown, number> | undefined;
   avgRowHeight: number;
+  fillReserve?: boolean;
 }): number => {
   if (!threadId || rawEvents === presentedEvents) {
     return 0;
   }
-  // If the reader is anchored at the root itself, history lands below it (foldPx = 0).
-  if (!anchor || anchor.threadId !== threadId || anchor.eventId === threadId) {
+  let boundaryEventId: string | undefined;
+  if (anchor) {
+    // If the reader is anchored at the root itself, history lands below it (foldPx = 0).
+    if (anchor.threadId !== threadId || anchor.eventId === threadId) {
+      return 0;
+    }
+    boundaryEventId = anchor.eventId;
+  } else if (fillReserve) {
+    // Reader is inside the headroom reserve above row 0: price new replies before the earliest
+    // existing non-root reply so pages fill the reserve from the bottom up.
+    for (let i = 0; i < presentedEvents.length; i += 1) {
+      const id = presentedEvents[i]?.getId();
+      if (id && id !== threadId) {
+        boundaryEventId = id;
+        break;
+      }
+    }
+  }
+  if (!boundaryEventId) {
     return 0;
   }
-  const boundaryEventId = anchor.eventId;
   const boundaryIndex = rawEvents.findIndex((event) => event.getId() === boundaryEventId);
   if (boundaryIndex <= 0) return 0;
   const presentedIds = new Set<string>();
@@ -233,6 +255,8 @@ export type ThreadHeadroomGateHandle = {
   heldRawEvents: MatrixEvent[] | undefined;
   heldPrependEstimatePx: number;
   pendingReleaseAfterTopUp: boolean;
+  pendingReconcileAfterWrite: boolean;
+  pendingBottomReconcile: boolean;
   aboveResizeQueue: ResizeQueueEntry[];
   nextResizeSeq: number;
   pendingAbsoluteScroll: PendingAbsoluteScroll | undefined;
@@ -278,6 +302,8 @@ const resetGateForView = (
   gate.heldRawEvents = undefined;
   gate.heldPrependEstimatePx = 0;
   gate.pendingReleaseAfterTopUp = false;
+  gate.pendingReconcileAfterWrite = false;
+  gate.pendingBottomReconcile = false;
   gate.aboveResizeQueue = [];
   gate.nextResizeSeq = 0;
   gate.pendingAbsoluteScroll = undefined;
@@ -335,6 +361,8 @@ export const useThreadHeadroomEventsGate = ({
       heldRawEvents: undefined,
       heldPrependEstimatePx: 0,
       pendingReleaseAfterTopUp: false,
+      pendingReconcileAfterWrite: false,
+      pendingBottomReconcile: false,
       aboveResizeQueue: [],
       nextResizeSeq: 0,
       pendingAbsoluteScroll: undefined,
@@ -377,6 +405,8 @@ export const useThreadHeadroomEventsGate = ({
     gate.heldRawEvents = undefined;
     gate.heldPrependEstimatePx = 0;
   } else {
+    const insideReserve =
+      gate.anchorRef?.current === undefined && gate.committedHeadroomPx > 0;
     const estimatedPrependPx = estimatePrependedHeight({
       rawEvents: rawThreadEvents,
       presentedEvents: gate.presentedEvents,
@@ -384,15 +414,13 @@ export const useThreadHeadroomEventsGate = ({
       threadId,
       sizeCache: gate.sizeCache,
       avgRowHeight: gate.lastAvgRowHeight,
+      fillReserve: insideReserve,
     });
     // Rule of iron: once a page is held out of threadEvents mid-gesture, NEVER release it during
     // render; only the single commit-time layout effect at genuine rest releases it.
-    // Also if reader is currently inside a large headroom reserve (anchor undefined, headroom > 0),
-    // prepends land offscreen above row 1 and are accepted directly.
-    const insideReserve =
-      gate.anchorRef?.current === undefined && gate.committedHeadroomPx > 0;
-    const requiredHeadroomPx =
-      !insideReserve && estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx) : 0;
+    // When inside the reserve, pages fill the reserve from the bottom up as long as enough
+    // headroom remains; if remaining headroom would be exhausted, hold until rest.
+    const requiredHeadroomPx = estimatedPrependPx > 0 ? Math.ceil(estimatedPrependPx) : 0;
     if (gate.heldRawEvents !== undefined || requiredHeadroomPx > gate.committedHeadroomPx) {
       if (gate.heldRawEvents !== rawThreadEvents) {
         gate.stats.heldPages += 1;
@@ -474,6 +502,7 @@ export type UseThreadHeadroomCommitOptions = {
   threadUserScrolled: boolean;
   threadOpenedAtLatest: boolean;
   getScrollElement: () => HTMLDivElement | null;
+  virtualInnerRef: React.RefObject<HTMLDivElement | null>;
   virtualizerRef: React.MutableRefObject<Virtualizer<HTMLDivElement, Element>>;
   anchorRef: React.MutableRefObject<ThreadLedgerAnchor | undefined>;
   sizeCacheRef: React.MutableRefObject<Map<unknown, number> | undefined>;
@@ -493,6 +522,7 @@ export const useThreadHeadroomCommit = ({
   threadUserScrolled,
   threadOpenedAtLatest,
   getScrollElement,
+  virtualInnerRef,
   virtualizerRef,
   anchorRef,
   sizeCacheRef,
@@ -718,7 +748,8 @@ export const useThreadHeadroomCommit = ({
 
     const writeAbsoluteScroll = (
       target: number,
-      reason: PendingAbsoluteScroll["reason"]
+      reason: PendingAbsoluteScroll["reason"],
+      notifyAnchor: boolean
     ): boolean => {
       const clampedTarget = Math.max(
         0,
@@ -742,11 +773,99 @@ export const useThreadHeadroomCommit = ({
       if (offsetChanged) {
         virt.scrollOffset = actual;
       }
-      onAfterScrollWrite?.(actual);
+      if (notifyAnchor) onAfterScrollWrite?.(actual);
       if (reason === "trim") gate.stats.trims += 1;
       if (reason === "topup" || reason === "held-release") gate.stats.topUps += 1;
       return offsetChanged;
     };
+
+    // Atomic single-commit extent+scroll transition:
+    // Captures one absolute target BEFORE shrinking the extent (or pre-grows `inner.style.height`
+    // before writing when growing), writes `scrollTop` + reconciles `virtualizer.scrollOffset`
+    // immediately so the synchronous React re-render commits matching `scrollMargin` and
+    // `scrollTop` without ever mounting rows from an out-of-sync intermediate scroll window.
+    const applyHeadroomTransition = ({
+      nextHeadroom,
+      scrollKind,
+      targetScrollTop,
+      reason,
+      releaseHeldEvents = false,
+    }: {
+      nextHeadroom: number;
+      scrollKind: "offset" | "bottom";
+      targetScrollTop?: number;
+      reason: PendingAbsoluteScroll["reason"];
+      releaseHeldEvents?: boolean;
+    }) => {
+      const inner = virtualInnerRef.current;
+      const virt = virtualizerRef.current;
+      const delta = nextHeadroom - gate.committedHeadroomPx;
+      const preTop = scrollElement.scrollTop;
+      if (!inner) {
+        // Fallback if inner ref is not yet attached (first mount).
+        gate.committedHeadroomPx = nextHeadroom;
+        gate.pendingAbsoluteScroll =
+          scrollKind === "bottom"
+            ? { kind: "bottom", reason }
+            : { kind: "offset", target: Math.max(0, targetScrollTop ?? preTop + delta), reason };
+        gate.pendingReleaseAfterTopUp = releaseHeldEvents;
+        gate.bumpCommitTick();
+        return;
+      }
+      if (delta > 0) {
+        inner.style.height = `${nextHeadroom + virt.getTotalSize()}px`;
+      }
+      const target =
+        scrollKind === "bottom"
+          ? delta >= 0
+            ? Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)
+            : Math.max(0, scrollElement.scrollHeight + delta - scrollElement.clientHeight)
+          : Math.max(0, targetScrollTop ?? preTop + delta);
+      writeAbsoluteScroll(target, reason, false);
+      gate.committedHeadroomPx = nextHeadroom;
+      gate.pendingReconcileAfterWrite = true;
+      gate.pendingBottomReconcile = scrollKind === "bottom";
+      gate.pendingReleaseAfterTopUp = releaseHeldEvents;
+      gate.bumpCommitTick();
+    };
+
+    if (gate.pendingReconcileAfterWrite) {
+      gate.pendingReconcileAfterWrite = false;
+      const bottomReconcile = gate.pendingBottomReconcile;
+      gate.pendingBottomReconcile = false;
+      if (bottomReconcile) {
+        const maxTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+        if (Math.abs(scrollElement.scrollTop - maxTop) > 1) {
+          gate.lastProgrammaticScrollTop = maxTop;
+          gate.lastProgrammaticWriteAt = Date.now();
+          scrollElement.scrollTop = maxTop;
+        }
+      }
+      const actual = scrollElement.scrollTop;
+      gate.sampledScrollTop = actual;
+      gate.lastProgrammaticScrollTop = actual;
+      gate.lastProgrammaticWriteAt = Date.now();
+      const virt = virtualizerRef.current;
+      const offsetChanged = Math.abs((virt.scrollOffset ?? 0) - actual) > 0.5;
+      if (offsetChanged) {
+        virt.scrollOffset = actual;
+      }
+      onAfterScrollWrite?.(actual);
+
+      if (gate.pendingReleaseAfterTopUp && gate.heldRawEvents !== undefined) {
+        gate.pendingReleaseAfterTopUp = false;
+        gate.presentedEvents = gate.heldRawEvents;
+        gate.heldRawEvents = undefined;
+        gate.heldPrependEstimatePx = 0;
+        gate.stats.releasedHeldPages += 1;
+        gate.bumpCommitTick();
+        return;
+      }
+      if (offsetChanged) {
+        gate.bumpCommitTick();
+        return;
+      }
+    }
 
     const pendingScroll = gate.pendingAbsoluteScroll;
     if (pendingScroll !== undefined) {
@@ -755,7 +874,7 @@ export const useThreadHeadroomCommit = ({
         pendingScroll.kind === "bottom"
           ? Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight)
           : pendingScroll.target;
-      const offsetChanged = writeAbsoluteScroll(target, pendingScroll.reason);
+      const offsetChanged = writeAbsoluteScroll(target, pendingScroll.reason, true);
 
       if (gate.pendingReleaseAfterTopUp && gate.heldRawEvents !== undefined) {
         gate.pendingReleaseAfterTopUp = false;
@@ -819,19 +938,19 @@ export const useThreadHeadroomCommit = ({
         const delta = desired - gate.committedHeadroomPx;
         if (Math.abs(delta) > 1) {
           gate.stats.initBudget = Math.round(desired);
-          const preTop = scrollElement.scrollTop;
-          gate.committedHeadroomPx = desired;
-          gate.pendingAbsoluteScroll = threadOpenedAtLatest
-            ? { kind: "bottom", reason: "open-init" }
-            : { kind: "offset", target: Math.max(0, preTop + delta), reason: "open-init" };
-          gate.bumpCommitTick();
+          applyHeadroomTransition({
+            nextHeadroom: desired,
+            scrollKind: threadOpenedAtLatest ? "bottom" : "offset",
+            targetScrollTop: Math.max(0, scrollElement.scrollTop + delta),
+            reason: "open-init",
+          });
           return;
         }
       }
     }
 
     // If history finished loading while still pinned on open (!threadUserScrolled), release
-    // excess headroom above the unmeasured-row wrap cushion before the reader ever scrolls.
+    // unused headroom (budget = unloaded * avg = 0) before the reader ever scrolls.
     if (
       !threadUserScrolled &&
       !hasMoreHistory &&
@@ -839,19 +958,15 @@ export const useThreadHeadroomCommit = ({
       threadEvents.length > 0 &&
       gate.heldRawEvents === undefined
     ) {
-      const unmeasuredVisible = countUnmeasuredVisible(threadEvents);
-      const keepCushion =
-        viewW < 600 ? Math.min(gate.committedHeadroomPx, unmeasuredVisible * 60) : 0;
-      if (gate.committedHeadroomPx - keepCushion > 1) {
-        const preTop = scrollElement.scrollTop;
-        const trim = gate.committedHeadroomPx - keepCushion;
-        gate.committedHeadroomPx = keepCushion;
-        gate.pendingAbsoluteScroll = threadOpenedAtLatest
-          ? { kind: "bottom", reason: "trim" }
-          : { kind: "offset", target: Math.max(0, preTop - trim), reason: "trim" };
-        gate.bumpCommitTick();
-        return;
-      }
+      const preTop = scrollElement.scrollTop;
+      const trim = gate.committedHeadroomPx;
+      applyHeadroomTransition({
+        nextHeadroom: 0,
+        scrollKind: threadOpenedAtLatest ? "bottom" : "offset",
+        targetScrollTop: Math.max(0, preTop - trim),
+        reason: "trim",
+      });
+      return;
     }
 
     if (!gate.idleIntentQueued) {
@@ -877,7 +992,6 @@ export const useThreadHeadroomCommit = ({
     if (gate.heldRawEvents !== undefined) {
       const heldEvents = gate.heldRawEvents;
       const unloadedAfter = Math.max(0, expectedThreadEvents - heldEvents.length);
-      const prependNeed = Math.ceil(gate.heldPrependEstimatePx * 1.25);
       const unmeasuredAfter = countUnmeasuredVisible(threadEvents, anchorRef.current?.index);
       const perUnmeasured = viewW < 600 ? 70 : 10;
       const prependExactEstimate = Math.ceil(gate.heldPrependEstimatePx);
@@ -901,15 +1015,13 @@ export const useThreadHeadroomCommit = ({
           );
       const delta = targetHeadroom - gate.committedHeadroomPx;
       if (delta > 1) {
-        const preTop = scrollElement.scrollTop;
-        gate.committedHeadroomPx = targetHeadroom;
-        gate.pendingAbsoluteScroll = {
-          kind: "offset",
-          target: preTop + delta,
+        applyHeadroomTransition({
+          nextHeadroom: targetHeadroom,
+          scrollKind: "offset",
+          targetScrollTop: scrollElement.scrollTop + delta,
           reason: "held-release",
-        };
-        gate.pendingReleaseAfterTopUp = true;
-        gate.bumpCommitTick();
+          releaseHeldEvents: true,
+        });
         return;
       }
       gate.presentedEvents = heldEvents;
@@ -939,14 +1051,12 @@ export const useThreadHeadroomCommit = ({
       });
       const delta = targetHeadroom - gate.committedHeadroomPx;
       if (delta > 1) {
-        const preTop = scrollElement.scrollTop;
-        gate.committedHeadroomPx = targetHeadroom;
-        gate.pendingAbsoluteScroll = {
-          kind: "offset",
-          target: preTop + delta,
+        applyHeadroomTransition({
+          nextHeadroom: targetHeadroom,
+          scrollKind: "offset",
+          targetScrollTop: scrollElement.scrollTop + delta,
           reason: "topup",
-        };
-        gate.bumpCommitTick();
+        });
         return;
       }
     }
@@ -967,13 +1077,12 @@ export const useThreadHeadroomCommit = ({
         unmeasuredAbove,
       });
       if (plan) {
-        gate.committedHeadroomPx = plan.nextHeadroom;
-        gate.pendingAbsoluteScroll = {
-          kind: "offset",
-          target: plan.targetScrollTop,
+        applyHeadroomTransition({
+          nextHeadroom: plan.nextHeadroom,
+          scrollKind: "offset",
+          targetScrollTop: plan.targetScrollTop,
           reason: "trim",
-        };
-        gate.bumpCommitTick();
+        });
       }
     }
   });

@@ -607,8 +607,12 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(report.boundaryDriver?.minTop).toBe(0);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
-    expect(maxLedger).toBeGreaterThan(48);
-    expect(report.probes.ledgerBoundarySettles).toBeGreaterThan(0);
+    if (process.env.MR_THREAD_SCROLL_OWNER !== '1') {
+      expect(maxLedger).toBeGreaterThan(48);
+      expect(report.probes.ledgerBoundarySettles).toBeGreaterThan(0);
+    } else {
+      expect(maxLedger).toBe(0);
+    }
     // THE invariant: no blank debt zone, no content shifts - even at the
     // boundary. (Boundary settles are allowed writes; they are visually
     // exact pairs and the jump budget verifies that.)

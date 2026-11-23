@@ -345,6 +345,10 @@ const recordFlickRide = (
       const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
         tile.getBoundingClientRect()
       );
+      const reserve = scroller.querySelector<HTMLElement>('[data-testid="thread-headroom-reserve"]');
+      if (reserve && reserve.getBoundingClientRect().height > 0) {
+        covering.push(reserve.getBoundingClientRect());
+      }
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
       // that ends above the list's own box counts, so a missing row or a ledger
@@ -622,6 +626,10 @@ export const startRideSampling = (
       const covering = Array.from(scroller.querySelectorAll('[data-index]'))
         .filter((tile) => shown(tile.querySelector('[data-message-item]') ?? tile))
         .map((tile) => tile.getBoundingClientRect());
+      const reserve = scroller.querySelector<HTMLElement>('[data-testid="thread-headroom-reserve"]');
+      if (reserve && shown(reserve) && reserve.getBoundingClientRect().height > 0) {
+        covering.push(reserve.getBoundingClientRect());
+      }
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
       // that ends above the list's own box counts, so a missing row or a ledger

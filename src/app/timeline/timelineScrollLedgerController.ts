@@ -275,6 +275,11 @@ export const useTimelineScrollLedgerController = ({
   // The reader's first visible thread row as of the last commit or scroll.
   // Rows that a later render adds above it are folded, whatever added them.
   const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>();
+  const threadLedgerViewRef = useRef<{
+    rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
+    listTop: number;
+    inset: number;
+  }>();
   const ledgerSettleWantedRef = useRef(false);
   // The part of the ledger that thread rows added above the reader brought with their own height,
   // until the next settle: a thread's list holds all its rows, so their fold lifts the list without
@@ -306,8 +311,31 @@ export const useTimelineScrollLedgerController = ({
   );
   // Thread prepend planning is pure. Its mutations are applied only after
   // React commits the render that consumed this plan.
+  // Under headroom ownership, if the reader scrolled up into the reserve above row 0
+  // (`threadLedgerAnchorRef.current === undefined` with positive headroom), anchor at the
+  // earliest existing non-root reply so prepended older messages consume headroom and fill
+  // the reserve from the bottom up rather than pushing loaded rows down below the reserve.
+  let effectiveThreadAnchor = resettingLedgerView ? undefined : threadLedgerAnchorRef.current;
+  if (
+    !effectiveThreadAnchor &&
+    ownerEnabled &&
+    !resettingLedgerView &&
+    headroomGate &&
+    headroomGate.committedHeadroomPx > 0 &&
+    threadId &&
+    threadLedgerViewRef.current?.rows.threadId === threadId
+  ) {
+    const viewRows = threadLedgerViewRef.current.rows;
+    for (let i = 0; i < viewRows.events.length; i += 1) {
+      const id = viewRows.events[i]?.getId();
+      if (id && id !== threadId) {
+        effectiveThreadAnchor = { ...viewRows, eventId: id, index: i };
+        break;
+      }
+    }
+  }
   const threadLedgerRenderPlan = planThreadLedgerRender({
-    anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
+    anchor: effectiveThreadAnchor,
     eventIndexMap: threadEventIndexMap,
     priceRow: priceThreadRowForLedger,
     pricing: threadRowPricing,
@@ -567,11 +595,6 @@ export const useTimelineScrollLedgerController = ({
   // virtual-core offset scrollTop + inset - listTop. A settle shifts
   // scrollTop and scrollMargin together, keeping it valid. Above the first
   // row there is no anchor.
-  const threadLedgerViewRef = useRef<{
-    rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
-    listTop: number;
-    inset: number;
-  }>();
   const readerTopOffset = useCallback((scrollTop: number) => {
     const view = threadLedgerViewRef.current;
     return view ? scrollTop + view.inset - view.listTop : undefined;
@@ -728,6 +751,8 @@ export const useTimelineScrollLedgerController = ({
       heldRawEvents: undefined,
       heldPrependEstimatePx: 0,
       pendingReleaseAfterTopUp: false,
+      pendingReconcileAfterWrite: false,
+      pendingBottomReconcile: false,
       aboveResizeQueue: [],
       nextResizeSeq: 0,
       pendingAbsoluteScroll: undefined,
@@ -767,6 +792,7 @@ export const useTimelineScrollLedgerController = ({
     threadUserScrolled: headroomOwner?.threadUserScrolled ?? false,
     threadOpenedAtLatest: headroomOwner?.threadOpenedAtLatest ?? false,
     getScrollElement,
+    virtualInnerRef,
     virtualizerRef,
     anchorRef: threadLedgerAnchorRef,
     sizeCacheRef: ledgerFoldSizeCacheRef as React.MutableRefObject<Map<unknown, number> | undefined>,
@@ -782,10 +808,13 @@ export const useTimelineScrollLedgerController = ({
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement || !threadId) return undefined;
-    const onScroll = () => anchorThreadLedgerAt(scrollElement.scrollTop);
+    const onScroll = () => {
+      if (headroomGate?.pendingReconcileAfterWrite) return;
+      anchorThreadLedgerAt(scrollElement.scrollTop);
+    };
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
-  }, [anchorThreadLedgerAt, getScrollElement, threadId]);
+  }, [anchorThreadLedgerAt, getScrollElement, headroomGate, threadId]);
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
