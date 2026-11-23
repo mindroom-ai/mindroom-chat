@@ -45,12 +45,14 @@ export type ScreenshotHelper = {
 
 export const resolveHelperPath = (options: {
   isPackaged: boolean;
+  isTest?: boolean;
   resourcesPath: string;
   unpackagedDir: string;
   testOverride?: string;
-}): string => {
+}): string | undefined => {
   if (options.isPackaged) return path.join(options.resourcesPath, HELPER_BINARY_NAME);
   if (options.testOverride) return path.resolve(options.testOverride);
+  if (options.isTest) return undefined;
   return path.join(options.unpackagedDir, HELPER_BINARY_NAME);
 };
 
@@ -161,14 +163,8 @@ export const createScreenshotHelper = (
       }
     },
     async captureWindow(target: FrontTarget | undefined): Promise<Result<ScreenshotPayload>> {
-      if (!target) return { ok: false, code: 'NO_WINDOW' };
-      const args = [
-        'window',
-        '--pid',
-        String(target.pid),
-        ...(target.windowId !== null ? ['--window', String(target.windowId)] : []),
-      ];
-      return capture(args);
+      if (!target || target.windowId === null) return { ok: false, code: 'NO_WINDOW' };
+      return capture(['window', '--pid', String(target.pid), '--window', String(target.windowId)]);
     },
     captureScreen(displayId: number, ownPid: number): Promise<Result<ScreenshotPayload>> {
       return capture(['screen', '--display', String(displayId), '--own-pid', String(ownPid)]);

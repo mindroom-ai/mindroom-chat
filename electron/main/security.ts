@@ -93,6 +93,17 @@ export const guardWebContents = (
   });
 };
 
+/** Whether the host is macOS with a major version at least `minMajor`. */
+export const isMacOSAtLeast = (
+  platform: NodeJS.Platform,
+  systemVersion: string,
+  minMajor: number
+): boolean => {
+  if (platform !== 'darwin') return false;
+  const match = /^(\d+)(?:\.|$)/.exec(systemVersion.trim());
+  return match !== null && Number(match[1]) >= minMajor;
+};
+
 /**
  * Whether this host supports macOS 15+ system screen sharing (SCContentSharingPicker).
  * Unpackaged tests may pass an explicit `'1'` or `'0'` override.
@@ -104,10 +115,16 @@ export const supportsSystemScreenShare = (
 ): boolean => {
   if (testOverride === '1') return true;
   if (testOverride === '0') return false;
-  if (platform !== 'darwin') return false;
-  const match = /^(\d+)(?:\.|$)/.exec(systemVersion.trim());
-  return match !== null && Number(match[1]) >= 15;
+  return isMacOSAtLeast(platform, systemVersion, 15);
 };
+
+/**
+ * Whether this host supports Quick Capture screenshots (macOS 14+ SCScreenshotManager).
+ */
+export const supportsQuickCaptureScreenshots = (
+  platform: NodeJS.Platform,
+  systemVersion: string
+): boolean => isMacOSAtLeast(platform, systemVersion, 14);
 
 export const guardSession = (
   session: Electron.Session,

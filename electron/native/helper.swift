@@ -31,16 +31,6 @@ func frontWindowId(of pid: pid_t) -> CGWindowID? {
     return nil
 }
 
-func windowOrder() -> [CGWindowID: Int] {
-    var order: [CGWindowID: Int] = [:]
-    for (index, info) in onScreenWindows().enumerated() {
-        if let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value, order[id] == nil {
-            order[id] = index
-        }
-    }
-    return order
-}
-
 func runFront() {
     let rawPid = NSWorkspace.shared.frontmostApplication?.processIdentifier
     let pid: pid_t? = (rawPid ?? 0) > 0 ? rawPid : nil
@@ -86,33 +76,19 @@ func capturePNG(filter: SCContentFilter) async -> Data {
 }
 
 @available(macOS 14.0, *)
-func captureWindow(pid: pid_t, windowId: CGWindowID?) async -> Data {
+func captureWindow(pid: pid_t, windowId: CGWindowID) async -> Data {
     let content = await shareableContent()
-    let window: SCWindow
-    if let windowId {
-        guard let exact = content.windows.first(where: {
-            $0.windowID == windowId && $0.owningApplication?.processID == pid
-                && $0.isOnScreen && $0.frame.width > 1 && $0.frame.height > 1
-        }) else { fail("NO_WINDOW") }
-        window = exact
-    } else {
-        let order = windowOrder()
-        let candidates = content.windows.filter {
-            $0.owningApplication?.processID == pid && $0.windowLayer == 0
-                && $0.isOnScreen && $0.frame.width > 1 && $0.frame.height > 1
-        }
-        guard let front = candidates.min(by: { (order[$0.windowID] ?? .max) < (order[$1.windowID] ?? .max) }) else {
-            fail("NO_WINDOW")
-        }
-        window = front
-    }
+    guard let window = content.windows.first(where: {
+        $0.windowID == windowId && $0.owningApplication?.processID == pid
+            && $0.isOnScreen && $0.frame.width > 1 && $0.frame.height > 1
+    }) else { fail("NO_WINDOW") }
     return await capturePNG(filter: SCContentFilter(desktopIndependentWindow: window))
 }
 
 @available(macOS 14.0, *)
 func captureScreen(displayId: CGDirectDisplayID, ownPid: pid_t) async -> Data {
     let content = await shareableContent()
-    guard let display = content.displays.first(where: { $0.displayID == displayId }) ?? content.displays.first else {
+    guard let display = content.displays.first(where: { $0.displayID == displayId }) else {
         fail("CAPTURE_FAILED")
     }
     let excluded = content.applications.filter { $0.processID == ownPid }
@@ -133,6 +109,7 @@ func parseFlags(_ args: ArraySlice<String>) -> [String: String] {
 
 @available(macOS 14.0, *)
 func runCapture(_ work: @escaping @Sendable () async -> Data) {
+    _ = CGMainDisplayID()
     let sem = DispatchSemaphore(value: 0)
     Task {
         let png = await work()
@@ -151,15 +128,9 @@ case "front":
     runFront()
 case "window":
     let flags = parseFlags(args.dropFirst(2))
-    guard Set(flags.keys).isSubset(of: ["--pid", "--window"]),
-          let pid = flags["--pid"].flatMap({ Int32($0) }), pid > 0 else { fail("CAPTURE_FAILED") }
-    let windowId: CGWindowID?
-    if let raw = flags["--window"] {
-        guard let parsed = UInt32(raw) else { fail("CAPTURE_FAILED") }
-        windowId = parsed
-    } else {
-        windowId = nil
-    }
+    guard Set(flags.keys) == ["--pid", "--window"],
+          let pid = flags["--pid"].flatMap({ Int32($0) }), pid > 0,
+          let windowId = flags["--window"].flatMap({ UInt32($0) }) else { fail("CAPTURE_FAILED") }
     guard #available(macOS 14.0, *) else { fail("UNSUPPORTED") }
     runCapture { await captureWindow(pid: pid, windowId: windowId) }
 case "screen":

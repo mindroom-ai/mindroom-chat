@@ -21,6 +21,7 @@ import {
   guardSession,
   registerExternalOpenHandler,
   setBlockedUrlRecorder,
+  supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
 } from './security';
 import { startUpdater, type UpdaterHandle } from './updater';
@@ -103,20 +104,26 @@ void app.whenReady().then(() => {
     return;
   }
 
+  const systemVersion =
+    typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : '';
   const screenShare = supportsSystemScreenShare(
     process.platform,
-    typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : '',
+    systemVersion,
     isTest ? process.env.MINDROOM_DESKTOP_SCREEN_SHARE : undefined
   );
   configureMainWindow({ screenShare, updater: app.isPackaged });
 
   const helperPath = resolveHelperPath({
     isPackaged: app.isPackaged,
+    isTest,
     resourcesPath: process.resourcesPath,
     unpackagedDir: path.resolve(__dirname),
     testOverride: unpackaged ? process.env.MINDROOM_DESKTOP_HELPER : undefined,
   });
-  const helperAvailable = (process.platform === 'darwin' || isTest) && fs.existsSync(helperPath);
+  const helperAvailable =
+    helperPath !== undefined &&
+    (isTest || supportsQuickCaptureScreenshots(process.platform, systemVersion)) &&
+    fs.existsSync(helperPath);
   const screenshotHelper = helperAvailable ? createScreenshotHelper(helperPath) : undefined;
 
   quickCapture = createQuickCapture({

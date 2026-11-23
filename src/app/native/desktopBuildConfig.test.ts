@@ -179,7 +179,12 @@ case "$cmd" in
       printf 'Authority=%s\\nTeamIdentifier=%s\\nCodeDirectory v=20500 size=100 flags=%s\\n' \\
         "\${TEST_AUTHORITY:-Developer ID Application: MindRoom AI (DNA6966LGZ)}" "\${TEST_TEAM:-DNA6966LGZ}" "$flags" >&2
     fi ;;
-  xcrun) if [[ "\${1:-}" == "stapler" && "\${2:-}" == "validate" ]] && { [[ "$fail" == "stapler:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "stapler:app" && "$target" == *.app ]]; }; then exit 65; fi ;;
+  xcrun)
+    if [[ "\${1:-}" == "--show-sdk-path" ]]; then
+      printf '%s\\n' "/Fake/MacOSX.sdk"
+    elif [[ "\${1:-}" == "stapler" && "\${2:-}" == "validate" ]] && { [[ "$fail" == "stapler:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "stapler:app" && "$target" == *.app ]]; }; then
+      exit 65
+    fi ;;
   spctl) if [[ "$fail" == "spctl:dmg" && "$target" == *.dmg ]] || [[ "$fail" == "spctl:app" && "$target" == *.app ]]; then exit 3; fi ;;
 esac
 `;
@@ -306,9 +311,15 @@ esac
     const res = run(['--sign']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.commands.find((c) => c.cmd === 'npm')?.hasNotary).toBe(false);
+    expect(
+      res.commands.find((c) => c.cmd === 'xcrun' && c.args === '--show-sdk-path')
+    ).toMatchObject({
+      hasNotary: false,
+    });
     const swiftc = res.commands.filter((c) => c.cmd === 'swiftc');
     expect(swiftc).toHaveLength(2);
     expect(swiftc.every((c) => !c.hasNotary)).toBe(true);
+    expect(swiftc.every((c) => c.args.includes('-sdk /Fake/MacOSX.sdk'))).toBe(true);
     expect(swiftc.map((c) => c.args)).toEqual([
       expect.stringContaining('-target arm64-apple-macos13.0 electron/native/helper.swift'),
       expect.stringContaining('-target x86_64-apple-macos13.0 electron/native/helper.swift'),

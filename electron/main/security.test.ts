@@ -14,9 +14,11 @@ import { APP_ORIGIN } from './bundleProtocol';
 import {
   guardSession,
   guardWebContents,
+  isMacOSAtLeast,
   isOpenable,
   openableHref,
   registerExternalOpenHandler,
+  supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
 } from './security';
 
@@ -488,6 +490,37 @@ describe('external open IPC channel', () => {
       value: undefined,
     });
     expect(opened).toEqual(['https://example.org/']);
+  });
+});
+
+describe('isMacOSAtLeast', () => {
+  it('compares major macOS versions and rejects other platforms or malformed versions', () => {
+    expect(isMacOSAtLeast('darwin', '14.0', 14)).toBe(true);
+    expect(isMacOSAtLeast('darwin', '14', 14)).toBe(true);
+    expect(isMacOSAtLeast('darwin', '14.7.1', 14)).toBe(true);
+    expect(isMacOSAtLeast('darwin', '15.0', 14)).toBe(true);
+    expect(isMacOSAtLeast('darwin', '26.0', 15)).toBe(true);
+    expect(isMacOSAtLeast('darwin', '13.6.9', 14)).toBe(false);
+    expect(isMacOSAtLeast('darwin', '13.0', 14)).toBe(false);
+    expect(isMacOSAtLeast('darwin', '', 14)).toBe(false);
+    expect(isMacOSAtLeast('darwin', '14abc', 14)).toBe(false);
+    expect(isMacOSAtLeast('linux', '14.0', 14)).toBe(false);
+    expect(isMacOSAtLeast('win32', '26.0', 14)).toBe(false);
+  });
+});
+
+describe('supportsQuickCaptureScreenshots', () => {
+  it('enables Quick Capture screenshots on macOS 14+ and refuses macOS 13 or other platforms', () => {
+    expect(supportsQuickCaptureScreenshots('darwin', '14.0')).toBe(true);
+    expect(supportsQuickCaptureScreenshots('darwin', '14.7.1')).toBe(true);
+    expect(supportsQuickCaptureScreenshots('darwin', '15.3.1')).toBe(true);
+    expect(supportsQuickCaptureScreenshots('darwin', '26.0')).toBe(true);
+    expect(supportsQuickCaptureScreenshots('darwin', '13.6.9')).toBe(false);
+    expect(supportsQuickCaptureScreenshots('darwin', '13.0')).toBe(false);
+    expect(supportsQuickCaptureScreenshots('darwin', '')).toBe(false);
+    expect(supportsQuickCaptureScreenshots('darwin', '14abc')).toBe(false);
+    expect(supportsQuickCaptureScreenshots('linux', '14.0')).toBe(false);
+    expect(supportsQuickCaptureScreenshots('win32', '26.0')).toBe(false);
   });
 });
 

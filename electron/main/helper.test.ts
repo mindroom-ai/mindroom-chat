@@ -54,6 +54,37 @@ describe('resolveHelperPath', () => {
       })
     ).toBe(path.join('/repo/build/electron', HELPER_BINARY_NAME));
   });
+
+  it('disables unpackaged fallback in isTest unless testOverride is explicitly set', () => {
+    expect(
+      resolveHelperPath({
+        isPackaged: false,
+        isTest: true,
+        resourcesPath: '/ignored',
+        unpackagedDir: '/repo/build/electron',
+      })
+    ).toBeUndefined();
+
+    expect(
+      resolveHelperPath({
+        isPackaged: false,
+        isTest: true,
+        resourcesPath: '/ignored',
+        unpackagedDir: '/repo/build/electron',
+        testOverride: '',
+      })
+    ).toBeUndefined();
+
+    expect(
+      resolveHelperPath({
+        isPackaged: false,
+        isTest: true,
+        resourcesPath: '/ignored',
+        unpackagedDir: '/repo/build/electron',
+        testOverride: '/tmp/fake-helper',
+      })
+    ).toBe(path.resolve('/tmp/fake-helper'));
+  });
 });
 
 describe('formatScreenshotName', () => {
@@ -125,17 +156,21 @@ describe('createScreenshotHelper', () => {
     await expect(helper.readFrontTarget()).resolves.toBeUndefined();
   });
 
-  it('returns NO_WINDOW without spawning when captureWindow has no target', async () => {
+  it('returns NO_WINDOW without spawning when captureWindow has no target or null windowId', async () => {
     const exec = vi.fn<ExecFileFn>();
     const helper = createScreenshotHelper('/bin/helper', exec);
     await expect(helper.captureWindow(undefined)).resolves.toEqual({
       ok: false,
       code: 'NO_WINDOW',
     });
+    await expect(helper.captureWindow({ pid: 99, windowId: null })).resolves.toEqual({
+      ok: false,
+      code: 'NO_WINDOW',
+    });
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it('captures a window PNG with exact pid/window args and handles null windowId', async () => {
+  it('captures a window PNG with exact pid and window args', async () => {
     const exec = vi.fn<ExecFileFn>().mockResolvedValue(okResult(VALID_PNG));
     const helper = createScreenshotHelper('/bin/helper', exec);
 
@@ -149,12 +184,6 @@ describe('createScreenshotHelper', () => {
       expect(Buffer.from(res.value.bytes)).toEqual(VALID_PNG);
       expect(res.value.name).toMatch(/^Screenshot \d{4}-\d{2}-\d{2} \d{2}\.\d{2}\.\d{2}\.png$/);
     }
-
-    await helper.captureWindow({ pid: 99, windowId: null });
-    expect(exec).toHaveBeenLastCalledWith('/bin/helper', ['window', '--pid', '99'], {
-      timeout: HELPER_TIMEOUT_MS,
-      maxBuffer: MAX_CAPTURE_BYTES,
-    });
   });
 
   it.each<[string, ExecFileResult, string]>([

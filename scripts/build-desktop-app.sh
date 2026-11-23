@@ -39,9 +39,12 @@ verify_codesign_identity() {
 build_screenshot_helper() {
   local helper_src="electron/native/helper.swift"
   local helper_out="build/electron/mindroom-screenshot-helper"
-  local arm64_bin x64_bin
+  local arm64_bin x64_bin sdk
+  sdk=$(xcrun --show-sdk-path)
+  [[ -n "$sdk" ]] || die "xcrun --show-sdk-path returned an empty SDK path"
   local flags=(
     -O
+    -sdk "$sdk"
     -framework AppKit
     -framework CoreGraphics
     -framework ScreenCaptureKit
