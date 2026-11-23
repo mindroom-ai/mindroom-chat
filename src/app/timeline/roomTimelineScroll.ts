@@ -18,7 +18,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
-import { isIOS } from '../lib/user-agent';
+import { stopIOSFlick } from '../lib/iosFlickStop';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -429,27 +429,18 @@ export const useLatestRowPin = ({
  * renders it hidden. iOS only; the timeline's own pins never call it.
  */
 export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
-  const stoppedRef = useRef<{ element: HTMLElement; overflowY: string; frame: number }>();
+  const restoreRef = useRef<(() => void) | undefined>();
   const restore = useCallback(() => {
-    const stopped = stoppedRef.current;
-    if (!stopped) return;
-    stoppedRef.current = undefined;
-    cancelAnimationFrame(stopped.frame);
-    stopped.element.style.overflowY = stopped.overflowY;
+    const pendingRestore = restoreRef.current;
+    if (!pendingRestore) return;
+    restoreRef.current = undefined;
+    pendingRestore();
   }, []);
   // Leaving the view gives the area its overflow back at once.
   useEffect(() => restore, [restore]);
   return useCallback(() => {
-    const element = getScrollElement();
-    if (!element || !isIOS()) return;
-    // A second jump starts over from the area's own value.
     restore();
-    const stopped = { element, overflowY: element.style.overflowY, frame: 0 };
-    stoppedRef.current = stopped;
-    element.style.overflowY = 'hidden';
-    stopped.frame = requestAnimationFrame(() => {
-      stopped.frame = requestAnimationFrame(restore);
-    });
+    restoreRef.current = stopIOSFlick(getScrollElement());
   }, [getScrollElement, restore]);
 };
 
