@@ -586,7 +586,6 @@
     },
     "spaceNav": {
       "options": "خيارات المساحة",
-      "subspaces": "المساحات الفرعية",
       "subspaceUnread": "⁨{{name}}⁩، رسائل غير مقروءة",
       "backToParent": "العودة إلى ⁨{{name}}⁩"
     },

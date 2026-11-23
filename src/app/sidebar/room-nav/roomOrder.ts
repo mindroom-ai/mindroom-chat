@@ -59,39 +59,67 @@ export const moveRoom = (order: readonly string[], roomId: string, toIndex: numb
 };
 
 /**
- * The account data content with the list set to `order`, or removed when `order` is undefined.
+ * The account data content with each entry of `changes` applied: a room ID list sets that list's
+ * order, and `undefined` removes it (back to A to Z). Other lists and unknown keys stay as they
+ * are.
+ */
+export const withRoomOrders = (
+  content: unknown,
+  changes: Readonly<Record<string, readonly string[] | undefined>>
+): Record<string, unknown> => {
+  const current = isRecord(content) ? content : {};
+  const lists = { ...(isRecord(current.lists) ? current.lists : {}) };
+  Object.entries(changes).forEach(([listId, order]) => {
+    if (order) lists[listId] = [...order];
+    else delete lists[listId];
+  });
+  return { ...current, lists };
+};
+
+/**
+ * The account data content with one list set to `order`, or removed when `order` is undefined.
  * Other lists and any keys this client does not know stay as they are.
  */
 export const withRoomOrder = (
   content: unknown,
   listId: string,
   order: readonly string[] | undefined
-): Record<string, unknown> => {
-  const current = isRecord(content) ? content : {};
-  const lists = { ...(isRecord(current.lists) ? current.lists : {}) };
-  if (order) lists[listId] = [...order];
-  else delete lists[listId];
-  return { ...current, lists };
-};
+): Record<string, unknown> => withRoomOrders(content, { [listId]: order });
 
-/** Saves one list's order (undefined: back to A to Z) in the account data. */
-export const saveRoomOrder = async (
+/** Applies all `changes` to `io.mindroom.room_order` in one account-data write. */
+export const saveRoomOrders = async (
   client: MatrixClient,
-  listId: string,
-  order: readonly string[] | undefined
+  changes: Readonly<Record<string, readonly string[] | undefined>>
 ): Promise<void> => {
   const current = client.getAccountData(AccountDataEvent.MindroomRoomOrder as never)?.getContent();
   await client.setAccountData(
     AccountDataEvent.MindroomRoomOrder as never,
-    withRoomOrder(current, listId, order) as never
+    withRoomOrders(current, changes) as never
   );
 };
 
-/** A change not echoed by the server yet, made while `event` was the stored account data. */
-type PendingOrder = {
-  listId: string;
+/** Saves one list's order (undefined: back to A to Z) in the account data. */
+export const saveRoomOrder = (
+  client: MatrixClient,
+  listId: string,
+  order: readonly string[] | undefined
+): Promise<void> => saveRoomOrders(client, { [listId]: order });
+
+/** Changes not echoed by the server yet, made while `event` was the stored account data. */
+type PendingOrders = {
   event: MatrixEvent | undefined;
-  order: string[] | undefined;
+  changes: Record<string, string[] | undefined>;
+};
+
+export type RoomOrders = {
+  /** `roomIds` (sorted A to Z) in the saved order for `listId`, if any. */
+  orderOf: (listId: string, roomIds: readonly string[]) => string[];
+  /** Whether `listId` is ordered by hand. */
+  isManual: (listId: string) => boolean;
+  /** Saves `order` as `listId`'s order. */
+  save: (listId: string, order: string[]) => void;
+  /** Forgets the saved order of every list in `listIds` in one account-data write. */
+  reset: (listIds: readonly string[]) => void;
 };
 
 export type RoomOrder = {
@@ -106,31 +134,59 @@ export type RoomOrder = {
 };
 
 /**
+ * All hand-ordered room lists from one `io.mindroom.room_order` subscription. Changes show at once
+ * and hold until the server echoes the account data; a failed save reverts to the stored order.
+ */
+export const useRoomOrders = (): RoomOrders => {
+  const client = useMatrixClient();
+  const event = useAccountData(AccountDataEvent.MindroomRoomOrder);
+  const [pending, setPending] = useState<PendingOrders>();
+  const savedLists = useMemo(() => parseRoomOrderLists(event?.getContent()), [event]);
+  // Any newer account data, the echo or another device's change, replaces pending changes.
+  const activeChanges = pending && pending.event === event ? pending.changes : undefined;
+
+  return useMemo(() => {
+    const savedOf = (listId: string): readonly string[] | undefined =>
+      activeChanges && Object.prototype.hasOwnProperty.call(activeChanges, listId)
+        ? activeChanges[listId]
+        : savedLists[listId];
+
+    const write = (changes: Record<string, string[] | undefined>) => {
+      if (Object.keys(changes).length === 0) return;
+      const merged = { ...activeChanges, ...changes };
+      const change: PendingOrders = { event, changes: merged };
+      setPending(change);
+      saveRoomOrders(client, merged).catch(() => {
+        setPending((latest) => (latest === change ? undefined : latest));
+      });
+    };
+
+    return {
+      orderOf: (listId, roomIds) => applyRoomOrder(roomIds, savedOf(listId)),
+      isManual: (listId) => savedOf(listId) !== undefined,
+      save: (listId, order) => write({ [listId]: order }),
+      reset: (listIds) => {
+        const changes: Record<string, undefined> = {};
+        listIds.forEach((listId) => {
+          changes[listId] = undefined;
+        });
+        write(changes);
+      },
+    };
+  }, [client, event, savedLists, activeChanges]);
+};
+
+/**
  * The order of one room list: `roomIds` (sorted A to Z) as the person ordered them. A change shows
  * at once and holds until the server echoes the account data; a failed save shows the old order.
  */
 export const useRoomOrder = (listId: string, roomIds: readonly string[]): RoomOrder => {
-  const client = useMatrixClient();
-  const event = useAccountData(AccountDataEvent.MindroomRoomOrder);
-  const [pending, setPending] = useState<PendingOrder>();
-  const saved = useMemo(() => parseRoomOrderLists(event?.getContent())[listId], [event, listId]);
-  // Any newer account data, the echo or another device's change, replaces the pending order.
-  const current = pending && pending.listId === listId && pending.event === event;
-  const order = current ? pending.order : saved;
-  const ordered = useMemo(() => applyRoomOrder(roomIds, order), [roomIds, order]);
-
-  const write = (next: string[] | undefined) => {
-    const change = { listId, event, order: next };
-    setPending(change);
-    saveRoomOrder(client, listId, next).catch(() => {
-      setPending((latest) => (latest === change ? undefined : latest));
-    });
-  };
-
+  const orders = useRoomOrders();
+  const ordered = useMemo(() => orders.orderOf(listId, roomIds), [orders, listId, roomIds]);
   return {
     roomIds: ordered,
-    manual: order !== undefined,
-    save: write,
-    reset: () => write(undefined),
+    manual: orders.isManual(listId),
+    save: (order: string[]) => orders.save(listId, order),
+    reset: () => orders.reset([listId]),
   };
 };

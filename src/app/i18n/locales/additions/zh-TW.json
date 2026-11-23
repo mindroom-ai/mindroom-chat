@@ -521,7 +521,6 @@
     },
     "spaceNav": {
       "options": "空間選項",
-      "subspaces": "子空間",
       "subspaceUnread": "{{name}}，有未讀訊息",
       "backToParent": "返回 {{name}}"
     },

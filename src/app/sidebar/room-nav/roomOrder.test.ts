@@ -1,11 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
-import type { MatrixClient } from 'matrix-js-sdk';
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import {
   applyRoomOrder,
   moveRoom,
   parseRoomOrderLists,
   saveRoomOrder,
+  saveRoomOrders,
+  useRoomOrders,
   withRoomOrder,
+  withRoomOrders,
+  type RoomOrders,
 } from './roomOrder';
 
 describe('applyRoomOrder', () => {
@@ -125,5 +132,84 @@ describe('saveRoomOrder', () => {
     const { client, setAccountData } = clientWith({ lists: { home: ['!b', '!a'] } });
     await saveRoomOrder(client, 'home', undefined);
     expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', { lists: {} });
+  });
+
+  it('applies multiple list changes and atomic resets in one account-data write', async () => {
+    expect(
+      withRoomOrders(
+        { lists: { '!a': ['!1'], '!b': ['!2'], '!keep': ['!3'] }, extra: 1 },
+        { '!a': undefined, '!b': undefined, '!c': ['!4'] }
+      )
+    ).toEqual({
+      lists: { '!keep': ['!3'], '!c': ['!4'] },
+      extra: 1,
+    });
+
+    const { client, setAccountData } = clientWith({
+      lists: { '!a': ['!2', '!1'], '!b': ['!4', '!3'], '!other': ['!x'] },
+    });
+    await saveRoomOrders(client, { '!a': undefined, '!b': undefined });
+    expect(setAccountData).toHaveBeenCalledTimes(1);
+    expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!other': ['!x'] },
+    });
+  });
+});
+
+describe('useRoomOrders', () => {
+  let renderer: ReactTestRenderer | undefined;
+
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+  });
+
+  it('reads all lists from one account-data subscription and resets multiple lists in one write', () => {
+    const stored = {
+      lists: { '!root': ['!b', '!a'], '!sub': ['!d', '!c'], '!other': ['!x'] },
+    };
+    const event = { getContent: () => stored } as unknown as MatrixEvent;
+    const setAccountData = vi.fn(async () => ({}));
+    const on = vi.fn();
+    const off = vi.fn();
+    const client = {
+      getAccountData: vi.fn((type: string) =>
+        type === 'io.mindroom.room_order' ? event : undefined
+      ),
+      setAccountData,
+      on,
+      off,
+    } as unknown as MatrixClient;
+
+    let orders: RoomOrders | undefined;
+    const Harness = () => {
+      orders = useRoomOrders();
+      return null;
+    };
+    act(() => {
+      renderer = create(
+        React.createElement(MatrixClientProvider, { value: client }, React.createElement(Harness))
+      );
+    });
+
+    expect(on).toHaveBeenCalledTimes(1);
+    expect(orders!.isManual('!root')).toBe(true);
+    expect(orders!.isManual('!sub')).toBe(true);
+    expect(orders!.isManual('!none')).toBe(false);
+    expect(orders!.orderOf('!root', ['!a', '!b'])).toEqual(['!b', '!a']);
+    expect(orders!.orderOf('!sub', ['!c', '!d'])).toEqual(['!d', '!c']);
+
+    act(() => orders!.reset([]));
+    expect(setAccountData).not.toHaveBeenCalled();
+
+    act(() => orders!.reset(['!root', '!sub']));
+    expect(setAccountData).toHaveBeenCalledTimes(1);
+    expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!other': ['!x'] },
+    });
+    expect(orders!.isManual('!root')).toBe(false);
+    expect(orders!.isManual('!sub')).toBe(false);
+    expect(orders!.orderOf('!root', ['!a', '!b'])).toEqual(['!a', '!b']);
+    expect(orders!.orderOf('!sub', ['!c', '!d'])).toEqual(['!c', '!d']);
   });
 });

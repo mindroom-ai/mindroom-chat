@@ -534,7 +534,6 @@
     },
     "spaceNav": {
       "options": "Opties voor space",
-      "subspaces": "Sub-spaces",
       "subspaceUnread": "{{name}}, ongelezen berichten",
       "backToParent": "Terug naar {{name}}"
     },

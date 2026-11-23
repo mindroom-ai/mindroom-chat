@@ -7,46 +7,89 @@ import { Space } from './Space';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
+import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
+import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
 import { getSpaceRoomPath } from '../../routes/pathUtils';
 
-// The space's navigation lists the rooms the user is in. The client also holds rooms the user
-// is only invited to or has left; those are not rows of the list.
+// The space's navigation lists the rooms the user is in across the space and its joined
+// sub-spaces, collapsing sections persistently and stepping across sections with one shortcut hook.
 
-const { passthrough, rooms, screen, subRooms } = vi.hoisted(() => {
-  const roomIds = {
-    space: '!garden:example.org',
-    joined: '!seedlings:example.org',
-    invited: '!compost:example.org',
-    left: '!orchard:example.org',
-  };
-  const roomOf = (roomId: string) => {
-    const type = roomId === roomIds.space ? 'm.space' : undefined;
-    return {
-      roomId,
-      name: roomId.slice(1, roomId.indexOf(':')),
-      getCanonicalAlias: () => null,
-      isSpaceRoom: () => roomId === roomIds.space,
-      currentState: { getStateEvents: () => [] },
-      getLiveTimeline: () => ({
-        getState: () => ({ getStateEvents: () => ({ getContent: () => ({ type }) }) }),
-      }),
+const { accountData, navOptions, passthrough, rooms, screen, selected, shortcutCalls, subRooms } =
+  vi.hoisted(() => {
+    const roomIds = {
+      space: '!garden:example.org',
+      joined: '!seedlings:example.org',
+      invited: '!compost:example.org',
+      left: '!orchard:example.org',
+      design: '!design:example.org',
+      designReview: '!design-review:example.org',
+      iconSketches: '!icon-sketches:example.org',
+      organizer: '!organizer:example.org',
+      research: '!research:example.org',
+      readingList: '!reading-list:example.org',
+      interviews: '!interviews:example.org',
     };
-  };
-  return {
-    rooms: { ids: roomIds, of: roomOf },
-    subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
-    screen: { size: 'Desktop' },
-    passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  };
-});
+    const spaceIds = new Set<string>([
+      roomIds.space,
+      roomIds.design,
+      roomIds.organizer,
+      roomIds.research,
+    ]);
+    const names: Record<string, string> = {
+      [roomIds.space]: 'garden',
+      [roomIds.joined]: 'seedlings',
+      [roomIds.invited]: 'compost',
+      [roomIds.left]: 'orchard',
+      [roomIds.design]: 'Design Team',
+      [roomIds.designReview]: 'Design Review',
+      [roomIds.iconSketches]: 'Icon Sketches',
+      [roomIds.organizer]: 'Organizer',
+      [roomIds.research]: 'Research Group',
+      [roomIds.readingList]: 'Reading List',
+      [roomIds.interviews]: 'Field Interviews',
+    };
+    const roomOf = (roomId: string) => {
+      const space = spaceIds.has(roomId);
+      const type = space ? 'm.space' : undefined;
+      return {
+        roomId,
+        name: names[roomId] ?? roomId.slice(1, roomId.indexOf(':')),
+        getCanonicalAlias: () => null,
+        isSpaceRoom: () => space,
+        currentState: { getStateEvents: () => [] },
+        getLiveTimeline: () => ({
+          getState: () => ({ getStateEvents: () => ({ getContent: () => ({ type }) }) }),
+        }),
+      };
+    };
+    return {
+      rooms: { ids: roomIds, of: roomOf },
+      subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
+      screen: { size: 'Desktop' },
+      selected: { roomId: undefined as string | undefined },
+      shortcutCalls: [] as Array<readonly string[]>,
+      accountData: {
+        content: undefined as Record<string, unknown> | undefined,
+        setAccountData: vi.fn(async () => ({})),
+      },
+      navOptions: {
+        children: undefined as ((close: () => void) => React.ReactNode) | undefined,
+      },
+      passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+    };
+  });
 
 const client = {
   getRoom: (roomId: string) => rooms.of(roomId),
   getRooms: () => Object.values(rooms.ids).map(rooms.of),
   getUserId: () => '@alice:example.org',
   getSafeUserId: () => '@alice:example.org',
-  // No room order saved: the list is A to Z.
-  getAccountData: () => undefined,
+  getAccountData: (type: string) =>
+    type === 'io.mindroom.room_order' && accountData.content !== undefined
+      ? { getContent: () => accountData.content }
+      : undefined,
+  setAccountData: accountData.setAccountData,
   on: () => undefined,
   off: () => undefined,
 };
@@ -83,7 +126,45 @@ vi.mock('../../ui/nav/NavItem', () => ({
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: passthrough,
 }));
-vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
+vi.mock('../../ui/nav/NavOptionsMenu', () => ({
+  NavOptionsMenu: ({ children }: { children: (close: () => void) => React.ReactNode }) => {
+    navOptions.children = children;
+    return <div data-nav-options>{children(() => undefined)}</div>;
+  },
+}));
+vi.mock('../../ui/MenuEntry', () => ({
+  MenuGroup: passthrough,
+  MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) => (
+    <button type="button" data-menu-entry={label} onClick={onSelect}>
+      {label}
+    </button>
+  ),
+}));
+vi.mock('../room-nav/RoomNavCategoryButton', () => ({
+  RoomNavCategoryButton: ({
+    closed,
+    ownDirection,
+    after,
+    children,
+    ...props
+  }: {
+    closed?: boolean;
+    ownDirection?: boolean;
+    after?: React.ReactNode;
+    children?: React.ReactNode;
+  } & Record<string, unknown>) => (
+    <button
+      type="button"
+      data-section-button
+      data-closed={closed ? 'true' : 'false'}
+      data-own-direction-prop={ownDirection ? 'true' : 'false'}
+      {...props}
+    >
+      {children}
+      {after}
+    </button>
+  ),
+}));
 // The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
@@ -92,8 +173,15 @@ vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
     return null;
   },
 }));
+vi.mock('../useRoomListShortcuts', () => ({
+  useRoomListShortcuts: (roomIds: readonly string[]) => {
+    shortcutCalls.push(roomIds);
+  },
+}));
 vi.mock('../room-nav/SortableRoomList', () => ({
-  SortableRoomList: passthrough,
+  SortableRoomList: ({ listId, children }: { listId: string; children?: React.ReactNode }) => (
+    <div data-sortable-list={listId}>{children}</div>
+  ),
   SortableRoomRow: ({
     room,
     linkPath,
@@ -122,8 +210,10 @@ vi.mock('../../matrix/hooks/useSpace', () => ({
   useSpace: () => rooms.of(rooms.ids.space),
   SpaceProvider: passthrough,
 }));
-vi.mock('../../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'garden' }));
-vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
+vi.mock('../../matrix/hooks/useRoomMeta', () => ({
+  useRoomName: (room: { name?: string; roomId: string }) => room.name ?? room.roomId,
+}));
+vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => selected.roomId }));
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: () => undefined,
 }));
@@ -137,7 +227,8 @@ vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOrigi
   getRoomNotificationMode: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
-vi.mock('../../matrix/state/archivedRooms', () => ({
+vi.mock('../../matrix/state/archivedRooms', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/state/archivedRooms')>()),
   useVisibleRooms: (roomIds: string[]) => roomIds,
 }));
 vi.mock('../threads/ThreadNavCategory', () => ({
@@ -164,30 +255,45 @@ describe('Space navigation', () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     screen.size = 'Desktop';
+    selected.roomId = undefined;
+    shortcutCalls.length = 0;
+    accountData.content = undefined;
+    accountData.setAccountData.mockReset();
+    localStorage.clear();
   });
 
-  const renderSpace = () => {
+  const mountSpace = (
+    store: ReturnType<typeof createStore>,
+    closedAtom = makeClosedNavCategoriesAtom('@alice:example.org')
+  ) => {
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <ClosedNavCategoriesProvider value={closedAtom}>
+            <Space />
+          </ClosedNavCategoriesProvider>
+        </Provider>
+      );
+    });
+    return { store, closedAtom };
+  };
+
+  const renderEmptySpace = () => {
     const store = createStore();
     store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [rooms.ids.space] });
     store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
     store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <Space />
-        </Provider>
-      );
-    });
+    mountSpace(store);
     return renderer!.root.findAll(
       (node) => typeof node.type === 'string' && 'data-find-anything' in node.props
     );
   };
 
   it('puts the Find anything field atop the list, and leaves it to the top bar on a phone', () => {
-    expect(renderSpace()).toHaveLength(1);
+    expect(renderEmptySpace()).toHaveLength(1);
     act(() => renderer?.unmount());
     screen.size = 'Mobile';
-    expect(renderSpace()).toHaveLength(0);
+    expect(renderEmptySpace()).toHaveLength(0);
   });
 
   it('lists the joined rooms of the space, not the ones the user is invited to or left', () => {
@@ -199,14 +305,7 @@ describe('Space navigation', () => {
       type: 'INITIALIZE',
       roomToParents: new Map([joined, invited, left].map((roomId) => [roomId, new Set([space])])),
     });
-
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <Space />
-        </Provider>
-      );
-    });
+    mountSpace(store);
 
     const rows = renderer!.root.findAll(
       (node) => typeof node.type === 'string' && 'data-row-room' in node.props
@@ -219,5 +318,204 @@ describe('Space navigation', () => {
     expect(rows[0]?.props['data-sub-room']).toBeUndefined();
     const under = subRooms.renderRoom?.(rooms.of('!seedlings-trays:example.org'));
     expect(React.isValidElement<{ subRoom?: boolean }>(under) && under.props.subRoom).toBe(true);
+  });
+
+  it('renders inline sub-space sections in DFS order, collapses with unread dot, and registers one shortcut list', () => {
+    const {
+      space,
+      joined,
+      design,
+      designReview,
+      iconSketches,
+      organizer,
+      research,
+      readingList,
+      interviews,
+    } = rooms.ids;
+    const store = createStore();
+    store.set(allRoomsAtom, {
+      type: 'INITIALIZE',
+      rooms: [
+        space,
+        joined,
+        design,
+        designReview,
+        iconSketches,
+        organizer,
+        research,
+        readingList,
+        interviews,
+      ],
+    });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        [joined, new Set([space])],
+        [design, new Set([space])],
+        [organizer, new Set([space])],
+        [research, new Set([organizer])],
+        [designReview, new Set([design])],
+        [iconSketches, new Set([design])],
+        [readingList, new Set([research])],
+        [interviews, new Set([research])],
+      ]),
+    });
+    store.set(roomToUnreadAtom, {
+      type: 'RESET',
+      unreadInfos: [{ roomId: readingList, total: 2, highlight: 1 }],
+    });
+
+    const closedAtom = makeClosedNavCategoriesAtom('@alice:example.org');
+    mountSpace(store, closedAtom);
+
+    const sectionButtons = () =>
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && 'data-section-button' in node.props
+      );
+    const rows = () =>
+      renderer!.root.findAll(
+        (node) => typeof node.type === 'string' && 'data-row-room' in node.props
+      );
+
+    // Empty intermediate organizer is hidden, while its populated Research Group child appears.
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      makeNavCategoryId(space, 'subspace', research),
+    ]);
+    expect(sectionButtons().map((node) => node.props['data-own-direction-prop'])).toEqual([
+      'false',
+      'true',
+      'true',
+    ]);
+    // Every room row links under the active parent space and carries spaceId = space.
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      iconSketches,
+      interviews,
+      readingList,
+    ]);
+    rows().forEach((node) => {
+      const roomId = node.props['data-row-room'] as string;
+      expect(node.props['data-link']).toBe(getSpaceRoomPath(space, roomId));
+      expect(node.props['data-space']).toBe(space);
+    });
+    // One single useRoomListShortcuts call per render across all sections in rendered order.
+    expect(shortcutCalls.at(-1)).toEqual([
+      joined,
+      designReview,
+      iconSketches,
+      interviews,
+      readingList,
+    ]);
+
+    // Collapse Research Group: hides its rooms and shows the unread dot + accessible label.
+    shortcutCalls.length = 0;
+    const researchCategoryId = makeNavCategoryId(space, 'subspace', research);
+    const researchButton = sectionButtons()[2]!;
+    act(() => {
+      researchButton.props.onClick({
+        currentTarget: { getAttribute: () => researchCategoryId },
+      });
+    });
+
+    expect(store.get(closedAtom).has(researchCategoryId)).toBe(true);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      iconSketches,
+    ]);
+    const collapsedResearch = sectionButtons()[2]!;
+    expect(collapsedResearch.props['data-closed']).toBe('true');
+    expect(collapsedResearch.props['aria-label']).toContain('Research Group');
+    expect(
+      collapsedResearch.findAll(
+        (node) => typeof node.type === 'string' && 'data-unread' in node.props
+      )
+    ).toHaveLength(1);
+    expect(shortcutCalls).toEqual([[joined, designReview, iconSketches]]);
+
+    // Selecting the only unread room keeps it visible under the collapsed header and clears the dot.
+    shortcutCalls.length = 0;
+    selected.roomId = readingList;
+    act(() => {
+      renderer!.update(
+        <Provider store={store}>
+          <ClosedNavCategoriesProvider value={closedAtom}>
+            <Space />
+          </ClosedNavCategoriesProvider>
+        </Provider>
+      );
+    });
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      iconSketches,
+      readingList,
+    ]);
+    const selectedResearch = sectionButtons()[2]!;
+    expect(
+      selectedResearch.findAll(
+        (node) => typeof node.type === 'string' && 'data-unread' in node.props
+      )
+    ).toHaveLength(0);
+    expect(selectedResearch.props['aria-label']).toBeUndefined();
+    expect(shortcutCalls).toEqual([[joined, designReview, iconSketches, readingList]]);
+  });
+
+  it('resets all manually ordered displayed sections in one atomic account-data write', () => {
+    const { space, joined, design, designReview, iconSketches } = rooms.ids;
+    accountData.content = {
+      lists: {
+        [space]: [joined],
+        [design]: [iconSketches, designReview],
+        '!unrelated:example.org': ['!other:example.org'],
+      },
+    };
+    const store = createStore();
+    store.set(allRoomsAtom, {
+      type: 'INITIALIZE',
+      rooms: [space, joined, design, designReview, iconSketches],
+    });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        [joined, new Set([space])],
+        [design, new Set([space])],
+        [designReview, new Set([design])],
+        [iconSketches, new Set([design])],
+      ]),
+    });
+    mountSpace(store);
+
+    const rows = () =>
+      renderer!.root.findAll(
+        (node) => typeof node.type === 'string' && 'data-row-room' in node.props
+      );
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      iconSketches,
+      designReview,
+    ]);
+
+    const sortButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['data-menu-entry'] === 'Sort Rooms A to Z'
+    );
+    act(() => {
+      sortButton.props.onClick();
+    });
+
+    expect(accountData.setAccountData).toHaveBeenCalledTimes(1);
+    expect(accountData.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!unrelated:example.org': ['!other:example.org'] },
+    });
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      designReview,
+      iconSketches,
+    ]);
   });
 });

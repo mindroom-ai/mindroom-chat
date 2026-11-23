@@ -521,7 +521,6 @@
     },
     "spaceNav": {
       "options": "스페이스 옵션",
-      "subspaces": "하위 스페이스",
       "subspaceUnread": "{{name}}, 읽지 않은 메시지",
       "backToParent": "{{name}}(으)로 돌아가기"
     },

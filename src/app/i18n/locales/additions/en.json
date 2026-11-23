@@ -534,7 +534,6 @@
     },
     "spaceNav": {
       "options": "Space Options",
-      "subspaces": "Sub-spaces",
       "subspaceUnread": "{{name}}, unread messages",
       "backToParent": "Back to {{name}}"
     },

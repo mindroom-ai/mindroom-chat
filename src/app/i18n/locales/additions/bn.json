@@ -534,7 +534,6 @@
     },
     "spaceNav": {
       "options": "স্পেস বিকল্প",
-      "subspaces": "উপ-স্পেস",
       "subspaceUnread": "{{name}}, অপঠিত বার্তা",
       "backToParent": "{{name}}-এ ফিরে যান"
     },

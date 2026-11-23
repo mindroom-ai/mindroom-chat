@@ -15,7 +15,6 @@ import { StateEvent, type RoomToParents } from '../../matrix/types/room';
 import { withSearchParam } from '../../routes/pathUtils';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { useRoomOrder } from './roomOrder';
-import { useRoomListShortcuts } from '../useRoomListShortcuts';
 
 /** A section's rooms: the ones it shows on their own, and the sub-rooms under each room. */
 export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[]> };
@@ -74,18 +73,39 @@ const withSubRooms = (roomIds: string[], tree: SubRoomTree): string[] =>
   roomIds.flatMap((roomId) => [roomId, ...withSubRooms(tree.children.get(roomId) ?? [], tree)]);
 
 /**
+ * Computes a section's room tree and rendered lists without hooks: `shownRoomIds` has all rooms
+ * in expanded rendered order (ordered top rooms with their nested sub-rooms after each), and
+ * `listedRoomIds` holds the top-level rows rendered (only the lone selected room while collapsed).
+ */
+export const buildSubRoomList = (
+  topRoomIds: string[],
+  roomIds: string[],
+  roomToParents: RoomToParents,
+  chatRooms: ReadonlySet<string>,
+  orderTop: (top: readonly string[]) => string[],
+  closed: boolean,
+  selectedRoomId: string | undefined
+): { tree: SubRoomTree; shownRoomIds: string[]; listedRoomIds: string[] } => {
+  const tree = nestSubRooms(topRoomIds, roomIds, roomToParents, chatRooms);
+  const orderedTop = orderTop(tree.top);
+  const shownRoomIds = withSubRooms(orderedTop, tree);
+  const listedRoomIds = closed
+    ? shownRoomIds.filter((roomId) => roomId === selectedRoomId)
+    : orderedTop;
+  return { tree, shownRoomIds, listedRoomIds };
+};
+
+/**
  * A section's room list, with `roomIds` and `topRoomIds` as for `nestSubRooms`: its rooms in A to Z
  * order until the person drags one, then in their order on every device (`useRoomOrder`), each
- * with its sub-rooms under it, and the list's keyboard shortcuts through all of them. A collapsed
- * section still lists the selected room, on its own.
+ * with its sub-rooms under it. A collapsed section still lists the selected room, on its own.
  */
 export const useSubRoomList = (
   listId: string,
   topRoomIds: string[],
   roomIds: string[],
   closed: boolean,
-  selectedRoomId: string | undefined,
-  pathOf: (roomId: string) => string
+  selectedRoomId: string | undefined
 ) => {
   const roomToParents = useAtomValue(roomToParentsAtom);
   const chatRooms = useAtomValue(chatRoomParentsAtom);
@@ -102,8 +122,7 @@ export const useSubRoomList = (
     () => (closed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds),
     [shownRoomIds, roomOrder.roomIds, closed, selectedRoomId]
   );
-  useRoomListShortcuts(closed ? listedRoomIds : shownRoomIds, selectedRoomId, pathOf);
-  return { tree, roomOrder, listedRoomIds };
+  return { tree, roomOrder, shownRoomIds, listedRoomIds };
 };
 
 const viaOf = (content: Record<string, unknown>): string[] => {

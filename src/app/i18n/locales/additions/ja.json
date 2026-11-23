@@ -521,7 +521,6 @@
     },
     "spaceNav": {
       "options": "スペースのオプション",
-      "subspaces": "サブスペース",
       "subspaceUnread": "{{name}}、未読メッセージあり",
       "backToParent": "{{name}} に戻る"
     },
