@@ -418,7 +418,9 @@
         "search": "Tampilkan Cari di bilah sisi",
         "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, buka palet dari kolom \"Cari apa saja\" atau dengan {{shortcut}}.",
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
-        "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal."
+        "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal.",
+        "usage": "Tampilkan Penggunaan di bilah sisi",
+        "usageDescription": "Batas penggunaan penyedia dan pemakaian token 7 hari setelah runtime melaporkannya. Saat disembunyikan, buka Penggunaan dari menu ⋮ di Beranda atau pemilih model."
       },
       "plugins": {
         "title": "Plugin",
@@ -1313,6 +1315,45 @@
         "kept": "Draf Anda tetap seperti semula. Salin permintaan untuk menambahkannya sendiri.",
         "copied": "Permintaan disalin. Tempelkan ke draf Anda."
       }
+    },
+    "usage": {
+      "title": "Penggunaan & Batas",
+      "navLowQuota": "Penggunaan (kuota rendah)",
+      "tabsLimits": "Batas",
+      "tabsTokens": "Token & Biaya",
+      "refresh": "Muat ulang",
+      "updatedAgo": "Diperbarui {{time}}",
+      "runtimeLabel": "Runtime",
+      "loading": "Memeriksa penggunaan penyedia…",
+      "unavailableTitle": "Data penggunaan tidak tersedia",
+      "unavailableBody": "Tidak ada runtime terhubung yang melaporkan batas penggunaan penyedia untuk akun ini.",
+      "retry": "Coba lagi",
+      "partialData": "Data sebagian — beberapa penyedia atau catatan penggunaan gagal dimuat.",
+      "stale": "Kedaluwarsa",
+      "percentLeft": "Sisa {{percent}}%",
+      "resetsIn": "Diatur ulang dalam {{duration}}",
+      "resetsAt": "Diatur ulang {{time}}",
+      "resetsSoon": "Segera diatur ulang",
+      "quotaAria": "{{label}}: sisa {{percent}}%",
+      "quotaAriaWithReset": "{{label}}: sisa {{percent}}%, {{reset}}",
+      "noSubscriptionLimit": "Tanpa batas langganan",
+      "payAsYouGo": "Bayar sesuai pemakaian",
+      "limitsUnavailable": "Batas penggunaan tidak tersedia",
+      "tokens7d": "{{tokens}} token (7h)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Total token 7 hari",
+      "totalCost7d": "Perkiraan biaya 7 hari",
+      "dailyChartTitle": "Token harian (7 hari terakhir)",
+      "dailyBarAria": "{{day}}: {{tokens}} token",
+      "breakdownTitle": "Rincian per akun",
+      "colAccount": "Akun",
+      "colTokens": "Token 7h",
+      "colShare": "Porsi",
+      "colSpend": "Biaya 7h",
+      "unattributed": "Tidak terklasifikasi",
+      "allUsageAndLimits": "Semua penggunaan & batas →",
+      "noAccounts": "Belum ada akun penyedia yang dilaporkan.",
+      "noDailyData": "Tidak ada penggunaan harian yang tercatat dalam 7 hari terakhir."
     }
   },
   "composer": {
@@ -1896,5 +1937,8 @@
       "action": "Verifikasi perangkat ini",
       "text": "Sampai saat itu, perangkat ini tidak dapat membaca obrolan terenkripsi Anda."
     }
+  },
+  "nav": {
+    "usage": "Penggunaan"
   }
 }

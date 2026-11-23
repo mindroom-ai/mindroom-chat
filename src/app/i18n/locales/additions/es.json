@@ -444,7 +444,9 @@
         "search": "Mostrar Buscar en la barra lateral",
         "searchDescription": "El botón que abre la paleta de comandos. Si lo ocultas, ábrela desde el campo «Buscar cualquier cosa» o con {{shortcut}}.",
         "localMindroom": "Mostrar MindRoom local en la barra lateral",
-        "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local."
+        "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local.",
+        "usage": "Mostrar Uso en la barra lateral",
+        "usageDescription": "Límites de uso de proveedores y gasto de tokens en 7 días, en cuanto un entorno de ejecución los informe. Si está oculto, abre Uso desde el menú ⋮ en Inicio o en el selector de modelos."
       },
       "plugins": {
         "title": "Complementos",
@@ -1403,6 +1405,45 @@
         "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
         "copied": "Solicitud copiada. Pégala en tu borrador."
       }
+    },
+    "usage": {
+      "title": "Uso y límites",
+      "navLowQuota": "Uso (cuota baja)",
+      "tabsLimits": "Límites",
+      "tabsTokens": "Tokens y costo",
+      "refresh": "Actualizar",
+      "updatedAgo": "Actualizado {{time}}",
+      "runtimeLabel": "Entorno",
+      "loading": "Consultando el uso del proveedor…",
+      "unavailableTitle": "Datos de uso no disponibles",
+      "unavailableBody": "Ningún entorno conectado informó límites de uso de proveedores para esta cuenta.",
+      "retry": "Reintentar",
+      "partialData": "Datos parciales — no se pudieron cargar algunos proveedores o registros de uso.",
+      "stale": "Desactualizado",
+      "percentLeft": "{{percent}}% restante",
+      "resetsIn": "Se restablece en {{duration}}",
+      "resetsAt": "Se restablece {{time}}",
+      "resetsSoon": "Se restablece pronto",
+      "quotaAria": "{{label}}: {{percent}}% restante",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% restante, {{reset}}",
+      "noSubscriptionLimit": "Sin límite de suscripción",
+      "payAsYouGo": "Pago por uso",
+      "limitsUnavailable": "Límites de uso no disponibles",
+      "tokens7d": "{{tokens}} tokens (7d)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Tokens totales (7 días)",
+      "totalCost7d": "Gasto estimado (7 días)",
+      "dailyChartTitle": "Tokens diarios (últimos 7 días)",
+      "dailyBarAria": "{{day}}: {{tokens}} tokens",
+      "breakdownTitle": "Desglose por cuenta",
+      "colAccount": "Cuenta",
+      "colTokens": "Tokens (7d)",
+      "colShare": "Porcentaje",
+      "colSpend": "Gasto (7d)",
+      "unattributed": "Sin atribuir",
+      "allUsageAndLimits": "Todo el uso y límites →",
+      "noAccounts": "Aún no se informaron cuentas de proveedores.",
+      "noDailyData": "No se registró uso diario en los últimos 7 días."
     }
   },
   "composer": {
@@ -2018,5 +2059,8 @@
       "action": "Verificar este dispositivo",
       "text": "Hasta entonces no puede leer tus chats cifrados."
     }
+  },
+  "nav": {
+    "usage": "Uso"
   }
 }
