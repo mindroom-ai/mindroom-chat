@@ -76,7 +76,7 @@ struct ThreadView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 24)
+                .padding(.bottom, 40)
             }
             // Opens at the top of what waits (so an approval card's tool name is always read first) or the newest answer.
             .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
@@ -93,6 +93,7 @@ struct ThreadView: View {
                     Task { await roomModel.resolve(rootId); dismiss() }
                 } label: {
                     Label("Done", systemImage: "checkmark")
+                        .labelStyle(.iconOnly)
                 }
                 Spacer()
                 Button {
@@ -100,6 +101,8 @@ struct ThreadView: View {
                     recording = true
                 } label: {
                     Label("Reply", systemImage: "mic.fill")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(WatchTheme.tealInk)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(WatchTheme.teal)
@@ -192,32 +195,21 @@ struct ThreadView: View {
         let senderName = roomModel.name(message.sender)
         let showsWorkFold = !message.toolNames.isEmpty || message.workText != nil
         let displayText = message.answerText.isEmpty ? message.text : message.answerText
+        let onListen = listenAction(for: message, in: snapshot)
         return VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 5) {
-                AgentMonogram(name: senderName)
-                Text(senderName)
-                    .font(.caption.bold())
-                    .foregroundStyle(WatchTheme.tealBright)
-                    .lineLimit(1)
-                Spacer(minLength: 2)
-                if !showsWorkFold && message.tools > 0 {
-                    Text(message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+            if let onListen {
+                ViewThatFits(in: .horizontal) {
+                    agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                                onListen: onListen, iconOnlyListen: false)
+                    agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                                onListen: onListen, iconOnlyListen: true)
                 }
-                // The work fold has its own mark of a run that goes on.
-                if !showsWorkFold && message.run == .streaming {
-                    if reduceMotion {
-                        Circle()
-                            .fill(WatchTheme.tealBright)
-                            .frame(width: 6, height: 6)
-                    } else {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(WatchTheme.tealBright)
-                    }
-                }
+            } else {
+                agentHeader(message, senderName: senderName, showsWorkFold: showsWorkFold,
+                            onListen: nil, iconOnlyListen: false)
+            }
+            if speaker.failed == message.eventId {
+                Text("Could not play").font(.footnote).foregroundStyle(WatchTheme.coral)
             }
             if showsWorkFold {
                 WorkFoldView(
@@ -245,15 +237,6 @@ struct ThreadView: View {
                     .font(.body)
                     .foregroundStyle(.primary)
             }
-            if let audio = message.audio {
-                listen(message) { speaker.toggle(message.eventId) { try await roomModel.audio(audio) } }
-                if speaker.failed == message.eventId {
-                    Text("Could not play").font(.footnote).foregroundStyle(WatchTheme.coral)
-                }
-            } else if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
-                let spoken = message.answerText.isEmpty ? message.text : message.answerText
-                listen(message) { speaker.toggle(message.eventId, text: roomModel.named(spoken)) }
-            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -267,23 +250,80 @@ struct ThreadView: View {
         )
     }
 
-    private func listen(_ message: ThreadSnapshot.Message, action: @escaping () -> Void) -> some View {
+    private func agentHeader(_ message: ThreadSnapshot.Message, senderName: String, showsWorkFold: Bool,
+                             onListen: (() -> Void)?, iconOnlyListen: Bool) -> some View {
+        HStack(spacing: 5) {
+            AgentMonogram(name: senderName)
+            Text(senderName)
+                .font(.caption.bold())
+                .foregroundStyle(WatchTheme.tealBright)
+                .lineLimit(1)
+            Spacer(minLength: 2)
+            if !showsWorkFold && message.tools > 0 {
+                Text(message.tools == 1 ? String(localized: "1 tool") : String(localized: "\(message.tools) tools"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            // The work fold has its own mark of a run that goes on.
+            if !showsWorkFold && message.run == .streaming {
+                if reduceMotion {
+                    Circle()
+                        .fill(WatchTheme.tealBright)
+                        .frame(width: 6, height: 6)
+                } else {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(WatchTheme.tealBright)
+                }
+            }
+            if let onListen {
+                listen(message, compact: true, iconOnly: iconOnlyListen, action: onListen)
+            }
+        }
+    }
+
+    private func listenAction(for message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> (() -> Void)? {
+        if let audio = message.audio {
+            return { speaker.toggle(message.eventId) { try await roomModel.audio(audio) } }
+        }
+        if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
+            let spoken = message.answerText.isEmpty ? message.text : message.answerText
+            return { speaker.toggle(message.eventId, text: roomModel.named(spoken)) }
+        }
+        return nil
+    }
+
+    private func listen(_ message: ThreadSnapshot.Message, compact: Bool = false, iconOnly: Bool = false,
+                        action: @escaping () -> Void) -> some View {
         let sounds = speaker.current == message.eventId
+        let horizontal: CGFloat = compact ? 7 : 10
+        let vertical: CGFloat = compact ? 3 : 5
+        let top: CGFloat = compact ? 0 : 2
         return Button(action: action) {
-            Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
-                  systemImage: sounds ? "stop.fill" : "play.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(sounds ? WatchTheme.tealInk : WatchTheme.tealBright)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    Capsule()
-                        .fill(sounds ? WatchTheme.tealBright : WatchTheme.teal.opacity(0.22))
-                        .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.38), lineWidth: 0.75))
-                )
+            Group {
+                if iconOnly {
+                    Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
+                          systemImage: sounds ? "stop.fill" : "play.fill")
+                        .labelStyle(.iconOnly)
+                } else {
+                    Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
+                          systemImage: sounds ? "stop.fill" : "play.fill")
+                }
+            }
+            .font((compact ? Font.caption2 : Font.caption).weight(.bold))
+            .foregroundStyle(sounds ? WatchTheme.tealInk : WatchTheme.tealBright)
+            .padding(.horizontal, horizontal)
+            .padding(.vertical, vertical)
+            .background(
+                Capsule()
+                    .fill(sounds ? WatchTheme.tealBright : WatchTheme.teal.opacity(0.22))
+                    .overlay(Capsule().strokeBorder(WatchTheme.tealBright.opacity(0.38), lineWidth: 0.75))
+            )
         }
         .buttonStyle(.plain)
-        .padding(.top, 2)
+        .fixedSize()
+        .padding(.top, top)
     }
 
     private func approvalView(_ card: ApprovalCard) -> some View {
@@ -317,7 +357,7 @@ private struct WorkFoldView: View {
                         .foregroundStyle(WatchTheme.tealBright.opacity(0.85))
                 }
                 .padding(.horizontal, 7)
-                .padding(.vertical, 5)
+                .padding(.vertical, 3)
                 .background(
                     Capsule()
                         .fill(Color.white.opacity(0.09))
