@@ -779,4 +779,70 @@ describe('EventSourceViewer', () => {
     expect(deText).toContain('Einklappen');
     rAr.unmount();
   });
+
+  it('keeps the same chevron button node mounted on fold/unfold and retains fold and Raw state per tab', async () => {
+    const i18n = await createTestI18n();
+    const { ev } = makeRichEvent();
+    const edit = makeEditEvent('$evt_edit_tabs', '$evt_garden_1', 'Edited body');
+    ev.makeReplaced(edit);
+
+    const buttonNodes = new Map<string, { id: number; focus: ReturnType<typeof vi.fn> }>();
+    let nextNodeId = 1;
+    let r!: ReactTestRenderer;
+    act(() => {
+      r = create(
+        <I18nextProvider i18n={i18n}>
+          <EventSourceViewer name="Source Code" mEvent={ev} requestClose={vi.fn()} />
+        </I18nextProvider>,
+        {
+          createNodeMock: (el) => {
+            if (el.type === 'button') {
+              const label = String((el.props as { 'aria-label'?: string })['aria-label'] ?? '');
+              const node = { id: nextNodeId++, focus: vi.fn() };
+              buttonNodes.set(label, node);
+              return node;
+            }
+            return {};
+          },
+        }
+      );
+    });
+
+    const initialUnsignedId = buttonNodes.get('Expand unsigned')?.id;
+    expect(initialUnsignedId).toBeDefined();
+    // Clicking the collapsed count pill unfolds unsigned without remounting the chevron button
+    const unsignedLine = r.root
+      .findAllByProps({ className: 'TreeLine' })
+      .find((line) => textOf(line).includes('"unsigned"'));
+    const unsignedPill = unsignedLine?.findByProps({ className: 'FoldPill' });
+    expect(unsignedPill).toBeDefined();
+    click(unsignedPill);
+    // Because the chevron stayed mounted, createNodeMock did not create a second button for it
+    expect(buttonNodes.get('Collapse unsigned')).toBeUndefined();
+    expect(buttonNodes.get('Expand unsigned')?.focus).toHaveBeenCalledTimes(1);
+    expect(textOf(r.root)).toContain('txn_demo_99');
+
+    // Folding and unfolding via the chevron keeps the exact same button instance mounted
+    click(byLabel(r, 'Collapse unsigned'));
+    expect(textOf(r.root)).not.toContain('txn_demo_99');
+    expect(buttonNodes.get('Expand unsigned')?.id).toBe(initialUnsignedId);
+    click(byLabel(r, 'Expand unsigned'));
+    expect(textOf(r.root)).toContain('txn_demo_99');
+    expect(buttonNodes.get('Collapse unsigned')).toBeUndefined();
+
+    // Switch to Latest edit and back to Original: unsigned stays expanded
+    click(btnByText(r, 'Latest edit'));
+    expect(textOf(r.root)).toContain('Edited body');
+    click(btnByText(r, 'Original'));
+    expect(textOf(r.root)).toContain('txn_demo_99');
+
+    // Toggle Raw on Original, switch to Latest edit (still tree), switch back (still Raw)
+    click(btnByText(r, 'Raw'));
+    expect(r.root.findAllByType('pre')).toHaveLength(1);
+    click(btnByText(r, 'Latest edit'));
+    expect(r.root.findAllByType('pre')).toHaveLength(0);
+    click(btnByText(r, 'Original'));
+    expect(r.root.findAllByType('pre')).toHaveLength(1);
+    r.unmount();
+  });
 });

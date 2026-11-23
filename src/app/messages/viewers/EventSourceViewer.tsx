@@ -297,23 +297,25 @@ function JsonTreeNode({
         { count: entries.length }
       );
       return (
-        <TreeRow
-          gutter={foldBtn(true, false, label, () => ctx.toggleContainer(path))}
-          copy={rowCopy}
-        >
-          {keyPrefix}
-          <span className="token punctuation">{open}</span>
-          <button
-            type="button"
-            className={css.FoldPill}
-            aria-expanded={false}
-            onClick={() => unfoldKeepingFocus(ctx.toggleContainer)}
+        <div>
+          <TreeRow
+            gutter={foldBtn(true, false, label, () => ctx.toggleContainer(path))}
+            copy={rowCopy}
           >
-            <IsolatedText text={summary} />
-          </button>
-          <span className="token punctuation">{close}</span>
-          {comma}
-        </TreeRow>
+            {keyPrefix}
+            <span className="token punctuation">{open}</span>
+            <button
+              type="button"
+              className={css.FoldPill}
+              aria-expanded={false}
+              onClick={() => unfoldKeepingFocus(ctx.toggleContainer)}
+            >
+              <IsolatedText text={summary} />
+            </button>
+            <span className="token punctuation">{close}</span>
+            {comma}
+          </TreeRow>
+        </div>
       );
     }
     const visible = ctx.filter
@@ -432,12 +434,13 @@ function JsonTreeNode({
   );
 }
 
-type FoldState = {
+type TabViewState = {
   collapsed: Set<string> | null;
   foldStrings: boolean;
   overrides: Record<string, boolean>;
+  raw?: { rawJson: string; value: boolean };
 };
-const INITIAL_FOLD: FoldState = { collapsed: null, foldStrings: true, overrides: {} };
+const INITIAL_TAB_VIEW: TabViewState = { collapsed: null, foldStrings: true, overrides: {} };
 
 type EventSourceViewerProps = { name: string; mEvent: MatrixEvent; requestClose: () => void };
 
@@ -450,19 +453,26 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
 
     const [selectedKind, setSelectedKind] = useState<EventSourceDocKind | undefined>(undefined);
     const [filterQuery, setFilterQuery] = useState('');
-    const [fold, setFold] = useState<FoldState>(INITIAL_FOLD);
-    const [rawOverride, setRawOverride] = useState<{ key: string; value: boolean } | null>(null);
+    const [tabViews, setTabViews] = useState<Partial<Record<EventSourceDocKind, TabViewState>>>({});
     const tabRefs = useRef<Partial<Record<EventSourceDocKind, HTMLButtonElement | null>>>({});
 
     const activeDoc = bundle.docs.find((doc) => doc.kind === selectedKind) ?? bundle.docs[0];
-    const docRawKey = `${activeDoc.kind}\0${activeDoc.rawJson}`;
-    const { copiedId, copy } = useCopyFeedback(`${docRawKey}\0${bundle.rawAll}`);
+    const view = tabViews[activeDoc.kind] ?? INITIAL_TAB_VIEW;
+    const { copiedId, copy } = useCopyFeedback(
+      `${activeDoc.kind}\0${activeDoc.rawJson}\0${bundle.rawAll}`
+    );
 
     useEffect(() => {
       setSelectedKind(undefined);
       setFilterQuery('');
+      setTabViews({});
     }, [mEvent]);
-    useEffect(() => setFold(INITIAL_FOLD), [mEvent, activeDoc.kind]);
+
+    const updateView = (updater: (current: TabViewState) => TabViewState) =>
+      setTabViews((prev) => ({
+        ...prev,
+        [activeDoc.kind]: updater(prev[activeDoc.kind] ?? INITIAL_TAB_VIEW),
+      }));
 
     const summary = extractEventSummary(activeDoc.data);
     const treeExceedsLimit = useMemo(
@@ -470,7 +480,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
       [activeDoc.data]
     );
     const isRaw =
-      (rawOverride?.key === docRawKey ? rawOverride.value : undefined) ?? treeExceedsLimit;
+      (view.raw?.rawJson === activeDoc.rawJson ? view.raw.value : undefined) ?? treeExceedsLimit;
     const structure = useMemo(
       () => (isRaw ? EMPTY_STRUCTURE : analyzeTreeStructure(activeDoc.data)),
       [activeDoc.data, isRaw]
@@ -485,14 +495,14 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
     );
 
     const toggleContainer = (path: string) =>
-      setFold((s) => {
+      updateView((s) => {
         const next = new Set(s.collapsed ?? structure.defaultCollapsed);
         if (next.has(path)) next.delete(path);
         else next.add(path);
         return { ...s, collapsed: next };
       });
     const toggleString = (path: string) =>
-      setFold((s) => ({
+      updateView((s) => ({
         ...s,
         overrides: {
           ...s.overrides,
@@ -538,9 +548,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
 
     const treeCtx: TreeCtx = {
       copiedId,
-      collapsed: fold.collapsed ?? structure.defaultCollapsed,
-      foldStrings: fold.foldStrings,
-      overrides: fold.overrides,
+      collapsed: view.collapsed ?? structure.defaultCollapsed,
+      foldStrings: view.foldStrings,
+      overrides: view.overrides,
       filter,
       language: i18n.language,
       toggleContainer,
@@ -670,11 +680,12 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             className={css.ToolbarButton}
             disabled={isRaw}
             onClick={() =>
-              setFold({
+              updateView((s) => ({
+                ...s,
                 collapsed: new Set(structure.allCollapsibleAtDepthGte1),
                 foldStrings: true,
                 overrides: {},
-              })
+              }))
             }
           >
             {t('sharedUi.eventSourceViewer.collapseAll')}
@@ -683,16 +694,20 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             type="button"
             className={css.ToolbarButton}
             disabled={isRaw}
-            onClick={() => setFold({ collapsed: new Set(), foldStrings: false, overrides: {} })}
+            onClick={() =>
+              updateView((s) => ({ ...s, collapsed: new Set(), foldStrings: false, overrides: {} }))
+            }
           >
             {t('sharedUi.eventSourceViewer.expandAll')}
           </button>
           <button
             type="button"
             className={css.ToolbarButton}
-            aria-pressed={fold.foldStrings}
+            aria-pressed={view.foldStrings}
             disabled={isRaw}
-            onClick={() => setFold((s) => ({ ...s, foldStrings: !s.foldStrings, overrides: {} }))}
+            onClick={() =>
+              updateView((s) => ({ ...s, foldStrings: !s.foldStrings, overrides: {} }))
+            }
           >
             {t('sharedUi.eventSourceViewer.foldStrings')}
           </button>
@@ -700,7 +715,9 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
             type="button"
             className={css.ToolbarButton}
             aria-pressed={isRaw}
-            onClick={() => setRawOverride({ key: docRawKey, value: !isRaw })}
+            onClick={() =>
+              updateView((s) => ({ ...s, raw: { rawJson: activeDoc.rawJson, value: !isRaw } }))
+            }
           >
             {t('sharedUi.eventSourceViewer.rawJson')}
           </button>
