@@ -53,6 +53,7 @@ import { ThreadCardDetails } from './ThreadCardDetails';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useShortcut } from '../../shortcuts/useShortcut';
 import { tabbablesOf } from '../../lib/overlayFocus';
+import { useHomeserverUnreachable } from '../../matrix/client/homeserverReachability';
 import {
   KEY_FOCUS_ATTRIBUTE,
   compactCardsIn,
@@ -484,6 +485,7 @@ export function CompactRoomView({
   // One destination owns the window: the address while its card is in the shown order (one in a
   // folded section or outside the filter is not), else the card the keys go to.
   const address = !!pushed && ids.includes(focusRequest.eventId);
+  const unreachable = useHomeserverUnreachable(room.client);
   const blocks = useCompactBlocks({
     groups,
     scrollRef: viewRef,
@@ -493,7 +495,8 @@ export function CompactRoomView({
     target: address ? focusRequest.eventId : pending?.id,
     protectedId: menu?.roomId === roomId ? menu.rootId : undefined,
     records: threadRecordMap,
-    indexPending,
+    // A read the homeserver cannot answer only retries: the list places on the cards it has.
+    indexPending: indexPending && !unreachable,
   });
   const cardViewModels = useCompactThreadCardViewModels({
     room,

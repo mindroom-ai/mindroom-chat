@@ -1061,6 +1061,21 @@ describe('a focus request on the mounted Compact room', () => {
       expect(inView()).toEqual(['$card117', '$card118', '$card119']);
     });
 
+    it('takes the native end for a link to the last cached card while the homeserver is out of reach', () => {
+      memory.clear();
+      // The thread list is still being read: online, the list waits for the rows that are coming.
+      const last = { eventId: '$card9', entryKey: 'offline' };
+      const { unmount } = render(at(last, cards, true));
+      measure();
+      expect(scrollTop).toBe(0);
+      unmount();
+      // Offline the read only retries: the ten cached cards are all there is to place on.
+      state.unreachable = true;
+      render(at({ ...last, entryKey: 'offline-2' }, cards, true));
+      expect(scrollTop).toBe(700);
+      expect(inView()).toEqual(['$card7', '$card8', '$card9']);
+    });
+
     it('draws the cards at the top in the commit that reverses the order', () => {
       memory.clear();
       const { rerender } = render(at(undefined, large));
