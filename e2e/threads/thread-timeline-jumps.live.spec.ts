@@ -47,13 +47,14 @@ const OPEN_SETUPS: Setup[] = [
   { engine: 'webkit', viewport: 'desktop' },
   { engine: 'webkit', viewport: 'phone' },
 ];
-type ScrollSetup = Setup & { protoMode: "auto-trim-near-top" | "auto-trim-now" | "zero" };
+type ScrollSetup = Setup & { protoMode: "auto-trim-near-top" | "auto-trim-at-rest" | "auto-trim-now" | "zero" };
 const SCROLL_SETUPS: ScrollSetup[] = [
   { engine: "chromium", viewport: "desktop", protoMode: "auto-trim-near-top" },
   { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-near-top" },
   { engine: "webkit", viewport: "phone", protoMode: "auto-trim-near-top" },
+  { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-at-rest" },
+  { engine: "webkit", viewport: "phone", protoMode: "auto-trim-at-rest" },
   { engine: "webkit", viewport: "desktop", protoMode: "auto-trim-now" },
-  { engine: "webkit", viewport: "desktop", protoMode: "zero" },
 ];
 const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
   desktop: { viewport: { width: 1440, height: 900 } },
@@ -503,7 +504,8 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: r.jumps.slice(0, 5),
         });
         const msg = (label: string) => `${label}: ${summary}`;
-        console.log(`JUMP-PROTO ${setup.engine} ${setup.viewport} [${mode}]: ${summary}`);
+        const hStats = await page.evaluate(() => (window as any).__protoHeadroomStats ?? null);
+        console.log(`JUMP-PROTO ${setup.engine} ${setup.viewport} [${mode}] headroom=${JSON.stringify(hStats)}: ${summary}`);
         expect(r.scrolledPx, "scrolled upward").toBeGreaterThan(10_000);
         expect(r.lostPlaceFrames, msg('lost place')).toBe(0);
         expect(r.maxReversalPx, msg('reversal jump')).toBeLessThanOrEqual(8);

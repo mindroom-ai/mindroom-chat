@@ -1319,7 +1319,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEvents,
     threadId,
     expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
-    showThreadLoadOlder,
+    showThreadLoadOlder: !!threadId && (showThreadLoadOlder || threadState.canPaginateThreadBack || threadHasMoreCachedBack || threadLatestOpenPending || !threadTailLoaded),
     threadUserScrolled,
     threadInitialRenderMode,
     threadRowPricing,

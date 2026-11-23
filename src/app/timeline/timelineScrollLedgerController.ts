@@ -373,12 +373,12 @@ export const useTimelineScrollLedgerController = ({
       const scrollTopNow = scroller?.scrollTop ?? 0;
       const viewH = scroller?.clientHeight ?? 900;
       const nearTop = scrollTopNow <= headroomPxAtRender + viewH * 1.5;
-      const idleWheel = Date.now() - protoLastWheelAtRef.current >= 400;
+      const idleWheel = Date.now() - protoLastWheelAtRef.current >= 500;
       const shouldTrim =
         !threadUserScrolled ||
         protoMode === "auto-trim-now" ||
-        nearTop ||
-        idleWheel;
+        (protoMode === "auto-trim-near-top" && (nearTop || idleWheel)) ||
+        (protoMode === "auto-trim-at-rest" && (scrollTopNow <= headroomPxAtRender + 40 || idleWheel));
       if (shouldTrim) {
         headroomScrollDeltaAtRender -= headroomPxAtRender;
         headroomPxAtRender = 0;
@@ -422,8 +422,14 @@ export const useTimelineScrollLedgerController = ({
       protoScrollOffsetOverrideRef.current = undefined;
       return;
     }
-    if (initHeadroomNow) headroomInitRef.current = true;
+    if (initHeadroomNow) {
+      headroomInitRef.current = true;
+      (window as any).__protoHeadroomStats = { init: baseHeadroom, writes: 0, lastHeadroom: headroomPxAtRender };
+    }
     headroomPxRef.current = headroomPxAtRender;
+    if ((window as any).__protoHeadroomStats) {
+      (window as any).__protoHeadroomStats.lastHeadroom = headroomPxAtRender;
+    }
     pendingAboveResizePxRef.current = 0;
     pendingHeadroomScrollWriteRef.current += headroomScrollDeltaAtRender;
   });
@@ -434,6 +440,7 @@ export const useTimelineScrollLedgerController = ({
     protoScrollOffsetOverrideRef.current = undefined;
     const scrollElement = getScrollElement();
     if (scrollDelta !== 0 && scrollElement) {
+      if ((window as any).__protoHeadroomStats) (window as any).__protoHeadroomStats.writes += 1;
       const next = Math.max(0, scrollElement.scrollTop + scrollDelta);
       scrollElement.scrollTop = next;
       virtualizerRef.current.scrollOffset = next;
@@ -452,11 +459,12 @@ export const useTimelineScrollLedgerController = ({
     const onWheel = () => {
       protoLastWheelAtRef.current = Date.now();
       if (idleTimer !== undefined) clearTimeout(idleTimer);
-      idleTimer = setTimeout(checkTrim, 420);
+      idleTimer = setTimeout(checkTrim, 520);
     };
     const onScroll = () => {
       if (!showThreadLoadOlder && headroomPxRef.current > 0) {
-        if (scrollElement.scrollTop <= headroomPxRef.current + scrollElement.clientHeight * 1.5) {
+        const thresh = protoMode === "auto-trim-at-rest" ? 40 : scrollElement.clientHeight * 1.5;
+        if (scrollElement.scrollTop <= headroomPxRef.current + thresh) {
           setLedgerCommitTick((t) => t + 1);
         }
       }
