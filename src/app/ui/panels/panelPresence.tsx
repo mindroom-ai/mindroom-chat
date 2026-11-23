@@ -161,15 +161,28 @@ const prefersReducedMotion = (): boolean =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
+ * Finds the nearest ancestor box that participates in layout (skipping `display: contents`
+ * wrappers), for measuring row width, observing resizes, and reading the row's end gap.
+ */
+export const layoutParentOf = (element: HTMLElement | null | undefined): HTMLElement | null => {
+  let parent = element?.parentElement ?? null;
+  while (
+    parent &&
+    (parent.style.display === 'contents' ||
+      (typeof getComputedStyle === 'function' && getComputedStyle(parent).display === 'contents'))
+  ) {
+    parent = parent.parentElement;
+  }
+  return parent;
+};
+
+/**
  * The gap a panel at the end of a row brings: the room leaves room for it at its end only while
  * the panel is there, so a panel moving in or out carries that gap as a negative start margin.
  */
 export const panelGap = (panel: HTMLElement, side: 'start' | 'end'): number => {
   if (side !== 'end') return 0;
-  let parent = panel.parentElement;
-  while (parent && getComputedStyle(parent).display === 'contents') {
-    parent = parent.parentElement;
-  }
+  const parent = layoutParentOf(panel);
   if (!parent) return 0;
   return Number.parseFloat(getComputedStyle(parent).paddingInlineEnd) || 0;
 };

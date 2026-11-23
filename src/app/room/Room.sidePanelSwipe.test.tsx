@@ -432,6 +432,36 @@ describe('Room covering side panel interactive swipes on phones', () => {
     expect(container.querySelector('[data-swipe-panel-dim]')).toBeNull();
   });
 
+  it('reveals conversation when transcript did not replace a docked call, even while inCall', async () => {
+    state.inCall = true;
+    // No docked call panel was open when transcript opened, so replacedCall is false.
+    openTranscriptPanel(store, ROOM_ID, false);
+
+    const { container } = renderPhoneRoom();
+    await flushMicrotasks();
+
+    const host = getHost(container)!;
+    const conversation = getConversation(container);
+    mockWidth(host, 400);
+
+    act(() => {
+      dispatchEdgeTouch('touchstart', [{ clientX: 10, clientY: 200 }], 100);
+      dispatchEdgeTouch('touchmove', [{ clientX: 210, clientY: 200 }], 250);
+      vi.advanceTimersToNextFrame();
+    });
+
+    expect(conversation.hasAttribute('data-swipe-under-panel')).toBe(true);
+    expect(container.querySelector('[data-swipe-panel-backdrop]')).toBeNull();
+
+    act(() => {
+      dispatchEdgeTouch('touchend', [], 270);
+    });
+    await flushMicrotasks();
+
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(conversation.dataset.conversationBehindPanel).toBe('false');
+  });
+
   it('yields to higher-priority PANEL_INNER swipe while subagents detail is open', async () => {
     state.subagentsDetailOpen = true;
     store.set(subagentsPanelAtom, { roomId: ROOM_ID });

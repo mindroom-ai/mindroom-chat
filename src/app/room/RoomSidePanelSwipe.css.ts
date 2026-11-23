@@ -1,5 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { color } from 'folds';
+import { color, toRem } from 'folds';
 
 /**
  * Concrete flex host around a covering side panel on phones so even `passthrough` panels
@@ -11,7 +11,10 @@ export const PhoneSidePanelHost = style({
   minInlineSize: 0,
   minBlockSize: 0,
   display: 'flex',
-  zIndex: 2,
+  selectors: {
+    // Only form a stacking context while actively swiping above the revealed conversation & dim veil.
+    '&[data-swiping]': { zIndex: 2 },
+  },
 });
 
 /**
@@ -25,10 +28,13 @@ export const PhoneSidePanelPassthrough = style({
 /**
  * Transparent start-edge touch catcher over iframe-bearing covering panels (`canvas`, `computer`)
  * so start-edge swipes reach the window touch handler instead of being swallowed by the iframe.
+ * Starts below the 56 px side-panel header and stops above the footer action bar so normal DOM
+ * controls stay unobstructed while their touches already bubble to `window` naturally.
  */
 export const EdgeCatcher = style({
   position: 'absolute',
-  insetBlock: 0,
+  insetBlockStart: toRem(56),
+  insetBlockEnd: toRem(56),
   insetInlineStart: 0,
   inlineSize: '28px',
   zIndex: 10,

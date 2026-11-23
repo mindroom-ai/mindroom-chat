@@ -47,7 +47,7 @@ import {
   ResizablePanel,
   SIDE_PANEL_MAX_WIDTH,
 } from '../ui/panels/ResizablePanel';
-import { usePanelSlot } from '../ui/panels/panelPresence';
+import { layoutParentOf, usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
@@ -150,22 +150,6 @@ const HeaderCallButtons = lazyPart(() =>
 
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
-
-/** Finds the nearest ancestor box that lays out children (skipping `display: contents` wrappers). */
-const findStageElement = (element: HTMLElement): HTMLElement | null => {
-  let parent = element.parentElement;
-  while (parent) {
-    if (
-      parent.style.display === 'contents' ||
-      (typeof getComputedStyle === 'function' && getComputedStyle(parent).display === 'contents')
-    ) {
-      parent = parent.parentElement;
-      continue;
-    }
-    return parent;
-  }
-  return null;
-};
 
 const PANEL_SWIPE_DIM_MAX_OPACITY = 0.12;
 
@@ -933,7 +917,6 @@ function RoomContent() {
   const sidePanelHostRef = useRef<HTMLDivElement>(null);
   const shownRef = useLatestRef(shown);
   const callFloatsRef = useLatestRef(callFloats);
-  const inCallRef = useLatestRef(inCall);
   const { close: closeTranscript } = transcript;
   const closeCoveringPanel = useCallback(() => {
     const current = shownRef.current;
@@ -955,11 +938,11 @@ function RoomContent() {
       if (extent <= 0) return null;
 
       const startShownId = currentShown.id;
-      const stage = findStageElement(host);
+      const stage = layoutParentOf(host);
       const useBackdrop =
         startShownId === 'transcript' &&
         !callFloatsRef.current &&
-        (inCallRef.current || store.get(transcriptPanelAtom)?.replacedCall === true);
+        store.get(transcriptPanelAtom)?.replacedCall === true;
       if (!useBackdrop && !conversation) return null;
 
       const hostParent = stage ?? host.parentElement;
@@ -1071,7 +1054,7 @@ function RoomContent() {
         },
       };
     },
-    [callFloatsRef, closeCoveringPanelRef, inCallRef, shownRef, store]
+    [callFloatsRef, closeCoveringPanelRef, shownRef, store]
   );
   // Covered on phones, one Room-level start-edge swipe closes any covering side panel uniformly.
   useEdgeSwipeBack(closeCoveringPanel, mobile && behindPanel && !!shown, {

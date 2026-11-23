@@ -24,14 +24,17 @@ export const UnderLayer = style({
 /** Active detail run wrapper that tracks the finger over `UnderLayer` on phones. */
 export const DetailLayer = style({
   position: 'relative',
-  zIndex: 1,
+  flex: '1 1 auto',
   display: 'flex',
   flexDirection: 'column',
   inlineSize: '100%',
-  blockSize: '100%',
   minInlineSize: 0,
   minBlockSize: 0,
   backgroundColor: color.Background.Container,
+  selectors: {
+    // Only elevate into a stacking context while actively sliding over `UnderLayer`.
+    '&[data-swiping]': { zIndex: 1 },
+  },
 });
 
 export const Heading = style({
