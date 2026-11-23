@@ -119,7 +119,10 @@ class NotificationService: UNNotificationServiceExtension {
             mutableContent.subtitle = roomName
         }
 
-        guard let sender = payload.sender, !sender.isEmpty else {
+        // A push that names no account keeps what the gateway sent: there is no telling whose
+        // avatars and homeserver it would be shown with.
+        guard let sender = payload.sender, !sender.isEmpty,
+              let accountTag = payload.accountTag, !accountTag.isEmpty else {
             contentHandler(mutableContent)
             return
         }
@@ -141,6 +144,7 @@ class NotificationService: UNNotificationServiceExtension {
                 slot: slot,
                 mutableContent: mutableContent,
                 payload: payload,
+                accountTag: accountTag,
                 sender: sender,
                 senderDisplayName: senderDisplayName
             )
@@ -160,32 +164,35 @@ class NotificationService: UNNotificationServiceExtension {
         slot: DeliverySlot,
         mutableContent: UNMutableNotificationContent,
         payload: NotificationPayload,
+        accountTag: String,
         sender: String,
         senderDisplayName: String
     ) async {
-        let resolvedAccount = resolveAccount(accountTag: payload.accountTag)
-        var avatarData: Data?
-
-        if let accountTag = resolvedAccount.accountTag {
-            // The sender's avatar in this room, which can differ from the one in another room.
-            avatarData = NotificationAvatarStore.shared.cachedAvatar(
-                accountTag: accountTag,
-                roomId: payload.roomId,
-                sender: sender
-            )
+        // Only the account the push names, while the app shares it, lends its avatars and its
+        // homeserver: never another account that happens to be the only one on the device.
+        guard let account = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) else {
+            slot.deliver(mutableContent)
+            return
         }
+
+        // The sender's avatar in this room, which can differ from the one in another room.
+        var avatarData = NotificationAvatarStore.shared.cachedAvatar(
+            accountTag: accountTag,
+            roomId: payload.roomId,
+            sender: sender
+        )
 
         // On cache miss, fetch for this notification in memory only so the main app remains the sole
         // disk cache writer (prevents cross-process cache resurrection after account sign-out).
         // Past the deadline the notification goes out without an avatar.
         if avatarData == nil,
-           let credentials = resolvedAccount.credentials,
-           let accessToken = credentials.accessToken,
+           let accessToken = account.accessToken,
            !accessToken.isEmpty
         {
             if let fetched = await NotificationAvatarFetcher.shared.fetchSenderAvatar(
-                homeserverUrl: credentials.homeserverUrl,
+                homeserverUrl: account.homeserverUrl,
                 accessToken: accessToken,
+                roomId: payload.roomId,
                 sender: sender,
                 deadlineNanoseconds: Self.avatarFetchDeadlineNanoseconds
             ) {
@@ -194,6 +201,13 @@ class NotificationService: UNNotificationServiceExtension {
         }
 
         guard !Task.isCancelled else { return }
+
+        // The app may have removed the account while the avatar was fetched (a sign-out, or
+        // notifications turned off): nothing of it is donated after that.
+        guard KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
+            slot.deliver(mutableContent)
+            return
+        }
 
         let senderHandle = INPersonHandle(value: sender, type: .unknown)
         let avatarImage = avatarData.map { INImage(imageData: $0) }
@@ -208,10 +222,12 @@ class NotificationService: UNNotificationServiceExtension {
             suggestionType: .instantMessageAddress
         )
 
+        // The alert shows the body of the notification itself, so the message text stays out of
+        // the interactions the system keeps.
         let intent = INSendMessageIntent(
             recipients: nil,
             outgoingMessageType: .outgoingMessageText,
-            content: mutableContent.body,
+            content: nil,
             speakableGroupName: nil,
             conversationIdentifier: payload.roomId,
             serviceName: nil,
@@ -221,6 +237,8 @@ class NotificationService: UNNotificationServiceExtension {
 
         let interaction = INInteraction(intent: intent, response: nil)
         interaction.direction = .incoming
+        // The app deletes an account's interactions by this group when the account goes.
+        interaction.groupIdentifier = accountTag
         try? await interaction.donate()
 
         guard !Task.isCancelled else { return }
@@ -232,18 +250,5 @@ class NotificationService: UNNotificationServiceExtension {
             finalContent = mutableContent
         }
         slot.deliver(finalContent)
-    }
-
-    private func resolveAccount(
-        accountTag: String?
-    ) -> (accountTag: String?, credentials: NotificationAccountRecord?) {
-        if let accountTag, !accountTag.isEmpty {
-            let credentials = KeychainNotificationCredentialStore.shared.load(accountTag: accountTag)
-            return (accountTag: accountTag, credentials: credentials)
-        }
-        if let single = KeychainNotificationCredentialStore.shared.loadSingleAccount() {
-            return (accountTag: single.accountTag, credentials: single.record)
-        }
-        return (accountTag: nil, credentials: nil)
     }
 }

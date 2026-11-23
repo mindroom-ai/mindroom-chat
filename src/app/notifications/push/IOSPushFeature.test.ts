@@ -2,14 +2,9 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import {
-  KnownMembership,
-  RoomMemberEvent,
-  RoomStateEvent,
-  UserEvent,
-  type MatrixClient,
-} from 'matrix-js-sdk';
-import {
+  clearAllNativeNotificationAccounts,
   clearNativeNotificationAccount,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
@@ -77,7 +72,6 @@ const state = vi.hoisted(() => {
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
     onAppStateChange: undefined as ((appState: { isActive: boolean }) => void) | undefined,
     rooms: [] as RoomStub[],
-    users: new Map<string, { avatarUrl?: string }>(),
     storedTags,
     listeners,
     emit(event: string) {
@@ -89,7 +83,6 @@ const state = vi.hoisted(() => {
       getUserId: () => '@me:private.example',
       getAccessToken: () => 'mx-token-stale',
       getRooms: () => state.rooms,
-      getUser: (userId: string) => state.users.get(userId) ?? null,
       on: vi.fn((event: string, listener: () => void) => {
         const set = listeners.get(event) ?? new Set();
         set.add(listener);
@@ -154,6 +147,7 @@ vi.mock('../../native/cloudflareAccess', () => ({
   useCloudflareAccessSignInRequired: () => state.signInRequired,
 }));
 vi.mock('../../native/nativeNotifications', () => ({
+  clearAllNativeNotificationAccounts: vi.fn(async () => undefined),
   clearNativeNotificationAccount: vi.fn(async () => undefined),
   syncNativeNotificationAccount: vi.fn(async () => undefined),
   syncNativeNotificationAvatars: vi.fn(async () => undefined),
@@ -206,7 +200,6 @@ describe('NativeIOSPushFeature', () => {
     state.onRegistration = undefined;
     state.onAppStateChange = undefined;
     state.rooms = [];
-    state.users.clear();
     state.storedTags.clear();
     state.listeners.clear();
     vi.useRealTimers();
@@ -368,23 +361,73 @@ describe('NativeIOSPushFeature', () => {
     renderer.unmount();
   });
 
-  it.each(['denied', 'prompt'] as const)(
-    'shares nothing with the notification extension while the iOS permission is %s, and clears what it has',
-    async (permission) => {
-      state.signInRequired = false;
-      state.hasCompletedInitialSync = true;
-      state.rooms = [agentRoom()];
-      state.permission = permission;
-      state.storedTags.set('s1', 'tag-s1');
+  it('shares nothing with the notification extension before iOS is asked for the permission, and clears what the account has', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.permission = 'prompt';
+    state.storedTags.set('s1', 'tag-s1');
 
-      const renderer = await mount();
+    const renderer = await mount();
 
-      expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
-      expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
-      expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
-      renderer.unmount();
-    }
-  );
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('shares nothing with the notification extension while iOS denies notifications, and clears every account', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+    state.permission = 'denied';
+    state.storedTags.set('s1', 'tag-s1');
+
+    const renderer = await mount();
+
+    expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+    expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('clears only the active account when its push is turned off, and both accounts when iOS denies notifications', async () => {
+    state.signInRequired = false;
+    state.hasCompletedInitialSync = true;
+    state.rooms = [agentRoom()];
+
+    // Two accounts on the device, each sharing its own record.
+    const renderer = await mount();
+    state.activeSession = { sessionId: 's2', accessToken: 'session-token-s2' };
+    await rerender(renderer);
+    expect(syncNativeNotificationAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ accountTag: 'tag-s1' })
+    );
+    expect(syncNativeNotificationAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ accountTag: 'tag-s2' })
+    );
+
+    // The switch in the app belongs to the active account: the other one keeps what it shares.
+    state.pushEnabled = false;
+    await rerender(renderer);
+    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s2');
+    expect(clearAllNativeNotificationAccounts).not.toHaveBeenCalled();
+
+    state.pushEnabled = true;
+    await rerender(renderer);
+    vi.mocked(clearNativeNotificationAccount).mockClear();
+
+    // iOS Settings turn notifications off for the whole app, so for the account that is not
+    // active too.
+    state.permission = 'denied';
+    await act(async () => state.onAppStateChange?.({ isActive: true }));
+    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
 
   it('leaves the native account alone until the first permission check answers', async () => {
     state.signInRequired = false;
@@ -466,14 +509,14 @@ describe('NativeIOSPushFeature', () => {
       ],
     });
 
-    // Withdrawn in iOS Settings: the account and its avatars go.
+    // Withdrawn in iOS Settings: the accounts and their avatars go.
     vi.mocked(syncNativeNotificationAccount).mockClear();
     vi.mocked(syncNativeNotificationAvatars).mockClear();
     vi.mocked(clearNativeNotificationAccount).mockClear();
     state.permission = 'denied';
     await act(async () => state.onAppStateChange?.({ isActive: true }));
-    expect(clearNativeNotificationAccount).toHaveBeenCalledTimes(1);
-    expect(clearNativeNotificationAccount).toHaveBeenCalledWith('tag-s1');
+    expect(clearAllNativeNotificationAccounts).toHaveBeenCalledTimes(1);
+    expect(clearNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
@@ -504,6 +547,7 @@ describe('NativeIOSPushFeature', () => {
   it('syncs joined member avatars after initial sync and debounces membership, room-state member, and avatar updates', async () => {
     vi.useFakeTimers();
     state.signInRequired = false;
+    let bobAvatar: string | null = null;
     state.rooms = [
       {
         roomId: '!one:private.example',
@@ -511,7 +555,7 @@ describe('NativeIOSPushFeature', () => {
         getJoinedMembers: () => [
           joinedMember('@me:private.example', 'mxc://private.example/me'),
           joinedMember('@agent:private.example'),
-          joinedMember('@bob:private.example'),
+          { ...joinedMember('@bob:private.example'), getMxcAvatarUrl: () => bobAvatar },
         ],
       },
       {
@@ -562,10 +606,10 @@ describe('NativeIOSPushFeature', () => {
     });
     expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
 
-    // Changed avatar via UserEvent.AvatarUrl / RoomMemberEvent.Membership triggers a single debounced sync
-    state.users.set('@bob:private.example', { avatarUrl: 'mxc://private.example/bob-v1' });
+    // A changed avatar reported by two events in a row triggers a single debounced sync
+    bobAvatar = 'mxc://private.example/bob-v1';
     await act(async () => {
-      state.emit(UserEvent.AvatarUrl);
+      state.emit(RoomStateEvent.Members);
       state.emit(RoomMemberEvent.Membership);
       vi.advanceTimersByTime(1100);
     });
@@ -577,7 +621,7 @@ describe('NativeIOSPushFeature', () => {
 
     // Avatar-only update emitted as RoomStateEvent.Members also triggers a debounced sync
     vi.mocked(syncNativeNotificationAvatars).mockClear();
-    state.users.set('@bob:private.example', { avatarUrl: 'mxc://private.example/bob-v2' });
+    bobAvatar = 'mxc://private.example/bob-v2';
     await act(async () => {
       state.emit(RoomStateEvent.Members);
       vi.advanceTimersByTime(1100);
@@ -593,11 +637,14 @@ describe('NativeIOSPushFeature', () => {
 });
 
 describe('collectJoinedMemberAvatars', () => {
-  const collect = (rooms: RoomStub[]) =>
+  const collect = (rooms: RoomStub[], userAvatars = new Map<string, string>()) =>
     collectJoinedMemberAvatars({
       getUserId: () => '@me:private.example',
       getRooms: () => rooms,
-      getUser: () => null,
+      getUser: (userId: string) => {
+        const avatarUrl = userAvatars.get(userId);
+        return avatarUrl ? { avatarUrl } : null;
+      },
     } as unknown as MatrixClient);
 
   const room = (roomId: string, lastActive: number, members: RoomMemberStub[]): RoomStub => ({
@@ -637,6 +684,28 @@ describe('collectJoinedMemberAvatars', () => {
         mxcUrl: 'mxc://private.example/agent-quiet',
       },
       { roomId: '!busy:private.example', sender: '@plain:private.example', mxcUrl: null },
+    ]);
+  });
+
+  it('gives a member without an avatar in a room none there, whatever avatar the SDK user carries', () => {
+    // The SDK copies the avatar of a membership into its `User`, here the one of room A.
+    const avatars = collect(
+      [
+        room('!a:private.example', 200, [
+          joinedMember('@agent:private.example', 'mxc://private.example/agent-in-a'),
+        ]),
+        room('!b:private.example', 100, [joinedMember('@agent:private.example')]),
+      ],
+      new Map([['@agent:private.example', 'mxc://private.example/agent-in-a']])
+    );
+
+    expect(avatars).toEqual([
+      {
+        roomId: '!a:private.example',
+        sender: '@agent:private.example',
+        mxcUrl: 'mxc://private.example/agent-in-a',
+      },
+      { roomId: '!b:private.example', sender: '@agent:private.example', mxcUrl: null },
     ]);
   });
 

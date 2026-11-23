@@ -113,6 +113,78 @@ final class NotificationAvatarFetcherTests: XCTestCase {
         XCTAssertEqual(recorder.requests[1].value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
     }
 
+    func testFetchesTheSendersAvatarOfTheRoomFromItsMembershipThere() async {
+        final class Recorder: @unchecked Sendable { var requests: [URLRequest] = [] }
+        let recorder = Recorder()
+        let fetcher = NotificationAvatarFetcher(transport: { request in
+            recorder.requests.append(request)
+            let url = request.url!
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            if url.path.contains("/state/m.room.member/") {
+                let body = #"{"membership":"join","displayname":"Dev","avatar_url":"mxc://mindroom.chat/in-room"}"#
+                return (Data(body.utf8), response)
+            }
+            return (TestImageFixtures.samplePNG, response)
+        })
+
+        let fetched = await fetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat/",
+            accessToken: "secret-token",
+            roomId: "!room:mindroom.chat",
+            sender: "@mindroom_dev:mindroom.chat"
+        )
+
+        XCTAssertEqual(fetched?.mxcUrl, "mxc://mindroom.chat/in-room")
+        XCTAssertEqual(fetched?.data, TestImageFixtures.samplePNG)
+        XCTAssertEqual(recorder.requests.count, 2)
+        XCTAssertEqual(
+            recorder.requests[0].url?.absoluteString,
+            "https://matrix.mindroom.chat/_matrix/client/v3/rooms/%21room%3Amindroom.chat/state/m.room.member/%40mindroom_dev%3Amindroom.chat"
+        )
+        XCTAssertEqual(recorder.requests[0].value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
+        XCTAssertEqual(
+            recorder.requests[1].url?.absoluteString,
+            "https://matrix.mindroom.chat/_matrix/client/v1/media/thumbnail/mindroom.chat/in-room?width=128&height=128&method=crop"
+        )
+    }
+
+    func testAMemberWithoutAnAvatarInTheRoomHasNoneAndTheProfileIsNotAsked() async {
+        final class Recorder: @unchecked Sendable { var requests: [URLRequest] = [] }
+        let recorder = Recorder()
+        let fetcher = NotificationAvatarFetcher(transport: { request in
+            recorder.requests.append(request)
+            let url = request.url!
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            if url.path.contains("/state/m.room.member/") {
+                return (Data(#"{"membership":"join","displayname":"Dev"}"#.utf8), response)
+            }
+            // The avatar of the profile, which is not the member's avatar in this room.
+            return (Data(#"{"avatar_url":"mxc://mindroom.chat/profile"}"#.utf8), response)
+        })
+
+        let fetched = await fetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            roomId: "!room:mindroom.chat",
+            sender: "@mindroom_dev:mindroom.chat"
+        )
+        XCTAssertNil(fetched)
+        XCTAssertEqual(recorder.requests.count, 1)
+        XCTAssertEqual(recorder.requests.first?.url?.path.contains("/state/m.room.member/"), true)
+
+        // The deadline variant asks for the same room.
+        let bounded = await fetcher.fetchSenderAvatar(
+            homeserverUrl: "https://matrix.mindroom.chat",
+            accessToken: "tok",
+            roomId: "!room:mindroom.chat",
+            sender: "@mindroom_dev:mindroom.chat",
+            deadlineNanoseconds: 30_000_000_000
+        )
+        XCTAssertNil(bounded)
+        XCTAssertEqual(recorder.requests.count, 2)
+        XCTAssertEqual(recorder.requests.last?.url?.path.contains("/state/m.room.member/"), true)
+    }
+
     func testNonASCIIMxcUrlIsRejectedAndNonASCIISenderIsPercentEncoded() async {
         final class Recorder: @unchecked Sendable { var requests: [URLRequest] = [] }
         let recorder = Recorder()

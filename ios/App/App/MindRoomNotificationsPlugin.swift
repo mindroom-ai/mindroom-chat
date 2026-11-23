@@ -1,6 +1,7 @@
 #if !targetEnvironment(macCatalyst)
 import Capacitor
 import Foundation
+import Intents
 import MindRoomNotificationKit
 
 /// One joined member's avatar in one room; `mxcUrl` is nil for a member without one.
@@ -11,13 +12,14 @@ private struct AvatarSyncEntry: Sendable {
 }
 
 /// Serializes per-account avatar sync tasks and generation counters so an in-flight download can
-/// never resurrect an account's cache directory after `clearAccount`.
+/// never resurrect an account's cache directory after `clearAccount` or `clearAllAccounts`.
 private final class AvatarSyncCoordinator: @unchecked Sendable {
     private static let maxConcurrentDownloads = 4
 
     private let lock = NSLock()
     private var syncTasks: [String: Task<Void, Never>] = [:]
     private var accountGenerations: [String: UInt64] = [:]
+    private var clearAllGeneration: UInt64 = 0
 
     deinit {
         lock.lock()
@@ -32,7 +34,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         entries: [AvatarSyncEntry]
     ) {
         lock.lock()
-        let generation = accountGenerations[accountTag] ?? 0
+        let generation = currentGeneration(of: accountTag)
         let previous = syncTasks[accountTag]
         let task = Task<Void, Never>.detached(priority: .utility) { [weak self] in
             guard let self else { return }
@@ -55,12 +57,34 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
         NotificationAvatarStore.shared.clearAccount(accountTag: accountTag)
         lock.unlock()
         active?.cancel()
+        // What the notification extension donated for the account's messages.
+        INInteraction.delete(with: accountTag, completion: nil)
+    }
+
+    /// Removes what every account shares with the notification extension, also the accounts
+    /// that are not the active one.
+    func clearAllAccounts() {
+        lock.lock()
+        clearAllGeneration &+= 1
+        let active = Array(syncTasks.values)
+        syncTasks.removeAll()
+        KeychainNotificationCredentialStore.shared.removeAll()
+        NotificationAvatarStore.shared.clearAll()
+        lock.unlock()
+        active.forEach { $0.cancel() }
+        INInteraction.deleteAll(completion: nil)
+    }
+
+    /// A number that changes when the account is cleared, alone or with all the others; neither
+    /// count ever goes down, so it never comes back to an earlier value. Call with the lock held.
+    private func currentGeneration(of accountTag: String) -> UInt64 {
+        clearAllGeneration &+ (accountGenerations[accountTag] ?? 0)
     }
 
     private func isCurrentGeneration(accountTag: String, generation: UInt64) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return (accountGenerations[accountTag] ?? 0) == generation
+        return currentGeneration(of: accountTag) == generation
     }
 
     private func removeAvatarIfCurrent(
@@ -70,7 +94,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
     ) {
         lock.lock()
         defer { lock.unlock() }
-        guard (accountGenerations[accountTag] ?? 0) == generation,
+        guard currentGeneration(of: accountTag) == generation,
               KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
             return
         }
@@ -90,7 +114,7 @@ private final class AvatarSyncCoordinator: @unchecked Sendable {
     ) {
         lock.lock()
         defer { lock.unlock() }
-        guard (accountGenerations[accountTag] ?? 0) == generation,
+        guard currentGeneration(of: accountTag) == generation,
               KeychainNotificationCredentialStore.shared.load(accountTag: accountTag) != nil else {
             return
         }
@@ -235,6 +259,7 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "syncAccount", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "syncAvatars", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearAccount", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearAllAccounts", returnType: CAPPluginReturnPromise),
     ]
 
     private let coordinator = AvatarSyncCoordinator()
@@ -282,6 +307,11 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         coordinator.clearAccount(accountTag: accountTag)
+        call.resolve()
+    }
+
+    @objc func clearAllAccounts(_ call: CAPPluginCall) {
+        coordinator.clearAllAccounts()
         call.resolve()
     }
 

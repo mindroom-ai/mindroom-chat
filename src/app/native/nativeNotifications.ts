@@ -24,6 +24,7 @@ type MindRoomNotificationsPlugin = {
   syncAccount(account: NativeNotificationAccount): Promise<void>;
   syncAvatars(payload: NativeNotificationAvatarSync): Promise<void>;
   clearAccount(payload: { accountTag: string }): Promise<void>;
+  clearAllAccounts(): Promise<void>;
 };
 
 let notificationsPlugin: MindRoomNotificationsPlugin | undefined;
@@ -57,4 +58,10 @@ export const clearNativeNotificationAccount = async (accountTag: string): Promis
   const trimmed = accountTag.trim();
   if (!trimmed) return;
   await getNotificationsPlugin().clearAccount({ accountTag: trimmed });
+};
+
+/** Removes what every account on the device shares with the notification extension. */
+export const clearAllNativeNotificationAccounts = async (): Promise<void> => {
+  if (!isNativeNotificationsAvailable()) return;
+  await getNotificationsPlugin().clearAllAccounts();
 };

@@ -98,9 +98,13 @@ public struct NotificationAvatarFetcher: Sendable {
         return sanitized
     }
 
+    /// The sender's avatar in the room, read from the sender's membership there; a member without
+    /// an avatar in that room has none, whatever the avatar of the member's profile or of another
+    /// room. Without a room it is the avatar of the sender's profile.
     public func fetchSenderAvatar(
         homeserverUrl: String,
         accessToken: String,
+        roomId: String? = nil,
         sender: String
     ) async -> (mxcUrl: String, data: Data)? {
         guard !accessToken.isEmpty,
@@ -111,8 +115,19 @@ public struct NotificationAvatarFetcher: Sendable {
             return nil
         }
 
+        // Both answers are a JSON object that names the avatar under `avatar_url`.
         let basePath = trimmedBasePath(components.percentEncodedPath)
-        components.percentEncodedPath = "\(basePath)/_matrix/client/v3/profile/\(encodedSender)/avatar_url"
+        if let roomId, !roomId.isEmpty {
+            guard let encodedRoomId = roomId.addingPercentEncoding(
+                withAllowedCharacters: Self.pathSegmentAllowed
+            ) else {
+                return nil
+            }
+            components.percentEncodedPath =
+                "\(basePath)/_matrix/client/v3/rooms/\(encodedRoomId)/state/m.room.member/\(encodedSender)"
+        } else {
+            components.percentEncodedPath = "\(basePath)/_matrix/client/v3/profile/\(encodedSender)/avatar_url"
+        }
         components.query = nil
 
         guard let requestURL = components.url, Self.hasSameOrigin(baseURL, requestURL) else {
@@ -125,7 +140,7 @@ public struct NotificationAvatarFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         guard let data = await executeBounded(request: request, maxBytes: Self.maxProfileBytes),
-              let decoded = try? JSONDecoder().decode(ProfileAvatarResponse.self, from: data),
+              let decoded = try? JSONDecoder().decode(AvatarUrlResponse.self, from: data),
               let mxcUrl = decoded.avatarUrl,
               !mxcUrl.isEmpty else {
             return nil
@@ -147,6 +162,7 @@ public struct NotificationAvatarFetcher: Sendable {
     public func fetchSenderAvatar(
         homeserverUrl: String,
         accessToken: String,
+        roomId: String? = nil,
         sender: String,
         deadlineNanoseconds: UInt64
     ) async -> (mxcUrl: String, data: Data)? {
@@ -155,6 +171,7 @@ public struct NotificationAvatarFetcher: Sendable {
                 await self.fetchSenderAvatar(
                     homeserverUrl: homeserverUrl,
                     accessToken: accessToken,
+                    roomId: roomId,
                     sender: sender
                 )
             }
@@ -183,7 +200,8 @@ public struct NotificationAvatarFetcher: Sendable {
         return await NotificationHTTPClient.shared.data(for: request, maxBytes: maxBytes)
     }
 
-    private struct ProfileAvatarResponse: Decodable {
+    /// What a profile's `avatar_url` and the content of an `m.room.member` event share.
+    private struct AvatarUrlResponse: Decodable {
         let avatarUrl: String?
 
         private enum CodingKeys: String, CodingKey {

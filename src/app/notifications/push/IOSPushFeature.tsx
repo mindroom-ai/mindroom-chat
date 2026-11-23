@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  KnownMembership,
-  RoomMemberEvent,
-  RoomStateEvent,
-  UserEvent,
-  type MatrixClient,
-} from 'matrix-js-sdk';
+import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import { App as NativeApp } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +19,7 @@ import {
   useCloudflareAccessSignInRequired,
 } from '../../native/cloudflareAccess';
 import {
+  clearAllNativeNotificationAccounts,
   clearNativeNotificationAccount,
   syncNativeNotificationAccount,
   syncNativeNotificationAvatars,
@@ -52,6 +47,9 @@ const NATIVE_AVATAR_SYNC_DEBOUNCE_MS = 1000;
  * The avatars of the other members of the joined rooms, one entry for each room a member is in:
  * a member can have another avatar in each room. Rooms come by their latest activity and members
  * with an avatar before those without, so the cap keeps what the next notifications will show.
+ *
+ * Only the member's own avatar in the room counts. The SDK's `User.avatarUrl` is whichever room's
+ * membership it saw last, so it would put one room's avatar on a room where the member has none.
  */
 export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotificationAvatarEntry[] => {
   const ownUserId = mx.getUserId?.();
@@ -73,7 +71,7 @@ export const collectJoinedMemberAvatars = (mx: MatrixClient): NativeNotification
     for (const member of sortedMembers) {
       const sender = member.userId;
       if (!sender || sender === ownUserId) continue;
-      const rawMxc = member.getMxcAvatarUrl?.() ?? mx.getUser?.(sender)?.avatarUrl ?? null;
+      const rawMxc = member.getMxcAvatarUrl?.() ?? null;
       const mxcUrl = typeof rawMxc === 'string' && rawMxc.startsWith('mxc://') ? rawMxc : null;
       (mxcUrl === null ? withoutAvatar : withAvatar).push({ roomId: room.roomId, sender, mxcUrl });
     }
@@ -165,6 +163,15 @@ export function NativeIOSPushFeature() {
       // The first permission check is still out: nothing says yet that the account must go.
       if (richPushConfigured && permission === undefined) return;
       lastAvatarSnapshotRef.current = undefined;
+      // iOS denies notifications to the whole app: what every account shares goes, also the
+      // accounts that are not active. Anything else that ends it concerns this account alone.
+      if (permission === 'denied') {
+        clearAllNativeNotificationAccounts().catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[ios-push] could not clear the notification accounts', error);
+        });
+        return;
+      }
       const storedTag = getStoredIOSPushProfileTag(sessionId);
       if (storedTag) {
         clearNativeNotificationAccount(storedTag).catch((error: unknown) => {
@@ -232,13 +239,11 @@ export function NativeIOSPushFeature() {
     syncAvatarsNow();
     mx.on?.(RoomMemberEvent.Membership, scheduleSync);
     mx.on?.(RoomStateEvent.Members, scheduleSync);
-    mx.on?.(UserEvent.AvatarUrl, scheduleSync);
 
     return () => {
       if (timer !== undefined) clearTimeout(timer);
       mx.removeListener?.(RoomMemberEvent.Membership, scheduleSync);
       mx.removeListener?.(RoomStateEvent.Members, scheduleSync);
-      mx.removeListener?.(UserEvent.AvatarUrl, scheduleSync);
     };
   }, [hasCompletedInitialSync, mx, richPushEligible, sessionId, userId]);
 

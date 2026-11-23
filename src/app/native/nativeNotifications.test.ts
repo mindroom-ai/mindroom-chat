@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearAllNativeNotificationAccounts,
   clearNativeNotificationAccount,
   isNativeNotificationsAvailable,
   syncNativeNotificationAccount,
@@ -11,6 +12,7 @@ const plugin = vi.hoisted(() => ({
   syncAccount: vi.fn(),
   syncAvatars: vi.fn(),
   clearAccount: vi.fn(),
+  clearAllAccounts: vi.fn(),
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -63,10 +65,12 @@ describe('native notifications plugin', () => {
       ],
     });
     await clearNativeNotificationAccount('tag-1');
+    await clearAllNativeNotificationAccounts();
 
     expect(plugin.syncAccount).not.toHaveBeenCalled();
     expect(plugin.syncAvatars).not.toHaveBeenCalled();
     expect(plugin.clearAccount).not.toHaveBeenCalled();
+    expect(plugin.clearAllAccounts).not.toHaveBeenCalled();
   });
 
   it('forwards account sync, avatar sync, and account cleanup on native iOS', async () => {
@@ -74,6 +78,7 @@ describe('native notifications plugin', () => {
     plugin.syncAccount.mockResolvedValue(undefined);
     plugin.syncAvatars.mockResolvedValue(undefined);
     plugin.clearAccount.mockResolvedValue(undefined);
+    plugin.clearAllAccounts.mockResolvedValue(undefined);
 
     const account = {
       accountTag: 'tag-1',
@@ -102,10 +107,12 @@ describe('native notifications plugin', () => {
     await syncNativeNotificationAvatars(avatarSync);
     await clearNativeNotificationAccount('  tag-1  ');
     await clearNativeNotificationAccount('   ');
+    await clearAllNativeNotificationAccounts();
 
     expect(plugin.syncAccount).toHaveBeenCalledWith(account);
     expect(plugin.syncAvatars).toHaveBeenCalledWith(avatarSync);
     expect(plugin.clearAccount).toHaveBeenCalledTimes(1);
     expect(plugin.clearAccount).toHaveBeenCalledWith({ accountTag: 'tag-1' });
+    expect(plugin.clearAllAccounts).toHaveBeenCalledTimes(1);
   });
 });

@@ -18,7 +18,7 @@ public protocol NotificationCredentialStoring: Sendable {
     func save(accountTag: String, record: NotificationAccountRecord)
     func load(accountTag: String) -> NotificationAccountRecord?
     func remove(accountTag: String)
-    func loadSingleAccount() -> (accountTag: String, record: NotificationAccountRecord)?
+    func removeAll()
 }
 
 /// Keychain-backed credential store keyed by `accountTag`.
@@ -79,24 +79,10 @@ public final class KeychainNotificationCredentialStore: NotificationCredentialSt
         _ = SecItemDelete(query as CFDictionary)
     }
 
-    public func loadSingleAccount() -> (accountTag: String, record: NotificationAccountRecord)? {
-        var query = baseQuery(accountTag: nil)
-        query[kSecReturnAttributes as String] = true
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitAll
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let items = result as? [[String: Any]],
-              items.count == 1,
-              let item = items.first,
-              let accountTag = item[kSecAttrAccount as String] as? String,
-              let data = item[kSecValueData as String] as? Data,
-              let record = try? JSONDecoder().decode(NotificationAccountRecord.self, from: data) else {
-            return nil
-        }
-        return (accountTag: accountTag, record: record)
+    /// Removes the record of every account: a delete without an account matches them all.
+    public func removeAll() {
+        let query = baseQuery(accountTag: nil)
+        _ = SecItemDelete(query as CFDictionary)
     }
 
     private func baseQuery(accountTag: String?) -> [String: Any] {

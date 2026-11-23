@@ -23,12 +23,13 @@ const kitSource = (name: string) =>
 const fetcherSource = kitSource('NotificationAvatarFetcher');
 const storeSource = kitSource('NotificationAvatarStore');
 const httpClientSource = kitSource('NotificationHTTPClient');
+const credentialStoreSource = kitSource('NotificationCredentialStore');
 
 describe('MindRoomNotificationsPlugin and NotificationService native contract', () => {
   it('registers MindRoomNotifications with its Capacitor methods only on iOS (not Mac Catalyst)', () => {
     expect(pluginSource).toContain('#if !targetEnvironment(macCatalyst)');
     expect(pluginSource).toContain('public let jsName = "MindRoomNotifications"');
-    ['syncAccount', 'syncAvatars', 'clearAccount'].forEach((method) => {
+    ['syncAccount', 'syncAvatars', 'clearAccount', 'clearAllAccounts'].forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
@@ -44,6 +45,47 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
       /override func instanceDescriptor\(\) -> InstanceDescriptor \{[^}]*descriptor\.loggingBehavior = \.none\n\s*return descriptor/
     );
     expect(pluginSource).not.toMatch(/\b(print|NSLog|CAPLog\.print)\(/);
+  });
+
+  it('enriches only a push whose mindroom_account is an account the app still shares', () => {
+    // No guess of "the only account on the device" for a push that names none.
+    expect(serviceSource).not.toContain('loadSingleAccount');
+    expect(credentialStoreSource).not.toContain('loadSingleAccount');
+    expect(serviceSource).toContain('let accountTag = payload.accountTag, !accountTag.isEmpty');
+    // Once before the avatar is read, once more before the donation.
+    expect(
+      serviceSource.match(
+        /KeychainNotificationCredentialStore\.shared\.load\(accountTag: accountTag\)/g
+      )
+    ).toHaveLength(2);
+  });
+
+  it('removes every account, and what Siri keeps of them, when asked to clear all', () => {
+    expect(credentialStoreSource).toContain('public func removeAll()');
+    const clearAll = pluginSource.slice(
+      pluginSource.indexOf('func clearAllAccounts() {'),
+      pluginSource.indexOf('private func currentGeneration')
+    );
+    expect(clearAll).toContain('clearAllGeneration &+= 1');
+    expect(clearAll).toContain('KeychainNotificationCredentialStore.shared.removeAll()');
+    expect(clearAll).toContain('NotificationAvatarStore.shared.clearAll()');
+    expect(clearAll).toContain('INInteraction.deleteAll(completion: nil)');
+    expect(pluginSource).toContain('coordinator.clearAllAccounts()');
+  });
+
+  it('donates an interaction under its account, without the message text, and deletes it with the account', () => {
+    expect(serviceSource).toContain('interaction.groupIdentifier = accountTag');
+    expect(serviceSource).toContain('content: nil,');
+    expect(serviceSource).not.toContain('content: mutableContent.body');
+    expect(pluginSource).toContain('import Intents');
+    expect(pluginSource).toContain('INInteraction.delete(with: accountTag, completion: nil)');
+  });
+
+  it('asks for the sender avatar of the room of the notification, not of the profile', () => {
+    expect(serviceSource).toMatch(
+      /fetchSenderAvatar\([^)]*roomId: payload\.roomId,\s*sender: sender,\s*deadlineNanoseconds:/
+    );
+    expect(fetcherSource).toContain('/state/m.room.member/');
   });
 
   it('keeps avatars per room from the plugin call to the lookup for a notification', () => {
