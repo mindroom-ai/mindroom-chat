@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
-import { IMAGE_VIEWER_HISTORY_MARKER, ImageOverlay } from './ImageOverlay';
+import { ImageOverlay } from './ImageOverlay';
+
+const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
 
 // JSDOM lays nothing out, so every element counts as shown for the image viewer's focus trap.
 vi.mock('focus-trap-react', async (original) => {
@@ -194,9 +196,13 @@ describe('ImageOverlay interactive edge close', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
   });
 
-  const mountViewer = ({ onLowerBack }: { onLowerBack?: () => void } = {}) => {
+  const mountViewer = ({
+    onLowerBack,
+    stayOpen = false,
+  }: { onLowerBack?: () => void; stayOpen?: boolean } = {}) => {
     const store = createStore();
     const onClose = vi.fn();
+    const requestCloseSpy = vi.fn();
 
     function LowerPageSwipe() {
       useEdgeSwipeBack(() => onLowerBack?.(), Boolean(onLowerBack));
@@ -213,8 +219,12 @@ describe('ImageOverlay interactive edge close', () => {
               src="blob:harbor"
               alt="harbor.jpg"
               requestClose={() => {
-                onClose();
-                setOpen(false);
+                requestCloseSpy();
+                if (stayOpen) return;
+                setOpen((wasOpen) => {
+                  if (wasOpen) onClose();
+                  return false;
+                });
               }}
             />
           )}
@@ -232,7 +242,7 @@ describe('ImageOverlay interactive edge close', () => {
 
     const modal = screen.getByRole('dialog', { name: 'harbor.jpg' });
     const backdrop = document.querySelector<HTMLElement>('[data-image-viewer-backdrop]');
-    return { store, onClose, modal, backdrop: backdrop! };
+    return { store, onClose, requestCloseSpy, modal, backdrop: backdrop! };
   };
 
   it('translates the modal and fades the backdrop proportionally during a left-edge drag, and restores cleanly on cancel', async () => {
@@ -424,7 +434,7 @@ describe('ImageOverlay interactive edge close', () => {
 
   it('aborts an in-flight settle cleanly if popstate closes the viewer before animation completes', async () => {
     autoResolveAnimations = false;
-    const { onClose, modal, backdrop } = mountViewer();
+    const { onClose, requestCloseSpy, modal, backdrop } = mountViewer();
 
     dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
     dispatchTouch(modal, 'touchmove', [{ clientX: 218, clientY: 200 }], 220);
@@ -441,6 +451,7 @@ describe('ImageOverlay interactive edge close', () => {
     });
 
     expect(onClose).toHaveBeenCalledOnce();
+    const callsAfterPopState = requestCloseSpy.mock.calls.length;
     expect(animations[0]?.cancel).toHaveBeenCalled();
     expect(animations[1]?.cancel).toHaveBeenCalled();
     expect(modal.style.translate).toBe('');
@@ -452,6 +463,26 @@ describe('ImageOverlay interactive edge close', () => {
       await flushMicrotasks();
     });
     expect(onClose).toHaveBeenCalledOnce();
+    expect(requestCloseSpy).toHaveBeenCalledTimes(callsAfterPopState);
     expect(backSpy).not.toHaveBeenCalled();
+  });
+
+  it('calls requestClose strictly once on commit and clears inline styles even if caller keeps viewer open', async () => {
+    const { requestCloseSpy, modal, backdrop } = mountViewer({ stayOpen: true });
+
+    dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
+    dispatchTouch(modal, 'touchmove', [{ clientX: 218, clientY: 200 }], 220);
+    flushRaf();
+    dispatchTouch(modal, 'touchend', [], 250, [{ clientX: 218, clientY: 200 }]);
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(requestCloseSpy).toHaveBeenCalledOnce();
+    expect(modal.style.translate).toBe('');
+    expect(modal.hasAttribute('data-swiping')).toBe(false);
+    expect(modal.hasAttribute('data-swipe-shadow')).toBe(false);
+    expect(backdrop.style.opacity).toBe('');
+    expect(backdrop.hasAttribute('data-swiping')).toBe(false);
   });
 });
