@@ -4,28 +4,33 @@ import {
   MINDROOM_AUTO_APPROVE_EVENT,
   openAutoApproveWindowsInThread,
   parseAutoApproveStateEvent,
+  selectAutoApproveWindows,
   type AutoApproveWindow,
 } from './autoApproveContract';
 
-const ROUTER = '@mindroom_router:example.org';
+const STEWARD_A = '@mindroom_alpha:example.org';
+const STEWARD_B = '@mindroom_beta:example.org';
 const ALICE = '@alice:example.org';
 
 const window = (overrides: Record<string, unknown> = {}) => ({
   thread_id: '$thread',
   requester_id: ALICE,
-  // The router writes Python's isoformat(), with microseconds.
+  // The backend writes Python's isoformat(), with microseconds.
   expires_at: '2026-10-22T15:30:00.123456+00:00',
   ...overrides,
 });
 
-const windowsEvent = (windows: unknown) =>
+const windowsEvent = (
+  windows: unknown,
+  { sender = STEWARD_A, ts = 1 }: { sender?: string; ts?: number } = {}
+) =>
   new MatrixEvent({
     content: { windows },
-    event_id: '$windows',
-    origin_server_ts: 1,
+    event_id: `$windows-${sender}-${ts}`,
+    origin_server_ts: ts,
     room_id: '!room:example.org',
-    sender: ROUTER,
-    state_key: ROUTER,
+    sender,
+    state_key: sender,
     type: MINDROOM_AUTO_APPROVE_EVENT,
   });
 
@@ -53,6 +58,65 @@ describe('parseAutoApproveStateEvent', () => {
     ];
     expect(parseAutoApproveStateEvent(windowsEvent(windows))).toHaveLength(1);
     expect(parseAutoApproveStateEvent(windowsEvent('nonsense'))).toEqual([]);
+  });
+});
+
+describe('selectAutoApproveWindows', () => {
+  it('returns nothing without any auto-approve state events', () => {
+    expect(selectAutoApproveWindows([])).toEqual([]);
+  });
+
+  it('shows nothing when an older steward has a window and a newer steward cleared windows', () => {
+    const older = windowsEvent([window()], { sender: STEWARD_A, ts: 100 });
+    const newer = windowsEvent([], { sender: STEWARD_B, ts: 200 });
+    expect(selectAutoApproveWindows([older, newer])).toEqual([]);
+    expect(selectAutoApproveWindows([newer, older])).toEqual([]);
+  });
+
+  it('shows the newer steward window when an older steward has none', () => {
+    const older = windowsEvent([], { sender: STEWARD_A, ts: 100 });
+    const newer = windowsEvent([window()], { sender: STEWARD_B, ts: 200 });
+    const expected = [
+      {
+        threadId: '$thread',
+        requesterId: ALICE,
+        expiresAt: Date.parse('2026-10-22T15:30:00.123Z'),
+      },
+    ];
+    expect(selectAutoApproveWindows([older, newer])).toEqual(expected);
+    expect(selectAutoApproveWindows([newer, older])).toEqual(expected);
+  });
+
+  it('breaks equal timestamp ties by picking the lowest sender Matrix ID', () => {
+    const lower = windowsEvent([window({ requester_id: ALICE })], { sender: STEWARD_A, ts: 100 });
+    const higher = windowsEvent([window({ requester_id: '@bob:example.org' })], {
+      sender: STEWARD_B,
+      ts: 100,
+    });
+    expect(selectAutoApproveWindows([higher, lower]).map((item) => item.requesterId)).toEqual([
+      ALICE,
+    ]);
+    expect(selectAutoApproveWindows([lower, higher]).map((item) => item.requesterId)).toEqual([
+      ALICE,
+    ]);
+  });
+
+  it('does not duplicate a requester present in both an older and a newer steward event', () => {
+    const older = windowsEvent([window({ expires_at: '2026-10-22T15:30:00+00:00' })], {
+      sender: STEWARD_A,
+      ts: 100,
+    });
+    const newer = windowsEvent([window({ expires_at: '2026-10-22T16:00:00+00:00' })], {
+      sender: STEWARD_B,
+      ts: 200,
+    });
+    expect(selectAutoApproveWindows([older, newer])).toEqual([
+      {
+        threadId: '$thread',
+        requesterId: ALICE,
+        expiresAt: Date.parse('2026-10-22T16:00:00Z'),
+      },
+    ]);
   });
 });
 

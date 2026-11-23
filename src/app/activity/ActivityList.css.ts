@@ -187,6 +187,12 @@ export const ActionButton = style({
  */
 export const FooterText = style({ flex: '1 1 0', minInlineSize: 0, overflowWrap: 'anywhere' });
 
+export const ShowMore = style({
+  ...strip,
+  justifyContent: 'center',
+  padding: `${space.S200} ${space.S300}`,
+});
+
 export const Footer = style({
   ...strip,
   columnGap: space.S200,

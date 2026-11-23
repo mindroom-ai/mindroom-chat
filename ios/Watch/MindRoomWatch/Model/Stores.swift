@@ -10,3 +10,17 @@ enum DefaultRoom {
         UserDefaults.standard.set(roomId, forKey: key(userId))
     }
 }
+
+/// The room's resolved threads as its state last said, per account: the thread list shows without them before
+/// the state is read again. Written only for the default room's model (`RoomTrust.persist`).
+enum ResolvedCache {
+    private static func key(userId: String, roomId: String) -> String { "resolvedRoots:\(userId):\(roomId)" }
+
+    static func get(userId: String, roomId: String) -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: key(userId: userId, roomId: roomId)) ?? [])
+    }
+
+    static func set(_ roots: Set<String>, userId: String, roomId: String) {
+        UserDefaults.standard.set(Array(roots), forKey: key(userId: userId, roomId: roomId))
+    }
+}

@@ -1,5 +1,6 @@
 import {
   ConnectionState,
+  DisconnectReason,
   isBrowserSupported,
   isE2EESupported,
   Room as MediaRoom,
@@ -11,6 +12,7 @@ import {
   type Participant,
   type RemoteTrack,
   type RemoteVideoTrack,
+  type RoomEventCallbacks,
 } from 'livekit-client';
 import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
@@ -25,7 +27,9 @@ import {
   type SfuGrant,
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
-import { withdrawOwnMemberships } from './callResume';
+import { RESUME_WINDOW_MS, withdrawOwnMemberships } from './callResume';
+import type { CallNotifyInputs } from './callRings';
+import { startCallRingTrace } from './callRingTrace';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -54,6 +58,27 @@ const unmutedInputTrack = (publication: LocalTrackPublication | undefined) =>
 
 const isLiveInputTrack = (track: MediaStreamTrack | undefined) =>
   track?.readyState === 'live' && track.muted === false;
+
+const isPageHidden = () => document.visibilityState === 'hidden';
+
+/** The reasons of a drop for a lost connection; with any other, the media server meant it. */
+const CONNECTION_LOST: ReadonlySet<DisconnectReason | undefined> = new Set([
+  undefined,
+  DisconnectReason.UNKNOWN_REASON,
+  DisconnectReason.SERVER_SHUTDOWN,
+  DisconnectReason.STATE_MISMATCH,
+  DisconnectReason.JOIN_FAILURE,
+  DisconnectReason.MIGRATION,
+  DisconnectReason.SIGNAL_CLOSE,
+  DisconnectReason.CONNECTION_TIMEOUT,
+  DisconnectReason.MEDIA_FAILURE,
+]);
+
+/**
+ * A rejoin after the media dropped in the background, from the drop until its media connects:
+ * `timer` fails the call at `deadline`, `left` tells whether the old membership was withdrawn.
+ */
+type Rejoin = { deadline: number; timer: number; left: Promise<boolean> };
 
 export type CallVideoTrack = LocalVideoTrack | RemoteVideoTrack;
 
@@ -100,8 +125,10 @@ export type RoomCallOptions = {
   video?: boolean;
   microphone?: boolean;
   devices?: CallDevices;
-  /** Ring the other people (`ring`, direct chats) or notify them (`notification`). */
+  /** Ring the other people (`ring`, direct chats or small rooms) or notify them (`notification`). */
   notify?: 'ring' | 'notification';
+  /** Inputs that produced `notify`, recorded in the join's ring trace. */
+  notifyInputs?: CallNotifyInputs;
   /**
    * Lets go of the lock that tells this device's other tabs it is in a call (`takeDeviceCallLock`,
    * taken before the call starts). The call runs it once it has left.
@@ -122,6 +149,8 @@ type OwnMembership = { userId: string; deviceId: string; memberId: string };
 const LEAVE_TIMEOUT_MS = 5000;
 /** How long a join waits for this device's leftover membership to go before joining anyway. */
 const LEFTOVER_TIMEOUT_MS = 10_000;
+/** How long after the page shows again a drop still counts as one of its time in the background. */
+const BACKGROUND_DROP_MS = 60_000;
 /** When sending this device's media key to one device again fails, the waits before the next tries. */
 const KEY_RESEND_RETRY_MS = [1_000, 3_000];
 /**
@@ -199,6 +228,7 @@ export class RoomCall {
 
   /** The identity this call joined the session with; its own keys come back with it. */
   private ownMembership?: OwnMembership;
+  private stopRingTrace?: () => void;
 
   /** This device's current media key in the call, as the session made it. */
   private ownKey?: { key: Uint8Array; index: number };
@@ -214,6 +244,21 @@ export class RoomCall {
 
   /** Failed sends of the own key, by the same keys as `keysResent`. */
   private readonly keyResendFailures = new Map<string, number>();
+
+  /** Whether LiveKit connected at least once; drops before that fail as a join failure. */
+  private hasConnected = false;
+
+  /** When the page last came back from the background, since LiveKit last connected. */
+  private shownAt = 0;
+
+  /** The rejoin under way, until its media connects or the call stops. */
+  private rejoin?: Rejoin;
+
+  /** Wake the steps that wait until the page shows (`shown`). */
+  private readonly shownWaiters = new Set<() => void>();
+
+  /** Ends the wait for a leftover membership to go (`withdrawLeftover`); the teardown runs it. */
+  private endLeftoverWait?: () => void;
 
   constructor(options: RoomCallOptions) {
     this.options = options;
@@ -455,43 +500,131 @@ export class RoomCall {
     });
   }
 
-  private watchMedia(media: MediaRoom) {
-    media
-      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
-        if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.TrackUnsubscribed, (track) => {
-        this.detachAudio(track);
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantConnected, (participant) => {
-        this.keyPeers.add(participant.identity);
-        this.resendOwnKey();
-        this.refresh();
-      })
-      .on(RoomEvent.ParticipantDisconnected, this.refresh)
-      .on(RoomEvent.TrackMuted, this.refresh)
-      .on(RoomEvent.TrackUnmuted, this.refresh)
-      .on(RoomEvent.LocalTrackPublished, this.onLocalTrackPublished)
-      .on(RoomEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-      .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
-      .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
-      .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
-      .on(RoomEvent.Reconnected, () => {
-        if (this.stopped) return;
-        this.update({ phase: 'connected' });
-        this.refresh();
-      })
-      // The media server dropped this device for good (LiveKit retries before giving up); after
-      // a leave or another failure this is the teardown's own disconnect.
-      .on(RoomEvent.Disconnected, () => this.fail('connection'))
-      .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
-        this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-        // A switched microphone is a new media track.
-        this.refresh();
-      });
+  /** This call's handlers of its media room's events; LiveKit has its own on the room. */
+  private readonly mediaHandlers = {
+    [RoomEvent.TrackSubscribed]: (track, _publication, participant) => {
+      if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
+      this.refresh();
+    },
+    [RoomEvent.TrackUnsubscribed]: (track) => {
+      this.detachAudio(track);
+      this.refresh();
+    },
+    [RoomEvent.ParticipantConnected]: (participant) => {
+      this.keyPeers.add(participant.identity);
+      this.resendOwnKey();
+      this.refresh();
+    },
+    [RoomEvent.ParticipantDisconnected]: this.refresh,
+    [RoomEvent.TrackMuted]: this.refresh,
+    [RoomEvent.TrackUnmuted]: this.refresh,
+    [RoomEvent.LocalTrackPublished]: this.onLocalTrackPublished,
+    [RoomEvent.LocalTrackUnpublished]: this.onLocalTrackUnpublished,
+    [RoomEvent.ActiveSpeakersChanged]: this.refresh,
+    [RoomEvent.AudioPlaybackStatusChanged]: this.refresh,
+    [RoomEvent.Reconnecting]: () => this.update({ phase: 'reconnecting' }),
+    [RoomEvent.Reconnected]: () => {
+      if (this.stopped) return;
+      this.shownAt = 0;
+      this.update({ phase: 'connected' });
+      this.refresh();
+    },
+    // The media server dropped this device for good (LiveKit retries before giving up); after
+    // a leave or another failure this is the teardown's own disconnect.
+    [RoomEvent.Disconnected]: (reason) => this.onMediaDisconnected(reason),
+    [RoomEvent.ActiveDeviceChanged]: (kind, deviceId) => {
+      this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
+      // A switched microphone is a new media track.
+      this.refresh();
+    },
+  } satisfies Partial<RoomEventCallbacks>;
+
+  private watchMedia(media: MediaRoom, method: 'on' | 'off') {
+    Object.entries(this.mediaHandlers).forEach(([event, handler]) =>
+      media[method](event as keyof RoomEventCallbacks, handler)
+    );
   }
+
+  private wakeShownWaiters() {
+    this.shownWaiters.forEach((wake) => wake());
+    this.shownWaiters.clear();
+  }
+
+  /**
+   * Resolves once the page shows, with whether `owner` (a rejoin under way, then the media room
+   * it connected) is still this call's: a rejoin joins nothing and opens no input in the
+   * background, nor after the call stopped or that media dropped.
+   */
+  private async shown(owner: Rejoin | MediaRoom): Promise<boolean> {
+    const current = () => this.rejoin === owner || this.media === owner;
+    while (current() && isPageHidden()) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise<void>((resolve) => {
+        this.shownWaiters.add(resolve);
+      });
+    }
+    return current();
+  }
+
+  private onVisibilityChange = () => {
+    if (isPageHidden()) return;
+    this.shownAt = Date.now();
+    // The deadline's timer can be late on a page that was suspended.
+    if (this.rejoin && this.shownAt >= this.rejoin.deadline) this.fail('connection');
+    else this.wakeShownWaiters();
+  };
+
+  /**
+   * A connection lost by a page that was in the background, where iOS suspends it, does not end
+   * the call: it stays `reconnecting`, withdraws its membership, and joins again as a new member
+   * once the page shows, within `RESUME_WINDOW_MS` of the drop.
+   */
+  private onMediaDisconnected = (reason?: DisconnectReason) => {
+    if (
+      !this.hasConnected ||
+      this.rejoin ||
+      (!isPageHidden() && Date.now() - this.shownAt > BACKGROUND_DROP_MS) ||
+      !CONNECTION_LOST.has(reason)
+    ) {
+      this.fail('connection');
+      return;
+    }
+    // What this device really had: an input that failed to open stays off.
+    Object.assign(this.requestedInputs, this.getResumeInputs());
+    const retired = this.detachMedia();
+    void retired?.dispose().catch(() => undefined);
+    this.worker?.terminate();
+    this.worker = undefined;
+    this.ownMembership = undefined;
+    this.ownKey = undefined;
+    this.keyPeers.clear();
+    this.keysResent.clear();
+    this.keyResendFailures.clear();
+    const rejoin: Rejoin = {
+      deadline: Date.now() + RESUME_WINDOW_MS,
+      timer: window.setTimeout(() => this.fail('connection'), RESUME_WINDOW_MS),
+      // The old membership manager must be done first: its retries would clear the new membership.
+      left: this.session.isJoined()
+        ? this.session.leave(RESUME_WINDOW_MS).catch(() => false)
+        : Promise.resolve(true),
+    };
+    this.rejoin = rejoin;
+    this.update({
+      phase: 'reconnecting',
+      ...this.requestedInputs,
+      screenShare: false,
+      audioBlocked: false,
+      microphoneTrack: undefined,
+      participants: this.readParticipants(this.requestedInputs.microphone),
+    });
+    rejoin.left
+      .then(async (left) => {
+        const deviceId = this.mx.getDeviceId();
+        if (!left || !deviceId) this.fail('connection');
+        else if (await this.shown(rejoin)) await this.connectCall(deviceId, rejoin);
+      })
+      .catch(() => this.fail('connection'));
+  };
 
   private onMemberships = () => {
     this.followMembers();
@@ -576,36 +709,39 @@ export class RoomCall {
    * Withdraws the membership this device still has in the call from an earlier page (a reload,
    * or a tab that crashed) and waits until the session no longer lists it. Joining over it would
    * send the same membership again (the SDK keeps its creation time), which nobody sees as a
-   * join, so no media keys would be exchanged.
+   * join, so no media keys would be exchanged. Resolves with whether it is gone. A rejoin
+   * withdrew it with its leave: the session only has to follow, within the rejoin's deadline.
    */
-  private async withdrawLeftover(deviceId: string): Promise<void> {
+  private async withdrawLeftover(deviceId: string, rejoin?: Rejoin): Promise<boolean> {
     const userId = this.mx.getSafeUserId();
     const listed = () =>
       this.session.memberships.some(
         (membership) => membership.userId === userId && membership.deviceId === deviceId
       );
-    if (!listed()) return;
-    await withdrawOwnMemberships(this.mx, [this.room]);
+    if (!listed()) return true;
+    if (!rejoin) await withdrawOwnMemberships(this.mx, [this.room]);
+    const timeout = rejoin ? rejoin.deadline - Date.now() : LEFTOVER_TIMEOUT_MS;
     await new Promise<void>((resolve) => {
       let timer = 0;
       const check = () => {
-        if (listed()) return;
+        if (!listed()) this.endLeftoverWait?.();
+      };
+      this.endLeftoverWait = () => {
         window.clearTimeout(timer);
         this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
+        this.endLeftoverWait = undefined;
         resolve();
       };
-      timer = window.setTimeout(() => {
-        this.session.off(MatrixRTCSessionEvent.MembershipsChanged, check);
-        resolve();
-      }, LEFTOVER_TIMEOUT_MS);
+      timer = window.setTimeout(this.endLeftoverWait, timeout);
       this.session.on(MatrixRTCSessionEvent.MembershipsChanged, check);
       check();
     });
+    return !listed();
   }
 
   /** A grant for the call service: the one asked for while preparing, or a new one. */
-  private async grantFor(serviceUrl: string, deviceId: string): Promise<SfuGrant> {
-    const early = await this.options.grant;
+  private async grantFor(serviceUrl: string, deviceId: string, fresh = false): Promise<SfuGrant> {
+    const early = fresh ? undefined : await this.options.grant;
     if (early?.serviceUrl === serviceUrl) return early.grant;
     const token = await this.mx.getOpenIdToken();
     return requestSfuGrant(serviceUrl, { roomId: this.room.roomId, deviceId, token });
@@ -617,8 +753,7 @@ export class RoomCall {
    * MindRoom agent too) start joining while this device connects, instead of after it.
    */
   async join(): Promise<void> {
-    const { mx, room } = this;
-    const deviceId = mx.getDeviceId();
+    const deviceId = this.mx.getDeviceId();
     if (!isBrowserSupported() || (this.encrypted && !isE2EESupported()) || !deviceId) {
       this.fail('browser');
       return;
@@ -626,7 +761,17 @@ export class RoomCall {
     this.session.on(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.on(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
-    await this.withdrawLeftover(deviceId);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    await this.connectCall(deviceId);
+  }
+
+  /** The join, and with `rejoin` the one after a drop: no ring, and it fails as the lost connection. */
+  private async connectCall(deviceId: string, rejoin?: Rejoin): Promise<void> {
+    const { mx, room } = this;
+    const failJoin = (problem: CallProblem) => this.fail(rejoin ? 'connection' : problem);
+    const withdrawn = await this.withdrawLeftover(deviceId, rejoin);
+    // The first join goes on over a leftover that stays listed; a rejoin never does.
+    if (rejoin && !withdrawn) this.fail('connection');
     if (this.stopped) return;
 
     // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
@@ -638,19 +783,20 @@ export class RoomCall {
     );
     if (this.stopped) return;
     if ('refused' in service) {
-      this.fail(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
+      failJoin(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
       return;
     }
     const serviceUrl = service.url;
 
     let grant: SfuGrant;
     try {
-      grant = await this.grantFor(serviceUrl, deviceId);
+      grant = await this.grantFor(serviceUrl, deviceId, !!rejoin);
     } catch {
-      this.fail('service');
+      failJoin('service');
       return;
     }
     if (this.stopped) return;
+    if (rejoin && !(await this.shown(rejoin))) return;
 
     // The session hands over the media keys from the moment it joins; LiveKit takes the ones that
     // came before its connection when it connects.
@@ -658,19 +804,30 @@ export class RoomCall {
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
+      this.stopRingTrace?.();
+      this.stopRingTrace = rejoin
+        ? undefined
+        : startCallRingTrace({
+            room,
+            session: this.session,
+            ownMembership: this.ownMembership,
+            encrypted: this.encrypted,
+            notify: this.options.notify,
+            notifyInputs: this.options.notifyInputs,
+          });
       this.session.join(
         this.ownMembership,
         [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
         {
           manageMediaKeys: this.encrypted,
           callIntent: this.state.camera ? 'video' : 'audio',
-          notificationType: this.options.notify,
+          notificationType: rejoin ? undefined : this.options.notify,
           notificationLifetimeMs: RING_LIFETIME_MS,
         }
       );
     } catch {
       // The SDK refuses a membership it cannot make at once; the panel offers Dismiss.
-      this.fail('service');
+      failJoin('service');
       return;
     }
 
@@ -691,20 +848,26 @@ export class RoomCall {
           : {}),
       });
       this.media = media;
-      this.watchMedia(media);
+      this.watchMedia(media, 'on');
       if (this.encrypted) await media.setE2EEEnabled(true);
       // The teardown of a call left meanwhile disconnected this room already; it stays so.
       if (this.stopped) return;
       await media.connect(grant.url, grant.jwt);
     } catch {
-      this.fail('service');
+      failJoin('service');
       return;
     }
     if (this.stopped) {
       // Left or dropped while connecting: a connect that still went through is closed again.
       await media.disconnect(true).catch(() => undefined);
+      await media.dispose().catch(() => undefined);
       return;
     }
+    // The rejoin is done: the deadline is over, and a drop from here on is the next one's.
+    window.clearTimeout(rejoin?.timer);
+    this.rejoin = undefined;
+    this.hasConnected = true;
+    this.shownAt = 0;
     this.update({ phase: 'connected' });
     // Before this device publishes anything.
     this.followMembers();
@@ -716,8 +879,11 @@ export class RoomCall {
     }
 
     const cameraOp = this.toggleOps.camera;
+    // A rejoin opens no input in the background, and nothing opens on media that was let go.
+    if (rejoin && !(await this.shown(media))) return;
     await this.setMicrophone(this.requestedInputs.microphone);
-    if (!this.stopped && this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
+    if (rejoin ? !(await this.shown(media)) : this.media !== media) return;
+    if (this.requestedInputs.camera && cameraOp === this.toggleOps.camera) {
       await this.setCamera(true);
     }
   }
@@ -732,16 +898,17 @@ export class RoomCall {
     const op = (this.toggleOps[kind] += 1);
     this.requestedInputs[kind] = on;
     this.update({ [kind]: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
+    const media = this.media;
+    if (!media || this.state.phase === 'connecting' || this.rejoin) return;
     const failed = await (kind === 'microphone'
-      ? participant.setMicrophoneEnabled(on)
-      : participant.setCameraEnabled(on)
+      ? media.localParticipant.setMicrophoneEnabled(on)
+      : media.localParticipant.setCameraEnabled(on)
     ).then(
       () => false,
       () => true
     );
-    if (this.stopped) return;
+    // The call stopped, or let this media go: its late result says nothing about the inputs.
+    if (this.media !== media) return;
 
     const latest = op === this.toggleOps[kind];
     const track = unmutedInputTrack(this.inputPublication(kind));
@@ -769,7 +936,7 @@ export class RoomCall {
    */
   async setScreenShare(on: boolean) {
     const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
+    if (!participant || this.state.phase === 'connecting' || this.rejoin) return;
     await participant
       .setScreenShareEnabled(on, {
         audio: true,
@@ -798,7 +965,7 @@ export class RoomCall {
     const media = this.media;
     if (!media) return;
     const switched = await media.switchActiveDevice(kind, deviceId).catch(() => null);
-    if (!this.stopped && op === this.switchOps[kind]) {
+    if (this.media === media && op === this.switchOps[kind]) {
       if (switched === null) this.selectionFailures.add(kind);
       else if (switched === true) this.selectionFailures.delete(kind);
     }
@@ -812,26 +979,35 @@ export class RoomCall {
   }
 
   private async teardown() {
+    this.stopRingTrace?.();
+    this.stopRingTrace = undefined;
     this.session.off(MatrixRTCSessionEvent.MembershipsChanged, this.onMemberships);
     this.session.off(MatrixRTCSessionEvent.EncryptionKeyChanged, this.onKey);
     this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
-    const media = this.media;
-    this.media = undefined;
-    this.watchInputTrack('microphone');
-    this.watchInputTrack('camera');
-    media?.localParticipant.trackPublications.forEach((publication) => {
-      publication.track?.off(TrackEvent.Restarted, this.refresh);
-    });
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    const rejoin = this.rejoin;
+    this.rejoin = undefined;
+    window.clearTimeout(rejoin?.timer);
+    const media = this.detachMedia();
+    this.wakeShownWaiters();
+    this.endLeftoverWait?.();
     const participants = this.readParticipants();
     if (this.state.microphoneTrack || !sameParticipants(participants, this.state.participants)) {
       this.update({ microphoneTrack: undefined, participants });
     }
-    this.audioHost?.remove();
-    this.audioHost = undefined;
     try {
-      const membership = this.session.isJoined() ? this.session.leave(LEAVE_TIMEOUT_MS) : undefined;
+      // A rejoin's withdrawal of the old membership that is still on its way gets the same wait.
+      let timer = 0;
+      const timeout = new Promise((resolve) => {
+        timer = window.setTimeout(resolve, LEAVE_TIMEOUT_MS);
+      });
+      const membership = this.session.isJoined()
+        ? this.session.leave(LEAVE_TIMEOUT_MS)
+        : rejoin && Promise.race([rejoin.left, timeout]);
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
       await Promise.allSettled([media?.disconnect(true), membership]);
+      window.clearTimeout(timer);
+      await media?.dispose().catch(() => undefined);
     } finally {
       // Kept past a failed disconnect: a lock left held would tell this device's other tabs for
       // the rest of the page's life that it is still in a call.
@@ -840,6 +1016,21 @@ export class RoomCall {
       this.releaseDeviceLock?.();
       this.releaseDeviceLock = undefined;
     }
+  }
+
+  /** Lets go of the media room: none of its events reach this call any more. */
+  private detachMedia(): MediaRoom | undefined {
+    const media = this.media;
+    this.media = undefined;
+    this.watchInputTrack('microphone');
+    this.watchInputTrack('camera');
+    if (media) this.watchMedia(media, 'off');
+    media?.localParticipant.trackPublications.forEach((publication) => {
+      publication.track?.off(TrackEvent.Restarted, this.refresh);
+    });
+    this.audioHost?.remove();
+    this.audioHost = undefined;
+    return media;
   }
 
   /** Leaves the call; resolves once the membership is withdrawn (or the wait timed out). */

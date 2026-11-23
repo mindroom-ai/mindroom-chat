@@ -100,7 +100,12 @@
     },
     "inviteUserPrompt": {
       "close": "Закрыть",
-      "invited": "Приглашение отправлено: {{user}}."
+      "invited": "Приглашение отправлено: {{user}}.",
+      "giveRoleRights": "Выдать права роли «{{role}}»",
+      "giveRoleRightsHelp": "В этой комнате для сворачивания расшифровок голосовых сообщений и управления расписаниями и настройками требуются права роли «{{role}}».",
+      "roleFailed": "Приглашение отправлено: {{user}}, но не удалось выдать права роли «{{role}}»: {{error}}",
+      "roleRequirementChanged": "В этой комнате теперь требуются права роли «{{role}}».",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Закрыть",
@@ -494,6 +499,7 @@
         "close": "Закрыть экран звонка",
         "participants": "Участники звонка",
         "connecting": "Подключение…",
+        "connectingAnotherCall": "Подключение к другому звонку…",
         "reconnecting": "Переподключение…",
         "ended": "Звонок завершён.",
         "waitingFor": "Ожидание {{name}}…",
@@ -631,7 +637,8 @@
     },
     "accountMenu": {
       "open": "Открыть меню учётной записи {{name}}",
-      "manageAccounts": "Управление учётными записями"
+      "otherAccounts": "Другие учётные записи",
+      "manage": "Управлять"
     },
     "roomOrder": {
       "sortByName": "Сортировать комнаты от А до Я"
@@ -752,6 +759,9 @@
         "save": "Сохранить",
         "saved": "Сохранено",
         "clear": "Очистить",
+        "saveSetting": "Сохранить: {{setting}}",
+        "savedSetting": "Сохранено: {{setting}}",
+        "clearSetting": "Очистить: {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Изменять это могут только те, кому разрешено менять настройки этой комнаты.",
         "saveFailed": "Не удалось сохранить настройку. Попробуйте ещё раз.",
@@ -761,6 +771,41 @@
           "default": "По умолчанию",
           "auto": "На любое сообщение",
           "mentions": "Только при упоминании"
+        },
+        "sections": {
+          "agents": "Агенты",
+          "threadTitles": "Заголовки веток"
+        },
+        "model": {
+          "label": "Модель",
+          "description": "Модель по умолчанию для каждого агента, команды и маршрутизатора в этой комнате. Переопределения в ветках по-прежнему имеют приоритет.",
+          "default": "Использовать значение по умолчанию",
+          "defaultDescription": "Следовать настроенному значению MindRoom по умолчанию для этой комнаты.",
+          "unknown": "Неизвестная модель: «{{value}}» нет в списке моделей этой комнаты.",
+          "catalogUnavailable": "Список моделей сейчас недоступен. Вы всё равно можете сбросить настройку к значению по умолчанию.",
+          "storedRaw": "Настройка комнаты: {{value}}"
+        },
+        "threadMode": {
+          "label": "Режим веток",
+          "description": "Отвечают ли агенты в ветках или в основной ленте этой комнаты.",
+          "default": "Использовать значение по умолчанию",
+          "thread": "Ветки",
+          "room": "Основная лента",
+          "effective": "Текущий действующий режим: {{mode}}",
+          "effectiveModes": {
+            "thread": "Ветки",
+            "room": "Основная лента",
+            "mixed": "Смешанный (зависит от агента)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Модель заголовков",
+          "description": "Модель, создающая автоматические заголовки веток в этой комнате."
+        },
+        "agentInstructions": {
+          "label": "Инструкции для агентов",
+          "description": "Дополнительные инструкции, передаваемые каждому агенту при ответе в этой комнате. Модераторы могут их редактировать; они не дают агентам дополнительных прав. Их может прочитать каждый участник комнаты, а состояние комнаты не защищено сквозным шифрованием, поэтому не указывайте здесь секреты.",
+          "placeholder": "Например: отвечайте коротко и на нидерландском языке"
         }
       }
     },
@@ -932,6 +977,50 @@
         "hide_few": "Скрыть {{count}} сообщения",
         "hide_many": "Скрыть {{count}} сообщений",
         "hide_other": "Скрыть {{count}} сообщения"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} событие комнаты",
+        "summary_few": "{{count}} события комнаты",
+        "summary_many": "{{count}} событий комнаты",
+        "summary_other": "{{count}} события комнаты",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Скрыть {{count}} событие комнаты",
+        "hide_few": "Скрыть {{count}} события комнаты",
+        "hide_many": "Скрыть {{count}} событий комнаты",
+        "hide_other": "Скрыть {{count}} события комнаты",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} вошёл",
+        "joined_few": "{{count}} вошли",
+        "joined_many": "{{count}} вошли",
+        "joined_other": "{{count}} вошли",
+        "left_one": "{{count}} вышел",
+        "left_few": "{{count}} вышли",
+        "left_many": "{{count}} вышли",
+        "left_other": "{{count}} вышли",
+        "invited_one": "{{count}} приглашён",
+        "invited_few": "{{count}} приглашены",
+        "invited_many": "{{count}} приглашены",
+        "invited_other": "{{count}} приглашены",
+        "requested_one": "{{count}} запросил вход",
+        "requested_few": "{{count}} запросили вход",
+        "requested_many": "{{count}} запросили вход",
+        "requested_other": "{{count}} запросили вход",
+        "kicked_one": "{{count}} исключён",
+        "kicked_few": "{{count}} исключены",
+        "kicked_many": "{{count}} исключены",
+        "kicked_other": "{{count}} исключены",
+        "banned_one": "{{count}} заблокирован",
+        "banned_few": "{{count}} заблокированы",
+        "banned_many": "{{count}} заблокированы",
+        "banned_other": "{{count}} заблокированы",
+        "unbanned_one": "{{count}} разблокирован",
+        "unbanned_few": "{{count}} разблокированы",
+        "unbanned_many": "{{count}} разблокированы",
+        "unbanned_other": "{{count}} разблокированы",
+        "profileChanges_one": "{{count}} изменение профиля",
+        "profileChanges_few": "{{count}} изменения профиля",
+        "profileChanges_many": "{{count}} изменений профиля",
+        "profileChanges_other": "{{count}} изменения профиля"
       },
       "questionCard": {
         "title": "Вопрос",
@@ -1236,6 +1325,8 @@
         "defaultChoice": "По умолчанию",
         "threadOnly": "Выбранная здесь модель действует только в этой ветке.",
         "roomOverrideThreadOnly": "Задана для этой комнаты командой !room_model. Выбранная здесь модель действует только в этой ветке.",
+        "chooseNextThread": "Выбрать модель для следующей ветки",
+        "nextThreadOnly": "Выбор действует только для следующей ветки.",
         "levels": {
           "off": "Выкл.",
           "minimal": "Минимальное",
@@ -1809,6 +1900,32 @@
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",
-    "elsewhereInRoom": "В других местах этой комнаты"
+    "elsewhereInRoom": "В других местах этой комнаты",
+    "filterAll": "Все",
+    "filterLabel": "Фильтр запланированных задач",
+    "awaitingShort": "Ожидание",
+    "inSeconds": "через {{count}}с",
+    "inMinutes": "через {{count}}м",
+    "inHours": "через {{count}}ч",
+    "inHoursMinutes": "через {{hours}}ч {{minutes}}м",
+    "inDays": "через {{count}}д",
+    "thread": "Ветка",
+    "destination": "Назначение",
+    "showFullPrompt": "Показать весь промпт",
+    "showLessPrompt": "Свернуть",
+    "details": "Подробности",
+    "hideDetails": "Скрыть подробности",
+    "copyId": "Копировать ID",
+    "copied": "Скопировано",
+    "edit": "Изменить",
+    "cancel": "Отменить",
+    "cancelConfirm": "Отменить эту запланированную задачу?",
+    "keep": "Оставить",
+    "cancelTask": "Отменить задачу",
+    "cancelling": "Отмена...",
+    "cancelError": "Не удалось отменить задачу. Попробуйте снова.",
+    "cancellationSent": "Запрос на отмену отправлен",
+    "editDraftBusy": "Очистите текущий черновик перед редактированием этой задачи.",
+    "copyFailed": "Не удалось скопировать. Выберите ID задачи в Подробностях."
   }
 }

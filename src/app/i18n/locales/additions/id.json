@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "Tutup",
-      "invited": "{{user}} telah diundang."
+      "invited": "{{user}} telah diundang.",
+      "giveRoleRights": "Berikan hak {{role}}",
+      "giveRoleRightsHelp": "Ruangan ini memerlukan hak {{role}} untuk melipat transkrip suara serta mengelola jadwal dan pengaturan ruangan.",
+      "roleFailed": "{{user}} telah diundang, tetapi tidak dapat memberikan hak {{role}}: {{error}}",
+      "roleRequirementChanged": "Ruangan ini sekarang memerlukan hak {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Tutup",
@@ -467,6 +472,7 @@
         "close": "Tutup tampilan panggilan",
         "participants": "Orang dalam panggilan",
         "connecting": "Menghubungkan…",
+        "connectingAnotherCall": "Menghubungkan ke panggilan lain…",
         "reconnecting": "Menghubungkan ulang…",
         "ended": "Panggilan berakhir.",
         "waitingFor": "Menunggu {{name}}…",
@@ -592,7 +598,8 @@
     },
     "accountMenu": {
       "open": "Buka menu akun untuk {{name}}",
-      "manageAccounts": "Kelola akun"
+      "otherAccounts": "Akun lain",
+      "manage": "Kelola"
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"
@@ -713,6 +720,9 @@
         "save": "Simpan",
         "saved": "Tersimpan",
         "clear": "Hapus",
+        "saveSetting": "Simpan {{setting}}",
+        "savedSetting": "Tersimpan: {{setting}}",
+        "clearSetting": "Hapus {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
         "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
@@ -722,6 +732,41 @@
           "default": "Default",
           "auto": "Setiap pesan",
           "mentions": "Hanya saat disebut"
+        },
+        "sections": {
+          "agents": "Agen",
+          "threadTitles": "Judul utas"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Model bawaan untuk setiap agen, tim, dan perute di ruang ini. Pengaturan khusus utas tetap diutamakan.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "defaultDescription": "Ikuti pengaturan bawaan MindRoom untuk ruang ini.",
+          "unknown": "Model tidak dikenal: \"{{value}}\" tidak ada dalam daftar model ruang ini.",
+          "catalogUnavailable": "Daftar model tidak tersedia saat ini. Anda tetap dapat mengatur ulang ke bawaan yang dikonfigurasi.",
+          "storedRaw": "Pengaturan ruang: {{value}}"
+        },
+        "threadMode": {
+          "label": "Mode utas",
+          "description": "Apakah agen membalas di dalam utas atau di linimasa utama ruang ini.",
+          "default": "Gunakan bawaan yang dikonfigurasi",
+          "thread": "Utas",
+          "room": "Linimasa utama",
+          "effective": "Mode efektif saat ini: {{mode}}",
+          "effectiveModes": {
+            "thread": "Utas",
+            "room": "Linimasa utama",
+            "mixed": "Campuran (berbeda tiap agen)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Model judul",
+          "description": "Model yang menulis judul utas otomatis di ruang ini."
+        },
+        "agentInstructions": {
+          "label": "Instruksi agen",
+          "description": "Instruksi tambahan yang diberikan kepada setiap agen saat menjawab di ruang ini. Moderator dapat mengeditnya; ini tidak memberi agen izin tambahan. Semua orang di ruang ini dapat membacanya, dan status ruang tidak terenkripsi ujung ke ujung, jadi jangan masukkan rahasia di sini.",
+          "placeholder": "Contoh: Buat jawaban singkat dan balas dalam bahasa Belanda"
         }
       }
     },
@@ -881,6 +926,20 @@
       "turnFold": {
         "earlier_other": "{{count}} pesan sebelumnya",
         "hide_other": "Sembunyikan {{count}} pesan"
+      },
+      "membershipFold": {
+        "summary_other": "{{count}} peristiwa ruang",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "Sembunyikan {{count}} peristiwa ruang",
+        "listSeparator": ", ",
+        "joined_other": "{{count}} bergabung",
+        "left_other": "{{count}} keluar",
+        "invited_other": "{{count}} diundang",
+        "requested_other": "{{count}} meminta bergabung",
+        "kicked_other": "{{count}} dikeluarkan",
+        "banned_other": "{{count}} diblokir",
+        "unbanned_other": "{{count}} dibuka blokirnya",
+        "profileChanges_other": "{{count}} perubahan profil"
       },
       "questionCard": {
         "title": "Pertanyaan",
@@ -1143,6 +1202,8 @@
         "defaultChoice": "Bawaan",
         "threadOnly": "Model yang dipilih di sini hanya berlaku untuk utas ini.",
         "roomOverrideThreadOnly": "Diatur untuk ruangan ini dengan !room_model. Model yang dipilih di sini hanya berlaku untuk utas ini.",
+        "chooseNextThread": "Pilih model untuk utas berikutnya",
+        "nextThreadOnly": "Pilihan ini hanya berlaku untuk utas berikutnya.",
         "levels": {
           "off": "Mati",
           "minimal": "Minimal",
@@ -1677,6 +1738,32 @@
   },
   "roomSchedules": {
     "thisThread": "Utas ini",
-    "elsewhereInRoom": "Di bagian lain ruang ini"
+    "elsewhereInRoom": "Di bagian lain ruang ini",
+    "filterAll": "Semua",
+    "filterLabel": "Filter tugas terjadwal",
+    "awaitingShort": "Menunggu",
+    "inSeconds": "dalam {{count}}d",
+    "inMinutes": "dalam {{count}}m",
+    "inHours": "dalam {{count}}j",
+    "inHoursMinutes": "dalam {{hours}}j {{minutes}}m",
+    "inDays": "dalam {{count}}h",
+    "thread": "Utas",
+    "destination": "Tujuan",
+    "showFullPrompt": "Tampilkan prompt lengkap",
+    "showLessPrompt": "Tampilkan lebih sedikit",
+    "details": "Detail",
+    "hideDetails": "Sembunyikan detail",
+    "copyId": "Salin ID",
+    "copied": "Disalin",
+    "edit": "Edit",
+    "cancel": "Batalkan",
+    "cancelConfirm": "Batalkan tugas terjadwal ini?",
+    "keep": "Simpan",
+    "cancelTask": "Batalkan tugas",
+    "cancelling": "Membatalkan...",
+    "cancelError": "Tidak dapat membatalkan tugas. Coba lagi.",
+    "cancellationSent": "Pembatalan dikirim",
+    "editDraftBusy": "Hapus draf saat ini sebelum mengedit jadwal ini.",
+    "copyFailed": "Tidak dapat menyalin. Pilih ID Tugas di Detail."
   }
 }

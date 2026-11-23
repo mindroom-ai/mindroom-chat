@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "关闭",
-      "invited": "已邀请 {{user}}。"
+      "invited": "已邀请 {{user}}。",
+      "giveRoleRights": "授予{{role}}权限",
+      "giveRoleRightsHelp": "此房间需要{{role}}权限才能折叠语音转写，并管理定时任务和房间设置。",
+      "roleFailed": "已邀请 {{user}}，但无法授予{{role}}权限：{{error}}",
+      "roleRequirementChanged": "此房间现在需要{{role}}权限。",
+      "roleWithLevel": "{{role}}（{{level}}）"
     },
     "joinAddressPrompt": {
       "close": "关闭",
@@ -467,6 +472,7 @@
         "close": "关闭通话视图",
         "participants": "通话中的人",
         "connecting": "正在连接…",
+        "connectingAnotherCall": "正在连接到另一个通话…",
         "reconnecting": "正在重新连接…",
         "ended": "通话已结束。",
         "waitingFor": "正在等待 {{name}}…",
@@ -592,7 +598,8 @@
     },
     "accountMenu": {
       "open": "打开 {{name}} 的账户菜单",
-      "manageAccounts": "管理账户"
+      "otherAccounts": "其他账户",
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "按 A 到 Z 排序房间"
@@ -713,6 +720,9 @@
         "save": "保存",
         "saved": "已保存",
         "clear": "清除",
+        "saveSetting": "保存{{setting}}",
+        "savedSetting": "已保存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
         "saveFailed": "无法保存该设置，请重试。",
@@ -722,6 +732,41 @@
           "default": "默认",
           "auto": "任何消息",
           "mentions": "仅在被提及时"
+        },
+        "sections": {
+          "agents": "智能体",
+          "threadTitles": "话题标题"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房间中所有智能体、团队和路由器的默认模型。话题内的单独覆盖仍具有更高优先级。",
+          "default": "使用配置的默认值",
+          "defaultDescription": "遵循 MindRoom 为此房间配置的默认值。",
+          "unknown": "未知模型：“{{value}}”不在此房间的模型列表中。",
+          "catalogUnavailable": "当前没有可用的模型列表。你仍可重置为配置的默认值。",
+          "storedRaw": "房间设置：{{value}}"
+        },
+        "threadMode": {
+          "label": "话题模式",
+          "description": "此房间中的智能体是在话题中还是在主时间线中回复。",
+          "default": "使用配置的默认值",
+          "thread": "话题",
+          "room": "主时间线",
+          "effective": "当前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "话题",
+            "room": "主时间线",
+            "mixed": "混合（因智能体而异）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "标题模型",
+          "description": "为此房间生成自动话题标题的模型。"
+        },
+        "agentInstructions": {
+          "label": "智能体说明",
+          "description": "提供给在此房间回复的每个智能体的额外说明。版主可以编辑它们；它们不会授予智能体任何额外权限。房间里的每个人都能读取它们，且房间状态不经过端到端加密，因此请勿在此放置机密信息。",
+          "placeholder": "例如：保持回答简短并用荷兰语回复"
         }
       }
     },
@@ -881,6 +926,20 @@
       "turnFold": {
         "earlier_other": "{{count}} 条较早的消息",
         "hide_other": "隐藏 {{count}} 条消息"
+      },
+      "membershipFold": {
+        "summary_other": "{{count}} 条房间事件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "隐藏 {{count}} 条房间事件",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人加入",
+        "left_other": "{{count}} 人离开",
+        "invited_other": "{{count}} 人受邀",
+        "requested_other": "{{count}} 人请求加入",
+        "kicked_other": "{{count}} 人被移出",
+        "banned_other": "{{count}} 人被封禁",
+        "unbanned_other": "{{count}} 人已解封",
+        "profileChanges_other": "{{count}} 次资料更改"
       },
       "questionCard": {
         "title": "问题",
@@ -1143,6 +1202,8 @@
         "defaultChoice": "默认",
         "threadOnly": "在此选择的模型仅适用于此话题。",
         "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
+        "chooseNextThread": "为下一个话题选择模型",
+        "nextThreadOnly": "此选择仅适用于下一个话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",
@@ -1677,6 +1738,32 @@
   },
   "roomSchedules": {
     "thisThread": "此讨论串",
-    "elsewhereInRoom": "此房间中的其他位置"
+    "elsewhereInRoom": "此房间中的其他位置",
+    "filterAll": "全部",
+    "filterLabel": "筛选定时任务",
+    "awaitingShort": "等待中",
+    "inSeconds": "{{count}}秒后",
+    "inMinutes": "{{count}}分钟后",
+    "inHours": "{{count}}小时后",
+    "inHoursMinutes": "{{hours}}小时{{minutes}}分钟后",
+    "inDays": "{{count}}天后",
+    "thread": "讨论串",
+    "destination": "目标位置",
+    "showFullPrompt": "显示完整提示词",
+    "showLessPrompt": "收起",
+    "details": "详情",
+    "hideDetails": "隐藏详情",
+    "copyId": "复制 ID",
+    "copied": "已复制",
+    "edit": "编辑",
+    "cancel": "取消",
+    "cancelConfirm": "确定取消此定时任务吗？",
+    "keep": "保留",
+    "cancelTask": "取消任务",
+    "cancelling": "正在取消...",
+    "cancelError": "无法取消任务，请重试。",
+    "cancellationSent": "已发送取消请求",
+    "editDraftBusy": "编辑此定时任务前，请先清空当前草稿。",
+    "copyFailed": "无法复制。请在详情中手动选择任务 ID。"
   }
 }

@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "關閉",
-      "invited": "已邀請 {{user}}。"
+      "invited": "已邀請 {{user}}。",
+      "giveRoleRights": "授予{{role}}權限",
+      "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
+      "roleFailed": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}",
+      "roleRequirementChanged": "此聊天室現在需要{{role}}權限。",
+      "roleWithLevel": "{{role}}（{{level}}）"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -467,6 +472,7 @@
         "close": "關閉通話檢視",
         "participants": "通話中的人",
         "connecting": "正在連線…",
+        "connectingAnotherCall": "正在連線到另一個通話…",
         "reconnecting": "正在重新連線…",
         "ended": "通話已結束。",
         "waitingFor": "正在等待 {{name}}…",
@@ -592,7 +598,8 @@
     },
     "accountMenu": {
       "open": "開啟 {{name}} 的帳戶選單",
-      "manageAccounts": "管理帳戶"
+      "otherAccounts": "其他帳戶",
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "依 A 到 Z 排序房間"
@@ -713,6 +720,9 @@
         "save": "儲存",
         "saved": "已儲存",
         "clear": "清除",
+        "saveSetting": "儲存{{setting}}",
+        "savedSetting": "已儲存{{setting}}",
+        "clearSetting": "清除{{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
         "saveFailed": "無法儲存設定，請再試一次。",
@@ -722,6 +732,41 @@
           "default": "預設",
           "auto": "任何訊息",
           "mentions": "僅在被提及時"
+        },
+        "sections": {
+          "agents": "代理人",
+          "threadTitles": "討論串標題"
+        },
+        "model": {
+          "label": "模型",
+          "description": "此房間中所有代理人、團隊與路由器的預設模型。討論串中的個別覆寫仍具有較高優先順序。",
+          "default": "使用設定的預設值",
+          "defaultDescription": "遵循 MindRoom 為此房間設定的預設值。",
+          "unknown": "未知模型：「{{value}}」不在此房間的模型清單中。",
+          "catalogUnavailable": "目前沒有可用的模型清單。你仍可重設為設定的預設值。",
+          "storedRaw": "聊天室設定：{{value}}"
+        },
+        "threadMode": {
+          "label": "討論串模式",
+          "description": "此房間中的代理人要在討論串中或主時間軸中回覆。",
+          "default": "使用設定的預設值",
+          "thread": "討論串",
+          "room": "主時間軸",
+          "effective": "目前生效模式：{{mode}}",
+          "effectiveModes": {
+            "thread": "討論串",
+            "room": "主時間軸",
+            "mixed": "混合（依代理人而異）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "標題模型",
+          "description": "為此房間產生自動討論串標題的模型。"
+        },
+        "agentInstructions": {
+          "label": "代理指示",
+          "description": "提供給在此聊天室回覆的每個代理的額外指示。版主可以編輯它們；它們不會授予代理任何額外權限。聊天室裡的每個人都能讀取它們，且聊天室狀態不經過端對端加密，因此請勿在此放置機密資訊。",
+          "placeholder": "例如：保持回答簡短並用荷蘭語回覆"
         }
       }
     },
@@ -881,6 +926,20 @@
       "turnFold": {
         "earlier_other": "{{count}} 則較早的訊息",
         "hide_other": "隱藏 {{count}} 則訊息"
+      },
+      "membershipFold": {
+        "summary_other": "{{count}} 則聊天室事件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "隱藏 {{count}} 則聊天室事件",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人加入",
+        "left_other": "{{count}} 人離開",
+        "invited_other": "{{count}} 人受邀",
+        "requested_other": "{{count}} 人請求加入",
+        "kicked_other": "{{count}} 人被移出",
+        "banned_other": "{{count}} 人被封鎖",
+        "unbanned_other": "{{count}} 人已解除封鎖",
+        "profileChanges_other": "{{count}} 次個人資料變更"
       },
       "questionCard": {
         "title": "問題",
@@ -1143,6 +1202,8 @@
         "defaultChoice": "預設",
         "threadOnly": "在此選擇的模型只套用於此討論串。",
         "roomOverrideThreadOnly": "已透過 !room_model 為此聊天室設定。在此選擇的模型只套用於此討論串。",
+        "chooseNextThread": "為下一個討論串選擇模型",
+        "nextThreadOnly": "此選擇只會套用至下一個討論串。",
         "levels": {
           "off": "關閉",
           "minimal": "最低",
@@ -1677,6 +1738,32 @@
   },
   "roomSchedules": {
     "thisThread": "此討論串",
-    "elsewhereInRoom": "此房間中的其他位置"
+    "elsewhereInRoom": "此房間中的其他位置",
+    "filterAll": "全部",
+    "filterLabel": "篩選排程任務",
+    "awaitingShort": "等待中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分鐘後",
+    "inHours": "{{count}}小時後",
+    "inHoursMinutes": "{{hours}}小時{{minutes}}分鐘後",
+    "inDays": "{{count}}天後",
+    "thread": "討論串",
+    "destination": "目標位置",
+    "showFullPrompt": "顯示完整提示詞",
+    "showLessPrompt": "收合",
+    "details": "詳細資訊",
+    "hideDetails": "隱藏詳細資訊",
+    "copyId": "複製 ID",
+    "copied": "已複製",
+    "edit": "編輯",
+    "cancel": "取消",
+    "cancelConfirm": "確定要取消此排程任務嗎？",
+    "keep": "保留",
+    "cancelTask": "取消任務",
+    "cancelling": "正在取消...",
+    "cancelError": "無法取消任務，請再試一次。",
+    "cancellationSent": "已傳送取消請求",
+    "editDraftBusy": "編輯此排程任務前，請先清除目前的草稿。",
+    "copyFailed": "無法複製。請在詳細資訊中手動選取任務 ID。"
   }
 }

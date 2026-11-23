@@ -108,11 +108,15 @@ const readPushTarget = (data: unknown): PushTarget | undefined => {
     room_id: roomId,
     event_id: eventId,
     [IOS_PUSH_ACCOUNT_KEY]: accountTag,
+    mindroom_ring: ring,
   } = data as Record<string, unknown>;
   if (typeof roomId !== 'string' || !roomId.startsWith('!')) return undefined;
+  const isRing = ring !== null && typeof ring === 'object';
   return {
     roomId,
-    eventId: typeof eventId === 'string' ? eventId : undefined,
+    // A tapped call ring opens the room (as the ring card's Open does) rather than jumping to the
+    // ring event; the existing call UI then decides whether the call is still live.
+    eventId: !isRing && typeof eventId === 'string' ? eventId : undefined,
     accountTag: typeof accountTag === 'string' ? accountTag : undefined,
   };
 };

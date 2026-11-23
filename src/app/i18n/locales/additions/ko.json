@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "닫기",
-      "invited": "{{user}} 님을 초대했습니다."
+      "invited": "{{user}} 님을 초대했습니다.",
+      "giveRoleRights": "{{role}} 권한 부여",
+      "giveRoleRightsHelp": "이 방에서 음성 기록을 접고 일정과 방 설정을 관리하려면 {{role}} 권한이 필요합니다.",
+      "roleFailed": "{{user}} 님을 초대했지만 {{role}} 권한을 부여할 수 없습니다: {{error}}",
+      "roleRequirementChanged": "이 방은 이제 {{role}} 권한이 필요합니다.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "닫기",
@@ -467,6 +472,7 @@
         "close": "통화 보기 닫기",
         "participants": "통화 참여자",
         "connecting": "연결 중…",
+        "connectingAnotherCall": "다른 통화에 연결 중…",
         "reconnecting": "다시 연결하는 중…",
         "ended": "통화가 종료되었습니다.",
         "waitingFor": "{{name}} 님을 기다리는 중…",
@@ -592,7 +598,8 @@
     },
     "accountMenu": {
       "open": "{{name}} 계정 메뉴 열기",
-      "manageAccounts": "계정 관리"
+      "otherAccounts": "다른 계정",
+      "manage": "관리"
     },
     "roomOrder": {
       "sortByName": "방을 가나다순으로 정렬"
@@ -713,6 +720,9 @@
         "save": "저장",
         "saved": "저장됨",
         "clear": "지우기",
+        "saveSetting": "{{setting}} 저장",
+        "savedSetting": "{{setting}} 저장됨",
+        "clearSetting": "{{setting}} 지우기",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "이 방의 설정을 바꿀 수 있는 사람만 편집할 수 있습니다.",
         "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요.",
@@ -722,6 +732,41 @@
           "default": "기본값",
           "auto": "모든 메시지",
           "mentions": "멘션될 때만"
+        },
+        "sections": {
+          "agents": "에이전트",
+          "threadTitles": "스레드 제목"
+        },
+        "model": {
+          "label": "모델",
+          "description": "이 방의 모든 에이전트, 팀, 라우터에 적용되는 기본 모델입니다. 스레드별 재정의가 여전히 우선합니다.",
+          "default": "구성된 기본값 사용",
+          "defaultDescription": "이 방에 구성된 MindRoom 기본값을 따릅니다.",
+          "unknown": "알 수 없는 모델: \"{{value}}\"은(는) 이 방의 모델 목록에 없습니다.",
+          "catalogUnavailable": "지금은 모델 목록을 불러올 수 없습니다. 구성된 기본값으로 재설정할 수는 있습니다.",
+          "storedRaw": "방 설정: {{value}}"
+        },
+        "threadMode": {
+          "label": "스레드 모드",
+          "description": "이 방에서 에이전트가 스레드에 답할지 메인 타임라인에 답할지 설정합니다.",
+          "default": "구성된 기본값 사용",
+          "thread": "스레드",
+          "room": "메인 타임라인",
+          "effective": "현재 적용 모드: {{mode}}",
+          "effectiveModes": {
+            "thread": "스레드",
+            "room": "메인 타임라인",
+            "mixed": "혼합(에이전트마다 다름)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "제목 모델",
+          "description": "이 방의 자동 스레드 제목을 작성하는 모델입니다."
+        },
+        "agentInstructions": {
+          "label": "에이전트 지침",
+          "description": "이 방에서 응답하는 모든 에이전트에게 전달되는 추가 지침입니다. 관리자가 편집할 수 있으며, 에이전트에게 추가 권한을 부여하지는 않습니다. 방의 모든 사람이 읽을 수 있고 방 상태는 종단간 암호화되지 않으므로 여기에 비밀 정보를 입력하지 마세요.",
+          "placeholder": "예: 답변은 짧게 하고 네덜란드어로 답장하세요"
         }
       }
     },
@@ -881,6 +926,20 @@
       "turnFold": {
         "earlier_other": "이전 메시지 {{count}}개",
         "hide_other": "메시지 {{count}}개 숨기기"
+      },
+      "membershipFold": {
+        "summary_other": "방 이벤트 {{count}}개",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "방 이벤트 {{count}}개 숨기기",
+        "listSeparator": ", ",
+        "joined_other": "{{count}}명 참여",
+        "left_other": "{{count}}명 나감",
+        "invited_other": "{{count}}명 초대",
+        "requested_other": "{{count}}명 참여 요청",
+        "kicked_other": "{{count}}명 내보냄",
+        "banned_other": "{{count}}명 차단",
+        "unbanned_other": "{{count}}명 차단 해제",
+        "profileChanges_other": "프로필 변경 {{count}}건"
       },
       "questionCard": {
         "title": "질문",
@@ -1143,6 +1202,8 @@
         "defaultChoice": "기본값",
         "threadOnly": "여기서 고른 모델은 이 스레드에만 적용됩니다.",
         "roomOverrideThreadOnly": "이 방에는 !room_model로 설정되어 있습니다. 여기서 고른 모델은 이 스레드에만 적용됩니다.",
+        "chooseNextThread": "다음 스레드의 모델 선택",
+        "nextThreadOnly": "이 선택은 다음 스레드에만 적용됩니다.",
         "levels": {
           "off": "끄기",
           "minimal": "최소",
@@ -1677,6 +1738,32 @@
   },
   "roomSchedules": {
     "thisThread": "이 스레드",
-    "elsewhereInRoom": "이 방의 다른 위치"
+    "elsewhereInRoom": "이 방의 다른 위치",
+    "filterAll": "전체",
+    "filterLabel": "예약된 작업 필터링",
+    "awaitingShort": "대기 중",
+    "inSeconds": "{{count}}초 후",
+    "inMinutes": "{{count}}분 후",
+    "inHours": "{{count}}시간 후",
+    "inHoursMinutes": "{{hours}}시간 {{minutes}}분 후",
+    "inDays": "{{count}}일 후",
+    "thread": "스레드",
+    "destination": "대상",
+    "showFullPrompt": "전체 프롬프트 보기",
+    "showLessPrompt": "간략히 보기",
+    "details": "세부 정보",
+    "hideDetails": "세부 정보 숨기기",
+    "copyId": "ID 복사",
+    "copied": "복사됨",
+    "edit": "편집",
+    "cancel": "취소",
+    "cancelConfirm": "이 예약된 작업을 취소하시겠습니까?",
+    "keep": "유지",
+    "cancelTask": "작업 취소",
+    "cancelling": "취소 중...",
+    "cancelError": "작업을 취소할 수 없습니다. 다시 시도하세요.",
+    "cancellationSent": "취소 요청 전송됨",
+    "editDraftBusy": "이 일정을 편집하기 전에 현재 초안을 지워 주세요.",
+    "copyFailed": "복사할 수 없습니다. 세부 정보에서 작업 ID를 선택하세요."
   }
 }

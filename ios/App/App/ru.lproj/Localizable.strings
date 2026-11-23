@@ -6,8 +6,8 @@
 "ACTION_FROM_USER_IN_ROOM" = "%2$@ %3$@ в %1$@";
 "IMAGE_FROM_USER" = "%1$@ отправляет изображение: %2$@";
 "IMAGE_FROM_USER_IN_ROOM" = "%1$@ отправляет изображение в %3$@: %2$@";
-"VOICE_CALL_FROM_USER" = "Голосовой звонок от %1$@";
-"VIDEO_CALL_FROM_USER" = "Видеозвонок от %1$@";
+"VOICE_CALL_FROM_USER" = "Входящий звонок от %1$@";
+"VIDEO_CALL_FROM_USER" = "Входящий видеозвонок от %1$@";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ приглашает вас в %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ приглашает вас в чат";
 "QUICK_CAPTURE" = "Быстрая запись";

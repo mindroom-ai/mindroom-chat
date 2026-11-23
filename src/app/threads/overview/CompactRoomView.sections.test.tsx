@@ -2,6 +2,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
@@ -9,6 +10,7 @@ import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
 import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
+import * as scrollFallback from './useCompactScrollFallback';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -76,14 +78,20 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID, myUserId: ME } as unknown as Room;
-const view = (threadRootIds: string[], sections = true) => (
+const view = (
+  threadRootIds: string[],
+  sections = true,
+  activeRoom = room,
+  singleBucketTab?: ThreadWorkflowBucket
+) => (
   <CompactRoomView
-    room={room}
+    room={activeRoom}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: new Map() }}
     sectionsNow={sections ? NOW : undefined}
+    singleBucketTab={singleBucketTab}
   />
 );
 
@@ -165,16 +173,59 @@ describe('the Compact room in sections', () => {
     });
   });
 
-  it('opens a section that shows alone, as the Done tab shows it, and keeps its stored fold', () => {
+  it('opens the section of a single-bucket tab, as the Done tab shows it, and restores its stored fold when cleared', () => {
     state.sections = [{ id: 'done', rootIds: ['$done'] }];
-    render(view(['$done']));
+    const { rerender } = render(view(['$done'], true, room, 'done'));
 
     expect(rows()).toEqual(['#done 1', '$done']);
-    // Nothing to fold: the header is a label, and the stored fold waits for the other sections.
+    // Under the Done tab the header is a plain label, and Done's stored fold is left untouched.
     const row = document.querySelector('[data-compact-section="done"]');
     expect(row?.querySelector('button')).toBeNull();
     expect(row?.textContent).toBe('thread.workflow.done · 1');
     expect(localStorage.getItem(`compactRoomSections:${ME}`)).toBeNull();
+
+    // Returning to All (no singleBucketTab) restores Done's stored fold.
+    rerender(view(['$done'], true, room, undefined));
+    expect(rows()).toEqual(['#done 1']);
+    expect(header('done').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('allows collapsing a lone section when not on a single-bucket tab and persists the fold', () => {
+    state.sections = [{ id: 'working', rootIds: ['$job', '$streaming'] }];
+    render(view(['$job', '$streaming']));
+
+    expect(rows()).toEqual(['#working 2', '$job', '$streaming']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      fireEvent.click(header('working'));
+    });
+
+    expect(rows()).toEqual(['#working 2']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('false');
+    expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+      on: false,
+      folded: ['done', 'working'],
+    });
+  });
+
+  it('starts a lone section folded when its bucket is stored folded and opens it on click', () => {
+    localStorage.setItem(
+      `compactRoomSections:${ME}`,
+      JSON.stringify({ on: true, folded: ['working', 'done'] })
+    );
+    state.sections = [{ id: 'working', rootIds: ['$job'] }];
+    render(view(['$job']));
+
+    expect(rows()).toEqual(['#working 1']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('false');
+
+    act(() => {
+      fireEvent.click(header('working'));
+    });
+
+    expect(rows()).toEqual(['#working 1', '$job']);
+    expect(header('working').getAttribute('aria-expanded')).toBe('true');
   });
 
   it('leads each section with its pinned cards instead of a Pinned list of their own', () => {
@@ -319,7 +370,7 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#needsYou 1', '$b', '#working 2', '$a', '$w']);
     });
 
-    it('keeps a lone section open when a new Working card brings a second, until let go', () => {
+    it('keeps a folded lone section folded when a second section arrives while held and after release', () => {
       localStorage.setItem(
         `compactRoomSections:${ME}`,
         JSON.stringify({ on: true, folded: ['needsYou'] })
@@ -333,77 +384,29 @@ describe('the Compact room in sections', () => {
         ['$a']
       );
 
-      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '$a']);
-
-      release();
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-    });
-
-    it('keeps only the lone section open: other stored folds still apply while held', () => {
-      localStorage.setItem(
-        `compactRoomSections:${ME}`,
-        JSON.stringify({ on: true, folded: ['working', 'done'] })
-      );
-      holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
-        [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
-          { id: 'done', rootIds: ['$d'] },
-        ],
-        ['$a', '$d']
-      );
-
-      expect(rows()).toEqual(['#needsYou 1', '$b', '#working 1', '#done 1']);
-    });
-
-    it('folds a held-open section stored open with one click on its header', () => {
-      const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
-        [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
-        ],
-        ['$a']
-      );
-
-      act(() => {
-        fireEvent.click(header('needsYou'));
-      });
       expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
       expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
 
       release();
       expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
     });
 
-    it('folds the held-open section from its header at once, and keeps it folded after', () => {
-      localStorage.setItem(
-        `compactRoomSections:${ME}`,
-        JSON.stringify({ on: true, folded: ['needsYou'] })
-      );
+    it('keeps a folded section folded when two sections shrink to one under hold and release', () => {
       const release = holdThenRegroup(
-        [{ id: 'needsYou', rootIds: ['$b'] }],
         [
-          { id: 'needsYou', rootIds: ['$b'] },
-          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$a'] },
+          { id: 'done', rootIds: ['$done'] },
         ],
-        ['$a']
+        [{ id: 'done', rootIds: ['$a', '$done'] }]
       );
-      expect(header('needsYou').getAttribute('aria-expanded')).toBe('true');
 
-      act(() => {
-        fireEvent.click(header('needsYou'));
-      });
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+      expect(rows()).toEqual(['#needsYou 0', '$a', '#done 2']);
+      expect(header('done').getAttribute('aria-expanded')).toBe('false');
 
       release();
-      expect(rows()).toEqual(['#needsYou 1', '#working 1', '$a']);
-      expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
-        on: true,
-        folded: ['needsYou'],
-      });
+      expect(rows()).toEqual(['#done 2']);
+      expect(header('done').getAttribute('aria-expanded')).toBe('false');
     });
 
     it('keeps a held section in its shown order while a new section comes in before it', () => {
@@ -449,6 +452,27 @@ describe('the Compact room in sections', () => {
       );
 
       expect(rows()).toEqual(['#needsYou 2', '$b1', '$b2']);
+    });
+
+    it('starts live for the new bucket tab when switching singleBucketTab under the pointer', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['working', 'done'] })
+      );
+      state.sections = [{ id: 'working', rootIds: ['$a'] }];
+      const { rerender } = render(view(['$a']));
+      expect(rows()).toEqual(['#working 1']);
+
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+
+      state.sections = [{ id: 'done', rootIds: ['$a'] }];
+      rerender(view(['$a'], true, room, 'done'));
+
+      expect(rows()).toEqual(['#done 1', '$a']);
+      expect(document.querySelector('[data-compact-section="done"] button')).toBeNull();
     });
 
     it('shows a new thread under its own header, which comes with it', () => {
@@ -554,6 +578,89 @@ describe('the Compact room in sections', () => {
 
     expect(rows()).toEqual(['$streaming', '$job']);
     expect(state.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+});
+
+describe('Compact order when the view switches under the pointer', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const hold = () => {
+    const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+    act(() => {
+      fireEvent.pointerEnter(list);
+    });
+    return () =>
+      act(() => {
+        fireEvent.pointerLeave(list);
+        fireEvent.click(document.body);
+      });
+  };
+
+  it('starts a flat room in its live order and holds that order on the next update', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    const { rerender } = render(view(['$a', '$b'], false));
+    hold();
+    rerender(view(['$b', '$a'], false));
+    expect(rows()).toEqual(['$a', '$b']);
+
+    const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+    const nextIds = ['$d', '$c'];
+    rerender(view(nextIds, false, nextRoom));
+    expect(fallback.mock.lastCall?.[0]).toBe(nextIds);
+    expect(rows()).toEqual(['$d', '$c']);
+    rerender(view(['$c', '$d'], false, nextRoom));
+    expect(rows()).toEqual(['$d', '$c']);
+  });
+
+  it('switches from Sections to flat using only the rows left after folding', () => {
+    state.sections = [
+      { id: 'working', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$done', '$b', '$a'];
+    const { rerender } = render(view(ids));
+    hold();
+    expect(rows()).toEqual(['#working 2', '$a', '$b', '#done 1']);
+
+    rerender(view(ids, false));
+    // The folded card is a newcomer, so it leads, while $a and $b keep their shown order.
+    expect(rows()).toEqual(['$done', '$a', '$b']);
+  });
+
+  it('reuses the section rows for scroll anchoring when the pointer lets go after a switch', () => {
+    const fallback = vi.spyOn(scrollFallback, 'useCompactScrollFallback');
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$done'] },
+    ];
+    const ids = ['$a', '$done'];
+    const { rerender } = render(view(ids, false));
+    const release = hold();
+    rerender(view(ids));
+    const sectionRows = fallback.mock.lastCall?.[0];
+    expect(sectionRows).toEqual(['section:needsYou', '$a', 'section:done']);
+
+    fallback.mockClear();
+    release();
+    expect(fallback.mock.lastCall?.[0]).toBe(sectionRows);
+  });
+
+  it('switches from flat to live Sections, then holds those sections on the next update', () => {
+    const ids = ['$a', '$b', '$c'];
+    const { rerender } = render(view(ids, false));
+    hold();
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$b', '$a'] },
+      { id: 'working', rootIds: ['$c'] },
+    ];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 2', '$b', '$a', '#working 1', '$c']);
+
+    state.sections = [{ id: 'needsYou', rootIds: ['$c', '$a', '$b'] }];
+    rerender(view(ids));
+    expect(rows()).toEqual(['#needsYou 3', '$b', '$a', '#working 0', '$c']);
   });
 });
 

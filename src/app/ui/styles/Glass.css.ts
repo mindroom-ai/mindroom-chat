@@ -224,7 +224,10 @@ export const glassFadeDown = style({
         '&::before': {
           content: '""',
           position: 'absolute',
-          inset: 0,
+          // A pixel up, under the chrome above, so no sharp line of content shows between the
+          // two. The slot stands at the chrome's height rounded to a whole pixel, and on an
+          // iPhone one row of device pixels between them showed the content sharp.
+          inset: '-1px 0 0',
           zIndex: -1,
           pointerEvents: 'none',
           vars: {

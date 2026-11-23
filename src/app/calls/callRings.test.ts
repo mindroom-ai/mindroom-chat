@@ -9,7 +9,14 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { recordRecentLiveEvents } from '../matrix/client/recentLiveEvents';
-import { declineRing, declinedRingId, readRing, watchRings } from './callRings';
+import {
+  chooseCallNotify,
+  declineRing,
+  declinedRingId,
+  MAX_RING_JOINED_MEMBERS,
+  readRing,
+  watchRings,
+} from './callRings';
 
 const ME = '@me:example.org';
 const NOW = 1_000_000;
@@ -377,5 +384,22 @@ describe('watchRings', () => {
 
     expect(heard).toEqual(['ring $before', 'ring $after']);
     stop();
+  });
+});
+
+describe('chooseCallNotify', () => {
+  it('rings direct rooms and rooms with two or three joined members, and notifies larger ones', () => {
+    expect(MAX_RING_JOINED_MEMBERS).toBe(3);
+    expect(chooseCallNotify({ peopleInCall: 0, direct: true, joinedMembers: 2 })).toBe('ring');
+    expect(chooseCallNotify({ peopleInCall: 0, direct: true, joinedMembers: 5 })).toBe('ring');
+    expect(chooseCallNotify({ peopleInCall: 0, direct: false, joinedMembers: 2 })).toBe('ring');
+    expect(chooseCallNotify({ peopleInCall: 0, direct: false, joinedMembers: 3 })).toBe('ring');
+    expect(chooseCallNotify({ peopleInCall: 0, direct: false, joinedMembers: 4 })).toBe(
+      'notification'
+    );
+    expect(chooseCallNotify({ peopleInCall: 0, direct: false, joinedMembers: 1 })).toBe(
+      'notification'
+    );
+    expect(chooseCallNotify({ peopleInCall: 1, direct: true, joinedMembers: 2 })).toBeUndefined();
   });
 });

@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "बंद करें",
-      "invited": "{{user}} को आमंत्रित किया गया।"
+      "invited": "{{user}} को आमंत्रित किया गया।",
+      "giveRoleRights": "{{role}} अधिकार दें",
+      "giveRoleRightsHelp": "वॉइस ट्रांसक्रिप्ट समेटने और शेड्यूल व रूम सेटिंग्स प्रबंधित करने के लिए इस रूम में {{role}} अधिकार चाहिए।",
+      "roleFailed": "{{user}} को आमंत्रित किया गया, लेकिन {{role}} अधिकार नहीं दिए जा सके: {{error}}",
+      "roleRequirementChanged": "इस रूम में अब {{role}} अधिकार चाहिए।",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",
@@ -476,6 +481,7 @@
         "close": "कॉल व्यू बंद करें",
         "participants": "कॉल में मौजूद लोग",
         "connecting": "कनेक्ट हो रहा है…",
+        "connectingAnotherCall": "किसी अन्य कॉल से कनेक्ट हो रहा है…",
         "reconnecting": "फिर से कनेक्ट हो रहा है…",
         "ended": "कॉल समाप्त हो गई।",
         "waitingFor": "{{name}} की प्रतीक्षा की जा रही है…",
@@ -605,7 +611,8 @@
     },
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
-      "manageAccounts": "खातों का प्रबंधन"
+      "otherAccounts": "अन्य खाते",
+      "manage": "प्रबंधित करें"
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"
@@ -726,6 +733,9 @@
         "save": "सहेजें",
         "saved": "सहेजा गया",
         "clear": "साफ़ करें",
+        "saveSetting": "{{setting}} सहेजें",
+        "savedSetting": "{{setting}} सहेजा गया",
+        "clearSetting": "{{setting}} साफ़ करें",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "इसे सिर्फ़ वही लोग बदल सकते हैं जिन्हें इस रूम की सेटिंग बदलने की अनुमति है।",
         "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।",
@@ -735,6 +745,41 @@
           "default": "डिफ़ॉल्ट",
           "auto": "हर संदेश पर",
           "mentions": "सिर्फ़ उल्लेख होने पर"
+        },
+        "sections": {
+          "agents": "एजेंट",
+          "threadTitles": "थ्रेड शीर्षक"
+        },
+        "model": {
+          "label": "मॉडल",
+          "description": "इस रूम के हर एजेंट, टीम और राउटर के लिए डिफ़ॉल्ट मॉडल। थ्रेड के अपने चयन को अभी भी प्राथमिकता मिलती है।",
+          "default": "कॉन्फ़िगर किया गया डिफ़ॉल्ट उपयोग करें",
+          "defaultDescription": "इस रूम के लिए MindRoom के कॉन्फ़िगर किए गए डिफ़ॉल्ट का पालन करें।",
+          "unknown": "अज्ञात मॉडल: \"{{value}}\" इस रूम की मॉडल सूची में नहीं है।",
+          "catalogUnavailable": "इस समय कोई मॉडल सूची उपलब्ध नहीं है। आप फिर भी कॉन्फ़िगर किए गए डिफ़ॉल्ट पर रीसेट कर सकते हैं।",
+          "storedRaw": "रूम की सेटिंग: {{value}}"
+        },
+        "threadMode": {
+          "label": "थ्रेड मोड",
+          "description": "इस रूम में एजेंट थ्रेड में जवाब दें या मुख्य टाइमलाइन में।",
+          "default": "कॉन्फ़िगर किया गया डिफ़ॉल्ट उपयोग करें",
+          "thread": "थ्रेड",
+          "room": "मुख्य टाइमलाइन",
+          "effective": "वर्तमान प्रभावी मोड: {{mode}}",
+          "effectiveModes": {
+            "thread": "थ्रेड",
+            "room": "मुख्य टाइमलाइन",
+            "mixed": "मिश्रित (एजेंट के अनुसार भिन्न)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "शीर्षक मॉडल",
+          "description": "वह मॉडल जो इस रूम के स्वचालित थ्रेड शीर्षक लिखता है।"
+        },
+        "agentInstructions": {
+          "label": "एजेंट के लिए निर्देश",
+          "description": "इस रूम में जवाब देने वाले हर एजेंट को दिए जाने वाले अतिरिक्त निर्देश। मॉडरेटर इन्हें संपादित कर सकते हैं; इनसे एजेंटों को कोई अतिरिक्त अनुमति नहीं मिलती। रूम में हर कोई इन्हें पढ़ सकता है, और रूम स्टेट एंड-टू-एंड एन्क्रिप्टेड नहीं होता, इसलिए यहाँ कोई गोपनीय जानकारी न डालें।",
+          "placeholder": "उदाहरण: जवाब छोटे रखें और डच में उत्तर दें"
         }
       }
     },
@@ -898,6 +943,30 @@
         "earlier_other": "{{count}} पिछले संदेश",
         "hide_one": "{{count}} संदेश छिपाएँ",
         "hide_other": "{{count}} संदेश छिपाएँ"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} रूम इवेंट",
+        "summary_other": "{{count}} रूम इवेंट",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} रूम इवेंट छिपाएँ",
+        "hide_other": "{{count}} रूम इवेंट छिपाएँ",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} शामिल हुए",
+        "joined_other": "{{count}} शामिल हुए",
+        "left_one": "{{count}} बाहर गए",
+        "left_other": "{{count}} बाहर गए",
+        "invited_one": "{{count}} आमंत्रित",
+        "invited_other": "{{count}} आमंत्रित",
+        "requested_one": "{{count}} ने शामिल होने का अनुरोध किया",
+        "requested_other": "{{count}} ने शामिल होने का अनुरोध किया",
+        "kicked_one": "{{count}} निकाले गए",
+        "kicked_other": "{{count}} निकाले गए",
+        "banned_one": "{{count}} प्रतिबंधित",
+        "banned_other": "{{count}} प्रतिबंधित",
+        "unbanned_one": "{{count}} से प्रतिबंध हटा",
+        "unbanned_other": "{{count}} से प्रतिबंध हटा",
+        "profileChanges_one": "{{count}} प्रोफ़ाइल बदलाव",
+        "profileChanges_other": "{{count}} प्रोफ़ाइल बदलाव"
       },
       "questionCard": {
         "title": "सवाल",
@@ -1174,6 +1243,8 @@
         "defaultChoice": "डिफ़ॉल्ट",
         "threadOnly": "यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
         "roomOverrideThreadOnly": "इस रूम के लिए !room_model से सेट किया गया। यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
+        "chooseNextThread": "अगले थ्रेड के लिए मॉडल चुनें",
+        "nextThreadOnly": "यह चयन केवल अगले थ्रेड पर लागू होगा।",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",
@@ -1721,6 +1792,32 @@
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",
-    "elsewhereInRoom": "इस रूम में कहीं और"
+    "elsewhereInRoom": "इस रूम में कहीं और",
+    "filterAll": "सभी",
+    "filterLabel": "शेड्यूल किए गए कार्य फ़िल्टर करें",
+    "awaitingShort": "प्रतीक्षारत",
+    "inSeconds": "{{count}}से में",
+    "inMinutes": "{{count}}मि में",
+    "inHours": "{{count}}घं में",
+    "inHoursMinutes": "{{hours}}घं {{minutes}}मि में",
+    "inDays": "{{count}}दि में",
+    "thread": "थ्रेड",
+    "destination": "गंतव्य",
+    "showFullPrompt": "पूरा प्रॉम्प्ट दिखाएं",
+    "showLessPrompt": "कम दिखाएं",
+    "details": "विवरण",
+    "hideDetails": "विवरण छिपाएं",
+    "copyId": "आईडी कॉपी करें",
+    "copied": "कॉपी हो गया",
+    "edit": "संपादित करें",
+    "cancel": "रद्द करें",
+    "cancelConfirm": "क्या इस शेड्यूल किए गए कार्य को रद्द करें?",
+    "keep": "रखें",
+    "cancelTask": "कार्य रद्द करें",
+    "cancelling": "रद्द किया जा रहा है...",
+    "cancelError": "कार्य रद्द नहीं किया जा सका। फिर से प्रयास करें।",
+    "cancellationSent": "रद्दीकरण भेजा गया",
+    "editDraftBusy": "इस शेड्यूल को संपादित करने से पहले अपना वर्तमान ड्राफ़्ट साफ़ करें।",
+    "copyFailed": "कॉपी नहीं किया जा सका। विवरण में कार्य आईडी चुनें।"
   }
 }

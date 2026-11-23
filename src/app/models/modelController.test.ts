@@ -17,6 +17,7 @@ import { CryptoEvent, type CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getModelController, disposeModelController } from './modelController';
+import { THREAD_MODEL_KEY } from '../matrix/protocol/threadModel';
 
 const viewer = '@viewer:test';
 const router = '@mindroom_router:test';
@@ -2008,5 +2009,821 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().pending).toBe(false);
     expect(h.snapshot().error).toBeDefined();
     expect(h.snapshot().loading).toBe(true);
+  });
+  it('populates the Settings catalog view from a legacy runtime without enabling the room composer', async () => {
+    const h = setup();
+    const unsubSettings1 = h.controller.subscribeRoomCatalog(h.room, () => {});
+    const unsubSettings2 = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    expect(h.queued).toHaveLength(1);
+    const settingsReq = h.request();
+    expect(settingsReq.room_id).toBe(h.room.roomId);
+    expect('thread_id' in settingsReq).toBe(false);
+
+    // A thread-scoped response does not answer the room-settings catalog query.
+    h.response(settingsReq, { thread_id: '$root' });
+    await flush();
+    expect(h.controller.getRoomCatalogSnapshot(h.room).models).toHaveLength(0);
+
+    // A legacy runtime (model_selection only, no thread_model_on_root) populates Settings.
+    h.response(settingsReq, { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    const settingsSnap = h.controller.getRoomCatalogSnapshot(h.room);
+    expect(settingsSnap.eligible).toBe(true);
+    expect(settingsSnap.loading).toBe(false);
+    expect(settingsSnap.models.map((m) => m.key)).toEqual(['fast', 'reset']);
+    expect(settingsSnap.canMutate).toBe(true);
+
+    // The room composer stays ineligible for that same legacy runtime.
+    const unsubComposer = h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    h.response(h.request(), { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getSnapshot(h.room, undefined).eligible).toBe(false);
+
+    unsubComposer();
+    unsubSettings1();
+    unsubSettings2();
+  });
+
+  it('preserves a room composer draft while Settings discovers and switches runtimes', async () => {
+    const h = setup();
+    const secondDevice = new Device({
+      userId: router,
+      deviceId: 'DEVICE2',
+      algorithms: ['m.olm.v1.curve25519-aes-sha2'],
+      keys: new Map([['curve25519:DEVICE2', 'curve2']]),
+    });
+    h.devices.get(router)!.set('DEVICE2', secondDevice);
+
+    const unsubComposer = h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const composerReq = h.request();
+    const caps = ['model_selection', 'thread_model_on_root'];
+    h.response(composerReq, { capabilities: caps });
+    h.response(
+      composerReq,
+      {
+        capabilities: caps,
+        models: [{ key: 'alt', display_name: 'Alt', provider: 'openai', id: 'alt-1' }],
+      },
+      { senderCurve25519KeyBase64: 'curve2' }
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const [rt1, rt2] = h.controller.getSnapshot(h.room, undefined).runtimes.map((r) => r.id);
+    expect(rt1).toBeTruthy();
+    expect(rt2).toBeTruthy();
+    h.controller.chooseRuntime(h.room, undefined, rt1!);
+    h.controller.selectModel(h.room, undefined, 'fast');
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+
+    // Open Settings and switch Settings to the second runtime.
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    const settingsReq = h.request();
+    h.response(settingsReq, { capabilities: caps });
+    h.response(
+      settingsReq,
+      {
+        capabilities: caps,
+        models: [{ key: 'alt', display_name: 'Alt', provider: 'openai', id: 'alt-1' }],
+      },
+      { senderCurve25519KeyBase64: 'curve2' }
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    h.controller.chooseRoomCatalogRuntime(h.room, rt2!);
+    expect(h.controller.getRoomCatalogSnapshot(h.room).runtime?.id).toBe(rt2);
+    expect(h.controller.getRoomCatalogSnapshot(h.room).models.map((m) => m.key)).toEqual(['alt']);
+
+    // The room composer's runtime and pending next-thread draft remain intact.
+    expect(h.controller.getSnapshot(h.room, undefined).runtime?.id).toBe(rt1);
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      'io.mindroom.thread_model': {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'fast',
+      },
+    });
+
+    unsubSettings();
+    unsubComposer();
+  });
+
+  it('does not overwrite the cached thread seed when Settings discovers a room catalog', async () => {
+    const h = setup();
+    const unsubThread = await h.discover({
+      models: [{ key: 'seeded', display_name: 'Seeded', provider: 'openai', id: 'seeded-1' }],
+      selection: { override: null, inherited: [{ entity: 'helper', model: 'seeded' }] },
+    });
+    unsubThread();
+
+    // Settings discovers a different catalog; it must not replace the thread seed cache.
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    h.response(h.request(), {
+      models: [{ key: 'room-only', display_name: 'Room Only', provider: 'openai', id: 'room-1' }],
+      selection: { override: null, inherited: [] },
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getRoomCatalogSnapshot(h.room).models.map((m) => m.key)).toEqual([
+      'room-only',
+    ]);
+
+    // A new thread opened before its own discovery answers still sees the original thread seed.
+    const nextThreadSnap = h.controller.getSnapshot(h.room, '$next-thread');
+    expect(nextThreadSnap.eligible).toBe(true);
+    expect(nextThreadSnap.models.map((m) => m.key)).toEqual(['seeded']);
+
+    unsubSettings();
+  });
+
+  it('drops the Settings list after a refresh nobody answers, and shows the next answer at once', async () => {
+    const h = setup();
+    const snapshot = () => h.controller.getRoomCatalogSnapshot(h.room);
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    h.response(h.request());
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(snapshot().canMutate).toBe(true);
+
+    // A model menu opens with the runtime away: the models it had stay, unconfirmed.
+    h.controller.refreshRoomCatalog(h.room);
+    expect(snapshot()).toMatchObject({ loading: true, canMutate: false });
+    expect(snapshot().models.map((m) => m.key)).toEqual(['fast', 'reset']);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(snapshot()).toMatchObject({
+      loading: false,
+      canMutate: false,
+      runtimes: [],
+      models: [],
+    });
+    expect(snapshot().runtime).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(3000);
+    h.response(h.request(), {
+      models: [{ key: 'new', display_name: 'New', provider: 'openai', id: 'new-1' }],
+    });
+    await flush();
+    expect(snapshot()).toMatchObject({ loading: true, canMutate: true });
+    expect(snapshot().models.map((m) => m.key)).toEqual(['new']);
+
+    unsubSettings();
+  });
+
+  it('confirms each runtime of the Settings catalog by its own answer to the opening', async () => {
+    const h = setup();
+    h.devices.get(router)!.set(
+      'DEVICE2',
+      new Device({
+        userId: router,
+        deviceId: 'DEVICE2',
+        algorithms: ['m.olm.v1.curve25519-aes-sha2'],
+        keys: new Map([['curve25519:DEVICE2', 'curve2']]),
+      })
+    );
+    const snapshot = () => h.controller.getRoomCatalogSnapshot(h.room);
+    const keys = () => snapshot().models.map((m) => m.key);
+    const second = (request: any, key: string) =>
+      h.response(
+        request,
+        { models: [{ key, display_name: key, provider: 'openai', id: key }] },
+        { senderCurve25519KeyBase64: 'curve2' }
+      );
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    h.response(h.request());
+    second(h.request(), 'alt');
+    await vi.advanceTimersByTimeAsync(12000);
+    const [first, other] = snapshot().runtimes.map((r) => r.id);
+    h.controller.chooseRoomCatalogRuntime(h.room, first!);
+    expect(snapshot().canMutate).toBe(true);
+
+    // The menu opens and the first runtime answers: the second still shows the list it had.
+    h.controller.refreshRoomCatalog(h.room);
+    await flush();
+    h.response(h.request());
+    await flush();
+    expect(snapshot().canMutate).toBe(true);
+    h.controller.chooseRoomCatalogRuntime(h.room, other!);
+    expect(keys()).toEqual(['alt']);
+    expect(snapshot().canMutate).toBe(false);
+    second(h.request(), 'alt-2');
+    await flush();
+    expect(keys()).toEqual(['alt-2']);
+    expect(snapshot().canMutate).toBe(true);
+
+    // An answer that came before its runtime was chosen shows with it, confirmed.
+    h.controller.chooseRoomCatalogRuntime(h.room, first!);
+    h.controller.refreshRoomCatalog(h.room);
+    await flush();
+    second(h.request(), 'alt-3');
+    await flush();
+    expect(keys()).toEqual(['fast', 'reset']);
+    expect(snapshot().canMutate).toBe(false);
+    h.controller.chooseRoomCatalogRuntime(h.room, other!);
+    expect(keys()).toEqual(['alt-3']);
+    expect(snapshot().canMutate).toBe(true);
+
+    unsubSettings();
+  });
+
+  it('asks anew when a Settings menu opens while an earlier query still collects', async () => {
+    const h = setup();
+    const snapshot = () => h.controller.getRoomCatalogSnapshot(h.room);
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    const earlier = h.request();
+    h.response(earlier);
+    await flush();
+    expect(snapshot()).toMatchObject({ loading: true, canMutate: true });
+
+    const asked = h.queued.length;
+    h.controller.refreshRoomCatalog(h.room);
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    expect(snapshot().canMutate).toBe(false);
+    // An answer to the earlier query is from before this opening.
+    h.response(earlier);
+    await flush();
+    expect(snapshot().canMutate).toBe(false);
+    h.response(h.request());
+    await flush();
+    expect(snapshot().canMutate).toBe(true);
+
+    unsubSettings();
+  });
+
+  it('keeps a Settings list a refused refresh could not confirm, unconfirmed until the retry', async () => {
+    const h = setup();
+    const snapshot = () => h.controller.getRoomCatalogSnapshot(h.room);
+    const unsubSettings = h.controller.subscribeRoomCatalog(h.room, () => {});
+    await flush();
+    h.response(h.request());
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(snapshot().canMutate).toBe(true);
+
+    const busy = Array.from({ length: 8 }, (_, index) =>
+      h.controller.subscribe(h.room, '$busy' + index, () => {})
+    );
+    await flush();
+    h.controller.refreshRoomCatalog(h.room);
+    expect(snapshot()).toMatchObject({ loading: false, canMutate: false });
+    expect(snapshot().error).toBeDefined();
+    expect(snapshot().models.map((m) => m.key)).toEqual(['fast', 'reset']);
+
+    busy.forEach((leave) => leave());
+    await vi.advanceTimersByTimeAsync(3000);
+    expect('thread_id' in h.request()).toBe(false);
+    h.response(h.request());
+    await flush();
+    expect(snapshot().canMutate).toBe(true);
+
+    unsubSettings();
+  });
+});
+
+describe('ModelController main-room next-thread draft', () => {
+  const rootCaps = ['model_selection', 'thread_model_on_root'];
+  const reasoningModels = [
+    {
+      key: 'sonnet',
+      display_name: 'Sonnet',
+      provider: 'anthropic',
+      id: 'claude-sonnet',
+      reasoning_levels: ['low', 'medium', 'high'],
+      reasoning_default: 'medium',
+    },
+    { key: 'fast', display_name: 'Quick', provider: 'openai', id: 'model' },
+  ];
+
+  const discoverMainRoom = async (
+    h: ReturnType<typeof setup>,
+    changes: Record<string, unknown> = {}
+  ) => {
+    const unsubscribe = h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    h.response(h.request(), {
+      capabilities: rootCaps,
+      models: reasoningModels,
+      ...changes,
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    return unsubscribe;
+  };
+
+  it('stays ineligible in main-room scope when runtime lacks thread_model_on_root', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    expect(req.thread_id).toBeUndefined();
+    h.response(req, { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      canMutate: false,
+      override: null,
+      error: undefined,
+    });
+  });
+
+  it('sets, updates with reasoning level, clears, and consumes the local draft without sending', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: null,
+      reasoning: null,
+    });
+
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'sonnet',
+      reasoning: 'high',
+      pending: false,
+    });
+
+    const stamped = h.controller.takeRootModelDraft(h.room);
+    expect(stamped).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+
+    // Choosing Default clears the draft without sending.
+    h.controller.selectModel(h.room, undefined, 'fast');
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+    h.controller.resetToRoomDefault(h.room, undefined);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBeNull();
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('preserves a valid draft across routine membership events', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.member('@bystander:test', 'join');
+    const bystander = h.room.getMember('@bystander:test')!;
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), bystander, 'leave');
+    await flush();
+
+    // Still stamped even if sent before the background re-probe answers.
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBe('fast');
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'fast',
+      },
+    });
+  });
+
+  it('silently drops the draft and hides the picker when the runtime leaves', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.member(router, 'leave');
+    const routerMember = h.room.getMember(router)!;
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), routerMember, 'join');
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('silently drops the draft and hides the picker when thread_model_on_root disappears', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(h.request(), { capabilities: ['model_selection'] });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('keeps the draft through a completed routine-membership refresh when the same runtime answers', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.member('@bystander:test', 'join');
+    h.mx.emit(
+      RoomMemberEvent.Membership,
+      new MatrixEvent({}),
+      h.room.getMember('@bystander:test')!,
+      'leave'
+    );
+    await flush();
+    h.response(h.request(), { capabilities: rootCaps, models: reasoningModels }, {}, router);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('drops the draft silently when another runtime becomes the shown catalog poster', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(alpha)!, 'leave');
+    await flush();
+
+    // Only A answers the refresh; picker switches to A and must never show B's draft against A.
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const snap = h.controller.getSnapshot(h.room, undefined);
+    expect(snap).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: null,
+      reasoning: null,
+    });
+    expect(snap.runtime?.userId).toBe(alpha);
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('drops the draft silently on a device change or when another device of the same user answers', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    // A device update for the draft runtime drops the draft immediately.
+    h.devices.set(router, new Map([['DEV_NEW', h.device(router, 'DEV_NEW', 'curve-new')]]));
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+
+    // Even without DevicesUpdated, a refresh answered by a different device of the same user drops it.
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-new' },
+      router
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.devices.set(router, new Map([['DEV_THIRD', h.device(router, 'DEV_THIRD', 'curve-third')]]));
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-third' },
+      router
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const snap = h.controller.getSnapshot(h.room, undefined);
+    expect(snap.runtime?.deviceId).toBe('DEV_THIRD');
+    expect(snap.override).toBeNull();
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('drops the draft immediately if its exact runtime answers without thread_model_on_root after invalidation', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.member('@bystander:test', 'join');
+    h.mx.emit(
+      RoomMemberEvent.Membership,
+      new MatrixEvent({}),
+      h.room.getMember('@bystander:test')!,
+      'leave'
+    );
+    await flush();
+    h.response(h.request(), { capabilities: ['model_selection'] }, {}, router);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined).override).toBeNull();
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('drops the draft when the same runtime removes the picked model or level on refresh', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(
+      h.request(),
+      {
+        capabilities: rootCaps,
+        models: [{ key: 'fast', display_name: 'Quick', provider: 'openai', id: 'model' }],
+      },
+      {},
+      router
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('keeps the draft when DevicesUpdated fires only for another runtime', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    h.response(req, { capabilities: rootCaps, models: reasoningModels }, {}, router);
+    h.response(
+      req,
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const routerRuntime = h.controller
+      .getSnapshot(h.room, undefined)
+      .runtimes.find((r) => r.userId === router)!;
+    h.controller.chooseRuntime(h.room, undefined, routerRuntime.id);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.mx.emit(CryptoEvent.DevicesUpdated, [alpha], false);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('drops the draft when its runtime replies with empty capabilities lacking model_selection', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(h.request(), { capabilities: [] }, {}, router);
+    await flush();
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: false,
+      override: null,
+      reasoning: null,
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toBeUndefined();
+  });
+
+  it('pins the shown runtime when picking before a second runtime answers discovery', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, undefined, () => {});
+    await flush();
+    const req = h.request();
+    h.response(req, { capabilities: rootCaps, models: reasoningModels }, {}, router);
+    await flush();
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    // Second runtime answers later in the same discovery window.
+    h.response(
+      req,
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const snap = h.controller.getSnapshot(h.room, undefined);
+    expect(snap.runtime?.userId).toBe(router);
+    expect(snap).toMatchObject({ override: 'sonnet', reasoning: 'high' });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('clears stale chosenRuntimeId on fallback so the new sole runtime answers immediately', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'fast');
+
+    // Alpha becomes sole poster; fallback switches shown runtime to alpha.
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(alpha)!, 'leave');
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.controller.getSnapshot(h.room, undefined).runtime?.userId).toBe(alpha);
+
+    // Next refresh after membership invalidation accepts alpha immediately before the 12s window ends.
+    h.member('@bystander:test', 'join');
+    h.mx.emit(
+      RoomMemberEvent.Membership,
+      new MatrixEvent({}),
+      h.room.getMember('@bystander:test')!,
+      'leave'
+    );
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: rootCaps, models: reasoningModels },
+      { senderCurve25519KeyBase64: 'curve-a' },
+      alpha
+    );
+    await flush();
+    expect(h.controller.getSnapshot(h.room, undefined).canMutate).toBe(true);
+  });
+
+  it('keeps the room draft when the runtime withdraws model_selection but keeps thread_model_on_root', async () => {
+    const h = setup();
+    await discoverMainRoom(h);
+    h.controller.selectModel(h.room, undefined, 'sonnet', 'high');
+
+    h.controller.refresh(h.room, undefined);
+    await flush();
+    h.response(
+      h.request(),
+      { capabilities: ['thread_model_on_root'], models: reasoningModels },
+      {},
+      router
+    );
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    expect(h.controller.getSnapshot(h.room, undefined)).toMatchObject({
+      eligible: true,
+      canMutate: true,
+      override: 'sonnet',
+      reasoning: 'high',
+    });
+    expect(h.controller.takeRootModelDraft(h.room)).toEqual({
+      [THREAD_MODEL_KEY]: {
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        model: 'sonnet@high',
+      },
+    });
+  });
+
+  it('does not seed existing threads from a room-scope reply lacking model_selection', async () => {
+    const h = setup();
+    await discoverMainRoom(h, { capabilities: ['thread_model_on_root'] });
+    expect(h.controller.getSnapshot(h.room, undefined).eligible).toBe(true);
+
+    // A root-only runtime must not enter the shared room cache for existing threads.
+    expect(h.controller.getSnapshot(h.room, '$existing-thread')).toMatchObject({
+      eligible: false,
+      runtimes: [],
+      models: [],
+    });
+  });
+
+  it('does not reset an existing thread chosenRuntimeId when a refresh falls back to another runtime', async () => {
+    const h = setup();
+    const alpha = '@mindroom_alpha:test';
+    h.member(alpha, 'join');
+    h.devices.set(alpha, new Map([['DEV_A', h.device(alpha, 'DEV_A', 'curve-a')]]));
+
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    const req1 = h.request();
+    h.response(req1, {}, {}, router);
+    h.response(req1, {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+
+    const routerRuntime = h.snapshot('$root').runtimes.find((r) => r.userId === router)!;
+    h.controller.chooseRuntime(h.room, '$root', routerRuntime.id);
+    expect(h.snapshot('$root').runtime?.userId).toBe(router);
+
+    // Refresh 2: only alpha answers, so the thread falls back temporarily to alpha.
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    h.response(h.request(), {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot('$root').runtime?.userId).toBe(alpha);
+
+    // Refresh 3: both answer again; the thread must still remember its explicit choice (router).
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    const req3 = h.request();
+    h.response(req3, {}, {}, router);
+    h.response(req3, {}, { senderCurve25519KeyBase64: 'curve-a' }, alpha);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot('$root').runtime?.userId).toBe(router);
+  });
+
+  it('isolates drafts per account and clears on dispose', async () => {
+    const h1 = setup(false, '@alice:test');
+    const h2 = setup(false, '@bob:test');
+    await discoverMainRoom(h1);
+    h1.controller.selectModel(h1.room, undefined, 'fast');
+
+    expect(h2.controller.getSnapshot(h2.room, undefined).override).toBeNull();
+    expect(h2.controller.takeRootModelDraft(h2.room)).toBeUndefined();
+
+    h1.controller.dispose();
+    expect(h1.controller.takeRootModelDraft(h1.room)).toBeUndefined();
   });
 });

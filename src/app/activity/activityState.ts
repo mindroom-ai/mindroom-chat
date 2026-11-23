@@ -8,4 +8,8 @@ export const activityUnreadOnlyAtom = atom(false);
 export const activityShowAutomationsAtom = atom(false);
 
 /** Activity's rows, which `ActivityRowsFeature` keeps current. */
-export const activityRowsAtom = atom<ActivityRowsResult>({ rows: [], hiddenAutomations: 0 });
+export const activityRowsAtom = atom<ActivityRowsResult>({
+  rows: [],
+  hiddenAutomations: 0,
+  loading: true,
+});

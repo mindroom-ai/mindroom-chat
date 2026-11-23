@@ -106,7 +106,12 @@
     },
     "inviteUserPrompt": {
       "close": "إغلاق",
-      "invited": "تمت دعوة ⁨{{user}}⁩."
+      "invited": "تمت دعوة ⁨{{user}}⁩.",
+      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
+      "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
+      "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
+      "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
+      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -512,6 +517,7 @@
         "close": "إغلاق عرض المكالمة",
         "participants": "الأشخاص في المكالمة",
         "connecting": "جارٍ الاتصال…",
+        "connectingAnotherCall": "جارٍ الاتصال بمكالمة أخرى…",
         "reconnecting": "جارٍ إعادة الاتصال…",
         "ended": "انتهت المكالمة.",
         "waitingFor": "في انتظار ⁨{{name}}⁩…",
@@ -657,7 +663,8 @@
     },
     "accountMenu": {
       "open": "فتح قائمة حساب ⁨{{name}}⁩",
-      "manageAccounts": "إدارة الحسابات"
+      "otherAccounts": "حسابات أخرى",
+      "manage": "إدارة"
     },
     "roomOrder": {
       "sortByName": "ترتيب الغرف من أ إلى ي"
@@ -778,6 +785,9 @@
         "save": "حفظ",
         "saved": "تم الحفظ",
         "clear": "مسح",
+        "saveSetting": "حفظ ⁨{{setting}}⁩",
+        "savedSetting": "تم الحفظ: ⁨{{setting}}⁩",
+        "clearSetting": "مسح ⁨{{setting}}⁩",
         "characterCount": "⁨{{length, number}}⁩ / ⁨{{max, number}}⁩",
         "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
         "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى.",
@@ -787,6 +797,41 @@
           "default": "الافتراضي",
           "auto": "أي رسالة",
           "mentions": "فقط عند الإشارة إليهم"
+        },
+        "sections": {
+          "agents": "الوكلاء",
+          "threadTitles": "عناوين سلاسل المحادثات"
+        },
+        "model": {
+          "label": "النموذج",
+          "description": "النموذج الافتراضي لكل وكيل وفريق وموجّه في هذه الغرفة. تبقى استثناءات سلاسل المحادثات ذات أولوية.",
+          "default": "استخدام الإعداد الافتراضي",
+          "defaultDescription": "اتباع الإعداد الافتراضي المهيّأ في MindRoom لهذه الغرفة.",
+          "unknown": "نموذج غير معروف: «⁨{{value}}⁩» غير موجود في قائمة نماذج هذه الغرفة.",
+          "catalogUnavailable": "لا تتوفر قائمة نماذج حاليًا. لا يزال بإمكانك إعادة التعيين إلى الإعداد الافتراضي.",
+          "storedRaw": "إعداد الغرفة: ⁨{{value}}⁩"
+        },
+        "threadMode": {
+          "label": "وضع السلاسل",
+          "description": "ما إذا كان الوكلاء يردون داخل سلاسل المحادثات أو في الخط الزمني الرئيسي لهذه الغرفة.",
+          "default": "استخدام الإعداد الافتراضي",
+          "thread": "سلاسل المحادثات",
+          "room": "الخط الزمني الرئيسي",
+          "effective": "الوضع الفعلي الحالي: ⁨{{mode}}⁩",
+          "effectiveModes": {
+            "thread": "سلاسل المحادثات",
+            "room": "الخط الزمني الرئيسي",
+            "mixed": "مختلط (يختلف حسب الوكيل)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "نموذج العناوين",
+          "description": "النموذج الذي يكتب العناوين التلقائية لسلاسل المحادثات في هذه الغرفة."
+        },
+        "agentInstructions": {
+          "label": "تعليمات الوكلاء",
+          "description": "تعليمات إضافية تُعطى لكل وكيل يرد في هذه الغرفة. يمكن للمشرفين تعديلها؛ ولا تمنح الوكلاء أي أذونات إضافية. يمكن للجميع في الغرفة قراءتها، وحالة الغرفة ليست مشفّرة من طرف إلى طرف، لذا لا تضع أسرارًا هنا.",
+          "placeholder": "مثال: اجعل الردود مختصرة وأجب باللغة الهولندية"
         }
       }
     },
@@ -966,6 +1011,70 @@
         "hide_few": "إخفاء ⁨{{count}}⁩ رسائل",
         "hide_many": "إخفاء ⁨{{count}}⁩ رسالة",
         "hide_other": "إخفاء ⁨{{count}}⁩ رسالة"
+      },
+      "membershipFold": {
+        "summary_zero": "⁨{{count}}⁩ حدثًا في الغرفة",
+        "summary_one": "حدث غرفة واحد (⁨{{count}}⁩)",
+        "summary_two": "حدثا غرفة (⁨{{count}}⁩)",
+        "summary_few": "⁨{{count}}⁩ أحداث في الغرفة",
+        "summary_many": "⁨{{count}}⁩ حدثًا في الغرفة",
+        "summary_other": "⁨{{count}}⁩ حدثًا في الغرفة",
+        "summaryWithDetails": "⁨{{summary}}⁩ · ⁨{{details}}⁩",
+        "hide_zero": "إخفاء ⁨{{count}}⁩ حدثًا في الغرفة",
+        "hide_one": "إخفاء حدث غرفة واحد (⁨{{count}}⁩)",
+        "hide_two": "إخفاء حدثَي غرفة (⁨{{count}}⁩)",
+        "hide_few": "إخفاء ⁨{{count}}⁩ أحداث في الغرفة",
+        "hide_many": "إخفاء ⁨{{count}}⁩ حدثًا في الغرفة",
+        "hide_other": "إخفاء ⁨{{count}}⁩ حدثًا في الغرفة",
+        "listSeparator": "، ",
+        "joined_zero": "انضم ⁨{{count}}⁩",
+        "joined_one": "انضم ⁨{{count}}⁩",
+        "joined_two": "انضم ⁨{{count}}⁩",
+        "joined_few": "انضم ⁨{{count}}⁩",
+        "joined_many": "انضم ⁨{{count}}⁩",
+        "joined_other": "انضم ⁨{{count}}⁩",
+        "left_zero": "غادر ⁨{{count}}⁩",
+        "left_one": "غادر ⁨{{count}}⁩",
+        "left_two": "غادر ⁨{{count}}⁩",
+        "left_few": "غادر ⁨{{count}}⁩",
+        "left_many": "غادر ⁨{{count}}⁩",
+        "left_other": "غادر ⁨{{count}}⁩",
+        "invited_zero": "دُعي ⁨{{count}}⁩",
+        "invited_one": "دُعي ⁨{{count}}⁩",
+        "invited_two": "دُعي ⁨{{count}}⁩",
+        "invited_few": "دُعي ⁨{{count}}⁩",
+        "invited_many": "دُعي ⁨{{count}}⁩",
+        "invited_other": "دُعي ⁨{{count}}⁩",
+        "requested_zero": "طلب ⁨{{count}}⁩ الانضمام",
+        "requested_one": "طلب ⁨{{count}}⁩ الانضمام",
+        "requested_two": "طلب ⁨{{count}}⁩ الانضمام",
+        "requested_few": "طلب ⁨{{count}}⁩ الانضمام",
+        "requested_many": "طلب ⁨{{count}}⁩ الانضمام",
+        "requested_other": "طلب ⁨{{count}}⁩ الانضمام",
+        "kicked_zero": "أُخرج ⁨{{count}}⁩",
+        "kicked_one": "أُخرج ⁨{{count}}⁩",
+        "kicked_two": "أُخرج ⁨{{count}}⁩",
+        "kicked_few": "أُخرج ⁨{{count}}⁩",
+        "kicked_many": "أُخرج ⁨{{count}}⁩",
+        "kicked_other": "أُخرج ⁨{{count}}⁩",
+        "banned_zero": "حُظر ⁨{{count}}⁩",
+        "banned_one": "حُظر ⁨{{count}}⁩",
+        "banned_two": "حُظر ⁨{{count}}⁩",
+        "banned_few": "حُظر ⁨{{count}}⁩",
+        "banned_many": "حُظر ⁨{{count}}⁩",
+        "banned_other": "حُظر ⁨{{count}}⁩",
+        "unbanned_zero": "أُلغي حظر ⁨{{count}}⁩",
+        "unbanned_one": "أُلغي حظر ⁨{{count}}⁩",
+        "unbanned_two": "أُلغي حظر ⁨{{count}}⁩",
+        "unbanned_few": "أُلغي حظر ⁨{{count}}⁩",
+        "unbanned_many": "أُلغي حظر ⁨{{count}}⁩",
+        "unbanned_other": "أُلغي حظر ⁨{{count}}⁩",
+        "profileChanges_zero": "⁨{{count}}⁩ تغييرًا في الملف الشخصي",
+        "profileChanges_one": "تغيير واحد في الملف الشخصي (⁨{{count}}⁩)",
+        "profileChanges_two": "تغييران في الملف الشخصي (⁨{{count}}⁩)",
+        "profileChanges_few": "⁨{{count}}⁩ تغييرات في الملف الشخصي",
+        "profileChanges_many": "⁨{{count}}⁩ تغييرًا في الملف الشخصي",
+        "profileChanges_other": "⁨{{count}}⁩ تغييرًا في الملف الشخصي"
       },
       "questionCard": {
         "title": "سؤال",
@@ -1298,6 +1407,8 @@
         "defaultChoice": "افتراضي",
         "threadOnly": "ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
         "roomOverrideThreadOnly": "مُعيَّن لهذه الغرفة باستخدام !room_model. ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
+        "chooseNextThread": "اختيار نموذج للسلسلة التالية",
+        "nextThreadOnly": "ينطبق هذا الاختيار على السلسلة التالية فقط.",
         "levels": {
           "off": "إيقاف",
           "minimal": "أدنى",
@@ -1897,6 +2008,32 @@
   },
   "roomSchedules": {
     "thisThread": "سلسلة المحادثة هذه",
-    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة"
+    "elsewhereInRoom": "في مواضع أخرى من هذه الغرفة",
+    "filterAll": "الكل",
+    "filterLabel": "تصفية المهام المجدولة",
+    "awaitingShort": "قيد الانتظار",
+    "inSeconds": "بعد ⁨{{count}}⁩ث",
+    "inMinutes": "بعد ⁨{{count}}⁩د",
+    "inHours": "بعد ⁨{{count}}⁩س",
+    "inHoursMinutes": "بعد ⁨{{hours}}⁩س ⁨{{minutes}}⁩د",
+    "inDays": "بعد ⁨{{count}}⁩ي",
+    "thread": "سلسلة",
+    "destination": "الوجهة",
+    "showFullPrompt": "عرض الموجه بالكامل",
+    "showLessPrompt": "عرض أقل",
+    "details": "التفاصيل",
+    "hideDetails": "إخفاء التفاصيل",
+    "copyId": "نسخ المعرف",
+    "copied": "تم النسخ",
+    "edit": "تعديل",
+    "cancel": "إلغاء",
+    "cancelConfirm": "إلغاء هذه المهمة المجدولة؟",
+    "keep": "إبقاء",
+    "cancelTask": "إلغاء المهمة",
+    "cancelling": "جارٍ الإلغاء...",
+    "cancelError": "تعذر إلغاء المهمة. حاول مرة أخرى.",
+    "cancellationSent": "تم إرسال الإلغاء",
+    "editDraftBusy": "امسح المسودة الحالية قبل تعديل هذه المهمة المجدولة.",
+    "copyFailed": "تعذر النسخ. حدد معرف المهمة في التفاصيل."
   }
 }

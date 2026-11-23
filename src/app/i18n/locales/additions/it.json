@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
-      "invited": "{{user}} è stato invitato."
+      "invited": "{{user}} è stato invitato.",
+      "giveRoleRights": "Assegna i permessi di {{role}}",
+      "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
+      "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
+      "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",
@@ -485,6 +490,7 @@
         "close": "Chiudi la vista della chiamata",
         "participants": "Persone nella chiamata",
         "connecting": "Connessione in corso…",
+        "connectingAnotherCall": "Connessione a un’altra chiamata in corso…",
         "reconnecting": "Riconnessione in corso…",
         "ended": "La chiamata è terminata.",
         "waitingFor": "In attesa di {{name}}…",
@@ -618,7 +624,8 @@
     },
     "accountMenu": {
       "open": "Apri il menu dell'account di {{name}}",
-      "manageAccounts": "Gestisci account"
+      "otherAccounts": "Altri account",
+      "manage": "Gestisci"
     },
     "roomOrder": {
       "sortByName": "Ordina le stanze dalla A alla Z"
@@ -739,6 +746,9 @@
         "save": "Salva",
         "saved": "Salvato",
         "clear": "Cancella",
+        "saveSetting": "Salva {{setting}}",
+        "savedSetting": "Salvato: {{setting}}",
+        "clearSetting": "Cancella {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",
         "saveFailed": "Impossibile salvare l’impostazione. Riprova.",
@@ -748,6 +758,41 @@
           "default": "Predefinito",
           "auto": "A ogni messaggio",
           "mentions": "Solo se menzionati"
+        },
+        "sections": {
+          "agents": "Agenti",
+          "threadTitles": "Titoli dei thread"
+        },
+        "model": {
+          "label": "Modello",
+          "description": "Modello predefinito per ogni agente, team e router in questa stanza. Le scelte sui singoli thread hanno comunque la precedenza.",
+          "default": "Usa predefinito configurato",
+          "defaultDescription": "Segui il modello predefinito configurato in MindRoom per questa stanza.",
+          "unknown": "Modello sconosciuto: \"{{value}}\" non è presente nell’elenco modelli di questa stanza.",
+          "catalogUnavailable": "Nessun elenco modelli disponibile al momento. Puoi comunque ripristinare il valore predefinito configurato.",
+          "storedRaw": "Impostazione della stanza: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modalità thread",
+          "description": "Indica se gli agenti rispondono nei thread o nella sequenza principale di questa stanza.",
+          "default": "Usa predefinito configurato",
+          "thread": "Thread",
+          "room": "Sequenza principale",
+          "effective": "Modalità effettiva attuale: {{mode}}",
+          "effectiveModes": {
+            "thread": "Thread",
+            "room": "Sequenza principale",
+            "mixed": "Mista (varia per agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modello per i titoli",
+          "description": "Modello che genera i titoli automatici dei thread di questa stanza."
+        },
+        "agentInstructions": {
+          "label": "Istruzioni per gli agenti",
+          "description": "Istruzioni aggiuntive fornite a ogni agente che risponde in questa stanza. I moderatori possono modificarle; non concedono autorizzazioni aggiuntive agli agenti. Tutti nella stanza possono leggerle e lo stato della stanza non è crittografato end-to-end, quindi non inserire segreti qui.",
+          "placeholder": "Per esempio: mantieni le risposte brevi e rispondi in olandese"
         }
       }
     },
@@ -915,6 +960,40 @@
         "hide_one": "Nascondi {{count}} messaggio",
         "hide_many": "Nascondi {{count}} messaggi",
         "hide_other": "Nascondi {{count}} messaggi"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} evento della stanza",
+        "summary_many": "{{count}} eventi della stanza",
+        "summary_other": "{{count}} eventi della stanza",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Nascondi {{count}} evento della stanza",
+        "hide_many": "Nascondi {{count}} eventi della stanza",
+        "hide_other": "Nascondi {{count}} eventi della stanza",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} entrato",
+        "joined_many": "{{count}} entrati",
+        "joined_other": "{{count}} entrati",
+        "left_one": "{{count}} uscito",
+        "left_many": "{{count}} usciti",
+        "left_other": "{{count}} usciti",
+        "invited_one": "{{count}} invitato",
+        "invited_many": "{{count}} invitati",
+        "invited_other": "{{count}} invitati",
+        "requested_one": "{{count}} ha chiesto di entrare",
+        "requested_many": "{{count}} hanno chiesto di entrare",
+        "requested_other": "{{count}} hanno chiesto di entrare",
+        "kicked_one": "{{count}} rimosso",
+        "kicked_many": "{{count}} rimossi",
+        "kicked_other": "{{count}} rimossi",
+        "banned_one": "{{count}} bandito",
+        "banned_many": "{{count}} banditi",
+        "banned_other": "{{count}} banditi",
+        "unbanned_one": "{{count}} riammesso",
+        "unbanned_many": "{{count}} riammessi",
+        "unbanned_other": "{{count}} riammessi",
+        "profileChanges_one": "{{count}} modifica al profilo",
+        "profileChanges_many": "{{count}} modifiche al profilo",
+        "profileChanges_other": "{{count}} modifiche al profilo"
       },
       "questionCard": {
         "title": "Domanda",
@@ -1205,6 +1284,8 @@
         "defaultChoice": "Predefinito",
         "threadOnly": "Il modello scelto qui vale solo per questo thread.",
         "roomOverrideThreadOnly": "Impostato per questa stanza con !room_model. Il modello scelto qui vale solo per questo thread.",
+        "chooseNextThread": "Scegli il modello per il prossimo thread",
+        "nextThreadOnly": "Questa scelta vale solo per il prossimo thread.",
         "levels": {
           "off": "Disattivato",
           "minimal": "Minimo",
@@ -1765,6 +1846,32 @@
   },
   "roomSchedules": {
     "thisThread": "Questo thread",
-    "elsewhereInRoom": "Altrove in questa stanza"
+    "elsewhereInRoom": "Altrove in questa stanza",
+    "filterAll": "Tutte",
+    "filterLabel": "Filtra attività pianificate",
+    "awaitingShort": "In attesa",
+    "inSeconds": "tra {{count}}s",
+    "inMinutes": "tra {{count}}m",
+    "inHours": "tra {{count}}h",
+    "inHoursMinutes": "tra {{hours}}h {{minutes}}m",
+    "inDays": "tra {{count}}g",
+    "thread": "Thread",
+    "destination": "Destinazione",
+    "showFullPrompt": "Mostra prompt completo",
+    "showLessPrompt": "Mostra meno",
+    "details": "Dettagli",
+    "hideDetails": "Nascondi dettagli",
+    "copyId": "Copia ID",
+    "copied": "Copiato",
+    "edit": "Modifica",
+    "cancel": "Annulla",
+    "cancelConfirm": "Annullare questa attività pianificata?",
+    "keep": "Mantieni",
+    "cancelTask": "Annulla attività",
+    "cancelling": "Annullamento...",
+    "cancelError": "Impossibile annullare l'attività. Riprova.",
+    "cancellationSent": "Annullamento inviato",
+    "editDraftBusy": "Cancella la bozza attuale prima di modificare questa pianificazione.",
+    "copyFailed": "Impossibile copiare. Seleziona l'ID attività in Dettagli."
   }
 }

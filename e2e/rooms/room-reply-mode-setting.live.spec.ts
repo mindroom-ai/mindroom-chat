@@ -68,10 +68,12 @@ test('a room admin sets how agents answer, and a member sees it read-only', asyn
     const memberMenu = await openReplyMode(memberPage, member, roomId);
     await expect(memberMenu).toHaveText('Only when mentioned');
     await expect(memberMenu).toBeDisabled();
-    // Each setting on the page says it is read-only: the reply mode and the thread title rules.
+    const replyModeTile = memberPage
+      .getByRole('dialog')
+      .locator('[data-room-setting="reply_mode"]');
     await expect(
-      memberPage.getByText("Only people allowed to change this room's settings can edit this.")
-    ).toHaveCount(2);
+      replyModeTile.getByText("Only people allowed to change this room's settings can edit this.")
+    ).toBeVisible();
   } finally {
     await memberContext.close();
   }

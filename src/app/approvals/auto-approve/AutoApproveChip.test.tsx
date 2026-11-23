@@ -4,11 +4,25 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
-import type { AutoApproveWindow } from '../../matrix/protocol/autoApproveContract';
+import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import {
+  MINDROOM_AUTO_APPROVE_EVENT,
+  type AutoApproveWindow,
+} from '../../matrix/protocol/autoApproveContract';
 import { AutoApproveChip } from './AutoApproveChip';
 
-const state = vi.hoisted(() => ({ windows: [] as AutoApproveWindow[], hour24Clock: false }));
-vi.mock('../../matrix/protocol/agentRoomState', () => ({ useAgentRoomState: () => state.windows }));
+const state = vi.hoisted(() => ({
+  windows: [] as AutoApproveWindow[],
+  events: null as MatrixEvent[] | null,
+  hour24Clock: false,
+}));
+vi.mock('../../matrix/protocol/agentRoomState', () => ({
+  useAgentRoomState: (
+    _room: Room,
+    _type: string,
+    select: (events: MatrixEvent[]) => AutoApproveWindow[]
+  ) => (state.events ? select(state.events) : state.windows),
+}));
 vi.mock('../../preferences/useSetting', () => ({
   useSetting: () => [state.hour24Clock, () => undefined],
 }));
@@ -58,6 +72,7 @@ beforeEach(() => {
   vi.useFakeTimers({ now: NOW });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.windows = [];
+  state.events = null;
   state.hour24Clock = false;
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -162,4 +177,62 @@ it('drops a window once it ends', () => {
     vi.advanceTimersByTime(60_000);
   });
   expect(chip()).toBeNull();
+});
+
+const stateEvent = (
+  sender: string,
+  ts: number,
+  windows: Array<{ thread_id: string | null; requester_id: string; expires_at: string }>
+) =>
+  new MatrixEvent({
+    content: { windows },
+    event_id: `$auto-${sender}-${ts}`,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender,
+    state_key: sender,
+    type: MINDROOM_AUTO_APPROVE_EVENT,
+  });
+
+it('shows nothing when a newer steward cleared windows while an older steward still has one', () => {
+  state.events = [
+    stateEvent('@mindroom_alpha:example.org', 100, [
+      {
+        thread_id: '$thread',
+        requester_id: ME,
+        expires_at: new Date(NOW + 60_000).toISOString(),
+      },
+    ]),
+    stateEvent('@mindroom_beta:example.org', 200, []),
+  ];
+  render();
+  expect(container.innerHTML).toBe('');
+});
+
+it('shows one row per requester when two stewards both list a window for them', () => {
+  const olderEnd = NOW + 30 * 60_000;
+  const newerEnd = NOW + 60 * 60_000;
+  state.events = [
+    stateEvent('@mindroom_alpha:example.org', 100, [
+      {
+        thread_id: '$thread',
+        requester_id: ME,
+        expires_at: new Date(olderEnd).toISOString(),
+      },
+    ]),
+    stateEvent('@mindroom_beta:example.org', 200, [
+      {
+        thread_id: '$thread',
+        requester_id: ME,
+        expires_at: new Date(newerEnd).toISOString(),
+      },
+    ]),
+  ];
+  render();
+  act(() => {
+    chip()?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  const entries = [...container.querySelectorAll('[role="dialog"] section')];
+  expect(entries).toHaveLength(1);
+  expect(entries[0]?.textContent).toContain(time(newerEnd));
 });

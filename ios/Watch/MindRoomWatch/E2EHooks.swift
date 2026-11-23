@@ -26,6 +26,7 @@ enum E2EHooks {
     /// Milliseconds since the epoch when the app started: the hooks act on what was sent after it.
     static let launchedAt = Int(Date().timeIntervalSince1970 * 1000) - 5_000
     static var resolveNewest: Bool { environment["MINDROOM_WATCH_E2E_RESOLVE"] == "newest" }
+    static var scrollToRows: Bool { environment["MINDROOM_WATCH_E2E_SCROLL_ROWS"] == "1" }
     static var resolved = false
     private static var sent = false
     private static var acted: Set<String> = []
@@ -78,6 +79,12 @@ enum E2EHooks {
     /// A line the e2e script reads from the simulator's log.
     static func log(_ line: String) {
         Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "e2e").notice("\(line, privacy: .public)")
+    }
+
+    /// A line for the simulator run only (it names its room): what a thread says and each request's path do not
+    /// reach the log of a Debug build on a person's watch.
+    static func trace(_ line: @autoclosure () -> String) {
+        if room != nil { log(line()) }
     }
 
     @MainActor

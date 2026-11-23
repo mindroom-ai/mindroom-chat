@@ -97,7 +97,12 @@
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
-      "invited": "Se invitó a {{user}}."
+      "invited": "Se invitó a {{user}}.",
+      "giveRoleRights": "Dar permisos de {{role}}",
+      "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
+      "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
+      "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -485,6 +490,7 @@
         "close": "Cerrar la vista de la llamada",
         "participants": "Personas en la llamada",
         "connecting": "Conectando…",
+        "connectingAnotherCall": "Conectando a otra llamada…",
         "reconnecting": "Reconectando…",
         "ended": "La llamada terminó.",
         "waitingFor": "Esperando a {{name}}…",
@@ -618,7 +624,8 @@
     },
     "accountMenu": {
       "open": "Abrir el menú de la cuenta de {{name}}",
-      "manageAccounts": "Gestionar cuentas"
+      "otherAccounts": "Otras cuentas",
+      "manage": "Gestionar"
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de la A a la Z"
@@ -739,6 +746,9 @@
         "save": "Guardar",
         "saved": "Guardado",
         "clear": "Borrar",
+        "saveSetting": "Guardar {{setting}}",
+        "savedSetting": "Guardado: {{setting}}",
+        "clearSetting": "Borrar {{setting}}",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",
         "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
@@ -748,6 +758,41 @@
           "default": "Predeterminado",
           "auto": "A cualquier mensaje",
           "mentions": "Solo si los mencionan"
+        },
+        "sections": {
+          "agents": "Agentes",
+          "threadTitles": "Títulos de hilos"
+        },
+        "model": {
+          "label": "Modelo",
+          "description": "Modelo predeterminado para cada agente, equipo y enrutador en esta sala. Las selecciones por hilo siguen teniendo prioridad.",
+          "default": "Usar el valor predeterminado configurado",
+          "defaultDescription": "Seguir el valor predeterminado configurado en MindRoom para esta sala.",
+          "unknown": "Modelo desconocido: «{{value}}» no está en la lista de modelos de esta sala.",
+          "catalogUnavailable": "No hay ninguna lista de modelos disponible en este momento. Aun así puedes restablecer al valor predeterminado configurado.",
+          "storedRaw": "Ajuste de la sala: {{value}}"
+        },
+        "threadMode": {
+          "label": "Modo de hilos",
+          "description": "Si los agentes responden en hilos o en la línea temporal principal de esta sala.",
+          "default": "Usar el valor predeterminado configurado",
+          "thread": "Hilos",
+          "room": "Línea temporal principal",
+          "effective": "Modo efectivo actual: {{mode}}",
+          "effectiveModes": {
+            "thread": "Hilos",
+            "room": "Línea temporal principal",
+            "mixed": "Mixto (varía según el agente)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Modelo de títulos",
+          "description": "Modelo que genera los títulos automáticos de los hilos de esta sala."
+        },
+        "agentInstructions": {
+          "label": "Instrucciones para los agentes",
+          "description": "Instrucciones adicionales que se dan a cada agente al responder en esta sala. Los moderadores pueden editarlas; no conceden permisos adicionales a los agentes. Todas las personas de la sala pueden leerlas y el estado de la sala no está cifrado de extremo a extremo, así que no pongas secretos aquí.",
+          "placeholder": "Por ejemplo: mantén las respuestas breves y responde en neerlandés"
         }
       }
     },
@@ -915,6 +960,40 @@
         "hide_one": "Ocultar {{count}} mensaje",
         "hide_many": "Ocultar {{count}} mensajes",
         "hide_other": "Ocultar {{count}} mensajes"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} evento de sala",
+        "summary_many": "{{count}} eventos de sala",
+        "summary_other": "{{count}} eventos de sala",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Ocultar {{count}} evento de sala",
+        "hide_many": "Ocultar {{count}} eventos de sala",
+        "hide_other": "Ocultar {{count}} eventos de sala",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} se unió",
+        "joined_many": "{{count}} se unieron",
+        "joined_other": "{{count}} se unieron",
+        "left_one": "{{count}} salió",
+        "left_many": "{{count}} salieron",
+        "left_other": "{{count}} salieron",
+        "invited_one": "{{count}} invitado",
+        "invited_many": "{{count}} invitados",
+        "invited_other": "{{count}} invitados",
+        "requested_one": "{{count}} solicitó unirse",
+        "requested_many": "{{count}} solicitaron unirse",
+        "requested_other": "{{count}} solicitaron unirse",
+        "kicked_one": "{{count}} expulsado",
+        "kicked_many": "{{count}} expulsados",
+        "kicked_other": "{{count}} expulsados",
+        "banned_one": "{{count}} vetado",
+        "banned_many": "{{count}} vetados",
+        "banned_other": "{{count}} vetados",
+        "unbanned_one": "{{count}} readmitido",
+        "unbanned_many": "{{count}} readmitidos",
+        "unbanned_other": "{{count}} readmitidos",
+        "profileChanges_one": "{{count}} cambio de perfil",
+        "profileChanges_many": "{{count}} cambios de perfil",
+        "profileChanges_other": "{{count}} cambios de perfil"
       },
       "questionCard": {
         "title": "Pregunta",
@@ -1205,6 +1284,8 @@
         "defaultChoice": "Predeterminado",
         "threadOnly": "El modelo que elijas aquí solo se aplica a este hilo.",
         "roomOverrideThreadOnly": "Establecido para esta sala con !room_model. El modelo que elijas aquí solo se aplica a este hilo.",
+        "chooseNextThread": "Elegir un modelo para el próximo hilo",
+        "nextThreadOnly": "Esta elección solo se aplica al próximo hilo.",
         "levels": {
           "off": "Desactivado",
           "minimal": "Mínimo",
@@ -1765,6 +1846,32 @@
   },
   "roomSchedules": {
     "thisThread": "Este hilo",
-    "elsewhereInRoom": "En otras partes de esta sala"
+    "elsewhereInRoom": "En otras partes de esta sala",
+    "filterAll": "Todas",
+    "filterLabel": "Filtrar tareas programadas",
+    "awaitingShort": "Pendiente",
+    "inSeconds": "en {{count}}s",
+    "inMinutes": "en {{count}}m",
+    "inHours": "en {{count}}h",
+    "inHoursMinutes": "en {{hours}}h {{minutes}}m",
+    "inDays": "en {{count}}d",
+    "thread": "Hilo",
+    "destination": "Destino",
+    "showFullPrompt": "Mostrar prompt completo",
+    "showLessPrompt": "Mostrar menos",
+    "details": "Detalles",
+    "hideDetails": "Ocultar detalles",
+    "copyId": "Copiar ID",
+    "copied": "Copiado",
+    "edit": "Editar",
+    "cancel": "Cancelar",
+    "cancelConfirm": "¿Cancelar esta tarea programada?",
+    "keep": "Conservar",
+    "cancelTask": "Cancelar tarea",
+    "cancelling": "Cancelando...",
+    "cancelError": "No se pudo cancelar la tarea. Inténtalo de nuevo.",
+    "cancellationSent": "Cancelación enviada",
+    "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
+    "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
   }
 }

@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Kapat",
-      "invited": "{{user}} davet edildi."
+      "invited": "{{user}} davet edildi.",
+      "giveRoleRights": "{{role}} yetkisi ver",
+      "giveRoleRightsHelp": "Bu oda, sesli mesaj dökümlerini daraltmak ve zamanlamalar ile oda ayarlarını yönetmek için {{role}} yetkisi gerektirir.",
+      "roleFailed": "{{user}} davet edildi, ancak {{role}} yetkisi verilemedi: {{error}}",
+      "roleRequirementChanged": "Bu oda artık {{role}} yetkisi gerektiriyor.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Kapat",
@@ -476,6 +481,7 @@
         "close": "Arama görünümünü kapat",
         "participants": "Aramadaki kişiler",
         "connecting": "Bağlanıyor…",
+        "connectingAnotherCall": "Başka bir aramaya bağlanıyor…",
         "reconnecting": "Yeniden bağlanıyor…",
         "ended": "Arama sona erdi.",
         "waitingFor": "{{name}} bekleniyor…",
@@ -605,7 +611,8 @@
     },
     "accountMenu": {
       "open": "{{name}} için hesap menüsünü aç",
-      "manageAccounts": "Hesapları yönet"
+      "otherAccounts": "Diğer hesaplar",
+      "manage": "Yönet"
     },
     "roomOrder": {
       "sortByName": "Odaları A'dan Z'ye sırala"
@@ -726,6 +733,9 @@
         "save": "Kaydet",
         "saved": "Kaydedildi",
         "clear": "Temizle",
+        "saveSetting": "{{setting}} kaydet",
+        "savedSetting": "{{setting}} kaydedildi",
+        "clearSetting": "{{setting}} temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
         "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
@@ -735,6 +745,41 @@
           "default": "Varsayılan",
           "auto": "Her mesaja",
           "mentions": "Yalnızca bahsedilince"
+        },
+        "sections": {
+          "agents": "Ajanlar",
+          "threadTitles": "Konu başlıkları"
+        },
+        "model": {
+          "label": "Model",
+          "description": "Bu odadaki her ajan, ekip ve yönlendirici için varsayılan model. Konu düzeyindeki geçersiz kılmalar önceliğini korur.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "defaultDescription": "Bu oda için MindRoom yapılandırmasındaki varsayılanı izle.",
+          "unknown": "Bilinmeyen model: \"{{value}}\" bu odanın model listesinde yok.",
+          "catalogUnavailable": "Şu anda bir model listesi kullanılamıyor. Yine de yapılandırılmış varsayılana sıfırlayabilirsiniz.",
+          "storedRaw": "Oda ayarı: {{value}}"
+        },
+        "threadMode": {
+          "label": "Konu modu",
+          "description": "Ajanların bu odada konularda mı yoksa ana akışta mı yanıt vereceği.",
+          "default": "Yapılandırılmış varsayılanı kullan",
+          "thread": "Konular",
+          "room": "Ana akış",
+          "effective": "Geçerli etkin mod: {{mode}}",
+          "effectiveModes": {
+            "thread": "Konular",
+            "room": "Ana akış",
+            "mixed": "Karışık (ajana göre değişir)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Başlık modeli",
+          "description": "Bu odanın otomatik konu başlıklarını yazan model."
+        },
+        "agentInstructions": {
+          "label": "Ajan yönergeleri",
+          "description": "Bu odada yanıt veren her ajana verilen ek yönergeler. Moderatörler bunları düzenleyebilir; ajanlara fazladan izin vermez. Odadaki herkes bunları okuyabilir ve oda durumu uçtan uca şifrelenmediği için buraya gizli bilgi yazmayın.",
+          "placeholder": "Örneğin: Yanıtları kısa tutun ve Felemenkçe yanıtlayın"
         }
       }
     },
@@ -898,6 +943,30 @@
         "earlier_other": "{{count}} önceki mesaj",
         "hide_one": "{{count}} mesajı gizle",
         "hide_other": "{{count}} mesajı gizle"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} oda olayı",
+        "summary_other": "{{count}} oda olayı",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} oda olayını gizle",
+        "hide_other": "{{count}} oda olayını gizle",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} katıldı",
+        "joined_other": "{{count}} katıldı",
+        "left_one": "{{count}} ayrıldı",
+        "left_other": "{{count}} ayrıldı",
+        "invited_one": "{{count}} davet edildi",
+        "invited_other": "{{count}} davet edildi",
+        "requested_one": "{{count}} katılma isteği",
+        "requested_other": "{{count}} katılma isteği",
+        "kicked_one": "{{count}} çıkarıldı",
+        "kicked_other": "{{count}} çıkarıldı",
+        "banned_one": "{{count}} yasaklandı",
+        "banned_other": "{{count}} yasaklandı",
+        "unbanned_one": "{{count}} yasağı kaldırıldı",
+        "unbanned_other": "{{count}} yasağı kaldırıldı",
+        "profileChanges_one": "{{count}} profil değişikliği",
+        "profileChanges_other": "{{count}} profil değişikliği"
       },
       "questionCard": {
         "title": "Soru",
@@ -1174,6 +1243,8 @@
         "defaultChoice": "Varsayılan",
         "threadOnly": "Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
         "roomOverrideThreadOnly": "Bu oda için !room_model ile ayarlandı. Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
+        "chooseNextThread": "Sonraki ileti dizisi için model seç",
+        "nextThreadOnly": "Bu seçim yalnızca sonraki ileti dizisi için geçerlidir.",
         "levels": {
           "off": "Kapalı",
           "minimal": "Minimum",
@@ -1721,6 +1792,32 @@
   },
   "roomSchedules": {
     "thisThread": "Bu konu",
-    "elsewhereInRoom": "Bu odanın başka yerlerinde"
+    "elsewhereInRoom": "Bu odanın başka yerlerinde",
+    "filterAll": "Tümü",
+    "filterLabel": "Zamanlanmış görevleri filtrele",
+    "awaitingShort": "Bekliyor",
+    "inSeconds": "{{count}}sn içinde",
+    "inMinutes": "{{count}}dk içinde",
+    "inHours": "{{count}}sa içinde",
+    "inHoursMinutes": "{{hours}}sa {{minutes}}dk içinde",
+    "inDays": "{{count}}g içinde",
+    "thread": "Konu",
+    "destination": "Hedef",
+    "showFullPrompt": "Tam istemi göster",
+    "showLessPrompt": "Daha az göster",
+    "details": "Ayrıntılar",
+    "hideDetails": "Ayrıntıları gizle",
+    "copyId": "Kimliği kopyala",
+    "copied": "Kopyalandı",
+    "edit": "Düzenle",
+    "cancel": "İptal et",
+    "cancelConfirm": "Bu zamanlanmış görev iptal edilsin mi?",
+    "keep": "Kalsın",
+    "cancelTask": "Görevi iptal et",
+    "cancelling": "İptal ediliyor...",
+    "cancelError": "Görev iptal edilemedi. Tekrar deneyin.",
+    "cancellationSent": "İptal gönderildi",
+    "editDraftBusy": "Bu zamanlamayı düzenlemeden önce mevcut taslağınızı temizleyin.",
+    "copyFailed": "Kopyalanamadı. Ayrıntılar bölümünden Görev Kimliğini seçin."
   }
 }

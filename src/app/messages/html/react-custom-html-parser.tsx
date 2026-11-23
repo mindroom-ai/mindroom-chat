@@ -243,7 +243,8 @@ function MessageLinkLabel({
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`) but
  * opens the event; without text of its own (a URL in plain text) it names the room it leads to.
- * Mentions carry the ID in `data-mention-id` and an event in `data-mention-event-id`, for the
+ * Mentions carry the ID in `data-mention-id`, an optional event in `data-mention-event-id`, and
+ * optional routing servers in `data-mention-via`, for the
  * mention click handler. A user or room mention reads in its own direction (`dir="auto"`), so a
  * Matrix ID inside right-to-left text keeps its `@` or `#` in front. Undefined for other links.
  */

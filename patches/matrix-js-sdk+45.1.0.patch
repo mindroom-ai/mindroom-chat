@@ -2524,6 +2524,40 @@ index 310f09c..b320c56 100644
      this.logger.debug(`Got current backup version from server: ${currentServerVersion?.version}`);
      if (currentServerVersion?.algorithm != "m.megolm_backup.v1.curve25519-aes-sha2") {
        this.logger.info(`Unsupported algorithm ${currentServerVersion?.algorithm}`);
+diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/RoomEncryptor.js b/node_modules/matrix-js-sdk/lib/rust-crypto/RoomEncryptor.js
+index ef65150..80e0d96 100644
+--- a/node_modules/matrix-js-sdk/lib/rust-crypto/RoomEncryptor.js
++++ b/node_modules/matrix-js-sdk/lib/rust-crypto/RoomEncryptor.js
+@@ -267,7 +267,28 @@ export class RoomEncryptor {
+     } else {
+       encryptedContent = await this.olmMachine.encryptRoomEvent(room, type, content);
+     }
+-    event.makeEncrypted(EventType.RoomMessageEncrypted, JSON.parse(encryptedContent), this.olmMachine.identityKeys.curve25519.toBase64(), this.olmMachine.identityKeys.ed25519.toBase64());
++    const parsedEncryptedContent = JSON.parse(encryptedContent);
++    // MindRoom: add an allowlisted cleartext ring hint on encrypted call rings so the
++    // homeserver push rules and push gateway can classify them without decrypting.
++    if (!event.isState() && type === EventType.RTCNotification) {
++      const rawContent = event.getContent();
++      if (rawContent.notification_type === "ring") {
++        const hint = {
++          notification_type: "ring"
++        };
++        if (Number.isSafeInteger(rawContent.sender_ts)) {
++          hint.sender_ts = rawContent.sender_ts;
++        }
++        if (Number.isSafeInteger(rawContent.lifetime)) {
++          hint.lifetime = rawContent.lifetime;
++        }
++        if (rawContent["m.call.intent"] === "audio" || rawContent["m.call.intent"] === "video") {
++          hint["m.call.intent"] = rawContent["m.call.intent"];
++        }
++        parsedEncryptedContent["io.mindroom.rtc.notification"] = hint;
++      }
++    }
++    event.makeEncrypted(EventType.RoomMessageEncrypted, parsedEncryptedContent, this.olmMachine.identityKeys.curve25519.toBase64(), this.olmMachine.identityKeys.ed25519.toBase64());
+     logger.debug("Encrypted event successfully");
+   }
+ }
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
 index 97a0159..fbdc88f 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
@@ -5780,6 +5814,41 @@ index e4ae553..14d422e 100644
          this.logger.debug(`Got current backup version from server: ${currentServerVersion?.version}`);
  
          if (currentServerVersion?.algorithm != "m.megolm_backup.v1.curve25519-aes-sha2") {
+diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/RoomEncryptor.ts b/node_modules/matrix-js-sdk/src/rust-crypto/RoomEncryptor.ts
+index aa19be8..ac23b0c 100644
+--- a/node_modules/matrix-js-sdk/src/rust-crypto/RoomEncryptor.ts
++++ b/node_modules/matrix-js-sdk/src/rust-crypto/RoomEncryptor.ts
+@@ -332,9 +332,29 @@ export class RoomEncryptor {
+             encryptedContent = await this.olmMachine.encryptRoomEvent(room, type, content);
+         }
+ 
++        const parsedEncryptedContent = JSON.parse(encryptedContent);
++        // MindRoom: add an allowlisted cleartext ring hint on encrypted call rings so the
++        // homeserver push rules and push gateway can classify them without decrypting.
++        if (!event.isState() && type === EventType.RTCNotification) {
++            const rawContent = event.getContent();
++            if (rawContent.notification_type === "ring") {
++                const hint: Record<string, unknown> = { notification_type: "ring" };
++                if (Number.isSafeInteger(rawContent.sender_ts)) {
++                    hint.sender_ts = rawContent.sender_ts;
++                }
++                if (Number.isSafeInteger(rawContent.lifetime)) {
++                    hint.lifetime = rawContent.lifetime;
++                }
++                if (rawContent["m.call.intent"] === "audio" || rawContent["m.call.intent"] === "video") {
++                    hint["m.call.intent"] = rawContent["m.call.intent"];
++                }
++                parsedEncryptedContent["io.mindroom.rtc.notification"] = hint;
++            }
++        }
++
+         event.makeEncrypted(
+             EventType.RoomMessageEncrypted,
+-            JSON.parse(encryptedContent),
++            parsedEncryptedContent,
+             this.olmMachine.identityKeys.curve25519.toBase64(),
+             this.olmMachine.identityKeys.ed25519.toBase64(),
+         );
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
 index 684c083..b5b9263 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts

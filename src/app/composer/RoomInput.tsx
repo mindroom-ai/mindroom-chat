@@ -66,6 +66,8 @@ import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
+import { getModelController } from '../models/modelController';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { hasExplicitThreadContext, hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
@@ -250,13 +252,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
     // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
     const roomThreadMode = useRoomThreadMode(roomId, true);
+    const newThread =
+      threadingEnabled && !threadId && !forkFrom && !replyDraft && roomThreadMode === 'thread';
     const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
     const direct = useAtomValue(mDirectAtom).has(roomId);
     let placeholder = t('composer.placeholder');
     if (forkFrom) placeholder = t('threadFork.continueInNewThread');
     else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
       placeholder = t('composer.replyInThread');
-    else if (threadingEnabled && !replyDraft && roomThreadMode === 'thread')
+    else if (newThread)
       placeholder = direct
         ? t('composer.newThreadWith', { name: roomName })
         : t('composer.newThreadIn', { room: roomName });
@@ -290,7 +294,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
     const modelPicker = (
-      <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
+      <ThreadModelPicker
+        room={room}
+        threadId={threadId}
+        newThread={newThread}
+        conversationHidden={conversationHidden}
+      />
     );
     // While an agent replies in the thread, holding Send offers how the message meets the reply.
     // A fork draft starts a thread of its own, and the main timeline has no such check yet.
@@ -373,6 +382,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [store, userId]
     );
 
+    const rootModelContext = useLatestRef({ roomId, newThread });
+    const takeRootModelDraft = useCallback(
+      (target: Room) => {
+        const { roomId: liveRoomId, newThread: liveNewThread } = rootModelContext.current;
+        return mountedRef.current && liveNewThread && liveRoomId === target.roomId
+          ? getModelController(mx).takeRootModelDraft(target)
+          : undefined;
+      },
+      [mx, rootModelContext]
+    );
     const sessions = useRoomInputSendSessionController({
       mx,
       room,
@@ -390,6 +409,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       restoreComposerFallbackForRoom,
       onRoomMessageSent,
       forkFrom,
+      takeRootModelDraft,
     });
 
     const { restoreText: restoreSentText } = sessions;
@@ -433,6 +453,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       attachments: attachments.access,
       transport,
       sessions,
+      takeRootModelDraft,
       onRoomMessageSent,
     });
 

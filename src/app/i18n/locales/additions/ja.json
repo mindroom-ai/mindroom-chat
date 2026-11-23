@@ -91,7 +91,12 @@
     },
     "inviteUserPrompt": {
       "close": "閉じる",
-      "invited": "{{user}} を招待しました。"
+      "invited": "{{user}} を招待しました。",
+      "giveRoleRights": "{{role}} 権限を付与",
+      "giveRoleRightsHelp": "このルームでは音声の文字起こしの折りたたみ、スケジュールやルーム設定の管理に {{role}} 権限が必要です。",
+      "roleFailed": "{{user}} を招待しましたが、{{role}} 権限を付与できませんでした: {{error}}",
+      "roleRequirementChanged": "このルームでは現在 {{role}} 権限が必要です。",
+      "roleWithLevel": "{{role}}（{{level}}）"
     },
     "joinAddressPrompt": {
       "close": "閉じる",
@@ -467,6 +472,7 @@
         "close": "通話ビューを閉じる",
         "participants": "通話中の人",
         "connecting": "接続中…",
+        "connectingAnotherCall": "別の通話に接続中…",
         "reconnecting": "再接続中…",
         "ended": "通話が終了しました。",
         "waitingFor": "{{name}} を待っています…",
@@ -592,7 +598,8 @@
     },
     "accountMenu": {
       "open": "{{name}} のアカウントメニューを開く",
-      "manageAccounts": "アカウントの管理"
+      "otherAccounts": "他のアカウント",
+      "manage": "管理"
     },
     "roomOrder": {
       "sortByName": "ルームを A から Z の順に並べる"
@@ -713,6 +720,9 @@
         "save": "保存",
         "saved": "保存しました",
         "clear": "クリア",
+        "saveSetting": "{{setting}}を保存",
+        "savedSetting": "{{setting}}を保存しました",
+        "clearSetting": "{{setting}}をクリア",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
         "saveFailed": "設定を保存できませんでした。もう一度お試しください。",
@@ -722,6 +732,41 @@
           "default": "デフォルト",
           "auto": "すべてのメッセージ",
           "mentions": "メンションされたときだけ"
+        },
+        "sections": {
+          "agents": "エージェント",
+          "threadTitles": "スレッドタイトル"
+        },
+        "model": {
+          "label": "モデル",
+          "description": "このルームのすべてのエージェント、チーム、ルーターの既定モデル。スレッド単位の上書きは引き続き優先されます。",
+          "default": "設定済みの既定を使用",
+          "defaultDescription": "このルームの MindRoom の設定済み既定値に従います。",
+          "unknown": "不明なモデル: 「{{value}}」はこのルームのモデル一覧にありません。",
+          "catalogUnavailable": "現在モデル一覧を取得できません。設定済みの既定にリセットすることは引き続き可能です。",
+          "storedRaw": "ルームの設定: {{value}}"
+        },
+        "threadMode": {
+          "label": "スレッドモード",
+          "description": "このルームでエージェントがスレッド内またはメインタイムラインのどちらに返信するかを設定します。",
+          "default": "設定済みの既定を使用",
+          "thread": "スレッド",
+          "room": "メインタイムライン",
+          "effective": "現在の有効モード: {{mode}}",
+          "effectiveModes": {
+            "thread": "スレッド",
+            "room": "メインタイムライン",
+            "mixed": "混在（エージェントにより異なる）"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "タイトルモデル",
+          "description": "このルームの自動スレッドタイトルを生成するモデル。"
+        },
+        "agentInstructions": {
+          "label": "エージェントへの指示",
+          "description": "このルームで応答するすべてのエージェントに渡される追加の指示です。モデレーターが編集できますが、エージェントに追加の権限は付与されません。ルームの全員が読むことができ、ルーム状態はエンドツーエンド暗号化されないため、秘密情報は入力しないでください。",
+          "placeholder": "例: 回答は短くしてオランダ語で返信する"
         }
       }
     },
@@ -881,6 +926,20 @@
       "turnFold": {
         "earlier_other": "以前のメッセージ {{count}} 件",
         "hide_other": "{{count}} 件のメッセージを非表示"
+      },
+      "membershipFold": {
+        "summary_other": "ルームイベント {{count}} 件",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "ルームイベント {{count}} 件を非表示",
+        "listSeparator": "、",
+        "joined_other": "{{count}} 人参加",
+        "left_other": "{{count}} 人退出",
+        "invited_other": "{{count}} 人招待",
+        "requested_other": "{{count}} 人参加リクエスト",
+        "kicked_other": "{{count}} 人強制退出",
+        "banned_other": "{{count}} 人BAN",
+        "unbanned_other": "{{count}} 人BAN解除",
+        "profileChanges_other": "プロフィール変更 {{count}} 件"
       },
       "questionCard": {
         "title": "質問",
@@ -1143,6 +1202,8 @@
         "defaultChoice": "既定",
         "threadOnly": "ここで選んだモデルはこのスレッドにのみ適用されます。",
         "roomOverrideThreadOnly": "このルームには !room_model で設定されています。ここで選んだモデルはこのスレッドにのみ適用されます。",
+        "chooseNextThread": "次のスレッドのモデルを選択",
+        "nextThreadOnly": "この選択は次のスレッドにのみ適用されます。",
         "levels": {
           "off": "オフ",
           "minimal": "最小",
@@ -1677,6 +1738,32 @@
   },
   "roomSchedules": {
     "thisThread": "このスレッド",
-    "elsewhereInRoom": "このルーム内の別の場所"
+    "elsewhereInRoom": "このルーム内の別の場所",
+    "filterAll": "すべて",
+    "filterLabel": "予定されたタスクを絞り込む",
+    "awaitingShort": "待機中",
+    "inSeconds": "{{count}}秒後",
+    "inMinutes": "{{count}}分後",
+    "inHours": "{{count}}時間後",
+    "inHoursMinutes": "{{hours}}時間{{minutes}}分後",
+    "inDays": "{{count}}日後",
+    "thread": "スレッド",
+    "destination": "送信先",
+    "showFullPrompt": "プロンプトをすべて表示",
+    "showLessPrompt": "折りたたむ",
+    "details": "詳細",
+    "hideDetails": "詳細を隠す",
+    "copyId": "IDをコピー",
+    "copied": "コピーしました",
+    "edit": "編集",
+    "cancel": "キャンセル",
+    "cancelConfirm": "この予定されたタスクをキャンセルしますか？",
+    "keep": "維持",
+    "cancelTask": "タスクをキャンセル",
+    "cancelling": "キャンセル中...",
+    "cancelError": "タスクをキャンセルできませんでした。もう一度お試しください。",
+    "cancellationSent": "キャンセルを送信しました",
+    "editDraftBusy": "このスケジュールを編集する前に、現在の下書きを消去してください。",
+    "copyFailed": "コピーできませんでした。詳細でタスクIDを選択してください。"
   }
 }

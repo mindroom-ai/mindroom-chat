@@ -94,7 +94,12 @@
     },
     "inviteUserPrompt": {
       "close": "Schließen",
-      "invited": "{{user}} wurde eingeladen."
+      "invited": "{{user}} wurde eingeladen.",
+      "giveRoleRights": "{{role}}-Rechte erteilen",
+      "giveRoleRightsHelp": "Dieser Raum erfordert {{role}}-Rechte, um Sprachtranskripte einzuklappen sowie Zeitpläne und Raumeinstellungen zu verwalten.",
+      "roleFailed": "{{user}} wurde eingeladen, aber {{role}}-Rechte konnten nicht erteilt werden: {{error}}",
+      "roleRequirementChanged": "Dieser Raum erfordert jetzt {{role}}-Rechte.",
+      "roleWithLevel": "{{role}} ({{level}})"
     },
     "joinAddressPrompt": {
       "close": "Schließen",
@@ -476,6 +481,7 @@
         "close": "Anrufansicht schließen",
         "participants": "Personen im Anruf",
         "connecting": "Verbinden…",
+        "connectingAnotherCall": "Verbindung zu einem anderen Anruf wird hergestellt…",
         "reconnecting": "Verbindung wird wiederhergestellt…",
         "ended": "Der Anruf ist beendet.",
         "waitingFor": "Warten auf {{name}}…",
@@ -605,7 +611,8 @@
     },
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
-      "manageAccounts": "Konten verwalten"
+      "otherAccounts": "Andere Konten",
+      "manage": "Verwalten"
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"
@@ -726,6 +733,9 @@
         "save": "Speichern",
         "saved": "Gespeichert",
         "clear": "Löschen",
+        "saveSetting": "{{setting}} speichern",
+        "savedSetting": "{{setting}} gespeichert",
+        "clearSetting": "{{setting}} löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
         "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
@@ -735,6 +745,41 @@
           "default": "Standard",
           "auto": "Auf jede Nachricht",
           "mentions": "Nur bei Erwähnung"
+        },
+        "sections": {
+          "agents": "Agenten",
+          "threadTitles": "Thread-Titel"
+        },
+        "model": {
+          "label": "Modell",
+          "description": "Standardmodell für alle Agenten, Teams und den Router in diesem Raum. Thread-spezifische Vorgaben haben weiterhin Vorrang.",
+          "default": "Konfigurierten Standard verwenden",
+          "defaultDescription": "Folgt dem in MindRoom konfigurierten Standard für diesen Raum.",
+          "unknown": "Unbekanntes Modell: „{{value}}“ steht nicht in der Modellliste dieses Raums.",
+          "catalogUnavailable": "Momentan ist keine Modellliste verfügbar. Du kannst trotzdem auf den konfigurierten Standard zurücksetzen.",
+          "storedRaw": "Raumeinstellung: {{value}}"
+        },
+        "threadMode": {
+          "label": "Thread-Modus",
+          "description": "Ob Agenten in diesem Raum in Threads oder im Hauptverlauf antworten.",
+          "default": "Konfigurierten Standard verwenden",
+          "thread": "Threads",
+          "room": "Hauptverlauf",
+          "effective": "Aktuell wirksamer Modus: {{mode}}",
+          "effectiveModes": {
+            "thread": "Threads",
+            "room": "Hauptverlauf",
+            "mixed": "Gemischt (je nach Agent)"
+          }
+        },
+        "threadSummaryModel": {
+          "label": "Titelmodell",
+          "description": "Modell, das die automatischen Thread-Titel in diesem Raum erstellt."
+        },
+        "agentInstructions": {
+          "label": "Anweisungen für Agents",
+          "description": "Zusätzliche Anweisungen, die jeder Agent beim Antworten in diesem Raum erhält. Moderatoren können sie bearbeiten; sie verleihen Agents keine zusätzlichen Berechtigungen. Alle im Raum können sie lesen, und der Raumzustand ist nicht Ende-zu-Ende-verschlüsselt, also gib hier keine Geheimnisse ein.",
+          "placeholder": "Zum Beispiel: Antworten kurz halten und auf Niederländisch antworten"
         }
       }
     },
@@ -898,6 +943,30 @@
         "earlier_other": "{{count}} frühere Nachrichten",
         "hide_one": "{{count}} Nachricht ausblenden",
         "hide_other": "{{count}} Nachrichten ausblenden"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} Raumereignis",
+        "summary_other": "{{count}} Raumereignisse",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "{{count}} Raumereignis ausblenden",
+        "hide_other": "{{count}} Raumereignisse ausblenden",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} beigetreten",
+        "joined_other": "{{count}} beigetreten",
+        "left_one": "{{count}} gegangen",
+        "left_other": "{{count}} gegangen",
+        "invited_one": "{{count}} eingeladen",
+        "invited_other": "{{count}} eingeladen",
+        "requested_one": "{{count}} Beitrittsanfrage",
+        "requested_other": "{{count}} Beitrittsanfragen",
+        "kicked_one": "{{count}} entfernt",
+        "kicked_other": "{{count}} entfernt",
+        "banned_one": "{{count}} gesperrt",
+        "banned_other": "{{count}} gesperrt",
+        "unbanned_one": "{{count}} entsperrt",
+        "unbanned_other": "{{count}} entsperrt",
+        "profileChanges_one": "{{count}} Profiländerung",
+        "profileChanges_other": "{{count}} Profiländerungen"
       },
       "questionCard": {
         "title": "Frage",
@@ -1174,6 +1243,8 @@
         "defaultChoice": "Standard",
         "threadOnly": "Ein hier gewähltes Modell gilt nur für diesen Thread.",
         "roomOverrideThreadOnly": "Für diesen Raum mit !room_model festgelegt. Ein hier gewähltes Modell gilt nur für diesen Thread.",
+        "chooseNextThread": "Modell für den nächsten Thread auswählen",
+        "nextThreadOnly": "Diese Auswahl gilt nur für den nächsten Thread.",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",
@@ -1721,6 +1792,32 @@
   },
   "roomSchedules": {
     "thisThread": "Dieser Thread",
-    "elsewhereInRoom": "An anderer Stelle in diesem Raum"
+    "elsewhereInRoom": "An anderer Stelle in diesem Raum",
+    "filterAll": "Alle",
+    "filterLabel": "Geplante Aufgaben filtern",
+    "awaitingShort": "Ausstehend",
+    "inSeconds": "in {{count}}s",
+    "inMinutes": "in {{count}}m",
+    "inHours": "in {{count}}h",
+    "inHoursMinutes": "in {{hours}}h {{minutes}}m",
+    "inDays": "in {{count}}T",
+    "thread": "Thread",
+    "destination": "Ziel",
+    "showFullPrompt": "Vollständigen Prompt anzeigen",
+    "showLessPrompt": "Weniger anzeigen",
+    "details": "Details",
+    "hideDetails": "Details ausblenden",
+    "copyId": "ID kopieren",
+    "copied": "Kopiert",
+    "edit": "Bearbeiten",
+    "cancel": "Abbrechen",
+    "cancelConfirm": "Diese geplante Aufgabe abbrechen?",
+    "keep": "Behalten",
+    "cancelTask": "Aufgabe abbrechen",
+    "cancelling": "Wird abgebrochen...",
+    "cancelError": "Aufgabe konnte nicht abgebrochen werden. Bitte erneut versuchen.",
+    "cancellationSent": "Abbruch gesendet",
+    "editDraftBusy": "Leere zuerst deinen aktuellen Entwurf, bevor du diesen Zeitplan bearbeitest.",
+    "copyFailed": "Kopieren fehlgeschlagen. Wähle die Aufgaben-ID in den Details aus."
   }
 }

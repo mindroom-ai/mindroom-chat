@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateEvent } from '../../matrix/types/room';
 import { agentCallState, ALICE, fakeRoom, HELPER } from '../../../test/utils/agentCallRoom';
 import {
@@ -11,6 +11,7 @@ import {
   toAgentCallOrigin,
 } from './agentCall';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { MEMBERS_LOAD_TIMEOUT_MS } from '../callStore';
 
 const setRoomArchived = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/state/archivedRooms', () => ({ setRoomArchived }));
@@ -292,6 +293,25 @@ describe('MindRoom agent calls', () => {
       expect.anything(),
       expect.anything()
     );
+  });
+
+  describe('bounded member loading', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('rejects when loading room members stalls past the timeout', async () => {
+      vi.useFakeTimers();
+      const room = fakeRoom({ agentMembership: 'join' });
+      room.loadMembersIfNeeded = () => new Promise(() => undefined);
+
+      const preparing = prepareAgentCallRoom(mx, room, HELPER, origin);
+      const caught = preparing.catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(MEMBERS_LOAD_TIMEOUT_MS);
+
+      expect(await caught).toBeInstanceOf(Error);
+      expect(sendStateEvent).not.toHaveBeenCalled();
+    });
   });
 
   it('drops the origin of my call room on hang-up before the stamp synced back', async () => {

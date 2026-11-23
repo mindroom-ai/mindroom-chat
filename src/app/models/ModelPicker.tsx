@@ -40,10 +40,20 @@ const EFFORT_HEIGHT = 344;
 
 type ModelPickerPanelProps = {
   state: ModelPickerState;
-  /** The words for the row that clears the thread's model: its title, agents and description. */
+  newThread?: boolean;
+  /** The words for the row that clears the model: its title, optional agents and description. */
   defaults: DefaultWords;
-  /** The height above the button the menu may take, a CSS length. */
+  /** The height the menu may take, a CSS length. */
   room: string;
+  /** Accessible dialog label; defaults to the thread model picker label. */
+  ariaLabel?: string;
+  /**
+   * The menu sets a room setting, not a thread's model: its default row needs no catalog, so it
+   * shows and counts as current without one, and writes while `canReset` whatever `canMutate`
+   * says of the models; picking the current row writes it again; and an error names no thread
+   * command.
+   */
+  roomSetting?: { canReset: boolean };
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -122,8 +132,11 @@ const currentChoice = (state: ModelPickerState) => {
 
 function ModelPickerPanel({
   state,
+  newThread,
   defaults,
   room,
+  ariaLabel,
+  roomSetting,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
@@ -149,7 +162,7 @@ function ModelPickerPanel({
   const normalizedQuery = filterShown ? query.trim().toLocaleLowerCase() : '';
   // Found by its own words, not by the names of the models it falls back to.
   const defaultVisible =
-    !waitingForCatalog &&
+    (roomSetting || !waitingForCatalog) &&
     (!normalizedQuery ||
       `${defaults.label} ${defaults.description}`.toLocaleLowerCase().includes(normalizedQuery));
   const visibleModels = useMemo(
@@ -171,8 +184,9 @@ function ModelPickerPanel({
     [defaultVisible, groups]
   );
   const isCurrent = (item: PickerItem): boolean =>
-    !!state.runtime &&
-    (item.kind === 'default' ? state.override === null : state.override === item.model.key);
+    item.kind === 'default'
+      ? state.override === null && (!!roomSetting || !!state.runtime)
+      : !!state.runtime && state.override === item.model.key;
   // The highlight sits on the current choice, also once a late catalog lists it, until the user
   // moves it with the keys, the pointer or the filter.
   const [movedIndex, setMovedIndex] = useState<number>();
@@ -180,6 +194,8 @@ function ModelPickerPanel({
   const activeItem = items[activeIndex];
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
+  const disabledItem = (item: PickerItem): boolean =>
+    item.kind === 'default' && roomSetting ? !roomSetting.canReset : mutationsDisabled;
   // The levels of the model the thread runs on, beside the models, once any model has levels.
   // They never follow the highlight: a level is picked for the model the thread has.
   const columnShown = !!state.runtime && state.models.some((model) => model.reasoning_levels);
@@ -231,10 +247,10 @@ function ModelPickerPanel({
   }, [levelsShown]);
 
   const selectItem = (item: PickerItem) => {
-    if (mutationsDisabled) return;
+    if (disabledItem(item)) return;
     // The current choice needs no command; choosing it again only closes the menu. A current model
     // at a named level goes back to its plain key, which runs it at its default.
-    if (isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
+    if (!roomSetting && isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
       requestClose();
       return;
     }
@@ -322,7 +338,7 @@ function ModelPickerPanel({
         id={optionId(listId, pickerItemId(item))}
         role="option"
         aria-selected={selected}
-        aria-disabled={mutationsDisabled}
+        aria-disabled={disabledItem(item)}
         className={css.Option}
         data-active={index === activeIndex}
         tabIndex={-1}
@@ -375,7 +391,7 @@ function ModelPickerPanel({
       {state.error && !waitingForCatalog && (
         <div className={css.Error} role="alert">
           <div>{state.error}</div>
-          <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
+          {!roomSetting && <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>}
           <div className={css.ErrorActions}>
             <button
               type="button"
@@ -522,7 +538,14 @@ function ModelPickerPanel({
   return (
     <Menu
       role="dialog"
-      aria-label={t('mindroomUi.models.modelPicker.modelForThread')}
+      aria-label={
+        ariaLabel ??
+        t(
+          newThread
+            ? 'mindroomUi.models.modelPicker.chooseNextThread'
+            : 'mindroomUi.models.modelPicker.modelForThread'
+        )
+      }
       className={panes && !stacked ? css.EffortPanel : css.Panel}
       style={
         panes
@@ -555,7 +578,7 @@ function ModelPickerPanel({
   );
 }
 
-function TrappedPanel(props: ModelPickerPanelProps) {
+export function TrappedModelPickerPanel(props: ModelPickerPanelProps) {
   return (
     <FocusTrap
       focusTrapOptions={{
@@ -578,10 +601,12 @@ function TrappedPanel(props: ModelPickerPanelProps) {
  */
 export function ModelPicker({
   state,
+  newThread = false,
   room: membersRoom,
   conversationHidden,
 }: {
   state: ModelPickerState;
+  newThread?: boolean;
   /** The room whose members name the agents; without it, agents go by their entity names. */
   room?: Room;
   /** The conversation it is in is hidden (a cover over it, a side panel in its place): it closes. */
@@ -605,7 +630,9 @@ export function ModelPicker({
   const defaults: DefaultWords = {
     label: t(`mindroomUi.models.modelPicker.${DEFAULT_LABELS[described.source]}`),
     agents: described.agents,
-    description: described.roomOverride
+    description: newThread
+      ? t('mindroomUi.models.modelPicker.nextThreadOnly')
+      : described.roomOverride
       ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
       : t('mindroomUi.models.modelPicker.threadOnly'),
   };
@@ -629,7 +656,11 @@ export function ModelPicker({
       })
     : modelLabel;
   const label = state.runtime ? modelAndLevel : undefined;
-  const chooseModel = t('mindroomUi.models.modelPicker.chooseModel');
+  const chooseModel = t(
+    newThread
+      ? 'mindroomUi.models.modelPicker.chooseNextThread'
+      : 'mindroomUi.models.modelPicker.chooseModel'
+  );
 
   const close = () => {
     setOpen(false);
@@ -685,13 +716,15 @@ export function ModelPicker({
       align="Start"
       content={
         anchor ? (
-          <TrappedPanel
+          <TrappedModelPickerPanel
             state={state}
+            newThread={newThread}
             defaults={defaults}
             room={room}
             requestClose={close}
             onCommand={() => {
-              commandStartedRef.current = true;
+              if (newThread) close();
+              else commandStartedRef.current = true;
             }}
           />
         ) : undefined
@@ -735,29 +768,32 @@ export function ModelPicker({
   );
 }
 
-type ThreadModelPickerProps = { room: Room; conversationHidden?: boolean };
+type ThreadModelPickerProps = {
+  room: Room;
+  threadId?: string;
+  newThread?: boolean;
+  conversationHidden?: boolean;
+};
 
-function ExistingThreadModelPicker({
-  room,
-  threadId,
-  conversationHidden,
-}: ThreadModelPickerProps & { threadId: string }) {
+function ScopedModelPicker({ room, threadId, conversationHidden }: ThreadModelPickerProps) {
   const state = useModelPicker(room, threadId);
   if (!state.eligible) return null;
 
   return (
     <>
-      <ModelPicker state={state} room={room} conversationHidden={conversationHidden} />
+      <ModelPicker
+        state={state}
+        room={room}
+        newThread={!threadId}
+        conversationHidden={conversationHidden}
+      />
       <span className={css.TriggerDivider} aria-hidden="true" />
     </>
   );
 }
 
-/** The thread's model button at the start of the composer, in a thread an agent answers in. */
-export function ThreadModelPicker({
-  threadId,
-  ...props
-}: ThreadModelPickerProps & { threadId?: string }) {
-  if (!threadId) return null;
-  return <ExistingThreadModelPicker threadId={threadId} {...props} />;
+/** An existing thread's model, or a local pick for the next thread the composer starts. */
+export function ThreadModelPicker(props: ThreadModelPickerProps) {
+  if (!props.threadId && !props.newThread) return null;
+  return <ScopedModelPicker key={props.threadId ?? props.room.roomId} {...props} />;
 }

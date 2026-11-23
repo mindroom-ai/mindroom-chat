@@ -5,15 +5,16 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
-import {
-  ROOM_SETTING_DEFINITIONS,
-  type RoomChoiceSettingDefinition,
-} from './roomSettingDefinitions';
+import { ROOM_SETTING_SECTIONS, type RoomChoiceSettingDefinition } from './roomSettingDefinitions';
 import { RoomChoiceSettingTile } from './RoomChoiceSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const DEFINITION = ROOM_SETTING_DEFINITIONS.find(
+const ALL_SETTINGS = ROOM_SETTING_SECTIONS.flatMap((section) => section.settings);
+const DEFINITION = ALL_SETTINGS.find(
   (definition): definition is RoomChoiceSettingDefinition => definition.key === 'reply_mode'
+);
+const THREAD_MODE_DEFINITION = ALL_SETTINGS.find(
+  (definition): definition is RoomChoiceSettingDefinition => definition.key === 'thread_mode'
 );
 const FAILED = "Couldn't save the setting. Try again.";
 const READ_ONLY = "Only people allowed to change this room's settings can edit this.";
@@ -22,6 +23,8 @@ const live = vi.hoisted(() => ({
   event: undefined as MatrixEvent | undefined,
   canSend: true,
   stateArgs: [] as unknown[],
+  effectiveThreadMode: undefined as 'room' | 'thread' | 'mixed' | undefined,
+  threadModeArgs: [] as unknown[],
 }));
 const client = vi.hoisted(() => ({
   getSafeUserId: () => '@me:example.org',
@@ -37,6 +40,12 @@ vi.mock('../../../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => (
 vi.mock('../../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ stateEvent: () => live.canSend }),
+}));
+vi.mock('../../../matrix/hooks/useRoomThreadMode', () => ({
+  useRoomThreadMode: (...args: unknown[]) => {
+    live.threadModeArgs = args;
+    return live.effectiveThreadMode;
+  },
 }));
 vi.mock('../../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: (...args: unknown[]) => {
@@ -121,6 +130,8 @@ const sentContent = (call: number) => client.sendStateEvent.mock.calls[call]?.[2
 beforeEach(() => {
   live.event = undefined;
   live.canSend = true;
+  live.effectiveThreadMode = undefined;
+  live.threadModeArgs = [];
   client.sendStateEvent.mockReset();
   client.sendStateEvent.mockImplementation(async () => ({
     event_id: `$sent${client.sendStateEvent.mock.calls.length - 1}`,
@@ -220,6 +231,83 @@ describe('RoomChoiceSettingTile', () => {
     mount();
     expect(menu().disabled).toBe(true);
     expect(shown()).toBe('Only when mentioned');
+    expect(screen.getByText(READ_ONLY)).toBeTruthy();
+  });
+});
+
+describe('RoomChoiceSettingTile (thread_mode)', () => {
+  const renderThreadMode = () =>
+    render(<RoomChoiceSettingTile room={ROOM} definition={THREAD_MODE_DEFINITION!} />);
+
+  it('writes thread, room, and default reset to thread_mode', async () => {
+    const { rerender } = renderThreadMode();
+    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'thread_mode']);
+    expect(live.threadModeArgs).toEqual([ROOM.roomId, true]);
+
+    const select = () => screen.getByRole<HTMLSelectElement>('combobox', { name: /Thread mode/ });
+    expect(select().selectedOptions[0]?.textContent).toBe('Use configured default');
+
+    await act(async () => {
+      fireEvent.change(select(), { target: { value: 'thread' } });
+    });
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      { value: 'thread' },
+      'thread_mode'
+    );
+    expect(select().selectedOptions[0]?.textContent).toBe('Threads');
+
+    setLive({ value: 'thread' }, '$sent0');
+    rerender(<RoomChoiceSettingTile room={ROOM} definition={THREAD_MODE_DEFINITION!} />);
+    await act(async () => {
+      fireEvent.change(select(), { target: { value: 'room' } });
+    });
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      { value: 'room' },
+      'thread_mode'
+    );
+    expect(select().selectedOptions[0]?.textContent).toBe('Main timeline');
+
+    setLive({ value: 'room' }, '$sent1');
+    rerender(<RoomChoiceSettingTile room={ROOM} definition={THREAD_MODE_DEFINITION!} />);
+    await act(async () => {
+      fireEvent.change(select(), { target: { value: '' } });
+    });
+    expect(client.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM.roomId,
+      ROOM_SETTINGS_EVENT,
+      {},
+      'thread_mode'
+    );
+    expect(select().selectedOptions[0]?.textContent).toBe('Use configured default');
+  });
+
+  it('shows the effective io.mindroom.thread_mode line for thread, room, and mixed', () => {
+    const { rerender } = renderThreadMode();
+    expect(screen.queryByText(/Current effective mode:/)).toBeNull();
+
+    for (const [mode, expected] of [
+      ['thread', 'Current effective mode: Threads'],
+      ['room', 'Current effective mode: Main timeline'],
+      ['mixed', 'Current effective mode: Mixed (varies by agent)'],
+    ] as const) {
+      live.effectiveThreadMode = mode;
+      rerender(<RoomChoiceSettingTile room={ROOM} definition={THREAD_MODE_DEFINITION!} />);
+      expect(screen.getByText(expected)).toBeTruthy();
+    }
+  });
+
+  it('still shows the effective mode line read-only for non-editors', () => {
+    live.canSend = false;
+    live.effectiveThreadMode = 'mixed';
+    setLive({ value: 'thread' });
+    renderThreadMode();
+    const select = screen.getByRole<HTMLSelectElement>('combobox', { name: /Thread mode/ });
+    expect(select.disabled).toBe(true);
+    expect(screen.getByText('Current effective mode: Mixed (varies by agent)')).toBeTruthy();
     expect(screen.getByText(READ_ONLY)).toBeTruthy();
   });
 });
