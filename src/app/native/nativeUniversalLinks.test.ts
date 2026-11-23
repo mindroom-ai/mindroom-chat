@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import React from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMatrixToRoom, getMatrixToRoomEvent } from '../matrix/matrix-to';
 import {
@@ -16,7 +19,16 @@ import {
   getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
-import { getAppPathFromUniversalLink, registerNativeAppUrlCallbacks } from './nativeSso';
+import {
+  currentHistoryLocation,
+  previousHistoryPathname,
+  useHistoryStackRecorder,
+} from '../routes/historyStack';
+import {
+  getAppPathFromUniversalLink,
+  registerNativeAppUrlCallbacks,
+  setNativeAppPathNavigator,
+} from './nativeSso';
 
 vi.mock('@capacitor/browser', () => ({ Browser: { close: vi.fn() } }));
 
@@ -82,7 +94,10 @@ describe('native Universal Links', () => {
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    setNativeAppPathNavigator(undefined);
+    vi.restoreAllMocks();
+  });
 
   it('routes cold launches for room, alias, and message Universal Links', async () => {
     const origin = window.location.origin;
@@ -184,6 +199,55 @@ describe('native Universal Links', () => {
       expect(Browser.close).not.toHaveBeenCalled();
     } finally {
       window.removeEventListener('popstate', onPopState);
+    }
+  });
+
+  it('navigates successive warm Universal Links through a mounted React Router and keeps historyStack accurate', async () => {
+    window.history.replaceState(null, '', '/home/');
+
+    function Recorder() {
+      useHistoryStackRecorder('@reader:example.org');
+      return null;
+    }
+
+    const router = createBrowserRouter([
+      {
+        path: '*',
+        element: React.createElement(Recorder),
+      },
+    ]);
+    const unregister = setNativeAppPathNavigator((appPath, options) => {
+      void router.navigate(appPath, { replace: true, state: options.state });
+    });
+
+    let renderer: ReactTestRenderer | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(RouterProvider, { router }));
+      });
+      await register();
+
+      await act(async () => {
+        openUrl({ url: 'https://chat.mindroom.chat/home/!alpha:example.org' });
+      });
+      expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!alpha:example.org'));
+      expect(previousHistoryPathname()).toBeUndefined();
+
+      await act(async () => {
+        openUrl({ url: 'https://chat.mindroom.chat/activity/!beta:example.org?threadId=$root' });
+      });
+      expect(currentHistoryLocation()?.pathname).toBe(getActivityRoomPath('!beta:example.org'));
+      expect(currentHistoryLocation()?.search).toBe('?threadId=%24root');
+      expect(previousHistoryPathname()).toBeUndefined();
+
+      await act(async () => {
+        await router.navigate(getHomeRoomPath('!gamma:example.org'));
+      });
+      expect(currentHistoryLocation()?.pathname).toBe(getHomeRoomPath('!gamma:example.org'));
+      expect(previousHistoryPathname()).toBe(getActivityRoomPath('!beta:example.org'));
+    } finally {
+      unregister();
+      act(() => renderer?.unmount());
     }
   });
 
@@ -317,11 +381,16 @@ describe('native Universal Links', () => {
       '/connect/child',
       '/CONNECT',
       '/HOME/!harbor:example.org',
+      '/!space:example.org/search',
+      '/!space:example.org/search/',
+      '/%21space:example.org/search/',
+      '/%23space:example.org/search/',
     ];
 
     for (const path of excludedPaths) {
       const url = `https://chat.mindroom.chat${path}`;
       expect(matchesAasaComponents(components, url), `AASA must exclude ${path}`).toBe(false);
+      expect(getAppPathFromUniversalLink(url), `Router must reject ${path}`).toBeUndefined();
     }
   });
 });

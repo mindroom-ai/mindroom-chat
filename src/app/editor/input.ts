@@ -1,6 +1,7 @@
 import parse from 'html-dom-parser';
 import { ChildNode, Element as DomElement, isTag, isText } from 'domhandler';
 import { Descendant } from 'slate';
+import { parseMatrixToRoom, parseMatrixToRoomEvent, parseMatrixToUser } from '../matrix/matrix-to';
 import { escapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import {
   getEditorMathText,
@@ -59,24 +60,31 @@ function getText(node: ChildNode): string {
 const isBlockNode = (node: ChildNode): boolean =>
   isTag(node) && (BLOCK_TAGS.has(node.name) || isEditorMathBlockElement(node));
 
-const MATRIX_TO_PREFIX = 'https://matrix.to/#/';
-
 /** Reads a user, room, or event permalink; other links stay links. */
 const parseMatrixToLink = (
   href: string
 ): { id: string; eventId?: string; viaServers?: string[] } | undefined => {
-  if (!href.startsWith(MATRIX_TO_PREFIX)) return undefined;
-  const [path = '', query] = href.slice(MATRIX_TO_PREFIX.length).split('?');
-  const [rawId, rawEventId] = path.split('/');
-  if (!rawId) return undefined;
-  const id = decodeURIComponent(rawId);
-  if (!/^[@!#]/.test(id)) return undefined;
-  const viaServers = new URLSearchParams(query ?? '').getAll('via');
-  return {
-    id,
-    eventId: rawEventId ? decodeURIComponent(rawEventId) : undefined,
-    viaServers: viaServers.length > 0 ? viaServers : undefined,
-  };
+  const userId = parseMatrixToUser(href);
+  if (userId) return { id: userId };
+
+  const eventLink = parseMatrixToRoomEvent(href);
+  if (eventLink) {
+    return {
+      id: eventLink.roomIdOrAlias,
+      eventId: eventLink.eventId,
+      viaServers: eventLink.viaServers?.length ? eventLink.viaServers : undefined,
+    };
+  }
+
+  const roomLink = parseMatrixToRoom(href);
+  if (roomLink) {
+    return {
+      id: roomLink.roomIdOrAlias,
+      viaServers: roomLink.viaServers?.length ? roomLink.viaServers : undefined,
+    };
+  }
+
+  return undefined;
 };
 
 const sameMarks = (a: FormattedText, b: FormattedText): boolean =>

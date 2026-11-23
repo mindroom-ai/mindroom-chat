@@ -3,8 +3,8 @@
 import { Capacitor } from '@capacitor/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { NATIVE_APP_WEB_ORIGIN } from '../native/nativeAppOrigin';
 import {
-  NATIVE_APP_WEB_ORIGIN,
   getMatrixToRoom,
   getMatrixToRoomEvent,
   parseMatrixToRoom,
@@ -189,8 +189,12 @@ describe('matrix-to link helpers', () => {
     `${NATIVE_APP_WEB_ORIGIN}/home/!harbor:example.org/$entry-1`,
     `${NATIVE_APP_WEB_ORIGIN}/!space:example.org/lobby`,
     `${NATIVE_APP_WEB_ORIGIN}/!space:example.org/!harbor:example.org`,
+    `${NATIVE_APP_WEB_ORIGIN}/!harbor:example.org?threadId=$root`,
+    `${NATIVE_APP_WEB_ORIGIN}/!harbor:example.org/$entry-1?via=example.org&focusEvent=1`,
     `${window.location.origin}/!space:example.org/lobby`,
     `${window.location.origin}/!space:example.org/!harbor:example.org`,
+    `${window.location.origin}/!harbor:example.org?threadId=$root`,
+    `${window.location.origin}/!harbor:example.org/$entry-1?focusEvent=1`,
   ])('rejects unsupported or non-permalink URLs: %s', (href) => {
     expect(testMatrixTo(href)).toBe(false);
     expect(parseMatrixToRoom(href)).toBeUndefined();

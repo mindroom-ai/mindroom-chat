@@ -2,8 +2,6 @@ import { Capacitor } from '@capacitor/core';
 import { appUrl, getAppBasePath } from '../lib/basePath';
 import { NATIVE_APP_WEB_ORIGIN } from '../native/nativeAppOrigin';
 
-export { NATIVE_APP_WEB_ORIGIN };
-
 declare global {
   /** The path the app is served under, set by the bootstrap script (`src/boot/runtimeConfig.ts`). */
   // eslint-disable-next-line no-var
@@ -128,6 +126,9 @@ const parsePermalink = (href: string): Permalink | undefined => {
   const isCurrentOrigin = typeof window !== 'undefined' && url.origin === window.location.origin;
   const isNativeWebOrigin = url.origin === NATIVE_APP_WEB_ORIGIN;
   if (!isCurrentOrigin && !isNativeWebOrigin) return undefined;
+  // Links carrying extra app routing params (such as `threadId` or `focusEvent`) cannot be
+  // represented by a room/event mention pill without losing those params.
+  if ([...url.searchParams.keys()].some((key) => key !== 'via')) return undefined;
 
   let relativePath: string | undefined;
   if (isCurrentOrigin) {

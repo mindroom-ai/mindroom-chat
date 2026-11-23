@@ -6,6 +6,12 @@
         "components": [
           { "/": "/connect", "comment": "Local MindRoom pairing" },
           { "/": "/connect/" },
+          { "/": "/!*/search", "exclude": true, "comment": "Space search routes stay on web" },
+          { "/": "/!*/search/", "exclude": true },
+          { "/": "/%21*/search", "exclude": true },
+          { "/": "/%21*/search/", "exclude": true },
+          { "/": "/%23*/search", "exclude": true },
+          { "/": "/%23*/search/", "exclude": true },
           { "/": "/!*", "comment": "Shared room, space, and message permalinks" },
           { "/": "/%21*" },
           { "/": "/%23*" },

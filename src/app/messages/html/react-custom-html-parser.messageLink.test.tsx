@@ -101,6 +101,21 @@ describe('links to messages', () => {
     expect(linkOf(root).props['data-mention-via']).toBe('example.org');
   });
 
+  it('leaves Universal Links with extra routing query params as normal links', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}?threadId=${ROOT_ID}`;
+    const linkifyOpts = {
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention((url) => mention(url)),
+    };
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts });
+    const root = render(parse(`see <a href="${href}">${href}</a>`, opts));
+    const anchor = root.root.find((node) => node.type === 'a');
+    expect(anchor.props.href).toBe(href);
+    expect(anchor.props['data-mention-id']).toBeUndefined();
+    expect(anchor.props['data-mention-event-id']).toBeUndefined();
+    expect(textOf(root)).toBe(`see ${href}`);
+  });
+
   it('say thread for a thread root or a reply the client knows', () => {
     expect(textOf(render(mention(LINK(ROOM_ID, ROOT_ID))))).toBe('Thread in #Harbor operations');
     expect(textOf(render(mention(LINK(ROOM_ID, REPLY_ID))))).toBe('Thread in #Harbor operations');

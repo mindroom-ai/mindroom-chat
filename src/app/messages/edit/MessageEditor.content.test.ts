@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
+import { Capacitor } from '@capacitor/core';
 import { createEditor, type Descendant } from 'slate';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMarkdownDecorate } from '../../editor/markdownDecorations';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { getEditedContent, getEditorDocument, isUnchanged } from './MessageEditor';
@@ -22,6 +24,8 @@ const resave = (content: Record<string, unknown>, markdown = true) =>
   );
 
 describe('the content of an edit', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('keeps the message type it is given', () => {
     const editor = editorWith([{ type: 'paragraph', children: [{ text: 'waves again' }] }]);
     expect(getEditedContent(editor, true, 'm.emote', ME)).toEqual({
@@ -141,5 +145,102 @@ describe('the content of an edit', () => {
     const editor = editorWith(getEditorDocument(content, true));
     editor.children = [{ type: 'paragraph', children: [{ text: 'Hello again' }] }];
     expect(isUnchanged(content, getEditedContent(editor, true, 'm.text', ME)!)).toBe(false);
+  });
+
+  it('round-trips room and message mentions serialized as native Universal Links', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const roomMention = createMentionElement('!harbor:example.org', '#Harbor', false, undefined, [
+      'example.org',
+      'relay.example.org',
+    ]);
+    const messageMention = createMentionElement(
+      '!harbor:example.org',
+      'Message in #Harbor',
+      false,
+      '$entry-1',
+      ['example.org']
+    );
+    const original = getEditedContent(
+      editorWith([
+        {
+          type: 'paragraph',
+          children: [
+            { text: 'see ' },
+            roomMention,
+            { text: ' and ' },
+            messageMention,
+            { text: '' },
+          ],
+        },
+      ]),
+      true,
+      'm.text',
+      ME
+    )!;
+
+    expect(original.formatted_body).toContain(
+      'https://chat.mindroom.chat/!harbor:example.org?via=example.org&amp;via=relay.example.org'
+    );
+    expect(original.formatted_body).toContain(
+      'https://chat.mindroom.chat/!harbor:example.org/$entry-1?via=example.org'
+    );
+
+    const reopened = getEditorDocument(original, true);
+    expect(reopened).toEqual([
+      {
+        type: 'paragraph',
+        children: [{ text: 'see ' }, roomMention, { text: ' and ' }, messageMention],
+      },
+    ]);
+    expect(isUnchanged(original, resave(original)!)).toBe(true);
+  });
+
+  it('round-trips room and message mentions serialized on the current web origin', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    const aliasMention = createMentionElement(
+      '#field-notes:remote.example.org',
+      '#field-notes',
+      false
+    );
+    const messageMention = createMentionElement(
+      '!harbor:example.org',
+      'Message in #Harbor',
+      false,
+      '$entry-2',
+      ['example.org']
+    );
+    const original = getEditedContent(
+      editorWith([
+        {
+          type: 'paragraph',
+          children: [
+            { text: 'check ' },
+            aliasMention,
+            { text: ' and ' },
+            messageMention,
+            { text: '' },
+          ],
+        },
+      ]),
+      true,
+      'm.text',
+      ME
+    )!;
+
+    expect(original.formatted_body).toContain(
+      `${window.location.origin}/%23field-notes:remote.example.org`
+    );
+    expect(original.formatted_body).toContain(
+      `${window.location.origin}/!harbor:example.org/$entry-2?via=example.org`
+    );
+
+    const reopened = getEditorDocument(original, true);
+    expect(reopened).toEqual([
+      {
+        type: 'paragraph',
+        children: [{ text: 'check ' }, aliasMention, { text: ' and ' }, messageMention],
+      },
+    ]);
+    expect(isUnchanged(original, resave(original)!)).toBe(true);
   });
 });

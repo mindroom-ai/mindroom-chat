@@ -1,6 +1,7 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isRoomAlias, isRoomId } from '../lib/matrixIds';
+import { OPENED_FROM_OUTSIDE_STATE } from '../routes/historyStack';
 import {
   getActivityRoomPath,
   getConnectPath,
@@ -38,7 +39,21 @@ type NativeAppUrlPlugin = {
   getLaunchUrl(): Promise<{ url?: string } | undefined>;
 };
 
+type NativeAppPathNavigator = (appPath: string, options: { state?: unknown }) => void;
+
 let mindRoomAuthPlugin: MindRoomAuthPlugin | undefined;
+let activeNativeAppNavigator: NativeAppPathNavigator | undefined;
+
+export const setNativeAppPathNavigator = (
+  navigator: NativeAppPathNavigator | undefined
+): (() => void) => {
+  activeNativeAppNavigator = navigator;
+  return () => {
+    if (activeNativeAppNavigator === navigator) {
+      activeNativeAppNavigator = undefined;
+    }
+  };
+};
 
 type NativeAppleCredential = {
   url?: string;
@@ -120,7 +135,11 @@ export const isIOSStandaloneWebApp = (): boolean => {
   return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
 };
 
-const navigateNativeAppPath = (appPath: string): void => {
+const navigateNativeAppPath = (appPath: string, state?: unknown): void => {
+  if (activeNativeAppNavigator) {
+    activeNativeAppNavigator(appPath, { state });
+    return;
+  }
   try {
     window.history.replaceState(null, '', appPath);
     window.dispatchEvent(createPopStateNavigationEvent());
@@ -299,7 +318,7 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     if (routeNativeSsoCallback(url)) return true;
     const appPath = getAppPathFromUniversalLink(url);
     if (appPath && typeof window !== 'undefined') {
-      navigateNativeAppPath(appPath);
+      navigateNativeAppPath(appPath, OPENED_FROM_OUTSIDE_STATE);
       return true;
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
