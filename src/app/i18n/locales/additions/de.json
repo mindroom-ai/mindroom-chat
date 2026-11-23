@@ -497,7 +497,8 @@
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
-        "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben"
+        "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
+        "dictation": "Diktieren, Diktat, Sprache zu Text, Mikrofon, Telefon"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -1367,7 +1368,34 @@
     },
     "replyInThread": "Im Thread antworten…",
     "newThreadIn": "Neuer Thread in {{room}}…",
-    "newThreadWith": "Neuer Thread mit {{name}}…"
+    "newThreadWith": "Neuer Thread mit {{name}}…",
+    "dictation": {
+      "label": "Diktieren",
+      "cancel": "Diktat abbrechen",
+      "pause": "Diktat pausieren",
+      "resume": "Diktat fortsetzen",
+      "finish": "Diktat beenden",
+      "retry": "Erneut versuchen",
+      "insertPartial": "Teiltext einfügen",
+      "discard": "Verwerfen",
+      "dismissError": "Diktatfehler schließen",
+      "statusStarting": "Diktat wird gestartet",
+      "statusListening": "Diktat läuft",
+      "statusPaused": "Diktat pausiert",
+      "statusFinishing": "Wird abgeschlossen...",
+      "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
+      "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
+      "capReached": "Limit von 5:00 erreicht",
+      "micInterrupted": "Mikrofon getrennt. Fortsetzen oder beenden.",
+      "failedSummary_one": "{{count}} Abschnitt konnte nicht transkribiert werden.",
+      "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden."
+    },
+    "voiceButton": {
+      "settingTitle": "Mikrofon-Taste auf Mobilgeräten",
+      "settingDescription": "Wähle aus, was die Mikrofon-Taste im Eingabefeld auf Mobilgeräten ausführt. Die andere Aktion bleibt im +-Menü.",
+      "dictate": "Diktieren",
+      "voiceMessage": "Sprachnachricht"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1446,7 +1474,8 @@
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
       "callView": "Zum Anruf wechseln",
-      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden"
+      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden",
+      "dictate": "In das Eingabefeld diktieren"
     }
   },
   "thread": {

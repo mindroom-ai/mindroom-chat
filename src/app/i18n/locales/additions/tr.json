@@ -497,7 +497,8 @@
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
-        "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri"
+        "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
+        "dictation": "dikte, sesle yazma, sesten metne, mikrofon, telefon"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -1367,7 +1368,34 @@
     },
     "replyInThread": "Konuda yanıtla…",
     "newThreadIn": "{{room}} içinde yeni konu…",
-    "newThreadWith": "{{name}} ile yeni konu…"
+    "newThreadWith": "{{name}} ile yeni konu…",
+    "dictation": {
+      "label": "Dikte et",
+      "cancel": "Dikteyi iptal et",
+      "pause": "Dikteyi duraklat",
+      "resume": "Dikteyi sürdür",
+      "finish": "Dikteyi bitir",
+      "retry": "Yeniden dene",
+      "insertPartial": "Kısmi metni ekle",
+      "discard": "Sil",
+      "dismissError": "Dikte hatasını kapat",
+      "statusStarting": "Dikte başlatılıyor",
+      "statusListening": "Dikte ediliyor",
+      "statusPaused": "Dikte duraklatıldı",
+      "statusFinishing": "Tamamlanıyor...",
+      "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
+      "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
+      "capReached": "5:00 sınırına ulaşıldı",
+      "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
+      "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
+      "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi."
+    },
+    "voiceButton": {
+      "settingTitle": "Telefonda mikrofon düğmesi",
+      "settingDescription": "Telefonlarda yazma alanındaki mikrofon düğmesinin ne yapacağını seçin. Diğer eylem + menüsünde kalır.",
+      "dictate": "Dikte et",
+      "voiceMessage": "Sesli mesaj"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1446,7 +1474,8 @@
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
       "callView": "Aramaya git",
-      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun"
+      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun",
+      "dictate": "Yazma alanına dikte et"
     }
   },
   "thread": {

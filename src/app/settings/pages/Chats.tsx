@@ -16,6 +16,32 @@ import { settingsAtom } from '../../preferences/settings';
 import { MID_TURN_CHOICES } from '../../composer/ComposerSendButton';
 import { formatShortcut } from '../../shortcuts/shortcuts';
 
+/** Which voice action the phone composer microphone button triggers when dictation is available. */
+function VoiceButtonModeTile() {
+  const { t } = useTranslation();
+  const [mode, setMode] = useSetting(settingsAtom, 'voiceButtonMode');
+  const label = t('composer.voiceButton.settingTitle');
+
+  return (
+    <SettingTile
+      focusId="voiceButtonMode"
+      title={label}
+      description={t('composer.voiceButton.settingDescription')}
+      after={
+        <ChoiceButton
+          label={label}
+          value={mode}
+          choices={[
+            { value: 'dictate', label: t('composer.voiceButton.dictate') },
+            { value: 'voiceMessage', label: t('composer.voiceButton.voiceMessage') },
+          ]}
+          onChoose={setMode}
+        />
+      }
+    />
+  );
+}
+
 /** The mode a tap on Send or Enter sends with while an agent replies; a hold picks another. */
 function MidTurnSendTile() {
   const { t } = useTranslation();
@@ -74,6 +100,7 @@ export function Chats({ requestClose }: SettingsPageProps) {
           title={t('settings.general.editor.markdownFormatting')}
         />
         <MidTurnSendTile />
+        <VoiceButtonModeTile />
       </SettingsSection>
       <SettingsSection title={t('settings.general.messages.sectionTitle')}>
         <SettingSwitchTile

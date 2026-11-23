@@ -484,7 +484,8 @@
         "emoji": "emoji, stiker, paket, emoji kustom",
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
-        "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang"
+        "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang",
+        "dictation": "dikte, ucapan ke teks, ketik suara, mikrofon, ponsel"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -1322,7 +1323,32 @@
     },
     "replyInThread": "Balas di utas…",
     "newThreadIn": "Utas baru di {{room}}…",
-    "newThreadWith": "Utas baru dengan {{name}}…"
+    "newThreadWith": "Utas baru dengan {{name}}…",
+    "dictation": {
+      "label": "Dikte",
+      "cancel": "Batalkan dikte",
+      "pause": "Jeda dikte",
+      "resume": "Lanjutkan dikte",
+      "finish": "Selesaikan dikte",
+      "retry": "Coba lagi",
+      "insertPartial": "Sisipkan teks sebagian",
+      "discard": "Buang",
+      "dismissError": "Tutup kesalahan dikte",
+      "statusStarting": "Memulai dikte",
+      "statusListening": "Mendikte",
+      "statusPaused": "Dikte dijeda",
+      "statusFinishing": "Menyelesaikan...",
+      "statusPendingRetry_other": "{{count}} segmen menunggu percobaan ulang",
+      "capReached": "Batas 5:00 tercapai",
+      "micInterrupted": "Mikrofon terputus. Lanjutkan atau selesaikan.",
+      "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen."
+    },
+    "voiceButton": {
+      "settingTitle": "Tombol mikrofon di ponsel",
+      "settingDescription": "Pilih tindakan tombol mikrofon di kolom pesan pada ponsel. Tindakan lainnya tetap berada di menu +.",
+      "dictate": "Dikte",
+      "voiceMessage": "Pesan suara"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1401,7 +1427,8 @@
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",
       "callView": "Buka panggilan",
-      "voiceRecord": "Tahan untuk merekam pesan suara, ketuk untuk memulai atau mengirim"
+      "voiceRecord": "Tahan untuk merekam pesan suara, ketuk untuk memulai atau mengirim",
+      "dictate": "Dikte ke kolom pesan"
     }
   },
   "thread": {
