@@ -122,6 +122,7 @@
     "@vanilla-extract/vite-plugin": "5.2.6",
     "@vitejs/plugin-react": "4.7.0",
     "electron": "45.4.1",
+    "electron-builder": "26.18.0",
     "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "eslint-config-prettier": "9.1.0",

@@ -12,6 +12,7 @@
     "../src",
     "../e2e",
     "../electron",
+    "../scripts/**/*.test.ts",
     "../vite.config.js",
     "../vitest.config.ts",
     "../playwright.config.ts",
