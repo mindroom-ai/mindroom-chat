@@ -14,7 +14,7 @@ import { isRoomId } from '../../matrix/matrix';
 import { StateEvent, type RoomToParents } from '../../matrix/types/room';
 import { withSearchParam } from '../../routes/pathUtils';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { useRoomOrder } from './roomOrder';
+import { useRoomOrders, type RoomOrder } from './roomOrder';
 
 /** A section's rooms: the ones it shows on their own, and the sub-rooms under each room. */
 export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[]> };
@@ -97,7 +97,7 @@ export const buildSubRoomList = (
 
 /**
  * A section's room list, with `roomIds` and `topRoomIds` as for `nestSubRooms`: its rooms in A to Z
- * order until the person drags one, then in their order on every device (`useRoomOrder`), each
+ * order until the person drags one, then in their order on every device (`useRoomOrders`), each
  * with its sub-rooms under it. A collapsed section still lists the selected room, on its own.
  */
 export const useSubRoomList = (
@@ -109,20 +109,30 @@ export const useSubRoomList = (
 ) => {
   const roomToParents = useAtomValue(roomToParentsAtom);
   const chatRooms = useAtomValue(chatRoomParentsAtom);
-  const tree = useMemo(
-    () => nestSubRooms(topRoomIds, roomIds, roomToParents, chatRooms),
-    [topRoomIds, roomIds, roomToParents, chatRooms]
+  const roomOrders = useRoomOrders();
+  const list = useMemo(
+    () =>
+      buildSubRoomList(
+        topRoomIds,
+        roomIds,
+        roomToParents,
+        chatRooms,
+        (top) => roomOrders.orderOf(listId, top),
+        closed,
+        selectedRoomId
+      ),
+    [topRoomIds, roomIds, roomToParents, chatRooms, roomOrders, listId, closed, selectedRoomId]
   );
-  const roomOrder = useRoomOrder(listId, tree.top);
-  const shownRoomIds = useMemo(
-    () => withSubRooms(roomOrder.roomIds, tree),
-    [roomOrder.roomIds, tree]
+  const roomOrder = useMemo<RoomOrder>(
+    () => ({
+      roomIds: closed ? roomOrders.orderOf(listId, list.tree.top) : list.listedRoomIds,
+      manual: roomOrders.isManual(listId),
+      save: (order: string[]) => roomOrders.save(listId, order),
+      reset: () => roomOrders.reset([listId]),
+    }),
+    [roomOrders, listId, closed, list.tree.top, list.listedRoomIds]
   );
-  const listedRoomIds = useMemo(
-    () => (closed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds),
-    [shownRoomIds, roomOrder.roomIds, closed, selectedRoomId]
-  );
-  return { tree, roomOrder, shownRoomIds, listedRoomIds };
+  return { ...list, roomOrder };
 };
 
 const viaOf = (content: Record<string, unknown>): string[] => {

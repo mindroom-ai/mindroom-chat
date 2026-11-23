@@ -7,10 +7,8 @@ import {
   applyRoomOrder,
   moveRoom,
   parseRoomOrderLists,
-  saveRoomOrder,
   saveRoomOrders,
   useRoomOrders,
-  withRoomOrder,
   withRoomOrders,
   type RoomOrders,
 } from './roomOrder';
@@ -73,10 +71,10 @@ describe('parseRoomOrderLists', () => {
   });
 });
 
-describe('withRoomOrder', () => {
-  it('sets one list and keeps the other lists and unknown keys', () => {
+describe('withRoomOrders', () => {
+  it('sets a list without mutating input and keeps other lists and unknown keys', () => {
     const content = { lists: { '!space': ['!x'] }, future: true };
-    expect(withRoomOrder(content, 'home', ['!b', '!a'])).toEqual({
+    expect(withRoomOrders(content, { home: ['!b', '!a'] })).toEqual({
       lists: { '!space': ['!x'], home: ['!b', '!a'] },
       future: true,
     });
@@ -84,18 +82,21 @@ describe('withRoomOrder', () => {
     expect(content).toEqual({ lists: { '!space': ['!x'] }, future: true });
   });
 
-  it('removes a list to go back to A to Z', () => {
-    expect(withRoomOrder({ lists: { home: ['!a'], '!s': ['!b'] } }, 'home', undefined)).toEqual({
-      lists: { '!s': ['!b'] },
+  it('applies multiple updates and removals in one pass, and starts from empty content', () => {
+    expect(
+      withRoomOrders(
+        { lists: { '!a': ['!1'], '!b': ['!2'], '!keep': ['!3'] }, extra: 1 },
+        { '!a': undefined, '!b': undefined, '!c': ['!4'] }
+      )
+    ).toEqual({
+      lists: { '!keep': ['!3'], '!c': ['!4'] },
+      extra: 1,
     });
-  });
-
-  it('starts from empty content', () => {
-    expect(withRoomOrder(undefined, 'home', ['!a'])).toEqual({ lists: { home: ['!a'] } });
+    expect(withRoomOrders(undefined, { home: ['!a'] })).toEqual({ lists: { home: ['!a'] } });
   });
 });
 
-describe('saveRoomOrder', () => {
+describe('saveRoomOrders', () => {
   const clientWith = (content: unknown) => {
     const setAccountData = vi.fn(async () => ({}));
     const client = {
@@ -109,18 +110,16 @@ describe('saveRoomOrder', () => {
     return { client, setAccountData };
   };
 
-  it('writes the list into io.mindroom.room_order over the stored content', async () => {
+  it('writes changes into io.mindroom.room_order over the stored content and round-trips', async () => {
     const { client, setAccountData } = clientWith({ lists: { '!space': ['!x', '!y'] } });
-    await saveRoomOrder(client, 'home', ['!c', '!a', '!b']);
+    await saveRoomOrders(client, { home: ['!c', '!a', '!b'] });
     expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
       lists: { '!space': ['!x', '!y'], home: ['!c', '!a', '!b'] },
     });
-  });
 
-  it('round-trips: what it writes reads back as the same order', async () => {
-    const { client, setAccountData } = clientWith(undefined);
-    await saveRoomOrder(client, '!space', ['!b', '!a']);
-    const written = (setAccountData.mock.calls[0] as unknown[])[1];
+    const fresh = clientWith(undefined);
+    await saveRoomOrders(fresh.client, { '!space': ['!b', '!a'] });
+    const written = (fresh.setAccountData.mock.calls[0] as unknown[])[1];
     expect(applyRoomOrder(['!a', '!b', '!c'], parseRoomOrderLists(written)['!space'])).toEqual([
       '!b',
       '!a',
@@ -128,23 +127,7 @@ describe('saveRoomOrder', () => {
     ]);
   });
 
-  it('forgets a list when saving no order', async () => {
-    const { client, setAccountData } = clientWith({ lists: { home: ['!b', '!a'] } });
-    await saveRoomOrder(client, 'home', undefined);
-    expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', { lists: {} });
-  });
-
-  it('applies multiple list changes and atomic resets in one account-data write', async () => {
-    expect(
-      withRoomOrders(
-        { lists: { '!a': ['!1'], '!b': ['!2'], '!keep': ['!3'] }, extra: 1 },
-        { '!a': undefined, '!b': undefined, '!c': ['!4'] }
-      )
-    ).toEqual({
-      lists: { '!keep': ['!3'], '!c': ['!4'] },
-      extra: 1,
-    });
-
+  it('resets multiple lists in one atomic account-data write while preserving others', async () => {
     const { client, setAccountData } = clientWith({
       lists: { '!a': ['!2', '!1'], '!b': ['!4', '!3'], '!other': ['!x'] },
     });
