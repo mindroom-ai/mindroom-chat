@@ -1450,6 +1450,11 @@
     "actions": {
       "goActivity": "गतिविधि पर जाएँ",
       "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है"
+    },
+    "recentVisits": {
+      "recentlyOpened": "हाल ही में खोला गया",
+      "otherThreads": "अन्य थ्रेड",
+      "otherRooms": "अन्य रूम"
     }
   },
   "shortcuts": {

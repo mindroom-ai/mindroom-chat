@@ -1403,6 +1403,11 @@
     "actions": {
       "goActivity": "アクティビティに移動",
       "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
+    },
+    "recentVisits": {
+      "recentlyOpened": "最近開いた項目",
+      "otherThreads": "他のスレッド",
+      "otherRooms": "他のルーム"
     }
   },
   "shortcuts": {

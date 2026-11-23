@@ -1450,6 +1450,11 @@
     "actions": {
       "goActivity": "Go to Activity",
       "goActivityDescription": "Mentions, replies and what waits for you"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Recently opened",
+      "otherThreads": "Other threads",
+      "otherRooms": "Other rooms"
     }
   },
   "shortcuts": {

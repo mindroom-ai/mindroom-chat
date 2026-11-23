@@ -1544,6 +1544,11 @@
     "actions": {
       "goActivity": "Перейти к активности",
       "goActivityDescription": "Упоминания, ответы и то, что ждёт вас"
+    },
+    "recentVisits": {
+      "recentlyOpened": "Недавно открытые",
+      "otherThreads": "Другие ветки",
+      "otherRooms": "Другие комнаты"
     }
   },
   "shortcuts": {

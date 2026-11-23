@@ -182,6 +182,24 @@ export const GroupTitle = style({
 
 export const GroupCount = style({ fontWeight: 400, opacity: 0.8 });
 
+export const SubGroupTitle = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 5,
+  padding: '4px 10px 3px',
+  color: color.SurfaceVariant.OnContainer,
+  fontSize: 11,
+  fontWeight: 500,
+  lineHeight: '16px',
+  letterSpacing: '0.03em',
+});
+
+export const SubGroupDivider = style({
+  marginTop: 6,
+  paddingTop: 7,
+  borderTop: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 12%, transparent)`,
+});
+
 // A quiet line in a section: loading, an error, no matches, or encrypted rooms left out.
 export const Note = style({
   display: 'flex',
