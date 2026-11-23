@@ -47,13 +47,19 @@ const OPEN_SETUPS: Setup[] = [
   { engine: 'webkit', viewport: 'desktop' },
   { engine: 'webkit', viewport: 'phone' },
 ];
-const SCROLL_SETUPS: Setup[] = [
-  { engine: 'chromium', viewport: 'desktop' },
-  { engine: 'webkit', viewport: 'desktop' },
+type ScrollSetup = Setup & { protoMode?: "auto" | "zero" | "over" };
+const SCROLL_SETUPS: ScrollSetup[] = [
+  { engine: "chromium", viewport: "desktop", protoMode: "auto" },
+  { engine: "webkit", viewport: "desktop", protoMode: "auto" },
+  { engine: "webkit", viewport: "phone", protoMode: "auto" },
+  { engine: "webkit", viewport: "desktop", protoMode: "zero" },
+  { engine: "webkit", viewport: "desktop", protoMode: "over" },
+  { engine: "webkit", viewport: "phone", protoMode: "zero" },
+  { engine: "webkit", viewport: "phone", protoMode: "over" },
 ];
 const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
   desktop: { viewport: { width: 1440, height: 900 } },
-  phone: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
+  phone: { viewport: { width: 390, height: 844 }, hasTouch: true },
 };
 
 const PASSWORD = 'thread-timeline-jumps-password';
@@ -456,15 +462,14 @@ test.describe('thread timeline jumps reproducers', () => {
   });
 
   SCROLL_SETUPS.forEach((setup) => {
-    test(`${setup.engine} ${setup.viewport}: fast upward wheel scrolling through realistic history does not jump`, async ({
+    const mode = setup.protoMode ?? "auto";
+    test(`${setup.engine} ${setup.viewport} [${mode}]: fast upward wheel scrolling through realistic history does not jump`, async ({
       baseURL,
     }) => {
-      test.fixme(
-        setup.engine === 'webkit',
-        'Follow-up: WebKit settle discard/replay under fast wheel scrolling'
-      );
       const fixture = requireFixture(setup);
-      await openAndRun(setup, baseURL, fixture, async (page) => {
+      const runSetup = setup.viewport === "phone" ? { ...setup, viewport: "phone" as const } : setup;
+      await openAndRun(runSetup, baseURL, fixture, async (page) => {
+        await page.addInitScript((m) => window.localStorage.setItem("__protoHeadroom", m), mode);
         await delayMediaAndRelations(page, 350, 650);
         const card = await gotoThreadCard(page, fixture);
         await page.waitForTimeout(600);
@@ -501,7 +506,8 @@ test.describe('thread timeline jumps reproducers', () => {
           topJumps: r.jumps.slice(0, 5),
         });
         const msg = (label: string) => `${label}: ${summary}`;
-        expect(r.scrolledPx, 'scrolled upward').toBeGreaterThan(10_000);
+        console.log(`JUMP-PROTO ${setup.engine} ${setup.viewport} [${mode}]: ${summary}`);
+        expect(r.scrolledPx, "scrolled upward").toBeGreaterThan(10_000);
         expect(r.lostPlaceFrames, msg('lost place')).toBe(0);
         expect(r.maxReversalPx, msg('reversal jump')).toBeLessThanOrEqual(8);
         expect(r.maxUnexplainedPx, msg('unexplained jump')).toBeLessThanOrEqual(12);

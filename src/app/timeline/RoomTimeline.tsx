@@ -1318,6 +1318,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEventIndexMap,
     threadEvents,
     threadId,
+    expectedThreadEvents: threadId ? Math.max(threadEvents.length, (threadIndex.threadReplyCountMap.get(threadId) ?? 0) + 1) : 0,
+    showThreadLoadOlder,
     threadInitialRenderMode,
     threadRowPricing,
     leadingKey: threadId
@@ -1372,7 +1374,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     renderedList?.height
       ? renderedList
       : undefined;
-  const listHeight = heldList
+  const listHeight = threadId
+    ? ledger.headroomPxAtRender + virtualizer.getTotalSize()
+    : heldList
     ? heldListHeight(heldList, ledger.ledgerPxAtRender)
     : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
