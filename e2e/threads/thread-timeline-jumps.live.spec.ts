@@ -632,7 +632,7 @@ test.describe('thread timeline jumps reproducers', () => {
         baseURL,
         fixture,
         async (page) => {
-          await openThreadWithOwner(page, fixture, { mediaMs: 250, relationsMs: 250 });
+          await openThreadWithOwner(page, fixture, { mediaMs: 350, relationsMs: 650 });
           const center = await getProbeScrollerCenter(page);
           await startProbe(page, 'scrollUp', 150);
           await page.mouse.move(center.x, center.y);

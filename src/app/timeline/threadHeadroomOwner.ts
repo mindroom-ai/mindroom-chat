@@ -16,7 +16,7 @@ export const THREAD_SCROLL_OWNER_TEST_INITIAL_CAP_KEY =
 /** Idle quiet window before any rest-time geometry write (trim, top-up, or held-page release). */
 export const HEADROOM_IDLE_REST_MS = 500;
 /** Default row height estimate before any rows in the view have been measured. */
-const DEFAULT_ROW_HEIGHT_PX = 260;
+const DEFAULT_ROW_HEIGHT_PX = 180;
 /** Top-up triggers when headroom drops below this multiple of the viewport height. */
 const TOP_UP_LOW_WATER_VIEWPORTS = 2;
 /** Minimum reserve floor (in viewports) while more history remains. */
@@ -81,7 +81,8 @@ declare global {
 
 export const computeAverageMeasuredRowHeight = (
   sizeCache: ReadonlyMap<unknown, number> | undefined,
-  fallbackPx = DEFAULT_ROW_HEIGHT_PX
+  fallbackPx = DEFAULT_ROW_HEIGHT_PX,
+  measurementsCache?: readonly { key: unknown; size: number }[]
 ): number => {
   if (!sizeCache || sizeCache.size === 0) return fallbackPx;
   let sum = 0;
@@ -92,7 +93,19 @@ export const computeAverageMeasuredRowHeight = (
       count += 1;
     }
   });
-  return count > 0 ? sum / count : fallbackPx;
+  if (count === 0) return fallbackPx;
+  const avgVisibleRowPx = sum / count;
+  // Scale by the visible-row fraction of loaded events so 0-height folded/hidden/relation
+  // events are not billed at full visible-reply height.
+  if (measurementsCache && measurementsCache.length > 0) {
+    let visibleCount = 0;
+    for (let i = 0; i < measurementsCache.length; i += 1) {
+      if ((measurementsCache[i]?.size ?? 0) > 0) visibleCount += 1;
+    }
+    const visibleFraction = visibleCount / measurementsCache.length;
+    return Math.max(40, avgVisibleRowPx * visibleFraction);
+  }
+  return avgVisibleRowPx;
 };
 
 export const computeHeadroomBudget = ({
@@ -690,7 +703,11 @@ export const useThreadHeadroomCommit = ({
     gate.committedHeadroomPx = headroomPxAtRender;
     gate.sizeCache = sizeCacheRef.current;
     gate.anchorRef = anchorRef;
-    const avgRowHeight = computeAverageMeasuredRowHeight(gate.sizeCache, gate.lastAvgRowHeight);
+    const avgRowHeight = computeAverageMeasuredRowHeight(
+      gate.sizeCache,
+      gate.lastAvgRowHeight,
+      virtualizerRef.current.measurementsCache
+    );
     gate.lastAvgRowHeight = avgRowHeight;
     gate.stats.lastHeadroom = Math.round(headroomPxAtRender);
     gate.stats.lastAvgRowHeight = Math.round(avgRowHeight);
@@ -766,24 +783,29 @@ export const useThreadHeadroomCommit = ({
     const viewH = Math.max(300, scrollElement.clientHeight || 900);
     const viewW = scrollElement.clientWidth || 1200;
 
-    const countUnmeasuredLoaded = (events: MatrixEvent[], upToIndex?: number): number => {
+    const countUnmeasuredVisible = (events: MatrixEvent[], upToIndex?: number): number => {
       const cache = sizeCacheRef.current;
+      const mCache = virtualizerRef.current.measurementsCache;
       const limit = upToIndex !== undefined ? Math.min(upToIndex, events.length) : events.length;
       let count = 0;
       for (let i = 0; i < limit; i += 1) {
         const id = events[i]?.getId();
-        if (id && !cache?.has(id)) count += 1;
+        if (!id || cache?.has(id)) continue;
+        // Skip folded/hidden 0-height rows; they never wrap taller when mounted.
+        const est = mCache[i]?.size;
+        if (est !== undefined && est <= 0) continue;
+        count += 1;
       }
       return count;
     };
 
-    // Opening headroom reservation / top-up while `!threadUserScrolled`.
+    // Opening headroom reservation & recalibration while `!threadUserScrolled`.
     if (!threadUserScrolled && hasMoreHistory && threadEvents.length > 0) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
-      const unmeasuredLoaded = countUnmeasuredLoaded(threadEvents);
+      const unmeasuredVisible = countUnmeasuredVisible(threadEvents);
       let desired = computeHeadroomBudget({
         unloadedReplies: unloaded,
-        unmeasuredLoaded,
+        unmeasuredLoaded: unmeasuredVisible,
         avgRowHeight,
         viewHeight: viewH,
         viewWidth: viewW,
@@ -794,19 +816,21 @@ export const useThreadHeadroomCommit = ({
         desired = Math.min(desired, testCap);
       }
       const shouldSeed = !gate.headroomInitialized;
-      const shouldOpenTopUp =
-        testCap === undefined && gate.committedHeadroomPx < desired * 0.85;
-      if (shouldSeed || shouldOpenTopUp) {
+      const shouldRecalibrate =
+        testCap === undefined &&
+        (gate.committedHeadroomPx < desired * 0.85 ||
+          gate.committedHeadroomPx > desired * 1.25 + viewH);
+      if (shouldSeed || shouldRecalibrate) {
         gate.headroomInitialized = true;
         if (testCap !== undefined) gate.initialTestCapApplied = true;
         const delta = desired - gate.committedHeadroomPx;
-        if (delta > 1) {
+        if (Math.abs(delta) > 1) {
           gate.stats.initBudget = Math.round(desired);
           const preTop = scrollElement.scrollTop;
           gate.committedHeadroomPx = desired;
           gate.pendingAbsoluteScroll = threadOpenedAtLatest
             ? { kind: "bottom", reason: "open-init" }
-            : { kind: "offset", target: preTop + delta, reason: "open-init" };
+            : { kind: "offset", target: Math.max(0, preTop + delta), reason: "open-init" };
           gate.bumpCommitTick();
           return;
         }
@@ -837,8 +861,9 @@ export const useThreadHeadroomCommit = ({
       const heldEvents = gate.heldRawEvents;
       const unloadedAfter = Math.max(0, expectedThreadEvents - heldEvents.length);
       const prependNeed = Math.ceil(gate.heldPrependEstimatePx * 1.25);
-      const unmeasuredAfter = countUnmeasuredLoaded(heldEvents);
-      const perUnmeasured = viewW < 600 ? 70 : 20;
+      const unmeasuredAfter = countUnmeasuredVisible(threadEvents, anchorRef.current?.index);
+      const perUnmeasured = viewW < 600 ? 70 : 10;
+      const prependExactEstimate = Math.ceil(gate.heldPrependEstimatePx);
       const targetHeadroom = rawHasMoreHistory
         ? Math.max(
             computeHeadroomBudget({
@@ -848,10 +873,13 @@ export const useThreadHeadroomCommit = ({
               viewHeight: viewH,
               viewWidth: viewW,
               hasMoreHistory: true,
-            }) + prependNeed,
-            prependNeed + Math.round(viewH * MIN_HISTORY_BUDGET_VIEWPORTS)
+            }) + prependExactEstimate,
+            prependExactEstimate + Math.round(viewH * MIN_HISTORY_BUDGET_VIEWPORTS)
           )
-        : Math.max(prependNeed + Math.min(unmeasuredAfter * perUnmeasured, 18_000), prependNeed);
+        : Math.max(
+            prependExactEstimate + Math.min(unmeasuredAfter * perUnmeasured, 12_000),
+            prependExactEstimate
+          );
       const delta = targetHeadroom - gate.committedHeadroomPx;
       if (delta > 1) {
         const preTop = scrollElement.scrollTop;
@@ -881,7 +909,7 @@ export const useThreadHeadroomCommit = ({
     ) {
       const unloaded = Math.max(0, expectedThreadEvents - threadEvents.length);
       const anchorIdx = anchorRef.current?.index ?? threadEvents.length;
-      const unmeasuredAbove = countUnmeasuredLoaded(threadEvents, anchorIdx);
+      const unmeasuredAbove = countUnmeasuredVisible(threadEvents, anchorIdx);
       const targetHeadroom = computeHeadroomBudget({
         unloadedReplies: unloaded,
         unmeasuredLoaded: unmeasuredAbove,
@@ -908,14 +936,10 @@ export const useThreadHeadroomCommit = ({
     if (!hasMoreHistory && gate.committedHeadroomPx > 0 && threadEvents.length > 0) {
       const preTop = scrollElement.scrollTop;
       const anchorIdx = anchorRef.current?.index ?? 0;
-      let unmeasuredAbove = 0;
-      if (preTop >= gate.committedHeadroomPx && anchorIdx > 0) {
-        const cache = sizeCacheRef.current;
-        for (let i = 0; i < anchorIdx; i += 1) {
-          const id = threadEvents[i]?.getId();
-          if (id && !cache?.has(id)) unmeasuredAbove += 1;
-        }
-      }
+      const unmeasuredAbove =
+        preTop >= gate.committedHeadroomPx && anchorIdx > 0
+          ? countUnmeasuredVisible(threadEvents, anchorIdx)
+          : 0;
       const plan = computeTrimPlan({
         headroomPx: gate.committedHeadroomPx,
         scrollTop: preTop,
