@@ -907,7 +907,6 @@ test.describe('thread timeline jumps reproducers', () => {
   const createColdThreadState = () => ({
     relationsPages: 0,
     relationsDone: false,
-    allowMessages: false,
   });
 
   const setupColdThreadRoutes = async (
@@ -924,19 +923,15 @@ test.describe('thread timeline jumps reproducers', () => {
         // Page closed while media request was delayed.
       }
     });
-    // Prevent background room /messages backfill (which starts right after login) from populating
-    // the thread's SDK timeline with 200 events before the user clicks the thread card.
-    await page.route('**/_matrix/client/v3/rooms/*/messages**', async (route) => {
+    // Prevent background room /messages backfill from populating the thread's SDK timeline with
+    // 200 events before/during the cold thread open.
+    await page.route('**/_matrix/client/*/rooms/*/messages**', async (route) => {
       try {
-        if (!state.allowMessages) {
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ chunk: [], start: '', end: '' }),
-          });
-          return;
-        }
-        await route.continue();
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ chunk: [], start: '', end: '' }),
+        });
       } catch {
         // Page closed.
       }
@@ -1001,7 +996,7 @@ test.describe('thread timeline jumps reproducers', () => {
               }
             ).__threadJumpProbe.clearCacheStore();
           });
-          net.allowMessages = true;
+
 
         await startProbe(page, 'open');
         await card.click();
@@ -1079,7 +1074,7 @@ test.describe('thread timeline jumps reproducers', () => {
               }
             ).__threadJumpProbe.clearCacheStore();
           });
-          net.allowMessages = true;
+
 
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
@@ -1181,7 +1176,7 @@ test.describe('thread timeline jumps reproducers', () => {
               }
             ).__threadJumpProbe.clearCacheStore();
           });
-          net.allowMessages = true;
+
 
         await card.click();
         await expect(page.locator(THREAD_ROWS_SELECTOR)).toBeVisible({ timeout: 30_000 });
@@ -1208,11 +1203,32 @@ test.describe('thread timeline jumps reproducers', () => {
         await page.mouse.move(center.x, center.y);
         // Reader gently reads/scrolls upward while pages 2..12 keep arriving every 450 ms.
         while (!net.relationsDone) {
-          for (let notch = 0; notch < 6; notch += 1) {
-            await page.mouse.wheel(0, -120);
-            await page.waitForTimeout(32);
+          if (setup.engine === 'webkit' && setup.viewport === 'phone') {
+            await page.evaluate(() => {
+              const inner = document.querySelector<HTMLElement>(
+                '[data-timeline-rows][data-thread-count]'
+              );
+              let scroller = inner?.parentElement ?? null;
+              while (scroller) {
+                const { overflowY } = getComputedStyle(scroller);
+                if (overflowY === 'auto' || overflowY === 'scroll') break;
+                scroller = scroller.parentElement;
+              }
+              if (!scroller) return;
+              scroller.dispatchEvent(
+                new PointerEvent('pointerdown', { bubbles: true, isPrimary: true })
+              );
+              scroller.scrollTop = Math.max(0, scroller.scrollTop - 120);
+              scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
+            });
+            await page.waitForTimeout(180);
+          } else {
+            for (let notch = 0; notch < 6; notch += 1) {
+              await page.mouse.wheel(0, -120);
+              await page.waitForTimeout(32);
+            }
+            await page.waitForTimeout(180);
           }
-          await page.waitForTimeout(180);
         }
         await page.waitForTimeout(800);
         const report = await stopProbe(page);
