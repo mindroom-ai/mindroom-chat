@@ -12,9 +12,12 @@ import {
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
+  createDefaultThreadFilterState,
+  seedRoomOverviewState,
+  sendStateEvent,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { launchWebKit, onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -137,7 +140,68 @@ const cardOrder = (page: Page) =>
     .locator(CARDS)
     .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-thread-root-id') ?? ''));
 
-const topOf = (card: Locator) => card.evaluate((element) => element.getBoundingClientRect().top);
+const HOLD_FRAMES = 24;
+
+/** Start before the sync arrives, then sample through the same number of frames after it. */
+const expectHeldArrival = async (
+  view: Locator,
+  id: string,
+  count: number,
+  point: { x: number; y: number },
+  label: string,
+  arrive: () => string | Promise<string>
+) => {
+  const watch = await view.evaluateHandle(
+    (scroller, { id, count, point, frames }) => {
+      const selector = `[data-thread-root-id="${CSS.escape(id)}"]:not([inert] *)`;
+      const top = () => scroller.querySelector(selector)?.getBoundingClientRect().top;
+      const before = top();
+      if (before === undefined) throw new Error('Held card is not mounted before the arrival');
+      const scrollBefore = scroller.scrollTop;
+      const sample = async () => {
+        let maxDisplacement = 0;
+        let missingFrames = 0;
+        let missedPointerFrames = 0;
+        let afterArrival = 0;
+        while (afterArrival < frames) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const now = top();
+          if (now === undefined) missingFrames += 1;
+          else maxDisplacement = Math.max(maxDisplacement, Math.abs(now - before));
+          const hit = document.elementFromPoint(point.x, point.y)?.closest(selector);
+          if (!hit) missedPointerFrames += 1;
+          if (scroller.getAttribute('data-compact-card-count') === String(count)) {
+            afterArrival += 1;
+          }
+        }
+        return {
+          maxDisplacement,
+          missingFrames,
+          missedPointerFrames,
+          scrollBefore,
+          scrollAfter: scroller.scrollTop,
+        };
+      };
+      return { result: sample() };
+    },
+    { id, count, point, frames: HOLD_FRAMES }
+  );
+  try {
+    const arrival = await arrive();
+    // The new card can be outside the mounted window.
+    await expect(view).toHaveAttribute('data-compact-card-count', String(count));
+    const result = await watch.evaluate(({ result }) => result);
+    test.info().annotations.push({ type: 'held card', description: JSON.stringify(result) });
+    expect(result.scrollBefore).toBeGreaterThan(0);
+    expect(result.missingFrames, `${label}: held card unmounted`).toBe(0);
+    expect(result.maxDisplacement, `${label}: the card under the pointer moved`).toBeLessThan(1);
+    expect(result.missedPointerFrames, `${label}: pointer left the held card`).toBe(0);
+    return arrival;
+  } finally {
+    await watch.dispose();
+  }
+};
 
 const scrollList = (page: Page, top: number) =>
   page.evaluate((scrollTop) => {
@@ -169,6 +233,33 @@ const expectFirst = async (page: Page, rootId: string, body: string, where: stri
     .toBe(0);
 };
 
+const findMiddleCard = async (view: Locator, label: string): Promise<string> => {
+  let middle: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        middle = await view.evaluate((scroller) => {
+          const { x, y, width, height } = scroller.getBoundingClientRect();
+          return (
+            [0, 16, -16]
+              .map((offset) =>
+                document
+                  .elementFromPoint(x + width / 2, y + height / 2 + offset)
+                  ?.closest('[data-thread-root-id]')
+                  ?.getAttribute('data-thread-root-id')
+              )
+              .find((id) => !!id) ?? undefined
+          );
+        });
+        return middle;
+      },
+      { message: `${label}: a card in the middle of the scrolled view` }
+    )
+    .toBeTruthy();
+  if (!middle) throw new Error('No card at the center of the Compact view');
+  return middle;
+};
+
 const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: boolean) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -178,9 +269,13 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   // A room with an agent opens in Compact, sorted by last reply, newest first.
   await expectRoomCompact(page, true, 60_000);
-  await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
-  expect((await cardOrder(page))[0], `${label}: the newest thread leads`).toBe(
-    seeded.rootIds[THREAD_COUNT - 1]
+  const view = page.locator('[data-compact-room-view]');
+  await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+    timeout: 60_000,
+  });
+  await expect(page.locator(CARDS).first(), `${label}: the newest thread leads`).toHaveAttribute(
+    'data-thread-root-id',
+    seeded.rootIds[THREAD_COUNT - 1]!
   );
   // The pointer away from the list.
   if (!phone) await page.mouse.move(5, 795);
@@ -204,8 +299,9 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   if (phone) {
     // 3. A phone reader who scrolled down the list and back up to its top.
     await scrollList(page, 900);
-    await page.waitForTimeout(300);
+    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
     await scrollList(page, 0);
+    await expect.poll(() => listScrollTop(page)).toBe(0);
     const phoneBody = `Heads up for ${label}: the status page shows a partial outage of the search API.`;
     const phoneCard = await agentPosts(seeded, phoneBody);
     await expectFirst(page, phoneCard, phoneBody, `after scrolling back up (${label})`);
@@ -228,41 +324,32 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   // under the pointer stays where it is.
   await page.mouse.move(5, 795);
   await scrollList(page, 700);
-  await page.waitForTimeout(300);
-  const midOrder = await cardOrder(page);
-  const middle = await page.evaluate(() => {
-    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
-    const rect = view?.getBoundingClientRect();
-    if (!rect) return undefined;
-    const hit = document
-      .elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
-      ?.closest('[data-thread-root-id]');
-    return hit?.getAttribute('data-thread-root-id') ?? undefined;
-  });
-  expect(middle, `${label}: a card in the middle of the list`).toBeTruthy();
-  expect(midOrder.indexOf(middle!)).toBeGreaterThan(3);
-  const midCard = cardOf(page, middle!);
-  await withMovingMouseOverCard(page, midCard, async () => {
-    const before = await topOf(midCard);
-    const scrolledBefore = await listScrollTop(page);
-    const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
-    const scrolled = await agentPosts(seeded, scrolledBody);
-    await expectFirst(page, scrolled, scrolledBody, `scrolled down, under the pointer (${label})`);
-    await page.evaluate(
-      () =>
-        new Promise((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        })
-    );
-    const moved = (await topOf(midCard)) - before;
-    const scrolledAfter = await listScrollTop(page);
-    test.info().annotations.push({
-      type: 'held card',
-      description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
-    });
-    expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
-  });
+  // Start the hold on a settled card, not one still gliding from the previous arrival.
+  await expect
+    .poll(() =>
+      view.evaluate((element) =>
+        element
+          .getAnimations({ subtree: true })
+          .some(
+            (animation) =>
+              (animation.effect as KeyframeEffect | null)?.target?.hasAttribute(
+                'data-motion-row'
+              ) && animation.playState !== 'finished'
+          )
+      )
+    )
+    .toBe(false);
+  const middle = await findMiddleCard(view, label);
+  const scrolledBody = `Update for ${label}: the certificate for the staging host renews tomorrow at noon.`;
+  const scrolled = await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+    expectHeldArrival(view, middle, THREAD_COUNT + 3, pointer, label, () =>
+      agentPosts(seeded, scrolledBody)
+    )
+  );
   await shot(page, `${label}-4-held-scrolled`);
+  await page.mouse.move(5, 795);
+  await scrollList(page, 0);
+  await expectFirst(page, scrolled, scrolledBody, `after returning to the top (${label})`);
 };
 
 test.beforeEach(async () => {
@@ -302,3 +389,137 @@ for (const [form, options] of [
     });
   });
 }
+
+test('a sync batch larger than the Compact window does not displace a held card (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  const seeded = await seed('batch');
+  const batchSize = 40;
+  await onWebKitPage({ ...DESKTOP, baseURL, reducedMotion: 'reduce' }, async (page) => {
+    let buffering = false;
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let deliveredIds: string[] = [];
+    await page.route(/\/_matrix\/client\/(?:v3|r0)\/sync(?:\?|$)/, async (route) => {
+      let response = await route.fetch({ timeout: 60_000 }).catch(() => undefined);
+      // A sync that failed is the client's to ask again: left open, the route would strand it.
+      if (!response) {
+        await route.abort().catch(() => undefined);
+        return;
+      }
+      const url = new URL(route.request().url());
+      if (buffering && url.searchParams.has('since')) {
+        await gate;
+        buffering = false;
+        // The pending poll can return as soon as the first post arrives. Replay it from the
+        // same since token with room for the entire batch, not the client's usual 20 events.
+        url.searchParams.set('timeout', '0');
+        url.searchParams.set(
+          'filter',
+          JSON.stringify({ room: { timeline: { limit: batchSize + 20 } } })
+        );
+        response = await route.fetch({ url: url.href, timeout: 15_000 });
+        const sync = (await response.json()) as {
+          rooms?: { join?: Record<string, { timeline?: { events?: { event_id: string }[] } }> };
+        };
+        deliveredIds =
+          sync.rooms?.join?.[seeded.roomId]?.timeline?.events?.map((event) => event.event_id) ?? [];
+      }
+      await route.fulfill({ response }).catch(() => undefined);
+    });
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: seeded.reader.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
+    const view = page.locator('[data-compact-room-view]');
+    await expect(view).toHaveAttribute('data-compact-card-count', String(THREAD_COUNT), {
+      timeout: 60_000,
+    });
+    await scrollList(page, 700);
+    await expect.poll(() => listScrollTop(page)).toBeGreaterThan(0);
+
+    buffering = true;
+    try {
+      const roots: string[] = [];
+      for (let index = 0; index < batchSize; index += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        roots.push(await agentPosts(seeded, `Batch update ${index}: Export check complete.`));
+      }
+      const middle = await findMiddleCard(view, 'webkit-batch');
+      expect(await page.locator(CARDS).count(), 'cards mounted before the batch').toBeLessThan(
+        batchSize
+      );
+      const newest = await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+        expectHeldArrival(view, middle, THREAD_COUNT + batchSize, pointer, 'webkit-batch', () => {
+          release();
+          return roots.at(-1)!;
+        })
+      );
+      expect(deliveredIds).toEqual(expect.arrayContaining(roots));
+      await page.mouse.move(5, 795);
+      await scrollList(page, 0);
+      await expectFirst(page, newest, `Batch update ${batchSize - 1}:`, 'after the batch');
+    } finally {
+      release();
+    }
+  });
+});
+
+test('Chromium keeps a held Done card under the pointer when Needs you arrives above it', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const seeded = await seed('before_done');
+  await Promise.all(
+    seeded.rootIds.map((id) =>
+      sendStateEvent(
+        HOMESERVER,
+        seeded.reader.accessToken,
+        seeded.roomId,
+        'com.mindroom.thread.tags',
+        JSON.stringify([id, 'resolved']),
+        { set_by: seeded.reader.userId, set_at: new Date().toISOString() }
+      )
+    )
+  );
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.reader.username,
+    password: PASSWORD,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId: seeded.roomId,
+    userId: seeded.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate(
+    (userId) =>
+      localStorage.setItem(
+        `compactRoomSections:${userId}`,
+        JSON.stringify({ on: true, folded: [] })
+      ),
+    seeded.reader.userId
+  );
+  await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
+  const view = page.locator('[data-compact-room-view]');
+  await expect(view.locator('[data-compact-section="done"]')).toContainText(`· ${THREAD_COUNT}`, {
+    timeout: 60_000,
+  });
+  await expect(view).not.toHaveAttribute('data-cards-pending', 'true');
+  await scrollList(page, 700);
+  const middle = await findMiddleCard(view, 'chromium-done');
+  await withMovingMouseOverCard(page, cardOf(page, middle), (pointer) =>
+    expectHeldArrival(view, middle, THREAD_COUNT + 1, pointer, 'chromium-done', () =>
+      agentPosts(seeded, 'A newly opened ticket')
+    )
+  );
+  await expect(view.locator('[data-compact-section="needsYou"]')).toContainText('· 1');
+});

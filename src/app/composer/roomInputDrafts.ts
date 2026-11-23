@@ -26,6 +26,7 @@ import {
   voiceDiscardsInFlightAtom,
 } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
 export type { TUploadItem } from '../matrix/state/upload';
@@ -55,6 +56,8 @@ export type PendingVoiceSendContext = {
    * send it comes back in a view of that thread, or on the room's page while it shows that thread.
    */
   threadView?: boolean;
+  /** The mid-turn mode picked when this send started, kept for a retry. */
+  midTurnMode?: MidTurnMode;
 };
 
 export type PendingVoiceSendInFlight = {

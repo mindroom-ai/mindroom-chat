@@ -1,10 +1,22 @@
-import type { TUploadItem, Upload } from '../matrix/state/upload';
+import { UploadStatus, type TUploadItem, type Upload } from '../matrix/state/upload';
 import type { TUploadContent } from '../matrix/matrix';
 
 export type AttachmentSnapshot = {
   staged: TUploadItem[];
   enrolled: TUploadItem[];
   uploads: Upload[];
+};
+
+/** Whether a composer attachment snapshot holds at least one file without a prep or upload error. */
+export const hasSendableStagedFiles = ({
+  staged,
+  uploads,
+}: Pick<AttachmentSnapshot, 'staged' | 'uploads'>): boolean => {
+  if (staged.length === 0) return false;
+  const uploadByFile = new Map(uploads.map((upload) => [upload.file, upload]));
+  return staged.some(
+    (item) => !item.prepError && uploadByFile.get(item.file)?.status !== UploadStatus.Error
+  );
 };
 
 export type RoomInputAttachmentAccess = {

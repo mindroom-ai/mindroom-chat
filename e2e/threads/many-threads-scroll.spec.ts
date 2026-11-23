@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { COMPACT_VIEW, walkCompactCards } from '../helpers/compactCards';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -17,7 +18,7 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * A room with 245 threads, each with a few replies whose agent answers streamed in as edits, and
- * some notes between them, among 25 rooms. The Compact view lists every thread at once. The Threads
+ * some notes between them, among 25 rooms. The Compact view lists every thread without mounting them all. The Threads
  * view (newest first) lists the same threads at once too, whether the reader switches to it from
  * Compact or opens the room in it (after a reload, or on a device that holds nothing yet), and a
  * reader who scrolls down reaches the oldest thread without waiting for each screen, while the
@@ -591,15 +592,29 @@ const login = async (
 const newestRoot = (fixture: Fixture) => fixture.roots[fixture.roots.length - 1] ?? '';
 const oldestRoot = (fixture: Fixture) => fixture.roots[0] ?? '';
 
-/** Opens the room in Compact, waits for every thread's card, and switches to Threads. */
+/** Reads the Compact list by scrolling, then switches to Threads. */
 const switchFromCompact = async (page: Page, fixture: Fixture, label: string) => {
   await login(page, fixture, 'compact');
   const requests = watchRequests(page, fixture.roomId);
   await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-  const cards = page.locator('[data-compact-room-view="true"] button[data-thread-root-id]');
+  const view = page.locator(COMPACT_VIEW);
+  const cards = view.locator('button[data-thread-root-id]');
+  // The list can also include notes without replies from the room's recent history.
   await expect
-    .poll(() => cards.count(), { timeout: 120_000, message: 'Compact lists every thread' })
+    .poll(async () => Number(await view.getAttribute('data-compact-card-count')), {
+      timeout: 120_000,
+      message: 'Compact lists every thread',
+    })
     .toBeGreaterThanOrEqual(THREADS);
+  await expect(cards.first()).toBeInViewport();
+  await expect(view.locator(`[data-thread-root-id="${oldestRoot(fixture)}"]`)).toHaveCount(0);
+  const wanted = new Set(fixture.roots);
+  const read = await walkCompactCards(view);
+  expect(read.filter((id) => wanted.has(id)).sort()).toEqual([...wanted].sort());
+  await view.evaluate((scroller) => {
+    scroller.scrollTop = 0;
+  });
+  await expect(cards.first()).toBeInViewport();
   if (SHOTS) {
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: `${SHOTS}/${label}-compact.png` });
