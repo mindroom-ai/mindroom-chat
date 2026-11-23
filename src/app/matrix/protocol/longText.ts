@@ -243,9 +243,13 @@ const normalizeHydratedContent = (
   if (!newContentHasMessageShape) return hydratedContent;
 
   const normalizedContent: Record<string, unknown> = { ...newContent };
+  // A version-3 trace places its calls in the text of its own layer, and the fallback's text is
+  // not the replacement's: with `placeholder_body` it would stand in for all of the replacement.
+  const fallbackPositions = hasToolPositions(hydratedContent);
 
   Object.entries(hydratedContent).forEach(([key, value]) => {
     if (normalizedContent[key] !== undefined) return;
+    if (key === TOOL_TRACE_TAG && fallbackPositions) return;
     if (key === 'm.mentions' || key.startsWith('io.mindroom.') || key.startsWith('com.mindroom.')) {
       normalizedContent[key] = value;
     }

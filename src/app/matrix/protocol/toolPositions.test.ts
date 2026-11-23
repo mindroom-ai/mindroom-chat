@@ -390,6 +390,24 @@ describe('tool positions on read', () => {
     expect((read['m.new_content'] as Record<string, unknown>).body).toBe(between.sent.body);
   });
 
+  // The markers of a `placeholder_body` replacement go back in place of its text, so they would
+  // take the place of a fallback's own text too.
+  it.each(positions.kept_fallbacks.map(({ name, fallback }) => [name, fallback] as const))(
+    'reads the fallback of a placeholder_body edit that is not the placeholder again as it was sent: %s',
+    (_name, fallback) => {
+      const streaming = caseNamed('a streaming reply of calls alone');
+      for (const fallbackTrace of [true, false]) {
+        const edit: Record<string, unknown> = {
+          ...editOf(wireContent(streaming), fallbackTrace),
+          ...fallback,
+        };
+        const read = event(AGENT, edit).getContent();
+        expect({ ...read, 'm.new_content': edit['m.new_content'] }).toEqual(edit);
+        expect(textOf(read)[1]).toEqual([streaming.sent.body, streaming.sent.formatted_body, 2]);
+      }
+    }
+  );
+
   // The backend takes the markers out for every account named `mindroom_`, and a guest who signed
   // in on another homeserver reads the room too. Whose trace counts is another question: theirs
   // goes, as it did when the text still had its markers.

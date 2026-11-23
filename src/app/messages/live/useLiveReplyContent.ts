@@ -189,9 +189,9 @@ const withoutToolMarkerLines = (text: string): string => {
 
 /**
  * Whether the streaming durable reply is an earlier state of the frame the row showed last: its
- * body, or the thinking placeholder, that the frame's Markdown grew from. Progress edits and
- * frames show the same text, but the preview of a reply sent as a sidecar shows a part of it, and
- * neither that preview nor the text sent when the upload failed has the reply's marker lines.
+ * text, or the thinking placeholder, that the frame's Markdown grew from. A checkpoint says only
+ * that the reply is no older than it, so the text decides, for the preview of a reply sent as a
+ * sidecar too: holding the frame would keep a preview with more text from loading its sidecar.
  */
 const isEarlierState = (
   event: MatrixEvent,
@@ -200,24 +200,26 @@ const isEarlierState = (
 ): boolean => {
   const status = getStreamStatusFromContent(content);
   if (event.isRedacted() || !status || !LIVE_DURABLE_STATUSES.has(status)) return false;
-  const { md, tools } = shown.docs;
+  const { md } = shown.docs;
   const checkpoint = getLiveCheckpoint(content);
   // The reply is at least as new as the frame, whatever its text shows.
   if (checkpoint && compareLiveOrder(shown.order, checkpoint) <= 0) return false;
-  const sidecar = hasLongTextMetadata(content);
-  // A preview cannot be compared with the whole text, so its checkpoint alone says it is older.
-  if (checkpoint && sidecar) return md.length > 0 || tools.length > 0;
   const { body } = withWarmupActivity(content);
   if (typeof body !== 'string') return false;
   if (isThinkingPlaceholderBody(content)) {
     // A preview of calls alone has their rows in its sidecar, so only live prose is more than it.
-    return sidecar ? withoutToolMarkerLines(md).trim().length > 0 : md.length > 0;
+    return hasLongTextMetadata(content)
+      ? withoutToolMarkerLines(md).trim().length > 0
+      : md.length > 0;
   }
   if (body.length >= md.length) return false;
-  // As it was sent with its marker lines, by an older backend too, or without them.
   if (md.startsWith(body)) return true;
-  const earlier = withoutToolMarkerLines(body);
-  return earlier.length > 0 && withoutToolMarkerLines(md).startsWith(earlier);
+  // Progress edits and frames show the same text, so a reply with its calls is compared as it is:
+  // a call that completed changed its marker line, and that reply is no earlier state. Only a
+  // sidecar preview and the text sent when the upload failed lack the frame's marker lines.
+  if (MINDROOM_TOOL_TRACE_KEY in content || withoutToolMarkerLines(body) !== body) return false;
+  const prose = withoutToolMarkerLines(md);
+  return body.length < prose.length && prose.startsWith(body);
 };
 
 const noSubscription = () => () => undefined;

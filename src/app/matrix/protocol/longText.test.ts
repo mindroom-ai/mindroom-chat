@@ -430,22 +430,20 @@ describe('hydrateLongTextSource', () => {
     });
   });
 
-  // The backend wraps a reply's row as an edit only when it sends it, after its sidecar went up.
-  it('hydrates an edit whose sidecar holds its replacement alone', async () => {
+  // The backend wraps a reply's row as an edit only when it sends it, after its sidecar went up,
+  // and sends the row as the reply itself when no earlier row created it. The file holds the
+  // replacement as the content it is and as an edit's `m.new_content`; an earlier backend
+  // uploaded the replacement alone.
+  describe.each([
+    ['as its own m.new_content too', true],
+    ['alone', false],
+  ])('a sidecar that holds a replacement %s', (_name, namesItself) => {
     const preview = {
       msgtype: 'm.file',
       body: 'Found',
-      url: 'mxc://server/replacement-alone',
+      url: 'mxc://server/replacement',
       'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
     };
-    const edit = {
-      ...preview,
-      body: '* Found',
-      'm.new_content': preview,
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-    };
-    const source = expectDefined(getLongTextSource(edit));
-    expect(source.previewContent).toBe(preview);
     const replacement = {
       msgtype: 'm.text',
       body: '🔧 `shell` [1]\n\nFound it.',
@@ -456,15 +454,74 @@ describe('hydrateLongTextSource', () => {
         events: [{ type: 'tool_call_completed', tool_name: 'shell' }],
       },
     };
-
-    const resolved = await hydrateLongTextSource(
-      source,
-      async () => JSON.stringify(replacement),
-      {}
+    const sidecar = JSON.stringify(
+      namesItself ? { ...replacement, 'm.new_content': replacement } : replacement
     );
 
-    expect(resolved).toEqual(replacement);
+    it.each([
+      [
+        'an edit',
+        {
+          ...preview,
+          body: '* Found',
+          'm.new_content': preview,
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        },
+      ],
+      ['the reply itself', preview],
+    ])('hydrates %s', async (_event, content) => {
+      const source = expectDefined(getLongTextSource(content));
+      expect(source.previewContent).toBe(preview);
+
+      expect(await hydrateLongTextSource(source, async () => sidecar, {})).toEqual(replacement);
+    });
   });
+
+  // The trace of the fallback alone places calls in the fallback's text, not in the replacement's.
+  it.each([
+    ['a placeholder', { placeholder_body: true }, { body_line: 0, at: 0 }],
+    ['positions', {}, { body_line: 1, at: 1 }],
+  ])(
+    'keeps the text of a replacement without a trace when its fallback has a version-3 trace of %s',
+    async (_name, flags, place) => {
+      const source = expectDefined(
+        getLongTextSource({
+          msgtype: 'm.file',
+          body: 'preview',
+          url: 'mxc://server/edit-wrapper-positions',
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        })
+      );
+      const replacement = {
+        msgtype: 'm.text',
+        body: 'New answer',
+        format: 'org.matrix.custom.html',
+        formatted_body: '<p>New answer</p>\n',
+      };
+
+      const resolved = await hydrateLongTextSource(
+        source,
+        async () =>
+          JSON.stringify({
+            msgtype: 'm.text',
+            body: '* Thinking...',
+            format: 'org.matrix.custom.html',
+            formatted_body: '<p>Thinking...</p>\n',
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.tool_trace': {
+              version: 3,
+              ...flags,
+              events: [{ type: 'tool_call_started', tool_name: 'shell', ...place }],
+            },
+            'm.new_content': replacement,
+          }),
+        {}
+      );
+
+      expect(resolved).toEqual({ ...replacement, 'io.mindroom.stream_status': 'streaming' });
+      expect(sanitizeContent(resolved, true)).toEqual(resolved);
+    }
+  );
 
   it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
     const source = expectDefined(
