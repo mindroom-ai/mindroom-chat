@@ -81,6 +81,7 @@ const state = vi.hoisted(() => {
     // Storage that is full or blocked: a new tag is handed out but not kept.
     tagStorageFails: false,
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
+    appStateListeners: new Set<(appState: { isActive: boolean }) => void>(),
     onAppStateChange: undefined as ((appState: { isActive: boolean }) => void) | undefined,
     rooms: [] as RoomStub[],
     storedTags,
@@ -111,8 +112,20 @@ vi.mock('@capacitor/app', () => ({
   App: {
     addListener: vi.fn(
       async (event: string, listener: (appState: { isActive: boolean }) => void) => {
-        if (event === 'appStateChange') state.onAppStateChange = listener;
-        return { remove: vi.fn(async () => undefined) };
+        if (event === 'appStateChange') {
+          state.appStateListeners.add(listener);
+          state.onAppStateChange = (appState) => {
+            [...state.appStateListeners].forEach((fn) => fn(appState));
+          };
+        }
+        return {
+          remove: vi.fn(async () => {
+            if (event === 'appStateChange') {
+              state.appStateListeners.delete(listener);
+              if (state.appStateListeners.size === 0) state.onAppStateChange = undefined;
+            }
+          }),
+        };
       }
     ),
   },
@@ -239,6 +252,7 @@ describe('NativeIOSPushFeature', () => {
     state.permissionPending = undefined;
     state.tagStorageFails = false;
     state.onRegistration = undefined;
+    state.appStateListeners.clear();
     state.onAppStateChange = undefined;
     state.rooms = [];
     state.storedTags.clear();
@@ -530,10 +544,11 @@ describe('NativeIOSPushFeature', () => {
     });
     expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
 
-    // The account is shared: becoming active again shares nothing anew.
+    // The account is shared: becoming active again does not re-share the account,
+    // while asking native whether any avatars are still missing.
     await act(async () => state.onAppStateChange?.({ isActive: true }));
     expect(syncNativeNotificationAccount).toHaveBeenCalledTimes(3);
-    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+    expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(2);
     renderer.unmount();
     warn.mockRestore();
   });
@@ -1180,6 +1195,85 @@ describe('NativeIOSPushFeature', () => {
       expect(fetchMock).not.toHaveBeenCalled();
       renderer.unmount();
       warn.mockRestore();
+    });
+
+    it('cancels oversized streaming avatar and error responses without buffering unboundedly', async () => {
+      const makeStream = (chunkSize: number) => {
+        const tracker = { pulls: 0, cancelled: false };
+        const stream = new ReadableStream<Uint8Array>({
+          pull(controller) {
+            tracker.pulls += 1;
+            controller.enqueue(new Uint8Array(chunkSize));
+          },
+          cancel() {
+            tracker.cancelled = true;
+          },
+        });
+        return { stream, tracker };
+      };
+      const avatarStream = makeStream(128 * 1024);
+      const errorStream = makeStream(2048);
+
+      state.rooms = [roomOf('!one:private.example', 'stream-large', 'stream-error', 'small')];
+      appLacks('stream-large', 'stream-error', 'small');
+      fetchMock.mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/stream-large?'))
+          return new Response(avatarStream.stream, { status: 200 });
+        if (url.includes('/stream-error?'))
+          return new Response(errorStream.stream, { status: 400 });
+        return image([7]);
+      });
+
+      const renderer = await mount();
+      await vi.waitFor(() => expect(storeNativeNotificationAvatar).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => {
+        expect(avatarStream.tracker.cancelled).toBe(true);
+        expect(errorStream.tracker.cancelled).toBe(true);
+      });
+
+      expect(storedMxcUrls()).toEqual([mxc('small')]);
+      expect(avatarStream.tracker.pulls).toBeLessThanOrEqual(6);
+      expect(errorStream.tracker.pulls).toBeLessThanOrEqual(6);
+      renderer.unmount();
+    });
+
+    it('retries missing avatars on foreground and online events with an unchanged member list', async () => {
+      const onlineTarget = new EventTarget();
+      vi.stubGlobal('window', onlineTarget);
+      state.rooms = [roomOf('!one:private.example', 'agent', 'bob')];
+      appLacks('agent', 'bob');
+      let allowAgent = false;
+      let allowBob = false;
+      fetchMock.mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/agent?') && allowAgent) return image([1, 2]);
+        if (url.includes('/bob?') && allowBob) return image([3, 4]);
+        throw new TypeError('offline');
+      });
+
+      const renderer = await mount();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(1);
+      expect(storeNativeNotificationAvatar).not.toHaveBeenCalled();
+
+      // Returning to foreground retries missing avatars even though the member list did not change.
+      allowAgent = true;
+      await act(async () => state.onAppStateChange?.({ isActive: true }));
+      await vi.waitFor(() => expect(storeNativeNotificationAvatar).toHaveBeenCalledTimes(1));
+      expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(2);
+      expect(storedMxcUrls()).toEqual([mxc('agent')]);
+
+      // Coming back online retries whatever native still reports as missing.
+      appLacks('bob');
+      allowBob = true;
+      await act(async () => {
+        onlineTarget.dispatchEvent(new Event('online'));
+      });
+      await vi.waitFor(() => expect(storeNativeNotificationAvatar).toHaveBeenCalledTimes(2));
+      expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(3);
+      expect(storedMxcUrls()).toEqual([mxc('agent'), mxc('bob')]);
+      renderer.unmount();
     });
   });
 });
