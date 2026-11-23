@@ -1811,6 +1811,7 @@
       "startingDirectChat": "Gesprek met {{name}} starten…",
       "directChatFailed": "Kan geen gesprek met {{name}} starten. Probeer het opnieuw.",
       "waitingForAgent": "Wachten tot {{name}} de chat binnenkomt…",
+      "notSent": "Niet verstuurd naar {{agent}} in {{room}}",
       "chooseAgain": "Die keuze werkt niet meer. Je tekst blijft bewaard: kies wie antwoordt, of waar."
     },
     "recent": {

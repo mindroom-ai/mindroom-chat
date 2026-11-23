@@ -721,8 +721,33 @@ describe('startDirectChat', () => {
     await expect(startDirectChat(listing(200, 200), SCOUT)).resolves.toBe('!dm-first');
     const index = [thread('!dm-first', SCOUT, 900)];
     const indexed = listing(200, 500);
-    await expect(startDirectChat(indexed, SCOUT, undefined, index)).resolves.toBe('!dm-first');
+    await expect(startDirectChat(indexed, SCOUT, undefined, () => index)).resolves.toBe(
+      '!dm-first'
+    );
     expect(indexed.createRoom).not.toHaveBeenCalled();
+  });
+
+  it('reads the thread index as it is once the members have loaded, not as it starts', async () => {
+    // Two chats `m.direct` lists, Scout's membership in neither loaded yet. By the messages the
+    // client has, Scout answered last in the first.
+    let loaded = false;
+    let index: CrossRoomThreadIndexEntry[] = [];
+    const chat = (roomId: string, ts: number) =>
+      Object.assign(room(roomId, { count: 2, messages: [[SCOUT, ts]] }), {
+        getMember: (userId: string) => (loaded && userId === SCOUT ? { membership: 'join' } : null),
+        loadMembersIfNeeded: vi.fn(async () => {
+          loaded = true;
+          // Meanwhile the index gets a thread of the second, where Scout answered after that.
+          index = [thread('!dm-second', SCOUT, 900)];
+          return true;
+        }),
+      });
+    const rooms = [chat('!dm-first', 500), chat('!dm-second', 200)];
+    const mx = Object.assign(client(rooms, { [SCOUT]: ids(rooms) }), {
+      createRoom: vi.fn(async () => ({ room_id: '!duplicate' })),
+      setAccountData: vi.fn(async () => undefined),
+    });
+    await expect(startDirectChat(mx, SCOUT, undefined, () => index)).resolves.toBe('!dm-second');
   });
 
   it('starts one chat however often it is asked while it starts', async () => {

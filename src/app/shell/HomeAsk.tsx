@@ -43,6 +43,7 @@ import {
 } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import {
+  agentNameIn,
   canAskIn,
   type HomeAgent,
   isDirectRoomWith,
@@ -133,6 +134,7 @@ const useOpenQuestion = () => {
  */
 const useHomeAskPendingNotice = (): ReactNode => {
   const mx = useMatrixClient();
+  const { t } = useTranslation();
   const store = useStore();
   const pendingAtom = homeAskPendingAtomFamily(mx.getSafeUserId());
   const pending = useAtomValue(pendingAtom);
@@ -168,16 +170,25 @@ const useHomeAskPendingNotice = (): ReactNode => {
       mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
     };
   }, [mx, open, pendingAtom, store]);
-  // Sent again, the question goes where it went: offered only while the agent still answers there.
+  if (!failedSend || !pending) return undefined;
+  const { room, event } = failedSend;
+  // Sent again, the question goes where it went, which the notice names: the pickers may be
+  // elsewhere since. It is offered only while the agent still answers there.
+  const place =
+    pending.isDirect && isDirectRoomWith(room, pending.agentId)
+      ? t('home.ask.directChat')
+      : revealDirectionControls(room.name || room.roomId);
+  const notSent = t('home.ask.notSent', {
+    agent: isolateInSentence(agentNameIn(room, pending.agentId)),
+    room: isolateInSentence(place),
+  });
   return (
-    failedSend &&
-    pending && (
-      <FailedSendActions
-        room={failedSend.room}
-        event={failedSend.event}
-        canRetry={() => answersIn(failedSend.room, pending.agentId, pending.isDirect)}
-      />
-    )
+    <FailedSendActions
+      room={room}
+      event={event}
+      message={<IsolatedText text={notSent} />}
+      canRetry={() => answersIn(room, pending.agentId, pending.isDirect)}
+    />
   );
 };
 
@@ -268,8 +279,8 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   useEffect(() => {
     if (agent.userId) store.set(destinationAtom, { agentId: agent.userId, roomId, isDirect });
   }, [agent.userId, destinationAtom, isDirect, roomId, store]);
-  const selection = useRef({ agentId: agent.userId, roomId });
-  selection.current = { agentId: agent.userId, roomId };
+  const selection = useRef({ agentId: agent.userId, roomId, isDirect });
+  selection.current = { agentId: agent.userId, roomId, isDirect };
   const open = useOpenQuestion();
   // No drop zone: a file dropped on Home is not attached.
   const noDrop = useRef<HTMLElement>(null);
@@ -341,10 +352,11 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
       (started) => {
         if (!alive()) return;
         setStarts(({ [agentId]: done, ...others }) => others);
-        // A choice made meanwhile stands; the chat itself, picked meanwhile as `m.direct` lists
-        // it, is no other choice.
+        // A choice made meanwhile stands, also of the chat's room picked as a room; the chat
+        // itself, picked meanwhile as `m.direct` lists it, is no other choice.
         const now = selection.current;
-        if (now.agentId !== agentId || (now.roomId !== null && now.roomId !== started)) return;
+        if (now.agentId !== agentId || !now.isDirect) return;
+        if (now.roomId !== null && now.roomId !== started) return;
         setFocusOnMount(true);
         setChoice({ agentId, roomId: started, isDirect: true, started: true });
       },
@@ -359,8 +371,9 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
     // The field stays with the agent pressed: another that answers meanwhile comes first, and
     // would take it. A pick already made stays as it is.
     if (!choice) setChoice({ agentId, roomId: null, isDirect: true });
-    const threads = store.get(crossRoomThreadIndexAtom).entries.values();
-    followStart(agentId, startDirectChat(mx, agentId, version, threads));
+    // The thread index as it is once the chats' members have loaded, not as it is now.
+    const getThreads = () => store.get(crossRoomThreadIndexAtom).entries.values();
+    followStart(agentId, startDirectChat(mx, agentId, version, getThreads));
   };
   // A pick, which nothing takes while a question is being sent: where that goes stays put.
   const pick = (picker: 'agent' | 'room', destination: HomeAskDestination) => {

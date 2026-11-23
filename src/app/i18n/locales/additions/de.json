@@ -1811,6 +1811,7 @@
       "startingDirectChat": "Chat mit {{name}} wird gestartet …",
       "directChatFailed": "Der Chat mit {{name}} konnte nicht gestartet werden. Versuche es erneut.",
       "waitingForAgent": "Warten, bis {{name}} dem Chat beitritt …",
+      "notSent": "Nicht an {{agent}} in {{room}} gesendet",
       "chooseAgain": "Diese Auswahl geht nicht mehr. Dein Text bleibt erhalten: Wähle, wer antwortet oder wo."
     },
     "recent": {

@@ -1811,6 +1811,7 @@
       "startingDirectChat": "{{name}} ile sohbet başlatılıyor…",
       "directChatFailed": "{{name}} ile sohbet başlatılamadı. Yeniden deneyin.",
       "waitingForAgent": "{{name}} sohbete katılması bekleniyor…",
+      "notSent": "{{room}} içinde {{agent}} için gönderilmedi",
       "chooseAgain": "Bu seçim artık geçerli değil. Metniniz korunuyor: kimin yanıtlayacağını ya da nerede olacağını seçin."
     },
     "recent": {

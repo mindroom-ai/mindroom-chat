@@ -423,9 +423,40 @@ describe('HomeAsk', () => {
     eng.members[HELPER] = 'leave';
     refresh([{ ...helperAgent, roomIds: ['!lobby'], defaultRoomId: '!lobby' }]);
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
-    expect(screen.getByText('Not sent')).toBeTruthy();
+    expect(screen.getByText('Not sent to helper in Engineering')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(failed);
+  });
+
+  it('names the agent and place a failed question went to, wherever the pickers go since', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const mx = makeClient([eng, makeRoom('!lobby', 'Lobby', [HELPER])]);
+    const first = renderAsk(mx, [helperAgent]);
+    sendEcho(eng);
+    settleEcho(mx, eng, EventStatus.NOT_SENT);
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Lobby' }));
+    expect(screen.getByRole('button', { name: 'In Lobby' })).toBeTruthy();
+    // Helper by its ID's name: the room knows no other.
+    expect(screen.getByText('Not sent to helper in Engineering')).toBeTruthy();
+    first.unmount();
+
+    // A question to the direct chat names that, and the room by its name once it is none.
+    const dm = makeRoom('!dm', 'Planning', [HELPER], 2);
+    const direct: HomeAgent = {
+      ...helperAgent,
+      roomIds: [],
+      direct: { roomId: '!dm', waiting: false },
+      defaultRoomId: '!dm',
+    };
+    const chats = makeClient([dm]);
+    const { refresh } = renderAsk(chats, [direct]);
+    sendEcho(dm);
+    settleEcho(chats, dm, EventStatus.NOT_SENT);
+    expect(screen.getByText('Not sent to helper in Direct chat')).toBeTruthy();
+    dm.joined = 3;
+    refresh();
+    expect(screen.getByText('Not sent to helper in Planning')).toBeTruthy();
   });
 
   it('takes no question for a chat it started once a third member is in it', async () => {
@@ -612,7 +643,7 @@ describe('HomeAsk', () => {
     refresh([]);
     expect(unfollowed).not.toHaveBeenCalled();
     expect(screen.queryByTestId('room-input')).toBeNull();
-    expect(screen.getByText('Not sent')).toBeTruthy();
+    expect(screen.getByText('Not sent to helper in Engineering')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
 
     // Deleted, the question is over.
@@ -620,7 +651,7 @@ describe('HomeAsk', () => {
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(failed);
     settleEcho(mx, eng, EventStatus.CANCELLED);
     expect(store.get(homeAskPendingAtomFamily(ME))).toBeUndefined();
-    expect(screen.queryByText('Not sent')).toBeNull();
+    expect(screen.queryByText(/^Not sent/)).toBeNull();
   });
 
   it('finds a failed question with no agent to ask, and opens one confirmed meanwhile', () => {
@@ -946,6 +977,29 @@ describe('HomeAsk', () => {
     again.refresh([chatting('!dm-newer')]);
     expect(lastRoomInputProps.current?.roomId).toBe('!dm-newer');
     expect(ask()?.isDirect).toBe(true);
+  });
+
+  it('keeps a chat picked by its name a room when the start under way finds that chat', async () => {
+    const actual = await vi.importActual<typeof import('./homeAgents')>('./homeAgents');
+    vi.mocked(startDirectChat).mockImplementation(actual.startDirectChat);
+    // A chat of two `m.direct` lists, Quill's membership in it not loaded yet, which is one of
+    // Quill's rooms too.
+    const chat = unloadedChat('!dm', 200);
+    const mx = makeClient([chat.room], { [QUILL]: ['!dm'] });
+    renderAsk(mx, [{ ...quillAgent, roomIds: ['!dm'] }]);
+    fireEvent.click(screen.getByRole('button', { name: 'Ask Quill anything…' }));
+    // Picked by its name while its members load.
+    fireEvent.click(screen.getByRole('button', { name: 'In Direct chat' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Quill/ }));
+    expect(ask()?.isDirect).toBe(false);
+
+    await act(async () => {
+      chat.load();
+      await vi.mocked(startDirectChat).mock.results[0]?.value;
+    });
+    expect(lastRoomInputProps.current?.roomId).toBe('!dm');
+    expect(ask()?.isDirect).toBe(false);
+    expect(screen.getByRole('button', { name: 'In Quill' })).toBeTruthy();
   });
 
   it('keeps the first text for where the field was, as an answer moves the agents with it', () => {

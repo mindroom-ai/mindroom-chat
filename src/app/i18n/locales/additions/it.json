@@ -1855,6 +1855,7 @@
       "startingDirectChat": "Avvio di una chat con {{name}}…",
       "directChatFailed": "Impossibile avviare una chat con {{name}}. Riprova.",
       "waitingForAgent": "In attesa che {{name}} entri nella chat…",
+      "notSent": "Non inviato a {{agent}} in {{room}}",
       "chooseAgain": "Questa scelta non funziona più. Il tuo testo resta: scegli chi risponde, o dove."
     },
     "recent": {

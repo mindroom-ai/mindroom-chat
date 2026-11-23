@@ -1987,6 +1987,7 @@
       "startingDirectChat": "جارٍ بدء محادثة مع ⁨{{name}}⁩…",
       "directChatFailed": "تعذّر بدء محادثة مع ⁨{{name}}⁩. حاول مرة أخرى.",
       "waitingForAgent": "بانتظار انضمام ⁨{{name}}⁩ إلى المحادثة…",
+      "notSent": "لم تُرسل إلى ⁨{{agent}}⁩ في ⁨{{room}}⁩",
       "chooseAgain": "لم يعد هذا الاختيار متاحًا. نصك محفوظ: اختر من يجيب أو أين."
     },
     "recent": {

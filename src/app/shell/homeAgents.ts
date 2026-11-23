@@ -215,6 +215,16 @@ const pickDirect = (
 };
 
 /**
+ * An agent's display name as `room` knows it, else its ID's name without the agents' prefix, the
+ * direction controls written out.
+ */
+export const agentNameIn = (room: Room | undefined, userId: string): string =>
+  revealDirectionControls(
+    (room ? getMemberRawDisplayName(room, userId) : undefined) ||
+      (getMxIdLocalPart(userId) ?? userId).replace(/^mindroom_/, '')
+  );
+
+/**
  * The agents of the account's rooms, who answer Home's questions: each agent that publishes its
  * server state in a joined room, except the router, the one that answered last first.
  */
@@ -254,14 +264,10 @@ export const readHomeAgents = (
       lastRoomId = direct.roomId;
       lastUsedTs = answered(direct.roomId);
     }
-    const localpart = getMxIdLocalPart(userId) ?? userId;
     const [firstRoom] = rooms;
     return {
       userId,
-      name: revealDirectionControls(
-        (firstRoom ? getMemberRawDisplayName(firstRoom, userId) : undefined) ||
-          localpart.replace(/^mindroom_/, '')
-      ),
+      name: agentNameIn(firstRoom, userId),
       avatarMxc: firstRoom ? getMemberAvatarMxc(firstRoom, userId) : undefined,
       roomIds: usable,
       direct,
@@ -283,12 +289,12 @@ const directStarts = new WeakMap<
  * two whose members the client has yet to load are loaded: the agent may be in one, also in one
  * `m.direct` lists only while the others load. Of several, it is the one `readHomeAgents` takes
  * (`pickDirect`). It fails when none is found and the members of one did not load: that one may
- * be the chat.
+ * be the chat. The thread index is read (`getThreads`) once they have loaded, as it is then.
  */
 const loadDirect = async (
   mx: MatrixClient,
   agentId: string,
-  threads: Iterable<CrossRoomThreadIndexEntry>
+  getThreads: () => Iterable<CrossRoomThreadIndexEntry>
 ): Promise<string | undefined> => {
   const tried = new Set<Room>();
   let failed = false;
@@ -306,7 +312,7 @@ const loadDirect = async (
   }
   // Loaded, the agent is in a listed chat or in none; one that did not load may still be it.
   const directs = { ...readDirects(mx, agentId), unloaded: failed };
-  const answers = readLastAnswers(directs.joined, threads);
+  const answers = readLastAnswers(directs.joined, getThreads());
   const direct = pickDirect(directs, agentId, answers)?.roomId;
   if (!direct && failed) throw new Error('The members of a listed direct chat did not load.');
   return direct;
@@ -322,14 +328,14 @@ export const pendingDirectStart = (
  * Starts the account's direct chat with `agentId`, once: a second call while it starts gets the
  * same promise, and after a room was made but not listed in `m.direct`, a retry lists that room.
  * It makes no second chat beside one `m.direct` lists whose members were not loaded yet, nor
- * beside one whose members do not load: it fails then, to be tried again. `threads` is the thread
- * index, by which a chat found among several is the one the agent last answered in.
+ * beside one whose members do not load: it fails then, to be tried again. `getThreads` reads the
+ * thread index, by which a chat found among several is the one the agent last answered in.
  */
 export const startDirectChat = (
   mx: MatrixClient,
   agentId: string,
   version?: string,
-  threads: Iterable<CrossRoomThreadIndexEntry> = []
+  getThreads: () => Iterable<CrossRoomThreadIndexEntry> = () => []
 ) => {
   if (!directStarts.has(mx)) directStarts.set(mx, new Map());
   const known = directStarts.get(mx)!.get(agentId) ?? {};
@@ -338,7 +344,7 @@ export const startDirectChat = (
   known.start ??= (
     made
       ? addRoomIdToMDirect(mx, made, agentId).then(() => made)
-      : loadDirect(mx, agentId, threads).then(
+      : loadDirect(mx, agentId, getThreads).then(
           (existing) =>
             existing ??
             createDirectRoom(mx, agentId, { version, onCreated: (roomId) => (known.made = roomId) })

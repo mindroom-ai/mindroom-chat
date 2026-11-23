@@ -1767,6 +1767,7 @@
       "startingDirectChat": "正在开始与 {{name}} 的聊天…",
       "directChatFailed": "无法开始与 {{name}} 的聊天。请重试。",
       "waitingForAgent": "正在等待 {{name}} 加入聊天…",
+      "notSent": "未在 {{room}} 发送给 {{agent}}",
       "chooseAgain": "该选择已不可用。你的文字已保留：请重新选择由谁回答或在哪里提问。"
     },
     "recent": {

@@ -1855,6 +1855,7 @@
       "startingDirectChat": "Démarrage d’une discussion avec {{name}}…",
       "directChatFailed": "Impossible de démarrer une discussion avec {{name}}. Réessayez.",
       "waitingForAgent": "En attente de l’arrivée de {{name}} dans le chat…",
+      "notSent": "Non envoyé à {{agent}} dans {{room}}",
       "chooseAgain": "Ce choix ne fonctionne plus. Votre texte est conservé : choisissez qui répond, ou où."
     },
     "recent": {

@@ -1811,6 +1811,7 @@
       "startingDirectChat": "Starting a chat with {{name}}…",
       "directChatFailed": "Could not start a chat with {{name}}. Try again.",
       "waitingForAgent": "Waiting for {{name}} to join the chat…",
+      "notSent": "Not sent to {{agent}} in {{room}}",
       "chooseAgain": "That choice no longer works. Your text is kept: choose who answers, or where."
     },
     "recent": {

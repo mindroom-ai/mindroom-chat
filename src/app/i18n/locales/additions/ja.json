@@ -1767,6 +1767,7 @@
       "startingDirectChat": "{{name}} とのチャットを開始しています…",
       "directChatFailed": "{{name}} とのチャットを開始できませんでした。もう一度お試しください。",
       "waitingForAgent": "{{name}} がチャットに参加するのを待っています…",
+      "notSent": "{{room}} で {{agent}} に送信されていません",
       "chooseAgain": "その選択は使えなくなりました。入力した文章は残っています。回答者か場所を選び直してください。"
     },
     "recent": {
