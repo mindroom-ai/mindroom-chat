@@ -1,5 +1,11 @@
 import { recordDeepTraceEvent } from '../../../diagnostics/deepTrace';
-import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
+import {
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  openCacheStore,
+  revokeRoomCacheStoreWrites,
+  type CacheStoreWriteLease,
+} from './cacheStoreDb';
 import {
   ATTACHMENTS_STORE,
   ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
@@ -22,10 +28,24 @@ import {
 } from './cacheStoreSchema';
 import { attachmentOwnerUri, isScaledPictureKey, scaledPictureKey } from './cacheStoreScaledPictures';
 
+const irreclaimablePressureBySession = new Map<
+  string,
+  { result: EvictionResult; at: number; budget: number; lease: CacheStoreWriteLease }
+>();
+let pressureEpoch = 0;
+/** Clear memoized irreclaimable pressure when space or released protection may allow eviction. */
+export const invalidateEvictionPressureCache = (sessionId?: string): void => {
+  pressureEpoch += 1;
+  if (sessionId === undefined) irreclaimablePressureBySession.clear();
+  else irreclaimablePressureBySession.delete(sessionId);
+};
 const protectedRoomIds = new Set<string>();
 export const setEvictionProtectedRoomIds = (roomIds: readonly string[]): void => {
+  const next = new Set(roomIds);
+  const dropped = [...protectedRoomIds].some((id) => !next.has(id));
   protectedRoomIds.clear();
-  roomIds.forEach((id) => protectedRoomIds.add(id));
+  next.forEach((id) => protectedRoomIds.add(id));
+  if (dropped) invalidateEvictionPressureCache();
 };
 export const getEvictionProtectedRoomIds = (): string[] => [...protectedRoomIds];
 const downloadingRoomIdsBySession = new Map<string, ReadonlySet<string>>();
@@ -34,8 +54,12 @@ export const setEvictionDownloadingRoomIds = (
   sessionId: string,
   roomIds: readonly string[]
 ): void => {
-  if (roomIds.length) downloadingRoomIdsBySession.set(sessionId, new Set(roomIds));
+  const previous = downloadingRoomIdsBySession.get(sessionId);
+  const next = roomIds.length ? new Set(roomIds) : undefined;
+  const dropped = previous ? [...previous].some((id) => !next?.has(id)) : false;
+  if (next) downloadingRoomIdsBySession.set(sessionId, next);
   else downloadingRoomIdsBySession.delete(sessionId);
+  if (dropped) invalidateEvictionPressureCache(sessionId);
 };
 /** Focus and Download change while a pass runs, so the pass asks again before each deletion. */
 const isRoomInUse = (sessionId: string, roomId: string): boolean =>
@@ -47,6 +71,8 @@ export const __resetEvictionForTests = (): void => {
   downloadingRoomIdsBySession.clear();
   lastCheckAtBySession.clear();
   runningEvictions.clear();
+  irreclaimablePressureBySession.clear();
+  pressureEpoch = 0;
 };
 
 /**
@@ -58,6 +84,7 @@ export const clearRoomCachedContent = async (
   roomId: string
 ): Promise<number> => {
   revokeRoomCacheStoreWrites(sessionId, roomId);
+  invalidateEvictionPressureCache(sessionId);
   const db = await openCacheStore(sessionId);
   if (!db) return 0;
   return new Promise((resolve, reject) => {
@@ -160,7 +187,10 @@ export const clearRoomCachedContent = async (
     };
     ledgerStore.delete(roomId);
 
-    txn.oncomplete = () => resolve(freedBytes);
+    txn.oncomplete = () => {
+      invalidateEvictionPressureCache(sessionId);
+      resolve(freedBytes);
+    };
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });
@@ -238,16 +268,30 @@ type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & 
   protectedBytes: number;
 };
 
-/** Optional media of unprotected rooms, least recently used first. */
-const reclaimOptionalMedia = (
+const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+type MediaCandidate = { mxcUri: string; roomIds: string[] };
+type MediaPlanResult = {
+  bytesBefore: number;
+  protectedBytes: number;
+  protectedIds: Set<string>;
+  candidates: MediaCandidate[];
+};
+
+/** Plan optional media eviction readonly so zero-effect passes take no write locks. */
+const planOptionalMediaEviction = (
   sessionId: string,
   db: IDBDatabase,
   budget: number
-): Promise<MediaPhaseResult> =>
+): Promise<MediaPlanResult> =>
   new Promise((resolve, reject) => {
     const transaction = db.transaction(
       [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE, META_STORE],
-      'readwrite'
+      'readonly'
     );
     const blobs = transaction.objectStore(ATTACHMENTS_STORE);
     const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
@@ -256,7 +300,7 @@ const reclaimOptionalMedia = (
     const referencesRequest = refs.getAll();
     const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
     const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
-    let result: MediaPhaseResult;
+    let plan: MediaPlanResult;
     cursorRequest.onsuccess = async () => {
       try {
         const cursor = cursorRequest.result;
@@ -296,42 +340,116 @@ const reclaimOptionalMedia = (
         const bytesBefore =
           ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
           records.reduce((sum, row) => sum + row.byteLength, 0);
-        let bytesAfter = bytesBefore;
-        const evictedMxcUris: string[] = [];
+        const candidates: MediaCandidate[] = [];
         if (bytesBefore > budget) {
+          let plannedBytesAfter = bytesBefore;
           records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
           for (const record of records) {
-            if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
+            if (plannedBytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
             const owners = ownersOf(record.mxcUri);
             if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
             // Only eviction candidates need a value read (unowned essentials also survive).
             // eslint-disable-next-line no-await-in-loop
-            const cached = await new Promise<CachedAttachmentRecord | undefined>(
-              (resolveRecord, rejectRecord) => {
-                const request = blobs.get(record.mxcUri);
-                request.onsuccess = () => resolveRecord(request.result);
-                request.onerror = () => rejectRecord(request.error);
-              }
-            );
+            const cached = (await requestResult(blobs.get(record.mxcUri))) as
+              | CachedAttachmentRecord
+              | undefined;
             if (cached?.essential) continue;
             if (owners.some((row) => isRoomInUse(sessionId, row.roomId))) continue;
-            blobs.delete(record.mxcUri);
-            // A scaled copy leaves the picture's own bytes, and so its references, as they are.
-            if (!isScaledPictureKey(record.mxcUri))
-              owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
-            bytesAfter -= record.byteLength;
-            evictedMxcUris.push(record.mxcUri);
+            candidates.push({
+              mxcUri: record.mxcUri,
+              roomIds: [...new Set(owners.map((row) => row.roomId))],
+            });
+            plannedBytesAfter -= record.byteLength;
           }
         }
-        result = { bytesAfter, evictedMxcUris, protectedBytes };
+        plan = { bytesBefore, protectedBytes, protectedIds, candidates };
       } catch (error) {
         reject(error);
       }
     };
-    transaction.oncomplete = () => resolve(result);
+    cursorRequest.onerror = () => reject(cursorRequest.error);
+    transaction.oncomplete = () => resolve(plan);
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+
+/** Optional media of unprotected rooms, least recently used first. */
+const reclaimOptionalMedia = async (
+  sessionId: string,
+  db: IDBDatabase,
+  budget: number
+): Promise<MediaPhaseResult> => {
+  const plan = await planOptionalMediaEviction(sessionId, db, budget);
+  const empty: MediaPhaseResult = {
+    bytesAfter: plan.bytesBefore,
+    evictedMxcUris: [],
+    protectedBytes: plan.protectedBytes,
+  };
+  if (!plan.candidates.length) return empty;
+  for (const roomId of new Set(plan.candidates.flatMap((candidate) => candidate.roomIds))) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await isRoomProtectedInStore(db, roomId)) plan.protectedIds.add(roomId);
+  }
+  const candidates = plan.candidates.filter(
+    (candidate) =>
+      !candidate.roomIds.some(
+        (roomId) => plan.protectedIds.has(roomId) || isRoomInUse(sessionId, roomId)
+      )
+  );
+  if (!candidates.length) return empty;
+  const transaction = db.transaction([ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readwrite');
+  const done = new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+  const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+  const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+  const target = budget * EVICTION_TARGET_UTILIZATION;
+  let bytesAfter = plan.bytesBefore;
+  const evictedMxcUris: string[] = [];
+  try {
+    for (const candidate of candidates) {
+      if (bytesAfter <= target) break;
+      // eslint-disable-next-line no-await-in-loop
+      const [cached, currentOwners] = await Promise.all([
+        requestResult(blobs.get(candidate.mxcUri)) as Promise<CachedAttachmentRecord | undefined>,
+        requestResult(
+          refs
+            .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
+            .getAll(attachmentOwnerUri(candidate.mxcUri))
+        ) as Promise<CachedAttachmentReferenceRecord[]>,
+      ]);
+      if (
+        !cached ||
+        cached.essential ||
+        currentOwners.some(
+          (row) =>
+            row.essential ||
+            plan.protectedIds.has(row.roomId) ||
+            isRoomInUse(sessionId, row.roomId)
+        )
+      )
+        continue;
+      blobs.delete(candidate.mxcUri);
+      // A scaled copy leaves the picture's own bytes, and so its references, as they are.
+      if (!isScaledPictureKey(candidate.mxcUri))
+        currentOwners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
+      bytesAfter -= cached.byteLength;
+      evictedMxcUris.push(candidate.mxcUri);
+    }
+    await done;
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      /* Already completed or aborted. */
+    }
+    await done.catch(() => undefined);
+    throw error;
+  }
+  return { bytesAfter, evictedMxcUris, protectedBytes: plan.protectedBytes };
+};
 
 /**
  * Unprotected rooms, least recently opened first (never opened before any),
@@ -467,9 +585,36 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
 export const runCacheEvictionIfOverBudget = (sessionId: string): Promise<EvictionResult> => {
   const running = runningEvictions.get(sessionId);
   if (running) return running;
-  const eviction = evictUntilUnderBudget(sessionId).finally(() => {
-    if (runningEvictions.get(sessionId) === eviction) runningEvictions.delete(sessionId);
-  });
+  const budget = getCacheStoreByteBudget();
+  const cached = irreclaimablePressureBySession.get(sessionId);
+  if (
+    cached &&
+    Date.now() - cached.at < EVICTION_CHECK_MIN_INTERVAL_MS &&
+    cached.budget === budget &&
+    isCacheStoreWriteLeaseCurrent(cached.lease)
+  )
+    return Promise.resolve(cached.result);
+  const epoch = pressureEpoch;
+  const lease = captureCacheStoreWriteLease(sessionId);
+  const eviction = evictUntilUnderBudget(sessionId)
+    .then((result) => {
+      const now = Date.now();
+      lastCheckAtBySession.set(sessionId, now);
+      if (
+        result.underPressure &&
+        !result.evictedMxcUris.length &&
+        !result.evictedRoomIds.length &&
+        pressureEpoch === epoch &&
+        getCacheStoreByteBudget() === budget &&
+        isCacheStoreWriteLeaseCurrent(lease)
+      )
+        irreclaimablePressureBySession.set(sessionId, { result, at: now, budget, lease });
+      else irreclaimablePressureBySession.delete(sessionId);
+      return result;
+    })
+    .finally(() => {
+      if (runningEvictions.get(sessionId) === eviction) runningEvictions.delete(sessionId);
+    });
   runningEvictions.set(sessionId, eviction);
   return eviction;
 };

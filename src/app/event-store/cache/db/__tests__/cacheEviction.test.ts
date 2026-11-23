@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as deepTrace from '../../../../diagnostics/deepTrace';
+import { EVICTION_CHECK_MIN_INTERVAL_MS } from '../cacheStoreSchema';
 import * as store from '../index';
 
 const session = 'media-eviction';
@@ -360,4 +361,105 @@ it('admits under-budget work without reading raw blobs, references or protection
   expect((all.mock.contexts as IDBObjectStore[]).map((context) => context.name)).toEqual([
     'room_ledger',
   ]);
+});
+
+it('opens no readwrite transaction under irreclaimable pressure and scopes media writes', async () => {
+  await save('protected', 'room-focused');
+  await saveText('room-focused', 1);
+  // Let the save-scheduled check settle under the default budget before spying.
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const txSpy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+  const readwriteStores = () =>
+    txSpy.mock.calls
+      .filter(([, mode]) => mode === 'readwrite')
+      .map(([names]) => (typeof names === 'string' ? [names] : [...names]).sort());
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: true,
+    evictedMxcUris: [],
+    evictedRoomIds: [],
+  });
+  expect(readwriteStores()).toEqual([]);
+  await save('optional', 'room-optional');
+  store.__setCacheStoreByteBudgetForTests(3000);
+  txSpy.mockClear();
+  expect((await store.runCacheEvictionIfOverBudget(session)).evictedMxcUris).toEqual([
+    'mxc://test/optional',
+  ]);
+  expect(readwriteStores()).toEqual([['attachment_references', 'attachments']]);
+  expect(await store.loadCachedAttachment(session, 'mxc://test/optional')).toBeUndefined();
+  expect(await store.loadCachedAttachment(session, 'mxc://test/protected')).toBeDefined();
+});
+
+it('memoizes irreclaimable pressure within interval and invalidates on space or protection change', async () => {
+  let now = 1_000_000;
+  vi.spyOn(Date, 'now').mockImplementation(() => now);
+  await save('focused', 'room-focused');
+  await save('pinned', 'room-pinned');
+  await save('downloading', 'room-downloading');
+  await store.setRoomAttachmentPinned(session, 'room-pinned', true);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.setEvictionDownloadingRoomIds(session, ['room-downloading']);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  const txSpy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+  const evictionTraceCount = () =>
+    trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction').length;
+  const first = await store.runCacheEvictionIfOverBudget(session);
+  expect(first).toMatchObject({ underPressure: true, evictedMxcUris: [], evictedRoomIds: [] });
+  expect(evictionTraceCount()).toBe(1);
+  // Back-to-back call within the interval returns the cached result with zero IDB work.
+  txSpy.mockClear();
+  now += EVICTION_CHECK_MIN_INTERVAL_MS - 1;
+  expect(await store.runCacheEvictionIfOverBudget(session)).toBe(first);
+  expect(txSpy).not.toHaveBeenCalled();
+  expect(evictionTraceCount()).toBe(1);
+  // Re-runs once EVICTION_CHECK_MIN_INTERVAL_MS elapses.
+  now += 1;
+  await store.runCacheEvictionIfOverBudget(session);
+  expect(evictionTraceCount()).toBe(2);
+  expect(txSpy).toHaveBeenCalled();
+  // Re-runs immediately after clearRoomCachedContent frees space.
+  await store.clearRoomCachedContent(session, 'room-focused');
+  expect((await store.runCacheEvictionIfOverBudget(session)).bytesBefore).toBe(4000);
+  expect(evictionTraceCount()).toBe(3);
+  // Re-runs immediately after unpinning a room.
+  await store.setRoomAttachmentPinned(session, 'room-pinned', false);
+  expect((await store.runCacheEvictionIfOverBudget(session)).evictedMxcUris).toEqual([
+    'mxc://test/pinned',
+  ]);
+  expect(evictionTraceCount()).toBe(4);
+  // Re-runs immediately when focused or downloading protection drops a room.
+  await save('focused', 'room-focused');
+  await store.runCacheEvictionIfOverBudget(session);
+  expect(evictionTraceCount()).toBe(5);
+  store.setEvictionProtectedRoomIds([]);
+  expect((await store.runCacheEvictionIfOverBudget(session)).evictedMxcUris).toEqual([
+    'mxc://test/focused',
+  ]);
+  expect(evictionTraceCount()).toBe(6);
+  await store.runCacheEvictionIfOverBudget(session);
+  expect(evictionTraceCount()).toBe(7);
+  store.setEvictionDownloadingRoomIds(session, []);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedMxcUris: ['mxc://test/downloading'],
+    underPressure: false,
+  });
+  expect(evictionTraceCount()).toBe(8);
+  // Re-runs immediately on budget change or deleteCacheStoreDb.
+  await save('kept', 'room-focused');
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  await store.runCacheEvictionIfOverBudget(session);
+  expect(evictionTraceCount()).toBe(9);
+  store.__setCacheStoreByteBudgetForTests(2);
+  await store.runCacheEvictionIfOverBudget(session);
+  expect(evictionTraceCount()).toBe(10);
+  await store.deleteCacheStoreDb(session);
+  txSpy.mockClear();
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 0,
+    underPressure: false,
+  });
+  expect(txSpy).toHaveBeenCalled();
 });

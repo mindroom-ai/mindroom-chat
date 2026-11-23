@@ -9,6 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import * as deepTrace from '../../../diagnostics/deepTrace';
 import { saveAttachmentOwner } from '../../cache/__tests__/attachmentFixtures';
 import { createSyncEngine } from '../syncEngine';
 import { createSessionId } from '../../../matrix/session/sessions';
@@ -1257,6 +1258,68 @@ it('preserves the storage pause after a live observed body is refused', async ()
     });
     expect(fetch).not.toHaveBeenCalled();
   } finally {
+    unsubscribe();
+    control.stop();
+  }
+});
+
+it('runs only one eviction pass across repeated live observe calls under irreclaimable pressure', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true, exhausted: true });
+  await noteRoomOpened(engine.sessionId, roomId);
+  const events = ['$live-1', '$live-2', '$live-3'].map(
+    (id) =>
+      new MatrixEvent({
+        ...raw(id),
+        content: {
+          msgtype: 'm.text',
+          body: 'preview',
+          url: `mxc://test/${id}`,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      })
+  );
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: events.map((event) => event.event),
+    mappedEvents: events,
+  });
+  await runCacheEvictionIfOverBudget(engine.sessionId);
+  __setCacheStoreByteBudgetForTests(1);
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => resolvePrefetchConfig({ prefetchScope: 'all-rooms' }),
+    onChanged: () => {},
+  });
+  control.start();
+  const unsubscribe = control.controller.subscribe(roomId, () => {});
+  try {
+    for (const event of events) {
+      // eslint-disable-next-line no-await-in-loop
+      await control.observe([event], roomId);
+    }
+    expect(control.controller.getSnapshot(roomId)).toMatchObject({
+      status: 'space',
+      missingEssential: 3,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction')).toHaveLength(1);
+  } finally {
+    trace.mockRestore();
     unsubscribe();
     control.stop();
   }

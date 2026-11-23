@@ -20,6 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
+import { invalidateEvictionPressureCache } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -458,6 +459,7 @@ export const setRoomAttachmentPinned = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });
+  if (!pinned) invalidateEvictionPressureCache(sessionId);
 };
 
 /** Pending owners only; descriptors are reconstructed from their saved event. */
