@@ -3,7 +3,7 @@ import type { Room } from 'matrix-js-sdk';
 import { Profiler } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
@@ -19,6 +19,10 @@ const state = vi.hoisted(() => ({
   pinned: [] as string[],
   sections: undefined as CompactThreadSection[] | undefined,
   enabled: [] as boolean[],
+  unreachable: false,
+}));
+vi.mock('../../matrix/client/homeserverReachability', () => ({
+  useHomeserverUnreachable: () => state.unreachable,
 }));
 
 const viewModel = (threadRootId: string): CompactThreadCardViewModel => ({
@@ -728,6 +732,8 @@ describe('a focus request on the mounted Compact room', () => {
   const VIEW_HEIGHT = 300;
   const cards = Array.from({ length: 10 }, (_unused, index) => `$card${index}`);
   let scrollTop = 0;
+  // What the room's header and filter bar take above the first card.
+  let inset = 0;
   let resizeCallbacks: Array<() => void> = [];
   const rowHeight = (element: Element) =>
     element instanceof HTMLElement && element.style.display !== 'none'
@@ -744,6 +750,8 @@ describe('a focus request on the mounted Compact room', () => {
   // VIEW_HEIGHT tall that scrolls.
   beforeEach(() => {
     scrollTop = 0;
+    inset = 0;
+    state.unreachable = false;
     resizeCallbacks = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -771,16 +779,18 @@ describe('a focus request on the mounted Compact room', () => {
           300,
           Math.max(extent(), Number.parseFloat(this.style.minHeight) || 0)
         );
-      let top = -scrollTop;
+      let top = inset - scrollTop;
       for (let row = this.previousElementSibling; row; row = row.previousElementSibling)
         top += rowHeight(row);
       return new DOMRect(0, top, 300, rowHeight(this));
     });
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(VIEW_HEIGHT);
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(extent);
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(
+      () => inset + extent()
+    );
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
     vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
-      scrollTop = Math.min(Math.max(0, value), Math.max(0, extent() - VIEW_HEIGHT));
+      scrollTop = Math.min(Math.max(0, value), Math.max(0, inset + extent() - VIEW_HEIGHT));
     });
   });
 
@@ -789,14 +799,19 @@ describe('a focus request on the mounted Compact room', () => {
   });
 
   const memory: ScrollAnchorMemory = new Map();
-  const at = (focusRequest?: CompactFocusRequest, ids = cards, indexPending = false) => {
+  const at = (
+    focusRequest?: CompactFocusRequest,
+    ids = cards,
+    indexPending = false,
+    records = new Map<string, ThreadRecord>()
+  ) => {
     // What the room does as it renders the address.
     if (focusRequest) takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
     return (
       <CompactRoomView
         room={room}
         threadRootIds={ids}
-        threadRecordMap={new Map()}
+        threadRecordMap={records}
         onThreadClick={vi.fn()}
         compactRoomScrollStateRef={{ current: memory }}
         focusRequest={focusRequest}
@@ -1026,6 +1041,24 @@ describe('a focus request on the mounted Compact room', () => {
       expect(document.querySelector('[data-cards-pending]')).toBeNull();
       expect(scrollTop).toBe(6000);
       expect(inView()).toEqual(['$card63', '$card64', '$card65']);
+    });
+
+    it('counts the space above the cards when the saved screen ends where unseen cards start', () => {
+      memory.clear();
+      inset = 160;
+      const { unmount } = render(at(undefined, large));
+      measure();
+      scrollTop = 11560;
+      fireEvent.scroll(document.querySelector('[data-compact-room-view]')!);
+      unmount();
+      const left = [114, 115, 116].map((row) => `$card${row}`);
+      expect(memory.get(ROOM_ID)?.anchors.map(({ key }) => key)).toEqual(left);
+      scrollTop = 0;
+      const rest = large.filter((id) => !left.includes(id));
+      render(at(undefined, [...rest, ...Array.from({ length: 72 }, (_, i) => `$below${i}`)]));
+      // The first unseen card starts at 160 + 117 * 100, the bottom of the saved screen.
+      expect(scrollTop).toBe(11560);
+      expect(inView()).toEqual(['$card117', '$card118', '$card119']);
     });
 
     it('draws the cards at the top in the commit that reverses the order', () => {

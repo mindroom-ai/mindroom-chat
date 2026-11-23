@@ -594,10 +594,10 @@ it('goes Back to a saved offset whose cards left once the cards down to its scre
   expect(view().querySelector('[data-scroll-anchor="$row60"]')).not.toBeNull();
   below.unmount();
   // Unseen cards above it move the saved offset: Back waits for them, and for no card after.
-  render(<List memory={memory} shown={{ cards: [...unseen, ...ids, '$row300'] }} />);
+  const more = Array.from({ length: 36 }, (_, i) => `$row${300 + i}`);
+  render(<List memory={memory} shown={{ cards: [...unseen, ...ids, ...more] }} />);
   expect(view().dataset.ready).toBe('false');
-  tick(1);
-  expect(view().dataset.ready).toBe('false');
+  // The last of the cards above is measured on this frame, and Back is ready in its commit.
   tick(1);
   expect(view().dataset.ready).toBe('true');
   expect(view().dataset.complete).toBe('false');

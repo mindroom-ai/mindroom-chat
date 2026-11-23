@@ -15,7 +15,6 @@ type Geometry = {
   fresh: Set<string>;
   visible: string[];
   gap: number;
-  page: number;
   metrics?: string;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
@@ -36,7 +35,7 @@ export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
   const { target, protectedId, records, indexPending } = options;
   const state = useMemo(() => {
-    const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0, page: 0 };
+    const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
     return {
       geometry: rooms.get(memory)?.get(roomId) ?? empty,
       saved: memory.get(roomId),
@@ -80,22 +79,22 @@ export function useCompactBlocks(options: Options) {
   // Back to the saved cards that are still shown. Warm ones were in view when the list was left
   // and place at once on their cached heights; cold ones wait for their prefix, and an address's
   // one card, while the index loads, for a native range that reaches it. With none shown, Back
-  // waits for cards the index may still bring, then for the cards down to the saved screen only.
+  // waits for cards the index may still bring, then until the layout finds every card down to
+  // the saved screen measured (`reachable`, like the range).
   const back = !state.placed && !!saved?.scrollTop;
   const savedKeys = saved?.anchors.map(({ key }) => key) ?? [];
   const survivors = savedKeys.filter((id) => index.has(id));
   const backSlot = slots(survivors).at(-1);
   const warm = survivors.some((id) => geometry.visible.includes(id));
   const arriving = indexPending && savedKeys.some((id) => !index.has(id) && !records?.has(id));
-  const ranged = !indexPending || savedKeys.length > 1 || state.reachable === order;
-  let prefix = 0;
-  for (const id of index.keys()) {
-    if (!heights.has(id) && drawn(id)) break;
-    prefix += (heights.get(id) ?? 0) + gap;
-  }
-  const covered = extentComplete || prefix >= (saved?.scrollTop ?? 0) + geometry.page;
+  const reached = state.reachable === order;
+  const first = blocks[missing]?.find((id) => !heights.has(id) && drawn(id));
   const placeReady =
-    !back || warm || (backSlot === undefined ? !arriving && covered : known(backSlot) && ranged);
+    !back ||
+    warm ||
+    (backSlot === undefined
+      ? !arriving && (extentComplete || reached)
+      : known(backSlot) && (!indexPending || savedKeys.length > 1 || reached));
   const targetSlot = target === undefined ? undefined : index.get(target);
   const targetReady = known(targetSlot);
   // A new order, and a new mount, is drawn where the list is, or where Back puts it: the block
@@ -229,7 +228,8 @@ export function useCompactBlocks(options: Options) {
     if (records && !indexPending)
       for (const kept of [heights, fresh])
         for (const id of kept.keys()) if (!records.has(id) && !index.has(id)) kept.delete(id);
-    // The view shows a spacer: its cards mount before the paint, not on a frame.
+    // The view shows a spacer, or the saved place came into reach: the next render is before
+    // the paint, not on a frame.
     let hole = false;
     // Undefined while the list has no size (hidden): nothing can be measured there.
     const layout = () => {
@@ -240,10 +240,14 @@ export function useCompactBlocks(options: Options) {
       const metrics = `${width}|${style.fontFamily}|${style.fontSize}|${measuredGap}`;
       let changed = metrics !== geometry.metrics;
       if (changed) fresh.clear();
-      Object.assign(geometry, { metrics, gap: measuredGap, page: view.clientHeight });
+      Object.assign(geometry, { metrics, gap: measuredGap });
       const { top } = view.getBoundingClientRect();
       const bottom = top + view.clientHeight;
       const visible: string[] = [];
+      // The saved place and how far the list reaches, in scroll pixels: to the native end for a
+      // saved card, else to a screen above the first card that is still to be discovered.
+      let goal = saved?.scrollTop ?? 0;
+      let reach = known(backSlot) ? view.scrollHeight - view.clientHeight + 1 : -Infinity;
       for (const id of liveIds) fresh.add(id);
       // An inert copy animates a card's leave: it is not the card.
       const rowsNow = `${SHELL}:not([inert]), [data-compact-spacer]`;
@@ -254,13 +258,9 @@ export function useCompactBlocks(options: Options) {
           // A mounted card's height is in no spacer: only a discovered one changes the rows.
           if (!heights.has(id)) changed = true;
           heights.set(id, height);
-          if (back && !ranged && known(backSlot) && id === savedKeys[0]) {
-            const destination = view.scrollTop + y - top - saved.anchors[0]!.offset;
-            if (destination <= view.scrollHeight - view.clientHeight + 1) {
-              state.reachable = order;
-              changed = true;
-            }
-          }
+          const at = view.scrollTop + y - top;
+          if (id === savedKeys[0]) goal = at - (saved?.anchors[0]?.offset ?? 0);
+          if (id === first && backSlot === undefined) reach = at - view.clientHeight;
         }
         if (y >= bottom || end <= top) continue;
         let edge = y;
@@ -272,12 +272,14 @@ export function useCompactBlocks(options: Options) {
         }
       }
       for (const id of liveIds) if (!heights.has(id)) state.blank.set(id, !!records?.has(id));
-      if (back && !state.placed) return changed;
+      hole = back && !placeReady && state.reachable !== order && goal <= reach;
+      if (hole) state.reachable = order;
+      if (back && !state.placed) return changed || hole;
       if (visible.length) geometry.visible = visible;
       state.order = order;
-      hole = visible.some((id) => !liveIds.includes(id));
+      hole = hole || visible.some((id) => !liveIds.includes(id));
       // A Back placed or retired since this render is dropped by the next one.
-      return changed || back || (!!visible.length && `${slots(visible)}` !== `${reader}`);
+      return changed || hole || back || (!!visible.length && `${slots(visible)}` !== `${reader}`);
     };
     const measured = layout();
     const pending = measured || (!small && probe >= 0);
@@ -288,7 +290,7 @@ export function useCompactBlocks(options: Options) {
       const now = layout();
       return now !== undefined && (now || (!!advance && pending));
     };
-    if (hole || (back && !placeReady && state.reachable === order)) render();
+    if (hole) render();
     else if ((measured !== undefined && pending) || (back && placeReady)) state.wake?.();
   });
   // The scrollbar's End reads the extent once the last screen is mounted and measured: cached
