@@ -93,13 +93,32 @@
       "wheelZoomHint": "{{key}} + scrollen om te zoomen"
     },
     "inviteUserPrompt": {
-      "close": "Sluiten",
       "invited": "{{user}} is uitgenodigd.",
-      "giveRoleRights": "{{role}}-rechten geven",
       "giveRoleRightsHelp": "Deze ruimte vereist {{role}}-rechten om spraaktranscripties in te klappen en schema's en ruimte-instellingen te beheren.",
       "roleFailed": "{{user}} is uitgenodigd, maar kan geen {{role}}-rechten geven: {{error}}",
       "roleRequirementChanged": "Deze ruimte vereist nu {{role}}-rechten.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Uitnodigen voor {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Klaar",
+      "searchPlaceholder": "Zoek mensen, agents of @user:server",
+      "filterLabel": "Filteren op type",
+      "filterAll": "Alle",
+      "filterPeople": "Mensen",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Recent & Direct",
+      "directory": "Adresboek",
+      "externalUserId": "Externe Matrix-ID",
+      "noMatches": "Geen overeenkomende gebruikers. Voer een volledige @user:server-ID in om direct uit te nodigen.",
+      "emptyDirectory": "Nog geen gebruikers om uit te nodigen. Voer een volledige @user:server-ID in om direct uit te nodigen.",
+      "addNote": "+ Uitnodigingsbericht toevoegen",
+      "hideNote": "− Uitnodigingsbericht verbergen",
+      "notePlaceholder": "Voeg een bericht toe aan je uitnodiging...",
+      "giveRoleRightsAgents": "Uitgenodigde agents {{role}}-rechten geven",
+      "alreadyInRoom": "Al in deze ruimte",
+      "alreadyInvited": "Al uitgenodigd",
+      "bannedFromRoom": "Verbannen uit deze ruimte",
+      "retryUser": "Uitnodigen van {{user}} opnieuw proberen"
     },
     "joinAddressPrompt": {
       "close": "Sluiten",
@@ -478,7 +497,8 @@
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
-        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken"
+        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
+        "dictation": "dicteren, dictee, spraak naar tekst, microfoon, telefoon"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -1348,7 +1368,34 @@
     },
     "replyInThread": "Antwoorden in thread…",
     "newThreadIn": "Nieuwe thread in {{room}}…",
-    "newThreadWith": "Nieuwe thread met {{name}}…"
+    "newThreadWith": "Nieuwe thread met {{name}}…",
+    "dictation": {
+      "label": "Dicteren",
+      "cancel": "Dicteren annuleren",
+      "pause": "Dicteren pauzeren",
+      "resume": "Dicteren hervatten",
+      "finish": "Dicteren voltooien",
+      "retry": "Opnieuw proberen",
+      "insertPartial": "Deeltekst invoegen",
+      "discard": "Verwijderen",
+      "dismissError": "Dicteerfout sluiten",
+      "statusStarting": "Dicteren starten",
+      "statusListening": "Aan het dicteren",
+      "statusPaused": "Dicteren gepauzeerd",
+      "statusFinishing": "Afronden...",
+      "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
+      "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
+      "capReached": "Limiet van 5:00 bereikt",
+      "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
+      "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
+      "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen."
+    },
+    "voiceButton": {
+      "settingTitle": "Microfoonknop op telefoon",
+      "settingDescription": "Kies wat de microfoonknop in het invoerveld op telefoons doet. De andere actie blijft in het +-menu.",
+      "dictate": "Dicteren",
+      "voiceMessage": "Spraakbericht"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1427,7 +1474,8 @@
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",
       "callView": "Naar de oproep gaan",
-      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen"
+      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen",
+      "dictate": "Dicteren in het invoerveld"
     }
   },
   "thread": {

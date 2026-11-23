@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + desplazar para hacer zoom"
     },
     "inviteUserPrompt": {
-      "close": "Cerrar",
       "invited": "Se invitó a {{user}}.",
-      "giveRoleRights": "Dar permisos de {{role}}",
       "giveRoleRightsHelp": "Esta sala requiere permisos de {{role}} para plegar transcripciones de voz y gestionar horarios y ajustes de la sala.",
       "roleFailed": "Se invitó a {{user}}, pero no se pudieron dar permisos de {{role}}: {{error}}",
       "roleRequirementChanged": "Esta sala ahora requiere permisos de {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invitar a {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Listo",
+      "searchPlaceholder": "Buscar personas, agentes o @user:server",
+      "filterLabel": "Filtrar por tipo",
+      "filterAll": "Todos",
+      "filterPeople": "Personas",
+      "filterAgents": "Agentes",
+      "recentAndDirect": "Recientes y directos",
+      "directory": "Directorio",
+      "externalUserId": "ID externo de Matrix",
+      "noMatches": "No hay usuarios coincidentes. Introduce un ID @user:server completo para invitar directamente.",
+      "emptyDirectory": "Todavía no hay usuarios para invitar. Introduce un ID @user:server completo para invitar directamente.",
+      "addNote": "+ Añadir nota de invitación",
+      "hideNote": "− Ocultar nota de invitación",
+      "notePlaceholder": "Añade una nota a tu invitación...",
+      "giveRoleRightsAgents": "Dar permisos de {{role}} a los agentes invitados",
+      "alreadyInRoom": "Ya está en esta sala",
+      "alreadyInvited": "Ya invitado",
+      "bannedFromRoom": "Vetado en esta sala",
+      "retryUser": "Reintentar invitar a {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Cerrar",
@@ -491,7 +510,8 @@
         "emoji": "emoji, stickers, paquetes, emoji personalizados",
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
-        "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano"
+        "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
+        "dictation": "dictar, dictado, voz a texto, micrófono, teléfono"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -1393,7 +1413,36 @@
     },
     "replyInThread": "Responder en el hilo…",
     "newThreadIn": "Nuevo hilo en {{room}}…",
-    "newThreadWith": "Nuevo hilo con {{name}}…"
+    "newThreadWith": "Nuevo hilo con {{name}}…",
+    "dictation": {
+      "label": "Dictar",
+      "cancel": "Cancelar dictado",
+      "pause": "Pausar dictado",
+      "resume": "Reanudar dictado",
+      "finish": "Finalizar dictado",
+      "retry": "Reintentar",
+      "insertPartial": "Insertar texto parcial",
+      "discard": "Descartar",
+      "dismissError": "Cerrar error de dictado",
+      "statusStarting": "Iniciando dictado",
+      "statusListening": "Dictando",
+      "statusPaused": "Dictado en pausa",
+      "statusFinishing": "Finalizando...",
+      "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
+      "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
+      "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",
+      "capReached": "Límite de 5:00 alcanzado",
+      "micInterrupted": "Micrófono desconectado. Reanuda o finaliza.",
+      "failedSummary_one": "No se pudo transcribir {{count}} segmento.",
+      "failedSummary_many": "No se pudieron transcribir {{count}} segmentos.",
+      "failedSummary_other": "No se pudieron transcribir {{count}} segmentos."
+    },
+    "voiceButton": {
+      "settingTitle": "Botón de micrófono en móvil",
+      "settingDescription": "Elige qué hace el botón de micrófono del redactor en teléfonos. La otra acción permanece en el menú +.",
+      "dictate": "Dictar",
+      "voiceMessage": "Mensaje de voz"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1472,7 +1521,8 @@
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",
       "callView": "Ir a la llamada",
-      "voiceRecord": "Mantén pulsado para grabar un mensaje de voz; toca para empezar o enviar"
+      "voiceRecord": "Mantén pulsado para grabar un mensaje de voz; toca para empezar o enviar",
+      "dictate": "Dictar en el redactor"
     }
   },
   "thread": {

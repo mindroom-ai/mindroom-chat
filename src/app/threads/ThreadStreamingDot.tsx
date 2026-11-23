@@ -18,7 +18,6 @@ const observeDot = (dot: HTMLSpanElement): (() => void) => {
     });
   }
   observedDots.add(dot);
-  dot.style.animationPlayState = 'paused';
   observer.observe(dot);
 
   return () => {

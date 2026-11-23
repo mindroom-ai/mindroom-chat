@@ -1217,6 +1217,46 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
+  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
+  // (the row that draws a folded turn's break measures the break, also when it is a secret
+  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
+  const threadHiddenIds = useMemo(() => {
+    if (!threadId) return EMPTY_IDS;
+    if (
+      pluginHiddenThreadIds.size === 0 &&
+      secretRequestTimeline.hiddenEventIds.size === 0 &&
+      voiceTranscripts.hiddenEventIds.size === 0 &&
+      replyCards.hiddenEventIds.size === 0 &&
+      modelChanges.hiddenEventIds.size === 0 &&
+      turnFolds.view.hiddenIds.size === 0
+    ) {
+      return approvalTimeline.hiddenEventIds;
+    }
+    return new Set([
+      ...approvalTimeline.hiddenEventIds,
+      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
+      ...voiceTranscripts.hiddenEventIds,
+      ...replyCards.hiddenEventIds,
+      ...modelChanges.hiddenEventIds,
+      ...pluginHiddenThreadIds,
+      ...turnFolds.view.hiddenIds,
+    ]);
+  }, [
+    threadId,
+    approvalTimeline.hiddenEventIds,
+    secretRequestTimeline.hiddenEventIds,
+    voiceTranscripts.hiddenEventIds,
+    replyCards.hiddenEventIds,
+    modelChanges.hiddenEventIds,
+    pluginHiddenThreadIds,
+    turnFolds.view,
+  ]);
+  // What prices the open thread's rows besides its events: the ledger holds the reader's rows
+  // when it changes the price of an unmeasured row above them.
+  const threadRowPricing = useMemo(
+    () => [threadHiddenIds, turnFolds.view],
+    [threadHiddenIds, turnFolds.view]
+  );
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout,
@@ -1228,6 +1268,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeRangeRef,
     threadRecordMapRef,
     turnFolds: turnFolds.view,
+    hiddenIds: threadHiddenIds,
     membershipFoldsRef,
     renderedRoomRowsRef,
   });
@@ -1278,6 +1319,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEvents,
     threadId,
     threadInitialRenderMode,
+    threadRowPricing,
     leadingKey: threadId
       ? [
           threadLoadError ? 'error' : '',
@@ -1318,47 +1360,21 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
   // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
+  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`): a
+  // list held over them ends below or above its newest row for a frame, where a thread that
+  // opens pinned and showed its rows, and the next render moved them.
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
   const heldList =
-    beforePaint && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
+    beforePaint &&
+    ledger.unrenderedInRowReport() &&
+    !ledger.unrenderedRewrap() &&
+    renderedList?.height
+      ? renderedList
+      : undefined;
   const listHeight = heldList
     ? heldListHeight(heldList, ledger.ledgerPxAtRender)
     : virtualizer.getTotalSize();
-  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break, also when it is a secret
-  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
-  const threadHiddenIds = useMemo(() => {
-    if (!threadId) return EMPTY_IDS;
-    if (
-      pluginHiddenThreadIds.size === 0 &&
-      secretRequestTimeline.hiddenEventIds.size === 0 &&
-      voiceTranscripts.hiddenEventIds.size === 0 &&
-      replyCards.hiddenEventIds.size === 0 &&
-      modelChanges.hiddenEventIds.size === 0 &&
-      turnFolds.view.hiddenIds.size === 0
-    ) {
-      return approvalTimeline.hiddenEventIds;
-    }
-    return new Set([
-      ...approvalTimeline.hiddenEventIds,
-      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
-      ...voiceTranscripts.hiddenEventIds,
-      ...replyCards.hiddenEventIds,
-      ...modelChanges.hiddenEventIds,
-      ...pluginHiddenThreadIds,
-      ...turnFolds.view.hiddenIds,
-    ]);
-  }, [
-    threadId,
-    approvalTimeline.hiddenEventIds,
-    secretRequestTimeline.hiddenEventIds,
-    voiceTranscripts.hiddenEventIds,
-    replyCards.hiddenEventIds,
-    modelChanges.hiddenEventIds,
-    pluginHiddenThreadIds,
-    turnFolds.view,
-  ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
   useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
   useMembershipFoldRowSizes(

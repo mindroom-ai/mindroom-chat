@@ -1,6 +1,14 @@
 import type { TFunction } from 'i18next';
 import { atom } from 'jotai';
-import { KnownMembership, type MatrixClient, type Room, type RoomMember } from 'matrix-js-sdk';
+import {
+  EventType,
+  KnownMembership,
+  MatrixError,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+} from 'matrix-js-sdk';
 import { isUserId } from '../../matrix/matrix';
 import {
   isMindroomAgentUserIdForViewer,
@@ -19,8 +27,10 @@ import { getStateEvent } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import type { PowerLevelTags } from '../usePowerLevelTags';
 
+export type DetachedGrantError = { readonly message: string };
+
 /** Non-blocking alert shown at shell level if a dialog-submitted grant fails after unmount. */
-export const detachedGrantErrorAtom = atom<{ readonly message: string } | undefined>(undefined);
+export const detachedGrantErrorAtom = atom<DetachedGrantError | undefined>(undefined);
 
 // Room versions 10+ require integer power levels; v1-9 allow legacy integer strings.
 const hasIntegerPowerLevels = (version: string): boolean =>
@@ -33,6 +43,36 @@ const isEligibleAgent = (userId: string, viewerId: string) =>
 
 const powerOf = (userId: string, levels: IPowerLevels, creators: ReadonlySet<string>) =>
   creators.has(userId) ? Infinity : readPowerLevel.user(levels, userId);
+
+const requiredModeratorLevel = (levels: IPowerLevels): number =>
+  Math.max(MODERATOR_LEVEL, readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT));
+
+const canViewerGrantLevel = (
+  viewerId: string,
+  levels: IPowerLevels,
+  creators: ReadonlySet<string>,
+  level: number
+): boolean =>
+  getRoomPermissionsAPI(creators, levels).stateEvent(StateEvent.RoomPowerLevels, viewerId) &&
+  powerOf(viewerId, levels, creators) >= level;
+
+export type RoomModeratorGrantDecision =
+  | { readonly kind: 'grant'; readonly level: number }
+  | { readonly kind: 'forbidden' };
+
+/** Evaluates whether `viewerId` can grant agent moderator rights in a v10+ non-Space room. */
+export const evaluateRoomModeratorGrant = (
+  room: Pick<Room, 'isSpaceRoom' | 'getVersion'>,
+  viewerId: string,
+  levels: IPowerLevels,
+  creators: ReadonlySet<string>
+): RoomModeratorGrantDecision => {
+  if (room.isSpaceRoom() || !hasIntegerPowerLevels(room.getVersion())) return { kind: 'forbidden' };
+  const level = requiredModeratorLevel(levels);
+  return canViewerGrantLevel(viewerId, levels, creators, level)
+    ? { kind: 'grant', level }
+    : { kind: 'forbidden' };
+};
 
 type ModeratorGrantDecision =
   | { readonly kind: 'grant'; readonly level: number }
@@ -56,19 +96,12 @@ export const evaluateModeratorGrant = (
   ) {
     return { kind: 'forbidden' };
   }
-  const level = Math.max(
-    MODERATOR_LEVEL,
-    readPowerLevel.state(levels, MINDROOM_ROUTER_STATE_EVENT)
-  );
+  const level = requiredModeratorLevel(levels);
   if (powerOf(targetId, levels, creators) >= level) return { kind: 'alreadySatisfied' };
   if (maxLevel !== undefined && level > maxLevel) return { kind: 'levelRaised', level };
-  if (
-    !getRoomPermissionsAPI(creators, levels).stateEvent(StateEvent.RoomPowerLevels, viewerId) ||
-    powerOf(viewerId, levels, creators) < level
-  ) {
-    return { kind: 'forbidden' };
-  }
-  return { kind: 'grant', level };
+  return canViewerGrantLevel(viewerId, levels, creators, level)
+    ? { kind: 'grant', level }
+    : { kind: 'forbidden' };
 };
 
 export const hasModeratorMindroomAgent = (
@@ -98,36 +131,87 @@ export type GrantFailure =
   | { readonly kind: 'levelRaised'; readonly level: number }
   | { readonly kind: 'failed'; readonly detail: string };
 
-/** Re-reads synced power levels before writing; never lowers against synced state or exceeds the shown level. */
-export const grantRoomModeratorRights = async (
+const roomGrantQueues = new WeakMap<MatrixClient, Map<string, Promise<void>>>();
+
+const enqueueRoomGrant = <T>(
+  client: MatrixClient,
+  roomId: string,
+  task: () => Promise<T>
+): Promise<T> => {
+  const queues = roomGrantQueues.get(client) ?? new Map<string, Promise<void>>();
+  roomGrantQueues.set(client, queues);
+  const result = (queues.get(roomId) ?? Promise.resolve()).then(task, task);
+  const tail = result.then(
+    () => undefined,
+    () => undefined
+  );
+  queues.set(roomId, tail);
+  void tail.finally(() => {
+    if (queues.get(roomId) === tail) queues.delete(roomId);
+  });
+  return result;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isNotFoundError = (error: unknown): boolean =>
+  error instanceof MatrixError
+    ? error.errcode === 'M_NOT_FOUND'
+    : isRecord(error) && error.errcode === 'M_NOT_FOUND';
+
+const clonePowerLevelsContent = (content: Record<string, unknown>): Record<string, unknown> => ({
+  ...content,
+  ...(isRecord(content.events) ? { events: { ...content.events } } : {}),
+  ...(isRecord(content.notifications) ? { notifications: { ...content.notifications } } : {}),
+  users: isRecord(content.users) ? { ...content.users } : {},
+});
+
+const errorDetail = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : String(error);
+
+/** Serializes moderator grants per room and merges against live power_levels before writing. */
+export const grantRoomModeratorRights = (
   client: MatrixClient,
   room: Room,
   targetId: string,
   maxLevel: number
-): Promise<GrantFailure | null> => {
-  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
-  const createEvent = getStateEvent(room, StateEvent.RoomCreate);
-  const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
-  const decision = evaluateModeratorGrant(
-    room,
-    targetId,
-    client.getSafeUserId(),
-    levels,
-    creators,
-    maxLevel
-  );
-  if (decision.kind === 'alreadySatisfied') return null;
-  if (decision.kind !== 'grant') return decision;
-  try {
-    await client.setPowerLevel(room.roomId, targetId, decision.level);
-    return null;
-  } catch (error) {
-    return {
-      kind: 'failed',
-      detail: error instanceof Error && error.message ? error.message : String(error),
-    };
-  }
-};
+): Promise<GrantFailure | null> =>
+  enqueueRoomGrant(client, room.roomId, async () => {
+    const createEvent = getStateEvent(room, StateEvent.RoomCreate);
+    const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
+
+    let liveContent: Record<string, unknown> | undefined;
+    try {
+      const fetched = await client.getStateEvent(room.roomId, StateEvent.RoomPowerLevels, '');
+      liveContent = isRecord(fetched) ? fetched : {};
+    } catch (error) {
+      if (!isNotFoundError(error)) return { kind: 'failed', detail: errorDetail(error) };
+    }
+
+    const levels = getPowersLevelFromMatrixEvent(
+      liveContent ? ({ getContent: () => liveContent } as MatrixEvent) : undefined
+    );
+    const decision = evaluateModeratorGrant(
+      room,
+      targetId,
+      client.getSafeUserId(),
+      levels,
+      creators,
+      maxLevel
+    );
+    if (decision.kind === 'alreadySatisfied') return null;
+    if (decision.kind !== 'grant') return decision;
+
+    const nextContent = clonePowerLevelsContent(liveContent ?? {});
+    (nextContent.users as Record<string, number>)[targetId] = decision.level;
+    try {
+      await client.sendStateEvent(room.roomId, EventType.RoomPowerLevels, nextContent, '');
+      return null;
+    } catch (error) {
+      return { kind: 'failed', detail: errorDetail(error) };
+    }
+  });
 
 export const formatGrantFailure = (
   failure: GrantFailure,

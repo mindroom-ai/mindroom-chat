@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + molette pour zoomer"
     },
     "inviteUserPrompt": {
-      "close": "Fermer",
       "invited": "{{user}} a été invité.",
-      "giveRoleRights": "Donner les droits {{role}}",
       "giveRoleRightsHelp": "Ce salon nécessite les droits {{role}} pour replier les transcriptions vocales et gérer les tâches planifiées et les paramètres du salon.",
       "roleFailed": "{{user}} a été invité, mais impossible de donner les droits {{role}} : {{error}}",
       "roleRequirementChanged": "Ce salon nécessite maintenant les droits {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Inviter dans {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Terminé",
+      "searchPlaceholder": "Rechercher des personnes, agents ou @user:server",
+      "filterLabel": "Filtrer par type",
+      "filterAll": "Tous",
+      "filterPeople": "Personnes",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Récents et directs",
+      "directory": "Annuaire",
+      "externalUserId": "Identifiant Matrix externe",
+      "noMatches": "Aucun utilisateur correspondant. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "emptyDirectory": "Aucun utilisateur à inviter pour le moment. Saisissez un identifiant @user:server complet pour inviter directement.",
+      "addNote": "+ Ajouter une note d’invitation",
+      "hideNote": "− Masquer la note d’invitation",
+      "notePlaceholder": "Ajouter une note à votre invitation...",
+      "giveRoleRightsAgents": "Donner les droits {{role}} aux agents invités",
+      "alreadyInRoom": "Déjà dans ce salon",
+      "alreadyInvited": "Déjà invité",
+      "bannedFromRoom": "Banni de ce salon",
+      "retryUser": "Réessayer d’inviter {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Fermer",
@@ -491,7 +510,8 @@
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
-        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan"
+        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
+        "dictation": "dicter, dictée, voix vers texte, microphone, téléphone"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -1393,7 +1413,36 @@
     },
     "replyInThread": "Répondre dans le fil…",
     "newThreadIn": "Nouveau fil dans {{room}}…",
-    "newThreadWith": "Nouveau fil avec {{name}}…"
+    "newThreadWith": "Nouveau fil avec {{name}}…",
+    "dictation": {
+      "label": "Dicter",
+      "cancel": "Annuler la dictée",
+      "pause": "Mettre la dictée en pause",
+      "resume": "Reprendre la dictée",
+      "finish": "Terminer la dictée",
+      "retry": "Réessayer",
+      "insertPartial": "Insérer le texte partiel",
+      "discard": "Supprimer",
+      "dismissError": "Fermer l’erreur de dictée",
+      "statusStarting": "Démarrage de la dictée",
+      "statusListening": "Dictée en cours",
+      "statusPaused": "Dictée en pause",
+      "statusFinishing": "Finalisation...",
+      "statusPendingRetry_one": "{{count}} segment en attente de nouvel essai",
+      "statusPendingRetry_many": "{{count}} segments en attente de nouvel essai",
+      "statusPendingRetry_other": "{{count}} segments en attente de nouvel essai",
+      "capReached": "Limite de 5:00 atteinte",
+      "micInterrupted": "Microphone déconnecté. Reprenez ou terminez.",
+      "failedSummary_one": "Impossible de transcrire {{count}} segment.",
+      "failedSummary_many": "Impossible de transcrire {{count}} segments.",
+      "failedSummary_other": "Impossible de transcrire {{count}} segments."
+    },
+    "voiceButton": {
+      "settingTitle": "Bouton microphone sur téléphone",
+      "settingDescription": "Choisissez l’action du bouton microphone dans la zone de saisie sur téléphone. L’autre action reste dans le menu +.",
+      "dictate": "Dicter",
+      "voiceMessage": "Message vocal"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1472,7 +1521,8 @@
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
       "callView": "Aller à l’appel",
-      "voiceRecord": "Maintenir pour enregistrer un message vocal, appuyer pour commencer ou envoyer"
+      "voiceRecord": "Maintenir pour enregistrer un message vocal, appuyer pour commencer ou envoyer",
+      "dictate": "Dicter dans la zone de saisie"
     }
   },
   "thread": {

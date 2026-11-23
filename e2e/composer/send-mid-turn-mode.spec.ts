@@ -166,6 +166,26 @@ test('holding Send while an agent replies sends the mode picked', async ({ page 
   const clicked = await sentContent(reader.accessToken, roomId, 'Last, the fog horn.');
   expect(clicked['io.mindroom.mid_turn']).toBe('auto');
 
+  // A staged file alone also opens the Send menu while an agent replies and carries the picked mode.
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Attach files' }).last().click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'harbour-checklist.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Check north pier lantern\n'),
+  });
+  await expect(page.getByText('harbour-checklist.txt').last()).toBeVisible({ timeout: 20_000 });
+  await holdSend(page);
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Steer' }).click();
+  await expect(menu).toBeHidden();
+  const steeredFile = await sentContent(reader.accessToken, roomId, 'harbour-checklist.txt');
+  expect(steeredFile.msgtype).toBe('m.file');
+  expect(steeredFile['io.mindroom.mid_turn']).toBe('steer');
+  expect(steeredFile['m.relates_to']).toMatchObject({ rel_type: 'm.thread', event_id: rootId });
+
   // A hold the mouse lets go of without moving, then Escape: the menu's layer goes from over Send
   // and the browser tells Send the mouse is on it, which must not open the menu as a rest.
   await composer(page).click();

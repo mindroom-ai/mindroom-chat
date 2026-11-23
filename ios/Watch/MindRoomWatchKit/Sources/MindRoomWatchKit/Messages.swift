@@ -39,23 +39,59 @@ public struct Question: Equatable, Sendable {
     }
 }
 
+/// Reads `io.mindroom.stream_status` in string or `{status | state}` record form from `content` or its edit wrapper,
+/// matching the web client's `aiRun.ts` `readStreamStatus`.
+func readStreamStatus(content: JSON, editWrapper: JSON?) -> (present: Bool, normalized: String?) {
+    let key = "io.mindroom.stream_status"
+    let raw = content[key] ?? editWrapper?[key]
+    guard let raw else { return (false, nil) }
+    if let string = raw as? String, !string.isEmpty {
+        return (true, string.lowercased())
+    }
+    if let record = raw as? JSON {
+        if let status = record["status"] as? String, !status.isEmpty { return (true, status.lowercased()) }
+        if let state = record["state"] as? String, !state.isEmpty { return (true, state.lowercased()) }
+    }
+    return (true, nil)
+}
+
 /// Where an agent's reply is: still streaming, finished, stopped, or not an agent run.
 public enum RunState: Equatable, Sendable {
     case streaming, finished, stopped, none
 
     public static func of(_ event: JSON, latestEdit: JSON?) -> RunState {
         let content = effectiveContent(event, latestEdit: latestEdit)
-        if let run = content["io.mindroom.ai_run"] as? JSON, (run["version"] as? NSNumber)?.intValue == 1 {
-            switch run["status"] as? String {
-            case "completed", "cached": return .finished
-            case "cancelled", "error", "interrupted": return .stopped
-            default: break
+        let editWrapper = latestEdit?.newContent == nil ? nil : latestEdit?.content
+        let stream = readStreamStatus(content: content, editWrapper: editWrapper)
+        let aiRunStatus: String? = {
+            guard let run = content["io.mindroom.ai_run"] as? JSON,
+                  jsonExactInt(run["version"]) == 1 else { return nil }
+            return (run["status"] as? String)?.lowercased()
+        }()
+
+        // Explicit active or stopped stream_status takes precedence over a stale ai_run.status
+        // (e.g. a regenerated reply that kept its previous answer's completed metadata).
+        if stream.present {
+            switch stream.normalized {
+            case "pending", "streaming", "active", "running": return .streaming
+            case "cancelled", "interrupted", "error": return .stopped
+            case "completed", "complete", "done": break
+            default:
+                // Present but neither active, stopped, nor successful (e.g. "approval_pending" or malformed):
+                // do not report finished from stale ai_run, while preserving explicit ai_run stopped states.
+                switch aiRunStatus {
+                case "cancelled", "error", "interrupted": return .stopped
+                default: return .none
+                }
             }
         }
-        switch content["io.mindroom.stream_status"] as? String {
-        case "pending", "streaming", "active", "running": return .streaming
-        case "completed": return .finished
-        case "cancelled", "interrupted", "error": return .stopped
+        switch aiRunStatus {
+        case "completed", "cached": return .finished
+        case "cancelled", "error", "interrupted": return .stopped
+        default: break
+        }
+        switch stream.normalized {
+        case "completed", "complete", "done": return .finished
         default: return .none
         }
     }
@@ -67,7 +103,7 @@ public enum ThreadSummary {
         events
             .compactMap { event -> (Int, String)? in
                 guard let summary = event.content["io.mindroom.thread_summary"] as? JSON,
-                      (summary["version"] as? NSNumber)?.intValue == 1 else { return nil }
+                      jsonExactInt(summary["version"]) == 1 else { return nil }
                 let text = (summary["summary"] as? String) ?? (event.content["body"] as? String)
                 return text.map { (event.timestamp, $0) }
             }

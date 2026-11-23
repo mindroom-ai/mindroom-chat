@@ -90,13 +90,32 @@
       "wheelZoomHint": "{{key}} + 捲動以縮放"
     },
     "inviteUserPrompt": {
-      "close": "關閉",
       "invited": "已邀請 {{user}}。",
-      "giveRoleRights": "授予{{role}}權限",
       "giveRoleRightsHelp": "此聊天室需要{{role}}權限才能摺疊語音轉錄，並管理排程與聊天室設定。",
       "roleFailed": "已邀請 {{user}}，但無法授予{{role}}權限：{{error}}",
       "roleRequirementChanged": "此聊天室現在需要{{role}}權限。",
-      "roleWithLevel": "{{role}}（{{level}}）"
+      "roleWithLevel": "{{role}}（{{level}}）",
+      "inviteToRoom": "邀請加入 {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "完成",
+      "searchPlaceholder": "搜尋成員、代理或 @user:server",
+      "filterLabel": "依類型篩選",
+      "filterAll": "全部",
+      "filterPeople": "成員",
+      "filterAgents": "代理",
+      "recentAndDirect": "最近與私訊",
+      "directory": "使用者目錄",
+      "externalUserId": "外部 Matrix ID",
+      "noMatches": "沒有相符的使用者。輸入完整的 @user:server ID 即可直接邀請。",
+      "emptyDirectory": "目前沒有可邀請的使用者。輸入完整的 @user:server ID 即可直接邀請。",
+      "addNote": "+ 新增邀請備註",
+      "hideNote": "− 隱藏邀請備註",
+      "notePlaceholder": "為你的邀請新增備註...",
+      "giveRoleRightsAgents": "為受邀代理授予{{role}}權限",
+      "alreadyInRoom": "已在此聊天室中",
+      "alreadyInvited": "已邀請",
+      "bannedFromRoom": "已被此聊天室封鎖",
+      "retryUser": "重試邀請 {{user}}"
     },
     "joinAddressPrompt": {
       "close": "關閉",
@@ -465,7 +484,8 @@
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
-        "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作"
+        "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
+        "dictation": "聽寫, 語音輸入, 語音轉文字, 麥克風, 手機"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -1303,7 +1323,32 @@
     },
     "replyInThread": "在討論串中回覆…",
     "newThreadIn": "在 {{room}} 中建立新討論串…",
-    "newThreadWith": "與 {{name}} 建立新討論串…"
+    "newThreadWith": "與 {{name}} 建立新討論串…",
+    "dictation": {
+      "label": "聽寫",
+      "cancel": "取消聽寫",
+      "pause": "暫停聽寫",
+      "resume": "繼續聽寫",
+      "finish": "完成聽寫",
+      "retry": "重試",
+      "insertPartial": "插入部分文字",
+      "discard": "捨棄",
+      "dismissError": "關閉聽寫錯誤",
+      "statusStarting": "正在啟動聽寫",
+      "statusListening": "正在聽寫",
+      "statusPaused": "聽寫已暫停",
+      "statusFinishing": "正在完成...",
+      "statusPendingRetry_other": "{{count}} 個片段等待重試",
+      "capReached": "已達到 5:00 上限",
+      "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
+      "failedSummary_other": "無法轉寫 {{count}} 個片段。"
+    },
+    "voiceButton": {
+      "settingTitle": "手機麥克風按鈕",
+      "settingDescription": "選擇手機上輸入框麥克風按鈕的功能。另一項操作保留在 + 選單中。",
+      "dictate": "聽寫",
+      "voiceMessage": "語音訊息"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1382,7 +1427,8 @@
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
       "callView": "前往通話",
-      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送"
+      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送",
+      "dictate": "聽寫到輸入框"
     }
   },
   "thread": {

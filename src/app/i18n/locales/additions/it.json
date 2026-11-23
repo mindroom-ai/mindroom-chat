@@ -96,13 +96,32 @@
       "wheelZoomHint": "{{key}} + scorri per ingrandire"
     },
     "inviteUserPrompt": {
-      "close": "Chiudi",
       "invited": "{{user}} è stato invitato.",
-      "giveRoleRights": "Assegna i permessi di {{role}}",
       "giveRoleRightsHelp": "Questa stanza richiede i permessi di {{role}} per comprimere le trascrizioni vocali e gestire pianificazioni e impostazioni della stanza.",
       "roleFailed": "{{user}} è stato invitato, ma impossibile assegnare i permessi di {{role}}: {{error}}",
       "roleRequirementChanged": "Questa stanza ora richiede i permessi di {{role}}.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invita in {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Fatto",
+      "searchPlaceholder": "Cerca persone, agenti o @user:server",
+      "filterLabel": "Filtra per tipo",
+      "filterAll": "Tutti",
+      "filterPeople": "Persone",
+      "filterAgents": "Agenti",
+      "recentAndDirect": "Recenti e diretti",
+      "directory": "Elenco",
+      "externalUserId": "ID Matrix esterno",
+      "noMatches": "Nessun utente corrispondente. Inserisci un ID @user:server completo per invitare direttamente.",
+      "emptyDirectory": "Nessun utente da invitare al momento. Inserisci un ID @user:server completo per invitare direttamente.",
+      "addNote": "+ Aggiungi nota di invito",
+      "hideNote": "− Nascondi nota di invito",
+      "notePlaceholder": "Aggiungi una nota al tuo invito...",
+      "giveRoleRightsAgents": "Assegna i permessi di {{role}} agli agenti invitati",
+      "alreadyInRoom": "Già in questa stanza",
+      "alreadyInvited": "Già invitato",
+      "bannedFromRoom": "Bandito da questa stanza",
+      "retryUser": "Riprova a invitare {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Chiudi",
@@ -491,7 +510,8 @@
         "emoji": "emoji, sticker, pacchetti, emoji personalizzate",
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
-        "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background"
+        "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
+        "dictation": "dettare, dettatura, voce in testo, microfono, telefono"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -1393,7 +1413,36 @@
     },
     "replyInThread": "Rispondi nel thread…",
     "newThreadIn": "Nuovo thread in {{room}}…",
-    "newThreadWith": "Nuovo thread con {{name}}…"
+    "newThreadWith": "Nuovo thread con {{name}}…",
+    "dictation": {
+      "label": "Detta",
+      "cancel": "Annulla dettatura",
+      "pause": "Metti in pausa dettatura",
+      "resume": "Riprendi dettatura",
+      "finish": "Termina dettatura",
+      "retry": "Riprova",
+      "insertPartial": "Inserisci testo parziale",
+      "discard": "Scarta",
+      "dismissError": "Chiudi errore di dettatura",
+      "statusStarting": "Avvio dettatura",
+      "statusListening": "Dettatura in corso",
+      "statusPaused": "Dettatura in pausa",
+      "statusFinishing": "Completamento...",
+      "statusPendingRetry_one": "{{count}} segmento in attesa di nuovo tentativo",
+      "statusPendingRetry_many": "{{count}} segmenti in attesa di nuovo tentativo",
+      "statusPendingRetry_other": "{{count}} segmenti in attesa di nuovo tentativo",
+      "capReached": "Limite di 5:00 raggiunto",
+      "micInterrupted": "Microfono disconnesso. Riprendi o termina.",
+      "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
+      "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
+      "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
+    },
+    "voiceButton": {
+      "settingTitle": "Pulsante microfono su telefono",
+      "settingDescription": "Scegli cosa fa il pulsante microfono nel compositore sui telefoni. L’altra azione resta nel menu +.",
+      "dictate": "Detta",
+      "voiceMessage": "Messaggio vocale"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1472,7 +1521,8 @@
       "editLast": "Modifica il tuo ultimo messaggio (campo di scrittura vuoto)",
       "inlineCode": "Codice in linea",
       "callView": "Vai alla chiamata",
-      "voiceRecord": "Tieni premuto per registrare un messaggio vocale, tocca per iniziare o inviare"
+      "voiceRecord": "Tieni premuto per registrare un messaggio vocale, tocca per iniziare o inviare",
+      "dictate": "Detta nel compositore"
     }
   },
   "thread": {

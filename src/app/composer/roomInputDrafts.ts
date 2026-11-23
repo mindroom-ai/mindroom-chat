@@ -26,6 +26,7 @@ import {
   voiceDiscardsInFlightAtom,
 } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
 export type { TUploadItem } from '../matrix/state/upload';
@@ -55,6 +56,8 @@ export type PendingVoiceSendContext = {
    * send it comes back in a view of that thread, or on the room's page while it shows that thread.
    */
   threadView?: boolean;
+  /** The mid-turn mode picked when this send started, kept for a retry. */
+  midTurnMode?: MidTurnMode;
 };
 
 export type PendingVoiceSendInFlight = {
@@ -472,6 +475,9 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
+/** Unique owner key while a composer has an active streaming dictation session. */
+export const activeDictationAtom = atom<string | undefined>(undefined);
+
 /** The composer a recorded voice message belongs to: its room's page or a view of its thread. */
 export const voiceComposerKey = ({
   roomId,
@@ -537,6 +543,7 @@ export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
   store.get(pendingVoiceSendDraftAtom) !== undefined ||
   store.get(voiceDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
+  store.get(activeDictationAtom) !== undefined ||
   familyKeys(roomIdToUploadItemsAtomFamily).some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
   ) ||
@@ -565,6 +572,7 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
+  store.set(activeDictationAtom, undefined);
   endVoiceRecordingsOfAccount(store);
 };
 

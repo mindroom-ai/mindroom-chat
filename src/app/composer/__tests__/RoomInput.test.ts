@@ -415,6 +415,18 @@ vi.mock('../useTypingStatusUpdater', () => ({
 vi.mock('../ComposerActionsMenu', () => ({
   ComposerActionsMenu: () => React.createElement('button', { 'aria-label': 'More actions' }),
 }));
+vi.mock('../dictation/useRoomInputDictation', () => ({
+  useRoomInputDictation: () => ({
+    available: false,
+    blocksSubmit: false,
+    active: false,
+    disabled: true,
+    label: 'Dictate',
+    button: null,
+    capsule: null,
+    start: () => false,
+  }),
+}));
 
 // Its hold menu has a test of its own (ComposerSendButton.test.tsx); a click sends.
 vi.mock('../ComposerSendButton', () => ({

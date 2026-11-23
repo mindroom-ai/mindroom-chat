@@ -98,6 +98,7 @@ import {
 import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
@@ -108,6 +109,8 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { VoiceMessageIcon } from './voice/VoiceMessageIcon';
+import { useRoomInputDictation } from './dictation/useRoomInputDictation';
 import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
@@ -266,6 +269,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [midTurnSend] = useSetting(settingsAtom, 'midTurnSend');
+    const [voiceButtonMode] = useSetting(settingsAtom, 'voiceButtonMode');
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
@@ -503,6 +507,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const dictationOwnerKey = `${textKey}:${view ?? 'room'}`;
+    const dictation = useRoomInputDictation({
+      editor,
+      roomId,
+      ownerKey: dictationOwnerKey,
+      rootRef,
+      conversationHidden,
+    });
+
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     // Home's ask field takes text only, so it neither shows nor sends a recording either. Neither
     // brings one back from disk: it would hold it from a tab that can show it.
@@ -516,6 +530,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       takeRootModelDraft,
       onRoomMessageSent,
       recover: voiceActive,
+      distinctIcon: dictation.available,
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -560,8 +575,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const submit = useCallback(
-      async (mode: MidTurnMode, waited: boolean) => {
+      async (explicitMode: MidTurnMode | undefined, waited: boolean) => {
+        if (dictation.blocksSubmit) return;
         if (voiceActive && voice.blocksSubmit()) return;
+        const mode = explicitMode ?? midTurnSend;
         if (!ask) {
           // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one
           // of MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
@@ -583,8 +600,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // Home's ask field restores and stages none.
         const settled = ask ? true : settlePastes();
         // Sending the text answers the notices of files and pastes a reload lost.
-        const takeText = () => {
-          const content = buildTextContent(mode);
+        const takeText = (resolvedMode: MidTurnMode = mode) => {
+          const content = buildTextContent(resolvedMode);
           if (content && !ask) {
             dismissLostFiles();
             dismissLostPastes();
@@ -595,7 +612,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // anything here waits: what follows is only for a Send without a voice message. One that
         // `waited` for its root and goes out now is no press, and takes no recording made since.
         const voiceSend =
-          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+          voiceActive && !waited
+            ? voice.sendAtPress(takeText, settled !== true, explicitMode)
+            : undefined;
         if (voiceSend) {
           setSubmitPending(true);
           await voiceSend.finally(() => {
@@ -604,7 +623,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           return;
         }
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) return;
+        if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
         const textContent = takeText();
         // Home's ask field sends text alone: with none there is no send to tell of.
         if (ask && !textContent) return;
@@ -613,6 +632,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         try {
           const sending = sessions.startSendSession({
             textContent,
+            midTurnMode: mode,
+            explicitMidTurnMode: explicitMode !== undefined,
             // Home's question is asked about, and told of, as it was at this press.
             beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
             onLocalEchoCreated: ask?.onLocalEcho,
@@ -633,8 +654,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         dismissLostPastes,
         editor,
         holdForRoot,
+        midTurnSend,
         runActingCommand,
         sendTypingStatus,
+        dictation.blocksSubmit,
         sessions,
         settlePastes,
         t,
@@ -648,16 +671,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
-      (mode?: MidTurnMode, waited = false) => {
+      (explicitMode?: MidTurnMode, waited = false) => {
         if (ask && !ask.canSend()) return Promise.resolve();
-        const sending = submit(mode ?? midTurnSend, waited);
+        const sending = submit(explicitMode, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
         });
         return sending;
       },
-      [ask, midTurnSend, submit]
+      [ask, submit]
     );
 
     // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
@@ -773,19 +796,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend(undefined, true);
+        else void handleSend(send.mode, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
       setEmojiAnchor(anchor);
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
+    const hasVoice = voiceActive && voice.hasVoice;
     const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
     // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);
     const { setRoot } = focus;
-    const rootRef = useRef<HTMLDivElement | null>(null);
     const setComposerRef = useCallback(
       (node: HTMLDivElement | null) => {
         rootRef.current = node;
@@ -824,6 +847,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         !!replyDraft ||
         !!attachments.board ||
         !!recorder ||
+        !!dictation.capsule ||
         emojiAnchor !== undefined ||
         autocompleteMenuOpen ||
         formattingOpen,
@@ -928,6 +952,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           />
         )}
         {recorder}
+        {dictation.capsule}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
@@ -973,9 +998,34 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onAttachAppLogs={attachments.attachAppLogs}
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
+                  voiceAction={
+                    dictation.available && !forkFrom
+                      ? voiceButtonMode === 'voiceMessage'
+                        ? {
+                            label: dictation.label,
+                            icon: Icons.Mic,
+                            disabled: dictation.disabled,
+                            onSelect: () => {
+                              dictation.start();
+                            },
+                          }
+                        : {
+                            label: voice.microphoneLabel,
+                            icon: VoiceMessageIcon,
+                            disabled: voice.microphoneDisabled,
+                            onSelect: () => {
+                              voice.startRecording();
+                            },
+                          }
+                      : undefined
+                  }
                 />
-                {/* A fork draft records no voice: one would start a thread, not the fork. */}
-                {!forkFrom && voice.microphone}
+                {/* On phones with dictation available, show the chosen primary voice control. */}
+                {dictation.available
+                  ? forkFrom || voiceButtonMode !== 'voiceMessage'
+                    ? dictation.button
+                    : voice.microphone
+                  : !forkFrom && voice.microphone}
               </>
             ) : (
               <>
@@ -1035,14 +1085,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
+              {(!phone || Boolean(ask?.pickers)) && dictation.button}
               <ComposerSendButton
                 label={sendLabel}
-                alone={phone}
+                alone={phone && !(Boolean(ask?.pickers) && dictation.available)}
                 agentReplying={agentReplying}
-                hasText={() => buildTextContent(midTurnSend) !== undefined}
-                empty={noText}
+                hasContent={() =>
+                  buildTextContent(midTurnSend) !== undefined ||
+                  hasSendableStagedFiles(attachments.access.snapshot()) ||
+                  hasVoice
+                }
+                empty={noText && !attachments.hasSendableFiles && !hasVoice}
                 defaultMode={midTurnSend}
-                disabled={askBlocked}
+                disabled={askBlocked || dictation.blocksSubmit}
                 onSend={handleSend}
               />
             </>

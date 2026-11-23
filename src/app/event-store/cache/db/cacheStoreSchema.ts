@@ -88,9 +88,12 @@ export const CACHE_BYTE_BUDGET_BYTES = 1_073_741_824;
 // - `EVICTION_CHECK_MIN_INTERVAL_MS` — the save-time auto-trigger
 //   dedupes back-to-back checks; a check is scheduled at most this
 //   often per session.
+// - `EVICTION_PROTECTED_VERDICT_TTL_MS`: how long a pass whose protected
+//   bytes alone exceed the budget skips repeat passes.
 export const EVICTION_TARGET_UTILIZATION = 0.9;
 export const EVICTION_RECENT_OPEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const EVICTION_CHECK_MIN_INTERVAL_MS = 60_000;
+export const EVICTION_PROTECTED_VERDICT_TTL_MS = 10 * 60_000;
 
 let cacheByteBudgetOverride: number | undefined;
 export const getCacheStoreByteBudget = (): number =>

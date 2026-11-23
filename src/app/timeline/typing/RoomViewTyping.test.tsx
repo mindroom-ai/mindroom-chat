@@ -9,6 +9,7 @@ import { RoomViewTyping } from './RoomViewTyping';
 
 vi.mock('./RoomViewTyping.css', () => ({
   TypingStrip: 'typing-strip',
+  TypingStripArriving: 'typing-strip-arriving',
   DropButton: 'drop-button',
   TypingText: 'typing-text',
   TypingDots: 'typing-dots',
@@ -90,27 +91,37 @@ afterEach(() => {
   root = undefined;
 });
 
-const typing = (store: ReturnType<typeof createStore>, userId: string) =>
+const typing = (store: ReturnType<typeof createStore>, userId: string, roomId = ROOM_ID) =>
   store.set(roomIdToTypingMembersAtom, {
     type: 'PUT',
-    roomId: ROOM_ID,
+    roomId,
     userId,
     ts: Date.now(),
     isTyping: () => true,
   });
 
-const render = (store: ReturnType<typeof createStore>, threadId?: string) => {
+const render = (store: ReturnType<typeof createStore>, threadId?: string, targetRoom = room) => {
   container = document.createElement('div');
   document.body.append(container);
   act(() => {
     root = createRoot(container!);
     root.render(
       <Provider store={store}>
-        <RoomViewTyping room={room} threadId={threadId} />
+        <RoomViewTyping room={targetRoom} threadId={threadId} />
       </Provider>
     );
   });
   return container;
+};
+
+const rerender = (store: ReturnType<typeof createStore>, threadId?: string, targetRoom = room) => {
+  act(() => {
+    root?.render(
+      <Provider store={store}>
+        <RoomViewTyping room={targetRoom} threadId={threadId} />
+      </Provider>
+    );
+  });
 };
 
 it('shows nothing while nobody else types', () => {
@@ -285,4 +296,48 @@ it('shows an agent typing in a thread only while active_runs lists that thread a
     vi.advanceTimersByTime(30_001);
   });
   expect(view.querySelector('[role="status"]')).toBeNull();
+});
+
+it('renders without the arrive animation when mounted with active typers', () => {
+  const store = createStore();
+  typing(store, '@avery:example.org');
+  const strip = render(store).querySelector('[role="status"]');
+  expect(strip?.classList.contains('typing-strip')).toBe(true);
+  expect(strip?.classList.contains('typing-strip-arriving')).toBe(false);
+});
+
+it('applies the arrive animation when typing starts after mounting empty', () => {
+  const store = createStore();
+  const view = render(store);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+
+  act(() => typing(store, '@avery:example.org'));
+  const strip = view.querySelector('[role="status"]');
+  expect(strip?.classList.contains('typing-strip-arriving')).toBe(true);
+});
+
+it('skips the arrive animation when switching rooms or threads into active typing', () => {
+  const store = createStore();
+  const otherRoom = { ...room, roomId: '!other:example.org' } as unknown as Room;
+  typing(store, '@avery:example.org', otherRoom.roomId);
+  const view = render(store);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+
+  rerender(store, undefined, otherRoom);
+  expect(view.querySelector('[role="status"]')?.classList.contains('typing-strip-arriving')).toBe(
+    false
+  );
+
+  act(() => typing(store, '@avery:example.org', room.roomId));
+  rerender(store, undefined, room);
+  expect(view.querySelector('[role="status"]')?.classList.contains('typing-strip-arriving')).toBe(
+    false
+  );
+
+  rerender(store, '$thread', room);
+  expect(view.querySelector('[role="status"]')).toBeNull();
+  rerender(store, undefined, room);
+  expect(view.querySelector('[role="status"]')?.classList.contains('typing-strip-arriving')).toBe(
+    false
+  );
 });

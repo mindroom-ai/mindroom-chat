@@ -3,6 +3,7 @@ import { atom, useAtomValue, useStore } from 'jotai';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isJoined } from '../../matrix/state/roomList';
+import { isMidTurnMode, type MidTurnMode } from '../../preferences/midTurnModes';
 import { isNativeVoiceRecorderAvailable } from '../../native/nativeVoiceRecorder';
 import {
   pendingVoiceSendDraftAtom,
@@ -41,6 +42,7 @@ type SavedVoiceDraft = {
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
   threadView?: boolean;
+  midTurnMode?: MidTurnMode;
 };
 
 interface VoiceDraftDb extends DBSchema {
@@ -108,6 +110,7 @@ const saveVoiceDraft = async (
       threadingEnabled: context.threadingEnabled,
       signalBridgedRoom: context.signalBridgedRoom,
       threadView: context.threadView,
+      ...(isMidTurnMode(context.midTurnMode) && { midTurnMode: context.midTurnMode }),
     });
   });
 };
@@ -169,6 +172,7 @@ export const useSavedVoiceDraft = (
               threadingEnabled: saved.threadingEnabled,
               signalBridgedRoom: saved.signalBridgedRoom,
               ...(saved.threadView && { threadView: true }),
+              ...(isMidTurnMode(saved.midTurnMode) && { midTurnMode: saved.midTurnMode }),
             },
           });
         } else if (getRecoveryContext) {

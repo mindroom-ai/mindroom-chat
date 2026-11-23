@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as deepTrace from '../../../../diagnostics/deepTrace';
+import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
+import { EVICTION_PROTECTED_VERDICT_TTL_MS } from '../cacheStoreSchema';
 import * as store from '../index';
 
 const session = 'media-eviction';
@@ -360,4 +362,129 @@ it('admits under-budget work without reading raw blobs, references or protection
   expect((all.mock.contexts as IDBObjectStore[]).map((context) => context.name)).toEqual([
     'room_ledger',
   ]);
+});
+
+const evictionTraces = (trace: { mock: { calls: unknown[][] } }) =>
+  trace.mock.calls.filter(([name]) => name === 'storage.cache.eviction');
+
+it('caches a no-op protected-pressure verdict without touching IndexedDB or dropping on no-op updates', async () => {
+  await saveText('room-focused', 1);
+  await save('optional', 'room-cold');
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  const first = await store.runCacheEvictionIfOverBudget(session);
+  expect(first).toMatchObject({
+    underPressure: true,
+    evictedMxcUris: ['mxc://test/optional'],
+    evictedRoomIds: [],
+  });
+  expect(first.bytesBefore).toBeGreaterThan(first.bytesAfter);
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction');
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.setEvictionDownloadingRoomIds(session, []);
+  const second = await store.runCacheEvictionIfOverBudget(session);
+  expect(second).toEqual({
+    bytesBefore: first.bytesAfter,
+    bytesAfter: first.bytesAfter,
+    evictedMxcUris: [],
+    evictedRoomIds: [],
+    underPressure: true,
+  });
+  expect(transaction).not.toHaveBeenCalled();
+  expect(evictionTraces(trace)).toHaveLength(1);
+});
+
+it.each<[string, (advanceNow: (ms: number) => void) => Promise<void> | void]>([
+  ['focus changes', () => store.setEvictionProtectedRoomIds([])],
+  ['downloading rooms change', () => store.setEvictionDownloadingRoomIds(session, ['room-other'])],
+  ['room pin changes', () => store.setRoomAttachmentPinned(session, 'room-pinned', false)],
+  [
+    'room cache is cleared',
+    async () => {
+      await store.clearRoomCachedContent(session, 'room-focused');
+    },
+  ],
+  ['verdict TTL expires', (advanceNow) => advanceNow(1)],
+  ['budget changes', () => store.__setCacheStoreByteBudgetForTests(2)],
+])('reruns eviction after %s', async (_reason, trigger) => {
+  let now = Date.now();
+  vi.spyOn(Date, 'now').mockImplementation(() => now);
+  await saveText('room-focused', 1);
+  await saveText('room-pinned', 2);
+  await store.runCacheEvictionIfOverBudget(session);
+  await store.setRoomAttachmentPinned(session, 'room-pinned', true);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  now += EVICTION_PROTECTED_VERDICT_TTL_MS - 1;
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  await trigger((ms) => {
+    now += ms;
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(2);
+});
+
+it('evicts once protection is lifted after a cached verdict', async () => {
+  await saveText('room-focused', 1);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: true,
+    evictedRoomIds: [],
+  });
+  store.setEvictionProtectedRoomIds([]);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: false,
+    evictedRoomIds: ['room-focused'],
+  });
+  expect(await hasText('room-focused')).toBe(false);
+});
+
+it('does not cache pressure that is not caused by protected bytes', async () => {
+  await store.putCachedAttachment(
+    session,
+    {
+      mxcUri: 'mxc://test/unowned-essential',
+      bytes: new ArrayBuffer(2000),
+      mimeType: 'text/plain',
+    },
+    { essential: true }
+  );
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(2);
+});
+
+it('drops a cached verdict when a redaction prunes protected attachment bytes', async () => {
+  await saveAttachmentOwner(session, 'room-focused', '$photo', 1, [
+    { mxcUri: 'mxc://test/protected', essential: false },
+  ]);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/protected', bytes: new ArrayBuffer(2000), mimeType: 'image/png' },
+    { roomId: 'room-focused', eventId: '$photo', revisionTs: 1 }
+  );
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+
+  await saveAttachmentOwner(session, 'room-focused', '$photo', 2, [], undefined, {
+    redacted: true,
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: false });
+  expect(await store.loadCachedAttachment(session, 'mxc://test/protected')).toBeUndefined();
 });

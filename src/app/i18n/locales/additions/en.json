@@ -93,13 +93,32 @@
       "wheelZoomHint": "{{key}} + scroll to zoom"
     },
     "inviteUserPrompt": {
-      "close": "Close",
       "invited": "Invited {{user}}.",
-      "giveRoleRights": "Give {{role}} rights",
       "giveRoleRightsHelp": "This room requires {{role}} rights to fold voice transcripts and manage schedules and room settings.",
       "roleFailed": "Invited {{user}}, but could not give {{role}} rights: {{error}}",
       "roleRequirementChanged": "This room now requires {{role}} rights.",
-      "roleWithLevel": "{{role}} ({{level}})"
+      "roleWithLevel": "{{role}} ({{level}})",
+      "inviteToRoom": "Invite to {{room}}",
+      "memberSummary": "{{members}} · {{invited}}",
+      "done": "Done",
+      "searchPlaceholder": "Search people, agents, or @user:server",
+      "filterLabel": "Filter by type",
+      "filterAll": "All",
+      "filterPeople": "People",
+      "filterAgents": "Agents",
+      "recentAndDirect": "Recent & Direct",
+      "directory": "Directory",
+      "externalUserId": "External Matrix ID",
+      "noMatches": "No matching users. Enter a full @user:server ID to invite directly.",
+      "emptyDirectory": "No users to invite yet. Enter a full @user:server ID to invite directly.",
+      "addNote": "+ Add invite note",
+      "hideNote": "− Hide invite note",
+      "notePlaceholder": "Add a note to your invite...",
+      "giveRoleRightsAgents": "Give invited agents {{role}} rights",
+      "alreadyInRoom": "Already in this room",
+      "alreadyInvited": "Already invited",
+      "bannedFromRoom": "Banned from this room",
+      "retryUser": "Retry inviting {{user}}"
     },
     "joinAddressPrompt": {
       "close": "Close",
@@ -478,7 +497,8 @@
         "emoji": "emoji, stickers, packs, custom emoji",
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
-        "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs"
+        "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
+        "dictation": "dictate, dictation, speech to text, voice typing, microphone, phone"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -1348,7 +1368,34 @@
     },
     "replyInThread": "Reply in thread…",
     "newThreadIn": "New thread in {{room}}…",
-    "newThreadWith": "New thread with {{name}}…"
+    "newThreadWith": "New thread with {{name}}…",
+    "dictation": {
+      "label": "Dictate",
+      "cancel": "Cancel dictation",
+      "pause": "Pause dictation",
+      "resume": "Resume dictation",
+      "finish": "Finish dictation",
+      "retry": "Retry",
+      "insertPartial": "Insert partial",
+      "discard": "Discard",
+      "dismissError": "Dismiss dictation error",
+      "statusStarting": "Starting dictation",
+      "statusListening": "Dictating",
+      "statusPaused": "Dictation paused",
+      "statusFinishing": "Finishing...",
+      "statusPendingRetry_one": "{{count}} segment pending retry",
+      "statusPendingRetry_other": "{{count}} segments pending retry",
+      "capReached": "5:00 limit reached",
+      "micInterrupted": "Microphone disconnected. Resume or finish.",
+      "failedSummary_one": "Could not transcribe {{count}} segment.",
+      "failedSummary_other": "Could not transcribe {{count}} segments."
+    },
+    "voiceButton": {
+      "settingTitle": "Phone microphone button",
+      "settingDescription": "Choose what the microphone button in the composer does on phones. The other action stays in the + menu.",
+      "dictate": "Dictate",
+      "voiceMessage": "Voice message"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1427,7 +1474,8 @@
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
       "callView": "Go to the call",
-      "voiceRecord": "Hold to record a voice message, tap to start or send"
+      "voiceRecord": "Hold to record a voice message, tap to start or send",
+      "dictate": "Dictate to composer"
     }
   },
   "thread": {

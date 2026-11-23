@@ -105,13 +105,32 @@
       "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
-      "close": "إغلاق",
       "invited": "تمت دعوة ⁨{{user}}⁩.",
-      "giveRoleRights": "منح صلاحيات ⁨{{role}}⁩",
       "giveRoleRightsHelp": "تتطلب هذه الغرفة صلاحيات ⁨{{role}}⁩ لطي نصوص الرسائل الصوتية وإدارة المواعيد وإعدادات الغرفة.",
       "roleFailed": "تمت دعوة ⁨{{user}}⁩، لكن تعذر منح صلاحيات ⁨{{role}}⁩: ⁨{{error}}⁩",
       "roleRequirementChanged": "تتطلب هذه الغرفة الآن صلاحيات ⁨{{role}}⁩.",
-      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)"
+      "roleWithLevel": "⁨{{role}}⁩ (⁨{{level}}⁩)",
+      "inviteToRoom": "دعوة إلى ⁨{{room}}⁩",
+      "memberSummary": "⁨{{members}}⁩ · ⁨{{invited}}⁩",
+      "done": "تم",
+      "searchPlaceholder": "ابحث عن الأشخاص أو الوكلاء أو ⁦@user:server⁩",
+      "filterLabel": "تصفية حسب النوع",
+      "filterAll": "الكل",
+      "filterPeople": "الأشخاص",
+      "filterAgents": "الوكلاء",
+      "recentAndDirect": "الأخيرة والمباشرة",
+      "directory": "الدليل",
+      "externalUserId": "معرّف Matrix خارجي",
+      "noMatches": "لا يوجد مستخدمون مطابقون. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "emptyDirectory": "لا يوجد مستخدمون لدعوتهم بعد. أدخل معرّف ⁦@user:server⁩ كاملًا للدعوة مباشرةً.",
+      "addNote": "+ إضافة ملاحظة دعوة",
+      "hideNote": "− إخفاء ملاحظة الدعوة",
+      "notePlaceholder": "أضف ملاحظة إلى دعوتك...",
+      "giveRoleRightsAgents": "منح الوكلاء المدعوين صلاحيات ⁨{{role}}⁩",
+      "alreadyInRoom": "موجود بالفعل في هذه الغرفة",
+      "alreadyInvited": "تمت دعوته بالفعل",
+      "bannedFromRoom": "محظور من هذه الغرفة",
+      "retryUser": "إعادة محاولة دعوة ⁨{{user}}⁩"
     },
     "joinAddressPrompt": {
       "close": "إغلاق",
@@ -530,7 +549,8 @@
         "emoji": "الرموز التعبيرية، الملصقات، الحزم، رموز تعبيرية مخصصة",
         "errorReports": "أخطاء، تعطل، خلل، تشخيص، قياس عن بعد، خصوصية",
         "midTurn": "توجيه، انتظار، تلقائي، وكيل، رد، مقاطعة",
-        "usage": "الرموز، التكلفة، السعر، النموذج، استدعاءات الأدوات، الوكلاء الفرعيون، المهام في الخلفية"
+        "usage": "الرموز، التكلفة، السعر، النموذج، استدعاءات الأدوات، الوكلاء الفرعيون، المهام في الخلفية",
+        "dictation": "إملاء، تحويل الصوت إلى نص، الكتابة بالصوت، ميكروفون، هاتف"
       },
       "errorReports": {
         "title": "إرسال تقارير الأخطاء",
@@ -1528,7 +1548,42 @@
     },
     "replyInThread": "الرد في سلسلة المحادثة…",
     "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
-    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…",
+    "dictation": {
+      "label": "إملاء",
+      "cancel": "إلغاء الإملاء",
+      "pause": "إيقاف الإملاء مؤقتًا",
+      "resume": "استئناف الإملاء",
+      "finish": "إنهاء الإملاء",
+      "retry": "إعادة المحاولة",
+      "insertPartial": "إدراج الجزء المنسوخ",
+      "discard": "تجاهل",
+      "dismissError": "إغلاق خطأ الإملاء",
+      "statusStarting": "جارٍ بدء الإملاء",
+      "statusListening": "جارٍ الإملاء",
+      "statusPaused": "تم إيقاف الإملاء مؤقتًا",
+      "statusFinishing": "جارٍ الإنهاء…",
+      "statusPendingRetry_zero": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
+      "statusPendingRetry_one": "مقطع واحد (⁨{{count}}⁩) بانتظار إعادة المحاولة",
+      "statusPendingRetry_two": "مقطعان (⁨{{count}}⁩) بانتظار إعادة المحاولة",
+      "statusPendingRetry_few": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
+      "statusPendingRetry_many": "⁨{{count}}⁩ مقطعًا بانتظار إعادة المحاولة",
+      "statusPendingRetry_other": "⁨{{count}}⁩ مقطع بانتظار إعادة المحاولة",
+      "capReached": "تم بلوغ حد 5:00 دقائق",
+      "micInterrupted": "انقطع اتصال الميكروفون. يمكنك الاستئناف أو الإنهاء.",
+      "failedSummary_zero": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
+      "failedSummary_one": "تعذّر نسخ مقطع واحد (⁨{{count}}⁩).",
+      "failedSummary_two": "تعذّر نسخ مقطعين (⁨{{count}}⁩).",
+      "failedSummary_few": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
+      "failedSummary_many": "تعذّر نسخ ⁨{{count}}⁩ مقطعًا.",
+      "failedSummary_other": "تعذّر نسخ ⁨{{count}}⁩ مقطع."
+    },
+    "voiceButton": {
+      "settingTitle": "زر الميكروفون على الهاتف",
+      "settingDescription": "اختر وظيفة زر الميكروفون في محرر الرسائل على الهواتف. يبقى الإجراء الآخر في قائمة +.",
+      "dictate": "إملاء",
+      "voiceMessage": "رسالة صوتية"
+    }
   },
   "commandPalette": {
     "state": {
@@ -1607,7 +1662,8 @@
       "editLast": "تعديل آخر رسالة لك (في مربع كتابة فارغ)",
       "inlineCode": "شيفرة ضمن السطر",
       "callView": "الانتقال إلى المكالمة",
-      "voiceRecord": "اضغط مطولًا لتسجيل رسالة صوتية، أو انقر للبدء أو الإرسال"
+      "voiceRecord": "اضغط مطولًا لتسجيل رسالة صوتية، أو انقر للبدء أو الإرسال",
+      "dictate": "الإملاء في محرر الرسائل"
     }
   },
   "thread": {

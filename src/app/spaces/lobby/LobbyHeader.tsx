@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import {
   Avatar,
@@ -26,13 +26,18 @@ import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../ui/page/Page';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
-import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
 import { useNavigate } from 'react-router-dom';
 import { getHomePath } from '../../routes/pathUtils';
 import { useMembersDrawer } from '../../members/useMembersDrawer';
 import { useRoomAvatar, useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { useSpace } from '../../matrix/hooks/useSpace';
+
+const InviteUserPrompt = lazy(() =>
+  import('../../members/invite/InviteUserPrompt').then((module) => ({
+    default: module.InviteUserPrompt,
+  }))
+);
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
@@ -254,7 +259,11 @@ export function LobbyHeader({
           </IconButton>
         </PopOut>
       </Box>
-      {inviteOpen && <InviteUserPrompt room={space} requestClose={() => setInviteOpen(false)} />}
+      {inviteOpen && (
+        <Suspense fallback={null}>
+          <InviteUserPrompt room={space} requestClose={() => setInviteOpen(false)} />
+        </Suspense>
+      )}
       {leaving && <LeaveSpaceDialog spaceId={space.roomId} onClose={() => setLeaving(false)} />}
     </PageHeader>
   );
