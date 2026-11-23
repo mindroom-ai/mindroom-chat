@@ -498,7 +498,10 @@ export const scrollProbeMidThread = (page: Page) =>
     if (!scroller) return { ok: false, before: 0, after: 0 };
     scroller.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }));
     const before = scroller.scrollTop;
-    scroller.scrollTop = Math.min(Math.max(0, before - 600), 400);
+    const headroomPx =
+      Number(scroller.querySelector<HTMLElement>('[data-headroom-px]')?.dataset.headroomPx ?? 0) ||
+      0;
+    scroller.scrollTop = Math.min(Math.max(headroomPx, before - 600), headroomPx + 400);
     scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
     return { ok: before - scroller.scrollTop >= 150, before, after: scroller.scrollTop };
   });
