@@ -292,12 +292,32 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
   const name = isolateInSentence(agent.name);
   const { direct } = agent;
   const room = roomId ? mx.getRoom(roomId) : null;
+  // A direct chat whose members the client has yet to load, as a draft kept for it finds it once
+  // the app opens again, may be the agent's or not: they are loaded, and the choice stands
+  // meanwhile, taking no question yet. `triedMembers` is the room whose load ended, well or not:
+  // from then on the chat is what its members say. A chat just started waits as it is.
+  const [triedMembers, setTriedMembers] = useState<{ room: Room }>();
+  const unloaded =
+    isDirect &&
+    !choice?.started &&
+    !!room &&
+    !room.membersLoaded() &&
+    isDirectRoomWith(room, agent.userId, [undefined]);
+  const loadingMembers = unloaded && triedMembers?.room !== room;
+  useEffect(() => {
+    if (!room || !unloaded) return;
+    const tried = () => {
+      if (alive()) setTriedMembers({ room });
+    };
+    room.loadMembersIfNeeded().then(tried, tried);
+  }, [alive, room, unloaded]);
   // A room picked as the direct chat stays a choice only while it is one, not as a room of the
   // same ID that others have joined since: the agent's direct chat, or another chat of the two
   // that was it when picked. The chat yet to be started (null) is one until it has its room.
   const listed = isDirect
     ? roomId === null ||
       roomId === direct?.roomId ||
+      loadingMembers ||
       (!!room && isDirectRoomWith(room, agent.userId))
     : roomId !== null && agent.roomIds.includes(roomId);
   // A chat just started is among the choices once the client has it, and waits until the agent
@@ -308,9 +328,13 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
     (!room || (!direct && isDirectRoomWith(room, agent.userId, ['join', 'invite', undefined])));
   const valid = agents.includes(agent) && (listed || startedAlone);
   const usable = valid && !!room && answersIn(room, agent.userId, isDirect);
-  // A direct chat the agent has yet to join.
+  // A direct chat the agent has yet to join, once its members say so.
   const waiting =
-    isDirect && valid && !!room && isDirectRoomWith(room, agent.userId, ['invite', undefined]);
+    isDirect &&
+    valid &&
+    !!room &&
+    !loadingMembers &&
+    isDirectRoomWith(room, agent.userId, ['invite', undefined]);
   const composerShown = !!room && !waiting;
   // The direct chat to pick: the one the field is on (one just started that `m.direct` has yet to
   // list, or one another chat has replaced since), then the agent's; with neither, the one yet to
@@ -564,7 +588,7 @@ function HomeAskField({ agents, first, failedNotice }: HomeAskFieldProps) {
           />
         </ConversationViewContext.Provider>
         {failedNotice}
-        {!usable && chooseAgain}
+        {!usable && !loadingMembers && chooseAgain}
       </div>
     );
   }

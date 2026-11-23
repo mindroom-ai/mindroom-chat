@@ -37,8 +37,8 @@ import { revealDirectionControls } from '../ui/directional';
 export type HomeAgent = {
   userId: string;
   /**
-   * Its display name and avatar as the first of its rooms knows them, the name's direction
-   * controls written out.
+   * Its display name and its avatar, each from the first of its rooms that knows it, the name's
+   * direction controls written out.
    */
   name: string;
   avatarMxc?: string;
@@ -264,11 +264,14 @@ export const readHomeAgents = (
       lastRoomId = direct.roomId;
       lastUsedTs = answered(direct.roomId);
     }
-    const [firstRoom] = rooms;
+    // Of its rooms, the first that knows its name, and the first that knows its avatar: the
+    // members of one before it may be still to load.
+    const named = rooms.find((room) => getMemberRawDisplayName(room, userId));
+    const pictured = rooms.find((room) => getMemberAvatarMxc(room, userId));
     return {
       userId,
-      name: agentNameIn(firstRoom, userId),
-      avatarMxc: firstRoom ? getMemberAvatarMxc(firstRoom, userId) : undefined,
+      name: agentNameIn(named, userId),
+      avatarMxc: pictured && getMemberAvatarMxc(pictured, userId),
       roomIds: usable,
       direct,
       defaultRoomId: lastUsedTs > 0 ? lastRoomId : direct?.roomId,

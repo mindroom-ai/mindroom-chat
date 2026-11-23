@@ -3,7 +3,6 @@ import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
-import { useMinuteClock } from '../lib/hooks/useMinuteClock';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { archivedRoomsAtom, isRoomVisible } from '../matrix/state/archivedRooms';
 import { getThreadsPath } from '../routes/pathUtils';
@@ -13,6 +12,7 @@ import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
+import { useSnoozeNow } from '../threads/tags/useSnoozeNow';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { Badge } from './HomeAsk';
 import * as noticeCss from '../account/onboarding/WelcomeNotice.css';
@@ -93,17 +93,16 @@ export function HomeRecentThreads() {
   const navigate = useNavigate();
   const index = useAtomValue(crossRoomThreadIndexAtom);
   const archived = useAtomValue(archivedRoomsAtom);
-  const now = useMinuteClock();
-  const entries = useMemo(
+  const visible = useMemo(
     () =>
-      buildSidebarThreadEntries(
-        Array.from(index.entries.values()).filter((entry) => isRoomVisible(entry.roomId, archived)),
-        [],
-        new Set(),
-        HOME_RECENT_THREADS,
-        now
-      ),
-    [archived, index.entries, now]
+      Array.from(index.entries.values()).filter((entry) => isRoomVisible(entry.roomId, archived)),
+    [archived, index.entries]
+  );
+  // Renewed when a snooze ends, so its thread is listed again then, as in the sidebar.
+  const now = useSnoozeNow(useMemo(() => visible.map((entry) => entry.snoozedUntilTs), [visible]));
+  const entries = useMemo(
+    () => buildSidebarThreadEntries(visible, [], new Set(), HOME_RECENT_THREADS, now),
+    [now, visible]
   );
   if (entries.length === 0) return null;
   return (

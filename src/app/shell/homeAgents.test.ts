@@ -521,6 +521,29 @@ describe('readHomeAgents', () => {
     expect(helper?.direct).toBeUndefined();
   });
 
+  it("reads an agent's name and avatar from the first of its rooms that knows each", () => {
+    const member = (rawDisplayName: string, avatar: string | null) => () => ({
+      membership: 'join',
+      rawDisplayName,
+      getMxcAvatarUrl: () => avatar,
+    });
+    const rooms = [
+      // Helper's membership is yet to load here.
+      room('!lobby', { agents: [HELPER] }),
+      Object.assign(room('!eng', { agents: [HELPER] }), {
+        getMember: member('Helper of Engineering', null),
+      }),
+      Object.assign(room('!ops', { agents: [HELPER] }), {
+        getMember: member('Helper of Operations', 'mxc://example.org/helper'),
+      }),
+    ];
+    const [helper] = readHomeAgents(client(rooms), ids(rooms), []);
+    expect(helper).toMatchObject({
+      name: 'Helper of Engineering',
+      avatarMxc: 'mxc://example.org/helper',
+    });
+  });
+
   it("writes out the direction controls of an agent's name", () => {
     const rooms = [
       room('!lobby', {

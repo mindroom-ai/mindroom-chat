@@ -604,6 +604,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message' })) return;
         const textContent = takeText();
+        // Home's ask field sends text alone: with none there is no send to tell of.
+        if (ask && !textContent) return;
         setSubmitPending(true);
         ask?.onSendingChange?.(true);
         try {

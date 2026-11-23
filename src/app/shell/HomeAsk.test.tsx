@@ -152,21 +152,26 @@ const message = (sender: string, ts: number) =>
 
 /**
  * A chat of two with Quill, which answered in it at `answeredTs`, its members yet to load: `load`
- * loads them, Quill among them.
+ * loads them, Quill among them, and `fail` ends their load with none.
  */
 const unloadedChat = (roomId: string, answeredTs: number) => {
   const room = makeRoom(roomId, 'Quill', [], 2);
   room.events = [message(QUILL, answeredTs)];
   let loaded!: (fromServer: boolean) => void;
-  const loading = new Promise<boolean>((resolve) => {
+  let fail!: (error: Error) => void;
+  let done = false;
+  const loading = new Promise<boolean>((resolve, reject) => {
     loaded = resolve;
+    fail = reject;
   });
-  Object.assign(room, { loadMembersIfNeeded: () => loading });
+  const loadMembersIfNeeded = vi.fn(() => loading);
+  Object.assign(room, { loadMembersIfNeeded, membersLoaded: () => done });
   const load = () => {
     room.members[QUILL] = 'join';
+    done = true;
     loaded(true);
   };
-  return { room, load };
+  return { room, load, fail: () => fail(new Error('offline')), loadMembersIfNeeded };
 };
 
 /** Quill, with `roomId` its direct chat. */
@@ -1000,6 +1005,58 @@ describe('HomeAsk', () => {
     expect(lastRoomInputProps.current?.roomId).toBe('!dm');
     expect(ask()?.isDirect).toBe(false);
     expect(screen.getByRole('button', { name: 'In Quill' })).toBeTruthy();
+  });
+
+  describe('with a draft kept for a direct chat whose members are yet to load', () => {
+    // Two chats with Quill: the draft's, as the app opens again, and Quill's direct chat, the
+    // one it last answered in.
+    const reopen = () => {
+      const kept = unloadedChat('!dm-a', 200);
+      const mx = makeClient([kept.room, makeRoom('!dm-b', 'Quill', [QUILL], 2)], {
+        [QUILL]: ['!dm-a', '!dm-b'],
+      });
+      const store = createStore();
+      store.set(roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(ME)), [
+        { type: 'paragraph', children: [{ text: 'Private note' }] },
+      ]);
+      store.set(homeAskDestinationAtomFamily(ME), {
+        agentId: QUILL,
+        roomId: '!dm-a',
+        isDirect: true,
+      });
+      const view = renderAsk(mx, [chatting('!dm-b')], store);
+      // Its members load: until then it takes no question, with nothing wrong to say.
+      expect(kept.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+      expect(lastRoomInputProps.current?.roomId).toBe('!dm-a');
+      expect(ask()?.canSend()).toBe(false);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByRole('button', { name: 'In Direct chat' })).toBeTruthy();
+      return { kept, ...view };
+    };
+
+    it('takes the question in that chat once they have loaded', async () => {
+      const { kept } = reopen();
+      await act(async () => kept.load());
+      expect(lastRoomInputProps.current?.roomId).toBe('!dm-a');
+      expect(ask()?.isDirect).toBe(true);
+      expect(ask()?.canSend()).toBe(true);
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(storedDestination()).toEqual({ agentId: QUILL, roomId: '!dm-a', isDirect: true });
+    });
+
+    it('asks for another choice when they do not load, or say it is no chat of the two', async () => {
+      const lost = reopen();
+      await act(async () => lost.kept.fail());
+      expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
+      expect(ask()?.canSend()).toBe(false);
+      lost.unmount();
+
+      const shared = reopen();
+      shared.kept.room.joined = 3;
+      await act(async () => shared.kept.load());
+      expect(screen.getByRole('alert').textContent).toMatch(/no longer works/i);
+      expect(ask()?.canSend()).toBe(false);
+    });
   });
 
   it('keeps the first text for where the field was, as an answer moves the agents with it', () => {

@@ -5354,6 +5354,20 @@ describe("RoomInput as Home's ask field", () => {
     gone.store.set(homeDraft(), []);
   });
 
+  it('tells of no send when Send is pressed with nothing typed', async () => {
+    const onSendingChange = vi.fn();
+    const { renderer } = await renderRoomInput(createStore(), {
+      ask: askProps({ onSendingChange }),
+    });
+    stageComposerText('');
+    await act(async () => {
+      await getPrimarySendButton(renderer).props.onClick();
+    });
+    expect(onSendingChange).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
   it('asks again just before the message goes out, and sends nothing where it may no longer go', async () => {
     // Allowed at the press; by the time the message would go out, the room or agent has changed.
     const canSend = vi.fn((sentTo?: unknown) => !sentTo);
