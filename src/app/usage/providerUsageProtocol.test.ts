@@ -97,4 +97,17 @@ describe('providerUsageProtocol', () => {
     unsafeDaily.daily_7d[0]!.by_account['constructor'] = 10;
     expect(parseProviderUsageResponse(unsafeDaily)).toBeUndefined();
   });
+
+  it('parses valid unavailable_reason values and rejects unknown values', () => {
+    for (const reason of ['unsupported', 'not_signed_in', 'probe_failed', null] as const) {
+      const payload = clone(contractFixture);
+      payload.accounts[3]!.unavailable_reason = reason;
+      const parsed = parseProviderUsageResponse(payload);
+      expect(parsed?.accounts[3]?.unavailable_reason).toBe(reason);
+    }
+
+    const invalid = clone(contractFixture);
+    (invalid.accounts[3] as Record<string, unknown>).unavailable_reason = 'unknown_reason';
+    expect(parseProviderUsageResponse(invalid)).toBeUndefined();
+  });
 });

@@ -1339,6 +1339,7 @@
       "noSubscriptionLimit": "구독 한도 없음",
       "payAsYouGo": "종량제",
       "limitsUnavailable": "사용 한도를 사용할 수 없음",
+      "notSignedIn": "로그인되지 않음",
       "tokens7d": "{{tokens}} 토큰 (7일)",
       "estimatedCost": "약 {{cost}}",
       "totalTokens7d": "7일 총 토큰",

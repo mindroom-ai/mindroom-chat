@@ -1384,6 +1384,7 @@
       "noSubscriptionLimit": "কোনো সাবস্ক্রিপশন সীমা নেই",
       "payAsYouGo": "ব্যবহার অনুযায়ী পেমেন্ট",
       "limitsUnavailable": "ব্যবহারের সীমা উপলব্ধ নয়",
+      "notSignedIn": "সাইন ইন করা নেই",
       "tokens7d": "{{tokens}} টোকেন (৭ দিন)",
       "estimatedCost": "~{{cost}} অনু.",
       "totalTokens7d": "৭ দিনের মোট টোকেন",

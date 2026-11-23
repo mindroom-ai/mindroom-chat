@@ -5,6 +5,7 @@ import contractFixture from './__fixtures__/providerUsageContract.json';
 import {
   disposeProviderUsageController,
   getProviderUsageController,
+  snapshotForRuntime,
 } from './providerUsageController';
 import { USAGE_REQUEST, USAGE_RESPONSE, USAGE_TIMEOUT } from './providerUsageProtocol';
 
@@ -47,13 +48,30 @@ vi.mock('../matrix/runtimeToDeviceTransport', () => ({
   ),
 }));
 
-const makeRoom = (roomId: string, memberIds: string[]): Room =>
-  ({
+const makeRoom = (
+  roomId: string,
+  memberIds: string[],
+  options?: { lazyMembers?: string[] }
+): Room & { loadMembersIfNeeded: ReturnType<typeof vi.fn> } => {
+  let loaded = !options?.lazyMembers;
+  let currentMembers = [...memberIds];
+  const loadMembersIfNeeded = vi.fn(async () => {
+    if (!loaded && options?.lazyMembers) {
+      currentMembers = [...new Set([...currentMembers, ...options.lazyMembers])];
+      loaded = true;
+    }
+    return true;
+  });
+  return {
     roomId,
+    getMyMembership: () => 'join',
+    membersLoaded: () => loaded,
+    loadMembersIfNeeded,
     getMember: (userId: string) =>
-      memberIds.includes(userId) ? { userId, membership: 'join' } : null,
-    getJoinedMembers: () => memberIds.map((userId) => ({ userId, membership: 'join' })),
-  } as unknown as Room);
+      currentMembers.includes(userId) ? { userId, membership: 'join' } : null,
+    getJoinedMembers: () => currentMembers.map((userId) => ({ userId, membership: 'join' })),
+  } as unknown as Room & { loadMembersIfNeeded: ReturnType<typeof vi.fn> };
+};
 
 const makeClient = (rooms: Room[], syncState: SyncState | null = SyncState.Syncing) => {
   const emitter = new EventEmitter();
@@ -246,6 +264,126 @@ describe('ProviderUsageController', () => {
     controller.refresh(true);
     expect(controller.getSnapshot().refreshing).toBe(true);
     expect(controller.getSnapshot().snapshot).toBeDefined();
+
+    release();
+  });
+
+  it('hydrates lazy room members on explicit discovery while keeping startup probe cheap', async () => {
+    const dev = device('@mindroom_lazy:example.org', 'LZ1', 'curve-lazy');
+    trustMocks.signedDevices.set(dev.userId, [dev]);
+    const lazyRoom = makeRoom('!lazy:example.org', ['@viewer:example.org'], {
+      lazyMembers: [dev.userId],
+    });
+    const mx = makeClient([lazyRoom], SyncState.Syncing);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    // Quiet startup probe does not trigger lazy member hydration across rooms.
+    await flushMicrotasks();
+    expect(lazyRoom.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(trustMocks.sentRequests).toHaveLength(0);
+
+    // Explicit discovery (/usage/ mount or ensureLoaded) hydrates lazy members and probes.
+    controller.ensureLoaded();
+    await flushMicrotasks();
+    expect(lazyRoom.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(trustMocks.sentRequests).toHaveLength(1);
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!lazy:example.org');
+
+    const requestId = trustMocks.sentRequests[0]!.content.request_id as string;
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: { type: USAGE_RESPONSE, sender: dev.userId, content: cloneSnapshot(requestId) },
+      encryptionInfo: { sender: dev.userId, senderCurve25519KeyBase64: dev.curveKey },
+    });
+    await flushMicrotasks();
+    expect(controller.getSnapshot().available).toBe(true);
+
+    release();
+  });
+
+  it('discovers a second runtime past room 16 and via ensureLoaded(roomId) without short-circuiting', async () => {
+    const devA = device('@mindroom_alpha:example.org', 'DA', 'curve-a');
+    const devB = device('@mindroom_beta:example.org', 'DB', 'curve-b');
+    const devC = device('@mindroom_gamma:example.org', 'DC', 'curve-c');
+    trustMocks.signedDevices.set(devA.userId, [devA]);
+    trustMocks.signedDevices.set(devB.userId, [devB]);
+    trustMocks.signedDevices.set(devC.userId, [devC]);
+
+    // 17 rooms with Runtime A, then room 18 with Runtime B and lazy room 19 with Runtime C.
+    const rooms = [
+      ...Array.from({ length: 17 }, (_, i) =>
+        makeRoom(`!r${i + 1}:example.org`, ['@viewer:example.org', devA.userId])
+      ),
+      makeRoom('!r18:example.org', ['@viewer:example.org', devB.userId]),
+      makeRoom('!r19:example.org', ['@viewer:example.org'], { lazyMembers: [devC.userId] }),
+    ];
+    const mx = makeClient(rooms, null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    controller.ensureLoaded();
+    await flushMicrotasks();
+    expect(trustMocks.sentRequests.map((req) => req.content.room_id)).toEqual([
+      '!r1:example.org',
+      '!r18:example.org',
+      '!r19:example.org',
+    ]);
+
+    const reqA = trustMocks.sentRequests[0]!.content.request_id as string;
+    const reqB = trustMocks.sentRequests[1]!.content.request_id as string;
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: devA.userId,
+        content: cloneSnapshot(reqA, { accounts: [cloneSnapshot(reqA).accounts[0]!] }),
+      },
+      encryptionInfo: { sender: devA.userId, senderCurve25519KeyBase64: devA.curveKey },
+    });
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: devB.userId,
+        content: cloneSnapshot(reqB, { accounts: [cloneSnapshot(reqB).accounts[1]!] }),
+      },
+      encryptionInfo: { sender: devB.userId, senderCurve25519KeyBase64: devB.curveKey },
+    });
+    await flushMicrotasks();
+
+    const snap = controller.getSnapshot();
+    expect(snapshotForRuntime(snap, devA)?.accounts.map((a) => a.id)).toEqual([
+      'claude_code:default',
+    ]);
+    expect(snapshotForRuntime(snap, devB)?.accounts.map((a) => a.id)).toEqual(['codex:default']);
+    expect(snapshotForRuntime(snap, devC)).toBeUndefined();
+    expect(snapshotForRuntime(snap, undefined)).toBeUndefined();
+
+    // Calling ensureLoaded(roomId) for an unseen room after another runtime is cached still discovers it.
+    const devD = device('@mindroom_delta:example.org', 'DD', 'curve-d');
+    trustMocks.signedDevices.set(devD.userId, [devD]);
+    const roomNew = makeRoom('!new:example.org', ['@viewer:example.org'], {
+      lazyMembers: [devD.userId],
+    });
+    rooms.push(roomNew);
+
+    vi.advanceTimersByTime(USAGE_TIMEOUT);
+    controller.ensureLoaded('!new:example.org');
+    await flushMicrotasks();
+    expect(roomNew.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(trustMocks.sentRequests.at(-1)?.content.room_id).toBe('!new:example.org');
+
+    const reqD = trustMocks.sentRequests.at(-1)!.content.request_id as string;
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: devD.userId,
+        content: cloneSnapshot(reqD, { accounts: [cloneSnapshot(reqD).accounts[2]!] }),
+      },
+      encryptionInfo: { sender: devD.userId, senderCurve25519KeyBase64: devD.curveKey },
+    });
+    await flushMicrotasks();
+    expect(snapshotForRuntime(controller.getSnapshot(), devD)?.accounts.map((a) => a.id)).toEqual([
+      'openrouter:1',
+    ]);
 
     release();
   });

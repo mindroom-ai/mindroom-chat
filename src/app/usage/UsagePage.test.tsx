@@ -69,6 +69,7 @@ const makeUsageState = (patch: Partial<UseProviderUsageResult> = {}): UseProvide
       : [],
     selectedRuntimeId: snapshot ? '@mindroom_dev:example.org:DEV1' : undefined,
     snapshot,
+    snapshotsByRuntime: snapshot ? { '@mindroom_dev:example.org:DEV1': snapshot } : {},
     selectRuntime: vi.fn(),
     ensureLoaded: vi.fn(),
     refresh: vi.fn(),
@@ -218,5 +219,81 @@ describe('UsagePage & QuotaBar', () => {
     expect(singleAccountForModels(accounts, [])).toBeUndefined();
     expect(singleAccountForModels(accounts, ['opus_native', 'haiku'])).toBeUndefined();
     expect(singleAccountForModels(accounts, ['opus_native', 'unknown'])).toBeUndefined();
+  });
+
+  it('renders clear unavailable/not-signed-in notices for unavailable_reason instead of No subscription limit', () => {
+    const snapshot = cloneFixture();
+    snapshot.accounts = [
+      {
+        ...snapshot.accounts[3]!,
+        id: 'codex:not-signed-in',
+        provider: 'codex',
+        display_name: 'Codex',
+        windows: [],
+        unavailable_reason: 'not_signed_in',
+      },
+      {
+        ...snapshot.accounts[3]!,
+        id: 'claude_code:probe-failed',
+        provider: 'claude_code',
+        display_name: 'Claude Code',
+        windows: [],
+        unavailable_reason: 'probe_failed',
+      },
+    ];
+    renderPage(makeUsageState({ snapshot }));
+
+    const notSignedCard = container.querySelector('[data-account-card="codex:not-signed-in"]')!;
+    expect(notSignedCard.querySelector('[data-unavailable-reason="not_signed_in"]')).not.toBeNull();
+    expect(notSignedCard.textContent).toContain('Not signed in');
+    expect(notSignedCard.textContent).not.toContain('No subscription limit');
+    expect(notSignedCard.textContent).not.toContain('100% left');
+
+    const failedCard = container.querySelector('[data-account-card="claude_code:probe-failed"]')!;
+    expect(failedCard.querySelector('[data-unavailable-reason="probe_failed"]')).not.toBeNull();
+    expect(failedCard.textContent).toContain('Usage limits unavailable');
+    expect(failedCard.textContent).not.toContain('No subscription limit');
+    expect(failedCard.textContent).not.toContain('100% left');
+  });
+
+  it('disambiguates colliding same-provider account names across cards, chart legend, and table', () => {
+    const snapshot = cloneFixture();
+    const or1 = snapshot.accounts[2]!;
+    const or2 = {
+      ...JSON.parse(JSON.stringify(or1)),
+      id: 'openrouter:2',
+      tokens_7d: 3_100_000,
+    };
+    snapshot.accounts = [or1, or2];
+    snapshot.daily_7d = [
+      {
+        day: '2026-11-17',
+        by_account: { 'openrouter:1': 900_000, 'openrouter:2': 400_000 },
+        unattributed_tokens: 0,
+      },
+    ];
+    renderPage(makeUsageState({ snapshot }));
+
+    expect(container.querySelector('[data-account-card="openrouter:1"]')?.textContent).toContain(
+      'OpenRouter · #1'
+    );
+    expect(container.querySelector('[data-account-card="openrouter:2"]')?.textContent).toContain(
+      'OpenRouter · #2'
+    );
+
+    const tokensTab = [...container.querySelectorAll('[role="tab"]')].find((el) =>
+      el.textContent?.includes('Tokens & Cost')
+    ) as HTMLButtonElement;
+    act(() => tokensTab.click());
+
+    expect(container.querySelector('[data-legend-account="openrouter:1"]')?.textContent).toContain(
+      'OpenRouter · #1'
+    );
+    expect(container.querySelector('[data-legend-account="openrouter:2"]')?.textContent).toContain(
+      'OpenRouter · #2'
+    );
+    const tableText = container.querySelector('table')?.textContent ?? '';
+    expect(tableText).toContain('OpenRouter · #1');
+    expect(tableText).toContain('OpenRouter · #2');
   });
 });

@@ -1339,6 +1339,7 @@
       "noSubscriptionLimit": "无订阅限额",
       "payAsYouGo": "按量付费",
       "limitsUnavailable": "配额限制不可用",
+      "notSignedIn": "未登录",
       "tokens7d": "{{tokens}} 令牌（7天）",
       "estimatedCost": "约 {{cost}}",
       "totalTokens7d": "7 天令牌总量",

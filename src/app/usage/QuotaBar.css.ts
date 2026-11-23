@@ -99,3 +99,19 @@ export const InlineItem = style({
 export const InlineDot = style({
   opacity: 0.55,
 });
+
+export const InlineBarTrack = style({
+  display: 'inline-block',
+  inlineSize: toRem(36),
+  blockSize: toRem(4),
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.SurfaceVariant.ContainerHover,
+  overflow: 'hidden',
+  flexShrink: 0,
+});
+
+export const InlineBarFill = style({
+  display: 'block',
+  blockSize: '100%',
+  borderRadius: config.radii.Pill,
+});

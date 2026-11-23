@@ -1339,6 +1339,7 @@
       "noSubscriptionLimit": "Tanpa batas langganan",
       "payAsYouGo": "Bayar sesuai pemakaian",
       "limitsUnavailable": "Batas penggunaan tidak tersedia",
+      "notSignedIn": "Belum masuk",
       "tokens7d": "{{tokens}} token (7h)",
       "estimatedCost": "~{{cost}} est.",
       "totalTokens7d": "Total token 7 hari",

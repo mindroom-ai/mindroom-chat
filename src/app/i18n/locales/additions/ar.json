@@ -1564,6 +1564,7 @@
       "noSubscriptionLimit": "لا يوجد حد اشتراك",
       "payAsYouGo": "الدفع حسب الاستخدام",
       "limitsUnavailable": "حدود الاستخدام غير متاحة",
+      "notSignedIn": "غير مسجّل الدخول",
       "tokens7d": "⁨{{tokens}}⁩ رمز (7 أيام)",
       "estimatedCost": "~⁨{{cost}}⁩ تقديريًا",
       "totalTokens7d": "إجمالي الرموز (7 أيام)",

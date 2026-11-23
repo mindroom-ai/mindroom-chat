@@ -23,6 +23,7 @@ vi.mock('../../usage/useProviderUsage', () => ({
     runtimes: [],
     selectedRuntimeId: undefined,
     snapshot: undefined,
+    snapshotsByRuntime: {},
     selectRuntime: vi.fn(),
     ensureLoaded: vi.fn(),
     refresh: vi.fn(),

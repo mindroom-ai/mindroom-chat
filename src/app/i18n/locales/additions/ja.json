@@ -1339,6 +1339,7 @@
       "noSubscriptionLimit": "サブスクリプション上限なし",
       "payAsYouGo": "従量課金",
       "limitsUnavailable": "使用上限を利用できません",
+      "notSignedIn": "未サインイン",
       "tokens7d": "{{tokens}} トークン（7日間）",
       "estimatedCost": "約 {{cost}}",
       "totalTokens7d": "7日間の合計トークン",

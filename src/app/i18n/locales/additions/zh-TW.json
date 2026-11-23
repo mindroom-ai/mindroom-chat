@@ -1339,6 +1339,7 @@
       "noSubscriptionLimit": "無訂閱上限",
       "payAsYouGo": "隨用隨付",
       "limitsUnavailable": "無法取得配額限制",
+      "notSignedIn": "尚未登入",
       "tokens7d": "{{tokens}} 權杖（7天）",
       "estimatedCost": "約 {{cost}}",
       "totalTokens7d": "7 天權杖總量",

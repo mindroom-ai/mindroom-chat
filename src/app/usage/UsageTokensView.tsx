@@ -3,7 +3,7 @@ import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { dateTimeFormat } from '../lib/time';
 import type { ProviderUsageSnapshot } from './providerUsageProtocol';
-import { accountChartColor } from './QuotaBar';
+import { accountChartColor, accountDisplayTitle } from './QuotaBar';
 import * as css from './UsagePage.css';
 
 const UNATTRIBUTED_COLOR = '#94a3b8';
@@ -135,13 +135,13 @@ export function UsageTokensView({
             </div>
             <div className={css.Legend}>
               {snapshot.accounts.map((account) => (
-                <span key={account.id} className={css.LegendItem}>
+                <span key={account.id} className={css.LegendItem} data-legend-account={account.id}>
                   <span
                     className={css.ProviderDot}
                     style={{ backgroundColor: colors.get(account.id) }}
                     aria-hidden="true"
                   />
-                  {account.display_name}
+                  {accountDisplayTitle(account, snapshot.accounts)}
                 </span>
               ))}
               {showUnattributed && (
@@ -183,7 +183,7 @@ export function UsageTokensView({
                         style={{ backgroundColor: colors.get(account.id) }}
                         aria-hidden="true"
                       />
-                      <span>{account.display_name}</span>
+                      <span>{accountDisplayTitle(account, snapshot.accounts)}</span>
                     </Box>
                   </td>
                   <td className={css.NumericCell}>

@@ -122,6 +122,34 @@ const shortWindowTag = (window: ProviderUsageWindow): string => {
   return window.label;
 };
 
+const idSuffix = (id: string): string => {
+  const colon = id.indexOf(':');
+  return colon >= 0 ? id.slice(colon + 1) : id;
+};
+
+/**
+ * Disambiguates accounts that share the same display_name across cards, chart legend, and tables.
+ */
+export const accountDisplayTitle = (
+  account: Pick<ProviderAccountUsage, 'id' | 'display_name' | 'account_label'>,
+  allAccounts: readonly Pick<ProviderAccountUsage, 'id' | 'display_name' | 'account_label'>[]
+): string => {
+  const colliding = allAccounts.filter((other) => other.display_name === account.display_name);
+  if (colliding.length <= 1) return account.display_name;
+  const label = account.account_label?.trim();
+  if (label && colliding.filter((other) => other.account_label?.trim() === label).length === 1) {
+    return `${account.display_name} · ${label}`;
+  }
+  const suffix = idSuffix(account.id);
+  const uniqueSuffix = colliding.filter((other) => idSuffix(other.id) === suffix).length === 1;
+  if (suffix && uniqueSuffix) {
+    return /^\d+$/.test(suffix)
+      ? `${account.display_name} · #${suffix}`
+      : `${account.display_name} · ${suffix}`;
+  }
+  return `${account.display_name} (${account.id})`;
+};
+
 /**
  * Returns the single matching account only when every model key belongs exclusively to that
  * account; returns undefined when empty, unmatched, or spanning multiple accounts.
@@ -207,27 +235,73 @@ export function QuotaBar({
   );
 }
 
-export function InlineQuotaSummary({ account }: { account: ProviderAccountUsage }) {
+export function InlineQuotaSummary({
+  account,
+  id,
+}: {
+  account: ProviderAccountUsage;
+  id?: string;
+}) {
   const { t } = useTranslation();
   if (account.windows.length === 0) return null;
 
-  if (account.windows.length === 1) {
-    const [single] = account.windows;
+  const shown = account.windows.slice(0, 2);
+  const tightestRemaining = Math.min(...shown.map((w) => clampPercent(w.remaining_percent)));
+  const barTone = quotaTone(tightestRemaining);
+  const barColor =
+    barTone === 'critical'
+      ? color.Critical.Main
+      : barTone === 'warning'
+      ? color.Warning.Main
+      : providerAccentColor(account.provider);
+  const accessibleLabel = shown
+    .map((window) =>
+      t('mindroomUi.usage.quotaAria', {
+        label: window.label,
+        percent: Math.round(clampPercent(window.remaining_percent)),
+      })
+    )
+    .join(', ');
+
+  const meterBar = (
+    <span className={css.InlineBarTrack} data-inline-quota-bar="" aria-hidden="true">
+      <span
+        className={css.InlineBarFill}
+        style={{ inlineSize: `${tightestRemaining}%`, backgroundColor: barColor }}
+      />
+    </span>
+  );
+
+  if (shown.length === 1) {
+    const [single] = shown;
     if (!single) return null;
     const remaining = clampPercent(single.remaining_percent);
     const rounded = Math.round(remaining);
     return (
-      <span className={css.InlineRoot} data-inline-quota={account.id}>
-        <span className={css.InlineItem} data-tone={quotaTone(remaining)}>
+      <span
+        id={id}
+        role="img"
+        aria-label={accessibleLabel}
+        className={css.InlineRoot}
+        data-inline-quota={account.id}
+      >
+        {meterBar}
+        <span className={css.InlineItem} data-tone={quotaTone(remaining)} aria-hidden="true">
           {t('mindroomUi.usage.percentLeft', { percent: rounded })}
         </span>
       </span>
     );
   }
 
-  const shown = account.windows.slice(0, 2);
   return (
-    <span className={css.InlineRoot} data-inline-quota={account.id}>
+    <span
+      id={id}
+      role="img"
+      aria-label={accessibleLabel}
+      className={css.InlineRoot}
+      data-inline-quota={account.id}
+    >
+      {meterBar}
       {shown.map((window, index) => {
         const remaining = clampPercent(window.remaining_percent);
         return (
@@ -237,7 +311,7 @@ export function InlineQuotaSummary({ account }: { account: ProviderAccountUsage 
                 ·
               </span>
             )}
-            <span className={css.InlineItem} data-tone={quotaTone(remaining)}>
+            <span className={css.InlineItem} data-tone={quotaTone(remaining)} aria-hidden="true">
               {shortWindowTag(window)} {Math.round(remaining)}%
             </span>
           </Fragment>

@@ -29,7 +29,7 @@ import type { ModelCatalogEntry, ModelInheritedEntry, ReasoningLevel } from './m
 import { ModelIcon } from './ModelIcon';
 import type { ProviderUsageSnapshot } from '../usage/providerUsageProtocol';
 import { InlineQuotaSummary, singleAccountForModels } from '../usage/QuotaBar';
-import { useProviderUsage } from '../usage/useProviderUsage';
+import { useRuntimeProviderUsage } from '../usage/useProviderUsage';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
 
@@ -505,12 +505,24 @@ function ModelPickerPanel({
                   models.map((model) => model.key)
                 )
               : undefined;
+            const quotaId =
+              account && account.windows.length > 0
+                ? optionId(listId, `quota:${provider}`)
+                : undefined;
             return (
-              <div key={provider} className={css.Group} role="group" aria-label={provider}>
-                <div className={css.GroupHeader} aria-hidden="true">
-                  <span className={css.GroupTitle}>{provider}</span>
+              <div
+                key={provider}
+                className={css.Group}
+                role="group"
+                aria-label={provider}
+                aria-describedby={quotaId}
+              >
+                <div className={css.GroupHeader}>
+                  <span className={css.GroupTitle} aria-hidden="true">
+                    {provider}
+                  </span>
                   {account && account.windows.length > 0 && (
-                    <InlineQuotaSummary account={account} />
+                    <InlineQuotaSummary id={quotaId} account={account} />
                   )}
                 </div>
                 {models.map((model) =>
@@ -663,7 +675,7 @@ export function ModelPicker({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const usage = useProviderUsage();
+  const usage = useRuntimeProviderUsage(membersRoom?.roomId, state.runtime);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const triggerId = useId();
@@ -748,7 +760,7 @@ export function ModelPicker({
     sawPendingRef.current = false;
     setOpen(true);
     state.refresh();
-    usage.ensureLoaded(membersRoom?.roomId);
+    usage.ensureLoaded();
   };
 
   const openUsagePage = () => {

@@ -1384,6 +1384,7 @@
       "noSubscriptionLimit": "Geen abonnementslimiet",
       "payAsYouGo": "Betalen naar verbruik",
       "limitsUnavailable": "Gebruikslimieten niet beschikbaar",
+      "notSignedIn": "Niet aangemeld",
       "tokens7d": "{{tokens}} tokens (7d)",
       "estimatedCost": "~{{cost}} gesch.",
       "totalTokens7d": "Totaal aantal tokens (7 dagen)",

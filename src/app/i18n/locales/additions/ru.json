@@ -1474,6 +1474,7 @@
       "noSubscriptionLimit": "Без лимита подписки",
       "payAsYouGo": "Оплата по факту",
       "limitsUnavailable": "Лимиты недоступны",
+      "notSignedIn": "Вход не выполнен",
       "tokens7d": "{{tokens}} токенов (7 д.)",
       "estimatedCost": "~{{cost}} оц.",
       "totalTokens7d": "Всего токенов за 7 дней",

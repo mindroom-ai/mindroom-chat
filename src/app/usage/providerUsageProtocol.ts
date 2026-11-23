@@ -3,6 +3,9 @@ export const USAGE_RESPONSE = 'io.mindroom.usage.response';
 export const USAGE_TIMEOUT = 12000;
 export const LOW_QUOTA_THRESHOLD = 15;
 
+export const UNAVAILABLE_REASONS = ['unsupported', 'not_signed_in', 'probe_failed'] as const;
+export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
+
 export type ProviderUsageWindow = {
   id: string;
   kind: string;
@@ -20,7 +23,7 @@ export type ProviderAccountUsage = {
   display_name: string;
   account_label?: string | null;
   plan?: string | null;
-  error?: string | null;
+  unavailable_reason?: UnavailableReason | null;
   model_keys: string[];
   windows: ProviderUsageWindow[];
   checked_at?: string | null;
@@ -51,6 +54,8 @@ const MAX_BYTES = 65536;
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
+const isUnavailableReason = (v: unknown): v is UnavailableReason =>
+  (UNAVAILABLE_REASONS as readonly unknown[]).includes(v);
 const isRec = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown, max = 128): v is string =>
@@ -121,8 +126,15 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     return undefined;
   const accountLabel = optNullStr(raw.account_label);
   const plan = optNullStr(raw.plan);
-  const error = optNullStr(raw.error, 256);
-  if (accountLabel === false || plan === false || error === false) return undefined;
+  if (accountLabel === false || plan === false) return undefined;
+  let unavailableReason: UnavailableReason | null | undefined;
+  if (raw.unavailable_reason === undefined || raw.unavailable_reason === null) {
+    unavailableReason = raw.unavailable_reason;
+  } else if (isUnavailableReason(raw.unavailable_reason)) {
+    unavailableReason = raw.unavailable_reason;
+  } else {
+    return undefined;
+  }
   if (raw.checked_at !== undefined && raw.checked_at !== null && !isoTime(raw.checked_at))
     return undefined;
   const windows: ProviderUsageWindow[] = [];
@@ -139,7 +151,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     display_name: raw.display_name,
     ...(accountLabel !== undefined ? { account_label: accountLabel } : {}),
     ...(plan !== undefined ? { plan } : {}),
-    ...(error !== undefined ? { error } : {}),
+    ...(unavailableReason !== undefined ? { unavailable_reason: unavailableReason } : {}),
     model_keys: [...(raw.model_keys as string[])],
     windows,
     ...(raw.checked_at !== undefined ? { checked_at: raw.checked_at } : {}),

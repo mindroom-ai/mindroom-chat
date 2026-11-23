@@ -1384,6 +1384,7 @@
       "noSubscriptionLimit": "कोई सदस्यता सीमा नहीं",
       "payAsYouGo": "उपयोग के अनुसार भुगतान",
       "limitsUnavailable": "उपयोग सीमाएँ उपलब्ध नहीं",
+      "notSignedIn": "साइन इन नहीं है",
       "tokens7d": "{{tokens}} टोकन (7 दि.)",
       "estimatedCost": "~{{cost}} अनु.",
       "totalTokens7d": "7-दिन के कुल टोकन",

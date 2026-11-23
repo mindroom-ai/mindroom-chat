@@ -1384,6 +1384,7 @@
       "noSubscriptionLimit": "Kein Abonnementlimit",
       "payAsYouGo": "Nutzungsabhängig",
       "limitsUnavailable": "Nutzungslimits nicht verfügbar",
+      "notSignedIn": "Nicht angemeldet",
       "tokens7d": "{{tokens}} Tokens (7 T.)",
       "estimatedCost": "~{{cost}} gesch.",
       "totalTokens7d": "Tokens gesamt (7 Tage)",

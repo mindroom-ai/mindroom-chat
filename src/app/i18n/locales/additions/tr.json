@@ -1384,6 +1384,7 @@
       "noSubscriptionLimit": "Abonelik sınırı yok",
       "payAsYouGo": "Kullandığın kadar öde",
       "limitsUnavailable": "Kullanım sınırları kullanılamıyor",
+      "notSignedIn": "Oturum açılmadı",
       "tokens7d": "{{tokens}} belirteç (7g)",
       "estimatedCost": "~{{cost}} tah.",
       "totalTokens7d": "7 günlük toplam belirteç",

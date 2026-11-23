@@ -9,7 +9,7 @@ import { Page, PageContent, PageHeader } from '../ui/page/Page';
 import { PageScroll } from '../ui/page/PageScroll';
 import { ProviderModelIcon } from '../ui/ProviderModelIcon';
 import type { ProviderAccountUsage } from './providerUsageProtocol';
-import { providerAccentColor, QuotaBar } from './QuotaBar';
+import { accountDisplayTitle, providerAccentColor, QuotaBar } from './QuotaBar';
 import { useProviderUsage } from './useProviderUsage';
 import { formatCompactTokens, formatUsd, UsageTokensView } from './UsageTokensView';
 import * as css from './UsagePage.css';
@@ -25,17 +25,21 @@ const isPayAsYouGo = (account: ProviderAccountUsage): boolean => {
 
 function AccountLimitCard({
   account,
+  allAccounts,
   spanFull,
   language,
   now,
 }: {
   account: ProviderAccountUsage;
+  allAccounts: readonly ProviderAccountUsage[];
   spanFull: boolean;
   language: string;
   now: number;
 }) {
   const { t } = useTranslation();
-  const planText = account.plan || account.account_label || undefined;
+  const title = accountDisplayTitle(account, allAccounts);
+  const rawPlan = account.plan || account.account_label || undefined;
+  const planText = rawPlan && !title.endsWith(`· ${rawPlan.trim()}`) ? rawPlan : undefined;
   const spendText =
     account.cost_usd_7d !== null
       ? account.cost_estimated
@@ -58,7 +62,7 @@ function AccountLimitCard({
             aria-hidden="true"
           />
           <div className={css.CardTitles}>
-            <span className={css.CardName}>{account.display_name}</span>
+            <span className={css.CardName}>{title}</span>
             {planText && <span className={css.MutedText}>{planText}</span>}
           </div>
         </div>
@@ -74,16 +78,18 @@ function AccountLimitCard({
           account.windows.map((window) => (
             <QuotaBar key={window.id} window={window} provider={account.provider} now={now} />
           ))
+        ) : account.unavailable_reason ? (
+          <div className={css.NoLimitNote} data-unavailable-reason={account.unavailable_reason}>
+            <span>
+              {account.unavailable_reason === 'not_signed_in'
+                ? t('mindroomUi.usage.notSignedIn')
+                : t('mindroomUi.usage.limitsUnavailable')}
+            </span>
+          </div>
         ) : (
           <div className={css.NoLimitNote} data-no-limit="">
-            {account.error ? (
-              <span>{account.error}</span>
-            ) : (
-              <>
-                {isPayAsYouGo(account) && <strong>{t('mindroomUi.usage.payAsYouGo')}</strong>}
-                <span>{t('mindroomUi.usage.noSubscriptionLimit')}</span>
-              </>
-            )}
+            {isPayAsYouGo(account) && <strong>{t('mindroomUi.usage.payAsYouGo')}</strong>}
+            <span>{t('mindroomUi.usage.noSubscriptionLimit')}</span>
           </div>
         )}
       </div>
@@ -245,6 +251,7 @@ export function UsagePage() {
                         <AccountLimitCard
                           key={account.id}
                           account={account}
+                          allAccounts={usage.snapshot!.accounts}
                           spanFull={isOddLast}
                           language={language}
                           now={now}
