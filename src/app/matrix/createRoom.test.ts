@@ -163,25 +163,32 @@ describe('ensureActiveRunsPowerLevel', () => {
     return room;
   };
 
-  it('upgrades an existing MindRoom room once per session when the viewer can edit power levels', async () => {
+  it('fetches fresh server power levels so concurrent edits (e.g. mod demotion) are preserved, and runs once per session', async () => {
     const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const getStateEvent = vi.spyOn(mx, 'getStateEvent').mockResolvedValue({
+      users: { [ME]: 100, '@mod:example.org': 0 },
+      events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+    });
     const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
+    // Local state is stale: @mod:example.org still shows 50 locally while server demoted them to 0.
     const room = await makeRoomWithLevels(
       '!upgrade:example.org',
       {
-        users: { [ME]: 100 },
+        users: { [ME]: 100, '@mod:example.org': 50 },
         events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
       },
       mx
     );
 
     await expect(ensureActiveRunsPowerLevel(mx, room)).resolves.toBe(true);
+    expect(getStateEvent).toHaveBeenCalledTimes(1);
+    expect(getStateEvent).toHaveBeenCalledWith('!upgrade:example.org', 'm.room.power_levels', '');
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
     expect(sendStateEvent).toHaveBeenCalledWith(
       '!upgrade:example.org',
       'm.room.power_levels',
       {
-        users: { [ME]: 100 },
+        users: { [ME]: 100, '@mod:example.org': 0 },
         events: {
           'io.mindroom.background_jobs': 0,
           'm.room.power_levels': 100,
@@ -191,13 +198,94 @@ describe('ensureActiveRunsPowerLevel', () => {
       ''
     );
 
-    // Second call in the same client session is a no-op.
+    // Second call in the same client session is a no-op (no refetch or write).
     await expect(ensureActiveRunsPowerLevel(mx, room)).resolves.toBe(false);
+    expect(getStateEvent).toHaveBeenCalledTimes(1);
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves explicit active_runs overrides, skips non-MindRoom rooms, and skips without permission', async () => {
+  it('does not write when fresh server power levels have an explicit active_runs override or dropped background_jobs', async () => {
     const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
+    const getStateEvent = vi
+      .spyOn(mx, 'getStateEvent')
+      .mockResolvedValueOnce({
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'io.mindroom.active_runs': 50 },
+      })
+      .mockResolvedValueOnce({
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 50, 'm.room.power_levels': 100 },
+      });
+
+    const serverOverridden = await makeRoomWithLevels(
+      '!server-override:example.org',
+      {
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+      },
+      mx
+    );
+    const serverJobsChanged = await makeRoomWithLevels(
+      '!server-jobs:example.org',
+      {
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+      },
+      mx
+    );
+
+    await expect(ensureActiveRunsPowerLevel(mx, serverOverridden)).resolves.toBe(false);
+    await expect(ensureActiveRunsPowerLevel(mx, serverJobsChanged)).resolves.toBe(false);
+    expect(sendStateEvent).not.toHaveBeenCalled();
+    expect(getStateEvent).toHaveBeenCalledTimes(2);
+
+    // Both rooms were checked against fresh server state, so re-opening does not refetch.
+    await expect(ensureActiveRunsPowerLevel(mx, serverOverridden)).resolves.toBe(false);
+    await expect(ensureActiveRunsPowerLevel(mx, serverJobsChanged)).resolves.toBe(false);
+    expect(getStateEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not write on server read failure, retries on next open, and deduplicates concurrent calls', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
+    let resolveFresh!: (value: Record<string, unknown>) => void;
+    const freshPromise = new Promise<Record<string, unknown>>((resolve) => {
+      resolveFresh = resolve;
+    });
+    const getStateEvent = vi
+      .spyOn(mx, 'getStateEvent')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockReturnValueOnce(freshPromise);
+    const room = await makeRoomWithLevels(
+      '!retry:example.org',
+      {
+        users: { [ME]: 100 },
+        events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+      },
+      mx
+    );
+
+    // First attempt fails while offline: no write, room stays unchecked.
+    await expect(ensureActiveRunsPowerLevel(mx, room)).resolves.toBe(false);
+    expect(sendStateEvent).not.toHaveBeenCalled();
+
+    // Second open retries; a concurrent call while in-flight does not double-fire.
+    const first = ensureActiveRunsPowerLevel(mx, room);
+    const concurrent = ensureActiveRunsPowerLevel(mx, room);
+    expect(getStateEvent).toHaveBeenCalledTimes(2);
+    resolveFresh({
+      users: { [ME]: 100 },
+      events: { 'io.mindroom.background_jobs': 0, 'm.room.power_levels': 100 },
+    });
+    await expect(concurrent).resolves.toBe(false);
+    await expect(first).resolves.toBe(true);
+    expect(sendStateEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips local explicit active_runs overrides, non-MindRoom rooms, and non-admins without network traffic', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const getStateEvent = vi.spyOn(mx, 'getStateEvent');
     const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$ok' });
 
     const overridden = await makeRoomWithLevels(
@@ -225,6 +313,7 @@ describe('ensureActiveRunsPowerLevel', () => {
     await expect(ensureActiveRunsPowerLevel(mx, overridden)).resolves.toBe(false);
     await expect(ensureActiveRunsPowerLevel(mx, nonMindroom)).resolves.toBe(false);
     await expect(ensureActiveRunsPowerLevel(mx, noPermission)).resolves.toBe(false);
+    expect(getStateEvent).not.toHaveBeenCalled();
     expect(sendStateEvent).not.toHaveBeenCalled();
   });
 });

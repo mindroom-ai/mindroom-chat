@@ -114,7 +114,9 @@ const cache = new WeakMap<
 
 /** Active-runs state events from agents in `room` (`agentRoomState`), excluding redacted ones. */
 const activeRunsRoomState = (room: Room): MatrixEvent[] =>
-  agentRoomState(room, MINDROOM_ACTIVE_RUNS_EVENT).filter((event) => !event.isRedacted?.());
+  agentRoomState(room, MINDROOM_ACTIVE_RUNS_EVENT, { includeTrustedRoster: true }).filter(
+    (event) => !event.isRedacted?.()
+  );
 
 /** Cached per-room active runs snapshot; recomputes on state/redaction change or once `nextExpiryTs` passes. */
 export const roomActiveRuns = (room: Room | null, now = Date.now()): ActiveRunsSnapshot => {

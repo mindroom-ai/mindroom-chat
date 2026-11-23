@@ -69,10 +69,19 @@ export const isAgentTrustStateEvent = (eventType: string): boolean =>
   eventType === MINDROOM_ACCOUNTS_STATE_EVENT ||
   eventType === (StateEvent.RoomPowerLevels as string);
 
+export type AgentRoomStateOptions = {
+  /**
+   * Also accept joined accounts vouched for by the room's trusted `io.mindroom.router` binding and
+   * `io.mindroom.accounts` roster (for custom-username agents). Keep `false` (default) for
+   * account-wide / origin-sensitive state such as `io.mindroom.server`.
+   */
+  includeTrustedRoster?: boolean;
+};
+
 /**
  * Whether a state event is a MindRoom agent describing itself: keyed by its own user ID, which Matrix
- * accepts only from that user, and sent by an agent on the viewer's homeserver or in the room's
- * trusted MindRoom roster.
+ * accepts only from that user, and sent by an agent on the viewer's homeserver or (when opted in)
+ * in the room's trusted MindRoom roster.
  */
 export const isAgentSelfState = (
   event: MatrixEvent,
@@ -104,13 +113,29 @@ export const selectAgentSelfState = (
   );
 
 /** The room's current state of one type that its agents published about themselves. */
-export const agentRoomState = (room: Room, eventType: string): MatrixEvent[] =>
-  selectAgentSelfState(
-    room.currentState.getStateEvents(eventType),
+export const agentRoomState = (
+  room: Room,
+  eventType: string,
+  { includeTrustedRoster = false }: AgentRoomStateOptions = {}
+): MatrixEvent[] => {
+  const events = room.currentState.getStateEvents(eventType);
+  const needsTrustedRoster =
+    includeTrustedRoster &&
+    events.some((event) => {
+      const sender = event.getSender();
+      return (
+        !!sender &&
+        event.getStateKey() === sender &&
+        !isMindroomAgentUserIdForViewer(sender, room.myUserId)
+      );
+    });
+  return selectAgentSelfState(
+    events,
     room.myUserId,
     (userId) => isMemberJoinedOrUnloaded(room, userId),
-    roomTrustedAgents(room)
+    needsTrustedRoster ? roomTrustedAgents(room) : EMPTY_SET
   );
+};
 
 const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
   a.length === b.length && a.every((event, index) => event === b[index]);
@@ -119,12 +144,16 @@ const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
  * The room's agent state of this type, read again when it, an agent's membership, or the live state
  * changes. A room the client does not know (null) has none.
  */
-const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEvent[] => {
+const useAgentRoomStateEvents = (
+  room: Room | null,
+  eventType: string,
+  includeTrustedRoster = false
+): MatrixEvent[] => {
   const [version, refresh] = useForceUpdate();
   const events = useMemo(() => {
     void version;
-    return room ? agentRoomState(room, eventType) : [];
-  }, [room, eventType, version]);
+    return room ? agentRoomState(room, eventType, { includeTrustedRoster }) : [];
+  }, [room, eventType, includeTrustedRoster, version]);
   const renderedEvents = useRef(events);
   // Synchronously with the commit, so an event that lands before passive effects compares with what is shown.
   useLayoutEffect(() => {
@@ -134,7 +163,7 @@ const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEv
     if (!room) return undefined;
     const onState = (event: MatrixEvent) => {
       const type = event.getType();
-      if (type === eventType || isAgentTrustStateEvent(type)) refresh();
+      if (type === eventType || (includeTrustedRoster && isAgentTrustStateEvent(type))) refresh();
     };
     // Sync hands an agent's member event over again with every batch it sends in, unchanged, so
     // render again only when a membership change adds or drops state.
@@ -143,22 +172,31 @@ const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEv
       if (
         !isMindroomAgentUserIdForViewer(userId, room.myUserId) &&
         !renderedEvents.current.some((e) => e.getSender() === userId) &&
-        !roomTrustedAgents(room).has(userId)
+        !(includeTrustedRoster && roomTrustedAgents(room).has(userId))
       )
         return;
-      if (!sameEvents(agentRoomState(room, eventType), renderedEvents.current)) refresh();
+      if (
+        !sameEvents(
+          agentRoomState(room, eventType, { includeTrustedRoster }),
+          renderedEvents.current
+        )
+      )
+        refresh();
     };
     room.on(RoomStateEvent.Events, onState);
     room.on(RoomStateEvent.Members, onMember);
     room.on(RoomEvent.CurrentStateUpdated, refresh);
     // Catch state or membership updates that landed between render and passive effect attachment.
-    if (!sameEvents(agentRoomState(room, eventType), renderedEvents.current)) refresh();
+    if (
+      !sameEvents(agentRoomState(room, eventType, { includeTrustedRoster }), renderedEvents.current)
+    )
+      refresh();
     return () => {
       room.removeListener(RoomStateEvent.Events, onState);
       room.removeListener(RoomStateEvent.Members, onMember);
       room.removeListener(RoomEvent.CurrentStateUpdated, refresh);
     };
-  }, [room, eventType, refresh]);
+  }, [room, eventType, includeTrustedRoster, refresh]);
   return events;
 };
 
@@ -166,8 +204,9 @@ const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEv
 export const useAgentRoomState = <T>(
   room: Room | null,
   eventType: string,
-  select: (events: MatrixEvent[]) => T
+  select: (events: MatrixEvent[]) => T,
+  options?: AgentRoomStateOptions
 ): T => {
-  const events = useAgentRoomStateEvents(room, eventType);
+  const events = useAgentRoomStateEvents(room, eventType, options?.includeTrustedRoster ?? false);
   return useMemo(() => select(events), [select, events]);
 };

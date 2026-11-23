@@ -87,30 +87,38 @@ export const mergeMissingEventPowerLevels = (
 };
 
 const activeRunsCheckedRooms = new WeakMap<MatrixClient, Set<string>>();
+const activeRunsInFlightRooms = new WeakMap<MatrixClient, Set<string>>();
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const markActiveRunsChecked = (mx: MatrixClient, roomId: string) => {
+  const checked = activeRunsCheckedRooms.get(mx);
+  if (checked) checked.add(roomId);
+  else activeRunsCheckedRooms.set(mx, new Set([roomId]));
+};
 
 /**
  * Best-effort, once-per-room-per-session power-level migration for existing MindRoom rooms created
- * before `io.mindroom.active_runs`: adds `io.mindroom.active_runs: 0` when the room already allows
- * `io.mindroom.background_jobs: 0`, leaves explicit overrides alone, and runs only when the viewer
- * can send `m.room.power_levels`.
+ * before `io.mindroom.active_runs`: pre-checks local state to avoid network traffic on rooms that
+ * do not qualify, then reads fresh `m.room.power_levels` from the homeserver before adding
+ * `io.mindroom.active_runs: 0` when the room still allows `io.mindroom.background_jobs: 0`,
+ * leaving explicit overrides and concurrent power-level changes intact.
  */
 export const ensureActiveRunsPowerLevel = async (
   mx: MatrixClient,
   room: Room
 ): Promise<boolean> => {
-  const checked = activeRunsCheckedRooms.get(mx);
-  if (checked?.has(room.roomId)) return false;
+  if (activeRunsCheckedRooms.get(mx)?.has(room.roomId)) return false;
+  if (activeRunsInFlightRooms.get(mx)?.has(room.roomId)) return false;
+
   const powerLevelsEvent = room.currentState
     ?.getStateEvents?.(StateEvent.RoomPowerLevels)
     ?.find((event) => event.getStateKey() === '');
   if (!powerLevelsEvent) return false;
-  if (checked) checked.add(room.roomId);
-  else activeRunsCheckedRooms.set(mx, new Set([room.roomId]));
-
-  const content = powerLevelsEvent.getContent();
-  if (content.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] !== 0) return false;
-  const nextLevels = mergeMissingEventPowerLevels(content, { [MINDROOM_ACTIVE_RUNS_EVENT]: 0 });
-  if (!nextLevels) return false;
+  const localContent = powerLevelsEvent.getContent();
+  if (localContent.events?.[MINDROOM_BACKGROUND_JOBS_EVENT] !== 0) return false;
+  if (localContent.events?.[MINDROOM_ACTIVE_RUNS_EVENT] !== undefined) return false;
   const userId = mx.getUserId();
   if (!userId) return false;
   const parsed = getPowersLevelFromMatrixEvent(powerLevelsEvent);
@@ -122,16 +130,44 @@ export const ensureActiveRunsPowerLevel = async (
     isCreator ||
     readPowerLevel.user(parsed, userId) >= readPowerLevel.state(parsed, StateEvent.RoomPowerLevels);
   if (!canEdit) return false;
+
+  let inFlight = activeRunsInFlightRooms.get(mx);
+  if (!inFlight) {
+    inFlight = new Set();
+    activeRunsInFlightRooms.set(mx, inFlight);
+  }
+  inFlight.add(room.roomId);
   try {
+    const freshContent: unknown = await mx.getStateEvent(
+      room.roomId,
+      StateEvent.RoomPowerLevels,
+      ''
+    );
+    if (!isRecord(freshContent)) return false;
+    const freshEvents = isRecord(freshContent.events) ? freshContent.events : undefined;
+    if (freshEvents?.[MINDROOM_BACKGROUND_JOBS_EVENT] !== 0) {
+      markActiveRunsChecked(mx, room.roomId);
+      return false;
+    }
+    const nextLevels = mergeMissingEventPowerLevels(freshContent, {
+      [MINDROOM_ACTIVE_RUNS_EVENT]: 0,
+    });
+    if (!nextLevels) {
+      markActiveRunsChecked(mx, room.roomId);
+      return false;
+    }
     await mx.sendStateEvent(
       room.roomId,
       StateEvent.RoomPowerLevels as never,
       nextLevels as never,
       ''
     );
+    markActiveRunsChecked(mx, room.roomId);
     return true;
   } catch {
     return false;
+  } finally {
+    inFlight.delete(room.roomId);
   }
 };
 

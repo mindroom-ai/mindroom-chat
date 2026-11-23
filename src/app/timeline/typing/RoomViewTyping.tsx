@@ -191,9 +191,12 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const myUserId = mx.getUserId();
   const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
   const streaming = useThreadStreamingSenders(room, threadId);
-  const trustedAgents = roomTrustedAgents(room);
-  const isAgent = (userId: string) =>
-    isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined) || trustedAgents.has(userId);
+  let trustedAgents: ReadonlySet<string> | undefined;
+  const isAgent = (userId: string) => {
+    if (isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined)) return true;
+    trustedAgents ??= roomTrustedAgents(room);
+    return trustedAgents.has(userId);
+  };
   const members = useRoomTypingMember(room.roomId).filter(
     (receipt) =>
       receipt.userId !== myUserId &&
