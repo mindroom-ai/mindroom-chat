@@ -27,6 +27,7 @@ import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
+import { clearPhoneSwipePreviews } from '../navigation/phonePageSlide';
 import {
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
@@ -105,6 +106,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(activityShowAutomationsAtom),
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
+  () => clearPhoneSwipePreviews(),
   // What the pages were showing: the call and its panel (and its focus hand-off), transcription,
   // the Sub-agents panel, agent-call failures, and open dialogs and overlays.
   forgetCallState,

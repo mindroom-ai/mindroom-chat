@@ -927,6 +927,20 @@
         "earlier_other": "이전 메시지 {{count}}개",
         "hide_other": "메시지 {{count}}개 숨기기"
       },
+      "membershipFold": {
+        "summary_other": "방 이벤트 {{count}}개",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_other": "방 이벤트 {{count}}개 숨기기",
+        "listSeparator": ", ",
+        "joined_other": "{{count}}명 참여",
+        "left_other": "{{count}}명 나감",
+        "invited_other": "{{count}}명 초대",
+        "requested_other": "{{count}}명 참여 요청",
+        "kicked_other": "{{count}}명 내보냄",
+        "banned_other": "{{count}}명 차단",
+        "unbanned_other": "{{count}}명 차단 해제",
+        "profileChanges_other": "프로필 변경 {{count}}건"
+      },
       "questionCard": {
         "title": "질문",
         "waiting": "내 답변 대기 중",
