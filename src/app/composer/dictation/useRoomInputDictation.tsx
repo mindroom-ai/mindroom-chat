@@ -5,6 +5,7 @@ import {
   useRef,
   useSyncExternalStore,
   type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -352,8 +353,10 @@ export const useRoomInputDictation = ({
           onPointerDown={() => {
             pendingButtonFocusRef.current = isEditorFocused(editor, rootRef);
           }}
-          onPointerLeave={() => {
-            pendingButtonFocusRef.current = undefined;
+          onPointerLeave={(event: PointerEvent) => {
+            if (event.buttons > 0) {
+              pendingButtonFocusRef.current = undefined;
+            }
           }}
           onPointerCancel={() => {
             pendingButtonFocusRef.current = undefined;

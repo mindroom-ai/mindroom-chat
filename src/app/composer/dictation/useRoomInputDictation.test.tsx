@@ -137,12 +137,24 @@ const createMockSession = () => {
   };
 };
 
+// jsdom has no PointerEvent and falls back to Event, which drops `buttons`.
+class TestPointerEvent extends MouseEvent {
+  readonly pointerType: string;
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerType = init.pointerType ?? '';
+  }
+}
+
 beforeEach(() => {
   serverMock.available = true;
   serverMock.overlay = 'none';
+  vi.stubGlobal('PointerEvent', TestPointerEvent);
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   cleanup();
 });
 
@@ -603,11 +615,27 @@ describe('useRoomInputDictation', () => {
       });
       expect(focusSpy).toHaveBeenCalledTimes(1);
 
-      // Dragging off the Dictate button clears pending focus so a later unfocused start stays unfocused.
+      // Touch release fires pointerup -> pointerleave (buttons: 0) -> click and must keep captured focus.
       focusSpy.mockClear();
       input.focus();
-      fireEvent.pointerDown(btn);
-      fireEvent.pointerLeave(btn);
+      await act(async () => {
+        fireEvent.pointerDown(btn, { buttons: 1 });
+        input.blur();
+        fireEvent.pointerUp(btn, { buttons: 0 });
+        fireEvent.pointerLeave(btn, { buttons: 0 });
+        fireEvent.click(btn);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+      });
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+      expect(focusSpy).toHaveBeenLastCalledWith(editor);
+
+      // Dragging off the Dictate button while pressed (buttons: 1) clears pending focus.
+      focusSpy.mockClear();
+      input.focus();
+      fireEvent.pointerDown(btn, { buttons: 1 });
+      fireEvent.pointerLeave(btn, { buttons: 1 });
       input.blur();
       await act(async () => {
         fireEvent.click(btn);
