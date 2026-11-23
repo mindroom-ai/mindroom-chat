@@ -117,6 +117,45 @@
     "textViewer": {
       "close": "Cerrar"
     },
+    "eventSourceViewer": {
+      "metaEventId": "Evento",
+      "metaType": "Tipo",
+      "metaSender": "Remitente",
+      "metaTime": "Hora",
+      "badgeEdited": "Editado",
+      "badgeEncrypted": "Cifrado",
+      "documentTabsLabel": "Versiones del evento",
+      "tabEvent": "Evento",
+      "tabOriginal": "Original",
+      "tabLatestEdit": "Última edición",
+      "tabDecrypted": "Descifrado",
+      "tabDecryptionError": "Error de descifrado",
+      "tabEncrypted": "Cifrado",
+      "collapseAll": "Contraer",
+      "expandAll": "Expandir",
+      "foldStrings": "Plegar cadenas",
+      "rawJson": "Sin formato",
+      "filterPlaceholder": "Filtrar claves o valores…",
+      "noMatches": "Sin coincidencias para «{{query}}»",
+      "copyField": "Copiar {{field}}",
+      "copyValue": "Copiar valor",
+      "expandNode": "Expandir {{name}}",
+      "collapseNode": "Contraer {{name}}",
+      "expandString": "Expandir cadena",
+      "collapseString": "Contraer cadena",
+      "matchCount_one": "{{count}} coincidencia",
+      "matchCount_many": "{{count}} coincidencias",
+      "matchCount_other": "{{count}} coincidencias",
+      "keyCount_one": "{{count}} clave",
+      "keyCount_many": "{{count}} claves",
+      "keyCount_other": "{{count}} claves",
+      "itemCount_one": "{{count}} elemento",
+      "itemCount_many": "{{count}} elementos",
+      "itemCount_other": "{{count}} elementos",
+      "charCount_one": "{{count}} carácter",
+      "charCount_many": "{{count}} caracteres",
+      "charCount_other": "{{count}} caracteres"
+    },
     "invites": {
       "actionFailed": "Algo salió mal. Inténtalo de nuevo."
     },
@@ -262,9 +301,6 @@
       "newIntro": "Elige una nueva contraseña de recuperación. La anterior dejará de funcionar.",
       "notCached": "Esta sesión no tiene todas las claves de cifrado. Verifícala con tu contraseña de recuperación o con otro dispositivo y vuelve a intentarlo.",
       "incompleteError": "La nueva contraseña de recuperación aún no cubre todas las claves de cifrado. Inténtalo de nuevo.",
-      "nudgeTitle": "Protege tus mensajes",
-      "nudgeBody": "Establece una contraseña de recuperación para poder seguir leyendo tus chats cifrados después de borrar este navegador o iniciar sesión en un dispositivo nuevo.",
-      "nudgeButton": "Configurar contraseña de recuperación",
       "unlockWithPassword": "Desbloquear con la contraseña de recuperación",
       "resetLoss": "Los mensajes que este dispositivo no puede leer ahora seguirán siendo ilegibles. Tus otras sesiones tendrán que verificarse de nuevo.",
       "setupCheckFailed": "No se pudo comprobar la configuración de tu cifrado.",
@@ -960,6 +996,40 @@
         "hide_one": "Ocultar {{count}} mensaje",
         "hide_many": "Ocultar {{count}} mensajes",
         "hide_other": "Ocultar {{count}} mensajes"
+      },
+      "membershipFold": {
+        "summary_one": "{{count}} evento de sala",
+        "summary_many": "{{count}} eventos de sala",
+        "summary_other": "{{count}} eventos de sala",
+        "summaryWithDetails": "{{summary}} · {{details}}",
+        "hide_one": "Ocultar {{count}} evento de sala",
+        "hide_many": "Ocultar {{count}} eventos de sala",
+        "hide_other": "Ocultar {{count}} eventos de sala",
+        "listSeparator": ", ",
+        "joined_one": "{{count}} se unió",
+        "joined_many": "{{count}} se unieron",
+        "joined_other": "{{count}} se unieron",
+        "left_one": "{{count}} salió",
+        "left_many": "{{count}} salieron",
+        "left_other": "{{count}} salieron",
+        "invited_one": "{{count}} invitado",
+        "invited_many": "{{count}} invitados",
+        "invited_other": "{{count}} invitados",
+        "requested_one": "{{count}} solicitó unirse",
+        "requested_many": "{{count}} solicitaron unirse",
+        "requested_other": "{{count}} solicitaron unirse",
+        "kicked_one": "{{count}} expulsado",
+        "kicked_many": "{{count}} expulsados",
+        "kicked_other": "{{count}} expulsados",
+        "banned_one": "{{count}} vetado",
+        "banned_many": "{{count}} vetados",
+        "banned_other": "{{count}} vetados",
+        "unbanned_one": "{{count}} readmitido",
+        "unbanned_many": "{{count}} readmitidos",
+        "unbanned_other": "{{count}} readmitidos",
+        "profileChanges_one": "{{count}} cambio de perfil",
+        "profileChanges_many": "{{count}} cambios de perfil",
+        "profileChanges_other": "{{count}} cambios de perfil"
       },
       "questionCard": {
         "title": "Pregunta",
@@ -1839,5 +1909,40 @@
     "cancellationSent": "Cancelación enviada",
     "editDraftBusy": "Borra tu borrador actual antes de editar esta tarea programada.",
     "copyFailed": "No se pudo copiar. Selecciona el ID de la tarea en Detalles."
+  },
+  "home": {
+    "greeting": {
+      "morning": "Buenos días, {{name}}",
+      "afternoon": "Buenas tardes, {{name}}",
+      "evening": "Buenas noches, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Pregunta a {{name}} lo que quieras…",
+      "chooseAgent": "Elegir quién responde",
+      "agentChoice": "Responde {{name}}",
+      "chooseRoom": "Elegir dónde empieza el hilo",
+      "roomChoice": "En {{room}}",
+      "inRoom": "en <avatar/>{{room}}",
+      "directChat": "Chat directo",
+      "startsDirectChat": "Inicia un chat con {{name}}",
+      "startingDirectChat": "Iniciando un chat con {{name}}…",
+      "directChatFailed": "No se pudo iniciar un chat con {{name}}. Inténtalo de nuevo.",
+      "waitingForAgent": "Esperando a que {{name}} se una al chat…",
+      "notSent": "No enviado a {{agent}} en {{room}}",
+      "chooseAgain": "Esa elección ya no funciona. Tu texto se conserva: elige quién responde o dónde."
+    },
+    "recent": {
+      "title": "Hilos recientes",
+      "allThreads": "Todos los hilos",
+      "unread": "No leído"
+    },
+    "recovery": {
+      "action": "Configurar una contraseña de recuperación",
+      "text": "Conserva el acceso a los chats cifrados en un dispositivo nuevo."
+    },
+    "device": {
+      "action": "Verificar este dispositivo",
+      "text": "Hasta entonces no puede leer tus chats cifrados."
+    }
   }
 }

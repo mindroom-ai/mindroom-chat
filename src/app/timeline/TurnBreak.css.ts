@@ -12,6 +12,13 @@ export const TurnBreak = style({
   padding: `${config.space.S200} ${config.space.S400}`,
 });
 
+export const MembershipBreak = style([
+  TurnBreak,
+  {
+    gridTemplateColumns: 'minmax(12px, 1fr) minmax(0, auto) minmax(12px, 1fr)',
+  },
+]);
+
 export const Line = style({
   borderBlockStart: `1px dashed ${color.SurfaceVariant.ContainerLine}`,
 });
@@ -42,6 +49,26 @@ export const Pill = style({
       outlineOffset: '2px',
     },
   },
+});
+
+export const MembershipPill = style([
+  Pill,
+  {
+    justifyContent: 'center',
+    minWidth: 0,
+    padding: `${toRem(3)} ${config.space.S300}`,
+    lineHeight: 1.35,
+    textAlign: 'center',
+    whiteSpace: 'normal',
+  },
+]);
+
+export const PillLabel = style({
+  minWidth: 0,
+});
+
+export const Chevron = style({
+  flexShrink: 0,
 });
 
 /** The dots on each side of a folded turn's count, which a screen reader skips. */

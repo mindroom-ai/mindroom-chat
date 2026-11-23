@@ -90,6 +90,95 @@ describe('links to messages', () => {
     expect(linkOf(root).props['data-mention-event-id']).toBe(PLAIN_ID);
   });
 
+  it('renders canonical Universal Links as MessageLinkPill even on another origin', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}/${PLAIN_ID}?via=example.org`;
+    const root = render(mention(href));
+    expect(textOf(root)).toBe('Message in #Harbor operations');
+    expect(linkOf(root).props.title).toBe(href);
+    expect(linkOf(root).props.className).toBe('Mention MessageLinkPill');
+    expect(linkOf(root).props['data-mention-id']).toBe(ROOM_ID);
+    expect(linkOf(root).props['data-mention-event-id']).toBe(PLAIN_ID);
+    expect(linkOf(root).props['data-mention-via']).toBe('example.org');
+  });
+
+  it('leaves Universal Links with extra routing query params as normal links', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}?threadId=${ROOT_ID}`;
+    const linkifyOpts = {
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention((url) => mention(url)),
+    };
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts });
+    const root = render(parse(`see <a href="${href}">${href}</a>`, opts));
+    const anchor = root.root.find((node) => node.type === 'a');
+    expect(anchor.props.href).toBe(href);
+    expect(anchor.props['data-mention-id']).toBeUndefined();
+    expect(anchor.props['data-mention-event-id']).toBeUndefined();
+    expect(textOf(root)).toBe(`see ${href}`);
+  });
+
+  it('preserves authored labels and spoilers on room links while keeping mentions as pills', () => {
+    const href = `https://chat.mindroom.chat/${ROOM_ID}?via=example.org`;
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts: LINKIFY_OPTS });
+    const spoilers = (root: ReactTestRenderer) =>
+      root.root.findAll(
+        (node) => node.type === 'span' && node.props['data-mx-spoiler'] !== undefined
+      );
+
+    for (const label of [href, '#Harbor operations', '#harbor:example.org']) {
+      const root = render(parse(`see <a href="${href}">${label}</a>`, opts));
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(textOf(root)).toBe('see #Harbor operations');
+      expect(anchor.props.className).toBe('Mention');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+    }
+
+    for (const [html, expectedText] of [
+      [`<a href="${href}"><span data-mx-spoiler>${href}</span></a>`, `see ${href}`],
+      [
+        `<a data-md href="${href}"><span data-mx-spoiler>the berth plan</span></a>`,
+        'see the berth plan',
+      ],
+    ] as const) {
+      const root = render(parse(`see ${html}`, opts));
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+      expect(anchor.props['data-mention-via']).toBe('example.org');
+      expect(anchor.props.className).toBeUndefined();
+      expect(spoilers(root)).toHaveLength(1);
+      expect(textOf(root)).toBe(expectedText);
+      expect(textOf(root)).not.toContain('#Harbor operations');
+    }
+
+    const rich = render(
+      parse(`see <a href="${href}"><strong>join the incident call</strong></a>`, opts)
+    );
+    expect(rich.root.find((node) => node.type === 'a').props['data-mention-id']).toBe(ROOM_ID);
+    expect(rich.root.find((node) => node.type === 'strong').children).toEqual([
+      'join the incident call',
+    ]);
+
+    for (const [html, expectedText] of [
+      [`<a href="${href}">join the incident call</a>`, 'see join the incident call'],
+      [`<a href="${href}" data-md>#custom</a>`, 'see #custom'],
+    ] as const) {
+      const root = render(parse(`see ${html}`, opts));
+      const anchor = root.root.find((node) => node.type === 'a');
+      expect(anchor.props['data-mention-id']).toBe(ROOM_ID);
+      expect(anchor.props.className).toBeUndefined();
+      expect(textOf(root)).toBe(expectedText);
+    }
+  });
+
+  it('still renders the destination alias for unmarked matrix.to room mentions', () => {
+    const href = 'https://matrix.to/#/%23desk%E2%80%AEksed:example.org';
+    const opts = getReactCustomHtmlParser(client, ROOM_ID, { linkifyOpts: LINKIFY_OPTS });
+    const root = render(parse(`check <a href="${href}">desk</a>`, opts));
+    const anchor = root.root.find((node) => node.type === 'a');
+    expect(anchor.props.className).toBe('Mention');
+    expect(anchor.props['data-mention-id']).toBe('#desk\u202eksed:example.org');
+    expect(textOf(root)).toBe('check #desk<U+202E>ksed:example.org');
+  });
+
   it('say thread for a thread root or a reply the client knows', () => {
     expect(textOf(render(mention(LINK(ROOM_ID, ROOT_ID))))).toBe('Thread in #Harbor operations');
     expect(textOf(render(mention(LINK(ROOM_ID, REPLY_ID))))).toBe('Thread in #Harbor operations');

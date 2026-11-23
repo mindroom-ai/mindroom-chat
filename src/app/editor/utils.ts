@@ -31,7 +31,8 @@ export const createMentionElement = (
   label: string,
   highlight: boolean,
   eventId?: string,
-  via?: string[]
+  via?: string[],
+  href?: string
 ): MentionElement => ({
   type: BlockType.Mention,
   id: targetId,
@@ -39,6 +40,7 @@ export const createMentionElement = (
   highlight,
   ...(eventId === undefined ? {} : { eventId }),
   ...(via === undefined ? {} : { viaServers: via }),
+  ...(href ? { href } : {}),
   children: emptyChildren(),
 });
 

@@ -28,7 +28,7 @@ const Harness = ({
   roomId?: string;
   threadId?: string;
 }) => {
-  const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
+  const saveDraft = useRoomInputDraft(editor, getRoomInputDraftKey(userId, roomId, threadId));
   editor.onChange = saveDraft;
   return null;
 };

@@ -315,6 +315,8 @@ type ViewProps = {
   viewThreadId?: string | null;
   /** A fork draft is on screen: its thread is read-only there, so no run of it can be stopped. */
   readOnly?: boolean;
+  /** Inert swipe preview underneath a sliding child run: must not steal focus or scroll the page. */
+  preview?: boolean;
 };
 
 /**
@@ -333,6 +335,7 @@ export function SubagentRunView({
   onClose,
   viewThreadId,
   readOnly = false,
+  preview = false,
 }: ViewProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -389,11 +392,11 @@ export function SubagentRunView({
   }, [keepEnd, newestRun, node]);
   // Each Open asks anew (a new atom value); frames do not.
   useLayoutEffect(() => {
-    if (!openAt) return;
+    if (preview || !openAt) return;
     following.current = false;
     box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
-  }, [opened]);
+  }, [opened, preview]);
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding), or a box
   // that shrinks (the Usage above it opening).
   const getThread = useCallback(
@@ -407,7 +410,9 @@ export function SubagentRunView({
   // The card that opened it is gone, so focus moves to the way back. Before the panel's own
   // layout effect, which gives focus to the card of a sub-agent Back closed.
   const backButton = useRef<HTMLButtonElement>(null);
-  useLayoutEffect(() => backButton.current?.focus(), []);
+  useLayoutEffect(() => {
+    if (!preview) backButton.current?.focus();
+  }, [preview]);
 
   return (
     <>

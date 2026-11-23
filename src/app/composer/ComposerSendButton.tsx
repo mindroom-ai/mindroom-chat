@@ -26,6 +26,7 @@ type ComposerSendButtonProps = {
   defaultMode: MidTurnMode;
   /** Sends the message, with the mode picked from the menu, or the default one for a tap. */
   onSend: (mode?: MidTurnMode) => void | Promise<unknown>;
+  disabled?: boolean;
 };
 
 /** The modes the menu offers, in its order, as the Chats settings name them. */
@@ -81,6 +82,7 @@ export function ComposerSendButton({
   empty,
   defaultMode,
   onSend,
+  disabled,
 }: ComposerSendButtonProps) {
   const { t } = useTranslation();
   // `hover`: a resting mouse opened it, rather than a hold.
@@ -267,6 +269,7 @@ export function ComposerSendButton({
           return onSend();
         }}
         alone={alone}
+        disabled={disabled}
         keepsTextFocus
         aria-haspopup={agentReplying ? 'menu' : undefined}
         aria-expanded={agentReplying ? anchor !== undefined : undefined}

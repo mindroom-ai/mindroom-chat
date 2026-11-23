@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Icon, Icons, Text, as } from 'folds';
@@ -6,10 +6,16 @@ import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
 import { revealDirectionControls } from '../../ui/directional';
+import { PrismCode } from '../../rich-text/code/ReactPrism';
 import * as css from './TextViewer.css';
 
 /** How long the copy chip shows its check mark. */
 const COPIED_FEEDBACK_MS = 2000;
+
+/** Upper length for Prism tokenization so very large files stay responsive. */
+export const MAX_TEXT_HIGHLIGHT_LENGTH = 200_000;
+
+const PLAIN_LANGUAGES = new Set(['', 'text', 'plaintext']);
 
 /** The title (file name), the content, and its language (a `language-<langName>` class on the `pre`). */
 type TextSource = { name: string; langName: string; text: string };
@@ -26,6 +32,11 @@ export const TextViewer = as<'div', TextViewerProps>(
     const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     const shownName = revealDirectionControls(name);
+    const revealedText = useMemo(() => revealDirectionControls(text), [text]);
+    const safeLangName = typeof langName === 'string' ? langName.trim() : '';
+    const shouldHighlight =
+      !PLAIN_LANGUAGES.has(safeLangName.toLowerCase()) &&
+      revealedText.length <= MAX_TEXT_HIGHLIGHT_LENGTH;
 
     // The check mark clears itself a moment after a successful copy.
     useEffect(() => {
@@ -66,8 +77,14 @@ export const TextViewer = as<'div', TextViewerProps>(
           </IconButton>
         </Header>
         <PageScroll className={css.TextViewerContent}>
-          <pre className={classNames(css.TextViewerPre, `language-${langName}`)}>
-            <code>{revealDirectionControls(text)}</code>
+          <pre
+            className={classNames(css.TextViewerPre, safeLangName && `language-${safeLangName}`)}
+          >
+            {shouldHighlight ? (
+              <PrismCode code={revealedText} language={safeLangName} />
+            ) : (
+              <code>{revealedText}</code>
+            )}
           </pre>
         </PageScroll>
       </Box>

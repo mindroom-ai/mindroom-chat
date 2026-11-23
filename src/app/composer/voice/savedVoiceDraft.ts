@@ -122,18 +122,21 @@ export const voiceDraftRestoresAtom = atom<ReadonlyMap<string, Promise<void> | n
 /**
  * Brings back what the account left on disk, once: its failed send where it was meant for, else
  * a journaled recording (a crash, a recorder that stopped) as a recovered one, which is sent
- * wherever Send is pressed; `getRecoveryContext` only names the account for it.
+ * wherever Send is pressed; `getRecoveryContext` only names the account for it. With `restore`
+ * false it brings nothing back, and leaves that to a composer that can show a recording: held
+ * here, the recording would be kept from another tab's.
  */
 export const useSavedVoiceDraft = (
   mx: MatrixClient,
-  getRecoveryContext?: () => PendingVoiceSendContext
+  getRecoveryContext?: () => PendingVoiceSendContext,
+  restore = true
 ): void => {
   const store = useStore();
   const draft = useAtomValue(pendingVoiceSendDraftAtom);
   const userId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
-    if (!userId || store.get(voiceDraftRestoresAtom).has(userId)) return;
+    if (!restore || !userId || store.get(voiceDraftRestoresAtom).has(userId)) return;
     const pending = withDraftDb((db) => db.get('drafts', userId))
       .then(async (saved) => {
         const slotTaken = () => !!store.get(pendingVoiceSendDraftAtom);
@@ -188,7 +191,7 @@ export const useSavedVoiceDraft = (
         store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, null));
       });
     store.set(voiceDraftRestoresAtom, (restores) => new Map(restores).set(userId, pending));
-  }, [getRecoveryContext, mx, store, userId]);
+  }, [getRecoveryContext, mx, restore, store, userId]);
 
   useEffect(() => {
     const owner = draft?.context.ownerSessionId;

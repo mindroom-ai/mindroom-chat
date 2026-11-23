@@ -46,7 +46,7 @@ globalStyle(`${FloatingShell} ${PageDivider}`, { display: 'none' });
 // added anywhere in the document against it (~0.2 ms a message row).
 const SIDE_PANEL = `${Panel}[data-side='end']:not(${PageSurface} *)`;
 globalStyle(
-  `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *):has(> ${Panel}[data-side='end'])`,
+  `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *):has(> ${Panel}[data-side='end'], > [data-side-panel-host] > ${Panel}[data-side='end'])`,
   { paddingInlineEnd: CARD_GAP }
 );
 globalStyle(`${FloatingShell} ${SIDE_PANEL}`, { paddingBlock: CARD_GAP });

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 // follows. It covers every file, so the text is linted under two modules.
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../', import.meta.url)) });
 const SHELL_MODULE = 'src/app/shell/accountState.ts';
-const ONBOARDING_MODULE = 'src/app/account/onboarding/welcomeCard.ts';
+const ONBOARDING_MODULE = 'src/app/account/onboarding/WelcomeNotice.tsx';
 
 const restrictedImports = async (source: string, filePath = SHELL_MODULE) => {
   const [result] = await eslint.lintText(source, { filePath });

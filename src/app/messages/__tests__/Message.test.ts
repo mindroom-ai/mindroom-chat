@@ -288,6 +288,10 @@ vi.mock('../viewers/TextViewer', () => ({
   TextViewer: () => React.createElement('div', null, 'viewer'),
 }));
 
+vi.mock('../viewers/EventSourceViewer', () => ({
+  EventSourceViewer: () => React.createElement('div', null, 'viewer'),
+}));
+
 vi.mock('../../lib/hooks/useAsyncCallback', () => ({
   AsyncStatus: {
     Error: 'Error',

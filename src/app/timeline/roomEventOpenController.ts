@@ -20,7 +20,10 @@ import to from 'await-to-js';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollToElement, ScrollToItem } from './useVirtualPaginator';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import type { ThreadFilterState, ThreadSortFreezeState } from '../event-store/threads/roomThreadOverviewModel';
+import type {
+  ThreadFilterState,
+  ThreadSortFreezeState,
+} from '../event-store/threads/roomThreadOverviewModel';
 import { getRenderableEventEntries } from '../event-store/timeline/roomTimelineEvents';
 import {
   getEmptyTimeline,
@@ -40,7 +43,10 @@ import {
   resolveRoomEventThreadRedirect,
 } from '../routes/roomDeepLink';
 import { getRoomEventFocusTarget } from '../threads/threadRoomFocus';
-import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from '../event-store/threads/threadUtils';
+import {
+  buildVisibleThreadReplyCountMap,
+  eventBelongsToThread,
+} from '../event-store/threads/threadUtils';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import type { ThreadScheduledStatus } from '../event-store/threads/threadScheduledStatus';
 import type { ThreadResolutionState } from '../threads/tags/useRoomThreadTags';
@@ -102,6 +108,7 @@ export const useRoomEventOpenController = ({
   showHiddenEvents,
   threadEventIndexMapRef,
   threadFilteredEvents,
+  foldedRows,
   threadFilterStateRef,
   threadId,
   threadParticipantMap,
@@ -147,6 +154,13 @@ export const useRoomEventOpenController = ({
   showHiddenEvents: boolean;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadFilteredEvents: MatrixEvent[];
+  /**
+   * The row of each loaded event that a closed fold of the room's rows holds, by event ID
+   * (`RoomRowProjection`). Such an event shows no row until its fold opens: the fold's first
+   * event, a row of `threadFilteredEvents` that draws the fold's break, as much as the others,
+   * which are no rows of it. A jump to any of them unfolds the run instead of scrolling to a row.
+   */
+  foldedRows?: ReadonlyMap<string, number>;
   threadFilterStateRef: MutableRefObject<ThreadFilterState>;
   threadId?: string;
   threadParticipantMap: Map<string, string[]>;
@@ -318,15 +332,17 @@ export const useRoomEventOpenController = ({
       if (!alive()) return;
       const filterOpts = recalibrateFilterOptsRef.current;
       setTimeline(
-        countsRoomRows(getInitialTimeline(room, prefetchDepth, {
-          threadId,
-          ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
-          showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
-          hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
-          hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
-          showThreadRepliesInRoom:
-            filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
-        }))
+        countsRoomRows(
+          getInitialTimeline(room, prefetchDepth, {
+            threadId,
+            ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
+            showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
+            hideMembershipEvents: filterOpts?.hideMembershipEvents ?? hideMembershipEvents,
+            hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
+            showThreadRepliesInRoom:
+              filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
+          })
+        )
       );
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
@@ -423,6 +439,15 @@ export const useRoomEventOpenController = ({
         }
       }
 
+      const foldedRow = threadId ? undefined : foldedRows?.get(evtId);
+      if (foldedRow !== undefined) {
+        // Loaded, inside a closed fold: the focus keeps its run unfolded from the next render
+        // on, and the focus scroll lands on its row there.
+        setFocusItem({ eventId: evtId, index: foldedRow, scrollTo: true, highlight });
+        onScroll?.(true);
+        return;
+      }
+
       const filteredIndex = threadFilteredEvents.findIndex((event) => event.getId() === evtId);
 
       if (filteredIndex !== -1) {
@@ -491,6 +516,7 @@ export const useRoomEventOpenController = ({
       setTimeline,
       threadEventIndexMapRef,
       threadFilteredEvents,
+      foldedRows,
       threadId,
     ]
   );

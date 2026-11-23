@@ -8,7 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import type { TUploadItem, TUploadMetadata } from '../matrix/state/upload';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
+import {
+  getHomeAskDraftKey,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from './roomInputDrafts';
 import { clearKeptPastes, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createRoomInputPasteMarkerElement,
@@ -76,7 +80,7 @@ const openRestoredDraft = async () => {
   const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   const Harness = () => {
-    useRoomInputDraft(editor, USER, ROOM_ID);
+    useRoomInputDraft(editor, getRoomInputDraftKey(USER, ROOM_ID));
     feature = useRoomInputAttachments({
       mx: { cancelUpload: vi.fn() } as never,
       userId: USER,
@@ -145,5 +149,40 @@ describe('large pastes in a draft restored after a reload', () => {
       .staged.map((item) => item.metadata.mindroomPasteAttachment?.fileName)
       .find(Boolean)!;
     await expect.poll(async () => (await readKeptPasteTexts(USER, [name])).get(name)).toBe(text);
+  });
+
+  it('leaves a room draft kept paste intact when Home ask opens targeting that room', async () => {
+    await keepPasteText(USER, getRoomInputDraftKey(USER, ROOM_ID), marker.fileName, LOG);
+
+    const store = createStore();
+    const editor = withInlineElements(createEditor());
+    editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+    const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
+    const homeDraftKey = getHomeAskDraftKey(USER);
+    const HomeHarness = () => {
+      useRoomInputDraft(editor, homeDraftKey);
+      useRoomInputAttachments({
+        mx: { cancelUpload: vi.fn() } as never,
+        userId: USER,
+        room: room as unknown as Room,
+        roomId: ROOM_ID,
+        draftKey: homeDraftKey,
+        editor,
+        isMarkdown: true,
+        fileDropContainerRef: createRef<HTMLElement>(),
+        createUploadItems: prepare,
+      });
+      return null;
+    };
+    await act(async () => {
+      renderers.push(
+        create(React.createElement(Provider, { store }, React.createElement(HomeHarness)))
+      );
+    });
+    // Reopening the room after visiting Home still restores the room's kept paste.
+    const restored = await openRestoredDraft();
+    expect(restored.feature.lostPastes).toBe(false);
+    expect(restored.feature.access.snapshot().staged).toHaveLength(1);
+    expect(await restored.feature.access.snapshot().staged[0]!.file.text()).toBe(LOG);
   });
 });
