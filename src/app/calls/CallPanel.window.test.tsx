@@ -1053,6 +1053,27 @@ describe('the minimized bar', () => {
         failures.visible = { eventId: '$deaf', message: 'Voice call error: no audio arrives' };
       },
     ],
+    [
+      'screen sharing stops in the background',
+      'Share again',
+      () => {
+        calls.state = {
+          ...joined([me, person('@mindroom_helper:panel.test')]),
+          screenShareStoppedInBackground: true,
+        };
+      },
+    ],
+    [
+      'the microphone stops unexpectedly',
+      'Turn back on',
+      () => {
+        calls.state = {
+          ...joined([me, person('@mindroom_helper:panel.test')]),
+          microphone: false,
+          microphoneStopped: true,
+        };
+      },
+    ],
   ])('expands when %s, so the notice and its action show', (_problem, action, comesUp) => {
     agentCall({ roomId: room.roomId });
     // The window's Expand is one function, minimized or not.
@@ -1312,11 +1333,15 @@ describe('in-app screen share and stopped-device notices', () => {
     expect(button('Stop Screenshare')).toBeNull();
   });
 
-  it('shows the background screen share stopped notice with Share again and Dismiss', () => {
+  it('shows the background screen share stopped notice with Share again and Dismiss, and bar status', () => {
     roomCall([me, person('@ana:panel.test')]);
     calls.state = { ...calls.state!, screenShareStoppedInBackground: true };
-    renderPanel();
+    renderPanel({ frame: frame(true) });
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    expect(within(bar).getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
+    cleanup();
 
+    renderPanel();
     expect(screen.getByText('Screen sharing stopped when you left the app.')).toBeTruthy();
     press('Share again');
     expect(setScreenShare).toHaveBeenCalledWith(true);

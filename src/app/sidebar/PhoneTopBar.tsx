@@ -2,7 +2,7 @@ import { useId, useState, type MouseEvent } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
@@ -10,9 +10,11 @@ import {
   callPanelRoomAtom,
   isActiveCallShownIn,
   useActiveCall,
+  useCallState,
   useInCall,
   type ActiveCall,
 } from '../calls/callStore';
+import { CallStopNotices } from '../calls/CallNotices';
 import { useActiveCallShortcut } from '../calls/useActiveCallShortcut';
 import { CommandPaletteSearchField } from '../command-palette/CommandPaletteSearchField';
 import { allRoomsAtom } from '../matrix/state/roomList';
@@ -107,26 +109,32 @@ function ActivityBell() {
 function ReturnToCallButton({ active }: { active: ActiveCall }) {
   const { t } = useTranslation();
   const { label, icon, microphone, speaking, openHome } = useActiveCallShortcut(active);
+  const state = useCallState(active.call);
   const mutedId = useId();
+  const hasStopNotice =
+    state.screenShareStoppedInBackground || state.microphoneStopped || state.cameraStopped;
 
   return (
     <div className={css.ReturnToCallRow}>
-      <Button
-        type="button"
-        variant="Success"
-        fill="Soft"
-        radii="Pill"
-        size="400"
-        className={css.ReturnToCallButton}
-        data-speaking={speaking || undefined}
-        aria-describedby={microphone ? undefined : mutedId}
-        onClick={(event: MouseEvent<HTMLButtonElement>) => openHome(event.currentTarget)}
-      >
-        <Icon src={icon} size="100" filled aria-hidden />
-        <Text as="span" size="T300" truncate>
-          {label}
-        </Text>
-      </Button>
+      <Box direction="Column" gap="200">
+        <Button
+          type="button"
+          variant="Success"
+          fill="Soft"
+          radii="Pill"
+          size="400"
+          className={css.ReturnToCallButton}
+          data-speaking={speaking || undefined}
+          aria-describedby={microphone ? undefined : mutedId}
+          onClick={(event: MouseEvent<HTMLButtonElement>) => openHome(event.currentTarget)}
+        >
+          <Icon src={icon} size="100" filled aria-hidden />
+          <Text as="span" size="T300" truncate>
+            {label}
+          </Text>
+        </Button>
+        {hasStopNotice && <CallStopNotices call={active.call} state={state} />}
+      </Box>
       {!microphone && (
         <span id={mutedId} hidden>
           {t('featureUi.calls.panel.microphoneOff')}

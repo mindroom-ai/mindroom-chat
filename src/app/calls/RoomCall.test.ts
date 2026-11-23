@@ -2394,12 +2394,26 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     expect(call.getState().screenShare).toBe(true);
     expect(call.getState().screenShareStoppedInBackground).toBeFalsy();
     const sharePub = publicationOf(media, 'screen_share');
-    const muteSpy = vi.spyOn(sharePub, 'mute');
+    const order: string[] = [];
+    const muting = pending<void>();
+    vi.spyOn(sharePub, 'mute').mockImplementationOnce(async () => {
+      await muting.promise;
+      sharePub.isMuted = true;
+      order.push('mute-signaled');
+    });
+    const baseSetScreenShare = media.localParticipant.setScreenShareEnabled.getMockImplementation();
+    media.localParticipant.setScreenShareEnabled.mockImplementationOnce(async (on: boolean) => {
+      order.push(on ? 'publish' : 'unpublish');
+      return baseSetScreenShare?.(on);
+    });
 
     setVisibility('hidden');
-    // Mute is fired synchronously before awaiting unpublish (covers WebKit suspending early).
-    expect(muteSpy).toHaveBeenCalledOnce();
     await settle();
+    // Unpublish waits until mute has finished signaling `updateMuteStatus`.
+    expect(order).toEqual([]);
+    muting.resolve();
+    await settle();
+    expect(order).toEqual(['mute-signaled', 'unpublish']);
     expect(media.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false);
     expect(call.getState()).toMatchObject({
       screenShare: false,

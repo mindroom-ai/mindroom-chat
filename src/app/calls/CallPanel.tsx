@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
-import classNames from 'classnames';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
@@ -38,6 +37,7 @@ import {
 } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
+import { ActionNotice, CallStopNotices, Notice } from './CallNotices';
 import { CallMemberAvatar } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo, pickScope, type StageView } from './stageLayout';
@@ -72,65 +72,6 @@ const useCallAccess = (mx: MatrixClient, room: Room, needed = true): CallAccess 
     return readCallAccess(room, mx.getSafeUserId(), knownMembers);
   }, [levels, knownMembers, mx, needed, room]);
 };
-
-function Notice({
-  children,
-  critical,
-  action,
-}: {
-  children: ReactNode;
-  critical?: boolean;
-  action?: ReactNode;
-}) {
-  return (
-    <div
-      className={classNames(css.Notice, critical && css.NoticeCritical)}
-      role={critical ? 'alert' : 'status'}
-    >
-      <Icon size="200" src={Icons.Warning} />
-      <Text className={css.NoticeText} size="T300">
-        {children}
-      </Text>
-      {action && <span className={css.NoticeAction}>{action}</span>}
-    </div>
-  );
-}
-
-function ActionNotice({
-  message,
-  actionLabel,
-  onAction,
-  onDismiss,
-}: {
-  message: string;
-  actionLabel: string;
-  onAction: () => void;
-  onDismiss: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <Notice
-      action={
-        <Box gap="100" alignItems="Center">
-          <Button size="300" radii="300" variant="Warning" fill="Solid" onClick={onAction}>
-            <Text size="B300">{actionLabel}</Text>
-          </Button>
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Warning"
-            aria-label={t('mindroomUi.notices.dismiss')}
-            onClick={onDismiss}
-          >
-            <Icon size="100" src={Icons.Cross} />
-          </IconButton>
-        </Box>
-      }
-    >
-      {message}
-    </Notice>
-  );
-}
 
 const SHARE_LABEL_KEYS = {
   app: ['featureUi.call.controls.startAppShare', 'featureUi.call.controls.stopAppShare'],
@@ -234,9 +175,27 @@ function JoinedCall({
   // Minimized again while it stands, the window stays a bar.
   const expandWindow = frame?.expand;
   const failureId = visibleFailure?.eventId;
+  const screenShareStopped = !finished && !!state.screenShareStoppedInBackground;
+  const microphoneStopped = !finished && !!state.microphoneStopped;
+  const cameraStopped = !finished && !!state.cameraStopped;
   useEffect(() => {
-    if (failureId || state.audioBlocked) expandWindow?.();
-  }, [expandWindow, failureId, state.audioBlocked]);
+    if (
+      failureId ||
+      state.audioBlocked ||
+      screenShareStopped ||
+      microphoneStopped ||
+      cameraStopped
+    ) {
+      expandWindow?.();
+    }
+  }, [
+    expandWindow,
+    failureId,
+    state.audioBlocked,
+    screenShareStopped,
+    microphoneStopped,
+    cameraStopped,
+  ]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -377,18 +336,20 @@ function JoinedCall({
   const stageArea =
     stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
-  let stoppedInputStatus: string | undefined;
-  if (!finished && state.microphoneStopped) {
-    stoppedInputStatus = t('featureUi.calls.panel.microphoneStopped');
-  } else if (!finished && state.cameraStopped) {
-    stoppedInputStatus = t('featureUi.calls.panel.cameraStopped');
+  let stoppedStatus: string | undefined;
+  if (microphoneStopped) {
+    stoppedStatus = t('featureUi.calls.panel.microphoneStopped');
+  } else if (cameraStopped) {
+    stoppedStatus = t('featureUi.calls.panel.cameraStopped');
+  } else if (screenShareStopped) {
+    stoppedStatus = t('featureUi.calls.panel.screenShareStoppedInBackground');
   }
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
     // or why the microphone it just turned on stays off.
-    status: problem ?? stoppedInputStatus,
+    status: problem ?? stoppedStatus,
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
@@ -449,46 +410,13 @@ function JoinedCall({
         </Notice>
       )}
       {state.audioBlocked && (
-        <Notice
-          action={
-            <Button
-              size="300"
-              radii="300"
-              variant="Warning"
-              fill="Solid"
-              onClick={() => void call.resumeAudio()}
-            >
-              <Text size="B300">{t('featureUi.calls.panel.playSound')}</Text>
-            </Button>
-          }
-        >
-          {t('featureUi.calls.panel.audioBlocked')}
-        </Notice>
-      )}
-      {!finished && state.screenShareStoppedInBackground && (
         <ActionNotice
-          message={t('featureUi.calls.panel.screenShareStoppedInBackground')}
-          actionLabel={t('featureUi.calls.panel.shareAgain')}
-          onAction={() => void call.setScreenShare(true)}
-          onDismiss={() => call.dismissScreenShareNotice()}
+          message={t('featureUi.calls.panel.audioBlocked')}
+          actionLabel={t('featureUi.calls.panel.playSound')}
+          onAction={() => void call.resumeAudio()}
         />
       )}
-      {!finished && state.microphoneStopped && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.microphoneStopped')}
-          actionLabel={t('featureUi.calls.panel.turnBackOn')}
-          onAction={() => void call.setMicrophone(true)}
-          onDismiss={() => call.dismissStoppedInput('microphone')}
-        />
-      )}
-      {!finished && state.cameraStopped && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.cameraStopped')}
-          actionLabel={t('featureUi.calls.panel.turnBackOn')}
-          onAction={() => void call.setCamera(true)}
-          onDismiss={() => call.dismissStoppedInput('camera')}
-        />
-      )}
+      {!finished && <CallStopNotices call={call} state={state} />}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>

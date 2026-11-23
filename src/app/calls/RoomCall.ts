@@ -547,7 +547,6 @@ export class RoomCall {
     },
     [RoomEvent.TrackUnsubscribed]: (track) => {
       this.detachAudio(track);
-      this.refresh();
       // LiveKit 2.24.1 emits TrackUnsubscribed before clearing `publication.track`.
       queueMicrotask(this.refresh);
     },
@@ -607,15 +606,19 @@ export class RoomCall {
     return current();
   }
 
-  private stopScreenShareInBackground() {
-    const participant = this.media?.localParticipant;
-    // Signal mute before SDP renegotiation (unpublish), in case WebKit suspends the page first.
-    void participant
-      ?.getTrackPublication(Track.Source.ScreenShare)
-      ?.mute()
-      .catch(() => undefined);
+  private async stopScreenShareInBackground() {
+    const media = this.media;
+    const participant = media?.localParticipant;
+    if (!participant) return;
+    const publication = participant.getTrackPublication(Track.Source.ScreenShare);
     this.update({ screenShare: false, screenShareStoppedInBackground: true });
-    void this.setScreenShare(false);
+    // Await mute so LiveKit signals `updateMuteStatus` before unpublish removes its listener.
+    await publication?.mute().catch(() => undefined);
+    if (this.media !== media || this.screenShareStart) return;
+    if (publication && participant.getTrackPublication(Track.Source.ScreenShare) !== publication) {
+      return;
+    }
+    await this.setScreenShare(false);
   }
 
   private onVisibilityChange = () => {
@@ -625,7 +628,7 @@ export class RoomCall {
         if (this.screenShareStart) {
           this.screenShareStart.hid = true;
         } else if (this.state.screenShare || this.media?.localParticipant.isScreenShareEnabled) {
-          this.stopScreenShareInBackground();
+          void this.stopScreenShareInBackground();
         }
       }
       return;
@@ -1039,7 +1042,7 @@ export class RoomCall {
       if (this.screenShareStart === start) this.screenShareStart = undefined;
       if (this.media !== media) return;
       if (start.hid && participant.isScreenShareEnabled) {
-        this.stopScreenShareInBackground();
+        await this.stopScreenShareInBackground();
         return;
       }
       this.refresh();
