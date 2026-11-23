@@ -32,7 +32,9 @@ export const HelpRow = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: config.space.S300,
+  flexWrap: 'wrap',
+  rowGap: config.space.S100,
+  columnGap: config.space.S300,
   minHeight: 32,
 });
 
