@@ -22,9 +22,13 @@ const listReach = (
     );
   if (!newest) return undefined;
   const mounted = new Set(tiles.map(indexOf));
-  const unmountedAfter = rows
-    .slice(indexOf(newest) + 1)
-    .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
+  // Indexed read, not `.slice()`: virtual-core's lazy measurements proxy has no `has` trap over
+  // its sparse backing array, so `.slice()` yields holes and `.reduce()` drops unmounted rows.
+  let unmountedAfter = 0;
+  for (let i = indexOf(newest) + 1; i < rows.length; i += 1) {
+    const row = rows[i];
+    if (row && !mounted.has(row.index)) unmountedAfter += row.size;
+  }
   const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
   const { bottom, height } = newest.getBoundingClientRect();
   const reach = inner.getBoundingClientRect().bottom - bottom;

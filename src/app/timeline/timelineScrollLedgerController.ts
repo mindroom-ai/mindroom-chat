@@ -808,6 +808,15 @@ export const useTimelineScrollLedgerController = ({
   const handleAppliedCorrection = useCallback(
     (deltaPx: number, atEnd: boolean) => {
       noteAppliedCorrection(deltaPx);
+      const scrollElement = getScrollElement();
+      if (scrollElement && !isIOSWebKitDevice()) {
+        const end = scrollElement.scrollHeight - scrollElement.clientHeight;
+        const target = scrollElement.scrollTop + deltaPx;
+        ledgerBoundaryScrollTopRef.current = Math.max(
+          0,
+          Number.isFinite(end) ? Math.min(target, end) : target
+        );
+      }
       // virtual-core writes this correction itself, so the view moves without the compositor: a
       // move back toward the pre-settle offset is no discarded settle any more (a row above that
       // grew and shrank again landed 8 px from it and had the settle folded in a second time).
@@ -826,7 +835,7 @@ export const useTimelineScrollLedgerController = ({
       unrenderedCorrectionPxRef.current += deltaPx;
       if (atEnd) unrenderedEndCorrectionPxRef.current += deltaPx;
     },
-    [noteAppliedCorrection]
+    [getScrollElement, noteAppliedCorrection]
   );
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
   const unrenderedEndCorrectionPx = useCallback(() => unrenderedEndCorrectionPxRef.current, []);
@@ -923,6 +932,7 @@ export const useTimelineScrollLedgerController = ({
         if (Date.now() - watch.at > SETTLE_DISCARD_WINDOW_MS) {
           settleDiscardWatchRef.current = undefined;
         } else if (
+          watch.landsAt === undefined &&
           !wheeled &&
           isDiscardedSettleWrite({
             px: watch.px,
@@ -945,29 +955,43 @@ export const useTimelineScrollLedgerController = ({
           // The rows' part comes back with the margin, in the render that paints it: without
           // it the end clamp read that part of the restored margin as rows that shrank.
           droppedRowFoldPxRef.current += watch.rowFoldPx;
-          watch.rowFoldPx = -watch.rowFoldPx;
           // Rendered now, before this event's frame paints the rows without their fold.
           flushSync(() => handleDroppedCorrection(watch.px));
           return;
         } else if (watch.landsAt !== undefined) {
           // WebKit applies a write it reported as gone, the settle's or one made since at the
           // offset it reported, once its scrolling thread gets to it: the offset lands where
-          // that write asked (the scroll range's end at most), give or take the wheel's travel.
-          // That move is the browser's, so the ledger takes it and the rows stay where the
-          // reader has them (main shows them a fold away until the write lands).
+          // that write asked (unclamped before layout, or clamped to the scroll range's end),
+          // give or take the wheel's travel. That move is the browser's, so the ledger takes
+          // it and the rows stay where the reader has them.
           const wheel = Number.isFinite(wheeledPx) ? wheeledPx : 0;
-          const end = scrollElement.scrollHeight - scrollElement.clientHeight;
-          const off = currentScrollTop - wheel - Math.min(watch.landsAt, end);
+          const target = currentScrollTop - wheel;
+          const slack = SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel);
           const movedPx = delta - wheel;
           if (
             !wheeled &&
             Math.abs(movedPx) > SETTLE_DISCARD_HELD_SLACK_PX &&
-            Math.abs(off) <= SETTLE_DISCARD_HELD_SLACK_PX + Math.abs(wheel)
+            (Math.abs(target - watch.landsAt) <= slack ||
+              Math.abs(
+                target -
+                  Math.min(watch.landsAt, scrollElement.scrollHeight - scrollElement.clientHeight)
+              ) <= slack)
           ) {
+            const rowFoldFor = (px: number) =>
+              Math.max(-1, Math.min(1, -px / watch.px)) * watch.rowFoldPx;
+            const rowFoldDelta = rowFoldFor(movedPx);
             watch.landsAt = previousScrollTop;
-            droppedRowFoldPxRef.current += watch.rowFoldPx;
-            watch.rowFoldPx = -watch.rowFoldPx;
+            droppedRowFoldPxRef.current += rowFoldDelta;
             flushSync(() => handleDroppedCorrection(-movedPx));
+            // WebKit can still clamp an unclamped scrolling-thread offset to the prior end
+            // during the commit's layout before the restored margin resolves; fold that clamp
+            // before virtual-core reads the event.
+            const clampedPx = scrollElement.scrollTop - currentScrollTop;
+            if (clampedPx !== 0) {
+              ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+              droppedRowFoldPxRef.current += rowFoldFor(movedPx + clampedPx) - rowFoldDelta;
+              flushSync(() => handleDroppedCorrection(-clampedPx));
+            }
             return;
           }
         } else if (

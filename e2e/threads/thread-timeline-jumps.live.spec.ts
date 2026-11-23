@@ -668,15 +668,14 @@ const installThreadJumpProbe = () => {
           const movedPx = dScroll - appDelta;
           if (Math.abs(appDelta) >= 48) probe.lastWrite = { px: appDelta, at: now };
           const { lastWrite } = probe;
-          const undone =
-            now - lastWrite.at < 2_000 &&
-            movedPx * lastWrite.px < 0 &&
-            Math.abs(movedPx + lastWrite.px) <= Math.abs(lastWrite.px) / 2;
-          if (undone) {
-            probe.lastWrite = { px: 0, at: 0 };
-            probe.takenBackAt = now;
-          }
           const wheelAheadPx = wheelPx === 0 && movedPx === 0 ? 0 : probe.wheelAheadPx + wheelPx;
+          const browserMove =
+            probe.mode === 'scrollUp' && wheelAheadPx < 0 ? movedPx - wheelAheadPx : movedPx;
+          const isUndo = (px: number) =>
+            px * lastWrite.px < 0 && Math.abs(px + lastWrite.px) <= Math.abs(lastWrite.px) / 2;
+          const undone = now - lastWrite.at < 2_000 && (isUndo(movedPx) || isUndo(browserMove));
+          if (undone) probe.lastWrite = { px: 0, at: 0 };
+          if (undone || (probe.mode === 'scrollUp' && movedPx > 0)) probe.takenBackAt = now;
           const userScroll =
             probe.mode === 'scrollUp' && (movedPx > 0 || now - probe.takenBackAt < 2_000)
               ? -Math.min(-wheelAheadPx, Math.max(0, median))

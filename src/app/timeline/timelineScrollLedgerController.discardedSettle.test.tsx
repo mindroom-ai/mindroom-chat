@@ -167,3 +167,215 @@ it('restores the part rows brought to the ledger when a settle is discarded', as
     reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
   }
 });
+
+it('follows an unclamped WebKit replay past the restored end and tracks applied corrections in between', async () => {
+  const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
+  reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+  const scrollElement = document.createElement('div');
+  scrollElement.scrollTop = 23602;
+  let scrollHeight = 36006;
+  Object.defineProperty(scrollElement, 'scrollHeight', {
+    configurable: true,
+    get: () => scrollHeight,
+  });
+  Object.defineProperty(scrollElement, 'clientHeight', { configurable: true, value: 884 });
+  const rect = vi
+    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockImplementation(() => ({ top: 0, bottom: 884 } as DOMRect));
+  let readRowFoldPx = () => 0;
+  function Harness() {
+    const controller = useTimelineScrollLedgerController({
+      alive: () => true,
+      estimateSize: () => 100,
+      getItemKey: (index) => index,
+      getScrollElement: () => scrollElement,
+      itemCount: 2,
+      pendingRoomFoldPxRef: useRef(0),
+      roomFoldPriceRef: useRef(() => 100),
+      roomId: '!room:example.org',
+      threadEventIndexMap: new Map(),
+      threadEvents: [],
+      threadInitialRenderMode: 'live',
+    });
+    readRowFoldPx = controller.readRowFoldPx;
+    return <div ref={controller.virtualInnerRef} data-list />;
+  }
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const render = () => flushSync(() => root.render(<Harness />));
+  try {
+    render();
+    render();
+    const inner = container.querySelector<HTMLElement>('[data-list]');
+    if (!inner) throw new Error('List missing');
+    let clampOnNextMarginWrite = false;
+    let marginTopValue = '';
+    Object.defineProperty(inner, 'style', {
+      value: {
+        get marginTop() {
+          return marginTopValue;
+        },
+        set marginTop(value: string) {
+          marginTopValue = value;
+          if (clampOnNextMarginWrite) {
+            clampOnNextMarginWrite = false;
+            scrollElement.scrollTop = 35122;
+          }
+        },
+      },
+    });
+    const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
+    // Fold 15846 px from rows above the reader.
+    expect(
+      hook({ end: 100, index: 0 }, 15846, {
+        scrollOffset: 23602,
+        scrollDirection: 'backward',
+        scrollElement,
+      })
+    ).toBe(false);
+    render();
+    render();
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '-15846px',
+      rowFoldPx: 15846,
+    });
+
+    // Quiescence settles: margin clears, scrollHeight grows, scrollTop becomes 39448.
+    scrollHeight = 51852;
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect({ marginTop: inner.style.marginTop, scrollTop: scrollElement.scrollTop }).toEqual({
+      marginTop: '',
+      scrollTop: 39448,
+    });
+
+    // WebKit discards under a wheel notch (-240): restores margin (-15846px), shrinking end to 35122.
+    const wheelUp = () => scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -240 }));
+    wheelUp();
+    scrollElement.scrollTop = 23362;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    scrollHeight = 36006;
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '-15846px',
+      rowFoldPx: 15846,
+    });
+
+    // WebKit replays 39448 - 240 = 39208 UNCLAMPED past the restored end (35122), and
+    // clamps scrollTop to 35122 during the commit layout before the margin resolves.
+    clampOnNextMarginWrite = true;
+    wheelUp();
+    scrollElement.scrollTop = 39208;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({
+      scrollTop: scrollElement.scrollTop,
+      marginTop: inner.style.marginTop,
+      rowFoldPx: readRowFoldPx(),
+    }).toEqual({
+      scrollTop: 35122,
+      marginTop: '-3846px',
+      rowFoldPx: 3846,
+    });
+
+    // If WebKit instead replays a settle write clamped to the restored end (35122), only the
+    // moved part comes off rowFoldPx so the remaining negative margin does not read as shrink.
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    scrollHeight = 36006;
+    scrollElement.scrollTop = 23602;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect(
+      hook({ end: 100, index: 0 }, 15846, {
+        scrollOffset: 23602,
+        scrollDirection: 'backward',
+        scrollElement,
+      })
+    ).toBe(false);
+    render();
+    render();
+    scrollHeight = 51852;
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    wheelUp();
+    scrollElement.scrollTop = 23362;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    scrollHeight = 36006;
+    wheelUp();
+    scrollElement.scrollTop = 35122;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '-3846px',
+      rowFoldPx: 3846,
+    });
+
+    // Settle the remaining -240 px, then test a negative fold settle discarded with an applied
+    // correction landing before WebKit replays the settle write.
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    scrollHeight = 50954;
+    scrollElement.scrollTop = 27030;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect(
+      hook({ end: 100, index: 0 }, -1140, {
+        scrollOffset: 27030,
+        scrollDirection: 'backward',
+        scrollElement,
+      })
+    ).toBe(false);
+    render();
+    render();
+    expect(inner.style.marginTop).toBe('1140px');
+
+    scrollHeight = 49814;
+    rest.waits.splice(0).forEach((resolve) => resolve());
+    await Promise.resolve();
+    await Promise.resolve();
+    expect({ marginTop: inner.style.marginTop, scrollTop: scrollElement.scrollTop }).toEqual({
+      marginTop: '',
+      scrollTop: 25890,
+    });
+
+    // Discarded under a wheel notch (-240): scrollTop returns to 26790.
+    wheelUp();
+    scrollElement.scrollTop = 26790;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect(inner.style.marginTop).toBe('1140px');
+
+    // virtual-core applies a -256 px correction before WebKit replays the settle write.
+    expect(
+      hook({ end: 100, index: 0 }, -256, {
+        scrollOffset: 26790,
+        scrollDirection: null,
+        scrollElement,
+      })
+    ).toBe(true);
+    scrollElement.scrollTop = 26534;
+
+    // WebKit replays 25890 - 240 = 25650: movedPx is (25650 - 26534) - (-240) = -644, not -900.
+    wheelUp();
+    scrollElement.scrollTop = 25650;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '496px',
+      rowFoldPx: -496,
+    });
+
+    // WebKit then replays the applied correction (26534 - 240 = 26294): handled by landsAt, not
+    // re-entering discarded (which would add -1140 instead of -884).
+    wheelUp();
+    scrollElement.scrollTop = 26294;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    expect({ marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() }).toEqual({
+      marginTop: '1380px',
+      rowFoldPx: -1380,
+    });
+  } finally {
+    flushSync(() => root.unmount());
+    rect.mockRestore();
+    reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+  }
+});

@@ -46,6 +46,29 @@ describe('listShrinkNotRendered', () => {
     expect(listShrinkNotRendered(inner, rows([68, 3626, 308, 30, 0]))).toBe(62);
   });
 
+  it('reads unmounted rows through virtual-core lazy measurements proxies without a has trap', () => {
+    const sizes = [68, 3626, 246, 300, 400];
+    const cache = new Array<{ index: number; size: number } | undefined>(sizes.length);
+    const lazyRows = new Proxy(cache, {
+      get(target, prop, receiver) {
+        if (typeof prop === 'string') {
+          const index = Number(prop);
+          if (Number.isInteger(index) && index >= 0 && index < sizes.length) {
+            const existing = target[index];
+            if (existing) return existing;
+            const created = { index, size: sizes[index] ?? 0 };
+            target[index] = created;
+            return created;
+          }
+          if (prop === 'length') return sizes.length;
+        }
+        return Reflect.get(target, prop, receiver) as unknown;
+      },
+    }) as readonly { index: number; size: number }[];
+    const inner = list(1322, [{ index: 2, top: 376, height: 246 }]);
+    expect(listShrinkNotRendered(inner, lazyRows)).toBe(0);
+  });
+
   it('counts a reply that shrank above mounted rows without a height', () => {
     const inner = list(684, [
       { index: 1, top: -3414, height: 3626 },
