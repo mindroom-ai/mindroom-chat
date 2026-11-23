@@ -2,6 +2,7 @@
 # No test hooks, private WebKit APIs, or fixture resources enter the shipping app.
 require 'fileutils'
 require 'json'
+require 'pathname'
 require 'xcodeproj'
 
 repo = File.expand_path('..', __dir__)
@@ -72,6 +73,21 @@ host.resources_build_phase.add_file_reference(privacy_manifest)
 config_path = File.join(output, 'capacitor.config.json')
 File.write(config_path, JSON.generate({ appId: 'chat.mindroom.RoutingHost', loggingBehavior: 'production' }))
 host.resources_build_phase.add_file_reference(project.main_group.new_file(config_path))
+
+notification_kit_path = Pathname.new(File.join(repo, 'ios/NotificationService/MindRoomNotificationKit'))
+  .relative_path_from(Pathname.new(output))
+  .to_s
+notification_kit_ref = project.new(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+notification_kit_ref.relative_path = notification_kit_path
+project.root_object.package_references << notification_kit_ref
+notification_kit_dep = project.new(Xcodeproj::Project::Object::XCSwiftPackageProductDependency)
+notification_kit_dep.package = notification_kit_ref
+notification_kit_dep.product_name = 'MindRoomNotificationKit'
+host.package_product_dependencies << notification_kit_dep
+notification_kit_build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+notification_kit_build_file.product_ref = notification_kit_dep
+host.frameworks_build_phase.files << notification_kit_build_file
+
 project.save
 
 scheme = Xcodeproj::XCScheme.new
