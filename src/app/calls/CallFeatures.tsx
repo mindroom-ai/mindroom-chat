@@ -14,7 +14,6 @@ import {
   type CallResumeRecord,
 } from './callResume';
 import { AgentCallFailureNotice } from './agent/AgentCallFailureNotice';
-import { CallStopNoticesOutOfView } from './CallNotices';
 import { IncomingCalls } from './IncomingCalls';
 import { AgentCallTranscript } from './transcription/AgentCallTranscript';
 import { CallTranscription } from './transcription/CallTranscription';
@@ -122,7 +121,7 @@ function CallResume() {
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
  * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
- * transcript), the floating call window, and the stop notices of a call whose view is out of sight.
+ * transcript), and the floating call window.
  */
 export function CallFeatures() {
   return (
@@ -133,7 +132,6 @@ export function CallFeatures() {
       <AgentCallTranscript />
       {/* Beside the rings, not inside their fixed corner: the window places itself in the viewport. */}
       <CallWindowHost />
-      <CallStopNoticesOutOfView />
       <div className={css.Host}>
         <IncomingCalls />
         <AgentCallFailureNotice />

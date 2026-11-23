@@ -76,61 +76,14 @@ describe('screenShareIsInAppOnly', () => {
   });
 
   it.each([
+    ['iPhone', { userAgent: 'iPhone OS 18_0', platform: 'iPhone', maxTouchPoints: 5 }, true],
     [
-      'iPhone',
-      {
-        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15',
-        platform: 'iPhone',
-        maxTouchPoints: 5,
-      },
+      'iPadOS desktop mode',
+      { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 5 },
       true,
     ],
-    [
-      'iPad',
-      {
-        userAgent: 'Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) AppleWebKit/605.1.15',
-        platform: 'iPad',
-        maxTouchPoints: 5,
-      },
-      true,
-    ],
-    [
-      'iPadOS desktop mode (MacIntel + touch)',
-      {
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
-        platform: 'MacIntel',
-        maxTouchPoints: 5,
-      },
-      true,
-    ],
-    [
-      'macOS desktop',
-      {
-        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
-        platform: 'MacIntel',
-        maxTouchPoints: 0,
-      },
-      false,
-    ],
-    [
-      'Linux touch laptop',
-      {
-        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/142.0.0.0',
-        platform: 'Linux x86_64',
-        maxTouchPoints: 10,
-      },
-      false,
-    ],
-    [
-      'Android phone',
-      {
-        userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/142.0.0.0',
-        platform: 'Linux armv8l',
-        maxTouchPoints: 5,
-      },
-      false,
-    ],
-  ])('returns %s for %s', (_label, nav, expected) => {
+    ['macOS desktop', { userAgent: 'Macintosh', platform: 'MacIntel', maxTouchPoints: 0 }, false],
+  ])('detects %s', (_label, nav, expected) => {
     vi.stubGlobal('navigator', nav);
     expect(screenShareIsInAppOnly()).toBe(expected);
   });

@@ -1,21 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useAtom, useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import classNames from 'classnames';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
-import { coverNoticeSlotAtom } from '../ui/noticeSlots';
-import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallParticipant, CallProblem, CallState } from './RoomCall';
+import type { CallParticipant, CallProblem, CallState, RoomCall } from './RoomCall';
 import {
   callHomeRoomId,
-  callNoticesInViewAtom,
   callPanelRoomAtom,
   callStartingAtom,
   callStartProblemAtom,
@@ -40,7 +38,6 @@ import {
 } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { ActionNotice, CallStopNotices, Notice } from './CallNotices';
 import { CallMemberAvatar } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo, pickScope, type StageView } from './stageLayout';
@@ -75,6 +72,48 @@ const useCallAccess = (mx: MatrixClient, room: Room, needed = true): CallAccess 
     return readCallAccess(room, mx.getSafeUserId(), knownMembers);
   }, [levels, knownMembers, mx, needed, room]);
 };
+
+function Notice({
+  children,
+  critical,
+  action,
+}: {
+  children: ReactNode;
+  critical?: boolean;
+  action?: ReactNode;
+}) {
+  return (
+    <div
+      className={classNames(css.Notice, critical && css.NoticeCritical)}
+      role={critical ? 'alert' : 'status'}
+    >
+      <Icon size="200" src={Icons.Warning} />
+      <Text className={css.NoticeText} size="T300">
+        {children}
+      </Text>
+      {action && <span className={css.NoticeAction}>{action}</span>}
+    </div>
+  );
+}
+
+// Stop notices in display order; `act` runs synchronously in the click (screen picker needs a gesture).
+const STOP_NOTICES = [
+  {
+    flag: 'microphoneStopped',
+    act: (call: RoomCall) => call.setMicrophone(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('microphone'),
+  },
+  {
+    flag: 'cameraStopped',
+    act: (call: RoomCall) => call.setCamera(true),
+    dismiss: (call: RoomCall) => call.dismissStoppedInput('camera'),
+  },
+  {
+    flag: 'screenShareStoppedInBackground',
+    act: (call: RoomCall) => call.setScreenShare(true),
+    dismiss: (call: RoomCall) => call.dismissScreenShareNotice(),
+  },
+] as const;
 
 const SHARE_LABEL_KEYS = {
   app: ['featureUi.call.controls.startAppShare', 'featureUi.call.controls.stopAppShare'],
@@ -178,21 +217,12 @@ function JoinedCall({
   // Minimized again while it stands, the window stays a bar.
   const expandWindow = frame?.expand;
   const failureId = visibleFailure?.eventId;
+  const stopNotice = STOP_NOTICES.filter(({ flag }) => state[flag])
+    .map(({ flag }) => flag)
+    .join();
   useEffect(() => {
-    if (failureId || state.audioBlocked) expandWindow?.();
-  }, [expandWindow, failureId, state.audioBlocked]);
-  // The view shows the stop notices only where they can be reached: not minimized to its bar or
-  // folded to its tab, nor under what covers the page (a phone's drawer or sheet, a dialog).
-  // CallStopNoticesOutOfView shows the rest.
-  const folded = usePanelFrame()?.layout === 'folded';
-  const covered = useAtomValue(coverNoticeSlotAtom) !== null;
-  const noticesInView = !covered && !folded && !frame?.bar;
-  const setNoticesInView = useSetAtom(callNoticesInViewAtom);
-  useLayoutEffect(() => {
-    if (!noticesInView) return undefined;
-    setNoticesInView((views) => views + 1);
-    return () => setNoticesInView((views) => Math.max(0, views - 1));
-  }, [noticesInView, setNoticesInView]);
+    if (failureId || state.audioBlocked || stopNotice) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked, stopNotice]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -399,13 +429,57 @@ function JoinedCall({
         </Notice>
       )}
       {state.audioBlocked && (
-        <ActionNotice
-          message={t('featureUi.calls.panel.audioBlocked')}
-          actionLabel={t('featureUi.calls.panel.playSound')}
-          onAction={() => void call.resumeAudio()}
-        />
+        <Notice
+          action={
+            <Button
+              size="300"
+              radii="300"
+              variant="Warning"
+              fill="Solid"
+              onClick={() => void call.resumeAudio()}
+            >
+              <Text size="B300">{t('featureUi.calls.panel.playSound')}</Text>
+            </Button>
+          }
+        >
+          {t('featureUi.calls.panel.audioBlocked')}
+        </Notice>
       )}
-      {noticesInView && <CallStopNotices call={call} state={state} />}
+      {STOP_NOTICES.filter(({ flag }) => state[flag]).map(({ flag, act, dismiss }) => {
+        const share = flag === 'screenShareStoppedInBackground';
+        return (
+          <Notice
+            key={flag}
+            action={
+              <Box gap="100" alignItems="Center">
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  fill="Solid"
+                  disabled={share && state.phase !== 'connected'}
+                  onClick={() => void act(call)}
+                >
+                  <Text size="B300">
+                    {t(`featureUi.calls.panel.${share ? 'shareAgain' : 'turnBackOn'}`)}
+                  </Text>
+                </Button>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Warning"
+                  aria-label={t('mindroomUi.notices.dismiss')}
+                  onClick={() => dismiss(call)}
+                >
+                  <Icon size="100" src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            }
+          >
+            {t(`featureUi.calls.panel.${flag}`)}
+          </Notice>
+        );
+      })}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {stageArea}
     </CallViewChrome>
