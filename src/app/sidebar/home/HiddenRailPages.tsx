@@ -2,10 +2,11 @@ import { Icons, Line } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
-import { getCanvasesPath, getThreadsPath } from '../../routes/pathUtils';
+import { getCanvasesPath, getThreadsPath, getUsagePath } from '../../routes/pathUtils';
 import { type RailButton, useOfferedRailButtons, useRailButtons } from '../../settings/railButtons';
 import { useOpenCreateSpaceModal } from '../../navigation/useCreateSpaceModal';
 import { useHasCanvases } from '../rail/CanvasesTab';
+import { useHasProviderUsage } from '../rail/UsageTab';
 import { useOpenExplore } from '../rail/useOpenExplore';
 
 /**
@@ -22,12 +23,14 @@ export function HiddenRailPages({ onClose }: { onClose: () => void }) {
   const openExplore = useOpenExplore();
   const openCreateSpace = useOpenCreateSpaceModal();
   const hasCanvases = useHasCanvases();
+  const hasUsage = useHasProviderUsage();
   const hidden = (button: RailButton) => offered[button] && !shown[button];
   const threads = hidden('threads');
   const canvases = hidden('canvases') && hasCanvases;
+  const usage = hidden('usage') && hasUsage;
   const explore = hidden('explore');
   const createSpace = hidden('createSpace');
-  if (!threads && !canvases && !explore && !createSpace) return null;
+  if (!threads && !canvases && !usage && !explore && !createSpace) return null;
 
   const closeThen = (open: () => void) => () => {
     onClose();
@@ -49,6 +52,13 @@ export function HiddenRailPages({ onClose }: { onClose: () => void }) {
             icon={Icons.Category}
             label={t('nav.canvases')}
             onSelect={closeThen(() => void navigate(getCanvasesPath()))}
+          />
+        )}
+        {usage && (
+          <MenuEntry
+            icon={Icons.Clock}
+            label={t('nav.usage')}
+            onSelect={closeThen(() => void navigate(getUsagePath()))}
           />
         )}
         {explore && (

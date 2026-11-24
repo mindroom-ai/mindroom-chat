@@ -5,8 +5,18 @@ import { isRecord } from '../lib/isRecord';
 import { isPluginEnabled } from './pluginDeploymentConfig';
 import type { RegisteredPlugin } from './registry';
 
-/** What a thread detail is given: the thread's room and the ID of its root event. */
-export type ThreadDetailProps = { room: Room; threadId: string };
+/**
+ * What a thread detail is given: the thread's room, the ID of its root event, and an optional
+ * `onClose` callback. Interactive surfaces (such as the thread actions menu) pass `onClose` so
+ * details can render controls that dismiss the surface after an action; hover cards omit it, and
+ * details rendered there must stay non-interactive.
+ */
+export type ThreadDetailProps = {
+  room: Room;
+  threadId: string;
+  /** Dismisses the interactive surface (such as the thread actions menu); omitted in hover cards. */
+  onClose?: () => void;
+};
 
 /** A detail a plugin draws about a thread. */
 export type ThreadDetail = {

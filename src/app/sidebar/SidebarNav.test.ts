@@ -36,6 +36,9 @@ vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: () => React.createElement('div', { 'data-tab': 'canvases' }),
 }));
+vi.mock('./rail/UsageTab', () => ({
+  UsageTab: () => React.createElement('div', { 'data-tab': 'usage' }),
+}));
 vi.mock('./rail/DirectTab', () => ({
   DirectTab: () => React.createElement('div', { 'data-tab': 'direct' }),
 }));

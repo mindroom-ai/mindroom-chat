@@ -418,7 +418,9 @@
         "search": "在側邊欄顯示搜尋",
         "searchDescription": "用於開啟命令面板的按鈕。隱藏後，可從「尋找任何內容」欄位開啟，或按 {{shortcut}}。",
         "localMindroom": "在側邊欄顯示 Local MindRoom",
-        "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。"
+        "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。",
+        "usage": "在側邊欄顯示用量",
+        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。"
       },
       "plugins": {
         "title": "外掛程式",
@@ -1006,6 +1008,14 @@
         "scopeOwn": "適用於此討論串中你可以對話的代理程式和團隊日後的回覆。",
         "scopeOther": "適用於此討論串中 {{name}} 可以對話的代理程式和團隊日後的回覆。"
       },
+      "triggerWakeMarker": {
+        "triggered": "已觸發",
+        "webhook": "Webhook",
+        "triggerLabel": "觸發器 {{id}}",
+        "sourceLabel": "來源 {{source}}",
+        "triageLabel": "分流：{{reason}}",
+        "payloadLabel": "事件酬載 JSON"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
@@ -1331,6 +1341,46 @@
         "kept": "您的草稿保持原樣。複製請求後自行加入。",
         "copied": "請求已複製。請貼到您的草稿中。"
       }
+    },
+    "usage": {
+      "title": "用量與限制",
+      "navLowQuota": "用量（配額偏低）",
+      "tabsLimits": "限制",
+      "tabsTokens": "權杖與費用",
+      "refresh": "重新整理",
+      "updatedAgo": "更新於 {{time}}",
+      "runtimeLabel": "執行環境",
+      "loading": "正在檢查供應商用量…",
+      "unavailableTitle": "無法取得用量資料",
+      "unavailableBody": "沒有已連線的執行環境為此帳號回報供應商配額限制。",
+      "retry": "重試",
+      "partialData": "部分資料 — 某些供應商或用量紀錄無法載入。",
+      "stale": "已過期",
+      "percentLeft": "剩餘 {{percent}}%",
+      "resetsIn": "{{duration}}後重設",
+      "resetsAt": "{{time}}重設",
+      "resetsSoon": "即將重設",
+      "quotaAria": "{{label}}：剩餘 {{percent}}%",
+      "quotaAriaWithReset": "{{label}}：剩餘 {{percent}}%，{{reset}}",
+      "noSubscriptionLimit": "無訂閱上限",
+      "payAsYouGo": "隨用隨付",
+      "limitsUnavailable": "無法取得配額限制",
+      "notSignedIn": "尚未登入",
+      "tokens7d": "{{tokens}} 權杖（7天）",
+      "estimatedCost": "約 {{cost}}",
+      "totalTokens7d": "7 天權杖總量",
+      "totalCost7d": "7 天預估費用",
+      "dailyChartTitle": "每日權杖用量（近 7 天）",
+      "dailyBarAria": "{{day}}：{{tokens}} 權杖",
+      "breakdownTitle": "各帳號明細",
+      "colAccount": "帳號",
+      "colTokens": "7天權杖",
+      "colShare": "占比",
+      "colSpend": "7天費用",
+      "unattributed": "未歸類",
+      "allUsageAndLimits": "檢視全部用量與限制 →",
+      "noAccounts": "尚未回報供應商帳號。",
+      "noDailyData": "過去 7 天沒有每日用量紀錄。"
     }
   },
   "composer": {
@@ -1920,5 +1970,8 @@
       "action": "驗證此裝置",
       "text": "在那之前，它無法讀取你的加密對話。"
     }
+  },
+  "nav": {
+    "usage": "用量"
   }
 }

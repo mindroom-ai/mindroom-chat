@@ -90,6 +90,7 @@ import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummary
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
+import { TriggerWakeMarker } from '../../messages/TriggerWakeMarker';
 import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
@@ -331,13 +332,14 @@ const shrinkingQuietRunItemStyle = {
 } as const;
 /**
  * Quiet markers that never show beside others. A snooze ending's note, cut short, has no card to
- * read; a compaction notice is a seam, a full-width rule across the thread; a model change opens
- * its details under its line.
+ * read; a compaction notice is a seam, a full-width rule across the thread; a model change or
+ * trigger wake opens its details under its line.
  */
 const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([
   SnoozeEndedMarker,
   CompactionNoticeSeam,
   ModelChangeMarker,
+  TriggerWakeMarker,
 ]);
 const quietRunItemStyle = (node: ReactNode) =>
   isValidElement(node) && node.type === ThreadSummaryMarker
@@ -376,7 +378,7 @@ const readQuietMarker = (
     );
   }
   if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
-  return readAgentNoticeMarker(content, event.getTs());
+  return readAgentNoticeMarker(content, event.getTs(), room.roomId);
 };
 
 /**

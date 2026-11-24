@@ -20,6 +20,7 @@ import {
 } from '../navigation/routeSessionGuards';
 import {
   CANVASES_PATH,
+  USAGE_PATH,
   CONNECTIONS_PATH,
   CONNECT_PATH,
   DIRECT_CREATE_PATH,
@@ -131,6 +132,7 @@ const Lobby = fromPages((pages) => pages.Lobby);
 const ThreadsNav = fromPages((pages) => pages.ThreadsNav);
 const ThreadsEmpty = fromPages((pages) => pages.ThreadsEmpty);
 const Canvases = fromPages((pages) => pages.Canvases);
+const UsagePage = fromPages((pages) => pages.UsagePage);
 const FeaturedRooms = fromPages((pages) => pages.FeaturedRooms);
 const PublicRooms = fromPages((pages) => pages.PublicRooms);
 const Invites = fromPages((pages) => pages.Invites);
@@ -283,6 +285,14 @@ export const createRouter = (clientConfig: ClientConfig) => {
           element={
             <PageMain>
               <Canvases />
+            </PageMain>
+          }
+        />
+        <Route
+          path={USAGE_PATH}
+          element={
+            <PageMain>
+              <UsagePage />
             </PageMain>
           }
         />

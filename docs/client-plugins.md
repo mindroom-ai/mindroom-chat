@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 67), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 68), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -260,6 +260,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 65 side panels' `title`
 - version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
 - version 67 the declaration's `defaultEnabled`
+- version 68 thread details' `onClose`
 
 ## Page zoom
 
@@ -523,7 +524,7 @@ A badge that throws shows nothing, and the failure is logged and reported with `
 Thread details (`src/app/plugins/threadDetails.ts`) are the eleventh kind: `ClientPlugin.threadDetails`, a list of `{ shows?, Component }`.
 `shows(room, threadId)`, pure and synchronous, says whether the thread has that detail; without it, every thread does, and one that throws counts as false, logged as "[plugin <id>@<version>] its thread details' shows failed".
 The app reads which details show as a surface opens and keeps that list until it closes; only threads whose root the server confirmed (`$` IDs) have details.
-`Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws rows of text, with no control, no link and nothing focusable.
+`Component` gets `{ room, threadId, onClose }`: the thread's room (matrix-js-sdk's `Room`), the ID of its root event, and an optional `onClose?: () => void` (since version 68). `ThreadActionsMenu` passes `onClose` so details may offer interactive controls that dismiss the menu after an action; hover cards omit `onClose`, where details remain non-interactive rows of text with no control, no link and nothing focusable.
 In the Compact card's hover card and the thread menu, it renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context.
 In the sidebar THREADS hover card, it renders outside a room's page: `useRoomSidePanel` and `useShownThread` return undefined, as on the search page.
 `useRoomNavigate` works on every surface.

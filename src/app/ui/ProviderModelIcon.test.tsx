@@ -1,6 +1,6 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { EffortGlyph } from './EffortGlyph';
+import { EffortGlyph } from '../models/EffortGlyph';
 import { ProviderModelIcon } from './ProviderModelIcon';
 
 describe('ProviderModelIcon', () => {

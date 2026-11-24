@@ -7,6 +7,7 @@ import { HiddenRailPages } from './HiddenRailPages';
 const ALL: RailButtons = {
   threads: true,
   canvases: true,
+  usage: true,
   explore: true,
   createSpace: true,
   search: true,
@@ -17,6 +18,7 @@ const state = vi.hoisted(() => ({
   offered: {} as RailButtons,
   shown: {} as RailButtons,
   hasCanvases: true,
+  hasUsage: true,
   navigate: vi.fn(),
   openExplore: vi.fn(),
   openCreateSpace: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock('../../settings/railButtons', () => ({
 }));
 vi.mock('../rail/useOpenExplore', () => ({ useOpenExplore: () => state.openExplore }));
 vi.mock('../rail/CanvasesTab', () => ({ useHasCanvases: () => state.hasCanvases }));
+vi.mock('../rail/UsageTab', () => ({ useHasProviderUsage: () => state.hasUsage }));
 vi.mock('../../navigation/useCreateSpaceModal', () => ({
   useOpenCreateSpaceModal: () => state.openCreateSpace,
 }));
@@ -40,6 +43,7 @@ vi.mock('folds', () => ({
   Icons: {
     Thread: 'Thread',
     Category: 'Category',
+    Clock: 'Clock',
     Explore: 'Explore',
     Plus: 'Plus',
   },
@@ -64,6 +68,7 @@ describe('HiddenRailPages', () => {
   afterEach(() => {
     vi.clearAllMocks();
     state.hasCanvases = true;
+    state.hasUsage = true;
   });
 
   it('adds nothing while the rail shows every button', () => {
@@ -74,17 +79,18 @@ describe('HiddenRailPages', () => {
 
   it('lists every hidden button in rail order, and each one opens its page', () => {
     state.offered = ALL;
-    state.shown = { ...ALL, threads: false, canvases: false, explore: false };
+    state.shown = { ...ALL, threads: false, canvases: false, usage: false, explore: false };
     state.shown = { ...state.shown, createSpace: false, search: false };
     const onClose = vi.fn();
     const buttons = entries(onClose);
     expect(buttons.map((entry) => entry.children)).toEqual([
       ['Threads'],
       ['Canvases'],
+      ['Usage'],
       ['Explore Community'],
       ['Create Space'],
     ]);
-    const [threads, canvases, explore, createSpace] = buttons;
+    const [threads, canvases, usage, explore, createSpace] = buttons;
 
     act(() => {
       threads?.props.onClick();
@@ -96,6 +102,10 @@ describe('HiddenRailPages', () => {
     });
     expect(state.navigate).toHaveBeenLastCalledWith('/canvases/');
     act(() => {
+      usage?.props.onClick();
+    });
+    expect(state.navigate).toHaveBeenLastCalledWith('/usage/');
+    act(() => {
       explore?.props.onClick();
     });
     expect(state.openExplore).toHaveBeenCalledTimes(1);
@@ -103,7 +113,7 @@ describe('HiddenRailPages', () => {
       createSpace?.props.onClick();
     });
     expect(state.openCreateSpace).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(4);
+    expect(onClose).toHaveBeenCalledTimes(5);
   });
 
   it('lists only the hidden buttons', () => {
@@ -124,8 +134,24 @@ describe('HiddenRailPages', () => {
     expect(entries().map((entry) => entry.children)).toEqual([['Canvases']]);
   });
 
+  it('lists Usage only once a runtime reports provider usage', () => {
+    state.offered = ALL;
+    state.shown = { ...ALL, usage: false };
+    state.hasUsage = false;
+    expect(entries()).toHaveLength(0);
+    state.hasUsage = true;
+    expect(entries().map((entry) => entry.children)).toEqual([['Usage']]);
+  });
+
   it('offers nothing the deployment leaves out', () => {
-    state.offered = { ...ALL, threads: false, canvases: false, explore: false, createSpace: false };
+    state.offered = {
+      ...ALL,
+      threads: false,
+      canvases: false,
+      usage: false,
+      explore: false,
+      createSpace: false,
+    };
     state.shown = { ...state.offered, search: true };
     expect(entries()).toHaveLength(0);
   });

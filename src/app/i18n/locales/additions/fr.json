@@ -444,7 +444,9 @@
         "search": "Afficher Rechercher dans la barre latérale",
         "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, ouvrez-la depuis le champ « Tout rechercher » ou avec {{shortcut}}.",
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
-        "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
+        "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local.",
+        "usage": "Afficher Utilisation dans la barre latérale",
+        "usageDescription": "Limites d’utilisation des fournisseurs et consommation de jetons sur 7 jours, dès qu’un environnement les signale. Lorsqu’il est masqué, ouvrez Utilisation depuis le menu ⋮ dans Accueil ou le sélecteur de modèle."
       },
       "plugins": {
         "title": "Extensions",
@@ -1044,6 +1046,14 @@
         "scopeOwn": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels vous pouvez vous adresser.",
         "scopeOther": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels {{name}} peut s’adresser."
       },
+      "triggerWakeMarker": {
+        "triggered": "Déclenché",
+        "webhook": "Webhook",
+        "triggerLabel": "Déclencheur {{id}}",
+        "sourceLabel": "Source {{source}}",
+        "triageLabel": "Triage : {{reason}}",
+        "payloadLabel": "Charge utile de l’événement JSON"
+      },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
@@ -1421,6 +1431,46 @@
         "kept": "Votre brouillon reste tel quel. Copiez la demande pour l’ajouter vous-même.",
         "copied": "Demande copiée. Collez-la dans votre brouillon."
       }
+    },
+    "usage": {
+      "title": "Utilisation et limites",
+      "navLowQuota": "Utilisation (quota bas)",
+      "tabsLimits": "Limites",
+      "tabsTokens": "Jetons et coût",
+      "refresh": "Actualiser",
+      "updatedAgo": "Mis à jour {{time}}",
+      "runtimeLabel": "Environnement",
+      "loading": "Vérification de l’utilisation…",
+      "unavailableTitle": "Données d’utilisation indisponibles",
+      "unavailableBody": "Aucun environnement connecté n’a signalé de limites d’utilisation pour ce compte.",
+      "retry": "Réessayer",
+      "partialData": "Données partielles — certains fournisseurs ou relevés n’ont pas pu être chargés.",
+      "stale": "Obsolète",
+      "percentLeft": "{{percent}}% restant",
+      "resetsIn": "Réinitialisation dans {{duration}}",
+      "resetsAt": "Réinitialisation {{time}}",
+      "resetsSoon": "Réinitialisation imminente",
+      "quotaAria": "{{label}} : {{percent}}% restant",
+      "quotaAriaWithReset": "{{label}} : {{percent}}% restant, {{reset}}",
+      "noSubscriptionLimit": "Aucune limite d’abonnement",
+      "payAsYouGo": "Paiement à l’usage",
+      "limitsUnavailable": "Limites d’utilisation indisponibles",
+      "notSignedIn": "Non connecté",
+      "tokens7d": "{{tokens}} jetons (7 j)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Total de jetons (7 jours)",
+      "totalCost7d": "Dépense estimée (7 jours)",
+      "dailyChartTitle": "Jetons quotidiens (7 derniers jours)",
+      "dailyBarAria": "{{day}} : {{tokens}} jetons",
+      "breakdownTitle": "Répartition par compte",
+      "colAccount": "Compte",
+      "colTokens": "Jetons (7 j)",
+      "colShare": "Part",
+      "colSpend": "Dépense (7 j)",
+      "unattributed": "Non attribué",
+      "allUsageAndLimits": "Toute l’utilisation et limites →",
+      "noAccounts": "Aucun compte fournisseur signalé pour le moment.",
+      "noDailyData": "Aucune utilisation quotidienne enregistrée au cours des 7 derniers jours."
     }
   },
   "composer": {
@@ -2042,5 +2092,8 @@
       "action": "Vérifier cet appareil",
       "text": "D’ici là, il ne peut pas lire vos discussions chiffrées."
     }
+  },
+  "nav": {
+    "usage": "Utilisation"
   }
 }
