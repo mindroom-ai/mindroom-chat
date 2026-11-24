@@ -116,4 +116,55 @@ describe('useRoomInputUploadTransport voice sends', () => {
       [MID_TURN_MODE_KEY]: 'steer',
     });
   });
+
+  it('uses application/octet-stream and hides filename for encrypted uploads, while keeping original type for plaintext uploads', async () => {
+    const mx = {
+      uploadContent: vi.fn(async () => ({ content_uri: 'mxc://example.org/file' })),
+    };
+    const room = {
+      roomId: '!room:example.org',
+      getEventForTxnId: () => undefined,
+    };
+    let transport!: ReturnType<typeof useRoomInputUploadTransport>;
+    const Harness = () => {
+      transport = useRoomInputUploadTransport(mx as never, createStore(), room as never);
+      return null;
+    };
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    const originalPdf = new File(['secret pdf'], 'report.pdf', { type: 'application/pdf' });
+    const encryptedFile = new File(['ciphertext'], 'report.pdf', { type: '' });
+    await transport.uploadItem({
+      file: encryptedFile,
+      originalFile: originalPdf,
+      encInfo: { v: 'v2' } as never,
+      metadata: { markedAsSpoiler: false },
+    });
+    expect(mx.uploadContent).toHaveBeenNthCalledWith(
+      1,
+      encryptedFile,
+      expect.objectContaining({
+        type: 'application/octet-stream',
+        includeFilename: false,
+      })
+    );
+
+    await transport.uploadItem({
+      file: originalPdf,
+      originalFile: originalPdf,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    });
+    expect(mx.uploadContent).toHaveBeenNthCalledWith(
+      2,
+      originalPdf,
+      expect.objectContaining({
+        type: 'application/pdf',
+        includeFilename: true,
+        name: 'report.pdf',
+      })
+    );
+  });
 });

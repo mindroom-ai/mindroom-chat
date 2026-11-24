@@ -242,3 +242,82 @@ test('an agent never used gets its direct chat started, which waits for the agen
     page.locator('[data-body-direction]').filter({ hasText: 'Draft the release notes' })
   ).toBeVisible({ timeout: 30_000 });
 });
+
+const TINY_PNG_B64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+test('dropping a file onto Home stages it inline, survives room switches, and sends a mentioned thread', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const username = `home_drop_${RUN}`;
+  const reader = await registerDisposableUser(username, PASSWORD);
+  const helper = await registerAgent('helper_drop', 'Helper');
+  const engineering = await agentRoom(reader, 'Engineering', [helper]);
+  const lobby = await agentRoom(reader, 'Lobby', [helper]);
+  await answeredThread(reader, helper, engineering, 'Check the diagram');
+
+  await signIn(page, username);
+  await expect(page.getByRole('button', { name: `In Engineering ${RUN}` })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  const heading = page.getByRole('heading', { level: 1 });
+  await heading.evaluate((el, b64) => {
+    const data = new DataTransfer();
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    data.items.add(new File([bytes], 'note.png', { type: 'image/png' }));
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      el.dispatchEvent(
+        new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true })
+      );
+    }
+  }, TINY_PNG_B64);
+
+  const card = page.getByText('note.png');
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  const field = page.locator('[data-editable-name="RoomInput"]');
+  const [hBox, cBox, fBox] = await Promise.all([
+    heading.boundingBox(),
+    card.boundingBox(),
+    field.boundingBox(),
+  ]);
+  expect(cBox!.y).toBeGreaterThanOrEqual(hBox!.y + hBox!.height - 1);
+  expect(cBox!.y + cBox!.height).toBeLessThanOrEqual(fBox!.y + 1);
+
+  await page.getByRole('button', { name: `In Engineering ${RUN}` }).click();
+  await page.getByRole('menuitemradio', { name: `Lobby ${RUN}` }).click();
+  await expect(card).toBeVisible();
+
+  await field.click();
+  await page.keyboard.type('Please inspect this chart');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/threadId=%24|threadId=\$/, { timeout: 30_000 });
+
+  const root = await openedEvent(page, reader, lobby);
+  const rootId = new URL(page.url()).searchParams.get('threadId') ?? '';
+  expect(root.content).toMatchObject({
+    msgtype: 'm.image',
+    body: 'note.png',
+    'm.mentions': { user_ids: [helper.userId] },
+  });
+  expect(root.content['m.relates_to']).toBeUndefined();
+
+  await expect
+    .poll(
+      async () => {
+        const { chunk } = await matrixFetch<{ chunk: Array<{ content: Record<string, unknown> }> }>(
+          HOMESERVER,
+          `/rooms/${encodeURIComponent(lobby)}/messages?dir=b&limit=10`,
+          { accessToken: reader.accessToken }
+        );
+        return chunk.find((e) => e.content.body === 'Please inspect this chart')?.content;
+      },
+      { timeout: 30_000 }
+    )
+    .toMatchObject({
+      msgtype: 'm.text',
+      'm.mentions': { user_ids: [helper.userId] },
+      'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+    });
+});

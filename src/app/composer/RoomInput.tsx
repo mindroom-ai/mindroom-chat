@@ -1,6 +1,4 @@
 import React, {
-  ClipboardEvent,
-  DragEvent,
   forwardRef,
   KeyboardEvent,
   ReactNode,
@@ -98,7 +96,11 @@ import {
 import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
+import {
+  hasMissingPasteAttachmentForText,
+  hasSendableStagedFiles,
+  prepareAndUploadDeferredAttachments,
+} from './roomInputAttachmentAccess';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
@@ -139,7 +141,7 @@ export type RoomInputProps = {
    */
   forkFrom?: ThreadForkRef;
   /**
-   * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
+   * Home's ask field: text and attachments, kept under the account's Home draft whichever room it goes to.
    * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
    * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
    * and again for the question on its way, with the room it goes to (`sentTo`), just before its
@@ -159,10 +161,6 @@ export type RoomInputProps = {
     onLocalEcho?: (eventId: string, room: Room) => void;
   };
 };
-
-// Home's ask field takes text only: nothing dropped goes in, neither a file nor a paste chip
-// dragged out of a room's composer.
-const refuseDrop = (event: DragEvent<HTMLElement>) => event.preventDefault();
 
 // The composer card lines up with the approval and typing bars above it.
 const COMPOSER_STYLE: React.CSSProperties = { marginInline: config.space.S400 };
@@ -389,6 +387,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       isMarkdown,
       fileDropContainerRef,
       createUploadItems,
+      stagedListKey: ask ? textKey : undefined,
+      deferUpload: !!ask,
+      inlineUploadBoard: !!ask,
     });
     const { settlePastes, dismissLostPastes } = attachments;
     const transport = useRoomInputUploadTransport(mx, store, room);
@@ -481,8 +482,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sendTypingStatus,
       attachments: attachments.access,
       mountedRef,
-      buildUploadMessageContent: (item, mxc, signalBridgedRoom) =>
-        buildUploadMessageContent(mx, item, mxc, signalBridgedRoom),
+      buildUploadMessageContent: async (item, mxc, signalBridgedRoom) => {
+        const content = await buildUploadMessageContent(mx, item, mxc, signalBridgedRoom);
+        return askedAgent ? withMention(content, askedAgent) : content;
+      },
       restoreComposerFallbackForRoom,
       onRoomMessageSent,
       forkFrom,
@@ -543,7 +546,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     });
 
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
-    // Home's ask field takes text only, so it neither shows nor sends a recording either. Neither
+    // Home's ask field neither shows nor sends a voice recording either. Neither
     // brings one back from disk: it would hold it from a tab that can show it.
     const voiceActive = !forkFrom && !ask;
     const voice = useRoomInputVoice({
@@ -632,7 +635,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (liveDictation === 'blocked') return;
         if (!waited && liveDictation === 'sendable') {
           const startKey = dictationHandoffRef.current.composerKey;
-          const settled = ask ? true : settlePastes();
+          const settled = settlePastes();
           if (settled !== true) {
             const ok = await settled.catch(() => false);
             if (
@@ -665,11 +668,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             restoreRootModelDraft: (target, content) =>
               getModelController(mx).restoreRootModelDraft(target, content),
             uploadItem: transport.uploadItem,
+            prepareAttachmentsForSend: live.ask ? attachments.prepareForSend : undefined,
             clearReplyDraft,
             resetComposer: composer.resetText,
             stopTyping: () => sendTypingStatus(false),
             dismissLostNotices: () => {
-              dismissLostFiles();
+              if (!ask) dismissLostFiles();
               dismissLostPastes();
             },
           });
@@ -693,13 +697,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
-        // Home's ask field restores and stages none.
-        const settled = ask ? true : settlePastes();
+        const settled = settlePastes();
         // Sending the text answers the notices of files and pastes a reload lost.
         const takeText = (resolvedMode: MidTurnMode = mode) => {
           const content = buildTextContent(resolvedMode);
-          if (content && !ask) {
-            dismissLostFiles();
+          if (content) {
+            if (!ask) dismissLostFiles();
             dismissLostPastes();
           }
           return content;
@@ -722,15 +725,81 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
         const textContent = takeText();
-        // Home's ask field sends text alone: with none there is no send to tell of.
-        if (ask && !textContent) return;
+        // With nothing to send on Home, there is no send to track.
+        if (ask && !textContent && !attachments.hasSendableFiles) return;
+        const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
+        if (
+          ask &&
+          !attachments.hasSendableFiles &&
+          hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
+        ) {
+          return;
+        }
         setSubmitPending(true);
         ask?.onSendingChange?.(true);
+        let releaseInitialLeases: (() => void) | undefined;
+        let releasePreparedLeases: (() => void) | undefined;
+        let pendingFallback: Descendant[] | undefined;
         try {
+          if (ask && attachments.hasSendableFiles) {
+            releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
+            if (textContent) {
+              pendingFallback = composer.snapshotText();
+              composer.resetText();
+              sendTypingStatus(false);
+            }
+            const { uploadedItems, missingPasteMarker } = await prepareAndUploadDeferredAttachments(
+              {
+                room,
+                batchItems: initialSnapshot!.staged,
+                textContent,
+                prepareForSend: attachments.prepareForSend,
+                uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
+                onPrepared: (prepared) => {
+                  releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+                },
+              }
+            );
+            if (
+              !ask.canSend(room) ||
+              missingPasteMarker ||
+              (!textContent && uploadedItems.length === 0)
+            ) {
+              if (pendingFallback) {
+                sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
+                pendingFallback = undefined;
+              }
+              return;
+            }
+            const fallbackForSession = pendingFallback;
+            pendingFallback = undefined;
+            const sending = sessions.startSendSession({
+              textContent,
+              midTurnMode: mode,
+              explicitMidTurnMode: explicitMode !== undefined,
+              batch: { fileItems: uploadedItems },
+              completeWithinCall: uploadedItems.length > 0,
+              composerFallback: fallbackForSession,
+              composerAlreadyReset: Boolean(textContent),
+              beforeSend: (sentTo) => ask.canSend(sentTo),
+              onLocalEchoCreated: ask.onLocalEcho,
+            });
+            sendTypingStatus(false);
+            try {
+              await sending;
+            } catch (error) {
+              // `completeWithinCall` already restored fallback text and cleared the failed session
+              // while keeping uploaded files staged on the Home board for retry in any room.
+              // eslint-disable-next-line no-console
+              console.warn('[room-input] could not send the message', error);
+            }
+            return;
+          }
           const sending = sessions.startSendSession({
             textContent,
             midTurnMode: mode,
             explicitMidTurnMode: explicitMode !== undefined,
+            batch: ask ? { fileItems: [] } : undefined,
             // Home's question is asked about, and told of, as it was at this press.
             beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
             onLocalEchoCreated: ask?.onLocalEcho,
@@ -738,14 +807,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;
+        } catch (error) {
+          if (pendingFallback) {
+            sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
+          }
+          throw error;
         } finally {
+          releasePreparedLeases?.();
+          releaseInitialLeases?.();
           ask?.onSendingChange?.(false);
           if (mountedRef.current) setSubmitPending(false);
         }
       },
       [
         ask,
-        attachments.access,
+        attachments,
         buildTextContent,
         clearReplyDraft,
         commands,
@@ -765,7 +841,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         store,
         t,
         takeRootModelDraft,
-        transport.uploadItem,
+        draftThreadId,
+        room,
+        roomId,
+        transport,
         voice,
         voiceActive,
       ]
@@ -858,16 +937,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, editor, parseCommands, saveDraft, sendTypingStatus, store, textKey]);
-
-    // Home's ask field takes text only: of a paste, the plain text, split in lines as Slate
-    // pastes it, never a file or a paste chip copied from a room's composer.
-    const pasteTextOnly = useCallback(
-      (event: ClipboardEvent<HTMLElement>) => {
-        event.preventDefault();
-        editor.insertTextData(event.clipboardData);
-      },
-      [editor]
-    );
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
@@ -1065,7 +1134,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={dismissLostFiles}
           />
         )}
-        {!ask && attachments.lostPastes && (
+        {attachments.lostPastes && (
           <LostNotice
             text={t('composer.lostPastes')}
             dismissLabel={t('composer.dismissLostFiles')}
@@ -1089,8 +1158,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
-          onPaste={ask ? pasteTextOnly : attachments.onPaste}
-          onDrop={ask ? refuseDrop : undefined}
+          onPaste={attachments.onPaste}
           top={
             <>
               {replyDraft ? (
@@ -1109,8 +1177,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            ask?.pickers ??
-            (phone ? (
+            ask ? (
+              ask.pickers
+            ) : phone ? (
               <>
                 {modelPicker}
                 <ComposerActionsMenu
@@ -1150,7 +1219,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onPress={toggleFormatting}
                 />
               </>
-            ))
+            )
           }
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
@@ -1192,6 +1261,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
+              {ask && (
+                <ComposerAttachButton
+                  onAttach={attachments.pickFiles}
+                  onAttachAppLogs={attachments.attachAppLogs}
+                />
+              )}
               {dictation.button}
               {showPhoneEmptyVoice ? (
                 voice.microphone
@@ -1202,7 +1277,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   agentReplying={agentReplying}
                   hasContent={() =>
                     buildTextContent(midTurnSend) !== undefined ||
-                    hasSendableStagedFiles(attachments.access.snapshot()) ||
+                    (ask
+                      ? attachments.hasSendableFiles
+                      : hasSendableStagedFiles(attachments.access.snapshot())) ||
                     hasVoice ||
                     dictationCanSend
                   }
