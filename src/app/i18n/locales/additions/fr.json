@@ -1294,7 +1294,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tâches en arrière-plan ({{shown}} affichées)",
       "finished": "Terminé : {{tool}}",
+      "awaitingAnswer": "En attente de votre réponse : {{tool}}",
       "jobCountFinished": "{{count}} tâches en arrière-plan terminées",
+      "groupWorkflows": "Flux de travail · {{number}}",
       "groupSubagents": "Sous-agents · {{number}}",
       "groupTools": "Outils · {{number}}",
       "tools_one": "{{count}} outil",
@@ -1344,6 +1346,102 @@
       "jobTotalFinished_one": "{{count}} tâche en arrière-plan terminée",
       "jobTotalFinished_many": "{{count}} tâches en arrière-plan terminées",
       "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées"
+    },
+    "workflowRun": {
+      "title": "Flux de travail",
+      "status": {
+        "starting": "Démarrage",
+        "running": "En cours",
+        "waiting": "En attente de vous",
+        "completed": "Terminé",
+        "failed": "Échoué",
+        "cancelled": "Annulé",
+        "interrupted": "Interrompu"
+      },
+      "counts": "{{done}} terminés, {{running}} en cours, {{waiting}} en attente",
+      "reused": "Réutilisés : {{count}}",
+      "cost": "{{spent}} jusqu'ici, environ {{projected}} au total",
+      "costAtLeast": "au moins {{spent}} jusqu'ici",
+      "largeRun": "Exécution volumineuse",
+      "attempt": "Tentative {{number}}",
+      "stop": "Arrêter",
+      "stopping": "Arrêt…",
+      "resume": "Reprendre",
+      "runAgain": "Relancer",
+      "starting": "Démarrage…",
+      "failedCount_one": "{{count}} échoués",
+      "failedCount_many": "{{count}} échoués",
+      "failedCount_other": "{{count}} échoués",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Déjà répondu.",
+          "noLongerOpen": "Cette question n'est plus ouverte.",
+          "notAnOption": "Ce n'est pas l'une des options.",
+          "notForYou": "Seule la personne ayant lancé l'exécution peut répondre."
+        },
+        "noReply": "Pas encore de réponse. Réessayez.",
+        "placeholder": "Saisissez votre réponse",
+        "send": "Envoyer",
+        "answered": "Répondu : {{answer}}",
+        "cancelled": "Annulé",
+        "onlyRequester": "Seul {{name}} peut répondre."
+      },
+      "graph": "Graphe",
+      "panel": {
+        "close": "Fermer",
+        "resize": "Redimensionner le panneau de flux de travail",
+        "hide": "Masquer le flux de travail",
+        "waitingForUpdate": "En attente de la prochaine mise à jour…",
+        "stale": "Pas de mise à jour. Dernière mise à jour {{time}}.",
+        "log": "Journal",
+        "showMore": "Afficher {{count}} de plus",
+        "omitted": {
+          "queued_one": "et {{count}} de plus en file",
+          "queued_many": "et {{count}} de plus en file",
+          "queued_other": "et {{count}} de plus en file",
+          "running_one": "et {{count}} de plus en cours",
+          "running_many": "et {{count}} de plus en cours",
+          "running_other": "et {{count}} de plus en cours",
+          "waiting_one": "et {{count}} de plus en attente",
+          "waiting_many": "et {{count}} de plus en attente",
+          "waiting_other": "et {{count}} de plus en attente",
+          "failed_one": "et {{count}} de plus échoués",
+          "failed_many": "et {{count}} de plus échoués",
+          "failed_other": "et {{count}} de plus échoués",
+          "done_one": "et {{count}} de plus terminés",
+          "done_many": "et {{count}} de plus terminés",
+          "done_other": "et {{count}} de plus terminés"
+        },
+        "askAgent": "Demandez le reste à {{agent}}."
+      },
+      "group": {
+        "foreach": "Pour chaque",
+        "parallel": "Parallèle",
+        "run": "Flux enregistré",
+        "workflow": "Flux imbriqué",
+        "progress": "{{done}} sur {{total}}",
+        "failed": "Échoués : {{count}}"
+      },
+      "node": {
+        "reused": "Réutilisé depuis la dernière exécution",
+        "queued": "En file d'attente",
+        "mayHaveRun": "A peut-être été exécuté",
+        "waitingOn": {
+          "user": "En attente de votre réponse",
+          "approval": "En attente d'approbation",
+          "peer": "En attente d'un message"
+        },
+        "sessionTurns_one": "{{count}} tour",
+        "sessionTurns_many": "{{count}} tours",
+        "sessionTurns_other": "{{count}} tours",
+        "result": "Résultat",
+        "error": "Erreur",
+        "messages": "Messages",
+        "messagesTo": "Messages vers {{name}} : {{count}}",
+        "open": "Ouvrir",
+        "detailsUnavailable": "Les détails ne sont plus disponibles après rechargement.",
+        "stop": "Arrêter l'agent"
+      }
     },
     "subagents": {
       "title": "Sous-agents",

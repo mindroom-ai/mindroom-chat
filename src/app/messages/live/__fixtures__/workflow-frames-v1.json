@@ -1,0 +1,330 @@
+[
+  {
+    "v": 1,
+    "run": "wf-11111111111111111111111111111111",
+    "sid": "1795389735000-a1b2c3d4",
+    "seq": 1,
+    "meta": {
+      "agent": "panels",
+      "thread_id": "$thread-sample-1",
+      "title": "Audit the sample module",
+      "status": "running",
+      "attempt": 1,
+      "started_at": 1795389735,
+      "ended_at": null,
+      "max_concurrent": 16,
+      "max_cost_usd": null,
+      "large": false,
+      "counts": {
+        "queued": 0,
+        "running": 2,
+        "waiting": 0,
+        "completed": 0,
+        "failed": 0,
+        "indeterminate": 0,
+        "cached": 0
+      },
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "tool_calls": 0,
+        "cost_usd": 0.0,
+        "attempt_cost_usd": 0.0,
+        "projected_cost_usd": 0.0,
+        "cost_unknown": false
+      }
+    },
+    "snapshot": {
+      "phases": ["Audit"],
+      "groups": [
+        {
+          "id": "n1",
+          "kind": "foreach",
+          "phase": 0,
+          "parent": null,
+          "total": 2,
+          "done": 0,
+          "failed": 0
+        }
+      ],
+      "nodes": [
+        {
+          "id": "n2",
+          "kind": "agent",
+          "label": "Audit auth/session.py",
+          "name": "auth-auditor",
+          "phase": 0,
+          "group": "n1",
+          "status": "running",
+          "waiting_on": null,
+          "agent": "panels",
+          "model": "Fable 5.2",
+          "run": "delegation-sample-1",
+          "subagent": "delegation-sample-1",
+          "job": "job-node-2",
+          "session": null,
+          "turns": 1,
+          "started_at": 1795389737,
+          "ended_at": null,
+          "cached": false,
+          "error": null,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "cost_usd": 0
+          }
+        },
+        {
+          "id": "n3",
+          "kind": "agent",
+          "label": "Audit billing/ledger.py",
+          "name": "billing-auditor",
+          "phase": 0,
+          "group": "n1",
+          "status": "running",
+          "waiting_on": null,
+          "agent": "panels",
+          "model": "Sol \u00b7 GPT-6.2",
+          "run": "delegation-sample-2",
+          "subagent": "delegation-sample-2",
+          "job": "job-node-3",
+          "session": null,
+          "turns": 1,
+          "started_at": 1795389737,
+          "ended_at": null,
+          "cached": false,
+          "error": null,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "cost_usd": 0
+          }
+        }
+      ],
+      "edges": [],
+      "omitted": {
+        "queued": 0,
+        "running": 0,
+        "waiting": 0,
+        "completed": 0,
+        "failed": 0,
+        "edges": 0,
+        "groups": 0,
+        "phases": 0,
+        "log": 0
+      },
+      "log": []
+    }
+  },
+  {
+    "v": 1,
+    "run": "wf-11111111111111111111111111111111",
+    "sid": "1795389735000-a1b2c3d4",
+    "seq": 2,
+    "meta": {
+      "agent": "panels",
+      "thread_id": "$thread-sample-1",
+      "title": "Audit the sample module",
+      "status": "running",
+      "attempt": 1,
+      "started_at": 1795389735,
+      "ended_at": null,
+      "max_concurrent": 16,
+      "max_cost_usd": null,
+      "large": false,
+      "counts": {
+        "queued": 0,
+        "running": 1,
+        "waiting": 0,
+        "completed": 1,
+        "failed": 0,
+        "indeterminate": 0,
+        "cached": 0
+      },
+      "usage": {
+        "input_tokens": 8839,
+        "output_tokens": 140,
+        "tool_calls": 3,
+        "cost_usd": 0.042,
+        "attempt_cost_usd": 0.042,
+        "projected_cost_usd": 0.084,
+        "cost_unknown": false
+      }
+    },
+    "delta": {
+      "groups": [
+        {
+          "id": "n1",
+          "kind": "foreach",
+          "phase": 0,
+          "parent": null,
+          "total": 2,
+          "done": 1,
+          "failed": 0
+        }
+      ],
+      "nodes": [
+        {
+          "id": "n2",
+          "kind": "agent",
+          "label": "Audit auth/session.py",
+          "name": "auth-auditor",
+          "phase": 0,
+          "group": "n1",
+          "status": "completed",
+          "waiting_on": null,
+          "agent": "panels",
+          "model": "Fable 5.2",
+          "run": "delegation-sample-1",
+          "subagent": "delegation-sample-1",
+          "job": "job-node-2",
+          "session": null,
+          "turns": 1,
+          "started_at": 1795389737,
+          "ended_at": 1795389755,
+          "cached": false,
+          "error": null,
+          "usage": {
+            "input_tokens": 8839,
+            "output_tokens": 140,
+            "tool_calls": 3,
+            "cost_usd": 0.042
+          }
+        }
+      ]
+    }
+  },
+  {
+    "v": 1,
+    "run": "wf-11111111111111111111111111111111",
+    "sid": "1795389735000-a1b2c3d4",
+    "seq": 3,
+    "meta": {
+      "agent": "panels",
+      "thread_id": "$thread-sample-1",
+      "title": "Audit the sample module",
+      "status": "running",
+      "attempt": 1,
+      "started_at": 1795389735,
+      "ended_at": null,
+      "max_concurrent": 16,
+      "max_cost_usd": null,
+      "large": false,
+      "counts": {
+        "queued": 0,
+        "running": 1,
+        "waiting": 0,
+        "completed": 1,
+        "failed": 0,
+        "indeterminate": 0,
+        "cached": 0
+      },
+      "usage": {
+        "input_tokens": 8839,
+        "output_tokens": 140,
+        "tool_calls": 3,
+        "cost_usd": 0.042,
+        "attempt_cost_usd": 0.042,
+        "projected_cost_usd": 0.084,
+        "cost_unknown": false
+      }
+    },
+    "delta": {
+      "log_append": ["Round 1: 1 checked, 0 failed"]
+    }
+  },
+  {
+    "v": 1,
+    "run": "wf-11111111111111111111111111111111",
+    "sid": "1795389735000-a1b2c3d4",
+    "seq": 4,
+    "meta": {
+      "agent": "panels",
+      "thread_id": "$thread-sample-1",
+      "title": "Audit the sample module",
+      "status": "running",
+      "attempt": 1,
+      "started_at": 1795389735,
+      "ended_at": null,
+      "max_concurrent": 16,
+      "max_cost_usd": null,
+      "large": true,
+      "counts": {
+        "queued": 412,
+        "running": 2,
+        "waiting": 0,
+        "completed": 12,
+        "failed": 0,
+        "indeterminate": 0,
+        "cached": 0
+      },
+      "usage": {
+        "input_tokens": 106068,
+        "output_tokens": 1680,
+        "tool_calls": 36,
+        "cost_usd": 0.504,
+        "attempt_cost_usd": 0.504,
+        "projected_cost_usd": 17.892,
+        "cost_unknown": false
+      }
+    },
+    "snapshot": {
+      "phases": ["Audit"],
+      "groups": [
+        {
+          "id": "n1",
+          "kind": "foreach",
+          "phase": 0,
+          "parent": null,
+          "total": 426,
+          "done": 12,
+          "failed": 0
+        }
+      ],
+      "nodes": [
+        {
+          "id": "n3",
+          "kind": "agent",
+          "label": "Audit billing/ledger.py",
+          "name": "billing-auditor",
+          "phase": 0,
+          "group": "n1",
+          "status": "running",
+          "waiting_on": null,
+          "agent": "panels",
+          "model": "Sol \u00b7 GPT-6.2",
+          "run": "delegation-sample-2",
+          "subagent": "delegation-sample-2",
+          "job": "job-node-3",
+          "session": null,
+          "turns": 1,
+          "started_at": 1795389737,
+          "ended_at": null,
+          "cached": false,
+          "error": null,
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "tool_calls": 0,
+            "cost_usd": 0
+          }
+        }
+      ],
+      "edges": [],
+      "omitted": {
+        "queued": 412,
+        "running": 0,
+        "waiting": 0,
+        "completed": 12,
+        "failed": 0,
+        "edges": 0,
+        "groups": 0,
+        "phases": 0,
+        "log": 0
+      },
+      "log": ["Large run: 426 agents, about $17.89 projected."]
+    }
+  }
+]

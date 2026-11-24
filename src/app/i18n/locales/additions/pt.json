@@ -1294,7 +1294,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})",
       "finished": "Concluído: {{tool}}",
+      "awaitingAnswer": "Aguardando sua resposta: {{tool}}",
       "jobCountFinished": "{{count}} tarefas em segundo plano concluídas",
+      "groupWorkflows": "Fluxos de trabalho · {{number}}",
       "groupSubagents": "Subagentes · {{number}}",
       "groupTools": "Ferramentas · {{number}}",
       "tools_one": "{{count}} ferramenta",
@@ -1344,6 +1346,102 @@
       "jobTotalFinished_one": "{{count}} tarefa em segundo plano concluída",
       "jobTotalFinished_many": "{{count}} tarefas em segundo plano concluídas",
       "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas"
+    },
+    "workflowRun": {
+      "title": "Fluxo de trabalho",
+      "status": {
+        "starting": "Iniciando",
+        "running": "Em execução",
+        "waiting": "Aguardando você",
+        "completed": "Concluído",
+        "failed": "Falhou",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrompido"
+      },
+      "counts": "{{done}} concluídos, {{running}} em execução, {{waiting}} aguardando",
+      "reused": "Reutilizados: {{count}}",
+      "cost": "{{spent}} até agora, cerca de {{projected}} no total",
+      "costAtLeast": "pelo menos {{spent}} até agora",
+      "largeRun": "Execução grande",
+      "attempt": "Tentativa {{number}}",
+      "stop": "Parar",
+      "stopping": "Parando…",
+      "resume": "Retomar",
+      "runAgain": "Executar novamente",
+      "starting": "Iniciando…",
+      "failedCount_one": "{{count}} falharam",
+      "failedCount_many": "{{count}} falharam",
+      "failedCount_other": "{{count}} falharam",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Já respondida.",
+          "noLongerOpen": "Esta pergunta não está mais aberta.",
+          "notAnOption": "Essa não é uma das opções.",
+          "notForYou": "Somente quem iniciou a execução pode responder."
+        },
+        "noReply": "Sem resposta ainda. Tente novamente.",
+        "placeholder": "Digite sua resposta",
+        "send": "Enviar",
+        "answered": "Respondido: {{answer}}",
+        "cancelled": "Cancelado",
+        "onlyRequester": "Somente {{name}} pode responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Fechar",
+        "resize": "Redimensionar painel do fluxo de trabalho",
+        "hide": "Ocultar fluxo de trabalho",
+        "waitingForUpdate": "Aguardando a próxima atualização da execução…",
+        "stale": "Sem atualizar. Última atualização {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar mais {{count}}",
+        "omitted": {
+          "queued_one": "e mais {{count}} na fila",
+          "queued_many": "e mais {{count}} na fila",
+          "queued_other": "e mais {{count}} na fila",
+          "running_one": "e mais {{count}} em execução",
+          "running_many": "e mais {{count}} em execução",
+          "running_other": "e mais {{count}} em execução",
+          "waiting_one": "e mais {{count}} aguardando",
+          "waiting_many": "e mais {{count}} aguardando",
+          "waiting_other": "e mais {{count}} aguardando",
+          "failed_one": "e mais {{count}} com falha",
+          "failed_many": "e mais {{count}} com falha",
+          "failed_other": "e mais {{count}} com falha",
+          "done_one": "e mais {{count}} concluídos",
+          "done_many": "e mais {{count}} concluídos",
+          "done_other": "e mais {{count}} concluídos"
+        },
+        "askAgent": "Peça o restante a {{agent}}."
+      },
+      "group": {
+        "foreach": "Para cada",
+        "parallel": "Paralelo",
+        "run": "Fluxo salvo",
+        "workflow": "Fluxo aninhado",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Falharam: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado da última execução",
+        "queued": "Na fila",
+        "mayHaveRun": "Pode ter sido executado",
+        "waitingOn": {
+          "user": "Aguardando sua resposta",
+          "approval": "Aguardando aprovação",
+          "peer": "Aguardando uma mensagem"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Erro",
+        "messages": "Mensagens",
+        "messagesTo": "Mensagens para {{name}}: {{count}}",
+        "open": "Abrir",
+        "detailsUnavailable": "Os detalhes não estão mais disponíveis após recarregar.",
+        "stop": "Parar agente"
+      }
     },
     "subagents": {
       "title": "Subagentes",

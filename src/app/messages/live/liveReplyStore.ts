@@ -13,15 +13,15 @@ export const LIVE_REPLY_FRESHNESS_MS = 12_000;
 /** The longest live text document, in UTF-16 code units. */
 export const LIVE_DOCUMENT_CAP = 1_000_000;
 
-export type LiveReplyEntry = {
+export type StreamEntry<Doc> = LiveOrder & {
   sender: string;
-  sid: string;
-  seq: number;
-  docs: LiveDocs;
+  docs: Doc;
   lastFrameAt: number;
   /** A frame did not apply; the documents stay at their last valid state until a snapshot. */
   stale: boolean;
 };
+
+export type LiveReplyEntry = StreamEntry<LiveDocs>;
 
 const entryKey = (roomId: string, replyId: string): string => `${roomId}\0${replyId}`;
 
@@ -29,6 +29,35 @@ const fitsCap = ({ md, reasoning, activity }: LiveDocs): boolean =>
   md.length <= LIVE_DOCUMENT_CAP &&
   reasoning.length <= LIVE_DOCUMENT_CAP &&
   activity.length <= LIVE_DOCUMENT_CAP;
+
+/**
+ * Generic live-stream transition: applies a snapshot or contiguous delta, or marks `entry` stale
+ * on a gap or failed apply; returns undefined when the frame changes nothing.
+ */
+export const nextStreamEntry = <Doc, Delta>(
+  entry: StreamEntry<Doc> | undefined,
+  sender: string,
+  frame: LiveOrder & ({ snapshot: Doc } | { delta: Delta }),
+  receivedAt: number,
+  applyDelta: (docs: Doc, delta: Delta) => Doc | null,
+  fits: (docs: Doc) => boolean = () => true
+): StreamEntry<Doc> | undefined => {
+  if (entry && (entry.sender !== sender || compareLiveOrder(frame, entry) <= 0)) return undefined;
+  const fresh = (docs: Doc): StreamEntry<Doc> => ({
+    sender,
+    sid: frame.sid,
+    seq: frame.seq,
+    docs,
+    lastFrameAt: receivedAt,
+    stale: false,
+  });
+  const markStale = () => (entry && !entry.stale ? { ...entry, stale: true } : undefined);
+  if ('snapshot' in frame) return fits(frame.snapshot) ? fresh(frame.snapshot) : markStale();
+  if (!entry) return undefined;
+  if (entry.stale || frame.sid !== entry.sid || frame.seq !== entry.seq + 1) return markStale();
+  const docs = applyDelta(entry.docs, frame.delta);
+  return docs && fits(docs) ? fresh(docs) : markStale();
+};
 
 /**
  * The entry after a frame: a new entry when the frame applies, a stale copy of `entry` when it
@@ -39,23 +68,8 @@ export const nextLiveEntry = (
   sender: string,
   frame: LiveOrder & ({ snapshot: LiveDocs } | { delta: LiveDelta }),
   receivedAt: number
-): LiveReplyEntry | undefined => {
-  if (entry && (entry.sender !== sender || compareLiveOrder(frame, entry) <= 0)) return undefined;
-  const fresh = (docs: LiveDocs): LiveReplyEntry => ({
-    sender,
-    sid: frame.sid,
-    seq: frame.seq,
-    docs,
-    lastFrameAt: receivedAt,
-    stale: false,
-  });
-  const markStale = () => (entry && !entry.stale ? { ...entry, stale: true } : undefined);
-  if ('snapshot' in frame) return fitsCap(frame.snapshot) ? fresh(frame.snapshot) : markStale();
-  if (!entry) return undefined;
-  if (entry.stale || frame.sid !== entry.sid || frame.seq !== entry.seq + 1) return markStale();
-  const docs = applyLiveDelta(entry.docs, frame.delta);
-  return docs && fitsCap(docs) ? fresh(docs) : markStale();
-};
+): LiveReplyEntry | undefined =>
+  nextStreamEntry(entry, sender, frame, receivedAt, applyLiveDelta, fitsCap);
 
 /** Live state of the replies one Matrix client streams, keyed by room and reply event. */
 export class LiveReplyStore {

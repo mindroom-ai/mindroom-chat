@@ -52,6 +52,12 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
+import {
+  parseWorkflowRunCard,
+  parseWorkflowRunQuestion,
+} from '../../matrix/protocol/workflowRunContent';
+import { WorkflowQuestionCard } from '../workflow-run/WorkflowQuestionCard';
+import { WorkflowRunCard } from '../workflow-run/WorkflowRunCard';
 import { readAgentNoticeMarker } from '../agentNoticeMarker';
 import { readTriggerWake, TRIGGER_WAKE_METADATA_KEYS } from '../../matrix/protocol/triggerWake';
 import { TriggerWakeMarker } from '../TriggerWakeMarker';
@@ -534,6 +540,29 @@ export const renderAgentMessageContent = ({
       ? readAgentNoticeMarker(content, ts ?? mEvent?.getTs(), roomId ?? mEvent?.getRoomId())
       : null;
   if (notice) return notice;
+
+  // Workflow run and question notices render as cards only when sent by a MindRoom agent.
+  const workflowRoomId = roomId ?? mEvent?.getRoomId();
+  if (fromMindroomAgent && workflowRoomId) {
+    const common = {
+      roomId: workflowRoomId,
+      threadId: threadId ?? mEvent?.threadRootId ?? null,
+      eventId: eventId ?? mEvent?.getId(),
+      readOnly,
+    };
+    const runCard = parseWorkflowRunCard(content);
+    if (runCard)
+      return (
+        <WorkflowRunCard
+          card={runCard}
+          sender={mEvent?.getSender()}
+          updatedAt={mEvent?.replacingEvent()?.getTs() ?? mEvent?.getTs()}
+          {...common}
+        />
+      );
+    const question = parseWorkflowRunQuestion(content);
+    if (question) return <WorkflowQuestionCard question={question} {...common} />;
+  }
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.

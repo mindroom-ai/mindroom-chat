@@ -1259,7 +1259,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
+      "awaitingAnswer": "Yanıtınız bekleniyor: {{tool}}",
       "jobCountFinished": "{{count}} arka plan işi tamamlandı",
+      "groupWorkflows": "İş akışları · {{number}}",
       "groupSubagents": "Alt ajanlar · {{number}}",
       "groupTools": "Araçlar · {{number}}",
       "tools_one": "{{count}} araç",
@@ -1304,6 +1306,95 @@
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
       "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
+    },
+    "workflowRun": {
+      "title": "İş akışı",
+      "status": {
+        "starting": "Başlatılıyor",
+        "running": "Çalışıyor",
+        "waiting": "Sizi bekliyor",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız",
+        "cancelled": "İptal edildi",
+        "interrupted": "Kesintiye uğradı"
+      },
+      "counts": "{{done}} tamamlandı, {{running}} çalışıyor, {{waiting}} bekliyor",
+      "reused": "Yeniden kullanılan: {{count}}",
+      "cost": "Şimdiye kadar {{spent}}, toplamda yaklaşık {{projected}}",
+      "costAtLeast": "şimdiye kadar en az {{spent}}",
+      "largeRun": "Büyük çalıştırma",
+      "attempt": "Deneme {{number}}",
+      "stop": "Durdur",
+      "stopping": "Durduruluyor…",
+      "resume": "Devam et",
+      "runAgain": "Tekrar çalıştır",
+      "starting": "Başlatılıyor…",
+      "failedCount_one": "{{count}} başarısız",
+      "failedCount_other": "{{count}} başarısız",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Zaten yanıtlandı.",
+          "noLongerOpen": "Bu soru artık açık değil.",
+          "notAnOption": "Bu seçeneklerden biri değil.",
+          "notForYou": "Yalnızca çalıştırmayı başlatan kişi yanıtlayabilir."
+        },
+        "noReply": "Henüz yanıt yok. Tekrar deneyin.",
+        "placeholder": "Yanıtınızı yazın",
+        "send": "Gönder",
+        "answered": "Yanıtlandı: {{answer}}",
+        "cancelled": "İptal edildi",
+        "onlyRequester": "Yalnızca {{name}} yanıtlayabilir."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Kapat",
+        "resize": "İş akışı panelini yeniden boyutlandır",
+        "hide": "İş akışını gizle",
+        "waitingForUpdate": "Çalıştırmanın sonraki güncellemesi bekleniyor…",
+        "stale": "Güncellenmiyor. Son güncelleme {{time}}.",
+        "log": "Günlük",
+        "showMore": "{{count}} tane daha göster",
+        "omitted": {
+          "queued_one": "ve sırada {{count}} tane daha",
+          "queued_other": "ve sırada {{count}} tane daha",
+          "running_one": "ve çalışan {{count}} tane daha",
+          "running_other": "ve çalışan {{count}} tane daha",
+          "waiting_one": "ve bekleyen {{count}} tane daha",
+          "waiting_other": "ve bekleyen {{count}} tane daha",
+          "failed_one": "ve başarısız {{count}} tane daha",
+          "failed_other": "ve başarısız {{count}} tane daha",
+          "done_one": "ve tamamlanan {{count}} tane daha",
+          "done_other": "ve tamamlanan {{count}} tane daha"
+        },
+        "askAgent": "Kalanı için {{agent}} ajanına sorun."
+      },
+      "group": {
+        "foreach": "Her biri için",
+        "parallel": "Paralel",
+        "run": "Kayıtlı iş akışı",
+        "workflow": "İç içe iş akışı",
+        "progress": "{{done}} / {{total}}",
+        "failed": "Başarısız: {{count}}"
+      },
+      "node": {
+        "reused": "Son çalıştırmadan yeniden kullanıldı",
+        "queued": "Sırada",
+        "mayHaveRun": "Çalışmış olabilir",
+        "waitingOn": {
+          "user": "Yanıtınız bekleniyor",
+          "approval": "Onay bekleniyor",
+          "peer": "Mesaj bekleniyor"
+        },
+        "sessionTurns_one": "{{count}} tur",
+        "sessionTurns_other": "{{count}} tur",
+        "result": "Sonuç",
+        "error": "Hata",
+        "messages": "Mesajlar",
+        "messagesTo": "{{name}} için mesajlar: {{count}}",
+        "open": "Aç",
+        "detailsUnavailable": "Yeniden yüklemeden sonra ayrıntılar artık kullanılamıyor.",
+        "stop": "Ajanı durdur"
+      }
     },
     "subagents": {
       "title": "Alt ajanlar",

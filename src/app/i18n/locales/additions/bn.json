@@ -1259,7 +1259,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
+      "awaitingAnswer": "আপনার উত্তরের অপেক্ষায়: {{tool}}",
       "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "groupWorkflows": "ওয়ার্কফ্লো · {{number}}",
       "groupSubagents": "সাব-এজেন্ট · {{number}}",
       "groupTools": "টুল · {{number}}",
       "tools_one": "{{count}}টি টুল",
@@ -1304,6 +1306,95 @@
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
       "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+    },
+    "workflowRun": {
+      "title": "ওয়ার্কফ্লো",
+      "status": {
+        "starting": "শুরু হচ্ছে",
+        "running": "চলছে",
+        "waiting": "আপনার অপেক্ষায়",
+        "completed": "সম্পন্ন",
+        "failed": "ব্যর্থ",
+        "cancelled": "বাতিল",
+        "interrupted": "বিঘ্নিত"
+      },
+      "counts": "{{done}} সম্পন্ন, {{running}} চলছে, {{waiting}} অপেক্ষায়",
+      "reused": "পুনরায় ব্যবহৃত: {{count}}",
+      "cost": "এখন পর্যন্ত {{spent}}, মোট প্রায় {{projected}}",
+      "costAtLeast": "এখন পর্যন্ত অন্তত {{spent}}",
+      "largeRun": "বড় রান",
+      "attempt": "চেষ্টা {{number}}",
+      "stop": "থামান",
+      "stopping": "থামানো হচ্ছে…",
+      "resume": "পুনরায় চালু করুন",
+      "runAgain": "আবার চালান",
+      "starting": "শুরু হচ্ছে…",
+      "failedCount_one": "{{count}}টি ব্যর্থ",
+      "failedCount_other": "{{count}}টি ব্যর্থ",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "ইতিমধ্যেই উত্তর দেওয়া হয়েছে।",
+          "noLongerOpen": "এই প্রশ্নটি আর খোলা নেই।",
+          "notAnOption": "এটি কোনো বিকল্প নয়।",
+          "notForYou": "শুধু যিনি রান শুরু করেছেন তিনিই উত্তর দিতে পারবেন।"
+        },
+        "noReply": "এখনো কোনো উত্তর আসেনি। আবার চেষ্টা করুন।",
+        "placeholder": "আপনার উত্তর লিখুন",
+        "send": "পাঠান",
+        "answered": "উত্তর দেওয়া হয়েছে: {{answer}}",
+        "cancelled": "বাতিল",
+        "onlyRequester": "শুধু {{name}} উত্তর দিতে পারবেন।"
+      },
+      "graph": "গ্রাফ",
+      "panel": {
+        "close": "বন্ধ করুন",
+        "resize": "ওয়ার্কফ্লো প্যানেলের আকার পরিবর্তন করুন",
+        "hide": "ওয়ার্কফ্লো লুকান",
+        "waitingForUpdate": "রানের পরবর্তী আপডেটের অপেক্ষায়…",
+        "stale": "আপডেট হচ্ছে না। শেষ আপডেট {{time}}।",
+        "log": "লগ",
+        "showMore": "আরও {{count}}টি দেখান",
+        "omitted": {
+          "queued_one": "এবং আরও {{count}}টি সারিতে",
+          "queued_other": "এবং আরও {{count}}টি সারিতে",
+          "running_one": "এবং আরও {{count}}টি চলছে",
+          "running_other": "এবং আরও {{count}}টি চলছে",
+          "waiting_one": "এবং আরও {{count}}টি অপেক্ষায়",
+          "waiting_other": "এবং আরও {{count}}টি অপেক্ষায়",
+          "failed_one": "এবং আরও {{count}}টি ব্যর্থ",
+          "failed_other": "এবং আরও {{count}}টি ব্যর্থ",
+          "done_one": "এবং আরও {{count}}টি সম্পন্ন",
+          "done_other": "এবং আরও {{count}}টি সম্পন্ন"
+        },
+        "askAgent": "বাকিগুলোর জন্য {{agent}}-কে জিজ্ঞাসা করুন।"
+      },
+      "group": {
+        "foreach": "প্রতিটির জন্য",
+        "parallel": "সমান্তরাল",
+        "run": "সংরক্ষিত ওয়ার্কফ্লো",
+        "workflow": "ভেতরের ওয়ার্কফ্লো",
+        "progress": "{{total}}-এর মধ্যে {{done}}",
+        "failed": "ব্যর্থ: {{count}}"
+      },
+      "node": {
+        "reused": "শেষ রান থেকে পুনরায় ব্যবহৃত",
+        "queued": "সারিতে",
+        "mayHaveRun": "চালানো হয়ে থাকতে পারে",
+        "waitingOn": {
+          "user": "আপনার উত্তরের অপেক্ষায়",
+          "approval": "অনুমোদনের অপেক্ষায়",
+          "peer": "একটি বার্তার অপেক্ষায়"
+        },
+        "sessionTurns_one": "{{count}}টি পালা",
+        "sessionTurns_other": "{{count}}টি পালা",
+        "result": "ফলাফল",
+        "error": "ত্রুটি",
+        "messages": "বার্তা",
+        "messagesTo": "{{name}}-এর কাছে বার্তা: {{count}}",
+        "open": "খুলুন",
+        "detailsUnavailable": "রিলোডের পরে বিস্তারিত আর উপলব্ধ নেই।",
+        "stop": "এজেন্ট থামান"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
