@@ -9,6 +9,7 @@ const lifecycle = vi.hoisted(() => ({
 }));
 const server = vi.hoisted(() => ({
   logout: vi.fn(async (_stopClient?: boolean): Promise<object> => ({})),
+  abort: vi.fn(),
   createMatrixClient: vi.fn(),
 }));
 
@@ -16,6 +17,7 @@ vi.mock('../../account/lifecycle/sessionLifecycle', () => lifecycle);
 vi.mock('./matrixClientFactory', () => ({
   createMatrixClient: server.createMatrixClient.mockImplementation(() => ({
     logout: server.logout,
+    http: { abort: server.abort },
   })),
 }));
 vi.mock('../../native/cloudflareAccess', () => ({
@@ -138,5 +140,41 @@ describe('canceling a connecting session', () => {
       undefined,
       '/login/https%3A%2F%2Fhs.test'
     );
+  });
+
+  it('aborts and finishes removal after 5s when server logout hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      let rejectLogout: ((error: Error) => void) | undefined;
+      server.logout.mockImplementationOnce(
+        () =>
+          new Promise<object>((_resolve, reject) => {
+            rejectLogout = reject;
+          })
+      );
+
+      const pending = cancelConnectingSession(session, '/login/https%3A%2F%2Fhs.test');
+      await vi.advanceTimersByTimeAsync(4_999);
+
+      expect(server.logout).toHaveBeenCalledWith(true);
+      expect(server.abort).not.toHaveBeenCalled();
+      expect(lifecycle.removeSessionAndReload).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+
+      expect(server.abort).toHaveBeenCalledTimes(1);
+      expect(lifecycle.removeSessionAndReload).toHaveBeenCalledWith(
+        session,
+        undefined,
+        '/login/https%3A%2F%2Fhs.test'
+      );
+
+      // A late rejection after the deadline must stay swallowed without an unhandled rejection.
+      rejectLogout?.(new Error('aborted'));
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

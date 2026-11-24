@@ -730,6 +730,58 @@ describe('SpecVersions', () => {
     });
   });
 
+  it.each([
+    { name: 'versions load', mode: 'success', allowCachedContent: false },
+    { name: 'versions fail', mode: 'error', allowCachedContent: false },
+    { name: 'cached rooms arrive', mode: 'fallback', allowCachedContent: true },
+  ] as const)(
+    'keeps the connecting splash mounted while cancel is pending when $name',
+    ({ mode, allowCachedContent }) => {
+      seedConnectingSession();
+      loadedSpecVersions = { versions: ['v1.11'] };
+      vi.mocked(cancelConnectingSession).mockReturnValueOnce(new Promise<void>(() => undefined));
+
+      const render = (cached = false) =>
+        React.createElement(
+          SpecVersions,
+          { baseUrl: 'https://example.com', allowCachedContent: cached },
+          React.createElement('main', null, 'app shell')
+        );
+
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(render());
+      });
+
+      act(() => {
+        findCancelButton(renderer)?.props.onClick();
+      });
+
+      specVersionsLoaderMode = mode;
+      act(() => {
+        renderer.update(render(allowCachedContent));
+      });
+
+      expect(renderer.root.findByProps({ 'data-mindroom-splash': true })).toBeDefined();
+      const cancelButton = findCancelButton(renderer);
+      expect(cancelButton?.props.disabled).toBe(true);
+      expect(cancelButton?.findAllByType('div').map((node) => node.children.join(''))).toEqual([
+        'spinner',
+      ]);
+      expect(renderer.root.findAllByType('main')).toHaveLength(0);
+      expect(
+        renderer.root
+          .findAllByType('span')
+          .some((node) => node.children.join('') === 'Clear Cache and Reload')
+      ).toBe(false);
+      expect(specVersions).not.toHaveBeenCalled();
+
+      act(() => {
+        renderer.unmount();
+      });
+    }
+  );
+
   it('uses the particle background while connecting to the server', () => {
     specVersionsLoaderMode = 'fallback';
     vi.mocked(useActiveSession).mockReturnValue(undefined);

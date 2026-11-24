@@ -59,12 +59,29 @@ export const createSessionRequestClient = (
 /** The homeserver logs the session's device out and drops the keys it keeps for it. */
 const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> => {
   const mx = createSessionRequestClient(session, SERVER_LOGOUT_TIMEOUT_MS);
-  // A logout that cannot pass Cloudflare Access leaves the device on the server.
-  await renewExpiredCloudflareAccess(session.baseUrl);
-  try {
+  const attempt = (async () => {
+    // A logout that cannot pass Cloudflare Access leaves the device on the server.
+    await renewExpiredCloudflareAccess(session.baseUrl);
     await mx.logout(true);
-  } catch {
-    // The server may already have dropped this device; local cleanup still runs.
+  })().catch(() => undefined);
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      attempt,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          try {
+            mx.http.abort();
+          } catch {
+            // Best effort: abort any in-flight logout or token refresh request.
+          }
+          resolve();
+        }, SERVER_LOGOUT_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 };
 

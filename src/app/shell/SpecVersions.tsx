@@ -164,17 +164,9 @@ export function SpecVersions({
   const session = useActiveSession();
   const hashRouter = useOptionalClientConfig()?.hashRouter;
   const userId = session?.userId;
-  const sessionId = session?.sessionId;
   const request = useSessionRequest(session?.accessToken);
   const [cancelling, setCancelling] = useState(false);
   const cancellingRef = useRef(false);
-  const cancelSessionIdRef = useRef(sessionId);
-
-  useEffect(() => {
-    cancelSessionIdRef.current = sessionId;
-    cancellingRef.current = false;
-    setCancelling(false);
-  }, [sessionId]);
 
   const cachedVersions = useMemo(
     () => (userId ? readCachedSpecVersions(baseUrl, userId) : undefined),
@@ -187,7 +179,7 @@ export function SpecVersions({
   const showWithoutLoader = cachedVersions !== undefined || allowCachedContent;
 
   useEffect(() => {
-    if (!showWithoutLoader || !userId) return undefined;
+    if (cancelling || !showWithoutLoader || !userId) return undefined;
     const key = `${baseUrl}::${userId}`;
     if (refreshedKeyRef.current === key) return undefined;
     refreshedKeyRef.current = key;
@@ -205,7 +197,7 @@ export function SpecVersions({
     return () => {
       cancelled = true;
     };
-  }, [showWithoutLoader, baseUrl, userId, request, cachedVersions]);
+  }, [cancelling, showWithoutLoader, baseUrl, userId, request, cachedVersions]);
 
   const handleLoaded = useCallback(
     (versions: ServerSpecVersions) => {
@@ -230,12 +222,15 @@ export function SpecVersions({
           otherAccounts
         )}`;
         cancelConnectingSession(session, loginHref, mx).catch(() => {
-          if (cancelSessionIdRef.current !== session.sessionId) return;
           cancellingRef.current = false;
           setCancelling(false);
         });
       }
     : undefined;
+
+  if (cancelling) {
+    return <ConnectingSplash onCancel={handleCancel} cancelling />;
+  }
 
   if (showWithoutLoader) {
     const versions =
@@ -247,7 +242,7 @@ export function SpecVersions({
     <SpecVersionsLoader
       baseUrl={baseUrl}
       fetchFn={request}
-      fallback={() => <ConnectingSplash onCancel={handleCancel} cancelling={cancelling} />}
+      fallback={() => <ConnectingSplash onCancel={handleCancel} />}
       error={(_error: unknown, retry: () => void, ignore: () => void) => (
         <ConnectionError baseUrl={baseUrl} onRetry={retry} onContinue={ignore} />
       )}
