@@ -97,6 +97,9 @@ describe('tsconfig.plugin.strict.json', () => {
   it("takes jotai's subpath types from the app's copy", () => {
     expect(realpath(resolve('jotai'))).toBe(path.join(NODE_MODULES, 'jotai/dist/index.d.ts'));
     expect(realpath(resolve('jotai/utils'))).toBe(path.join(NODE_MODULES, 'jotai/dist/utils.d.ts'));
+    expect(realpath(resolve('jotai/package.json'))).toBe(
+      path.join(NODE_MODULES, 'jotai/package.json')
+    );
   });
 
   it("compiles the plugin's files with the app's ambient types and strict flags", () => {

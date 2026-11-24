@@ -19,6 +19,7 @@
       "matrix-js-sdk": ["./node_modules/matrix-js-sdk"],
       "matrix-js-sdk/*": ["./node_modules/matrix-js-sdk/*"],
       "jotai": ["./node_modules/jotai/dist/index.d.ts"],
+      "jotai/package.json": ["./node_modules/jotai/package.json"],
       "jotai/*": ["./node_modules/jotai/dist/*"],
       "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
       "@tanstack/react-query/*": ["./node_modules/@tanstack/react-query/*"],
