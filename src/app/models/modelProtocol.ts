@@ -165,7 +165,7 @@ export const parseModelCatalogPayload = (agents: unknown, entries: unknown, sele
   const { override } = selection;
   if (override !== null && !keys.has(override)) return undefined;
   return {
-    agent_user_ids: agents as string[],
+    agent_user_ids: agents,
     models,
     selection: {
       override,
@@ -199,7 +199,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
     request_id: value.request_id,
     room_id: value.room_id as string,
     ...(value.thread_id === undefined ? {} : { thread_id: value.thread_id as string }),
-    capabilities: value.capabilities as string[],
+    capabilities: value.capabilities,
     catalog_revision: value.catalog_revision,
     ...payload,
   };

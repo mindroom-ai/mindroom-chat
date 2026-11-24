@@ -66,7 +66,7 @@ const findTexts = (page: Page) =>
       element.setAttribute('data-contrast-probe', String(index));
       index += 1;
       probes.push({
-        text: element.textContent!.trim().slice(0, 60),
+        text: element.textContent.trim().slice(0, 60),
         large: size >= 24 || (size >= 18.66 && Number(style.fontWeight) >= 700),
         color: [rgb[0]!, rgb[1]!, rgb[2]!, alpha * opacity],
         box: { x: box.x, y: box.y, width: box.width, height: box.height },
