@@ -184,10 +184,11 @@ export default [
       'src/**/*.{js,jsx,mjs,cjs}',
       'public/**/*.js',
       'ios/Tests/public/**/*.js',
-      'e2e/fixtures/**/*.{js,jsx}',
+      'e2e/fixtures/**/*.{js,jsx,mjs}',
     ],
     ignores: [
       'src/**/*Worklet.js',
+      'src/sw/**',
       'src/app/plugins/__fixtures__/example-plugin/build.mjs',
       'e2e/fixtures/live/**',
     ],

@@ -24,6 +24,16 @@ const ROOT_DIR = fs.realpathSync(path.dirname(fileURLToPath(import.meta.url)));
 // The plugin's end-to-end specs in its e2e/ count as tests, as the app's own do.
 const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'e2e/**'];
 
+const PLUGIN_NODE_JS = [
+  'scripts/**/*.{js,mjs,cjs}',
+  '*.config.{js,mjs,cjs}',
+  'eslint.config*.mjs',
+  'build.{js,mjs,cjs}',
+  'e2e/helpers/**/*.{js,mjs,cjs}',
+  'e2e/rtc/**/*.{js,mjs,cjs}',
+  'e2e/fixtures/live/**/*.{js,mjs,cjs}',
+];
+
 // Real paths (`symlinks: true`), so an import through a link to the app (`.mindroom-chat`)
 // resolves into the app's directories below; and `.js`/`.jsx`/`.mjs` map to TypeScript sources so
 // `./registry.js` finds `registry.ts` as TypeScript resolves it.
@@ -44,23 +54,15 @@ export default [
   ...createCommonConfigs({ resolver: pluginResolver }),
   {
     name: 'mindroom/plugin-node-globals',
-    files: [
-      'scripts/**/*.{js,mjs,cjs}',
-      '*.config.{js,mjs,cjs}',
-      'eslint.config*.mjs',
-      'build.{js,mjs,cjs}',
-      'e2e/helpers/**/*.{js,mjs,cjs}',
-      'e2e/rtc/**/*.{js,mjs,cjs}',
-      'e2e/fixtures/live/**/*.{js,mjs,cjs}',
-    ],
+    files: PLUGIN_NODE_JS,
     languageOptions: {
       globals: RUNTIME_GLOBALS.node,
     },
   },
   {
     name: 'mindroom/plugin-browser-globals',
-    files: ['src/**/*.{js,jsx,mjs,cjs}', '*.jsx', 'index.{js,mjs}', 'e2e/fixtures/**/*.{js,jsx}'],
-    ignores: ['src/**/*Worklet.js', 'e2e/fixtures/live/**'],
+    files: ['**/*.{js,jsx,mjs,cjs}'],
+    ignores: [...PLUGIN_NODE_JS, 'src/**/*Worklet.js'],
     languageOptions: {
       globals: RUNTIME_GLOBALS.browser,
     },
