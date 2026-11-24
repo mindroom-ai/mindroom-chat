@@ -2302,22 +2302,24 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         {/* After the content's padding, so "at the bottom" means the end of the scroll range,
             not the last row, which sits a composer's height higher, behind the footer. */}
         {!latestAtTop && latestEndAnchor}
-        {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
-            placed by the timeline box, so it stays between the header and the composer. */}
+        {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves them
+            placed by the timeline box, so they stay between the header and the composer while
+            the minimap inherits native wheel and trackpad scrolling. */}
         <InsetScrollbar
           scrollRef={scrollRef}
           contentRef={contentRef}
           className={overlay.Scrollbar}
           label={t('threadNav.messages')}
         />
+        {minimap.minimapItems.length > 0 && (
+          <TimelineMinimap
+            items={minimap.minimapItems}
+            stripMap={minimap.minimapStripMap}
+            onSelect={minimap.handleMinimapSelect}
+            onScrub={minimap.handleMinimapScrub}
+          />
+        )}
       </Scroll>
-      {minimap.minimapItems.length > 0 && (
-        <TimelineMinimap
-          items={minimap.minimapItems}
-          stripMap={minimap.minimapStripMap}
-          onSelect={minimap.handleMinimapSelect}
-        />
-      )}
       {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
       {feature.forkToRoomDialog}
     </Box>

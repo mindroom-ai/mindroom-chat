@@ -2,7 +2,16 @@
 // apps/web/src/components/chat/TimelineMinimap.tsx), Copyright (c) 2026 T3 Tools Inc.,
 // MIT License. The license text is in licenses/T3-Code-MIT.txt; NOTICE lists the port.
 import { useTranslation } from 'react-i18next';
-import { MouseEvent, RefObject, useCallback, useEffect, useState } from 'react';
+import {
+  MouseEvent,
+  PointerEvent,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { blockSelection } from '../ui/dragSelection';
 import {
   TIMELINE_MINIMAP_MIN_ITEMS,
   TimelineMinimapItem,
@@ -92,11 +101,54 @@ type TimelineMinimapProps = {
   items: readonly TimelineMinimapItem[];
   stripMap: Map<string, HTMLSpanElement>;
   onSelect: (item: TimelineMinimapItem) => void;
+  onScrub?: (item: TimelineMinimapItem) => void;
 };
 
-export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapProps) {
+export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: TimelineMinimapProps) {
   const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const dragRef = useRef<{ pointerId: number; lastItemId: string; unblock: () => void } | null>(
+    null
+  );
+  const suppressClickRef = useRef(false);
+  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const endDrag = useCallback((rail: HTMLButtonElement | null, nextActiveIndex?: number | null) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    drag.unblock();
+    try {
+      if (rail?.hasPointerCapture?.(drag.pointerId)) {
+        rail.releasePointerCapture(drag.pointerId);
+      }
+    } catch {
+      // Ignore environments where capture was already released.
+    }
+    if (nextActiveIndex !== undefined) {
+      setActiveIndex(nextActiveIndex);
+    }
+    clearTimeout(suppressClickTimerRef.current);
+    suppressClickTimerRef.current = setTimeout(() => {
+      suppressClickRef.current = false;
+      suppressClickTimerRef.current = undefined;
+    }, 0);
+  }, []);
+
+  const shouldHide = items.length < TIMELINE_MINIMAP_MIN_ITEMS;
+  useEffect(() => {
+    if (!shouldHide) return;
+    endDrag(null, null);
+  }, [shouldHide, endDrag]);
+
+  useEffect(
+    () => () => {
+      dragRef.current?.unblock();
+      dragRef.current = null;
+      clearTimeout(suppressClickTimerRef.current);
+    },
+    []
+  );
 
   const resolvedActiveIndex =
     activeIndex !== null && activeIndex < items.length ? activeIndex : null;
@@ -132,7 +184,16 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
     [items.length]
   );
 
-  if (items.length < TIMELINE_MINIMAP_MIN_ITEMS) {
+  const clearHover = () => {
+    if (!dragRef.current) setActiveIndex(null);
+  };
+  const cancelDrag = (event: PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      endDrag(event.currentTarget, null);
+    }
+  };
+
+  if (shouldHide) {
     return null;
   }
 
@@ -154,14 +215,74 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
               ? [activeItem.userText ?? 'Message', activeItem.agentText].filter(Boolean).join(' — ')
               : 'Message'
           }
-          onBlur={() => setActiveIndex(null)}
+          onBlur={clearHover}
           onFocus={() => setActiveIndex((current) => current ?? 0)}
-          onMouseMove={(event) => setActiveIndex(resolveActiveIndexFromPointer(event))}
-          onMouseLeave={() => setActiveIndex(null)}
+          onPointerDown={(event) => {
+            if (dragRef.current || !event.isPrimary || event.button !== 0) return;
+            event.preventDefault();
+            const nextIndex = resolveActiveIndexFromPointer(event);
+            const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
+            if (nextIndex === null || !nextItem) return;
+            const rail = event.currentTarget;
+            setActiveIndex(nextIndex);
+            try {
+              rail.setPointerCapture?.(event.pointerId);
+            } catch {
+              // Synthetic pointer events may not have an active pointer to capture.
+            }
+            clearTimeout(suppressClickTimerRef.current);
+            suppressClickTimerRef.current = undefined;
+            suppressClickRef.current = true;
+            const unblock = blockSelection(() => endDrag(rail, null));
+            dragRef.current = {
+              pointerId: event.pointerId,
+              lastItemId: nextItem.id,
+              unblock,
+            };
+            onSelect(nextItem);
+          }}
+          onPointerMove={(event) => {
+            const drag = dragRef.current;
+            if (drag) {
+              if (drag.pointerId !== event.pointerId) return;
+              const nextIndex = resolveActiveIndexFromPointer(event);
+              setActiveIndex(nextIndex);
+              const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
+              if (nextItem && nextItem.id !== drag.lastItemId) {
+                drag.lastItemId = nextItem.id;
+                (onScrub ?? onSelect)(nextItem);
+              }
+              return;
+            }
+            if (event.buttons !== 0) return;
+            setActiveIndex(resolveActiveIndexFromPointer(event));
+          }}
+          onPointerUp={(event) => {
+            if (dragRef.current?.pointerId !== event.pointerId) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const insideRail =
+              event.clientX >= rect.left &&
+              event.clientX <= rect.right &&
+              event.clientY >= rect.top &&
+              event.clientY <= rect.bottom;
+            const nextActiveIndex = insideRail ? resolveActiveIndexFromPointer(event) : null;
+            event.currentTarget.blur();
+            endDrag(event.currentTarget, nextActiveIndex);
+          }}
+          onPointerCancel={cancelDrag}
+          onLostPointerCapture={cancelDrag}
+          onPointerLeave={clearHover}
+          onMouseLeave={clearHover}
           onMouseDown={(event) => {
             event.preventDefault();
           }}
           onClick={(event) => {
+            if (suppressClickRef.current) {
+              clearTimeout(suppressClickTimerRef.current);
+              suppressClickTimerRef.current = undefined;
+              suppressClickRef.current = false;
+              return;
+            }
             const nextIndex = resolveActiveIndexFromPointer(event);
             const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
             if (nextItem) {

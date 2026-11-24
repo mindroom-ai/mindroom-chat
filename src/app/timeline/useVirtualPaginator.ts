@@ -161,8 +161,23 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>(undefined);
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
+  const correctionFrameRef = useRef<number | undefined>(undefined);
+
+  useEffect(
+    () => () => {
+      if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(correctionFrameRef.current);
+      }
+      correctionFrameRef.current = undefined;
+    },
+    []
+  );
 
   const scrollToElement: ScrollToElement = useCallback((element, opts = {}) => {
+    if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(correctionFrameRef.current);
+    }
+    correctionFrameRef.current = undefined;
     const scrollElement = optionsRef.current.getScrollElement();
     if (!scrollElement) return false;
     const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
@@ -188,12 +203,16 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
     if (behavior !== 'smooth' && typeof requestAnimationFrame === 'function') {
       // Layout can still move the element during the scroll; correct once on the next frame.
-      requestAnimationFrame(() => {
+      let ran = false;
+      const frameId = requestAnimationFrame(() => {
+        ran = true;
+        correctionFrameRef.current = undefined;
         const corrected = element.getBoundingClientRect();
         const error = corrected.top - targetTop(corrected.height);
         if (Math.abs(error) < 1 || atScrollBoundary(scrollElement, error)) return;
         scrollElement.scrollBy({ top: error, behavior });
       });
+      if (!ran) correctionFrameRef.current = frameId;
     }
     return true;
   }, []);
