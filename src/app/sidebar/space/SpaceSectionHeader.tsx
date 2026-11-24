@@ -1,7 +1,7 @@
 import {
   type MouseEvent,
   type MouseEventHandler,
-  type RefObject,
+  type Ref,
   useCallback,
   useMemo,
   useRef,
@@ -38,7 +38,7 @@ import * as css from './SpaceSectionHeader.css';
 const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
 
 type SectionHeaderButtonProps = {
-  buttonRef?: RefObject<HTMLButtonElement>;
+  buttonRef?: Ref<HTMLButtonElement>;
   label: string;
   ownDirection?: boolean;
   categoryId: string;
