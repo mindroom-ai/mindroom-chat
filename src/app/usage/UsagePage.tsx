@@ -36,6 +36,11 @@ const isPayAsYouGo = (account: ProviderAccountUsage): boolean => {
   );
 };
 
+const SUBSCRIPTION_QUOTA_PROVIDERS = new Set(['codex', 'claude_code']);
+
+const isSubscriptionQuotaProvider = (provider: string): boolean =>
+  SUBSCRIPTION_QUOTA_PROVIDERS.has(provider.toLowerCase());
+
 function AccountLimitCard({
   account,
   allAccounts,
@@ -91,8 +96,11 @@ function AccountLimitCard({
           account.windows.map((window) => (
             <QuotaBar key={window.id} window={window} provider={account.provider} now={now} />
           ))
-        ) : account.unavailable_reason ? (
-          <div className={css.NoLimitNote} data-unavailable-reason={account.unavailable_reason}>
+        ) : account.unavailable_reason || isSubscriptionQuotaProvider(account.provider) ? (
+          <div
+            className={css.NoLimitNote}
+            data-unavailable-reason={account.unavailable_reason ?? 'limits_unavailable'}
+          >
             <span>
               {account.unavailable_reason === 'not_signed_in'
                 ? t('mindroomUi.usage.notSignedIn')

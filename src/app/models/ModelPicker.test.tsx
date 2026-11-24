@@ -4,6 +4,7 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot, Root } from 'react-dom/client';
 import { Room } from 'matrix-js-sdk';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
@@ -37,7 +38,6 @@ const mocks = vi.hoisted(() => {
   };
   return {
     useModelPicker: vi.fn(),
-    navigate: vi.fn(),
     ensureUsageLoaded: vi.fn(),
     usage,
     mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
@@ -198,10 +198,6 @@ vi.mock('../matrix/matrix', () => ({
   mxcUrlToHttp: mocks.mxcUrlToHttp,
 }));
 
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mocks.navigate,
-}));
-
 vi.mock('../usage/useProviderUsage', () => ({
   useRuntimeProviderUsage: (roomId: string | undefined, target: RuntimeIdentity | undefined) => ({
     available: mocks.usage.available,
@@ -304,7 +300,6 @@ describe('composer model picker', () => {
 
   beforeEach(() => {
     mocks.useModelPicker.mockReset();
-    mocks.navigate.mockReset();
     mocks.ensureUsageLoaded.mockReset();
     mocks.usage.available = false;
     mocks.usage.runtimes = [];
@@ -1664,9 +1659,15 @@ describe('TrappedModelPickerPanel', () => {
 describe('ModelPicker inline provider usage', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let currentPathname = '';
+
+  function LocationObserver() {
+    currentPathname = useLocation().pathname;
+    return null;
+  }
 
   beforeEach(() => {
-    mocks.navigate.mockReset();
+    currentPathname = '';
     mocks.ensureUsageLoaded.mockReset();
     mocks.usage.available = false;
     mocks.usage.runtimes = [];
@@ -1704,7 +1705,14 @@ describe('ModelPicker inline provider usage', () => {
       ],
     });
 
-    act(() => root.render(<ModelPicker state={state} room={room} />));
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <LocationObserver />
+          <ModelPicker state={state} room={room} />
+        </MemoryRouter>
+      )
+    );
     await click(container.querySelector('button[aria-label="Choose model"]')!);
 
     expect(mocks.ensureUsageLoaded).toHaveBeenCalledWith('!room:example.org');
@@ -1732,7 +1740,7 @@ describe('ModelPicker inline provider usage', () => {
     expect(footerButton).not.toBeNull();
     expect(footerButton.textContent).toContain('All usage & limits');
     await click(footerButton);
-    expect(mocks.navigate).toHaveBeenCalledWith('/usage/');
+    expect(currentPathname).toBe('/usage/');
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -1754,7 +1762,13 @@ describe('ModelPicker inline provider usage', () => {
         { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
       ],
     });
-    act(() => root.render(<ModelPicker state={state} />));
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <ModelPicker state={state} />
+        </MemoryRouter>
+      )
+    );
     await click(container.querySelector('button[aria-label="Choose model"]')!);
 
     expect(container.querySelector('[data-inline-quota]')).toBeNull();
@@ -1763,10 +1777,41 @@ describe('ModelPicker inline provider usage', () => {
   });
 
   it('hides inline quotas and the footer link when provider usage is unavailable', async () => {
-    act(() => root.render(<ModelPicker state={createState()} />));
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/home/']}>
+          <ModelPicker state={createState()} />
+        </MemoryRouter>
+      )
+    );
     await click(container.querySelector('button[aria-label="Choose model"]')!);
 
     expect(container.querySelector('[data-inline-quota]')).toBeNull();
+    expect(container.querySelector('[data-usage-footer]')).toBeNull();
+  });
+
+  it('renders without throwing outside a Router and omits the usage footer link', async () => {
+    const snapshot = JSON.parse(JSON.stringify(contractFixture)) as ProviderUsageSnapshot;
+    const runtimeKey = `${runtime.userId}:${runtime.deviceId}`;
+    mocks.usage.available = true;
+    mocks.usage.runtimes = [{ ...runtime, id: runtimeKey }];
+    mocks.usage.snapshotsByRuntime = { [runtimeKey]: snapshot };
+
+    const state = createState({
+      models: [
+        { key: 'opus_native', display_name: 'Opus', provider: 'Claude Code', id: 'claude-opus' },
+      ],
+    });
+
+    act(() => root.render(<ModelPicker state={state} />));
+    const triggerButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Choose model"]'
+    );
+    expect(triggerButton).not.toBeNull();
+
+    await click(triggerButton!);
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(container.querySelector('[data-inline-quota="claude_code:default"]')).not.toBeNull();
     expect(container.querySelector('[data-usage-footer]')).toBeNull();
   });
 });

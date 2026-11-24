@@ -256,6 +256,57 @@ describe('UsagePage & QuotaBar', () => {
     expect(failedCard.textContent).not.toContain('100% left');
   });
 
+  it('renders Usage limits unavailable instead of No subscription limit for codex/claude_code accounts with empty windows and null unavailable_reason', () => {
+    const snapshot = cloneFixture();
+    snapshot.accounts = [
+      {
+        ...snapshot.accounts[1]!,
+        id: 'codex:empty-windows',
+        provider: 'codex',
+        display_name: 'Codex',
+        account_label: null,
+        plan: 'plus',
+        windows: [],
+        unavailable_reason: null,
+      },
+      {
+        ...snapshot.accounts[0]!,
+        id: 'claude_code:empty-windows',
+        provider: 'claude_code',
+        display_name: 'Claude Code',
+        account_label: null,
+        plan: 'max',
+        windows: [],
+        unavailable_reason: undefined,
+      },
+      {
+        ...snapshot.accounts[2]!,
+        id: 'openrouter:uncapped',
+        provider: 'openrouter',
+        display_name: 'OpenRouter',
+        account_label: null,
+        plan: null,
+        windows: [],
+        unavailable_reason: null,
+      },
+    ];
+    renderPage(makeUsageState({ snapshot }));
+
+    const codexCard = container.querySelector('[data-account-card="codex:empty-windows"]')!;
+    expect(codexCard.textContent).toContain('Usage limits unavailable');
+    expect(codexCard.textContent).not.toContain('No subscription limit');
+    expect(codexCard.querySelector('[data-no-limit]')).toBeNull();
+
+    const claudeCard = container.querySelector('[data-account-card="claude_code:empty-windows"]')!;
+    expect(claudeCard.textContent).toContain('Usage limits unavailable');
+    expect(claudeCard.textContent).not.toContain('No subscription limit');
+    expect(claudeCard.querySelector('[data-no-limit]')).toBeNull();
+
+    const openRouterCard = container.querySelector('[data-account-card="openrouter:uncapped"]')!;
+    expect(openRouterCard.textContent).toContain('No subscription limit');
+    expect(openRouterCard.querySelector('[data-no-limit]')).not.toBeNull();
+  });
+
   it('disambiguates colliding same-provider account names across cards, chart legend, and table', () => {
     const snapshot = cloneFixture();
     const or1 = snapshot.accounts[2]!;

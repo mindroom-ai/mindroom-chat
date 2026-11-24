@@ -14,7 +14,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useInRouterContext, useNavigate } from 'react-router-dom';
 
 import { formatRelativeTime } from '../lib/time';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
@@ -62,7 +62,7 @@ type ModelPickerPanelProps = {
   roomSetting?: { canReset: boolean };
   usageSnapshot?: ProviderUsageSnapshot;
   usageAvailable?: boolean;
-  onOpenUsage?: () => void;
+  onBeforeOpenUsage?: () => void;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -139,6 +139,36 @@ const currentChoice = (state: ModelPickerState) => {
   return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
+function UsageFooterLink({
+  onBeforeNavigate,
+  requestClose,
+}: {
+  onBeforeNavigate?: () => void;
+  requestClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  return (
+    <button
+      type="button"
+      className={css.UsageLink}
+      onClick={() => {
+        onBeforeNavigate?.();
+        void navigate(getUsagePath());
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        requestClose();
+      }}
+    >
+      {t('mindroomUi.usage.allUsageAndLimits')}
+    </button>
+  );
+}
+
 function ModelPickerPanel({
   state,
   newThread,
@@ -148,11 +178,12 @@ function ModelPickerPanel({
   roomSetting,
   usageSnapshot,
   usageAvailable,
-  onOpenUsage,
+  onBeforeOpenUsage,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
   const { t, i18n } = useTranslation();
+  const inRouter = useInRouterContext();
   const stacked = useScreenSizeContext() === ScreenSize.Mobile;
   const checkedAtMs = usageSnapshot ? Date.parse(usageSnapshot.checked_at) : Number.NaN;
   const usageUpdated = Number.isFinite(checkedAtMs)
@@ -540,26 +571,14 @@ function ModelPickerPanel({
           )}
         </div>
       </Scroll>
-      {usageAvailable && onOpenUsage && !roomSetting && (
+      {usageAvailable && inRouter && !roomSetting && (
         <div className={css.UsageFooter} data-usage-footer="">
           {usageUpdated && (
             <span className={css.UsageUpdated}>
               {t('mindroomUi.usage.updatedAgo', { time: usageUpdated })}
             </span>
           )}
-          <button
-            type="button"
-            className={css.UsageLink}
-            onClick={onOpenUsage}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              event.preventDefault();
-              event.stopPropagation();
-              requestClose();
-            }}
-          >
-            {t('mindroomUi.usage.allUsageAndLimits')}
-          </button>
+          <UsageFooterLink onBeforeNavigate={onBeforeOpenUsage} requestClose={requestClose} />
         </div>
       )}
     </>
@@ -674,7 +693,6 @@ export function ModelPicker({
   conversationHidden?: boolean;
 }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const usage = useRuntimeProviderUsage(membersRoom?.roomId, state.runtime);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -763,11 +781,6 @@ export function ModelPicker({
     usage.ensureLoaded();
   };
 
-  const openUsagePage = () => {
-    setOpen(false);
-    void navigate(getUsagePath());
-  };
-
   const anchor = open ? triggerRef.current?.getBoundingClientRect() : undefined;
   // The room above the button, less a phone's status bar: folds puts a pop-out that does not fit
   // above beside the button instead.
@@ -792,7 +805,7 @@ export function ModelPicker({
             room={room}
             usageSnapshot={usage.snapshot}
             usageAvailable={usage.available}
-            onOpenUsage={openUsagePage}
+            onBeforeOpenUsage={() => setOpen(false)}
             requestClose={close}
             onCommand={() => {
               if (newThread) close();
