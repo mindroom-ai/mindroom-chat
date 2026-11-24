@@ -2343,5 +2343,13 @@
     "error": {
       "title": "Impossible de charger les fils de l’espace"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramme",
+    "source": "Source",
+    "showDiagram": "Afficher le diagramme",
+    "showSource": "Afficher la source",
+    "mermaidDiagram": "Diagramme Mermaid",
+    "diagramUnavailable": "Affichage de la source"
   }
 }

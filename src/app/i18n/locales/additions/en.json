@@ -2266,5 +2266,13 @@
     "error": {
       "title": "Could not load space threads"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagram",
+    "source": "Source",
+    "showDiagram": "Show diagram",
+    "showSource": "Show source",
+    "mermaidDiagram": "Mermaid diagram",
+    "diagramUnavailable": "Showing source"
   }
 }

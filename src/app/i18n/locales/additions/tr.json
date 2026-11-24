@@ -2266,5 +2266,13 @@
     "error": {
       "title": "Alan iş parçacıkları yüklenemedi"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diyagram",
+    "source": "Kaynak",
+    "showDiagram": "Diyagramı göster",
+    "showSource": "Kaynağı göster",
+    "mermaidDiagram": "Mermaid diyagramı",
+    "diagramUnavailable": "Kaynak gösteriliyor"
   }
 }

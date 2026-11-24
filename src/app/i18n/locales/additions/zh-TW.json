@@ -2189,5 +2189,13 @@
     "error": {
       "title": "無法載入空間討論串"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "圖表",
+    "source": "原始碼",
+    "showDiagram": "顯示圖表",
+    "showSource": "顯示原始碼",
+    "mermaidDiagram": "Mermaid 圖表",
+    "diagramUnavailable": "正在顯示原始碼"
   }
 }

@@ -2343,5 +2343,13 @@
     "error": {
       "title": "Impossibile caricare le discussioni dello spazio"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramma",
+    "source": "Sorgente",
+    "showDiagram": "Mostra diagramma",
+    "showSource": "Mostra sorgente",
+    "mermaidDiagram": "Diagramma Mermaid",
+    "diagramUnavailable": "Sorgente visualizzato"
   }
 }

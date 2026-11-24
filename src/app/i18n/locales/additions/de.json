@@ -2266,5 +2266,13 @@
     "error": {
       "title": "Space-Threads konnten nicht geladen werden"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "Diagramm",
+    "source": "Quelltext",
+    "showDiagram": "Diagramm anzeigen",
+    "showSource": "Quelltext anzeigen",
+    "mermaidDiagram": "Mermaid-Diagramm",
+    "diagramUnavailable": "Quelltext wird angezeigt"
   }
 }

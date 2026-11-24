@@ -2574,5 +2574,13 @@
     "error": {
       "title": "تعذر تحميل سلاسل رسائل المساحة"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "مخطط",
+    "source": "المصدر",
+    "showDiagram": "إظهار المخطط",
+    "showSource": "إظهار المصدر",
+    "mermaidDiagram": "مخطط Mermaid",
+    "diagramUnavailable": "عرض المصدر"
   }
 }

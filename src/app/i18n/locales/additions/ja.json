@@ -2189,5 +2189,13 @@
     "error": {
       "title": "スペースのスレッドを読み込めませんでした"
     }
+  },
+  "messageCodeBlock": {
+    "diagram": "図",
+    "source": "ソース",
+    "showDiagram": "図を表示",
+    "showSource": "ソースを表示",
+    "mermaidDiagram": "Mermaid 図",
+    "diagramUnavailable": "ソースを表示中"
   }
 }

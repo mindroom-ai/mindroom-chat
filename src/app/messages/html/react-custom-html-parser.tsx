@@ -27,6 +27,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
+import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
   CheckIcon,
@@ -512,65 +513,67 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     );
   }
 
-  return (
-    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
-      <div className={css.CodeBlockHeader}>
-        <div className={css.CodeBlockLabel}>
-          {iconToken && (
-            <span
-              role="img"
-              aria-label={t('messageCodeBlock.language', {
-                language: language ?? labelExtension,
-              })}
-            >
-              <CodeBlockLanguageIcon token={iconToken} />
-            </span>
-          )}
-          {(label || !iconToken) && (
-            <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
-          )}
-        </div>
-        <div
-          className={css.CodeBlockActions}
-          role="group"
-          aria-label={t('messageCodeBlock.actions')}
-          data-code-block-actions=""
+  const headerLabel = (
+    <div className={css.CodeBlockLabel}>
+      {iconToken && (
+        <span
+          role="img"
+          aria-label={t('messageCodeBlock.language', {
+            language: language ?? labelExtension,
+          })}
         >
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={t('messageCodeBlock.wrap')}
-            title={t('messageCodeBlock.wrap')}
-            aria-pressed={wrap}
-            onClick={() => setWrap((value) => !value)}
-          >
-            <WrapTextIcon />
-          </button>
-          {long && (
-            <button
-              ref={expandButtonRef}
-              type="button"
-              className={css.CodeBlockAction}
-              aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
-              aria-expanded={expanded}
-              onClick={() => {
-                if (!expanded) armReveal();
-                setExpanded((value) => !value);
-              }}
-            >
-              {expanded ? <CollapseIcon /> : <ExpandIcon />}
-            </button>
-          )}
-          <button
-            type="button"
-            className={css.CodeBlockAction}
-            aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
-            onClick={() => void copy()}
-          >
-            {copied ? <CheckIcon /> : <CopyIcon />}
-          </button>
-        </div>
-      </div>
+          <CodeBlockLanguageIcon token={iconToken} />
+        </span>
+      )}
+      {(label || !iconToken) && (
+        <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
+      )}
+    </div>
+  );
+
+  const sourceActions = (
+    <>
+      <button
+        type="button"
+        className={css.CodeBlockAction}
+        aria-label={t('messageCodeBlock.wrap')}
+        title={t('messageCodeBlock.wrap')}
+        aria-pressed={wrap}
+        onClick={() => setWrap((value) => !value)}
+      >
+        <WrapTextIcon />
+      </button>
+      {long && (
+        <button
+          ref={expandButtonRef}
+          type="button"
+          className={css.CodeBlockAction}
+          aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
+          aria-expanded={expanded}
+          onClick={() => {
+            if (!expanded) armReveal();
+            setExpanded((value) => !value);
+          }}
+        >
+          {expanded ? <CollapseIcon /> : <ExpandIcon />}
+        </button>
+      )}
+    </>
+  );
+
+  const copyAction = (
+    <button
+      type="button"
+      className={css.CodeBlockAction}
+      aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
+      onClick={() => void copy()}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
+  );
+
+  const sourceBody = (
+    <>
       {/* Native scroll areas need a tab stop for keyboard scrolling. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
       <div
@@ -587,6 +590,38 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
         {collapsed && !atEnd && <div className={css.CodeBlockBottomShadow} />}
       </div>
       {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+    </>
+  );
+
+  if (!formatted && language?.toLowerCase() === 'mermaid') {
+    return (
+      <MermaidBlock
+        source={source}
+        searchMatch={searchMatch}
+        wrap={wrap}
+        headerLabel={headerLabel}
+        sourceActions={sourceActions}
+        copyAction={copyAction}
+        sourceBody={sourceBody}
+      />
+    );
+  }
+
+  return (
+    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
+      <div className={css.CodeBlockHeader}>
+        {headerLabel}
+        <div
+          className={css.CodeBlockActions}
+          role="group"
+          aria-label={t('messageCodeBlock.actions')}
+          data-code-block-actions=""
+        >
+          {sourceActions}
+          {copyAction}
+        </div>
+      </div>
+      {sourceBody}
     </pre>
   );
 }
