@@ -7,6 +7,7 @@ const sign = process.env.MINDROOM_DESKTOP_SIGN === '1';
 module.exports = {
   appId: 'chat.mindroom.app',
   productName: 'MindRoom Chat',
+  afterPack: 'electron/afterPack.cjs',
   asar: true,
   npmRebuild: false,
   electronVersion: pkg.devDependencies.electron,
@@ -25,6 +26,7 @@ module.exports = {
   files: [
     'build/electron/**/*',
     '!build/electron/mindroom-screenshot-helper',
+    '!build/electron/MindRoom Desktop Helper.app/**',
     'dist/**/*',
     'package.json',
     '!node_modules/**/*',
@@ -47,6 +49,8 @@ module.exports = {
     forceCodeSigning: sign,
     entitlements: 'electron/entitlements.mac.plist',
     entitlementsInherit: 'electron/entitlements.helper.plist',
+    // Preserve the pre-signed, notarized PyInstaller helper signature and entitlements.
+    signIgnore: ['Contents/Helpers/MindRoom Desktop Helper\\.app(/|$)'],
     icon: 'ios/App/App/Assets.xcassets/AppIcon.appiconset/Icon-Mac-512x512@2x.png',
     category: 'public.app-category.social-networking',
     notarize: sign,

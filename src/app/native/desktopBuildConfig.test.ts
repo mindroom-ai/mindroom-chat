@@ -1,11 +1,17 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -14,14 +20,39 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
+import {
+  fetchDesktopHelper,
+  readHelperPin,
+  verifyTarballSha256,
+} from '../../../scripts/fetch-desktop-helper.mjs';
 
 const require = createRequire(import.meta.url);
 const read = (filePath: string) => readFileSync(resolve(filePath), 'utf8');
 const tempDirs: string[] = [];
+const PENDING_SHA256 = '0'.repeat(64);
+const HELPER_BUNDLE_NAME = 'MindRoom Desktop Helper.app';
+const HELPER_EXEC_REL = join('Contents', 'MacOS', 'MindRoom Desktop Helper');
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
+
+function makeTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+}
+
+function createFakeHelperBundle(appDir: string, content = 'helper-bin'): void {
+  const execPath = join(appDir, HELPER_EXEC_REL);
+  mkdirSync(dirname(execPath), { recursive: true });
+  writeFileSync(execPath, content);
+  chmodSync(execPath, 0o755);
+  const fwDir = join(appDir, 'Contents', 'Frameworks');
+  mkdirSync(join(fwDir, 'Versions', '3.12'), { recursive: true });
+  writeFileSync(join(fwDir, 'Versions', '3.12', 'Python'), 'py');
+  symlinkSync('Versions/3.12', join(fwDir, 'Current'));
+}
 
 function loadBuilderConfig(envOverrides: Record<string, string>) {
   const configPath = resolve('electron/builder.config.cjs');
@@ -62,7 +93,7 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     ).resolves.toBeUndefined();
   }, 15_000);
 
-  it('pins names, hardened runtime, entitlements, fuses (+ resetAdHocDarwinSignature), and artifacts', () => {
+  it('pins names, hardened runtime, entitlements, fuses, helper afterPack/signIgnore, and artifacts', () => {
     const rawConfig = read('electron/builder.config.cjs');
     const signed = loadBuilderConfig({
       MARKETING_VERSION: '2026.11.9',
@@ -73,6 +104,7 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
     expect(signed).toMatchObject({
       appId: 'chat.mindroom.app',
       productName: 'MindRoom Chat',
+      afterPack: 'electron/afterPack.cjs',
       asar: true,
       npmRebuild: false,
       buildVersion: '2026.11.9',
@@ -96,6 +128,7 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
         notarize: true,
         entitlements: 'electron/entitlements.mac.plist',
         entitlementsInherit: 'electron/entitlements.helper.plist',
+        signIgnore: ['Contents/Helpers/MindRoom Desktop Helper\\.app(/|$)'],
         target: [
           { target: 'dmg', arch: ['universal'] },
           { target: 'zip', arch: ['arm64', 'x64'] },
@@ -103,6 +136,23 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
       },
       dmg: { artifactName: 'MindRoom-Chat.dmg', title: 'MindRoom Chat', writeUpdateInfo: false },
     });
+
+    expect(signed.files).toContain('!build/electron/MindRoom Desktop Helper.app/**');
+    const signIgnoreRe = new RegExp(signed.mac.signIgnore[0] as string);
+    expect(
+      signIgnoreRe.test('/app/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app')
+    ).toBe(true);
+    expect(
+      signIgnoreRe.test(
+        '/app/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS/MindRoom Desktop Helper'
+      )
+    ).toBe(true);
+    expect(
+      signIgnoreRe.test('/app/MindRoom Chat.app/Contents/Resources/mindroom-screenshot-helper')
+    ).toBe(false);
+    expect(
+      signIgnoreRe.test('/app/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app.evil')
+    ).toBe(false);
 
     const baseFuses = {
       runAsNode: false,
@@ -143,6 +193,368 @@ describe('electron/builder.config.cjs and macOS entitlements', () => {
   });
 });
 
+describe('electron/afterPack.cjs', () => {
+  const { Arch } = require('app-builder-lib') as {
+    Arch: { x64: number; arm64: number; universal: number };
+  };
+
+  async function runAfterPack(
+    context: {
+      electronPlatformName: string;
+      arch: number;
+      appOutDir: string;
+      packager: { appInfo: { productFilename: string } };
+    },
+    envOverrides: Record<string, string | undefined>
+  ) {
+    const hookPath = resolve('electron/afterPack.cjs');
+    const saved = Object.fromEntries(Object.keys(envOverrides).map((k) => [k, process.env[k]]));
+    for (const [k, v] of Object.entries(envOverrides)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    try {
+      delete require.cache[hookPath];
+      const afterPack = require(hookPath) as (ctx: typeof context) => Promise<void>;
+      await afterPack(context);
+    } finally {
+      delete require.cache[hookPath];
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
+  function makePackContext(appOutDir: string, arch: number, electronPlatformName = 'darwin') {
+    mkdirSync(join(appOutDir, 'MindRoom Chat.app', 'Contents'), { recursive: true });
+    return {
+      electronPlatformName,
+      arch,
+      appOutDir,
+      packager: { appInfo: { productFilename: 'MindRoom Chat' } },
+    };
+  }
+
+  it.each([
+    ['arm64', Arch.arm64, 'mac-arm64'],
+    ['universal', Arch.universal, 'mac-universal'],
+  ])(
+    'bundles helper into Contents/Helpers for %s preserving symlinks and permissions',
+    async (_label, arch, dirName) => {
+      const root = makeTempDir('mindroom-afterpack-');
+      const staged = join(root, HELPER_BUNDLE_NAME);
+      createFakeHelperBundle(staged, 'fresh-helper');
+      const appOutDir = join(root, dirName);
+      const context = makePackContext(appOutDir, arch);
+      const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
+      mkdirSync(dest, { recursive: true });
+      writeFileSync(join(dest, 'stale.txt'), 'old');
+
+      await runAfterPack(context, {
+        MINDROOM_DESKTOP_HELPER_STAGED: staged,
+        MINDROOM_DESKTOP_SIGN: '1',
+      });
+
+      expect(existsSync(join(dest, 'stale.txt'))).toBe(false);
+      expect(readFileSync(join(dest, HELPER_EXEC_REL), 'utf8')).toBe('fresh-helper');
+      expect(statSync(join(dest, HELPER_EXEC_REL)).mode & 0o111).not.toBe(0);
+      const linkPath = join(dest, 'Contents', 'Frameworks', 'Current');
+      expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+      expect(readlinkSync(linkPath)).toBe('Versions/3.12');
+    }
+  );
+
+  it.each([
+    ['x64', Arch.x64, 'mac', 'darwin'],
+    ['universal -arm64-temp', Arch.arm64, 'mac-universal-arm64-temp', 'darwin'],
+    ['universal -x64-temp', Arch.x64, 'mac-universal-x64-temp', 'darwin'],
+    ['non-darwin platform', Arch.arm64, 'linux-arm64', 'linux'],
+  ])(
+    'skips helper bundling for %s even in signed mode',
+    async (_label, arch, dirName, platform) => {
+      const root = makeTempDir('mindroom-afterpack-skip-');
+      const staged = join(root, HELPER_BUNDLE_NAME);
+      createFakeHelperBundle(staged);
+      const appOutDir = join(root, dirName);
+      const context = makePackContext(appOutDir, arch, platform);
+
+      await runAfterPack(context, {
+        MINDROOM_DESKTOP_HELPER_STAGED: staged,
+        MINDROOM_DESKTOP_SIGN: '1',
+      });
+
+      const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
+      expect(existsSync(dest)).toBe(false);
+    }
+  );
+
+  it.each([
+    ['arm64', Arch.arm64, 'mac-arm64'],
+    ['universal', Arch.universal, 'mac-universal'],
+  ])(
+    'fails closed in signed mode when staged helper is missing (%s)',
+    async (_label, arch, dirName) => {
+      const root = makeTempDir('mindroom-afterpack-missing-');
+      const appOutDir = join(root, dirName);
+      const context = makePackContext(appOutDir, arch);
+
+      await expect(
+        runAfterPack(context, {
+          MINDROOM_DESKTOP_HELPER_STAGED: join(root, 'does-not-exist.app'),
+          MINDROOM_DESKTOP_SIGN: '1',
+        })
+      ).rejects.toThrow(/MindRoom Desktop Helper/);
+    }
+  );
+
+  it('skips silently in unsigned mode when staged helper is missing', async () => {
+    const root = makeTempDir('mindroom-afterpack-unsigned-');
+    const appOutDir = join(root, 'mac-arm64');
+    const context = makePackContext(appOutDir, Arch.arm64);
+
+    await expect(
+      runAfterPack(context, {
+        MINDROOM_DESKTOP_HELPER_STAGED: join(root, 'does-not-exist.app'),
+        MINDROOM_DESKTOP_SIGN: '0',
+      })
+    ).resolves.toBeUndefined();
+
+    const dest = join(appOutDir, 'MindRoom Chat.app', 'Contents', 'Helpers', HELPER_BUNDLE_NAME);
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  it('fails closed when staged helper directory is missing the helper executable', async () => {
+    const root = makeTempDir('mindroom-afterpack-corrupt-');
+    const staged = join(root, HELPER_BUNDLE_NAME);
+    mkdirSync(staged, { recursive: true });
+    const appOutDir = join(root, 'mac-arm64');
+    const context = makePackContext(appOutDir, Arch.arm64);
+
+    await expect(
+      runAfterPack(context, {
+        MINDROOM_DESKTOP_HELPER_STAGED: staged,
+        MINDROOM_DESKTOP_SIGN: '0',
+      })
+    ).rejects.toThrow(/MindRoom Desktop Helper/);
+  });
+});
+
+describe('scripts/desktop-helper-pin.json and scripts/fetch-desktop-helper.mjs', () => {
+  function createHelperTarball(dir: string, content = 'real-helper-bin') {
+    const stage = join(dir, 'tar-src');
+    const appDir = join(stage, HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(appDir, content);
+    const tarball = join(dir, 'MindRoom-Desktop-Helper-arm64.tar.gz');
+    const tar = spawnSync('tar', ['-czf', tarball, '-C', stage, HELPER_BUNDLE_NAME], {
+      encoding: 'utf8',
+    });
+    expect(tar.status, tar.stderr).toBe(0);
+    const sha256 = createHash('sha256').update(readFileSync(tarball)).digest('hex');
+    return { tarball, sha256 };
+  }
+
+  function writePin(dir: string, overrides: Record<string, unknown> = {}) {
+    const pinPath = join(dir, 'desktop-helper-pin.json');
+    writeFileSync(
+      pinPath,
+      JSON.stringify({
+        repo: 'mindroom-ai/mindroom',
+        tag: 'v2026.11.568',
+        asset: 'MindRoom-Desktop-Helper-arm64.tar.gz',
+        sha256: 'a'.repeat(64),
+        bundleId: 'chat.mindroom.desktophelper',
+        teamId: 'DNA6966LGZ',
+        ...overrides,
+      }),
+      'utf8'
+    );
+    return pinPath;
+  }
+
+  it('validates the committed scripts/desktop-helper-pin.json fields', () => {
+    const pin = readHelperPin(resolve('scripts/desktop-helper-pin.json'));
+    expect(pin).toMatchObject({
+      repo: 'mindroom-ai/mindroom',
+      tag: 'v2026.11.568',
+      asset: 'MindRoom-Desktop-Helper-arm64.tar.gz',
+      bundleId: 'chat.mindroom.desktophelper',
+      teamId: 'DNA6966LGZ',
+    });
+    expect(pin.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it.each([
+    ['invalid repo', { repo: 'not-a-repo' }],
+    ['empty tag', { tag: '' }],
+    ['uppercase sha256', { sha256: 'A'.repeat(64) }],
+    ['short sha256', { sha256: 'deadbeef' }],
+    ['invalid teamId', { teamId: 'bad' }],
+  ])('readHelperPin rejects %s', (_label, overrides) => {
+    const dir = makeTempDir('mindroom-helper-pin-');
+    const pinPath = writePin(dir, overrides);
+    expect(() => readHelperPin(pinPath)).toThrow();
+  });
+
+  it('verifyTarballSha256 rejects all-zero sentinel and mismatched digests', () => {
+    const dir = makeTempDir('mindroom-helper-sha-');
+    const file = join(dir, 'sample.tar.gz');
+    writeFileSync(file, 'payload');
+    const realHash = createHash('sha256').update('payload').digest('hex');
+
+    expect(() => verifyTarballSha256(file, PENDING_SHA256)).toThrow(/pending|sentinel|zero/i);
+    expect(() => verifyTarballSha256(file, 'b'.repeat(64))).toThrow(/SHA-256 mismatch/);
+    expect(verifyTarballSha256(file, realHash)).toBe(realHash);
+  });
+
+  it('rejects all-zero sentinel in download mode before invoking downloadTarball', async () => {
+    const dir = makeTempDir('mindroom-helper-sentinel-');
+    const pinPath = writePin(dir, { sha256: PENDING_SHA256 });
+    const outDir = join(dir, 'out', HELPER_BUNDLE_NAME);
+    let downloaded = false;
+
+    await expect(
+      fetchDesktopHelper({
+        pinPath,
+        outDir,
+        localAppPath: '',
+        downloadTarball: async () => {
+          downloaded = true;
+        },
+      })
+    ).rejects.toThrow(/pending|sentinel|zero/i);
+
+    expect(downloaded).toBe(false);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it('fails closed on SHA-256 mismatch and leaves an existing outDir untouched', async () => {
+    const dir = makeTempDir('mindroom-helper-mismatch-');
+    const { tarball } = createHelperTarball(dir, 'new-bin');
+    const pinPath = writePin(dir, { sha256: 'f'.repeat(64) });
+    const outDir = join(dir, 'out', HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(outDir, 'existing-bin');
+
+    await expect(
+      fetchDesktopHelper({
+        pinPath,
+        outDir,
+        localAppPath: '',
+        downloadTarball: async (_url: string, destPath: string) => {
+          copyFileSync(tarball, destPath);
+        },
+      })
+    ).rejects.toThrow(/SHA-256 mismatch/);
+
+    expect(readFileSync(join(outDir, HELPER_EXEC_REL), 'utf8')).toBe('existing-bin');
+  });
+
+  it('downloads, verifies SHA-256, extracts preserving symlinks, and atomically replaces outDir', async () => {
+    const dir = makeTempDir('mindroom-helper-ok-');
+    const { tarball, sha256 } = createHelperTarball(dir, 'verified-bin');
+    const pinPath = writePin(dir, { sha256 });
+    const outParent = join(dir, 'out');
+    const outDir = join(outParent, HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(outDir, 'stale-bin');
+    writeFileSync(join(outDir, 'stale.txt'), 'remove-me');
+    const seenUrls: string[] = [];
+
+    await fetchDesktopHelper({
+      pinPath,
+      outDir,
+      localAppPath: '',
+      downloadTarball: async (url: string, destPath: string) => {
+        seenUrls.push(url);
+        copyFileSync(tarball, destPath);
+      },
+    });
+
+    expect(seenUrls).toEqual([
+      'https://github.com/mindroom-ai/mindroom/releases/download/v2026.11.568/MindRoom-Desktop-Helper-arm64.tar.gz',
+    ]);
+    expect(existsSync(join(outDir, 'stale.txt'))).toBe(false);
+    expect(readFileSync(join(outDir, HELPER_EXEC_REL), 'utf8')).toBe('verified-bin');
+    expect(statSync(join(outDir, HELPER_EXEC_REL)).mode & 0o111).not.toBe(0);
+    const linkPath = join(outDir, 'Contents', 'Frameworks', 'Current');
+    expect(lstatSync(linkPath).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(linkPath)).toBe('Versions/3.12');
+    expect(readdirSync(outParent)).toEqual([HELPER_BUNDLE_NAME]);
+  });
+
+  it('fails closed when tarball does not contain the helper executable', async () => {
+    const dir = makeTempDir('mindroom-helper-badtar-');
+    const stage = join(dir, 'bad-src');
+    mkdirSync(join(stage, HELPER_BUNDLE_NAME), { recursive: true });
+    writeFileSync(join(stage, HELPER_BUNDLE_NAME, 'README.txt'), 'no binary');
+    const tarball = join(dir, 'bad.tar.gz');
+    const tar = spawnSync('tar', ['-czf', tarball, '-C', stage, HELPER_BUNDLE_NAME], {
+      encoding: 'utf8',
+    });
+    expect(tar.status, tar.stderr).toBe(0);
+    const sha256 = createHash('sha256').update(readFileSync(tarball)).digest('hex');
+    const pinPath = writePin(dir, { sha256 });
+    const outDir = join(dir, 'out', HELPER_BUNDLE_NAME);
+
+    await expect(
+      fetchDesktopHelper({
+        pinPath,
+        outDir,
+        localAppPath: '',
+        downloadTarball: async (_url: string, destPath: string) => {
+          copyFileSync(tarball, destPath);
+        },
+      })
+    ).rejects.toThrow(/MindRoom Desktop Helper/);
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it('copies --local-app preserving symlinks even when pin has pending sentinel', async () => {
+    const dir = makeTempDir('mindroom-helper-local-');
+    const pinPath = writePin(dir, { sha256: PENDING_SHA256 });
+    const localApp = join(dir, 'local', HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(localApp, 'local-dev-bin');
+    const outDir = join(dir, 'out', HELPER_BUNDLE_NAME);
+
+    await fetchDesktopHelper({ pinPath, outDir, localAppPath: localApp });
+
+    expect(readFileSync(join(outDir, HELPER_EXEC_REL), 'utf8')).toBe('local-dev-bin');
+    expect(lstatSync(join(outDir, 'Contents', 'Frameworks', 'Current')).isSymbolicLink()).toBe(
+      true
+    );
+
+    const cliOut = join(dir, 'cli-out', HELPER_BUNDLE_NAME);
+    const okCli = spawnSync(
+      process.execPath,
+      [
+        resolve('scripts/fetch-desktop-helper.mjs'),
+        '--pin',
+        pinPath,
+        '--out',
+        cliOut,
+        '--local-app',
+        localApp,
+      ],
+      { encoding: 'utf8' }
+    );
+    expect(okCli.status, okCli.stderr).toBe(0);
+    expect(readFileSync(join(cliOut, HELPER_EXEC_REL), 'utf8')).toBe('local-dev-bin');
+
+    const failCli = spawnSync(
+      process.execPath,
+      [
+        resolve('scripts/fetch-desktop-helper.mjs'),
+        '--pin',
+        pinPath,
+        '--out',
+        join(dir, 'fail-out'),
+      ],
+      { encoding: 'utf8', env: { ...process.env, MINDROOM_DESKTOP_HELPER_APP: '' } }
+    );
+    expect(failCli.status).not.toBe(0);
+    expect(failCli.stderr).toMatch(/pending|sentinel|zero/i);
+  });
+});
+
 describe('scripts/build-desktop-app.sh fail-closed checks', () => {
   type Cmd = { cmd: string; hasNotary: boolean; cscName: string; sign: string; args: string };
 
@@ -166,18 +578,36 @@ case "$cmd" in
     mkdir -p "$target/MindRoom Chat.app/Contents/Resources"
     if [[ "$fail" != "helper:missing" ]]; then
       printf 'fake-helper' > "$target/MindRoom Chat.app/Contents/Resources/mindroom-screenshot-helper"
+    fi
+    if [[ "$target" == */arm64 && "$fail" != "desktop-helper:missing" ]]; then
+      mkdir -p "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS"
+      printf 'fake-desktop-helper' > "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS/MindRoom Desktop Helper"
+    fi
+    if [[ "$target" == */x64 && "$fail" == "desktop-helper:x64-present" ]]; then
+      mkdir -p "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS"
+      printf 'unexpected-x64-helper' > "$target/MindRoom Chat.app/Contents/Helpers/MindRoom Desktop Helper.app/Contents/MacOS/MindRoom Desktop Helper"
     fi ;;
   codesign)
     if [[ "\${1:-}" == "--verify" ]] && {
-      [[ "$fail" == "codesign:app" && "$target" == *.app ]] ||
-      [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]];
+      [[ "$fail" == "codesign:app" && "$target" == *"MindRoom Chat.app" ]] ||
+      [[ "$fail" == "codesign:helper" && "$target" == */mindroom-screenshot-helper ]] ||
+      [[ "$fail" == "codesign:desktop-helper" && "$target" == *"MindRoom Desktop Helper.app" ]];
     }; then exit 1; fi
     if [[ "\${1:-}" == "-dv" ]]; then
       flags="0x0(none)"
-      if [[ "$target" == *.app ]]; then flags="\${TEST_FLAGS:-0x10000(runtime)}"; fi
+      authority="\${TEST_AUTHORITY:-Developer ID Application: MindRoom AI (DNA6966LGZ)}"
+      team="\${TEST_TEAM:-DNA6966LGZ}"
+      identifier="chat.mindroom.app"
+      if [[ "$target" == *"MindRoom Chat.app" ]]; then flags="\${TEST_FLAGS:-0x10000(runtime)}"; fi
       if [[ "$target" == */mindroom-screenshot-helper ]]; then flags="\${TEST_HELPER_FLAGS:-\${TEST_FLAGS:-0x10000(runtime)}}"; fi
-      printf 'Authority=%s\\nTeamIdentifier=%s\\nCodeDirectory v=20500 size=100 flags=%s\\n' \\
-        "\${TEST_AUTHORITY:-Developer ID Application: MindRoom AI (DNA6966LGZ)}" "\${TEST_TEAM:-DNA6966LGZ}" "$flags" >&2
+      if [[ "$target" == *"MindRoom Desktop Helper.app" ]]; then
+        flags="\${TEST_DESKTOP_HELPER_FLAGS:-\${TEST_FLAGS:-0x10000(runtime)}}"
+        authority="\${TEST_DESKTOP_HELPER_AUTHORITY:-$authority}"
+        team="\${TEST_DESKTOP_HELPER_TEAM:-$team}"
+        identifier="\${TEST_DESKTOP_HELPER_ID:-chat.mindroom.desktophelper}"
+      fi
+      printf 'Identifier=%s\\nAuthority=%s\\nTeamIdentifier=%s\\nCodeDirectory v=20500 size=100 flags=%s\\n' \\
+        "$identifier" "$authority" "$team" "$flags" >&2
     fi ;;
   xcrun)
     if [[ "\${1:-}" == "--sdk" && "\${2:-}" == "macosx" && "\${3:-}" == "--show-sdk-path" ]]; then
@@ -191,13 +621,31 @@ case "$cmd" in
 esac
 `;
 
+  const FAKE_FETCH_HELPER = `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+const args = process.argv.slice(2);
+const hasNotary = process.env.APPLE_ID || process.env.APPLE_APP_SPECIFIC_PASSWORD ? '1' : '0';
+appendFileSync(
+  process.env.TEST_LOG,
+  \`fetch-desktop-helper\\t\${hasNotary}\\t\${process.env.CSC_NAME ?? ''}\\t\${process.env.MINDROOM_DESKTOP_SIGN ?? ''}\\t\${args.join(' ')}\\n\`
+);
+if (process.env.TEST_FAIL === 'desktop-helper:fetch') {
+  console.error('simulated fetch failure');
+  process.exit(1);
+}
+const outIndex = args.indexOf('--out');
+const outDir = outIndex >= 0 ? args[outIndex + 1] : 'build/electron/MindRoom Desktop Helper.app';
+mkdirSync(path.join(outDir, 'Contents', 'MacOS'), { recursive: true });
+writeFileSync(path.join(outDir, 'Contents', 'MacOS', 'MindRoom Desktop Helper'), 'fake-fetched-helper');
+`;
+
   function createFixture() {
-    const root = mkdtempSync(join(tmpdir(), 'mindroom-desktop-build-'));
-    tempDirs.push(root);
+    const root = makeTempDir('mindroom-desktop-build-');
     for (const file of ['scripts/build-desktop-app.sh', 'scripts/desktop-latest-yml.mjs']) {
       mkdirSync(dirname(join(root, file)), { recursive: true });
       copyFileSync(resolve(file), join(root, file));
     }
+    writeFileSync(join(root, 'scripts/fetch-desktop-helper.mjs'), FAKE_FETCH_HELPER, 'utf8');
     symlinkSync(resolve('node_modules'), join(root, 'node_modules'));
     mkdirSync(join(root, 'bin'));
     for (const tool of ['npm', 'npx', 'codesign', 'xcrun', 'spctl', 'ditto', 'swiftc', 'lipo']) {
@@ -226,6 +674,7 @@ esac
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
           NODE_PATH: resolve('node_modules'),
           TEST_LOG: logFile,
+          MINDROOM_DESKTOP_HELPER_APP: '',
           CODESIGN_IDENTITY: 'Developer ID Application: MindRoom AI (DNA6966LGZ)',
           APPLE_ID: 'release@mindroom.chat',
           APPLE_APP_SPECIFIC_PASSWORD: 'app-password',
@@ -262,6 +711,11 @@ esac
     ['wrong team', { APPLE_TEAM_ID: 'WRONGTEAM1' }, 'DNA6966LGZ'],
     ['wrong identity', { CODESIGN_IDENTITY: 'Mac Developer: Someone (DNA6966LGZ)' }, 'DNA6966LGZ'],
     ['leading-v version', { MARKETING_VERSION: 'v2026.11.9' }, 'MARKETING_VERSION'],
+    [
+      'local desktop helper override',
+      { MINDROOM_DESKTOP_HELPER_APP: '/tmp/local.app' },
+      'MINDROOM_DESKTOP_HELPER_APP',
+    ],
   ])('fails closed before building when --sign has %s', (_label, overrides, expectedErr) => {
     const res = createFixture().run(['--sign'], overrides);
     expect(res.status).not.toBe(0);
@@ -285,6 +739,14 @@ esac
         )
     ).toBe(true);
     expect(spctl.some((c) => c.args.includes('.zip'))).toBe(false);
+    const desktopHelperChecks = res.commands.filter(
+      (c) =>
+        c.cmd === 'codesign' &&
+        c.args.startsWith('--verify --deep --strict ') &&
+        c.args.endsWith('/Contents/Helpers/MindRoom Desktop Helper.app')
+    );
+    expect(desktopHelperChecks).toHaveLength(1);
+    expect(desktopHelperChecks[0]?.args).toContain('/arm64/MindRoom Chat.app/');
   }, 15_000);
 
   it.each([
@@ -299,6 +761,12 @@ esac
     ['missing screenshot helper', { TEST_FAIL: 'helper:missing' }],
     ['failed codesign on screenshot helper', { TEST_FAIL: 'codesign:helper' }],
     ['missing hardened runtime on screenshot helper', { TEST_HELPER_FLAGS: '0x0(none)' }],
+    ['missing arm64 desktop helper', { TEST_FAIL: 'desktop-helper:missing' }],
+    ['unexpected desktop helper in x64 app', { TEST_FAIL: 'desktop-helper:x64-present' }],
+    ['failed codesign on desktop helper', { TEST_FAIL: 'codesign:desktop-helper' }],
+    ['wrong Identifier on desktop helper', { TEST_DESKTOP_HELPER_ID: 'chat.mindroom.wrong' }],
+    ['wrong TeamIdentifier on desktop helper', { TEST_DESKTOP_HELPER_TEAM: 'OTHERTEAM1' }],
+    ['missing hardened runtime on desktop helper', { TEST_DESKTOP_HELPER_FLAGS: '0x0(none)' }],
   ])(
     '--verify-only fails closed on %s',
     (_label, overrides) => {
@@ -308,11 +776,28 @@ esac
     15_000
   );
 
-  it('--sign unsets notary creds before npm build:desktop and strips CSC_NAME prefix', () => {
+  it('--sign unsets notary creds before build/helper fetch, verifies fetched helper, and strips CSC_NAME prefix', () => {
     const { root, run } = createFixture();
     const res = run(['--sign']);
     expect(res.status, res.stderr).toBe(0);
     expect(res.commands.find((c) => c.cmd === 'npm')?.hasNotary).toBe(false);
+    const fetchIdx = res.commands.findIndex((c) => c.cmd === 'fetch-desktop-helper');
+    const stagedVerifyIdx = res.commands.findIndex(
+      (c) =>
+        c.cmd === 'codesign' &&
+        c.args === '--verify --deep --strict build/electron/MindRoom Desktop Helper.app'
+    );
+    const builderIdx = res.commands.findIndex(
+      (c) => c.cmd === 'npx' && c.args.startsWith('electron-builder')
+    );
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(stagedVerifyIdx).toBeGreaterThan(fetchIdx);
+    expect(builderIdx).toBeGreaterThan(stagedVerifyIdx);
+    expect(res.commands[fetchIdx]).toMatchObject({
+      hasNotary: false,
+      args: '--out build/electron/MindRoom Desktop Helper.app',
+    });
+    expect(res.commands[stagedVerifyIdx]?.hasNotary).toBe(false);
     expect(
       res.commands.find((c) => c.cmd === 'xcrun' && c.args === '--sdk macosx --show-sdk-path')
     ).toMatchObject({
@@ -332,9 +817,7 @@ esac
       hasNotary: false,
       args: expect.stringContaining('-output build/electron/mindroom-screenshot-helper'),
     });
-    expect(
-      res.commands.find((c) => c.cmd === 'npx' && c.args.startsWith('electron-builder'))
-    ).toMatchObject({
+    expect(res.commands[builderIdx]).toMatchObject({
       sign: '1',
       hasNotary: true,
       cscName: 'MindRoom AI (DNA6966LGZ)',
@@ -346,6 +829,38 @@ esac
     expect(latest.version).toBe('2026.11.9');
     expect(latest.files).toHaveLength(2);
   }, 20_000);
+
+  it.each([
+    ['fetch fails', { TEST_FAIL: 'desktop-helper:fetch' }],
+    ['fetched helper fails codesign', { TEST_FAIL: 'codesign:desktop-helper' }],
+    ['fetched helper has wrong Identifier', { TEST_DESKTOP_HELPER_ID: 'chat.mindroom.other' }],
+  ])(
+    '--sign fails closed before electron-builder when %s',
+    (_label, overrides) => {
+      const res = createFixture().run(['--sign'], overrides);
+      expect(res.status).not.toBe(0);
+      expect(
+        res.commands.some((c) => c.cmd === 'npx' && c.args.startsWith('electron-builder'))
+      ).toBe(false);
+    },
+    15_000
+  );
+
+  it('unsigned mode removes stale helper when MINDROOM_DESKTOP_HELPER_APP is unset and fetches when set', () => {
+    const cleanFixture = createFixture();
+    const staleHelper = join(cleanFixture.root, 'build/electron', HELPER_BUNDLE_NAME);
+    createFakeHelperBundle(staleHelper, 'stale');
+    const unsignedRes = cleanFixture.run([]);
+    expect(unsignedRes.status, unsignedRes.stderr).toBe(0);
+    expect(existsSync(staleHelper)).toBe(false);
+    expect(unsignedRes.commands.some((c) => c.cmd === 'fetch-desktop-helper')).toBe(false);
+
+    const localFixture = createFixture();
+    const localRes = localFixture.run([], { MINDROOM_DESKTOP_HELPER_APP: '/tmp/dev-helper.app' });
+    expect(localRes.status, localRes.stderr).toBe(0);
+    expect(localRes.commands.some((c) => c.cmd === 'fetch-desktop-helper')).toBe(true);
+    expect(existsSync(join(localFixture.root, 'build/electron', HELPER_BUNDLE_NAME))).toBe(true);
+  }, 15_000);
 });
 
 describe('workflow wiring (desktop.yml, release.yml)', () => {
@@ -384,7 +899,16 @@ describe('workflow wiring (desktop.yml, release.yml)', () => {
         };
       };
     };
-    expect(desktop.on.pull_request.paths).toContain('scripts/macos-publish-appcast.sh');
+    expect(desktop.on.pull_request.paths).toEqual(
+      expect.arrayContaining([
+        'scripts/macos-publish-appcast.sh',
+        'scripts/desktop-helper-pin.json',
+        'scripts/fetch-desktop-helper.mjs',
+        'electron/afterPack.cjs',
+        'src/app/desktop-access/**',
+        'src/app/navigation/desktopAccessModal.ts',
+      ])
+    );
     expect(desktop.jobs.release.permissions).toEqual({ contents: 'write' });
     expect(desktop.jobs.release.if).toBe(
       "github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)"

@@ -23,7 +23,7 @@ require_files() {
 }
 
 verify_codesign_identity() {
-  local target="$1" require_runtime="$2" details
+  local target="$1" require_runtime="$2" expected_id="${3:-}" details
   codesign --verify --deep --strict "$target"
   details=$(codesign -dv --verbose=4 "$target" 2>&1)
   grep -Eq '^Authority=Developer ID Application:.*\(DNA6966LGZ\)$' <<<"$details" \
@@ -34,6 +34,15 @@ verify_codesign_identity() {
     [[ "$(sed -n 's/.* flags=\([^ ]*\).*/\1/p' <<<"$details")" != *runtime* ]]; then
     die "$target is not signed with the hardened runtime"
   fi
+  if [[ -n "$expected_id" ]] && ! grep -qx "Identifier=$expected_id" <<<"$details"; then
+    die "$target does not have Identifier=$expected_id"
+  fi
+}
+
+desktop_helper_app="build/electron/MindRoom Desktop Helper.app"
+
+fetch_desktop_helper() {
+  node scripts/fetch-desktop-helper.mjs --out "$desktop_helper_app"
 }
 
 build_screenshot_helper() {
@@ -71,7 +80,7 @@ build_screenshot_helper() {
 }
 
 verify_signed_artifacts() {
-  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app helper
+  local dmg="$1" arm64_zip="$2" x64_zip="$3" pair arch zip unpack_dir app helper desktop_helper
   require_files "$dmg" "$arm64_zip" "$x64_zip"
 
   verify_codesign_identity "$dmg" 0
@@ -91,6 +100,13 @@ verify_signed_artifacts() {
     [[ -s "$helper" ]] || die "Unpacked $arch app is missing screenshot helper: $helper"
     verify_codesign_identity "$app" 1
     verify_codesign_identity "$helper" 1
+    desktop_helper="$app/Contents/Helpers/MindRoom Desktop Helper.app"
+    if [[ "$arch" == "arm64" ]]; then
+      [[ -d "$desktop_helper" ]] || die "Unpacked arm64 app is missing desktop helper: $desktop_helper"
+      verify_codesign_identity "$desktop_helper" 1 "chat.mindroom.desktophelper"
+    elif [[ -e "$desktop_helper" || -L "$desktop_helper" ]]; then
+      die "Unpacked x64 app must not contain arm64 desktop helper: $desktop_helper"
+    fi
     xcrun stapler validate "$app"
     spctl --assess --type execute "$app"
   done
@@ -123,6 +139,11 @@ if [[ "$mode" == "unsigned" ]]; then
   rm -rf "$out_dir"
   npm run build:desktop
   build_screenshot_helper
+  if [[ -n "${MINDROOM_DESKTOP_HELPER_APP:-}" ]]; then
+    fetch_desktop_helper
+  else
+    rm -rf "$desktop_helper_app"
+  fi
   CSC_IDENTITY_AUTO_DISCOVERY=false MINDROOM_DESKTOP_SIGN=0 \
     npx electron-builder --mac --config electron/builder.config.cjs --publish never
   require_files "${expected_outputs[@]}"
@@ -137,6 +158,9 @@ done
   || die "Signing requires a Developer ID Application identity for team DNA6966LGZ."
 [[ "$MARKETING_VERSION" =~ ^[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]] \
   || die "Invalid MARKETING_VERSION '$MARKETING_VERSION': expected YYYY.M.N without leading 'v'."
+if [[ -n "${MINDROOM_DESKTOP_HELPER_APP:-}" ]]; then
+  die "MINDROOM_DESKTOP_HELPER_APP is not allowed with --sign; pin the release in scripts/desktop-helper-pin.json."
+fi
 
 # Keep notary credentials out of the web/esbuild environment; pass them only to
 # electron-builder and xcrun notarytool.
@@ -147,6 +171,9 @@ unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD
 rm -rf "$out_dir"
 npm run build:desktop
 build_screenshot_helper
+fetch_desktop_helper
+[[ -d "$desktop_helper_app" ]] || die "Fetched desktop helper bundle is missing: $desktop_helper_app"
+verify_codesign_identity "$desktop_helper_app" 1 "chat.mindroom.desktophelper"
 
 # electron-builder 26.18.0 rejects CSC_NAME values that begin with
 # "Developer ID Application:", so pass the identity suffix after that prefix.
