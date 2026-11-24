@@ -7,7 +7,9 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
+import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { editableActiveElement } from '../lib/dom';
+import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { usePanelPresence } from '../ui/panels/panelPresence';
 import {
@@ -76,12 +78,24 @@ export function SecondThreadPanel({
   const ownsFocus = useRef(false);
   const closing = usePanelPresence()?.phase === 'exit';
 
+  useShortcut('focusComposer', () => {
+    if (closing || !ownsFocus.current || focusOwnsTyping() || !focusComposer.current) return false;
+    focusComposer.current();
+    return true;
+  });
+
   const handleKeyDown = (evt: KeyboardEvent<HTMLDivElement>) => {
     noteThreadViewKey(evt, threadId);
     if (evt.defaultPrevented || !(isTypingKey(evt.nativeEvent) || isPasteKey(evt.nativeEvent))) {
       return;
     }
-    if (editableActiveElement() || focusOwnsTyping()) return;
+    if (
+      computerOwnsKeyboardEvent(evt.nativeEvent) ||
+      editableActiveElement() ||
+      focusOwnsTyping()
+    ) {
+      return;
+    }
     focusComposer.current?.();
   };
 
