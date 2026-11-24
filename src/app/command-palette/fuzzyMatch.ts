@@ -611,11 +611,11 @@ const findAbbreviation = (
  * How `word`, a typed word already folded, matches `field`: the best of the field holding it
  * (whole, at its start, at the start of a later word, inside a word), its initials, a typo, and
  * an abbreviation. `name` says the field is what a row is called by: only a name gets the
- * start-of-field score bonus (non-name fields score every word start equally and still break
- * equal ties by earlier word via `detail`), or matches by initials, by abbreviation, and by one
- * or two letters inside a word. A word of more than 64 letters matches by neither a typo nor an
- * abbreviation. The ranges are of the folded field ({@link originalRanges}). Undefined when the
- * word does not match.
+ * start-of-field score bonus (non-name fields score every word start equally, while still scoring
+ * earlier words slightly higher in `detail` for ties), or matches by initials, by abbreviation,
+ * and by one or two letters inside a word. A word of more than 64 letters matches by neither a
+ * typo nor an abbreviation. The ranges are of the folded field ({@link originalRanges}). Undefined
+ * when the word does not match.
  */
 export const matchWord = (
   word: string,

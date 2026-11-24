@@ -322,11 +322,11 @@ describe('rankCommandPaletteThreads', () => {
     ]);
   });
 
-  it('keeps unresolved unvisited read boost above a pinned unread resolved thread', () => {
+  it('keeps unresolved unvisited threads ahead of pinned unread resolved threads', () => {
     const rows: Array<{ id: string; sortRank: number; boost: number; recentVisit?: boolean }> =
       rankCommandPaletteThreads([
         entry('$resolved-hot', 500, true, true),
-        entry('$open-quiet', 100),
+        entry('$unresolved-read', 100),
       ]).map(({ entry: item, sortRank, boost }) => ({ id: item.threadRootId, sortRank, boost }));
 
     const visited = withRecentVisits(rows, ['$resolved-hot'], undefined);
@@ -334,6 +334,6 @@ describe('rankCommandPaletteThreads', () => {
       recentVisit: true,
       boost: -10,
     });
-    expect(visited.find((row) => row.id === '$open-quiet')?.boost).toBe(0);
+    expect(visited.find((row) => row.id === '$unresolved-read')?.boost).toBe(0);
   });
 });

@@ -5,6 +5,8 @@ import type {
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
 } from './commandPaletteTypes';
+import { rankCommandPaletteThreads } from './commandPaletteItems';
+import { withRecentVisits } from './commandPaletteRecentVisits';
 import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 
 const action = (
@@ -33,6 +35,20 @@ const user = (
   ...rest,
 });
 
+const thread = (
+  id: string,
+  summaryText: string,
+  rest: Partial<CommandPaletteThreadItem> = {}
+): CommandPaletteThreadItem => ({
+  id,
+  kind: 'thread',
+  roomId: '!a:example.org',
+  threadId: id,
+  summaryText,
+  roomName: 'Product',
+  ...rest,
+});
+
 const ids = (items: readonly { id: string }[]) => items.map((item) => item.id);
 
 const searchRooms = (items: CommandPaletteRoomItem[], query: string) =>
@@ -52,6 +68,13 @@ const searchUsers = (items: CommandPaletteUserItem[], query: string) =>
 const searchActions = (items: CommandPaletteActionItem[], query: string) =>
   ids(
     matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }).map(
+      ({ item }) => item
+    )
+  );
+
+const searchThreads = (items: CommandPaletteThreadItem[], query: string) =>
+  ids(
+    matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.threads }).map(
       ({ item }) => item
     )
   );
@@ -117,34 +140,12 @@ describe('matchCommandPaletteSection rows', () => {
   });
 
   it('finds a thread by a tag', () => {
-    const items: CommandPaletteThreadItem[] = [
-      {
-        id: '$thread-1',
-        kind: 'thread',
-        roomId: '!a:example.org',
-        threadId: '$1',
-        summaryText: 'Investigate login issue',
-        roomName: 'Support',
-        tags: ['urgent'],
-      },
-      {
-        id: '$thread-2',
-        kind: 'thread',
-        roomId: '!a:example.org',
-        threadId: '$2',
-        summaryText: 'Review docs',
-        roomName: 'Docs',
-        tags: ['docs'],
-      },
+    const items = [
+      thread('$thread-1', 'Investigate login issue', { roomName: 'Support', tags: ['urgent'] }),
+      thread('$thread-2', 'Review docs', { roomName: 'Docs', tags: ['docs'] }),
     ];
 
-    const results = matchCommandPaletteSection({
-      items,
-      query: 'urgent',
-      config: commandPaletteSearchConfig.threads,
-    }).map(({ item }) => item);
-
-    expect(ids(results)).toEqual(['$thread-1']);
+    expect(searchThreads(items, 'urgent')).toEqual(['$thread-1']);
   });
 
   it('breaks equal matches by boost, then rank, then ID', () => {
@@ -286,71 +287,38 @@ describe('matchCommandPaletteSection rows', () => {
   });
 
   it('takes no initials of a thread title, which is a sentence', () => {
-    const items: CommandPaletteThreadItem[] = [
-      {
-        id: '$dialog',
-        kind: 'thread',
-        roomId: '!a:example.org',
-        threadId: '$1',
-        summaryText: 'Create room dialog loses focus',
-        roomName: 'Frontend',
-      },
-    ];
-    const search = (query: string) =>
-      ids(
-        matchCommandPaletteSection({
-          items,
-          query,
-          config: commandPaletteSearchConfig.threads,
-        }).map(({ item }) => item)
-      );
+    const items = [thread('$dialog', 'Create room dialog loses focus', { roomName: 'Frontend' })];
 
-    expect(search('crd')).toEqual([]);
-    expect(search('dialog')).toEqual(['$dialog']);
+    expect(searchThreads(items, 'crd')).toEqual([]);
+    expect(searchThreads(items, 'dialog')).toEqual(['$dialog']);
   });
 
-  it('ranks active unresolved threads above older or resolved ones regardless of word position', () => {
-    const thread = (
+  it('ranks recent and unresolved threads ahead of older or pinned resolved ones', () => {
+    const entry = (
       id: string,
       summaryText: string,
-      rest: Partial<CommandPaletteThreadItem> = {}
-    ): CommandPaletteThreadItem => ({
-      id,
-      kind: 'thread',
-      roomId: '!a:example.org',
-      threadId: id,
-      summaryText,
-      roomName: 'Product',
-      ...rest,
+      lastActivityTs: number,
+      isUnread = false,
+      isResolved = false
+    ) => ({
+      ...thread(id, summaryText, { isResolved }),
+      threadRootId: id,
+      lastActivityTs,
+      isUnread,
+      isResolved,
     });
-    const searchThreads = (items: CommandPaletteThreadItem[], query: string) =>
-      ids(
-        matchCommandPaletteSection({
-          items,
-          query,
-          config: commandPaletteSearchConfig.threads,
-        }).map(({ item }) => item)
-      );
+    const items = withRecentVisits(
+      rankCommandPaletteThreads([
+        entry('$resolved', 'Widget layout glitch', 500, true, true),
+        entry('$active', 'Platform widget cleanup', 300),
+        entry('$older', 'Widget metrics audit', 100),
+        entry('$recent', 'Mobile widget rollout', 50),
+      ]).map(({ entry: item, sortRank, boost }) => ({ ...item, sortRank, boost })),
+      ['$resolved', '$recent'],
+      undefined
+    );
 
-    expect(
-      searchThreads(
-        [
-          thread('$done', 'Widget layout glitch', { isResolved: true, sortRank: 1, boost: -40 }),
-          thread('$recent', 'Mobile widget rollout', { isResolved: false, sortRank: 2, boost: 0 }),
-        ],
-        'widg'
-      )
-    ).toEqual(['$recent', '$done']);
-
-    expect(
-      searchThreads(
-        [
-          thread('$done', 'Widget layout glitch', { isResolved: true, sortRank: 10, boost: -10 }),
-          thread('$open', 'Mobile widget rollout', { isResolved: false, sortRank: 1, boost: 0 }),
-        ],
-        'widg'
-      )
-    ).toEqual(['$open', '$done']);
+    expect(searchThreads(items, 'widg')).toEqual(['$recent', '$active', '$older', '$resolved']);
   });
 
   it('finds a person by name, user name and user ID, with or without the @', () => {

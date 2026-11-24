@@ -369,10 +369,7 @@ export const RowDescription = style({
   fontSize: 12,
   lineHeight: '17px',
   selectors: {
-    [`${Row}[data-resolved="true"] &`]: {
-      color: color.Success.OnContainer,
-      opacity: config.opacity.P400,
-    },
+    [`${Row}[data-resolved="true"] &`]: { color: color.Success.OnContainer },
   },
 });
 

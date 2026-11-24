@@ -4,6 +4,7 @@ import {
   RECENT_VISIT_PINS,
   withRecentVisits,
 } from './commandPaletteRecentVisits';
+import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import { matchCommandPaletteSection } from './commandPaletteSearch';
 
 // Rows as the palette builds them: ranked by activity, the open one (`e`) at rank 0.
@@ -48,6 +49,30 @@ describe('withRecentVisits', () => {
     // Every row matches "notes" equally well: pinned visits (20) lead newest first, then unvisited
     // unread (10), then the 4th+ read visit (5), then the open row (0).
     expect(order(visited, 'notes')).toEqual(['d', 'x', 'c', 'b', 'a', 'e']);
+
+    // For rooms (unread boost 15): pinned visits (+20) beat an unvisited unread room (+15), which
+    // beats a 4th+ older visit (+5).
+    const roomRows = rows.map((row) =>
+      row.id === 'b'
+        ? {
+            ...row,
+            ...getCommandPaletteRoomRanking({
+              roomId: row.id,
+              activityRank: row.sortRank,
+              unreadTotal: 1,
+              unreadHighlights: 0,
+            }),
+          }
+        : row
+    );
+    expect(order(withRecentVisits(roomRows, ['d', 'x', 'c', 'a'], 'e'), 'notes')).toEqual([
+      'd',
+      'x',
+      'c',
+      'b',
+      'a',
+      'e',
+    ]);
   });
 
   it('returns the list itself when nothing was visited', () => {
