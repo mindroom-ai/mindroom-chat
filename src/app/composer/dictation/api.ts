@@ -3,6 +3,7 @@ import {
   untilAborted,
   type ClientSessions,
 } from '../../computer/clientSessions';
+import { createDictationRateBudget, type DictationRateBudget } from './dictationRefinement';
 
 const API_PATH = '/api/dictation/v1';
 export const DICTATION_STATUS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -72,9 +73,11 @@ const refusal = async (response: Response): Promise<DictationApiError> => {
 /** Client for MindRoom's `/api/dictation/v1` routes via `ClientSessions`. */
 export class DictationClient {
   private readonly sessions: ClientSessions;
+  readonly rateBudget: DictationRateBudget;
 
   constructor(sessions: ClientSessions) {
     this.sessions = sessions;
+    this.rateBudget = getDictationRateBudget(sessions);
   }
 
   private async sendJson<T>(path: string, init: RequestInit): Promise<T> {
@@ -117,6 +120,17 @@ type StatusCacheEntry = {
 };
 
 const statusCache = new WeakMap<ClientSessions, Map<string, StatusCacheEntry>>();
+const rateBudgetCache = new WeakMap<ClientSessions, DictationRateBudget>();
+
+/** Returns the account/server-scoped dictation rate budget shared across sessions for `sessions`. */
+export const getDictationRateBudget = (sessions: ClientSessions): DictationRateBudget => {
+  let budget = rateBudgetCache.get(sessions);
+  if (!budget) {
+    budget = createDictationRateBudget();
+    rateBudgetCache.set(sessions, budget);
+  }
+  return budget;
+};
 
 const getSessionCache = (sessions: ClientSessions): Map<string, StatusCacheEntry> => {
   let map = statusCache.get(sessions);
