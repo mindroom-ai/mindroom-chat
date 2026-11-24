@@ -27,6 +27,9 @@ import {
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
+import { isDesktopWebKit } from '../lib/user-agent';
+import { isIOSWebKitDevice } from './scrollQuiescence';
+import { listShrinkAfterResize, pastEndCorrection } from './useListEndClamp';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -79,6 +82,9 @@ export type TimelineScrollLedgerController = {
  * Clear it on explicit jumps, pins, and status-bar taps so quiescence cannot shift the landed
  * scroll position away from the target.
  */
+export const readVirtualizerHoldOffset = (virtualizer: unknown): number =>
+  (virtualizer as { _holdOffset?: number } | null | undefined)?._holdOffset ?? 0;
+
 export const clearVirtualizerHoldOffset = (virtualizer: {
   cancelScroll: () => void;
   scrollElement?: { scrollTop: number } | null;
@@ -225,12 +231,15 @@ export const useTimelineScrollLedgerController = ({
   // the virtual list; bottom-following is owned by the pin hooks. Newest-first Threads view keeps
   // `anchorTo: 'start'` and anchors reorders via `roomScrollLedger`.
   const anchorToEnd = !!threadId || !latestAtTop;
+  const holdScrollDuringWheel = anchorToEnd && isDesktopWebKit();
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
     getScrollElement,
     estimateSize,
     overscan: 10,
-    ...(anchorToEnd ? { anchorTo: 'end' as const, scrollEndThreshold: -1 } : {}),
+    ...(anchorToEnd
+      ? { anchorTo: 'end' as const, scrollEndThreshold: -1, holdScrollDuringWheel }
+      : {}),
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
     measureElement: measureRow,
@@ -348,11 +357,13 @@ export const useTimelineScrollLedgerController = ({
   // mounts (`createScrollMountMeasurement`) is sized outside of the observer's report.
   const unrenderedInRowReportRef = useRef(false);
   const unrenderedInRowReport = useCallback(() => unrenderedInRowReportRef.current, []);
+  const unrenderedRowMovesPxRef = useRef(0);
   useInsertionEffect(() => {
     unrenderedRowMoveRef.current = false;
     unrenderedInRowReportRef.current = false;
     // The render that showed the rows wrapped anew has committed: a later one asks again.
     unrenderedRewrapRef.current = false;
+    unrenderedRowMovesPxRef.current = 0;
   });
 
   useEffect(() => {
@@ -392,7 +403,7 @@ export const useTimelineScrollLedgerController = ({
     automaticFill.geometryReader.current = () => {
       const root = getScrollElement();
       const inner = virtualInnerRef.current;
-      const holdOffset = (virtualizer as unknown as { _holdOffset?: number })._holdOffset ?? 0;
+      const holdOffset = readVirtualizerHoldOffset(virtualizer);
       if (!root || !inner || holdOffset !== 0) return undefined;
       const items = virtualizer.getVirtualItems();
       if (items.some((item) => !virtualizer.itemSizeCache.has(item.key))) return undefined;
@@ -412,17 +423,60 @@ export const useTimelineScrollLedgerController = ({
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, delta, instance) => {
       if (widthUnreportedRef.current !== undefined) unrenderedInRowReportRef.current = true;
       const offset = instance.scrollOffset ?? 0;
-      const adjust = instance.itemSizeCache?.has(item.key)
+      const above = instance.itemSizeCache?.has(item.key)
         ? item.end <= offset
         : item.start < offset;
-      if (adjust && delta < 0) measurementCorrectionPxRef.current += delta;
       const rewrapped = rowRewrappedRef.current;
       rowRewrappedRef.current = false;
       if (rewrapped) unrenderedRewrapRef.current = true;
-      if (adjust || rewrapped || (item.index ?? itemCount) < itemCount - 1) {
+      if (above) {
+        if (delta < 0) measurementCorrectionPxRef.current += delta;
+        if (readVirtualizerHoldOffset(instance) === 0) unrenderedRowMovesPxRef.current += delta;
+        renderRowMoveBeforePaint();
+        return true;
+      }
+      let endCorrection = 0;
+      let shownPx: number | undefined;
+      if (delta < 0 && !isIOSWebKitDevice() && readVirtualizerHoldOffset(instance) === 0) {
+        const scrollElement = instance.scrollElement;
+        const liveOffset = scrollElement?.scrollTop ?? offset;
+        const rowMovesPx = unrenderedRowMovesPxRef.current;
+        shownPx =
+          item.index !== undefined
+            ? listShrinkAfterResize(
+                virtualInnerRef.current,
+                instance.measurementsCache,
+                0,
+                item.index,
+                delta
+              )
+            : undefined;
+        endCorrection = pastEndCorrection(
+          delta,
+          liveOffset,
+          liveOffset - rowMovesPx,
+          scrollElement,
+          shownPx,
+          rowMovesPx
+        );
+      }
+      if (endCorrection < 0 && (instance.scrollElement?.scrollTop ?? offset) + endCorrection >= 0) {
+        measurementCorrectionPxRef.current += endCorrection;
+        if (shownPx === undefined) unrenderedRowMovesPxRef.current += endCorrection;
+        renderRowMoveBeforePaint();
+        const applyAdjustment = (
+          instance as unknown as { applyScrollAdjustment?: (deltaPx: number) => boolean }
+        ).applyScrollAdjustment;
+        if (endCorrection !== delta && typeof applyAdjustment === 'function') {
+          applyAdjustment.call(instance, endCorrection);
+          return false;
+        }
+        return true;
+      }
+      if (rewrapped || (item.index ?? itemCount) < itemCount - 1) {
         renderRowMoveBeforePaint();
       }
-      return adjust;
+      return false;
     };
   }, [itemCount, renderRowMoveBeforePaint, resettingView, viewKey, virtualizer]);
 

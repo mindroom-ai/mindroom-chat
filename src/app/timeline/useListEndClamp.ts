@@ -108,3 +108,22 @@ export function useListEndClamp(
     return () => observer.disconnect();
   }, [contentRef, pendingListShrinkPx, probeRef, scroll]);
 }
+
+/**
+ * Keeps a reader at the list's end pinned when an in-view row shrinks before React renders the
+ * shorter list height (preventing a one-frame blank band above the composer on splitter drag).
+ */
+export const pastEndCorrection = (
+  delta: number,
+  scrollOffset: number,
+  renderedOffset: number,
+  scrollElement: { scrollHeight?: number; clientHeight?: number } | null | undefined,
+  shownPx: number | undefined,
+  rowMovesPx: number
+): number => {
+  const { scrollHeight, clientHeight } = scrollElement ?? {};
+  if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return 0;
+  if (shownPx === undefined)
+    return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
+  return Math.min(0, scrollHeight - clientHeight - shownPx + rowMovesPx - scrollOffset);
+};

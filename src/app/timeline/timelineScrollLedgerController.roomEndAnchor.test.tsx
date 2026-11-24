@@ -5,10 +5,23 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_INTRO_ESTIMATE_PX, ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
-import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import {
+  readVirtualizerHoldOffset,
+  useTimelineScrollLedgerController,
+} from './timelineScrollLedgerController';
 
 const ROW_HEIGHT = 100;
 const VIEWPORT_HEIGHT = 600;
+const SAFARI_MAC_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+const CHROME_MAC_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+const stubUserAgent = (userAgent: string) => {
+  Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
+  Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
+  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+};
 
 type ObservedResize = {
   callback: ResizeObserverCallback;
@@ -64,11 +77,21 @@ const installControllableResizeObserver = () => {
 describe('oldest-first room anchoring with real virtualizer', () => {
   let dispose: (() => void) | undefined;
 
+  const origUA = navigator.userAgent;
+  const origPlatform = navigator.platform;
+  const origTouchPoints = navigator.maxTouchPoints;
+
   afterEach(() => {
     dispose?.();
     dispose = undefined;
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    Object.defineProperty(navigator, 'userAgent', { value: origUA, configurable: true });
+    Object.defineProperty(navigator, 'platform', { value: origPlatform, configurable: true });
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      value: origTouchPoints,
+      configurable: true,
+    });
     document.body.replaceChildren();
   });
 
@@ -264,8 +287,9 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
   });
 
-  it('holds a two-row ResizeObserver batch in _holdOffset during a forward wheel and flushes cleanly', async () => {
+  it('holds a two-row ResizeObserver batch in _holdOffset during a desktop WebKit forward wheel and flushes cleanly', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
     const { scrollElement, scrollWrites, fireRowBatch, getVirtualizer, getTileTop } =
       await mountRoom({ initialScrollTop: 1200 });
     const v = getVirtualizer();
@@ -286,7 +310,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
 
     // No DOM scrollTop write while wheel is live; _holdOffset absorbs the full +140 batch.
     expect(scrollWrites).toEqual([]);
-    expect((v as unknown as { _holdOffset: number })._holdOffset).toBe(140);
+    expect(readVirtualizerHoldOffset(v)).toBe(140);
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
 
     // After wheel quiescence, _holdOffset flushes into scrollTop with visual position unchanged.
@@ -311,8 +335,60 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(getTileTop('$ev-8')! - scrollElement.scrollTop).toBeCloseTo(visualBefore, 1);
   });
 
+  it('applies above-viewport resizes immediately during Chromium wheel without wheel-hold', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(CHROME_MAC_UA);
+    const { scrollElement, fireRowBatch, getVirtualizer, getTileTop } = await mountRoom({
+      initialScrollTop: 1200,
+    });
+    const v = getVirtualizer();
+    const row8 = scrollElement.querySelector('[data-index="8"]')!;
+    const row9 = scrollElement.querySelector('[data-index="9"]')!;
+    v.itemSizeCache.set('$ev-8', ROW_HEIGHT);
+    v.itemSizeCache.set('$ev-9', ROW_HEIGHT);
+    const visualBefore = getTileTop('$ev-12')! - scrollElement.scrollTop;
+
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    fireRowBatch([
+      { target: row8, height: ROW_HEIGHT + 60 },
+      { target: row9, height: ROW_HEIGHT + 80 },
+    ]);
+
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(1340);
+    expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
+  });
+
+  it('clamps negative _holdOffset to -scrollTop so flushing near the top never snaps rows upward', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
+    const { scrollElement, getVirtualizer } = await mountRoom({
+      initialScrollTop: 40,
+    });
+    const v = getVirtualizer();
+    // Simulate an unmeasured row 0 (estimated at 100px, start=0 < scrollTop=40) shrinking to 20px.
+    v.itemSizeCache.delete('$ev-0');
+
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    v.resizeItem(0, 20);
+
+    // Negative hold is clamped to -live (-40), never -80.
+    expect(readVirtualizerHoldOffset(v)).toBe(-40);
+    // Flushing writes scrollTop=0 (exact -40 move), matching the -40 hold with no snap.
+    vi.advanceTimersByTime(200);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(0);
+
+    // At scrollTop=0, another above-fold shrink during live wheel accumulates zero negative hold.
+    v.itemSizeCache.delete('$ev-0');
+    scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
+    v.resizeItem(0, 10);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+  });
+
   it('clears _holdOffset on explicit jump and bottom pin so wheel quiescence cannot clobber landing', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    stubUserAgent(SAFARI_MAC_UA);
     const { scrollElement, pins, render, getVirtualizer, getJumps } = await mountRoom({
       initialScrollTop: 1200,
       withRowJumps: true,

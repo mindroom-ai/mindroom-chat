@@ -230,6 +230,28 @@ describe('batched virtualizer measurement ref', () => {
     dispose();
   });
 
+  it('batches a multi-row mount pass through _resizeBatch into a single notify', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    virtualizer.scrollOffset = 600;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = true;
+
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(0, ref);
+    mount(1, ref);
+    mount(2, ref);
+    mount(3, ref);
+    await Promise.resolve();
+
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.itemSizeCache.get(3)).toBe(80);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(virtualizer, true);
+    dispose();
+  });
+
   it('skips rows that React removed before the measurement ran', async () => {
     const { virtualizer, mount, dispose } = setup();
     virtualizer.isScrolling = true;

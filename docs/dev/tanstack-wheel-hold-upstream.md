@@ -1,10 +1,11 @@
 # Upstream PR drafts (`@tanstack/virtual-core` `packages/virtual-core/src/index.ts`)
 
-## PR 1: Hold `scrollTop` writes during live wheel gestures on `anchorTo: 'end'`
+## PR 1: Opt-in `holdScrollDuringWheel` to hold `scrollTop` writes during live wheel gestures
 
-**Problem & repro:** On desktop WebKit, synchronous `scrollTop` writes from `applyScrollAdjustment` during a live `wheel` stream fight WebKit's scrolling tree, which replays pre-write offsets over the adjustment. Gate on `options.anchorTo === 'end'` so start-anchored lists keep synchronous DOM writes. Mount an `anchorTo: 'end'` vertical `Virtualizer` (~100 variable-height items at bottom) in desktop WebKit, dispatch upward `wheel` ticks (`deltaY: -120` every ~16 ms) while prepending 50-item pages near the top, and observe >1,000 px anchor jumps.
+**Problem & repro:** On desktop WebKit, synchronous `scrollTop` writes from `applyScrollAdjustment` during a live `wheel` stream fight WebKit's scrolling tree, which replays pre-write offsets over the adjustment. Expose an opt-in `holdScrollDuringWheel?: boolean` option (default `false`) so callers enable it only on desktop WebKit without UA sniffing inside the library or affecting Chromium/Firefox. Mount an `anchorTo: 'end'` vertical `Virtualizer` (~100 variable-height items at bottom) in desktop WebKit, dispatch upward `wheel` ticks (`deltaY: -120` every ~16 ms) while prepending 50-item pages near the top, and observe >1,000 px anchor jumps.
 
 ```diff
++  holdScrollDuringWheel?: boolean // VirtualizerOptions (default false)
 +  private _wheelLive = false
 +  private _wheelTimer: ReturnType<typeof setTimeout> | null = null
 +  private _wheelSince = 0
@@ -24,11 +25,11 @@
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
 +    }, delay)
 +  }
-+  const onWheel = () => { if (this.options.anchorTo !== 'end') return; if (!this._wheelLive) this._wheelSince = this.now(); scheduleWheelFlush(150) }
++  const onWheel = () => { if (!this.options.holdScrollDuringWheel) return; if (!this._wheelLive) this._wheelSince = this.now(); scheduleWheelFlush(150) }
 +  el.addEventListener('wheel', onWheel, addEventListenerOptions)
 +  this.unsubs.push(() => el.removeEventListener('wheel', onWheel))
 -  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll
-+  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.anchorTo === 'end')
++  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.holdScrollDuringWheel)
 ```
 
 ## PR 2: Reconcile unseen live `scrollTop` moves in `applyScrollAdjustment`
@@ -41,4 +42,21 @@
 +  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
 -  if (this.pendingWrite === write) this.scrollOffset += delta
 +  if (this.pendingWrite === write) this.scrollOffset = offset + delta
+```
+
+## PR 3: Clamp negative `_holdOffset` to `-live` in `applyScrollAdjustment`
+
+**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate negative `_holdOffset` without bound. When `live + _holdOffset < 0`, virtual items shift downward by `|_holdOffset|` leaving a blank gap above item 0, and `_flushHoldIfReady` clamps `scrollOffset` at `0` while zeroing `_holdOffset`, snapping every visible row upward by the excess. Clamp negative held deltas in `applyScrollAdjustment` so `live + _holdOffset` never drops below `0`.
+
+```diff
+   if (!this._canWriteScroll()) {
+-    this._holdOffset += delta
+-    if (this.scrollOffset !== null) this.scrollOffset += delta
++    const live = this._readElementOffset()
++    const applied = delta < 0 && live !== null ? Math.max(delta, Math.min(0, -(live + this._holdOffset))) : delta
++    if (applied === 0) return false
++    this._holdOffset += applied
++    if (this.scrollOffset !== null) this.scrollOffset += applied
+     return true
+   }
 ```

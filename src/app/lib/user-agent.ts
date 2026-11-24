@@ -38,3 +38,13 @@ export const mobileOrTablet = (): boolean => {
   if (nav.userAgentData?.mobile) return true;
   return isIOS() || isAndroid() || /Mobi|Tablet|Silk|Kindle/i.test(nav.userAgent);
 };
+
+/** Desktop WebKit (Safari, macOS WKWebView, Playwright WebKit), excluding Blink, iOS, and jsdom. */
+export const isDesktopWebKit = (): boolean => {
+  const nav = getNavigator();
+  if (!nav || isIOS() || isAndroid()) return false;
+  return (
+    /AppleWebKit\//i.test(nav.userAgent) &&
+    !/(?:Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|jsdom)\//i.test(nav.userAgent)
+  );
+};

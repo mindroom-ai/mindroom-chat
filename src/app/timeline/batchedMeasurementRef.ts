@@ -29,6 +29,14 @@ export const createBatchedMeasurementRef = <T extends Element>(
 // measurement to rows near that target while it runs.
 type ProgrammaticScroll = { scrollState: { toEnd?: boolean } | null };
 type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolean };
+type ResizeBatch = { notify?: boolean; sync: boolean };
+type BatchedResizeVirtualizer = {
+  _resizeBatch?: ResizeBatch | null;
+  notify?: (sync: boolean) => void;
+  _noteClampMax?: () => void;
+  _flushHoldIfReady?: (sync: boolean) => void;
+  _retryClampedAdjustment?: () => void;
+};
 
 /**
  * Gives the mounted rows the height they have in the layout of now, the size virtual-core's row
@@ -84,12 +92,40 @@ export const createScrollMountMeasurement = <T extends Element>(
     attached.clear();
     // A programmatic scroll started by the same commit owns measurement now.
     if (programmaticScroll()) return;
-    flushSync(() => {
-      nodes.forEach((node) => {
-        if (!node.isConnected) return;
-        virtualizer.resizeItem(virtualizer.indexFromElement(node), readSize(node));
-      });
+    // Read every mounted row's size before writing into virtual-core so layout reads
+    // never interleave with scroll adjustments or synchronous re-renders.
+    const measurements: [number, number][] = [];
+    nodes.forEach((node) => {
+      if (!node.isConnected) return;
+      measurements.push([virtualizer.indexFromElement(node), readSize(node)]);
     });
+    if (measurements.length === 0) return;
+    const internal = virtualizer as unknown as BatchedResizeVirtualizer;
+    if (typeof internal.notify !== 'function' || internal._resizeBatch) {
+      flushSync(() => {
+        measurements.forEach(([index, size]) => virtualizer.resizeItem(index, size));
+      });
+      return;
+    }
+    // Batch the mount pass through virtual-core's _resizeBatch so a multi-row prepend
+    // notifies once instead of running one synchronous React render per newly mounted row.
+    const batch: ResizeBatch = { sync: false };
+    internal._resizeBatch = batch;
+    try {
+      measurements.forEach(([index, size]) => virtualizer.resizeItem(index, size));
+    } finally {
+      internal._resizeBatch = null;
+      if (batch.notify) {
+        if (batch.sync) {
+          internal.notify(true);
+        } else {
+          flushSync(() => internal.notify!(false));
+        }
+        internal._noteClampMax?.();
+        internal._flushHoldIfReady?.(true);
+        internal._retryClampedAdjustment?.();
+      }
+    }
   };
   return (node: T | null) => {
     if (!node || programmaticScroll()) {

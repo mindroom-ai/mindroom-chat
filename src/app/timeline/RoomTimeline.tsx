@@ -92,6 +92,7 @@ import { useRoomTimelineNavigationController } from './roomTimelineNavigationCon
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import {
   clearVirtualizerHoldOffset,
+  readVirtualizerHoldOffset,
   useTimelineScrollLedgerController,
 } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
@@ -2155,13 +2156,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
-  // history is at the bottom. The sentinel above the rows sits inside the list, at its top, where
-  // its first row is: rows the offset ledger holds above the reader count as loaded.
+  // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
+  // (-_holdOffset while virtual-core holds a prepend), so held rows above the reader count as loaded.
+  const holdOffset = readVirtualizerHoldOffset(virtualizer);
+  const topSentinelStyle =
+    holdOffset !== 0
+      ? { ...listTopSentinelStyle, insetBlockStart: -holdOffset }
+      : listTopSentinelStyle;
   const backSentinel = showRoomBackSentinel && (
-    <div
-      ref={paginator.observeBackAnchor}
-      style={latestAtTop ? { height: 1 } : listTopSentinelStyle}
-    />
+    <div ref={paginator.observeBackAnchor} style={latestAtTop ? { height: 1 } : topSentinelStyle} />
   );
   const frontSentinel = showRoomFrontSentinel && (
     <div
