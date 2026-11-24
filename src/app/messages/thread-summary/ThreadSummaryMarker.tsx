@@ -49,8 +49,6 @@ export function ThreadSummaryMarker({
   const previous = plan?.previousSummaryText && (
     <Trans
       t={t}
-      shouldUnescape
-      tOptions={{ interpolation: { escapeValue: true } }}
       i18nKey="mindroomUi.messages.mindroomThreadSummaryMarker.previous"
       values={{ summary: revealDirectionControls(plan.previousSummaryText) }}
       components={{ old: <s /> }}

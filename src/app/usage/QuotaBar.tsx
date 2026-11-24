@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { color } from 'folds';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { toSupportedLanguageCode } from '../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
@@ -99,10 +100,7 @@ export const formatResetCountdown = (
   resetsAt: string | undefined,
   now: number,
   language: string,
-  t: (
-    key: 'mindroomUi.usage.resetsSoon' | 'mindroomUi.usage.resetsIn' | 'mindroomUi.usage.resetsAt',
-    options?: Record<string, string>
-  ) => string
+  t: TFunction
 ): string | undefined => {
   if (!resetsAt) return undefined;
   const resetMs = Date.parse(resetsAt);
@@ -212,9 +210,7 @@ export function QuotaBar({
   const tone = quotaTone(remaining);
   const fillColor = quotaFillColor(tone, provider);
   const pacePercent = computePacePercent(window.resets_at, window.window_duration_mins, now);
-  const resetText = formatResetCountdown(window.resets_at, now, language, (key, options) =>
-    t(key, options)
-  );
+  const resetText = formatResetCountdown(window.resets_at, now, language, t);
   const ariaLabel = resetText
     ? t('mindroomUi.usage.quotaAriaWithReset', {
         label: window.label,

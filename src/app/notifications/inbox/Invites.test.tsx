@@ -116,8 +116,8 @@ it('checks the whole display name for bad words, not the shortened label', () =>
 });
 
 it('shows a name holding the label placeholder with the real ID close after it', () => {
-  // i18next used to insert this escaped name up to 1000 times (patches/i18next+23.12.2.patch);
-  // Trans still interpolates the label's text once more, so it shows twice.
+  // i18next 26.5 stopped repeating escaped self-placeholders up to 1000 times, and react-i18next
+  // 18.0.3 stopped Trans from interpolating placeholders inside a value a second time.
   const label = `${FSI}Maya (@maya:matrix.localhost)////////{{sender}}${PDI} (${LRI}@mallory:evil.example${PDI})`;
   let renderer!: ReturnType<typeof create>;
   act(() => {
@@ -139,7 +139,7 @@ it('shows a name holding the label placeholder with the real ID close after it',
   });
 
   const sender = renderer.root.find((node) => node.type === 'b' && node.props.title !== undefined);
-  expect(sender.children).toEqual([label.replace('{{sender}}', label)]);
+  expect(sender.children).toEqual([label]);
 });
 
 it('shows an inviter name that holds markup as text, in one bold name with no added props', () => {
@@ -165,8 +165,6 @@ it('shows an inviter name that holds markup as text, in one bold name with no ad
   expect(bold[0]?.children).toEqual([
     `${FSI}${displayname}${PDI} (${LRI}@mallory:evil.example${PDI})`,
   ]);
-  // React 19 keeps `ref` (null here) on element props.
-  expect(bold[0]?.props.ref).toBeNull();
-  expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'ref', 'style', 'title']);
+  expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'style', 'title']);
   expect(bold[0]?.props.title).toBe('@mallory:evil.example');
 });

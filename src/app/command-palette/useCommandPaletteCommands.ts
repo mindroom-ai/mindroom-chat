@@ -119,7 +119,12 @@ export const useCommandPaletteCommands = ({
 
   const settingRows = useMemo(
     () =>
-      getCommandPaletteSettingRows(shownSettings, settings, t, searchValues).map(
+      getCommandPaletteSettingRows(
+        shownSettings,
+        settings,
+        (key, values) => t(key, { ...values, defaultValue: key }),
+        searchValues
+      ).map(
         ({ item, setting, switch: settingSwitch }): Executable<CommandPaletteActionItem> => ({
           ...item,
           onSelect: settingSwitch

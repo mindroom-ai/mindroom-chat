@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { createStore, Provider } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
-import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
@@ -22,8 +21,6 @@ import {
   getThreadSidebarPreferencesStoreKey,
   makeThreadSidebarPreferencesAtom,
 } from '../../threads/cross-room/threadSidebarPreferences';
-
-enableMapSet();
 
 const { MINUTE_NOW, readSignals } = vi.hoisted(() => ({
   // Later than any real clock, so it wins over the time a snooze last renewed.
