@@ -521,7 +521,8 @@
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
-        "plugins": "plugins, extensions, modules, intégrations"
+        "plugins": "plugins, extensions, modules, intégrations",
+        "appUpdates": "mise à jour, mises à jour, version, actualiser, redémarrer"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avis de tiers",
         "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
         "debugMode": "Mode débogage",
-        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée."
+        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée.",
+        "updatesTitle": "Mises à jour de l’application",
+        "updatesDescription": "Les mises à jour se téléchargent automatiquement en arrière-plan.",
+        "checkForUpdates": "Rechercher des mises à jour",
+        "checkingForUpdates": "Recherche de mises à jour…",
+        "upToDate": "MindRoom est à jour.",
+        "updateDownloading": "Une mise à jour est en cours de téléchargement en arrière-plan. Vous pourrez redémarrer dès qu’elle sera prête.",
+        "updateCheckFailed": "Impossible de rechercher des mises à jour pour le moment. Réessayez.",
+        "updateReady": "La version {{version}} est prête à être installée.",
+        "restartToUpdate": "Redémarrer pour mettre à jour",
+        "updateInstallFailed": "Impossible de redémarrer pour installer la mise à jour. Réessayez."
       }
     },
     "createChat": {

@@ -508,7 +508,8 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
+        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
+        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
         "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
         "debugMode": "Hata ayıklama modu",
-        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın."
+        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın.",
+        "updatesTitle": "Uygulama güncellemeleri",
+        "updatesDescription": "Güncellemeler arka planda otomatik olarak indirilir.",
+        "checkForUpdates": "Güncellemeleri denetle",
+        "checkingForUpdates": "Güncellemeler denetleniyor…",
+        "upToDate": "MindRoom güncel.",
+        "updateDownloading": "Arka planda bir güncelleme indiriliyor. Hazır olduğunda yeniden başlatabilirsiniz.",
+        "updateCheckFailed": "Şu anda güncellemeler denetlenemedi. Tekrar deneyin.",
+        "updateReady": "{{version}} sürümü yüklenmeye hazır.",
+        "restartToUpdate": "Güncellemek için yeniden başlat",
+        "updateInstallFailed": "Güncellemeyi yüklemek için yeniden başlatılamadı. Tekrar deneyin."
       }
     },
     "createChat": {

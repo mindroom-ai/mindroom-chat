@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, ReactNode } from 'react';
 import {
   Box,
   Button,
@@ -25,8 +25,10 @@ import { CheckIcon, CopyIcon } from '../../rich-text/code/CodeBlockIcons';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
+import type { DesktopUpdateCheckOutcome } from '../../lib/desktopBridge';
 import { isDesktopApp } from '../../lib/nativeShell';
 import { isNativeIOS } from '../../native/nativeSso';
+import { checkNativeUpdate, isNativeUpdateAvailable } from '../../native/nativeUpdate';
 import { MacAppIcon } from '../../native/MacAppIcon';
 import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
@@ -40,6 +42,11 @@ import {
 } from '../../diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../diagnostics/diagnosticsExport';
 import { getDebugModeEnabled, setDebugModeEnabled } from '../../diagnostics/debugMode';
+import {
+  getReadyVersion,
+  reloadForNewVersion,
+  subscribeToNewVersion,
+} from '../../config/appUpdate';
 import { APP_RELEASE_VERSION } from '../../config/appVersion';
 import { parseDsn } from '../../bug-reports/error-reporting/errorReporting';
 import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
@@ -298,6 +305,121 @@ function TourSetting({ onStart }: { onStart: () => void }) {
     >
       {phone ? buttons : null}
     </SettingTile>
+  );
+}
+
+/** In-app update check and install control for the packaged Electron desktop app. */
+function AppUpdateSetting() {
+  const { t } = useTranslation();
+  const readyVersion = useSyncExternalStore(subscribeToNewVersion, getReadyVersion);
+  const [checking, setChecking] = useState(false);
+  const [checkOutcome, setCheckOutcome] = useState<DesktopUpdateCheckOutcome>();
+  const [restarting, setRestarting] = useState(false);
+  const [installFailed, setInstallFailed] = useState(false);
+  const checkingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const prevReadyVersionRef = useRef(readyVersion);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (prevReadyVersionRef.current === readyVersion) return;
+    prevReadyVersionRef.current = readyVersion;
+    setInstallFailed(false);
+    setRestarting(false);
+    setCheckOutcome(undefined);
+  }, [readyVersion]);
+
+  const handleCheck = async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    setChecking(true);
+    setCheckOutcome(undefined);
+    try {
+      const result = await checkNativeUpdate();
+      if (mountedRef.current) setCheckOutcome(result.outcome);
+    } finally {
+      checkingRef.current = false;
+      if (mountedRef.current) setChecking(false);
+    }
+  };
+
+  const handleRestart = () => {
+    if (restarting) return;
+    setRestarting(true);
+    setInstallFailed(false);
+    void reloadForNewVersion().catch(() => {
+      if (mountedRef.current) {
+        setRestarting(false);
+        setInstallFailed(true);
+      }
+    });
+  };
+
+  const description =
+    readyVersion !== undefined
+      ? installFailed
+        ? t('featureUi.settings.about.updateInstallFailed')
+        : t('featureUi.settings.about.updateReady', { version: readyVersion })
+      : checking
+      ? t('featureUi.settings.about.checkingForUpdates')
+      : checkOutcome === 'none'
+      ? t('featureUi.settings.about.upToDate')
+      : checkOutcome === 'found'
+      ? t('featureUi.settings.about.updateDownloading')
+      : checkOutcome === 'error'
+      ? t('featureUi.settings.about.updateCheckFailed')
+      : t('featureUi.settings.about.updatesDescription');
+
+  return (
+    <SettingTile
+      focusId="appUpdates"
+      title={t('featureUi.settings.about.updatesTitle')}
+      description={description}
+      after={
+        readyVersion !== undefined ? (
+          <Button
+            variant="Primary"
+            fill="Solid"
+            size="300"
+            radii="300"
+            before={
+              restarting ? (
+                <Spinner variant="Primary" fill="Solid" size="100" />
+              ) : (
+                <Icon src={Icons.Reload} size="100" />
+              )
+            }
+            disabled={restarting}
+            onClick={handleRestart}
+          >
+            <Text size="B300">
+              {restarting
+                ? t('sharedUi.appUpdate.updating')
+                : t('featureUi.settings.about.restartToUpdate')}
+            </Text>
+          </Button>
+        ) : (
+          <Button
+            variant="Secondary"
+            fill="Soft"
+            size="300"
+            radii="300"
+            outlined
+            before={checking ? <Spinner size="100" /> : undefined}
+            disabled={checking}
+            onClick={() => void handleCheck()}
+          >
+            <Text size="B300">{t('featureUi.settings.about.checkForUpdates')}</Text>
+          </Button>
+        )
+      }
+    />
   );
 }
 
@@ -586,12 +708,14 @@ export function About({ requestClose, closeDialog }: AboutProps) {
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
+  const nativeUpdate = isNativeUpdateAvailable();
   const macApp = useOffersMacApp();
 
   return (
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
+        {nativeUpdate && <AppUpdateSetting />}
         {macApp && <MacAppSetting />}
         <DebugModeSetting
           enabled={debugMode}

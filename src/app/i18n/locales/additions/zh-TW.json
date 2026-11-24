@@ -495,7 +495,8 @@
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
-        "plugins": "外掛程式, 插件, 擴充功能, 整合"
+        "plugins": "外掛程式, 插件, 擴充功能, 整合",
+        "appUpdates": "更新, 版本, 升級, 重新啟動"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "第三方聲明",
         "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
         "debugMode": "除錯模式",
-        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。"
+        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。",
+        "updatesTitle": "應用程式更新",
+        "updatesDescription": "更新會在背景自動下載。",
+        "checkForUpdates": "檢查更新",
+        "checkingForUpdates": "正在檢查更新…",
+        "upToDate": "MindRoom 已是最新版本。",
+        "updateDownloading": "正在背景下載更新。準備就緒後即可重新啟動安裝。",
+        "updateCheckFailed": "目前無法檢查更新，請再試一次。",
+        "updateReady": "版本 {{version}} 已準備好安裝。",
+        "restartToUpdate": "重新啟動以更新",
+        "updateInstallFailed": "無法重新啟動以安裝更新，請再試一次。"
       }
     },
     "createChat": {

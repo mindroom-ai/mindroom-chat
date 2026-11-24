@@ -521,7 +521,8 @@
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
         "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano",
-        "plugins": "plugins, extensões, complementos, integrações"
+        "plugins": "plugins, extensões, complementos, integrações",
+        "appUpdates": "atualização, atualizações, versão, atualizar, reiniciar"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avisos de terceiros",
         "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo.",
         "debugMode": "Modo de depuração",
-        "debugModeDescription": "Adiciona «Anexar registos da app» ao menu + da caixa de mensagem, para que possa enviar os diagnósticos deste dispositivo numa mensagem. Ative abaixo o rastreio de diagnóstico detalhado para incluir os valores de memória e um rastreio pormenorizado."
+        "debugModeDescription": "Adiciona «Anexar registos da app» ao menu + da caixa de mensagem, para que possa enviar os diagnósticos deste dispositivo numa mensagem. Ative abaixo o rastreio de diagnóstico detalhado para incluir os valores de memória e um rastreio pormenorizado.",
+        "updatesTitle": "Atualizações da aplicação",
+        "updatesDescription": "As atualizações são transferidas automaticamente em segundo plano.",
+        "checkForUpdates": "Procurar atualizações",
+        "checkingForUpdates": "A procurar atualizações…",
+        "upToDate": "O MindRoom está atualizado.",
+        "updateDownloading": "Uma atualização está a ser transferida em segundo plano. Pode reiniciar assim que estiver pronta.",
+        "updateCheckFailed": "Não foi possível procurar atualizações agora. Tente novamente.",
+        "updateReady": "A versão {{version}} está pronta para instalar.",
+        "restartToUpdate": "Reiniciar para atualizar",
+        "updateInstallFailed": "Não foi possível reiniciar para instalar a atualização. Tente novamente."
       }
     },
     "createChat": {

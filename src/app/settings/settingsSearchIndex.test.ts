@@ -29,6 +29,7 @@ const WEB: SettingsContext = {
   developerTools: false,
   errorReporting: false,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
 };

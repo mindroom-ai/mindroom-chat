@@ -223,13 +223,20 @@ void app.whenReady().then(() => {
   };
 
   if (app.isPackaged) {
-    updater = startUpdater(autoUpdater, rebuildMenu, {
-      onBeforeInstall: () => {
-        markQuitting();
-        flushMainWindowState();
-        activeQuickCapture.flushState();
+    updater = startUpdater(
+      autoUpdater,
+      () => {
+        rebuildMenu();
+        getMainWindow()?.webContents.send('desktop:shell-event', { type: 'update-status' });
       },
-    });
+      {
+        onBeforeInstall: () => {
+          markQuitting();
+          flushMainWindowState();
+          activeQuickCapture.flushState();
+        },
+      }
+    );
   }
   rebuildMenu();
 
@@ -317,6 +324,16 @@ void app.whenReady().then(() => {
     mainOwners,
     (args) => (args.length === 0 ? true : undefined),
     async () => ({ ok: true, value: { version: updater?.readyVersion() } })
+  );
+  handle(
+    'desktop:update-check',
+    mainOwners,
+    (args) => (args.length === 0 ? true : undefined),
+    async () => {
+      if (!updater) return { ok: false, code: 'UNSUPPORTED' };
+      const outcome = await updater.check();
+      return { ok: true, value: { outcome, version: updater.readyVersion() } };
+    }
   );
   handle(
     'desktop:update-install',

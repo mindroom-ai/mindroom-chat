@@ -508,7 +508,8 @@
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
         "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken",
-        "plugins": "plug-ins, plugins, extensies, add-ons, integraties"
+        "plugins": "plug-ins, plugins, extensies, add-ons, integraties",
+        "appUpdates": "update, updates, bijwerken, versie, upgrade, herstart, opnieuw opstarten"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Kennisgevingen van derden",
         "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
         "debugMode": "Debugmodus",
-        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen."
+        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen.",
+        "updatesTitle": "App-updates",
+        "updatesDescription": "Updates worden automatisch op de achtergrond gedownload.",
+        "checkForUpdates": "Controleren op updates",
+        "checkingForUpdates": "Controleren op updates…",
+        "upToDate": "MindRoom is up-to-date.",
+        "updateDownloading": "Er wordt op de achtergrond een update gedownload. Je kunt opnieuw opstarten zodra deze klaar is.",
+        "updateCheckFailed": "Kan nu niet controleren op updates. Probeer het opnieuw.",
+        "updateReady": "Versie {{version}} staat klaar om te installeren.",
+        "restartToUpdate": "Opnieuw opstarten om bij te werken",
+        "updateInstallFailed": "Kan niet opnieuw opstarten om de update te installeren. Probeer het opnieuw."
       }
     },
     "createChat": {
