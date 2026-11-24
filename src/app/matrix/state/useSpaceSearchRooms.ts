@@ -116,27 +116,6 @@ export const getJoinedSubspaces = (
     (roomId) => roomToParents.get(roomId)?.has(spaceId) === true && isSpace(mx.getRoom(roomId))
   );
 
-export const useSpaceOwnRooms = (spaceId: string): string[] => {
-  const client = useMatrixClient();
-  const joinedRoomIds = useAtomValue(allRoomsAtom);
-  const directRoomIds = useAtomValue(mDirectAtom);
-  const parentsByRoom = useAtomValue(roomToParentsAtom);
-  return useMemo(
-    () => getSpaceOwnRooms(client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom),
-    [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]
-  );
-};
-
-export const useJoinedSubspaces = (spaceId: string): string[] => {
-  const client = useMatrixClient();
-  const joinedRoomIds = useAtomValue(allRoomsAtom);
-  const parentsByRoom = useAtomValue(roomToParentsAtom);
-  return useMemo(
-    () => getJoinedSubspaces(client, spaceId, joinedRoomIds, parentsByRoom),
-    [client, spaceId, joinedRoomIds, parentsByRoom]
-  );
-};
-
 /** The joined spaces that list `spaceId` directly. */
 export const useJoinedParentSpaces = (spaceId: string): string[] => {
   const joinedRoomIds = useAtomValue(allRoomsAtom);

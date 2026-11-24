@@ -7,7 +7,7 @@ import { createStore, Provider } from 'jotai';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { RoomIcon } from '../../avatars/RoomAvatar';
-import { nestSubRooms, SubRoomRows, useSubRoomList } from './SubRoomRows';
+import { buildSubRoomList, nestSubRooms, SubRoomRows, useSubRoomList } from './SubRoomRows';
 
 const parents = (entries: Record<string, string[]>) =>
   new Map(Object.entries(entries).map(([roomId, ids]) => [roomId, new Set(ids)]));
@@ -248,14 +248,7 @@ describe('useSubRoomList', () => {
     });
     let list: ReturnType<typeof useSubRoomList> | undefined;
     const Harness = () => {
-      list = useSubRoomList(
-        '!space',
-        ['!a'],
-        ['!a', '!a-sub', '!other'],
-        closed,
-        selectedRoomId,
-        (id) => id
-      );
+      list = useSubRoomList('!space', ['!a'], ['!a', '!a-sub', '!other'], closed, selectedRoomId);
       return null;
     };
     act(() => {
@@ -281,5 +274,38 @@ describe('useSubRoomList', () => {
 
   it('lists only the selected room, a sub-room too, while the section is collapsed', () => {
     expect(listOf(true, '!a-sub').listedRoomIds).toEqual(['!a-sub']);
+  });
+});
+
+describe('buildSubRoomList', () => {
+  it('applies top-room ordering and keeps nested sub-rooms right after their parent', () => {
+    const result = buildSubRoomList(
+      ['!a', '!b'],
+      ['!a', '!a-sub', '!b'],
+      parents({ '!a': ['!space'], '!a-sub': ['!a'], '!b': ['!space'] }),
+      new Set(['!a']),
+      () => ['!b', '!a'],
+      false,
+      undefined
+    );
+
+    expect(result.listedRoomIds).toEqual(['!b', '!a']);
+    expect(result.shownRoomIds).toEqual(['!b', '!a', '!a-sub']);
+    expect(Object.fromEntries(result.tree.children)).toEqual({ '!a': ['!a-sub'] });
+  });
+
+  it('keeps shownRoomIds full while filtering listedRoomIds to the selected room when collapsed', () => {
+    const collapsed = buildSubRoomList(
+      ['!a', '!b'],
+      ['!a', '!a-sub', '!b'],
+      parents({ '!a': ['!space'], '!a-sub': ['!a'], '!b': ['!space'] }),
+      new Set(['!a']),
+      (top) => [...top],
+      true,
+      '!a-sub'
+    );
+
+    expect(collapsed.shownRoomIds).toEqual(['!a', '!a-sub', '!b']);
+    expect(collapsed.listedRoomIds).toEqual(['!a-sub']);
   });
 });

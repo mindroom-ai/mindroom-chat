@@ -546,7 +546,6 @@
     },
     "spaceNav": {
       "options": "Opções do espaço",
-      "subspaces": "Subespaços",
       "subspaceUnread": "{{name}}, mensagens não lidas",
       "backToParent": "Voltar para {{name}}"
     },

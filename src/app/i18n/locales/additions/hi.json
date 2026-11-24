@@ -533,7 +533,6 @@
     },
     "spaceNav": {
       "options": "स्पेस विकल्प",
-      "subspaces": "उप-स्पेस",
       "subspaceUnread": "{{name}}, अपठित संदेश",
       "backToParent": "{{name}} पर वापस जाएँ"
     },

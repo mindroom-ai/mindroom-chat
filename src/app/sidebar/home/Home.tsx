@@ -22,6 +22,7 @@ import { HOME_ROOM_LIST } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
+import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useHomeCreateSelected } from '../../routes/useHomeSelected';
@@ -160,14 +161,14 @@ export function Home() {
   const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
   const homeRoomPath = (roomId: string) =>
     getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
-  const { tree, roomOrder, listedRoomIds } = useSubRoomList(
+  const { tree, roomOrder, shownRoomIds, listedRoomIds } = useSubRoomList(
     HOME_ROOM_LIST,
     roomsByName,
     roomsByName,
     roomsClosed,
-    selectedRoomId,
-    homeRoomPath
+    selectedRoomId
   );
+  useRoomListShortcuts(roomsClosed ? listedRoomIds : shownRoomIds, selectedRoomId, homeRoomPath);
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
   const rowProps = (room: Room) => ({
