@@ -15,7 +15,6 @@ import * as questionCss from '../question/QuestionCard.css';
 import * as css from './WorkflowRunCard.css';
 
 const ANSWER_TIMEOUT_MS = 15_000;
-
 const REJECTION_KEYS = {
   already_answered: 'mindroomUi.workflowRun.question.rejected.alreadyAnswered',
   no_longer_open: 'mindroomUi.workflowRun.question.rejected.noLongerOpen',
@@ -31,10 +30,7 @@ export type WorkflowQuestionCardProps = {
   readOnly?: boolean;
 };
 
-/**
- * Workflow `ask_user` question notice card with option buttons and optional free-text input,
- * guarded to the requester with clear/encrypted rejection and timeout feedback.
- */
+/** Workflow `ask_user` question notice card with clear/encrypted rejection and timeout feedback. */
 export function WorkflowQuestionCard({
   question,
   roomId,
@@ -46,8 +42,6 @@ export function WorkflowQuestionCard({
   const mx = useMatrixClient();
   const room = mx.getRoom(roomId);
   const viewerId = mx.getUserId();
-
-  // null: idle, 'sending': send in flight, other string: sent answer event ID awaiting edit/rejection.
   const [sent, setSent] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -60,7 +54,6 @@ export function WorkflowQuestionCard({
     !!eventId &&
     question.requester !== null &&
     viewerId === question.requester;
-
   const fail = useCallback((message: string) => {
     setSent(null);
     setFeedback(message);
@@ -75,11 +68,14 @@ export function WorkflowQuestionCard({
     const onEvent = (event: MatrixEvent) => {
       if (!sent || sent === 'sending' || event.getRoomId() !== roomId) return;
       const rejection = parseWorkflowAnswerRejection(event, viewerId);
-      if (!rejection || rejection.answerEventId !== sent) return;
-      const key = Object.prototype.hasOwnProperty.call(REJECTION_KEYS, rejection.reason)
-        ? REJECTION_KEYS[rejection.reason as keyof typeof REJECTION_KEYS]
-        : REJECTION_KEYS.no_longer_open;
-      fail(t(key));
+      if (rejection?.answerEventId === sent)
+        fail(
+          t(
+            Object.prototype.hasOwnProperty.call(REJECTION_KEYS, rejection.reason)
+              ? REJECTION_KEYS[rejection.reason as keyof typeof REJECTION_KEYS]
+              : REJECTION_KEYS.no_longer_open
+          )
+        );
     };
     mx.on(ClientEvent.Event, onEvent);
     mx.on(MatrixEventEvent.Decrypted, onEvent);
@@ -101,8 +97,8 @@ export function WorkflowQuestionCard({
     }
   };
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
+  const onFormSubmit = (e: FormEvent) => {
+    e.preventDefault();
     const trimmed = draft.trim();
     if (trimmed) void submitAnswer({ text: trimmed });
   };
@@ -111,8 +107,8 @@ export function WorkflowQuestionCard({
     question.requester && room
       ? getMemberDisplayName(room, question.requester) ?? question.requester
       : question.requester;
-  const controlsDisabled = !isRequester || pending;
-  const visibleFeedback = isOpen ? feedback : null;
+  const disabled = !isRequester || pending;
+  const shownFeedback = isOpen ? feedback : null;
 
   return (
     <section
@@ -141,7 +137,6 @@ export function WorkflowQuestionCard({
           {question.text}
         </Text>
       </div>
-
       {!isOpen && (
         <Text size="T300" className={questionCss.Chosen} {...ownDirectionLine}>
           {question.status === 'answered'
@@ -149,7 +144,6 @@ export function WorkflowQuestionCard({
             : t('mindroomUi.workflowRun.question.cancelled')}
         </Text>
       )}
-
       {isOpen && (
         <>
           {question.options.length > 0 && (
@@ -159,7 +153,7 @@ export function WorkflowQuestionCard({
                   key={option}
                   type="button"
                   className={questionCss.Option}
-                  disabled={controlsDisabled}
+                  disabled={disabled}
                   onClick={() => void submitAnswer({ option })}
                 >
                   <Text as="span" size="T400" className={questionCss.Label} {...ownDirectionLine}>
@@ -169,29 +163,27 @@ export function WorkflowQuestionCard({
               ))}
             </div>
           )}
-
           {question.freeText && (
-            <form className={css.Row} onSubmit={handleSubmit}>
+            <form className={css.Row} onSubmit={onFormSubmit}>
               <Input
                 size="300"
                 variant="Surface"
                 className={css.FreeTextInput}
                 value={draft}
-                disabled={controlsDisabled}
+                disabled={disabled}
                 placeholder={t('mindroomUi.workflowRun.question.placeholder')}
-                onChange={(event) => setDraft(event.currentTarget.value)}
+                onChange={(e) => setDraft(e.currentTarget.value)}
               />
               <Button
                 type="submit"
                 size="300"
                 variant="Primary"
-                disabled={controlsDisabled || draft.trim().length === 0}
+                disabled={disabled || draft.trim().length === 0}
               >
                 <Text size="B300">{t('mindroomUi.workflowRun.question.send')}</Text>
               </Button>
             </form>
           )}
-
           {!isRequester && !readOnly && requesterName && (
             <Text size="T200" priority="300">
               {t('mindroomUi.workflowRun.question.onlyRequester', { name: requesterName })}
@@ -199,13 +191,12 @@ export function WorkflowQuestionCard({
           )}
         </>
       )}
-
       <Text
-        role={visibleFeedback ? 'alert' : 'status'}
+        role={shownFeedback ? 'alert' : 'status'}
         size="T200"
-        className={visibleFeedback ? questionCss.Failed : questionCss.VisuallyHidden}
+        className={shownFeedback ? questionCss.Failed : questionCss.VisuallyHidden}
       >
-        {visibleFeedback ?? ''}
+        {shownFeedback ?? ''}
       </Text>
     </section>
   );

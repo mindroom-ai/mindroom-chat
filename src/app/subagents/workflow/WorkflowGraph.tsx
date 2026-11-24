@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -8,6 +8,7 @@ import { formatWorkDuration } from '../../lib/time';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 import type {
   WorkflowNodeStatus,
+  WorkflowRunEdge,
   WorkflowRunGroup,
   WorkflowRunNode,
 } from '../../matrix/protocol/workflowFrame';
@@ -18,7 +19,9 @@ import { ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
 import { formatTokens } from '../runUsage';
 import {
+  edgePath,
   foldGroupItems,
+  type Box,
   type WorkflowGraphBand,
   type WorkflowGraphItem,
 } from './workflowGraphModel';
@@ -30,7 +33,6 @@ const GROUP_KIND_KEYS = {
   run: 'mindroomUi.workflowRun.group.run',
   workflow: 'mindroomUi.workflowRun.group.workflow',
 } as const;
-
 const WAITING_ON_KEYS = {
   user: 'mindroomUi.workflowRun.node.waitingOn.user',
   approval: 'mindroomUi.workflowRun.node.waitingOn.approval',
@@ -40,11 +42,10 @@ const WAITING_ON_KEYS = {
 export const isLiveWorkflowNodeStatus = (status: WorkflowNodeStatus): boolean =>
   status === 'queued' || status === 'running' || status === 'waiting';
 
-type NodeChipProps = {
-  node: WorkflowRunNode;
-  subagentRun?: SubagentRun;
+type RenderCtx = {
   room: Room;
-  selected: boolean;
+  subagentsByRun: ReadonlyMap<string, SubagentRun>;
+  selectedId: string | null;
   now: number;
   t: TFunction;
   language: string;
@@ -61,9 +62,18 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   t,
   language,
   onSelect,
-}: NodeChipProps) {
+}: {
+  node: WorkflowRunNode;
+  subagentRun?: SubagentRun;
+  room: Room;
+  selected: boolean;
+  now: number;
+  t: TFunction;
+  language: string;
+  onSelect: (id: string) => void;
+}) {
   const agentProfile = useAgentProfile(room, node.agent ?? '');
-  const modelLabel = subagentRun?.meta.model
+  const model = subagentRun?.meta.model
     ? getAiRunCompactModelLabel(subagentRun.meta.model)
     : node.model;
   const usage = subagentRun?.meta.usage ?? node.usage;
@@ -108,7 +118,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
       </span>
       <span className={css.ChipMeta}>
         {node.agent && <span>{agentProfile.name}</span>}
-        {modelLabel && <span>{modelLabel}</span>}
+        {model && <span>{model}</span>}
         {node.kind === 'session' && node.turns > 0 && (
           <span>{t('mindroomUi.workflowRun.node.sessionTurns', { count: node.turns })}</span>
         )}
@@ -121,44 +131,32 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   );
 });
 
-type ListProps = {
-  items: readonly WorkflowGraphItem[];
-  room: Room;
-  subagentsByRun: ReadonlyMap<string, SubagentRun>;
-  selectedId: string | null;
-  now: number;
-  t: TFunction;
-  language: string;
-  onSelect: (id: string) => void;
-};
-
 function WorkflowGroupBox({
   group,
   items,
-  ...rest
-}: Omit<ListProps, 'items'> & { group: WorkflowRunGroup; items: readonly WorkflowGraphItem[] }) {
+  ctx,
+}: {
+  group: WorkflowRunGroup;
+  items: readonly WorkflowGraphItem[];
+  ctx: RenderCtx;
+}) {
   const [expanded, setExpanded] = useState(false);
   const { shown, more } = expanded ? { shown: items, more: 0 } : foldGroupItems(items);
-  const kindLabel = Object.prototype.hasOwnProperty.call(GROUP_KIND_KEYS, group.kind)
-    ? rest.t(GROUP_KIND_KEYS[group.kind as keyof typeof GROUP_KIND_KEYS])
-    : group.kind;
   const pct = group.total > 0 ? Math.min(100, Math.round((group.done / group.total) * 100)) : 0;
-
   return (
     <div className={css.GroupBox} data-workflow-group-id={group.id}>
       <div className={cardCss.Row} style={{ justifyContent: 'space-between' }}>
         <Text as="span" size="T300" className={css.StrongText}>
-          {kindLabel}
+          {Object.prototype.hasOwnProperty.call(GROUP_KIND_KEYS, group.kind)
+            ? ctx.t(GROUP_KIND_KEYS[group.kind as keyof typeof GROUP_KIND_KEYS])
+            : group.kind}
         </Text>
         <Text as="span" size="T200" priority="300">
-          {rest.t('mindroomUi.workflowRun.group.progress', {
-            done: group.done,
-            total: group.total,
-          })}
+          {ctx.t('mindroomUi.workflowRun.group.progress', { done: group.done, total: group.total })}
         </Text>
         {group.failed > 0 && (
           <Text as="span" size="T200" className={cardCss.CriticalText}>
-            {rest.t('mindroomUi.workflowRun.group.failed', { count: group.failed })}
+            {ctx.t('mindroomUi.workflowRun.group.failed', { count: group.failed })}
           </Text>
         )}
       </div>
@@ -171,7 +169,7 @@ function WorkflowGroupBox({
       >
         <div className={css.ProgressFill} style={{ inlineSize: `${pct}%` }} />
       </div>
-      <WorkflowItemsList items={shown} {...rest} />
+      <WorkflowItemsList items={shown} ctx={ctx} />
       {more > 0 && (
         <div>
           <Button
@@ -182,7 +180,7 @@ function WorkflowGroupBox({
             onClick={() => setExpanded(true)}
           >
             <Text size="B300">
-              {rest.t('mindroomUi.workflowRun.panel.showMore', { count: more })}
+              {ctx.t('mindroomUi.workflowRun.panel.showMore', { count: more })}
             </Text>
           </Button>
         </div>
@@ -191,39 +189,33 @@ function WorkflowGroupBox({
   );
 }
 
-function WorkflowItemsList(props: ListProps) {
-  const { items, room, subagentsByRun, selectedId, now, t, language, onSelect } = props;
+function WorkflowItemsList({
+  items,
+  ctx,
+}: {
+  items: readonly WorkflowGraphItem[];
+  ctx: RenderCtx;
+}) {
   return (
     <div className={css.ItemsGrid}>
       {items.map((item) =>
         item.type === 'group' ? (
-          <WorkflowGroupBox
-            key={item.group.id}
-            group={item.group}
-            items={item.items}
-            room={room}
-            subagentsByRun={subagentsByRun}
-            selectedId={selectedId}
-            now={now}
-            t={t}
-            language={language}
-            onSelect={onSelect}
-          />
+          <WorkflowGroupBox key={item.group.id} group={item.group} items={item.items} ctx={ctx} />
         ) : (
-          <div key={item.node.id} className={css.Column}>
+          <div key={item.node.id} className={css.Stack}>
             <WorkflowNodeChip
               node={item.node}
-              subagentRun={item.node.run ? subagentsByRun.get(item.node.run) : undefined}
-              room={room}
-              selected={selectedId === item.node.id}
-              now={isLiveWorkflowNodeStatus(item.node.status) ? now : 0}
-              t={t}
-              language={language}
-              onSelect={onSelect}
+              subagentRun={item.node.run ? ctx.subagentsByRun.get(item.node.run) : undefined}
+              room={ctx.room}
+              selected={ctx.selectedId === item.node.id}
+              now={isLiveWorkflowNodeStatus(item.node.status) ? ctx.now : 0}
+              t={ctx.t}
+              language={ctx.language}
+              onSelect={ctx.onSelect}
             />
             {item.children && item.children.length > 0 && (
               <div className={css.NestedChildren}>
-                <WorkflowItemsList {...props} items={item.children} />
+                <WorkflowItemsList items={item.children} ctx={ctx} />
               </div>
             )}
           </div>
@@ -233,15 +225,81 @@ function WorkflowItemsList(props: ListProps) {
   );
 }
 
-/** Renders phase band sections with nested groups, session turns, and memoized agent chips. */
-export function WorkflowGraphBands({
+/** Renders phase bands, nested groups/turns, memoized chips, and the measured SVG edge overlay. */
+export function WorkflowGraphCanvas({
   bands,
+  edges,
   ...rest
-}: Omit<ListProps, 'items' | 't' | 'language'> & { bands: readonly WorkflowGraphBand[] }) {
+}: Omit<RenderCtx, 't' | 'language'> & {
+  bands: readonly WorkflowGraphBand[];
+  edges: readonly WorkflowRunEdge[];
+}) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const edgesRef = useRef(edges);
+  edgesRef.current = edges;
+  const edgesKey = useMemo(
+    () => edges.map((e) => `${e.from}>${e.to}:${e.count}`).join(','),
+    [edges]
+  );
+  const [paths, setPaths] = useState<{ key: string; d: string }[]>([]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const canvas = canvasRef.current;
+      if (!canvas || !edgesRef.current.length) return setPaths((p) => (p.length ? [] : p));
+      const root = canvas.getBoundingClientRect();
+      const boxes = new Map<string, Box>();
+      canvas.querySelectorAll<HTMLElement>('[data-workflow-chip-id]').forEach((el) => {
+        const id = el.dataset.workflowChipId;
+        if (!id) return;
+        const r = el.getBoundingClientRect();
+        boxes.set(id, {
+          x: r.left - root.left,
+          y: r.top - root.top,
+          width: r.width,
+          height: r.height,
+        });
+      });
+      const next = edgesRef.current.flatMap((e) => {
+        const [a, b] = [boxes.get(e.from), boxes.get(e.to)];
+        return a && b ? [{ key: `${e.from}->${e.to}`, d: edgePath(a, b) }] : [];
+      });
+      return setPaths((p) =>
+        p.length === next.length && p.every((x, i) => x.key === next[i]?.key && x.d === next[i]?.d)
+          ? p
+          : next
+      );
+    };
+    measure();
+    const canvas = canvasRef.current;
+    if (!canvas || !edgesKey || typeof ResizeObserver === 'undefined') return undefined;
+    let rafId = 0;
+    const observer = new ResizeObserver(() => {
+      if (!rafId)
+        rafId = window.requestAnimationFrame(() => {
+          rafId = 0;
+          measure();
+        });
+    });
+    observer.observe(canvas);
+    return () => {
+      observer.disconnect();
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [edgesKey]);
+
+  const ctx: RenderCtx = { ...rest, t, language };
   return (
-    <>
+    <div ref={canvasRef} className={css.GraphCanvas}>
+      {paths.length > 0 && (
+        <svg className={css.EdgeOverlay} aria-hidden="true">
+          {paths.map((edge) => (
+            <path key={edge.key} d={edge.d} className={css.EdgePath} />
+          ))}
+        </svg>
+      )}
       {bands.map((band, index) => (
         <section key={band.phase ?? `unphased-${index}`} className={css.Band}>
           {band.phase !== null && (
@@ -249,9 +307,9 @@ export function WorkflowGraphBands({
               {band.phase}
             </Text>
           )}
-          <WorkflowItemsList items={band.items} t={t} language={language} {...rest} />
+          <WorkflowItemsList items={band.items} ctx={ctx} />
         </section>
       ))}
-    </>
+    </div>
   );
 }

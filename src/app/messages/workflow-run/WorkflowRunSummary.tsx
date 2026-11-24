@@ -19,31 +19,25 @@ import {
 import { sendWorkflowRunResume } from '../../matrix/protocol/workflowRunContent';
 import { stopBackgroundJobs } from '../../matrix/send/cancelBackgroundJob';
 import { useSentCancels } from '../../matrix/state/sentCancels';
-import { workflowRunCostLine, workflowRunCountsLine } from './workflowRunLabels';
+import { ownDirectionLine } from '../../ui/directional';
+import {
+  workflowRunCostLine,
+  workflowRunCountsLine,
+  workflowRunStatusLabel,
+} from './workflowRunLabels';
 import * as css from './WorkflowRunCard.css';
 
 const RESUME_TIMEOUT_MS = 15_000;
 
-/** Live ticking elapsed clock for an active run, or fixed duration once ended. */
-export const useWorkflowRunElapsed = (
-  startedAt: number | null,
-  endedAt: number | null,
-  isLive: boolean,
-  language: string
-): string | undefined => {
-  const [now, setNow] = useState(Date.now);
-  useEffect(
-    () => (isLive ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
-    [isLive]
+export const useCanCancelBackgroundJob = (room: Room, readOnly = false): boolean => {
+  const viewerId = useMatrixClient().getUserId();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
+  return (
+    !readOnly && !!viewerId && permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId)
   );
-  if (startedAt === null) return undefined;
-  if (isLive) return formatWorkDuration(Math.max(0, now - startedAt * 1000), language);
-  return endedAt !== null
-    ? formatWorkDuration(Math.max(0, (endedAt - startedAt) * 1000), language)
-    : undefined;
 };
 
-export type WorkflowRunActionsParams = {
+export const useWorkflowRunActions = (params: {
   room: Room | null;
   roomId: string;
   run: string;
@@ -53,20 +47,18 @@ export type WorkflowRunActionsParams = {
   attempt: number;
   threadId: string | null;
   readOnly?: boolean;
-};
-
-/** Shared Stop (backed by `stopBackgroundJobs` + `useSentCancels`) and requester-gated Resume state. */
-export const useWorkflowRunActions = ({
-  room,
-  roomId,
-  run,
-  jobId,
-  requester,
-  status,
-  attempt,
-  threadId,
-  readOnly = false,
-}: WorkflowRunActionsParams) => {
+}) => {
+  const {
+    room,
+    roomId,
+    run,
+    jobId,
+    requester,
+    status,
+    attempt,
+    threadId,
+    readOnly = false,
+  } = params;
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const viewerId = mx.getUserId();
@@ -95,9 +87,8 @@ export const useWorkflowRunActions = ({
   const stop = async () => {
     if (!room || !jobId || stopping) return;
     setActionError(null);
-    if (!(await stopBackgroundJobs(mx, room, threadId, { jobId }, [jobId]))) {
+    if (!(await stopBackgroundJobs(mx, room, threadId, { jobId }, [jobId])))
       setActionError(t('activity.actions.failed'));
-    }
   };
 
   const resume = async () => {
@@ -125,9 +116,7 @@ function StopWorkflowButton({
   onStop: () => void;
 }) {
   const { t } = useTranslation();
-  const viewerId = useMatrixClient().getUserId();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  if (!viewerId || !permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId)) return null;
+  if (!useCanCancelBackgroundJob(room)) return null;
   return (
     <Button
       type="button"
@@ -144,7 +133,6 @@ function StopWorkflowButton({
   );
 }
 
-/** Stop and Resume / Run again buttons shared by the run card and graph panel header. */
 export function WorkflowRunActionButtons({
   room,
   actions,
@@ -184,7 +172,52 @@ export function WorkflowRunActionButtons({
   );
 }
 
-/** Counts, optional failed count, cost, and elapsed time line shared by card and panel header. */
+export function WorkflowRunTitleBadges({
+  heading,
+  name,
+  title,
+  status,
+  attempt,
+  large,
+  asHeading = false,
+}: {
+  heading: string;
+  name?: string | null;
+  title?: string | null;
+  status?: WorkflowRunStatus;
+  attempt?: number;
+  large?: boolean;
+  asHeading?: boolean;
+}) {
+  const { t } = useTranslation();
+  const showSavedName = !!name && !!title && name !== title;
+  return (
+    <>
+      {asHeading ? (
+        <Text as="h2" size="H4" truncate {...ownDirectionLine}>
+          {heading}
+        </Text>
+      ) : (
+        <Text as="span" size="T400" className={css.Title} {...ownDirectionLine}>
+          {heading}
+        </Text>
+      )}
+      {showSavedName && name && (
+        <span className={css.Pill} {...ownDirectionLine}>
+          {name}
+        </span>
+      )}
+      {attempt !== undefined && attempt > 1 && (
+        <span className={css.Pill}>{t('mindroomUi.workflowRun.attempt', { number: attempt })}</span>
+      )}
+      {large && <span className={css.Pill}>{t('mindroomUi.workflowRun.largeRun')}</span>}
+      {status && (
+        <span className={css.StatusPill[status]}>{workflowRunStatusLabel(status, t)}</span>
+      )}
+    </>
+  );
+}
+
 export function WorkflowRunMetrics({
   counts,
   usage,
@@ -202,9 +235,21 @@ export function WorkflowRunMetrics({
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const [now, setNow] = useState(Date.now);
+  useEffect(
+    () => (isLive ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
+    [isLive]
+  );
   const failedTotal = counts.failed + counts.indeterminate;
   const costText = workflowRunCostLine(usage, t, language);
-  const elapsedText = useWorkflowRunElapsed(startedAt, endedAt, isLive, language);
+  const elapsedText =
+    startedAt === null
+      ? undefined
+      : isLive
+      ? formatWorkDuration(Math.max(0, now - startedAt * 1000), language)
+      : endedAt !== null
+      ? formatWorkDuration(Math.max(0, (endedAt - startedAt) * 1000), language)
+      : undefined;
   return (
     <div className={css.Row}>
       <Text as="span" size="T200" priority="300">

@@ -5,10 +5,27 @@ import type { SubagentUsage } from './subagentFrame';
 /** Ephemeral event type for live workflow graph snapshots and deltas. */
 export const WORKFLOW_FRAME_EVENT_TYPE = 'io.mindroom.workflow';
 export const WORKFLOW_RUN_ID_PATTERN = /^wf-[0-9a-f]{32}$/;
-/** Pinned backend log tail cap (`graph.py`). */
-export const MAX_WORKFLOW_LOG_LINES = 20;
+const MAX_LOG_LINES = 20;
 
-export const WORKFLOW_RUN_STATUSES = [
+export type WorkflowRunStatus =
+  | 'starting'
+  | 'running'
+  | 'waiting'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted';
+export type WorkflowNodeStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'indeterminate';
+export type WorkflowWaitingOn = 'user' | 'approval' | 'peer';
+
+const RUN_STATUSES: ReadonlySet<string> = new Set([
   'starting',
   'running',
   'waiting',
@@ -16,10 +33,8 @@ export const WORKFLOW_RUN_STATUSES = [
   'failed',
   'cancelled',
   'interrupted',
-] as const;
-export type WorkflowRunStatus = (typeof WORKFLOW_RUN_STATUSES)[number];
-
-export const WORKFLOW_NODE_STATUSES = [
+]);
+const NODE_STATUSES: ReadonlySet<string> = new Set([
   'queued',
   'running',
   'waiting',
@@ -27,12 +42,8 @@ export const WORKFLOW_NODE_STATUSES = [
   'failed',
   'cancelled',
   'indeterminate',
-] as const;
-export type WorkflowNodeStatus = (typeof WORKFLOW_NODE_STATUSES)[number];
-
-export const WORKFLOW_WAITING_REASONS = ['user', 'approval', 'peer'] as const;
-export type WorkflowWaitingOn = (typeof WORKFLOW_WAITING_REASONS)[number];
-
+]);
+const WAITING_REASONS: ReadonlySet<string> = new Set(['user', 'approval', 'peer']);
 const COUNT_KEYS = [
   'queued',
   'running',
@@ -42,9 +53,7 @@ const COUNT_KEYS = [
   'indeterminate',
   'cached',
 ] as const;
-export type WorkflowRunCounts = Record<(typeof COUNT_KEYS)[number], number>;
-
-export const OMITTED_KEYS = [
+const OMITTED_KEYS = [
   'queued',
   'running',
   'waiting',
@@ -55,28 +64,22 @@ export const OMITTED_KEYS = [
   'phases',
   'log',
 ] as const;
-export type OmittedKey = (typeof OMITTED_KEYS)[number];
-export type WorkflowRunOmitted = Record<OmittedKey, number>;
+
+export type WorkflowRunCounts = Record<(typeof COUNT_KEYS)[number], number>;
+export type WorkflowRunOmitted = Record<(typeof OMITTED_KEYS)[number], number>;
 export type WorkflowNodeUsage = SubagentUsage;
 export type WorkflowRunUsage = SubagentUsage & { projectedCostUsd?: number; costUnknown: boolean };
-
-const RUN_STATUS_SET: ReadonlySet<string> = new Set(WORKFLOW_RUN_STATUSES);
-const NODE_STATUS_SET: ReadonlySet<string> = new Set(WORKFLOW_NODE_STATUSES);
-const WAITING_SET: ReadonlySet<string> = new Set(WORKFLOW_WAITING_REASONS);
 
 const isNonNegInt = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
 const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nonNegInt = (v: unknown, fallback = 0): number => (isNonNegInt(v) ? v : fallback);
-const optStr = (v: unknown): string | undefined =>
-  typeof v === 'string' && v.length > 0 ? v : undefined;
 const nullStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const nullNum = (v: unknown): number | null => (isFiniteNum(v) ? v : null);
-const stringList = (v: unknown): string[] =>
+export const optStr = (v: unknown): string | undefined =>
+  typeof v === 'string' && v.length > 0 ? v : undefined;
+export const stringList = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((item): item is string => typeof item === 'string') : [];
-
-export const isWorkflowRunStatus = (v: unknown): v is WorkflowRunStatus =>
-  typeof v === 'string' && RUN_STATUS_SET.has(v);
 
 export const isLiveWorkflowRunStatus = (status: WorkflowRunStatus): boolean =>
   status === 'starting' || status === 'running' || status === 'waiting';
@@ -96,9 +99,8 @@ const parseKeyedInts = <K extends string>(
   keys: readonly K[],
   required: boolean
 ): Record<K, number> | null => {
-  if (!isRecord(raw)) {
+  if (!isRecord(raw))
     return required ? null : (Object.fromEntries(keys.map((k) => [k, 0])) as Record<K, number>);
-  }
   const out = {} as Record<K, number>;
   for (const key of keys) {
     const val = raw[key];
@@ -109,9 +111,6 @@ const parseKeyedInts = <K extends string>(
   return out;
 };
 
-export const parseWorkflowRunCounts = (v: unknown): WorkflowRunCounts | null =>
-  parseKeyedInts(v, COUNT_KEYS, true);
-
 const parseCoreUsage = (v: unknown): SubagentUsage | undefined => {
   if (!isRecord(v)) return undefined;
   const { input_tokens: inputTokens, output_tokens: outputTokens, tool_calls: toolCalls } = v;
@@ -121,7 +120,7 @@ const parseCoreUsage = (v: unknown): SubagentUsage | undefined => {
   return { inputTokens, outputTokens, toolCalls, ...(costUsd !== undefined ? { costUsd } : {}) };
 };
 
-export const parseWorkflowRunUsage = (v: unknown): WorkflowRunUsage | null => {
+const parseUsage = (v: unknown): WorkflowRunUsage | null => {
   const core = parseCoreUsage(v);
   if (!core || !isRecord(v)) return null;
   const projectedCostUsd = parseCostUsd(v.projected_cost_usd);
@@ -135,19 +134,23 @@ export const parseWorkflowRunUsage = (v: unknown): WorkflowRunUsage | null => {
 /** Reads the summary fields shared by live frame `meta` and durable run cards. */
 export const parseRunSummary = (v: Record<string, unknown>, requireStartedAt: boolean) => {
   const { status, attempt, started_at: rawStarted, ended_at: rawEnded = null } = v;
-  const counts = parseWorkflowRunCounts(v.counts);
-  const usage = parseWorkflowRunUsage(v.usage);
-  if (!isWorkflowRunStatus(status) || !isNonNegInt(attempt) || !counts || !usage) return null;
+  const counts = parseKeyedInts(v.counts, COUNT_KEYS, true);
+  const usage = parseUsage(v.usage);
   if (
-    requireStartedAt ? !isFiniteNum(rawStarted) : rawStarted != null && !isFiniteNum(rawStarted)
-  ) {
+    typeof status !== 'string' ||
+    !RUN_STATUSES.has(status) ||
+    !isNonNegInt(attempt) ||
+    !counts ||
+    !usage
+  )
     return null;
-  }
+  if (requireStartedAt ? !isFiniteNum(rawStarted) : rawStarted != null && !isFiniteNum(rawStarted))
+    return null;
   const name = optStr(v.name);
   return {
     title: nullStr(v.title),
     ...(name ? { name } : {}),
-    status,
+    status: status as WorkflowRunStatus,
     attempt,
     startedAt: nullNum(rawStarted),
     endedAt: nullNum(rawEnded),
@@ -158,28 +161,15 @@ export const parseRunSummary = (v: Record<string, unknown>, requireStartedAt: bo
 };
 export type WorkflowRunSummaryFields = NonNullable<ReturnType<typeof parseRunSummary>>;
 
-const readRows = <T>(raw: unknown, parse: (item: unknown) => T | null): T[] => {
-  if (!Array.isArray(raw)) return [];
-  const out: T[] = [];
-  for (const item of raw) {
-    const parsed = parse(item);
-    if (parsed !== null) out.push(parsed);
-  }
-  return out;
-};
+const readRows = <T>(raw: unknown, parse: (item: unknown) => T | null): T[] =>
+  Array.isArray(raw) ? raw.map(parse).filter((item): item is T => item !== null) : [];
 
 const parseNode = (v: unknown) => {
   if (!isRecord(v)) return null;
   const id = optStr(v.id);
   const label = typeof v.label === 'string' ? v.label : undefined;
-  if (
-    !id ||
-    label === undefined ||
-    typeof v.status !== 'string' ||
-    !NODE_STATUS_SET.has(v.status)
-  ) {
+  if (!id || label === undefined || typeof v.status !== 'string' || !NODE_STATUSES.has(v.status))
     return null;
-  }
   const agent = optStr(v.agent);
   const model = optStr(v.model);
   const run = optStr(v.run);
@@ -194,7 +184,7 @@ const parseNode = (v: unknown) => {
     group: optStr(v.group) ?? null,
     status: v.status as WorkflowNodeStatus,
     waitingOn:
-      typeof v.waiting_on === 'string' && WAITING_SET.has(v.waiting_on)
+      typeof v.waiting_on === 'string' && WAITING_REASONS.has(v.waiting_on)
         ? (v.waiting_on as WorkflowWaitingOn)
         : null,
     ...(agent ? { agent } : {}),
@@ -238,28 +228,28 @@ const parseEdge = (v: unknown) => {
 export type WorkflowRunEdge = NonNullable<ReturnType<typeof parseEdge>>;
 
 /** Parses a workflow graph snapshot (used by live snapshots and durable card graphs). */
-export const parseWorkflowRunGraph = (v: unknown) => {
-  if (!isRecord(v)) return null;
-  return {
-    phases: stringList(v.phases),
-    groups: readRows(v.groups, parseGroup),
-    nodes: readRows(v.nodes, parseNode),
-    edges: readRows(v.edges, parseEdge),
-    log: stringList(v.log),
-    omitted: parseKeyedInts(v.omitted, OMITTED_KEYS, false)!,
-  };
-};
+export const parseWorkflowRunGraph = (v: unknown) =>
+  isRecord(v)
+    ? {
+        phases: stringList(v.phases),
+        groups: readRows(v.groups, parseGroup),
+        nodes: readRows(v.nodes, parseNode),
+        edges: readRows(v.edges, parseEdge),
+        log: stringList(v.log),
+        omitted: parseKeyedInts(v.omitted, OMITTED_KEYS, false)!,
+      }
+    : null;
 export type WorkflowRunGraph = NonNullable<ReturnType<typeof parseWorkflowRunGraph>>;
 
-const parseDelta = (v: unknown) => {
-  if (!isRecord(v)) return null;
-  return {
-    ...(Array.isArray(v.nodes) ? { nodes: readRows(v.nodes, parseNode) } : {}),
-    ...(Array.isArray(v.groups) ? { groups: readRows(v.groups, parseGroup) } : {}),
-    ...(Array.isArray(v.edges) ? { edges: readRows(v.edges, parseEdge) } : {}),
-    ...(Array.isArray(v.log_append) ? { logAppend: stringList(v.log_append) } : {}),
-  };
-};
+const parseDelta = (v: unknown) =>
+  isRecord(v)
+    ? {
+        ...(Array.isArray(v.nodes) ? { nodes: readRows(v.nodes, parseNode) } : {}),
+        ...(Array.isArray(v.groups) ? { groups: readRows(v.groups, parseGroup) } : {}),
+        ...(Array.isArray(v.edges) ? { edges: readRows(v.edges, parseEdge) } : {}),
+        ...(Array.isArray(v.log_append) ? { logAppend: stringList(v.log_append) } : {}),
+      }
+    : null;
 export type WorkflowRunDelta = NonNullable<ReturnType<typeof parseDelta>>;
 
 const parseMeta = (v: unknown) => {
@@ -285,12 +275,16 @@ export type WorkflowFrame = { run: string; meta: WorkflowRunMeta } & LiveOrder &
 export const parseWorkflowFrame = (content: unknown): WorkflowFrame | null => {
   if (!isRecord(content) || content.v !== 1) return null;
   const { run, sid, seq } = content;
-  if (typeof run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(run)) return null;
-  if (!optStr(sid) || !isNonNegInt(seq)) return null;
+  if (
+    typeof run !== 'string' ||
+    !WORKFLOW_RUN_ID_PATTERN.test(run) ||
+    !optStr(sid) ||
+    !isNonNegInt(seq)
+  )
+    return null;
   const meta = parseMeta(content.meta);
-  if (!meta) return null;
   const hasSnap = content.snapshot !== undefined;
-  if (hasSnap === (content.delta !== undefined)) return null;
+  if (!meta || hasSnap === (content.delta !== undefined)) return null;
   if (hasSnap) {
     const snapshot = parseWorkflowRunGraph(content.snapshot);
     return snapshot ? { run, sid: sid as string, seq, meta, snapshot } : null;
@@ -304,7 +298,7 @@ const upsertBy = <T>(
   updates: readonly T[],
   keyOf: (r: T) => string
 ): T[] => {
-  if (updates.length === 0) return existing as T[];
+  if (!updates.length) return existing as T[];
   const next = [...existing];
   const byKey = new Map(next.map((row, i) => [keyOf(row), i]));
   for (const row of updates) {
@@ -331,6 +325,6 @@ export const applyWorkflowRunDelta = (
     ? upsertBy(graph.edges, delta.edges, (e) => `${e.from}\0${e.to}`)
     : graph.edges,
   log: delta.logAppend?.length
-    ? [...graph.log, ...delta.logAppend].slice(-MAX_WORKFLOW_LOG_LINES)
+    ? [...graph.log, ...delta.logAppend].slice(-MAX_LOG_LINES)
     : graph.log,
 });

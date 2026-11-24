@@ -4,7 +4,6 @@ import { Body, Empty, Panel, StatusDot } from '../subagentsPanel.css';
 
 const { space, radii, borderWidth } = config;
 const line = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
-
 export { Body, Empty, Panel };
 
 export const NodeDot = {
@@ -17,21 +16,13 @@ export const NodeDot = {
   indeterminate: StatusDot.awaiting_approval,
 } as const;
 
-export const Column = style({
+export const Stack = style({
   display: 'flex',
   flexDirection: 'column',
   gap: space.S100,
   minInlineSize: 0,
 });
-export const HeaderMain = style([Column, { flex: '1 1 auto' }]);
-export const HeaderActions = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: space.S100,
-  flexShrink: 0,
-});
 export const StrongText = style({ margin: 0, fontWeight: 600 });
-
 export const StaleBanner = style({
   paddingInline: space.S300,
   paddingBlock: space.S200,
@@ -39,10 +30,8 @@ export const StaleBanner = style({
   backgroundColor: color.Warning.Container,
   color: color.Warning.OnContainer,
 });
-
-export const GraphCanvas = style([Column, { position: 'relative', gap: space.S300 }]);
-export const Band = style([Column, { position: 'relative', zIndex: 2, gap: space.S200 }]);
-
+export const GraphCanvas = style([Stack, { position: 'relative', gap: space.S300 }]);
+export const Band = style([Stack, { position: 'relative', zIndex: 2, gap: space.S200 }]);
 export const EdgeOverlay = style({
   position: 'absolute',
   inset: 0,
@@ -58,16 +47,14 @@ export const EdgePath = style({
   strokeWidth: 1.5,
   strokeOpacity: 0.65,
 });
-
 export const ItemsGrid = style({
   display: 'grid',
   gridTemplateColumns: `repeat(auto-fill, minmax(${toRem(220)}, 1fr))`,
   gap: space.S200,
   alignItems: 'start',
 });
-
 export const InsetBox = style([
-  Column,
+  Stack,
   {
     gap: space.S200,
     padding: space.S200,
@@ -77,7 +64,6 @@ export const InsetBox = style([
   },
 ]);
 export const GroupBox = style([InsetBox, { gridColumn: '1 / -1' }]);
-
 export const ProgressTrack = style({
   blockSize: toRem(4),
   inlineSize: '100%',
@@ -90,9 +76,8 @@ export const ProgressFill = style({
   backgroundColor: color.Primary.Main,
   borderRadius: radii.Pill,
 });
-
 export const Chip = style([
-  Column,
+  Stack,
   {
     inlineSize: '100%',
     padding: space.S200,
@@ -112,7 +97,6 @@ export const Chip = style([
     },
   },
 ]);
-
 export const ChipTop = style({
   display: 'flex',
   alignItems: 'center',
@@ -144,7 +128,7 @@ export const ChipNote = style({
   color: color.Warning.Main,
 });
 export const NestedChildren = style([
-  Column,
+  Stack,
   { paddingInlineStart: space.S300, borderInlineStart: `2px solid ${color.Surface.ContainerLine}` },
 ]);
 export const LogList = style([

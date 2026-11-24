@@ -2,14 +2,19 @@ import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { discardFailedLocalEcho } from './pendingLocalEcho';
-import { parseRunSummary, parseWorkflowRunGraph, WORKFLOW_RUN_ID_PATTERN } from './workflowFrame';
+import {
+  optStr,
+  parseRunSummary,
+  parseWorkflowRunGraph,
+  stringList,
+  WORKFLOW_RUN_ID_PATTERN,
+} from './workflowFrame';
 
 export const WORKFLOW_RUN_CONTENT_KEY = 'io.mindroom.workflow_run';
 export const WORKFLOW_QUESTION_CONTENT_KEY = 'io.mindroom.workflow_question';
 export const WORKFLOW_ANSWER_EVENT_TYPE = 'io.mindroom.workflow_answer';
 export const WORKFLOW_ANSWER_REJECTED_EVENT_TYPE = 'io.mindroom.workflow_answer_rejected';
 export const WORKFLOW_CONTROL_EVENT_TYPE = 'io.mindroom.workflow_control';
-
 export type WorkflowQuestionStatus = 'open' | 'answered' | 'cancelled';
 
 const QUESTION_STATUSES: ReadonlySet<string> = new Set(['open', 'answered', 'cancelled']);
@@ -20,8 +25,6 @@ const readKey = (content: unknown, key: string): Record<string, unknown> | null 
   const inner = root[key];
   return isRecord(inner) ? inner : null;
 };
-const nonEmptyStr = (v: unknown): string | null =>
-  typeof v === 'string' && v.length > 0 ? v : null;
 
 /** Parses `io.mindroom.workflow_run` from a Matrix message content object, or returns null. */
 export const parseWorkflowRunCard = (content: unknown) => {
@@ -33,11 +36,9 @@ export const parseWorkflowRunCard = (content: unknown) => {
   return {
     ...summary,
     run: raw.run,
-    jobId: nonEmptyStr(raw.job_id),
-    requester: nonEmptyStr(raw.requester),
-    phases: Array.isArray(raw.phases)
-      ? raw.phases.filter((p): p is string => typeof p === 'string')
-      : [],
+    jobId: optStr(raw.job_id) ?? null,
+    requester: optStr(raw.requester) ?? null,
+    phases: stringList(raw.phases),
     error: typeof raw.error === 'string' ? raw.error : null,
     ...(graph ? { graph } : {}),
   };
@@ -48,8 +49,8 @@ export type WorkflowRunCard = NonNullable<ReturnType<typeof parseWorkflowRunCard
 export const parseWorkflowRunQuestion = (content: unknown) => {
   const raw = readKey(content, WORKFLOW_QUESTION_CONTENT_KEY);
   if (!raw || typeof raw.run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(raw.run)) return null;
-  const node = nonEmptyStr(raw.node);
-  const questionId = nonEmptyStr(raw.question_id);
+  const node = optStr(raw.node);
+  const questionId = optStr(raw.question_id);
   const { text, status } = raw;
   if (
     !node ||
@@ -57,17 +58,14 @@ export const parseWorkflowRunQuestion = (content: unknown) => {
     typeof text !== 'string' ||
     typeof status !== 'string' ||
     !QUESTION_STATUSES.has(status)
-  ) {
+  )
     return null;
-  }
-  const options = Array.isArray(raw.options)
-    ? raw.options.filter((o): o is string => typeof o === 'string')
-    : [];
+  const options = stringList(raw.options);
   return {
     run: raw.run,
     node,
     questionId,
-    requester: nonEmptyStr(raw.requester),
+    requester: optStr(raw.requester) ?? null,
     text,
     options,
     freeText: typeof raw.free_text === 'boolean' ? raw.free_text : options.length === 0,
@@ -85,20 +83,13 @@ const sendWorkflowEvent = async (
 ): Promise<string> => {
   const txnId = mx.makeTxnId();
   try {
-    const send = mx.sendEvent.bind(mx) as (
-      roomId: string,
-      type: string,
-      body: Record<string, unknown>,
-      txn: string
-    ) => Promise<{ event_id: string }>;
-    return (await send(room.roomId, eventType, content, txnId)).event_id;
+    return (await mx.sendEvent(room.roomId, eventType as never, content as never, txnId)).event_id;
   } catch (error) {
     discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
     throw error;
   }
 };
 
-/** Sends an `io.mindroom.workflow_answer` event related to the question card and thread. */
 export const sendWorkflowRunAnswer = (
   mx: MatrixClient,
   room: Room,
@@ -116,7 +107,6 @@ export const sendWorkflowRunAnswer = (
       : { 'm.in_reply_to': { event_id: cardEventId } },
   });
 
-/** Sends an `io.mindroom.workflow_control` resume event (with optional `max_cost_usd`). */
 export const sendWorkflowRunResume = async (
   mx: MatrixClient,
   room: Room,
@@ -132,12 +122,9 @@ export const sendWorkflowRunResume = async (
   });
 };
 
-const replyEventIdOf = (content: unknown): string | undefined => {
-  if (!isRecord(content)) return undefined;
-  const relates = content['m.relates_to'];
-  if (!isRecord(relates)) return undefined;
-  const reply = relates['m.in_reply_to'];
-  return isRecord(reply) ? nonEmptyStr(reply.event_id) ?? undefined : undefined;
+const replyId = (c: unknown): string | undefined => {
+  const rel = isRecord(c) && isRecord(c['m.relates_to']) ? c['m.relates_to'] : null;
+  return rel && isRecord(rel['m.in_reply_to']) ? optStr(rel['m.in_reply_to'].event_id) : undefined;
 };
 
 export type WorkflowAnswerRejection = { answerEventId: string; reason: string };
@@ -151,8 +138,7 @@ export const parseWorkflowAnswerRejection = (
   const sender = event.getSender();
   if (!sender || !isMindroomAgentUserIdForViewer(sender, viewerUserId ?? undefined)) return null;
   const content = event.getContent();
-  const reason = isRecord(content) ? nonEmptyStr(content.reason) : null;
-  if (!reason) return null;
-  const answerEventId = replyEventIdOf(content) ?? replyEventIdOf(event.getWireContent());
-  return answerEventId ? { answerEventId, reason } : null;
+  const reason = isRecord(content) ? optStr(content.reason) : undefined;
+  const answerEventId = reason ? replyId(content) ?? replyId(event.getWireContent()) : undefined;
+  return reason && answerEventId ? { answerEventId, reason } : null;
 };

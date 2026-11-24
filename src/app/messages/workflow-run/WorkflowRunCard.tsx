@@ -9,11 +9,12 @@ import { openWorkflowRunPanel } from '../../navigation/workflowPanel';
 import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
 import { getWorkflowRunStore, selectWorkflowRun, useWorkflowRun } from '../live/workflowRunStore';
 import * as questionCss from '../question/QuestionCard.css';
-import { workflowRunHeading, workflowRunStatusLabel } from './workflowRunLabels';
+import { workflowRunHeading } from './workflowRunLabels';
 import {
   useWorkflowRunActions,
   WorkflowRunActionButtons,
   WorkflowRunMetrics,
+  WorkflowRunTitleBadges,
 } from './WorkflowRunSummary';
 import * as css from './WorkflowRunCard.css';
 
@@ -52,10 +53,8 @@ export function WorkflowRunCard({
   })!;
   const isLive = isLiveWorkflowRunStatus(view.status);
   const heading = workflowRunHeading(view, t);
-  const showSavedName = !!view.name && !!view.title && view.name !== view.title;
-  const phases = view.graph && view.graph.phases.length > 0 ? view.graph.phases : card.phases;
+  const phases = view.graph?.phases.length ? view.graph.phases : card.phases;
   const showGraph = !!view.graph;
-
   const actions = useWorkflowRunActions({
     room,
     roomId,
@@ -68,11 +67,6 @@ export function WorkflowRunCard({
     readOnly,
   });
 
-  const handleOpenGraph = () => {
-    getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
-    openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
-  };
-
   return (
     <section
       className={css.Card}
@@ -80,28 +74,16 @@ export function WorkflowRunCard({
       data-workflow-run-card={card.run}
       data-workflow-run-status={view.status}
     >
-      <div className={css.Row} style={{ justifyContent: 'space-between' }}>
-        <div className={css.Row} style={{ gap: '4px', flex: '1 1 auto', minInlineSize: 0 }}>
-          <Text as="span" size="T400" className={css.Title} {...ownDirectionLine}>
-            {heading}
-          </Text>
-          {showSavedName && (
-            <span className={css.Pill} {...ownDirectionLine}>
-              {view.name}
-            </span>
-          )}
-          {view.attempt > 1 && (
-            <span className={css.Pill}>
-              {t('mindroomUi.workflowRun.attempt', { number: view.attempt })}
-            </span>
-          )}
-          {view.large && <span className={css.Pill}>{t('mindroomUi.workflowRun.largeRun')}</span>}
-        </div>
-        <span className={css.StatusPill[view.status]}>
-          {workflowRunStatusLabel(view.status, t)}
-        </span>
+      <div className={css.Row} style={{ gap: '4px' }}>
+        <WorkflowRunTitleBadges
+          heading={heading}
+          name={view.name}
+          title={view.title}
+          status={view.status}
+          attempt={view.attempt}
+          large={view.large}
+        />
       </div>
-
       {phases.length > 0 && (
         <ul className={css.Phases} aria-label={t('mindroomUi.workflowRun.title')}>
           {phases.map((phase) => (
@@ -111,7 +93,6 @@ export function WorkflowRunCard({
           ))}
         </ul>
       )}
-
       <WorkflowRunMetrics
         counts={view.counts}
         usage={view.usage}
@@ -120,13 +101,11 @@ export function WorkflowRunCard({
         isLive={isLive}
         showFailed
       />
-
       {!isLive && view.error && (
         <Text size="T200" className={css.ErrorLine} {...ownDirectionBlock}>
           {view.error}
         </Text>
       )}
-
       {(showGraph || actions.showStop || actions.showResume || actions.showRunAgain) && (
         <div className={css.Row}>
           {showGraph && (
@@ -135,7 +114,10 @@ export function WorkflowRunCard({
               size="300"
               variant="Secondary"
               fill="Soft"
-              onClick={handleOpenGraph}
+              onClick={() => {
+                getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
+                openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
+              }}
             >
               <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
             </Button>
@@ -143,7 +125,6 @@ export function WorkflowRunCard({
           <WorkflowRunActionButtons room={room} actions={actions} />
         </div>
       )}
-
       {actions.actionError && (
         <Text role="alert" size="T200" className={questionCss.Failed}>
           {actions.actionError}
