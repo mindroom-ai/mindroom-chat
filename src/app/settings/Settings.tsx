@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
@@ -12,7 +12,6 @@ import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
 import { ServerAccounts } from '../server-admin/ServerAccounts';
 import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
-import { ThisMacSettingsPage } from '../desktop-access/ThisMacSettingsPage';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
@@ -70,6 +69,12 @@ type PageContentProps = {
   closeDialog: () => void;
 };
 
+const LazyThisMacSettingsPage = lazy(() =>
+  import('../desktop-access/ThisMacSettingsPage').then((mod) => ({
+    default: mod.ThisMacSettingsPage,
+  }))
+);
+
 function SettingsPageContent({ page, requestClose, closeDialog }: PageContentProps) {
   switch (page) {
     case 'account':
@@ -95,7 +100,11 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
     case 'computers':
       return <ComputersSettingsPage requestClose={requestClose} />;
     case 'thisMac':
-      return <ThisMacSettingsPage requestClose={requestClose} />;
+      return (
+        <Suspense fallback={null}>
+          <LazyThisMacSettingsPage requestClose={requestClose} />
+        </Suspense>
+      );
     case 'mindroom.local-mindroom':
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
     case 'archived-rooms':

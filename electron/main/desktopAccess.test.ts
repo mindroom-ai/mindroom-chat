@@ -230,6 +230,11 @@ const createFakeBridgeClient = (initialStatus: DesktopAccessHelperStatus) => {
         return { status: structuredClone(status) };
       }
       if (action === 'remove_controller') {
+        if (parameters.expected_revision !== status.config.revision) {
+          throw new Error(
+            `revision mismatch: expected ${String(parameters.expected_revision)}, actual ${status.config.revision}`
+          );
+        }
         const key = parameters.controller_key as string;
         status.config.revision += 1;
         status.config.controllers = status.config.controllers.filter(
@@ -258,6 +263,7 @@ const createFakeBridgeClient = (initialStatus: DesktopAccessHelperStatus) => {
       status = makeBaseStatus({ ...status, ...patch });
       emitStatus();
     },
+    currentStatus: () => structuredClone(status),
   };
 };
 
@@ -553,6 +559,13 @@ describe('desktopAccess', () => {
       { action: 'revoke_control', parameters: {} },
       { action: 'revoke_shell', parameters: {} },
       { action: 'stop', parameters: {} },
+      {
+        action: 'remove_controller',
+        parameters: {
+          expected_revision: 5,
+          controller_key: paired.value.controllerKey,
+        },
+      },
     ]);
     expect(loadConsent(userDataDir).controllers).toEqual({});
     expect(electronMocks.app.setLoginItemSettings).toHaveBeenCalledWith({ openAtLogin: false });
@@ -1241,5 +1254,118 @@ describe('desktopAccess', () => {
     });
     expect(failed.ok).toBe(false);
     expect(electronMocks.app.setLoginItemSettings).not.toHaveBeenCalled();
+  });
+
+  it('durably removes all saved controllers on revokeAll so relaunch never auto-starts the bridge', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    fs.mkdirSync(path.join(storagePath, 'desktop_bridge'), { recursive: true });
+    fs.writeFileSync(path.join(storagePath, 'desktop_bridge', 'native_config.json'), '{}');
+
+    const fake1 = createFakeBridgeClient(makeBaseStatus());
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access1 = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake1.setOnStatus(onStatus);
+        return fake1.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    // Pair two controllers (Full Access + Restricted) so revision advances across multiple removals.
+    access1.noteGesture();
+    const pair1 = await access1.pair({
+      controller: { userId: '@mindroom_general:mindroom.chat', deviceId: 'D1', ed25519: 'k1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['general'],
+      code: 'C1',
+    });
+    expect(pair1.ok).toBe(true);
+    if (!pair1.ok) return;
+
+    access1.noteGesture();
+    const finish1 = await access1.finishSetup({
+      controllerKey: pair1.value.controllerKey,
+      agentName: 'General',
+      mode: 'full',
+    });
+    expect(finish1.ok).toBe(true);
+
+    access1.noteGesture();
+    const pair2 = await access1.pair({
+      controller: { userId: '@mindroom_code:mindroom.chat', deviceId: 'D2', ed25519: 'k2' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['code'],
+      code: 'C2',
+    });
+    expect(pair2.ok).toBe(true);
+    if (!pair2.ok) return;
+
+    access1.noteGesture();
+    const finish2 = await access1.finishSetup({
+      controllerKey: pair2.value.controllerKey,
+      agentName: 'Code',
+      mode: 'restricted',
+      allowedAppIds: ['primary-screen'],
+      shellEnabled: true,
+    });
+    expect(finish2.ok).toBe(true);
+    expect(fake1.currentStatus().config.controllers).toHaveLength(2);
+
+    // Revoke All Access, then shut down the first DesktopAccess instance.
+    fake1.calls.length = 0;
+    access1.noteGesture();
+    const revoked = await access1.revokeAll();
+    expect(revoked.ok).toBe(true);
+    expect(fake1.currentStatus().config.controllers).toEqual([]);
+    expect(fake1.currentStatus().bridge.state).toBe('stopped');
+    expect(loadConsent(userDataDir).controllers).toEqual({});
+    expect(fake1.calls.filter((c) => c.action === 'remove_controller')).toHaveLength(2);
+
+    await access1.stop();
+
+    // Relaunch a brand-new DesktopAccess instance against the same userDataDir and persisted helper state.
+    const persistedStatus = fake1.currentStatus();
+    const fake2 = createFakeBridgeClient(persistedStatus);
+    const access2 = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake2.setOnStatus(onStatus);
+        return fake2.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access2.start();
+    const statusAfterRelaunch = await access2.getStatus();
+    expect(statusAfterRelaunch.ok).toBe(true);
+    if (!statusAfterRelaunch.ok) return;
+    expect(statusAfterRelaunch.value.consent).toEqual({});
+    expect(statusAfterRelaunch.value.status?.config.controllers).toEqual([]);
+    expect(statusAfterRelaunch.value.status?.bridge.state).toBe('stopped');
+    expect(fake2.calls.map((c) => c.action)).not.toContain('start');
+    expect(fake2.calls.map((c) => c.action)).not.toContain('grant_control');
+    expect(fake2.calls.map((c) => c.action)).not.toContain('grant_shell');
+    await access2.stop();
   });
 });

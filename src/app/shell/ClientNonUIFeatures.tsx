@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { useSetAtom, useStore } from 'jotai';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
@@ -27,10 +27,24 @@ import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
 import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
 import { QuickCaptureHost } from '../quick-capture/QuickCaptureHost';
 import { WatchHandoffFeature } from '../account/watch/WatchHandoffFeature';
-import { DesktopMacRelayFeature } from '../desktop-access/macPairInvite';
-import { desktopBridge } from '../lib/nativeShell';
+import { desktopBridge, isDesktopAccessAvailable } from '../lib/nativeShell';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { SettingsPages } from '../navigation/settingsPages';
+
+const LazyDesktopMacRelayFeature = lazy(() =>
+  import('../desktop-access/macPairInvite').then((mod) => ({
+    default: mod.DesktopMacRelayFeature,
+  }))
+);
+
+function DesktopMacRelayGate() {
+  if (!isDesktopAccessAvailable()) return null;
+  return (
+    <Suspense fallback={null}>
+      <LazyDesktopMacRelayFeature />
+    </Suspense>
+  );
+}
 
 let desktopSettingsRequestSeq = 0;
 
@@ -135,7 +149,7 @@ export function ClientNonUIFeatures() {
       <DictationRecoveryFeature />
       <QuickCaptureHost />
       <WatchHandoffFeature />
-      <DesktopMacRelayFeature />
+      <DesktopMacRelayGate />
       <DesktopAccessShellEventsFeature />
     </>
   );

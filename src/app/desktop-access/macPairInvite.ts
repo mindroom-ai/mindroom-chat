@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { atom, useSetAtom, type createStore } from 'jotai';
+import { useSetAtom, type createStore } from 'jotai';
 import { ClientEvent, type MatrixClient } from 'matrix-js-sdk';
 import type { ReceivedToDeviceMessage } from 'matrix-js-sdk/lib/sync-accumulator';
 import type { UiaRunner } from '../account/watch/connectWatch';
@@ -37,16 +37,9 @@ type Store = ReturnType<typeof createStore>;
 /** How long the Mac waits for the browser to report the agent's answer. */
 const CONFIRM_TIMEOUT_MS = 60_000;
 
-/** A verified invite from one of this account's browsers, waiting for consent on this Mac. */
-export type IncomingPairInvite = {
-  invite: DesktopPairInvite;
-  senderDeviceId: string;
-  senderEd25519: string;
-  receivedAt: number;
-};
+import { incomingPairInviteAtom, type IncomingPairInvite } from './incomingPairInviteAtom';
 
-/** The invite this Mac shows a consent sheet for, or `null`. */
-export const incomingPairInviteAtom = atom<IncomingPairInvite | null>(null);
+export { incomingPairInviteAtom, type IncomingPairInvite };
 
 /** Answers the browser that sent the invite, and no other device. */
 const answerInvite = async (

@@ -248,6 +248,35 @@ describe('ThisMacSettingsPage', () => {
     });
   });
 
+  it('renders the focusId="thisMacRevokeAll" tile with a disabled button before any agent is paired', async () => {
+    installDesktopAccess(
+      makeSnapshot({
+        consent: {},
+        status: {
+          ...makeSnapshot().status!,
+          config: { ...makeSnapshot().status!.config, enabled: false, controllers: [] },
+          bridge: { state: 'stopped', active_action: null, last_error: null },
+          shell: { ...makeSnapshot().status!.shell, ready: false, handles: [] },
+        },
+      })
+    );
+    const store = createStore();
+
+    render(
+      <Provider store={store}>
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <ThisMacSettingsPage requestClose={vi.fn()} />
+        </ScreenSizeProvider>
+      </Provider>
+    );
+
+    expect(await screen.findByText('No agents paired yet')).toBeTruthy();
+    const tile = document.querySelector('[data-setting-id="thisMacRevokeAll"]');
+    expect(tile).not.toBeNull();
+    const revokeBtn = screen.getByRole('button', { name: 'Revoke All Access' });
+    expect((revokeBtn as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('shows Not available on this Mac when desktop access is unavailable', async () => {
     mocks.bridge = undefined;
     const store = createStore();

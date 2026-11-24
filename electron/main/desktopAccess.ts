@@ -373,11 +373,44 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
   const revokeAllInternal = async (): Promise<DesktopResult<DesktopAccessSnapshot>> => {
     setupAuth = undefined;
+    const hadNativeConfig = fs.existsSync(
+      path.join(storagePath, 'desktop_bridge', 'native_config.json')
+    );
     const { previous } = clearAllConsent(options.userDataDir);
     restoreLoginItemIfUnused(previous.managedLoginItem);
-    if (bridge?.isRunning()) {
-      for (const action of ['revoke_control', 'revoke_shell', 'stop'] as const) {
-        await bridge.request(action, {}).catch(() => undefined);
+    if (bridge) {
+      if (!bridge.isRunning() && hadNativeConfig) {
+        await bridge.start().catch(() => undefined);
+      }
+      if (bridge.isRunning()) {
+        for (const action of ['revoke_control', 'revoke_shell', 'stop'] as const) {
+          const res = await bridge
+            .request<{ status?: DesktopAccessHelperStatus }>(action, {})
+            .catch(() => undefined);
+          if (res?.status) latestStatus = res.status;
+        }
+        let current: DesktopAccessHelperStatus | null =
+          latestStatus ?? (await fetchStatus(bridge).catch(() => null));
+        const attempted = new Set<string>();
+        while (current) {
+          const nextController = current.config.controllers.find(
+            (ctrl) => !attempted.has(ctrl.controller_key)
+          );
+          if (!nextController) break;
+          attempted.add(nextController.controller_key);
+          const res = await bridge
+            .request<{ status?: DesktopAccessHelperStatus }>('remove_controller', {
+              expected_revision: current.config.revision,
+              controller_key: nextController.controller_key,
+            })
+            .catch(() => undefined);
+          if (res?.status) {
+            latestStatus = res.status;
+            current = res.status;
+          } else {
+            current = await fetchStatus(bridge).catch(() => null);
+          }
+        }
       }
     }
     return { ok: true, value: syncUi() };

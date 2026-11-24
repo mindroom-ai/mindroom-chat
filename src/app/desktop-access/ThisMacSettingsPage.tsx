@@ -60,9 +60,8 @@ export function ThisMacSettingsPage({ requestClose }: SettingsPageProps) {
     isControllerFullAccess(snapshot, ctrl.controller_key)
   );
   const guiReady = snapshot?.permissions.gui_permissions_ready ?? false;
-  const canRevoke =
-    available &&
-    (controllers.length > 0 || bridgeActive || Object.keys(snapshot?.consent ?? {}).length > 0);
+  const hasAnythingToRevoke =
+    controllers.length > 0 || bridgeActive || Object.keys(snapshot?.consent ?? {}).length > 0;
 
   const statusPill: StatusPillInfo = !available
     ? {
@@ -125,36 +124,12 @@ export function ThisMacSettingsPage({ requestClose }: SettingsPageProps) {
                 ))
           }
           after={
-            <Box alignItems="Center" gap="200" wrap="Wrap">
-              <span className={classNames(css.StatusPill, css.StatusPillTone[statusPill.tone])}>
-                <span className={classNames(css.StatusDot, css.StatusDotTone[statusPill.tone])} />
-                <Text as="span" size="T200">
-                  {statusPill.label}
-                </Text>
-              </span>
-              {canRevoke && (
-                <span data-setting-id="thisMacRevokeAll">
-                  <Button
-                    type="button"
-                    size="300"
-                    radii="300"
-                    variant="Critical"
-                    fill="Soft"
-                    disabled={busyKey !== null}
-                    before={busyKey === 'revokeAll' ? <Spinner size="100" /> : undefined}
-                    onClick={() =>
-                      void runAction('revokeAll', async () =>
-                        unwrapDesktopResult(await requireDesktopAccess().revokeAll())
-                      )
-                    }
-                  >
-                    <Text size="B300">
-                      {dt('featureUi.desktopAccess.settings.revokeAll', 'Revoke All Access')}
-                    </Text>
-                  </Button>
-                </span>
-              )}
-            </Box>
+            <span className={classNames(css.StatusPill, css.StatusPillTone[statusPill.tone])}>
+              <span className={classNames(css.StatusDot, css.StatusDotTone[statusPill.tone])} />
+              <Text as="span" size="T200">
+                {statusPill.label}
+              </Text>
+            </span>
           }
         >
           {displayError && (
@@ -163,6 +138,36 @@ export function ThisMacSettingsPage({ requestClose }: SettingsPageProps) {
             </Text>
           )}
         </SettingTile>
+        {available && (
+          <SettingTile
+            focusId="thisMacRevokeAll"
+            title={dt('featureUi.desktopAccess.settings.revokeAll', 'Revoke All Access')}
+            description={dt(
+              'featureUi.desktopAccess.settings.revokeAllDescription',
+              'Disconnect all paired agents and immediately stop computer access on this Mac.'
+            )}
+            after={
+              <Button
+                type="button"
+                size="300"
+                radii="300"
+                variant="Critical"
+                fill="Soft"
+                disabled={!hasAnythingToRevoke || busyKey !== null}
+                before={busyKey === 'revokeAll' ? <Spinner size="100" /> : undefined}
+                onClick={() =>
+                  void runAction('revokeAll', async () =>
+                    unwrapDesktopResult(await requireDesktopAccess().revokeAll())
+                  )
+                }
+              >
+                <Text size="B300">
+                  {dt('featureUi.desktopAccess.settings.revokeAll', 'Revoke All Access')}
+                </Text>
+              </Button>
+            }
+          />
+        )}
       </SettingsSection>
 
       {available && (

@@ -27,7 +27,7 @@ import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
 import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
-import { incomingPairInviteAtom } from '../desktop-access/macPairInvite';
+import { incomingPairInviteAtom } from '../desktop-access/incomingPairInviteAtom';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
 import { clearPhoneSwipePreviews } from '../navigation/phonePageSlide';
 import {
