@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { type Ref, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FocusTrap } from 'focus-trap-react';
 import {
@@ -130,16 +130,14 @@ type DeviceMenuProps = {
   chosen: CallDevices;
   onChoose: (kind: CallDeviceKind, deviceId: string) => void;
   requestClose: () => void;
+  ref?: Ref<HTMLDivElement>;
 };
 
 /**
  * Picks the microphone, camera and speaker; a browser that cannot route audio has no speakers.
  * The ref reaches the menu, which the focus trap around it needs.
  */
-const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMenu(
-  { chosen, onChoose, requestClose },
-  ref
-) {
+function DeviceMenu({ chosen, onChoose, requestClose, ref }: DeviceMenuProps) {
   const { t } = useTranslation();
   const devices = useMediaDevices(true);
   const kinds = DEVICE_KINDS.filter((kind) => devices[kind].length > 0);
@@ -211,7 +209,7 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
       </div>
     </Menu>
   );
-});
+}
 
 /** The settings control: opens the device menu above itself. */
 export function DeviceControl({

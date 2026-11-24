@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useRef, useState, useId, type MouseEvent } from 'react';
+import { useMemo, useRef, useState, useId, type MouseEvent, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
@@ -30,6 +30,7 @@ import * as css from './RoomPinMenu.css';
 export type RoomPinMenuProps = {
   room: Room;
   requestClose: (reason: 'dismiss' | 'navigate') => void;
+  ref?: Ref<HTMLDivElement>;
 };
 
 /** Controls inside an entry that do something of their own, so a click on them opens nothing. */
@@ -304,114 +305,112 @@ function PinnedEntry({ room, eventId, timeFormat, onOpen, unpin }: PinnedEntryPr
 }
 
 /** The room's pinned messages, newest first; an entry opens its message in the timeline. */
-export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
-  ({ requestClose, room }, ref) => {
-    const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
-    const [clock24] = useSetting(settingsAtom, 'hour24Clock');
-    const { navigateRoom, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
-    const { eventId: routedEventId } = useRoomRouteParams();
-    const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
-    const { t } = useTranslation();
-    const timeFormat = useMemo(
-      () => ({ hour24Clock: !!clock24, dateFormatString: datePattern || undefined }),
-      [clock24, datePattern]
-    );
-    const eventIds = useMemo(() => [...pinnedEventIds].reverse(), [pinnedEventIds]);
-    const closeRef = useRef<HTMLButtonElement>(null);
-    const [failedUnpin, setFailedUnpin] = useState<string>();
+export function RoomPinMenu({ requestClose, room, ref }: RoomPinMenuProps) {
+  const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
+  const [clock24] = useSetting(settingsAtom, 'hour24Clock');
+  const { navigateRoom, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
+  const { eventId: routedEventId } = useRoomRouteParams();
+  const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
+  const { t } = useTranslation();
+  const timeFormat = useMemo(
+    () => ({ hour24Clock: !!clock24, dateFormatString: datePattern || undefined }),
+    [clock24, datePattern]
+  );
+  const eventIds = useMemo(() => [...pinnedEventIds].reverse(), [pinnedEventIds]);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [failedUnpin, setFailedUnpin] = useState<string>();
 
-    const title = t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages');
+  const title = t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages');
 
-    // A permalink route, which loads the history around the message when needed and highlights
-    // it. A message of the room is focused in the room, also in the thread views (as leaving a
-    // thread focuses its root); a thread reply opens in its thread, as a search hit does.
-    const openMessage = (eventId: string, threadRootId?: string) => {
-      requestClose('navigate');
-      const open = () => {
-        if (threadRootId && threadRootId !== eventId) {
-          navigateRoomThread(room.roomId, threadRootId, eventId);
-        } else {
-          navigateRoomFocusEvent(room.roomId, eventId);
-        }
-      };
-      if (routedEventId !== eventId) {
-        open();
-        return;
+  // A permalink route, which loads the history around the message when needed and highlights
+  // it. A message of the room is focused in the room, also in the thread views (as leaving a
+  // thread focuses its root); a thread reply opens in its thread, as a search hit does.
+  const openMessage = (eventId: string, threadRootId?: string) => {
+    requestClose('navigate');
+    const open = () => {
+      if (threadRootId && threadRootId !== eventId) {
+        navigateRoomThread(room.roomId, threadRootId, eventId);
+      } else {
+        navigateRoomFocusEvent(room.roomId, eventId);
       }
-      // The address already names this message (the reader opened it before and scrolled away),
-      // and the timeline acts only on a change of it: drop the permalink first, as Jump to
-      // Latest does, and open the message on the next frame.
-      navigateRoom(room.roomId, undefined, { replace: true });
-      requestAnimationFrame(open);
     };
+    if (routedEventId !== eventId) {
+      open();
+      return;
+    }
+    // The address already names this message (the reader opened it before and scrolled away),
+    // and the timeline acts only on a change of it: drop the permalink first, as Jump to
+    // Latest does, and open the message on the next frame.
+    navigateRoom(room.roomId, undefined, { replace: true });
+    requestAnimationFrame(open);
+  };
 
-    const unpinMessage = (eventId: string, from: HTMLElement) => {
-      // The entry leaves as soon as the change starts, so focus moves to its neighbour first.
-      const entry = from.closest('[data-pinned-event-id]');
-      const neighbour =
-        entry?.nextElementSibling?.querySelector<HTMLElement>('[data-pin-jump]') ??
-        entry?.previousElementSibling?.querySelector<HTMLElement>('[data-pin-jump]') ??
-        closeRef.current;
-      neighbour?.focus();
-      setFailedUnpin(undefined);
-      void setPinned(eventId, false).then((saved) => {
-        if (!saved) setFailedUnpin(eventId);
-      });
-    };
+  const unpinMessage = (eventId: string, from: HTMLElement) => {
+    // The entry leaves as soon as the change starts, so focus moves to its neighbour first.
+    const entry = from.closest('[data-pinned-event-id]');
+    const neighbour =
+      entry?.nextElementSibling?.querySelector<HTMLElement>('[data-pin-jump]') ??
+      entry?.previousElementSibling?.querySelector<HTMLElement>('[data-pin-jump]') ??
+      closeRef.current;
+    neighbour?.focus();
+    setFailedUnpin(undefined);
+    void setPinned(eventId, false).then((saved) => {
+      if (!saved) setFailedUnpin(eventId);
+    });
+  };
 
-    return (
-      // The header's Pinned Messages button announces a dialog (aria-haspopup), so this is one.
-      <Menu
-        ref={ref}
-        role="dialog"
-        aria-label={title}
-        style={{ width: 'min(24rem, calc(100vw - 2rem))' }}
-      >
-        <Box direction="Column">
-          <Box alignItems="Center" gap="200" style={{ padding: config.space.S300 }}>
-            <Box grow="Yes">
-              <Text size="H5">{title}</Text>
-            </Box>
-            <IconButton
-              ref={closeRef}
-              size="300"
-              radii="300"
-              aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
-              onClick={() => requestClose('dismiss')}
-            >
-              <Icon size="100" src={Icons.Cross} />
-            </IconButton>
+  return (
+    // The header's Pinned Messages button announces a dialog (aria-haspopup), so this is one.
+    <Menu
+      ref={ref}
+      role="dialog"
+      aria-label={title}
+      style={{ width: 'min(24rem, calc(100vw - 2rem))' }}
+    >
+      <Box direction="Column">
+        <Box alignItems="Center" gap="200" style={{ padding: config.space.S300 }}>
+          <Box grow="Yes">
+            <Text size="H5">{title}</Text>
           </Box>
-          <Scroll size="300" hideTrack visibility="Hover" style={{ maxHeight: '60vh' }}>
-            <Box direction="Column" gap="100" style={{ padding: config.space.S200 }}>
-              {eventIds.length === 0 ? (
-                <Text size="T300" priority="300">
-                  {t('mindroomUi.messages.mindroomRoomPinMenu.noPinnedMessages')}
-                </Text>
-              ) : (
-                eventIds.map((eventId) => (
-                  <PinnedEntry
-                    key={eventId}
-                    room={room}
-                    eventId={eventId}
-                    timeFormat={timeFormat}
-                    onOpen={openMessage}
-                    unpin={
-                      canPin
-                        ? {
-                            busy: updating,
-                            failed: failedUnpin === eventId,
-                            onUnpin: unpinMessage,
-                          }
-                        : undefined
-                    }
-                  />
-                ))
-              )}
-            </Box>
-          </Scroll>
+          <IconButton
+            ref={closeRef}
+            size="300"
+            radii="300"
+            aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
+            onClick={() => requestClose('dismiss')}
+          >
+            <Icon size="100" src={Icons.Cross} />
+          </IconButton>
         </Box>
-      </Menu>
-    );
-  }
-);
+        <Scroll size="300" hideTrack visibility="Hover" style={{ maxHeight: '60vh' }}>
+          <Box direction="Column" gap="100" style={{ padding: config.space.S200 }}>
+            {eventIds.length === 0 ? (
+              <Text size="T300" priority="300">
+                {t('mindroomUi.messages.mindroomRoomPinMenu.noPinnedMessages')}
+              </Text>
+            ) : (
+              eventIds.map((eventId) => (
+                <PinnedEntry
+                  key={eventId}
+                  room={room}
+                  eventId={eventId}
+                  timeFormat={timeFormat}
+                  onOpen={openMessage}
+                  unpin={
+                    canPin
+                      ? {
+                          busy: updating,
+                          failed: failedUnpin === eventId,
+                          onUnpin: unpinMessage,
+                        }
+                      : undefined
+                  }
+                />
+              ))
+            )}
+          </Box>
+        </Scroll>
+      </Box>
+    </Menu>
+  );
+}

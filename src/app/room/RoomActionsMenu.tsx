@@ -1,4 +1,4 @@
-import { Fragment, Suspense, forwardRef, useCallback, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, useCallback, useState, type ReactNode, type Ref } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Line, toRem } from 'folds';
 import { Menu } from '../ui/glass/GlassPrimitives';
@@ -17,6 +17,7 @@ type RoomActionsMenuProps = RoomActionProps & {
    * A section of its own, before the room's actions.
    */
   roomEntries?: ReactNode;
+  ref?: Ref<HTMLDivElement>;
 };
 
 const menuStyle = { minWidth: toRem(200), maxWidth: toRem(280) } as const;
@@ -55,61 +56,59 @@ function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string 
  * when the room header opens it. Its rows are as tall as a message menu's. The ref reaches the
  * menu element, which the focus trap around it needs to close on Escape and outside clicks.
  */
-export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
-  function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
-    const { room, close, showDialog } = actionProps;
-    const pluginEntries = usePluginRoomActions(registeredPlugins, usePluginClientConfig(), room);
-    // A plugin's entry closes the menu, then runs with the menu's dialog.
-    const pluginRows = (critical: boolean) =>
-      pluginEntries
-        .filter((entry) => entry.critical === critical)
-        .map(({ id, tag, label, icon, run }) => (
-          <MenuEntry
-            key={id}
-            icon={icon}
-            label={label}
-            critical={critical}
-            onSelect={() => {
-              close();
-              run((dialog) =>
-                showDialog((done) => <PluginDialog tag={tag} dialog={dialog} close={done} />)
-              );
-            }}
-          />
-        ));
-    const ordinaryRows = pluginRows(false);
-    const criticalRows = pluginRows(true);
-    return (
-      <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
-        <div className={css.RoomMenuRows}>
-          {roomEntries && (
-            <>
-              <MenuGroup>{roomEntries}</MenuGroup>
-              <Line variant="Surface" size="300" />
-            </>
-          )}
-          {ROOM_ACTIONS.map((group, index) => (
-            <Fragment key={group[0]?.id ?? index}>
-              {index > 0 && <Line variant="Surface" size="300" />}
-              <MenuGroup>
-                {group.map(({ id, Entry }) => (
-                  <Entry key={id} {...actionProps} />
-                ))}
-                {index === ROOM_ACTIONS.length - 1 && criticalRows}
-              </MenuGroup>
-              {index === 0 && ordinaryRows.length > 0 && (
-                <>
-                  <Line variant="Surface" size="300" />
-                  <MenuGroup>{ordinaryRows}</MenuGroup>
-                </>
-              )}
-            </Fragment>
-          ))}
-        </div>
-      </Menu>
-    );
-  }
-);
+export function RoomActionsMenu({ roomEntries, ref, ...actionProps }: RoomActionsMenuProps) {
+  const { room, close, showDialog } = actionProps;
+  const pluginEntries = usePluginRoomActions(registeredPlugins, usePluginClientConfig(), room);
+  // A plugin's entry closes the menu, then runs with the menu's dialog.
+  const pluginRows = (critical: boolean) =>
+    pluginEntries
+      .filter((entry) => entry.critical === critical)
+      .map(({ id, tag, label, icon, run }) => (
+        <MenuEntry
+          key={id}
+          icon={icon}
+          label={label}
+          critical={critical}
+          onSelect={() => {
+            close();
+            run((dialog) =>
+              showDialog((done) => <PluginDialog tag={tag} dialog={dialog} close={done} />)
+            );
+          }}
+        />
+      ));
+  const ordinaryRows = pluginRows(false);
+  const criticalRows = pluginRows(true);
+  return (
+    <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
+      <div className={css.RoomMenuRows}>
+        {roomEntries && (
+          <>
+            <MenuGroup>{roomEntries}</MenuGroup>
+            <Line variant="Surface" size="300" />
+          </>
+        )}
+        {ROOM_ACTIONS.map((group, index) => (
+          <Fragment key={group[0]?.id ?? index}>
+            {index > 0 && <Line variant="Surface" size="300" />}
+            <MenuGroup>
+              {group.map(({ id, Entry }) => (
+                <Entry key={id} {...actionProps} />
+              ))}
+              {index === ROOM_ACTIONS.length - 1 && criticalRows}
+            </MenuGroup>
+            {index === 0 && ordinaryRows.length > 0 && (
+              <>
+                <Line variant="Surface" size="300" />
+                <MenuGroup>{ordinaryRows}</MenuGroup>
+              </>
+            )}
+          </Fragment>
+        ))}
+      </div>
+    </Menu>
+  );
+}
 
 /**
  * The dialog a room menu's entry opened (invite, Jump to Time, leave and the like), which stays
