@@ -61,7 +61,9 @@ export const useThreadHeadroomEventsGate = ({
     owner.heldRawEvents = undefined;
     owner.heldPrependEstimatePx = 0;
   } else {
-    const insideReserve = owner.anchorRef?.current === undefined && owner.committedHeadroomPx > 0;
+    // Hold prepends whenever the reader sits above the first row (either inside positive
+    // reserve or at scrollTop = 0 below leading chrome with exhausted headroom).
+    const aboveFirstRow = owner.anchorRef?.current === undefined;
     const estimatedPrependPx = estimatePrependedHeight({
       rawEvents: rawThreadEvents,
       presentedEvents: owner.presentedEvents,
@@ -69,7 +71,7 @@ export const useThreadHeadroomEventsGate = ({
       threadId,
       sizeCache: owner.sizeCache,
       avgRowHeight: owner.lastAvgRowHeight,
-      fillReserve: insideReserve,
+      fillReserve: aboveFirstRow,
     });
     // Once a page is held out of threadEvents mid-gesture, never release it during render;
     // only the single commit-time layout effect at genuine rest releases it.
