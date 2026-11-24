@@ -368,8 +368,8 @@ test('inline and panel canvases follow pageZoom and keep Open canvas in the inli
   // At 50% page zoom the inline canvas scales visually to half height while filling the column.
   await setPageZoom(page, 50);
   await expect
-    .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
-    .toBe('8px');
+    .poll(() => page.evaluate(() => document.documentElement.style.fontSize))
+    .toBe('50%');
   await expect.poll(frameHeight(page, 'Zoom card'), { timeout: 20_000 }).toBeCloseTo(200, 0);
   const zoomedBoxHeight = (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
   expect(zoomedBoxHeight).toBeCloseTo(200, 0);
