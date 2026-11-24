@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
+import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
 import { matchesEnum } from '../lib/matchesEnum';
 import { useAccountData } from '../matrix/hooks/useAccountData';
@@ -47,15 +48,19 @@ export function useContextualTip(): ContextualTipState {
   const setAccountSettings = useSetAccountSettings();
   const setTour = useSetAtom(tourAtom);
   const sessionDismissed = useAtomValue(dismissedTipsSessionAtom).get(sessionId);
-  const [permissionsVersion, setPermissionsVersion] = useState(0);
+  const [roomStateVersion, setRoomStateVersion] = useState(0);
 
-  const onPermissionStateEvent = useCallback((event: MatrixEvent) => {
+  const onRoomStateEvent = useCallback((event: MatrixEvent) => {
     const type = event.getType();
-    if (matchesEnum(type, StateEvent.RoomPowerLevels) || matchesEnum(type, StateEvent.RoomCreate)) {
-      setPermissionsVersion((version) => version + 1);
+    if (
+      matchesEnum(type, StateEvent.RoomPowerLevels) ||
+      matchesEnum(type, StateEvent.RoomCreate) ||
+      matchesEnum(type, StateEvent.RoomPinnedEvents)
+    ) {
+      setRoomStateVersion((version) => version + 1);
     }
   }, []);
-  useStateEventCallback(mx, onPermissionStateEvent);
+  useStateEventCallback(mx, onRoomStateEvent);
 
   const storedDismissed = useMemo(
     () => sanitizeAccountSettings(accountSettingsEvent?.getContent()).dismissedTips,
@@ -84,8 +89,16 @@ export function useContextualTip(): ContextualTipState {
     [mx, myUserId]
   );
 
+  const isPinnedThread = useCallback(
+    (roomId: string, threadRootId: string): boolean => {
+      const room = mx.getRoom(roomId);
+      return room ? isThreadPinned(room, threadRootId) : false;
+    },
+    [mx]
+  );
+
   const tip = useMemo(() => {
-    void permissionsVersion;
+    void roomStateVersion;
     if (!synced || !index.bootstrapped) return undefined;
     return evaluateContextualTip({
       entries: index.entries.values(),
@@ -94,6 +107,7 @@ export function useContextualTip(): ContextualTipState {
       dismissedTips,
       now: Date.now(),
       canResolveRoom,
+      isPinnedThread,
     });
   }, [
     synced,
@@ -102,7 +116,8 @@ export function useContextualTip(): ContextualTipState {
     archivedRooms,
     dismissedTips,
     canResolveRoom,
-    permissionsVersion,
+    isPinnedThread,
+    roomStateVersion,
   ]);
 
   const dismissTip = useCallback(

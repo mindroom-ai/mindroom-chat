@@ -325,6 +325,7 @@ type StubRoomOptions = {
   powerLevels?: Record<string, unknown> | null;
   roomVersion?: string;
   creator?: string;
+  pinned?: string[];
 };
 
 const makeRoom = ({
@@ -335,6 +336,7 @@ const makeRoom = ({
   },
   roomVersion = '11',
   creator = '@creator:example.org',
+  pinned,
 }: StubRoomOptions = {}) => {
   const createEvent = {
     getType: () => StateEvent.RoomCreate,
@@ -348,6 +350,13 @@ const makeRoom = ({
           getType: () => StateEvent.RoomPowerLevels,
           getContent: () => powerLevels,
         };
+  let pinnedEvent =
+    pinned === undefined
+      ? null
+      : {
+          getType: () => StateEvent.RoomPinnedEvents,
+          getContent: () => ({ pinned }),
+        };
   const room = {
     getLiveTimeline: () => ({
       getState: (direction: Direction) =>
@@ -357,6 +366,7 @@ const makeRoom = ({
                 if (stateKey !== '') return null;
                 if (matchesEnum(type, StateEvent.RoomCreate)) return createEvent;
                 if (matchesEnum(type, StateEvent.RoomPowerLevels)) return powerLevelsEvent;
+                if (matchesEnum(type, StateEvent.RoomPinnedEvents)) return pinnedEvent;
                 return null;
               },
             }
@@ -374,6 +384,13 @@ const makeRoom = ({
               getContent: () => next,
             };
       return powerLevelsEvent;
+    },
+    setPinned: (next: string[]) => {
+      pinnedEvent = {
+        getType: () => StateEvent.RoomPinnedEvents,
+        getContent: () => ({ pinned: next }),
+      };
+      return pinnedEvent;
     },
   };
 };
@@ -571,6 +588,39 @@ describe('useContextualTip', () => {
       tourStep: 'resolve',
       scope: 'all',
       openCount: 5,
+    });
+  });
+
+  it('excludes pinned threads from the resolve tip and updates when pins change', () => {
+    const oldTs = Date.now() - RESOLVE_TIP_OLD_AGE_MS - 60_000;
+    const pinnedRoom = makeRoom({ pinned: ['$p-0', '$p-1', '$p-2'] });
+    const rooms = new Map([['!room-a:example.org', pinnedRoom.room]]);
+    const alice = makeClient('@alice:example.org', {}, true, rooms);
+    vi.mocked(useMatrixClient).mockReturnValue(
+      alice.client as unknown as ReturnType<typeof useMatrixClient>
+    );
+
+    const store = createStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(Provider, { store }, children);
+
+    const oldPinnedEntries = ['p-0', 'p-1', 'p-2'].map((id) =>
+      makeEntry(id, { roomId: '!room-a:example.org', lastActivityTs: oldTs })
+    );
+    store.set(crossRoomThreadIndexAtom, indexWith(oldPinnedEntries, true));
+    const view = renderHook(() => useContextualTip(), { wrapper });
+    expect(view.result.current.tip).toBeUndefined();
+
+    // Unpinning all three via m.room.pinned_events exposes them to the resolve tip.
+    const unpinned = pinnedRoom.setPinned([]);
+    act(() => {
+      alice.client.emit(RoomStateEvent.Events, unpinned, {}, null);
+    });
+    expect(view.result.current.tip).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'all',
+      openCount: 3,
     });
   });
 });

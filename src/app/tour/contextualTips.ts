@@ -24,12 +24,14 @@ export type EvaluateContextualTipInput = {
   now: number;
   /** Whether the user can write thread resolution tags in `roomId`; defaults to true when omitted. */
   canResolveRoom?: (roomId: string) => boolean;
+  /** Whether `threadRootId` is pinned in `roomId` (pinned threads cannot be resolved). */
+  isPinnedThread?: (roomId: string, threadRootId: string) => boolean;
 };
 
 /**
  * Evaluates whether a contextual UI tip currently applies to the account's threads.
- * Suggests resolving finished threads once open non-snoozed threads accumulate in rooms where the
- * user can resolve threads, without any thread in visible rooms having been resolved yet.
+ * Suggests resolving finished threads once open non-snoozed, unpinned threads accumulate in rooms
+ * where the user can resolve threads, without any thread in visible rooms having been resolved yet.
  */
 export const evaluateContextualTip = ({
   entries,
@@ -38,6 +40,7 @@ export const evaluateContextualTip = ({
   dismissedTips,
   now,
   canResolveRoom,
+  isPinnedThread,
 }: EvaluateContextualTipInput): ContextualTip | undefined => {
   if (dismissedTips.has(RESOLVE_TIP_ID)) return undefined;
 
@@ -60,6 +63,7 @@ export const evaluateContextualTip = ({
     if (!isRoomVisible(entry.roomId, archivedRooms)) continue;
     if (entry.isResolved) return undefined;
     if (entry.snoozedUntilTs !== undefined && entry.snoozedUntilTs > now) continue;
+    if (isPinnedThread?.(entry.roomId, entry.threadRootId)) continue;
     if (!isRoomResolvable(entry.roomId)) continue;
 
     const isOld = now - entry.lastActivityTs >= RESOLVE_TIP_OLD_AGE_MS;
