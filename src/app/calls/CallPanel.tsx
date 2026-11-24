@@ -281,7 +281,7 @@ function JoinedCall({
     : t('featureUi.call.controls.turnOnMicrophone');
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
   const webScreenShareAvailable = browserSharesScreens();
-  const nativeScreenShareAvailable = isNativeScreenShareAvailable();
+  const nativeScreenShareAvailable = !agentCall && isNativeScreenShareAvailable();
   const screenShareLabel = t(
     SHARE_LABEL_KEYS[screenShareIsInAppOnly() ? 'app' : 'screen'][state.screenShare ? 1 : 0]
   );

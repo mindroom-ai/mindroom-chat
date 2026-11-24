@@ -56,13 +56,11 @@ const getPlugin = (): NativeScreenSharePlugin => {
   return plugin;
 };
 
-/** Whether this runtime is the native iOS Capacitor shell. */
-export const isNativeIos = (): boolean =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
-
 /** Whether the iOS native whole-phone screen-share plugin is available in this runtime. */
 export const isNativeScreenShareAvailable = (): boolean =>
-  isNativeIos() && Capacitor.isPluginAvailable('MindRoomScreenShare');
+  Capacitor.isNativePlatform() &&
+  Capacitor.getPlatform() === 'ios' &&
+  Capacitor.isPluginAvailable('MindRoomScreenShare');
 
 /** Thin Capacitor bridge for the native publish-only ReplayKit LiveKit room. */
 export const nativeScreenShare: NativeScreenSharePlugin = {

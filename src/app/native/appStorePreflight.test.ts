@@ -16,11 +16,7 @@ import {
   notificationServiceUploadProblems,
   watchAppUploadProblems,
 } from '../../../scripts/appstore-preflight.mjs';
-import {
-  getSingleAppTargetBuildSettingValue,
-  hasXcodeTarget,
-  replaceAppTargetBuildSetting,
-} from '../../../scripts/ios-xcode-project.mjs';
+import { replaceAppTargetBuildSetting } from '../../../scripts/ios-xcode-project.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const scriptPath = join(repoRoot, 'scripts/appstore-preflight.mjs');
@@ -36,37 +32,6 @@ const checkedInBroadcastExtensionInfoPlist = readFileSync(
   join(repoRoot, BROADCAST_EXTENSION_INFO_PLIST_PATH),
   'utf8'
 );
-const checkedInProjectWithBroadcast = hasXcodeTarget(checkedInProject, 'MindRoomBroadcast')
-  ? checkedInProject
-  : `${checkedInProject}
-B00000000000000000000001 /* MindRoomBroadcast */ = {
-  isa = PBXNativeTarget;
-  buildConfigurationList = B00000000000000000000002;
-  name = MindRoomBroadcast;
-};
-B00000000000000000000002 = {
-  isa = XCConfigurationList;
-  buildConfigurations = (
-    B00000000000000000000003,
-    B00000000000000000000004,
-  );
-};
-B00000000000000000000003 = {
-  isa = XCBuildConfiguration;
-  buildSettings = {
-    MARKETING_VERSION = ${getSingleAppTargetBuildSettingValue(checkedInProject, 'MARKETING_VERSION')};
-    CURRENT_PROJECT_VERSION = ${getSingleAppTargetBuildSettingValue(checkedInProject, 'CURRENT_PROJECT_VERSION')};
-  };
-  name = Debug;
-};
-B00000000000000000000004 = {
-  isa = XCBuildConfiguration;
-  buildSettings = {
-    MARKETING_VERSION = ${getSingleAppTargetBuildSettingValue(checkedInProject, 'MARKETING_VERSION')};
-    CURRENT_PROJECT_VERSION = ${getSingleAppTargetBuildSettingValue(checkedInProject, 'CURRENT_PROJECT_VERSION')};
-  };
-  name = Release;
-};`;
 
 const project = (marketingVersion: string, buildNumber: string) =>
   replaceAppTargetBuildSetting(
@@ -238,7 +203,7 @@ describe('broadcastExtensionUploadProblems', () => {
     overrides: Partial<Parameters<typeof broadcastExtensionUploadProblems>[0]> = {}
   ): string[] =>
     broadcastExtensionUploadProblems({
-      projectText: checkedInProjectWithBroadcast,
+      projectText: checkedInProject,
       infoPlistText: checkedInInfoPlist,
       broadcastExtensionInfoPlistText: checkedInBroadcastExtensionInfoPlist,
       ...overrides,
@@ -250,7 +215,7 @@ describe('broadcastExtensionUploadProblems', () => {
 
   it('rejects a version or build mismatch with App', () => {
     const mismatchedVersion = replaceAppTargetBuildSetting(
-      checkedInProjectWithBroadcast,
+      checkedInProject,
       'MARKETING_VERSION',
       '9.9.9',
       'MindRoomBroadcast'
@@ -260,7 +225,7 @@ describe('broadcastExtensionUploadProblems', () => {
     ]);
 
     const mismatchedBuild = replaceAppTargetBuildSetting(
-      checkedInProjectWithBroadcast,
+      checkedInProject,
       'CURRENT_PROJECT_VERSION',
       '99999',
       'MindRoomBroadcast'

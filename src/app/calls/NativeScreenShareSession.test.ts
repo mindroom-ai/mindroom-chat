@@ -208,7 +208,7 @@ describe('NativeScreenShareSession', () => {
         scope: 'm.room',
         device_id: 'IPHONE-screen',
         membershipID: `${ALICE}:IPHONE-screen`,
-        expires: 14_400_000,
+        expires: 120_000,
         'm.call.intent': 'video',
         focus_active: { type: 'livekit', focus_selection: 'multi_sfu' },
         foci_preferred: [
@@ -247,12 +247,13 @@ describe('NativeScreenShareSession', () => {
     fx.share.onForeground();
     expect(fx.plugin.heartbeat).toHaveBeenCalledTimes(3);
 
-    // 30-minute membership renewal keeps created_ts and extends expires.
+    // 60-second membership renewal (30s elapsed above + 30s here) keeps created_ts and extends expires.
     fx.setSyncState(SyncState.Syncing);
-    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     expect(fx.sendStateEvent).toHaveBeenCalledTimes(2);
     expect(fx.sendStateEvent.mock.calls[1]?.[2]).toMatchObject({
       created_ts: expect.any(Number),
+      expires: 120_000 + 60_000,
       device_id: 'IPHONE-screen',
     });
 
@@ -444,6 +445,150 @@ describe('NativeScreenShareSession', () => {
       identities: [`${ALICE}:IPHONE`, `${BOB}:BOBDEV`],
     });
     expect(fx.plugin.heartbeat).toHaveBeenCalledTimes(2);
+
+    await fx.share.stop();
+  });
+
+  it('stops native broadcast and emits publish_failed when initial companion publish rejects', async () => {
+    const fx = makeFixture();
+    fx.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN: cannot write call state'));
+    await fx.share.start();
+
+    fx.emitNative({ generation: 1, state: 'broadcasting' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fx.share.isBroadcasting).toBe(false);
+    expect(fx.plugin.stop).toHaveBeenCalledTimes(1);
+    expect(fx.onStateChange).toHaveBeenCalledWith(
+      'stopped',
+      'publish_failed',
+      'M_FORBIDDEN: cannot write call state'
+    );
+    expect(fx.removeListener).toHaveBeenCalledTimes(1);
+  });
+
+  it('renews every 60s with 120s expiry, preserves existing companion createdTs, and tolerates transient renewal failure', async () => {
+    const t0 = Date.now();
+    const serverCreatedTs = t0 - 2_000;
+    const memberships = [
+      makeMembership(ALICE, 'IPHONE', 100),
+      makeMembership(BOB, 'BOBDEV', 200),
+    ];
+    const fx = makeFixture({ memberships });
+    await fx.share.start();
+    fx.emitNative({ generation: 1, state: 'broadcasting' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fx.sendStateEvent).toHaveBeenCalledTimes(1);
+    expect(fx.sendStateEvent.mock.calls[0]?.[2]).toMatchObject({ expires: 120_000 });
+    expect(fx.sendStateEvent.mock.calls[0]?.[2]).not.toHaveProperty('created_ts');
+
+    // Simulate server echoing companion membership with its own origin_server_ts.
+    memberships.push(
+      makeMembership(ALICE, 'IPHONE-screen', serverCreatedTs, {
+        [SCREEN_ONLY_MEMBER_KEY]: true,
+        [SCREEN_PARENT_DEVICE_KEY]: 'IPHONE',
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fx.sendStateEvent).toHaveBeenCalledTimes(2);
+    expect(fx.sendStateEvent.mock.calls[1]?.[2]).toMatchObject({
+      created_ts: serverCreatedTs,
+      expires: 120_000 + 62_000,
+    });
+
+    // Transient renewal error stays tolerant and lets the next 60s renewal succeed.
+    fx.sendStateEvent.mockRejectedValueOnce(new Error('temporary 502'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fx.share.isBroadcasting).toBe(true);
+    expect(fx.plugin.stop).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fx.sendStateEvent).toHaveBeenCalledTimes(4);
+    expect(fx.sendStateEvent.mock.calls[3]?.[2]).toMatchObject({
+      created_ts: serverCreatedTs,
+      expires: 120_000 + 182_000,
+    });
+
+    await fx.share.stop();
+  });
+
+  it('bounds stalled companion withdrawal to 5s while still awaiting plugin.stop()', async () => {
+    // When plugin.stop() resolves quickly, a stalled withdrawal PUT caps stop() at 5s.
+    const fxFastStop = makeFixture();
+    await fxFastStop.share.start();
+    fxFastStop.emitNative({ generation: 1, state: 'broadcasting' });
+    await vi.advanceTimersByTimeAsync(0);
+    fxFastStop.sendStateEvent.mockReturnValueOnce(new Promise(() => undefined));
+
+    let fastStopped = false;
+    const fastStopPromise = fxFastStop.share.stop().then(() => {
+      fastStopped = true;
+    });
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(fastStopped).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await fastStopPromise;
+    expect(fastStopped).toBe(true);
+    expect(fxFastStop.plugin.stop).toHaveBeenCalledTimes(1);
+
+    // When plugin.stop() takes longer than 5s, stop() still awaits plugin.stop() after withdrawal times out.
+    const fxSlowStop = makeFixture();
+    await fxSlowStop.share.start();
+    fxSlowStop.emitNative({ generation: 1, state: 'broadcasting' });
+    await vi.advanceTimersByTimeAsync(0);
+    fxSlowStop.sendStateEvent.mockReturnValueOnce(new Promise(() => undefined));
+    let resolveNativeStop: (() => void) | undefined;
+    vi.mocked(fxSlowStop.plugin.stop).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveNativeStop = resolve;
+      })
+    );
+
+    let slowStopped = false;
+    const slowStopPromise = fxSlowStop.share.stop().then(() => {
+      slowStopped = true;
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(slowStopped).toBe(false);
+
+    resolveNativeStop?.();
+    await slowStopPromise;
+    expect(slowStopped).toBe(true);
+    expect(fxSlowStop.plugin.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears sent-key markers on rotation so key-index wrap at 256 still delivers to long-lived peers', async () => {
+    const memberships = [
+      makeMembership(ALICE, 'IPHONE', 100),
+      makeMembership(BOB, 'BOBDEV', 200),
+      makeMembership(CAROL, 'CAROLDEV', 300),
+    ];
+    const fx = makeFixture({ memberships });
+    await fx.share.start();
+    fx.emitNative({ generation: 1, state: 'broadcasting' });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Rotate 256 times (1..255..0) while Bob keeps the exact same membership (createdTs=200).
+    for (let i = 1; i <= 256; i += 1) {
+      vi.mocked(sendCallKey).mockClear();
+      memberships[2] = makeMembership(CAROL, 'CAROLDEV', 300 + i);
+      fx.share.onMembershipsChanged();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+
+    expect(fx.plugin.setKey).toHaveBeenLastCalledWith(
+      expect.objectContaining({ generation: 1, keyIndex: 0 })
+    );
+    expect(sendCallKey).toHaveBeenCalledWith(
+      fx.mx,
+      expect.objectContaining({
+        keyIndex: 0,
+        to: expect.objectContaining({ userId: BOB, deviceId: 'BOBDEV', createdTs: 200 }),
+      })
+    );
 
     await fx.share.stop();
   });

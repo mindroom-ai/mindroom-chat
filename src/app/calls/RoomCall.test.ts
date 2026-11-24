@@ -28,7 +28,6 @@ const fakes = vi.hoisted(() => ({
   serviceUrl: 'https://rtc.calls.test',
   /** Every key set on a media key provider: index and media identity. */
   keys: [] as Array<{ keyIndex: number; identity: string; key: Uint8Array }>,
-  nativeIos: false,
   nativeScreenShareAvailable: false,
   nativeScreenListener: undefined as
     | ((event: {
@@ -213,7 +212,6 @@ vi.mock('./callResume', async (importOriginal) => {
 });
 
 vi.mock('./nativeScreenShare', () => ({
-  isNativeIos: () => fakes.nativeIos,
   isNativeScreenShareAvailable: () => fakes.nativeScreenShareAvailable,
   nativeScreenShare: {
     start: (...args: unknown[]) => fakes.nativePlugin.start(...(args as [])),
@@ -322,12 +320,14 @@ const setup = ({
   video,
   microphone,
   notify,
+  stateEvents,
 }: {
   encrypted?: boolean;
   grant?: RoomCallOptions['grant'];
   video?: boolean;
   microphone?: boolean;
   notify?: RoomCallOptions['notify'];
+  stateEvents?: Record<string, Record<string, unknown>>;
 } = {}) => {
   const session = new FakeSession();
   const mx = {
@@ -349,6 +349,17 @@ const setup = ({
     getVersion: () => '11',
     hasEncryptionStateEvent: () => encrypted,
     getJoinedMemberCount: () => 2,
+    ...(stateEvents
+      ? {
+          currentState: {
+            getStateEvents: (type: string, key?: string) => {
+              if (type !== 'org.matrix.msc3401.call.member' || key === undefined) return null;
+              const content = stateEvents[key];
+              return content ? { getContent: () => content } : null;
+            },
+          },
+        }
+      : {}),
     on: vi.fn(),
     off: vi.fn(),
   } as unknown as Room;
@@ -367,7 +378,6 @@ beforeEach(() => {
   fakes.connect = undefined;
   fakes.encryption = undefined;
   fakes.keys.length = 0;
-  fakes.nativeIos = false;
   fakes.nativeScreenShareAvailable = false;
   fakes.nativeScreenListener = undefined;
   Object.values(fakes.nativePlugin).forEach((fn) => fn.mockClear());
@@ -2601,7 +2611,7 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it('raises delayed-leave timings only on native iOS', async () => {
+  it('raises delayedLeaveEventDelayMs to 60s without overriding restart interval only when native screen share is available', async () => {
     const desktop = setup();
     await desktop.call.join();
     const desktopOpts = desktop.session.join.mock.calls[0]?.[2] as Record<string, unknown>;
@@ -2609,17 +2619,12 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
     expect(desktopOpts.delayedLeaveEventRestartMs).toBeUndefined();
     await desktop.call.leave();
 
-    fakes.nativeIos = true;
+    fakes.nativeScreenShareAvailable = true;
     const ios = setup();
     await ios.call.join();
-    expect(ios.session.join).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      expect.objectContaining({
-        delayedLeaveEventDelayMs: 60_000,
-        delayedLeaveEventRestartMs: 15_000,
-      })
-    );
+    const iosOpts = ios.session.join.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(iosOpts.delayedLeaveEventDelayMs).toBe(60_000);
+    expect(iosOpts.delayedLeaveEventRestartMs).toBeUndefined();
     await ios.call.leave();
   });
 
@@ -2802,7 +2807,7 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
     expect(call.getState().nativeScreenShare).toBe(true);
     expect(call.getState().nativeScreenShareStatus).toBeUndefined();
 
-    // User stop and picker cancellation clear status without an error.
+    // User stop, picker cancellation, and intentional system stop clear status without an error.
     await call.setNativeScreenShare(false);
     await settle();
     expect(call.getState().nativeScreenShareStatus).toBeUndefined();
@@ -2814,7 +2819,16 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
     expect(call.getState().nativeScreenShare).toBe(false);
     expect(call.getState().nativeScreenShareStatus).toBeUndefined();
 
-    // Start rejection and publish failure map to 'failed' and can be dismissed.
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'system' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(false);
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    // Start rejection, publish failure, and permissions failure map to 'failed' and can be dismissed.
     fakes.nativePlugin.start.mockRejectedValueOnce(new Error('TLS handshake failed'));
     await call.setNativeScreenShare(true);
     expect(call.getState().nativeScreenShareStatus).toBe('failed');
@@ -2827,6 +2841,15 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
       state: 'stopped',
       reason: 'publish_failed',
       detail: 'Broadcast socket closed',
+    });
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBe('failed');
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({
+      generation: 1,
+      state: 'stopped',
+      reason: 'permissions_failed',
     });
     await settle();
     expect(call.getState().nativeScreenShareStatus).toBe('failed');
@@ -2848,5 +2871,48 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
     });
     await settle();
     expect(call.getState().nativeScreenShareStatus).toBe('stopped');
+  });
+
+  it('withdraws a lingering companion state event on leave() even after native screen share already stopped offline', async () => {
+    vi.stubGlobal('navigator', IPHONE);
+    fakes.nativeScreenShareAvailable = true;
+    const companionKey = `_${ME}_${DEVICE}-screen_m.call`;
+    const { call, mx } = setup({
+      encrypted: true,
+      stateEvents: {
+        [companionKey]: { application: 'm.call', device_id: `${DEVICE}-screen` },
+      },
+    });
+    await call.join();
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+
+    // Native lease expires while offline so its own withdrawal fails, leaving room state stale.
+    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('offline'));
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'lease_expired' });
+    await settle();
+    expect(call.getState()).toMatchObject({
+      nativeScreenShare: false,
+      nativeScreenShareStatus: 'stopped',
+    });
+
+    // Hanging up withdraws the lingering companion state event immediately.
+    vi.mocked(mx.sendStateEvent).mockClear();
+    await call.leave();
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      ROOM_ID,
+      'org.matrix.msc3401.call.member',
+      {},
+      companionKey
+    );
+
+    // An already-empty companion state event does not trigger a redundant withdrawal.
+    const empty = setup({ stateEvents: { [companionKey]: {} } });
+    await empty.call.join();
+    vi.mocked(empty.mx.sendStateEvent).mockClear();
+    await empty.call.leave();
+    expect(empty.mx.sendStateEvent).not.toHaveBeenCalled();
   });
 });

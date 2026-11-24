@@ -11,10 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  getSingleAppTargetBuildSettingValue,
-  hasXcodeTarget,
-} from '../../../scripts/ios-xcode-project.mjs';
+import { getSingleAppTargetBuildSettingValue } from '../../../scripts/ios-xcode-project.mjs';
 
 const roots: string[] = [];
 afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })));
@@ -144,13 +141,12 @@ describe('isolated Mac Store CI and archive entry points', () => {
     const before = project();
     const result = run('ios/App/ci_scripts/ci_pre_xcodebuild.sh', platform);
     expect(result.status, result.stderr).toBe(0);
-    const hasBroadcast = hasXcodeTarget(before, 'MindRoomBroadcast');
     const iosTargets = [
       'App',
       'MindRoomWatch',
       'MindRoomWatchWidgets',
       'MindRoomNotificationService',
-      ...(hasBroadcast ? ['MindRoomBroadcast'] : []),
+      'MindRoomBroadcast',
     ];
     const selected = platform === 'macOS' ? ['AppStoreMac', 'MindRoomMacSupport'] : iosTargets;
     for (const target of [...iosTargets, 'AppStoreMac', 'MindRoomMacSupport']) {

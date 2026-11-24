@@ -82,7 +82,6 @@ vi.mock('./callSupport', () => ({
   useCallSupport: () => 'supported',
 }));
 vi.mock('./nativeScreenShare', () => ({
-  isNativeIos: () => false,
   isNativeScreenShareAvailable: () => support.nativeShares,
 }));
 vi.mock('./callAccess', () => ({
@@ -1379,6 +1378,30 @@ describe('in-app screen share and stopped-device notices', () => {
     rerender(panel());
     press('Stop sharing entire screen');
     expect(setNativeScreenShare).toHaveBeenCalledWith(false);
+  });
+
+  it('omits native whole-screen share controls on MindRoom agent calls even when native sharing is available', () => {
+    support.inAppOnly = true;
+    support.webShares = true;
+    support.nativeShares = true;
+    agentCall({ roomId: room.roomId });
+    const { rerender } = renderPanel();
+
+    // With web sharing available, keeps the direct web share button instead of the native menu.
+    expect(button('Share entire screen')).toBeNull();
+    expect(button('Start Screenshare')).toBeNull();
+    const webButton = screen.getByRole('button', { name: 'Share this app' });
+    expect(webButton.getAttribute('aria-haspopup')).toBeNull();
+    fireEvent.click(webButton);
+    expect(setScreenShare).toHaveBeenCalledWith(true);
+    expect(setNativeScreenShare).not.toHaveBeenCalled();
+
+    // With web sharing unavailable, renders no native screen-share button at all.
+    support.webShares = false;
+    rerender(panel());
+    expect(button('Share entire screen')).toBeNull();
+    expect(button('Share this app')).toBeNull();
+    expect(button('Start Screenshare')).toBeNull();
   });
 
   it('renders localized native screen-share status notices with dismiss only when not connecting', () => {

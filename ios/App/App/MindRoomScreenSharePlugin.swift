@@ -74,17 +74,15 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
             caption: str("caption", "Tap the button above, then tap Start Broadcast."),
             cancel: str("cancel", "Cancel")
         )
-        var initialKeyData: Data?
-        var initialIndex: Int32 = 0
+        let initialKey: (data: Data, index: Int32)?
         if encrypted {
             guard let decoded = Self.decodeKey(call) else { return call.reject("Invalid E2EE key payload", "INVALID") }
-            initialKeyData = decoded.data
-            initialIndex = decoded.index
+            initialKey = decoded
+        } else {
+            initialKey = nil
         }
 
         Task { @MainActor [weak self] in
-            var keyData = initialKeyData
-            defer { if var bytes = keyData { Self.zero(&bytes) } }
             guard let self else { return call.reject("Plugin unavailable", "UNAVAILABLE") }
             await self.teardown(expectedGeneration: nil, reason: "replaced")
             self.generation += 1
@@ -92,14 +90,12 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
 
             var keyProvider: BaseKeyProvider?
             var encryptionOptions: EncryptionOptions?
-            if encrypted, var bytes = keyData {
+            if let initialKey {
                 let provider = BaseKeyProvider(options: KeyProviderOptions(
                     sharedKey: false, ratchetWindowSize: 10, keyRingSize: 256,
                     discardFrameWhenCryptorNotReady: true, keyDerivationAlgorithm: .hkdf))
-                provider.setKey(keyData: bytes, participantId: identity, index: initialIndex)
-                Self.zero(&bytes)
-                keyData = nil
-                provider.setCurrentKeyIndex(initialIndex)
+                provider.setKey(keyData: initialKey.data, participantId: identity, index: initialKey.index)
+                provider.setCurrentKeyIndex(initialKey.index)
                 keyProvider = provider
                 encryptionOptions = EncryptionOptions(keyProvider: provider, encryptionType: .gcm)
             }
@@ -114,19 +110,17 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                     suspendLocalVideoTracksInBackground: false,
                     encryptionOptions: encryptionOptions))
             do { try await room.connect(url: url, token: token) } catch {
-                Self.clearKeyProvider(keyProvider, identity: identity, keyIndex: initialIndex)
                 let message = error.localizedDescription
                 self.log.error("Screen share connect failed: \(message, privacy: .public)")
                 return call.reject("Failed to connect screen share room: \(message)", "CONNECT_FAILED")
             }
             guard self.generation == gen else {
-                Self.clearKeyProvider(keyProvider, identity: identity, keyIndex: initialIndex)
                 await room.disconnect()
                 return call.reject("Screen share start superseded", "CANCELLED")
             }
 
             var next = Session(generation: gen, identity: identity, room: room, keyProvider: keyProvider,
-                               keyIndex: initialIndex, allowedIdentities: allowed, leaseSeconds: leaseSeconds)
+                               keyIndex: initialKey?.index ?? 0, allowedIdentities: allowed, leaseSeconds: leaseSeconds)
             next.watchdogTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
                 guard !Task.isCancelled, let self, let active = self.session,
@@ -135,7 +129,11 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                 await self.teardown(expectedGeneration: gen, reason: "picker_timeout")
             }
             self.session = next
-            await self.applyPermissions()
+            do { try await self.applyPermissions() } catch {
+                self.log.error("Failed to apply screen share permissions: \(error.localizedDescription, privacy: .public)")
+                await self.teardown(expectedGeneration: gen, reason: "permissions_failed", detail: error.localizedDescription)
+                return call.reject("Failed to apply screen share permissions", "PERMISSIONS_FAILED")
+            }
             guard self.generation == gen, self.session?.generation == gen else {
                 return call.reject("Screen share start superseded", "CANCELLED")
             }
@@ -144,7 +142,6 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                     self.session = nil
                     active.watchdogTask?.cancel()
                     await active.room.disconnect()
-                    Self.clearKeyProvider(active.keyProvider, identity: active.identity, keyIndex: active.keyIndex)
                 }
                 return call.reject("Unable to present screen share picker", "UNAVAILABLE")
             }
@@ -167,13 +164,11 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
             return call.reject("Invalid key update payload", "INVALID")
         }
         Task { @MainActor [weak self] in
-            var keyData = decoded.data
-            defer { Self.zero(&keyData) }
             guard let self, var active = self.session, active.generation == gen,
                   let provider = active.keyProvider else {
                 return call.reject("No matching encrypted screen share session", "INVALID_STATE")
             }
-            provider.setKey(keyData: keyData, participantId: active.identity, index: decoded.index)
+            provider.setKey(keyData: decoded.data, participantId: active.identity, index: decoded.index)
             provider.setCurrentKeyIndex(decoded.index)
             active.keyIndex = decoded.index
             active.lastHeartbeatAt = Date()
@@ -194,8 +189,14 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
             active.allowedIdentities = Set(identities)
             active.lastHeartbeatAt = Date()
             self.session = active
-            await self.applyPermissions()
-            call.resolve()
+            do {
+                try await self.applyPermissions()
+                call.resolve()
+            } catch {
+                self.log.error("Failed to update screen share permissions: \(error.localizedDescription, privacy: .public)")
+                await self.teardown(expectedGeneration: gen, reason: "permissions_failed", detail: error.localizedDescription)
+                call.reject("Failed to update screen share permissions", "PERMISSIONS_FAILED")
+            }
         }
     }
 
@@ -253,6 +254,10 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                 BroadcastManager.shared.requestStop()
                 return
             }
+            guard BroadcastManager.shared.isBroadcasting else {
+                await teardown(expectedGeneration: gen, reason: "system")
+                return
+            }
             current.isBroadcasting = true
             current.lastHeartbeatAt = Date()
             current.watchdogTask = Task { @MainActor [weak self] in
@@ -277,19 +282,15 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
     }
 
     @MainActor
-    private func applyPermissions() async {
+    private func applyPermissions() async throws {
         guard let active = session else { return }
         let permissions = active.room.remoteParticipants.values.compactMap { participant -> ParticipantTrackPermission? in
             guard let id = participant.identity?.stringValue, active.allowedIdentities.contains(id),
                   let sid = participant.sid?.stringValue else { return nil }
             return ParticipantTrackPermission(participantSid: sid, allTracksAllowed: true)
         }
-        do {
-            try await active.room.localParticipant.setTrackSubscriptionPermissions(
-                allParticipantsAllowed: false, trackPermissions: permissions)
-        } catch {
-            log.error("Failed to apply screen share permissions: \(error.localizedDescription, privacy: .public)")
-        }
+        try await active.room.localParticipant.setTrackSubscriptionPermissions(
+            allParticipantsAllowed: false, trackPermissions: permissions)
     }
 
     @MainActor
@@ -326,14 +327,18 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
         active.watchdogTask?.cancel()
         if active.isBroadcasting || BroadcastManager.shared.isBroadcasting { BroadcastManager.shared.requestStop() }
         await active.room.disconnect()
-        Self.clearKeyProvider(active.keyProvider, identity: active.identity, keyIndex: active.keyIndex)
         var payload: [String: Any] = ["generation": active.generation, "state": "stopped", "reason": reason]
         if let detail, !detail.isEmpty { payload["detail"] = detail }
         notifyListeners("stateChange", data: payload)
     }
 
     private func refreshPermissions(for room: Room) {
-        Task { @MainActor [weak self] in if self?.session?.room === room { await self?.applyPermissions() } }
+        Task { @MainActor [weak self] in
+            guard let self, self.session?.room === room else { return }
+            do { try await self.applyPermissions() } catch {
+                self.log.error("Failed to refresh screen share permissions: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     private static func decodeKey(_ call: CAPPluginCall) -> (data: Data, index: Int32)? {
@@ -342,15 +347,6 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
               let idx = call.getInt("keyIndex"), (0...255).contains(idx) else { return nil }
         return (data, Int32(idx))
     }
-
-    private static func clearKeyProvider(_ provider: BaseKeyProvider?, identity: String, keyIndex: Int32) {
-        guard let provider else { return }
-        var blank = Data(count: 32)
-        provider.setKey(keyData: blank, participantId: identity, index: keyIndex)
-        zero(&blank)
-    }
-
-    private static func zero(_ data: inout Data) { if !data.isEmpty { data.resetBytes(in: 0..<data.count) } }
 
     private static func nonEmpty(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }

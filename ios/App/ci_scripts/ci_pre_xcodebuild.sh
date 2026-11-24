@@ -72,18 +72,16 @@ if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
   echo "Resolved $APPLE_PLATFORM_LABEL build number from ${CURRENT_PROJECT_VERSION_SOURCE:-unknown}"
   MARKETING_VERSION="$APPLE_MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" node --input-type=module <<'NODE'
     import fs from 'node:fs';
-    import { hasXcodeTarget, replaceAppTargetBuildSetting } from './scripts/ios-xcode-project.mjs';
+    import { replaceAppTargetBuildSetting } from './scripts/ios-xcode-project.mjs';
 
     const projectPath = 'ios/App/App.xcodeproj/project.pbxproj';
     const marketingVersion = process.env.MARKETING_VERSION;
     const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
     // Version only the products of this action, keeping the other platform unchanged.
-    const iosTargets = ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService', 'MindRoomBroadcast']
-      .filter((target) => target !== 'MindRoomBroadcast' || hasXcodeTarget(original, target));
     const targets = process.env.CI_PRODUCT_PLATFORM === 'macOS' && process.env.CI_XCODE_SCHEME === 'AppStoreMac'
       ? ['AppStoreMac', 'MindRoomMacSupport']
-      : iosTargets;
+      : ['App', 'MindRoomWatch', 'MindRoomWatchWidgets', 'MindRoomNotificationService', 'MindRoomBroadcast'];
     let updated = original;
     for (const target of targets) {
       updated = replaceAppTargetBuildSetting(updated, 'MARKETING_VERSION', marketingVersion, target);

@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { getSingleAppTargetBuildSettingValue, hasXcodeTarget } from './ios-xcode-project.mjs';
+import { getSingleAppTargetBuildSettingValue } from './ios-xcode-project.mjs';
 
 export const XCODE_PROJECT_PATH = 'ios/App/App.xcodeproj/project.pbxproj';
 export const WATCH_INFO_PLIST_PATH = 'ios/Watch/MindRoomWatch/Info.plist';
@@ -325,13 +325,11 @@ if (isMain) {
       infoPlistText,
       notificationServiceInfoPlistText: read(NOTIFICATION_SERVICE_INFO_PLIST_PATH),
     }),
-    ...(hasXcodeTarget(projectText, BROADCAST_EXTENSION_TARGET)
-      ? broadcastExtensionUploadProblems({
-          projectText,
-          infoPlistText,
-          broadcastExtensionInfoPlistText: read(BROADCAST_EXTENSION_INFO_PLIST_PATH),
-        })
-      : []),
+    ...broadcastExtensionUploadProblems({
+      projectText,
+      infoPlistText,
+      broadcastExtensionInfoPlistText: read(BROADCAST_EXTENSION_INFO_PLIST_PATH),
+    }),
   ];
   if (problems.length > 0) {
     process.stderr.write(

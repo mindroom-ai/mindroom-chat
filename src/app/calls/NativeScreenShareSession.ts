@@ -20,10 +20,11 @@ import {
 } from './nativeScreenShare';
 
 const CALL_MEMBER = StateEvent.GroupCallMemberPrefix as string;
-const COMPANION_EXPIRES_MS = 14_400_000;
+const COMPANION_EXPIRES_MS = 120_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const NATIVE_LEASE_MS = 90_000;
-const RENEWAL_INTERVAL_MS = 30 * 60_000;
+const RENEWAL_INTERVAL_MS = 60_000;
+const LEAVE_WITHDRAW_TIMEOUT_MS = 5_000;
 const JOIN_GRACE_MS = 10_000;
 const USE_KEY_DELAY_MS = 1_000;
 const KEY_SEND_RETRY_MS = [1_000, 3_000];
@@ -76,7 +77,6 @@ export class NativeScreenShareSession {
   private generation?: number;
   private broadcasting = false;
   private closed = false;
-  private membershipPublished = false;
   private broadcastStartedAt = 0;
   private currentKey?: Uint8Array;
   private keyIndex = 0;
@@ -196,7 +196,6 @@ export class NativeScreenShareSession {
     this.broadcastStartedAt = Date.now();
     if (this.opts.encrypted) this.keyCreatedAt = this.broadcastStartedAt;
     this.opts.onStateChange?.('broadcasting');
-    this.membershipPublished = true;
     void this.publishCompanionMembership(false);
     this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), HEARTBEAT_INTERVAL_MS);
     this.renewalTimer = setInterval(
@@ -212,8 +211,19 @@ export class NativeScreenShareSession {
     }
   }
 
+  private existingCompanionCreatedTs(): number {
+    const userId = this.opts.mx.getSafeUserId();
+    const existing = this.opts.session.memberships.find(
+      (membership) =>
+        membership.userId === userId && membership.deviceId === this.screenDeviceId
+    );
+    const ts = existing?.createdTs();
+    return typeof ts === 'number' && ts > 0 ? ts : this.broadcastStartedAt;
+  }
+
   private async publishCompanionMembership(renewal: boolean): Promise<void> {
     if (this.closed) return;
+    const createdTs = renewal ? this.existingCompanionCreatedTs() : this.broadcastStartedAt;
     const content = {
       application: 'm.call',
       call_id: '',
@@ -221,7 +231,7 @@ export class NativeScreenShareSession {
       device_id: this.screenDeviceId,
       membershipID: this.screenIdentity,
       expires: renewal
-        ? COMPANION_EXPIRES_MS + Math.max(1, Date.now() - this.broadcastStartedAt)
+        ? COMPANION_EXPIRES_MS + Math.max(1, Date.now() - createdTs)
         : COMPANION_EXPIRES_MS,
       'm.call.intent': 'video',
       focus_active: { type: 'livekit', focus_selection: 'multi_sfu' },
@@ -230,11 +240,29 @@ export class NativeScreenShareSession {
       ],
       [SCREEN_ONLY_MEMBER_KEY]: true,
       [SCREEN_PARENT_DEVICE_KEY]: this.opts.primaryDeviceId,
-      ...(renewal ? { created_ts: this.broadcastStartedAt } : {}),
+      ...(renewal ? { created_ts: createdTs } : {}),
     };
-    await this.opts.mx
-      .sendStateEvent(this.opts.room.roomId, CALL_MEMBER as never, content as never, this.stateKey)
-      .catch(() => undefined);
+    const write = this.opts.mx.sendStateEvent(
+      this.opts.room.roomId,
+      CALL_MEMBER as never,
+      content as never,
+      this.stateKey
+    );
+    if (renewal) {
+      await write.catch(() => undefined);
+      return;
+    }
+    try {
+      await write;
+    } catch (error) {
+      if (!this.closed) {
+        void this.cleanup({
+          stopNative: true,
+          reason: 'publish_failed',
+          detail: errorDetail(error),
+        });
+      }
+    }
   }
 
   private sendHeartbeat(): void {
@@ -285,6 +313,7 @@ export class NativeScreenShareSession {
     this.currentKey?.fill(0);
     this.currentKey = nextKey;
     this.keyIndex = nextIndex;
+    this.keysSent.clear();
     this.keyCreatedAt = Date.now();
     this.opts.onScreenKey?.(nextKey, nextIndex, this.screenIdentity);
     await Promise.allSettled(peers.map((member) => this.deliverKey(member, nextKey, nextIndex)));
@@ -365,9 +394,8 @@ export class NativeScreenShareSession {
   }): Promise<void> {
     if (this.cleanupPromise) return this.cleanupPromise;
     this.closed = true;
-    const shouldWithdraw = this.membershipPublished || this.broadcasting;
+    const shouldWithdraw = this.broadcasting;
     this.broadcasting = false;
-    this.membershipPublished = false;
     clearInterval(this.heartbeatTimer);
     clearInterval(this.renewalTimer);
     this.heartbeatTimer = undefined;
@@ -386,13 +414,17 @@ export class NativeScreenShareSession {
     if (handle) tasks.push(Promise.resolve(handle.remove()));
     if (stopNative) tasks.push(this.plugin.stop());
     if (shouldWithdraw) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const withdraw = this.opts.mx
+        .sendStateEvent(this.opts.room.roomId, CALL_MEMBER as never, {} as never, this.stateKey)
+        .catch(() => undefined);
+      const timeout = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, LEAVE_WITHDRAW_TIMEOUT_MS);
+      });
       tasks.push(
-        this.opts.mx.sendStateEvent(
-          this.opts.room.roomId,
-          CALL_MEMBER as never,
-          {} as never,
-          this.stateKey
-        )
+        Promise.race([withdraw, timeout]).finally(() => {
+          clearTimeout(timer);
+        })
       );
     }
     this.cleanupPromise = Promise.allSettled(tasks).then(() => undefined);

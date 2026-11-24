@@ -119,21 +119,6 @@ const targetBuildSettingsRanges = (projectText, targetName) => {
 };
 
 /**
- * Whether the Xcode project contains a native target with the given name.
- * @param {string} projectText
- * @param {string} targetName
- * @returns {boolean}
- */
-export const hasXcodeTarget = (projectText, targetName) => {
-  try {
-    targetBuildSettingsRanges(projectText, targetName);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
  * The value of one build setting of the target, as written in the project (quotes kept).
  * Every build configuration of the target must set it to the same value.
  * @param {string} projectText

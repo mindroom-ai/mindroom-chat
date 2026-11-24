@@ -17,6 +17,7 @@ import {
 import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { StateEvent } from '../matrix/types/room';
 import { MatrixRtcKeyProvider, sendCallKey } from './callKeyProvider';
 import {
   chooseCallService,
@@ -32,11 +33,13 @@ import type { CallNotifyInputs } from './callRings';
 import { startCallRingTrace } from './callRingTrace';
 import { screenShareIsInAppOnly } from './callSupport';
 import {
-  isNativeIos,
   isNativeScreenShareAvailable,
   type NativeScreenShareSheetStrings,
 } from './nativeScreenShare';
-import { NativeScreenShareSession } from './NativeScreenShareSession';
+import {
+  companionMembershipStateKey,
+  NativeScreenShareSession,
+} from './NativeScreenShareSession';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -180,13 +183,15 @@ const KEY_RESEND_RETRY_MS = [1_000, 3_000];
  * the SDK's own default is ninety seconds.
  */
 const RING_LIFETIME_MS = 30_000;
+const CALL_MEMBER = StateEvent.GroupCallMemberPrefix as string;
 const IOS_DELAYED_LEAVE_DELAY_MS = 60_000;
-const IOS_DELAYED_LEAVE_RESTART_MS = 15_000;
 const SCREEN_COMPANION_SUFFIX = '-screen';
 
 const mapNativeScreenShareStatus = (reason?: string): NativeScreenShareStatus | undefined => {
-  if (reason === 'user' || reason === 'cancelled') return undefined;
-  if (reason === 'start_failed' || reason === 'publish_failed') return 'failed';
+  if (reason === 'user' || reason === 'cancelled' || reason === 'system') return undefined;
+  if (reason === 'start_failed' || reason === 'publish_failed' || reason === 'permissions_failed') {
+    return 'failed';
+  }
   if (reason === 'picker_timeout') return 'picker_timeout';
   return 'stopped';
 };
@@ -964,11 +969,8 @@ export class RoomCall {
           callIntent: this.state.camera ? 'video' : 'audio',
           notificationType: rejoin ? undefined : this.options.notify,
           notificationLifetimeMs: RING_LIFETIME_MS,
-          ...(isNativeIos()
-            ? {
-                delayedLeaveEventDelayMs: IOS_DELAYED_LEAVE_DELAY_MS,
-                delayedLeaveEventRestartMs: IOS_DELAYED_LEAVE_RESTART_MS,
-              }
+          ...(isNativeScreenShareAvailable()
+            ? { delayedLeaveEventDelayMs: IOS_DELAYED_LEAVE_DELAY_MS }
             : {}),
         }
       );
@@ -1287,8 +1289,39 @@ export class RoomCall {
       const membership = this.session.isJoined()
         ? this.session.leave(LEAVE_TIMEOUT_MS)
         : rejoin && Promise.race([rejoin.left, timeout]);
+      const deviceId = this.mx.getDeviceId();
+      const companionStateKey =
+        !nativeShare && deviceId
+          ? companionMembershipStateKey(
+              this.room,
+              this.mx.getSafeUserId(),
+              screenCompanionDeviceId(deviceId)
+            )
+          : undefined;
+      const companionContent = companionStateKey
+        ? this.room.currentState?.getStateEvents(CALL_MEMBER, companionStateKey)?.getContent()
+        : undefined;
+      const staleCompanion =
+        companionStateKey && companionContent && Object.keys(companionContent).length > 0
+          ? Promise.race([
+              this.mx
+                .sendStateEvent(
+                  this.room.roomId,
+                  CALL_MEMBER as never,
+                  {} as never,
+                  companionStateKey
+                )
+                .catch(() => undefined),
+              timeout,
+            ])
+          : undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
-      await Promise.allSettled([media?.disconnect(true), membership, nativeShare?.stop()]);
+      await Promise.allSettled([
+        media?.disconnect(true),
+        membership,
+        nativeShare?.stop(),
+        staleCompanion,
+      ]);
       window.clearTimeout(timer);
       await media?.dispose().catch(() => undefined);
     } finally {
