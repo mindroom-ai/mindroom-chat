@@ -741,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Non hai il permesso di invitare",
-      "searchEncrypted": "Non disponibile nelle stanze cifrate"
+      "searchEncrypted": "Non disponibile nelle stanze cifrate",
+      "viewSection": "Vista",
+      "roomSection": "Stanza",
+      "preferencesSection": "Preferenze",
+      "notificationModeAll": "Tutti",
+      "notificationModeMentions": "Menzioni"
     },
     "phoneNav": {
       "navigation": "Navigazione"
@@ -2234,7 +2239,11 @@
     "done": "Fatti"
   },
   "threadActions": {
-    "openBeside": "Apri nella seconda colonna"
+    "openBeside": "Apri nella seconda colonna",
+    "detailsSection": "Dettagli",
+    "forkAndShareSection": "Dirama e condividi",
+    "shareSection": "Condividi",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Questo thread",

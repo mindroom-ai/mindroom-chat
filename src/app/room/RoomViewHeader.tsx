@@ -73,7 +73,7 @@ import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import { useRoomCommands } from '../navigation/roomCommands';
+import { useRoomCommands, type RoomCommand } from '../navigation/roomCommands';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasChosenThreadFilters,
@@ -473,16 +473,6 @@ export function RoomViewHeader({
       badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
       marker: 'data-thread-filter-bar-toggle',
     },
-    // Agents' replies list the tools they ran; this room's choice, over the default in Settings.
-    hasMindroomAgents && {
-      id: 'toolCalls',
-      label: t('mindroomUi.messages.showToolCalls'),
-      icon: Icons.Terminal,
-      placement: 'menu',
-      pressed: showToolCalls,
-      run: () => setShowToolCalls(!showToolCalls),
-      marker: 'data-tool-calls-toggle',
-    },
     hasMindroomAgents && {
       id: 'schedules',
       placement: 'auto',
@@ -593,16 +583,21 @@ export function RoomViewHeader({
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
     },
-    ...pluginPanels.map(
-      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction => ({
-        id: `panel:${id}`,
-        label,
-        icon,
-        placement,
-        pressed: shownPanel === id,
-        active: shownPanel === id,
-        run: () => onPanelToggle?.(id),
-      })
+    ...pluginPanels.flatMap(
+      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction[] =>
+        placement === 'none'
+          ? []
+          : [
+              {
+                id: `panel:${id}`,
+                label,
+                icon,
+                placement,
+                pressed: shownPanel === id,
+                active: shownPanel === id,
+                run: () => onPanelToggle?.(id),
+              },
+            ]
     ),
     ...pluginActions.map(({ id, label, icon, placement, run }): RoomHeaderAction => ({
       id: `action:${id}`,
@@ -618,20 +613,29 @@ export function RoomViewHeader({
     })),
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
-  // The command palette offers the actions the header draws, bar the ones that need their button's place.
-  useRoomCommands(
-    entries
-      .filter(drawnByHeader)
-      .filter((entry) => !entry.popup)
-      .map(({ id, label, icon, pressed, shortcut, run }) => ({
-        id,
-        label,
-        icon,
-        pressed,
-        shortcut,
-        run: () => run(undefined),
-      }))
-  );
+  // The command palette offers the actions the header draws, bar the ones that need their button's
+  // place, plus the room menu's tool-calls toggle in rooms with agents.
+  const commands: RoomCommand[] = entries
+    .filter(drawnByHeader)
+    .filter((entry) => !entry.popup)
+    .map(({ id, label, icon, pressed, shortcut, run }) => ({
+      id,
+      label,
+      icon,
+      pressed,
+      shortcut,
+      run: () => run(undefined),
+    }));
+  if (hasMindroomAgents) {
+    commands.push({
+      id: 'toolCalls',
+      label: t('mindroomUi.messages.showToolCalls'),
+      icon: Icons.Terminal,
+      pressed: showToolCalls,
+      run: () => setShowToolCalls(!showToolCalls),
+    });
+  }
+  useRoomCommands(commands);
   const promoted = selectPhoneHeaderActions(
     slots,
     entries

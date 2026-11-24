@@ -758,7 +758,12 @@
     },
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",
-      "searchEncrypted": "Недоступно в зашифрованных комнатах"
+      "searchEncrypted": "Недоступно в зашифрованных комнатах",
+      "viewSection": "Вид",
+      "roomSection": "Комната",
+      "preferencesSection": "Параметры",
+      "notificationModeAll": "Все",
+      "notificationModeMentions": "Упоминания"
     },
     "phoneNav": {
       "navigation": "Навигация"
@@ -2310,7 +2315,11 @@
     "done": "Готово"
   },
   "threadActions": {
-    "openBeside": "Открыть во второй колонке"
+    "openBeside": "Открыть во второй колонке",
+    "detailsSection": "Сведения",
+    "forkAndShareSection": "Ответвить и поделиться",
+    "shareSection": "Поделиться",
+    "viewSection": "Вид"
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",

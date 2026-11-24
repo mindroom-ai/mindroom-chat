@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您没有邀请权限",
-      "searchEncrypted": "在加密房间中不可用"
+      "searchEncrypted": "在加密房间中不可用",
+      "viewSection": "视图",
+      "roomSection": "房间",
+      "preferencesSection": "偏好设置",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "导航"
@@ -2082,7 +2087,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二栏打开"
+    "openBeside": "在第二栏打开",
+    "detailsSection": "详情",
+    "forkAndShareSection": "分支与分享",
+    "shareSection": "分享",
+    "viewSection": "视图"
   },
   "roomSchedules": {
     "thisThread": "此讨论串",

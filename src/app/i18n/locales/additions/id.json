@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",
-      "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
+      "searchEncrypted": "Tidak tersedia di ruang terenkripsi",
+      "viewSection": "Tampilan",
+      "roomSection": "Ruang",
+      "preferencesSection": "Preferensi",
+      "notificationModeAll": "Semua",
+      "notificationModeMentions": "Sebutan"
     },
     "phoneNav": {
       "navigation": "Navigasi"
@@ -2082,7 +2087,11 @@
     "done": "Selesai"
   },
   "threadActions": {
-    "openBeside": "Buka di kolom kedua"
+    "openBeside": "Buka di kolom kedua",
+    "detailsSection": "Detail",
+    "forkAndShareSection": "Cabangkan & Bagikan",
+    "shareSection": "Bagikan",
+    "viewSection": "Tampilan"
   },
   "roomSchedules": {
     "thisThread": "Utas ini",

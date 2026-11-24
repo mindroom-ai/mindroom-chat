@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
-      "searchEncrypted": "暗号化されたルームでは使用できません"
+      "searchEncrypted": "暗号化されたルームでは使用できません",
+      "viewSection": "表示",
+      "roomSection": "ルーム",
+      "preferencesSection": "環境設定",
+      "notificationModeAll": "すべて",
+      "notificationModeMentions": "メンション"
     },
     "phoneNav": {
       "navigation": "ナビゲーション"
@@ -2082,7 +2087,11 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "2列目で開く"
+    "openBeside": "2列目で開く",
+    "detailsSection": "詳細",
+    "forkAndShareSection": "分岐と共有",
+    "shareSection": "共有",
+    "viewSection": "表示"
   },
   "roomSchedules": {
     "thisThread": "このスレッド",

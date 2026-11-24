@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",
-      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं"
+      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं",
+      "viewSection": "दृश्य",
+      "roomSection": "रूम",
+      "preferencesSection": "प्राथमिकताएँ",
+      "notificationModeAll": "सभी",
+      "notificationModeMentions": "उल्लेख"
     },
     "phoneNav": {
       "navigation": "नेविगेशन"
@@ -2158,7 +2163,11 @@
     "done": "पूरे"
   },
   "threadActions": {
-    "openBeside": "दूसरे कॉलम में खोलें"
+    "openBeside": "दूसरे कॉलम में खोलें",
+    "detailsSection": "विवरण",
+    "forkAndShareSection": "शाखा बनाएँ और साझा करें",
+    "shareSection": "साझा करें",
+    "viewSection": "दृश्य"
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",

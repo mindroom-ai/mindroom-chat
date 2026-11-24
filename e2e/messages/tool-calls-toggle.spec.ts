@@ -103,7 +103,7 @@ const seed = async () => {
 const toolLines = (page: Page, toolName: string) =>
   page.locator('[data-message-disclosure] > button').filter({ hasText: toolName });
 
-/** Chooses "Show tool calls" in a menu, checking that it showed `checked` before. */
+/** Toggles "Show Tool Calls" in a menu in place, checking `aria-checked`, then closes the menu. */
 const chooseShowToolCalls = async (
   page: Page,
   menuButton: string,
@@ -111,10 +111,12 @@ const chooseShowToolCalls = async (
   shotName?: string
 ) => {
   await page.getByRole('button', { name: menuButton }).first().click();
-  const entry = page.getByRole('menuitemcheckbox', { name: 'Show tool calls' });
+  const entry = page.getByRole('menuitemcheckbox', { name: 'Show Tool Calls' });
   await expect(entry).toHaveAttribute('aria-checked', String(checked));
   if (shotName) await shot(page, shotName);
   await entry.click();
+  await expect(entry).toHaveAttribute('aria-checked', String(!checked));
+  await page.keyboard.press('Escape');
 };
 
 test.beforeEach(async () => {

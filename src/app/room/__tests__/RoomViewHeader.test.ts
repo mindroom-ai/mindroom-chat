@@ -175,6 +175,9 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
     getSafeUserId: () => '@user:example.org',
   }),
 }));
+vi.mock('../../matrix/hooks/useRoomMembers', () => ({
+  useRoomMembers: () => [],
+}));
 
 vi.mock('../../matrix/hooks/useRoom', () => ({
   useRoom: () => ({

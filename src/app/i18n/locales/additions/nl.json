@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
-      "searchEncrypted": "Niet beschikbaar in versleutelde kamers"
+      "searchEncrypted": "Niet beschikbaar in versleutelde kamers",
+      "viewSection": "Weergave",
+      "roomSection": "Kamer",
+      "preferencesSection": "Voorkeuren",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Vermeldingen"
     },
     "phoneNav": {
       "navigation": "Navigatie"
@@ -2158,7 +2163,11 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Afsplitsen & delen",
+    "shareSection": "Delen",
+    "viewSection": "Weergave"
   },
   "roomSchedules": {
     "thisThread": "Deze thread",

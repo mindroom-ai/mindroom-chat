@@ -1,24 +1,29 @@
-import { lazy, useEffect, type ComponentType, type ReactNode } from 'react';
+import { lazy, useEffect, useId, type ComponentType, type ReactNode } from 'react';
+import type { ParseKeys } from 'i18next';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { logger } from 'matrix-js-sdk/lib/logger';
-import { Icons, Spinner } from 'folds';
-import { MenuEntry } from '../ui/MenuEntry';
+import { Box, Icon, Icons, Spinner, Text } from 'folds';
+import { MenuEntry, MenuSwitchEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
 import { RoomNotificationModeSwitcher } from '../notifications/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
   getRoomNotificationModeIcon,
   useRoomsNotificationPreferencesContext,
+  type RoomNotificationMode,
 } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { ArchiveRoomMenuItem } from '../rooms/archive/ArchiveRoomMenuItem';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
+import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
@@ -89,6 +94,20 @@ export type RoomActionProps = {
  */
 export type RoomAction = { id: string; Entry: ComponentType<RoomActionProps> };
 
+/** One section of the room menu, with an optional overline heading. */
+export type RoomActionGroup = {
+  id: string;
+  labelKey?: ParseKeys;
+  actions: readonly RoomAction[];
+};
+
+const NOTIFICATION_MODE_LABELS: Record<`${RoomNotificationMode}`, ParseKeys> = {
+  unset: 'sharedUi.roomNotificationSwitcher.option0',
+  all_messages: 'featureUi.roomActions.notificationModeAll',
+  special_messages: 'featureUi.roomActions.notificationModeMentions',
+  mute: 'sharedUi.roomNotificationSwitcher.option3',
+};
+
 function MarkReadEntry({ room, close }: RoomActionProps) {
   return <MarkRoomReadMenuItem room={room} onClose={close} />;
 }
@@ -96,7 +115,9 @@ function MarkReadEntry({ room, close }: RoomActionProps) {
 /** The room's notification mode, with its bell; it opens the mode menu beside the entry. */
 function NotificationsEntry({ room, close, submenuSide }: RoomActionProps) {
   const { t } = useTranslation();
+  const modeId = useId();
   const mode = getRoomNotificationMode(useRoomsNotificationPreferencesContext(), room.roomId);
+  const modeLabel = t(NOTIFICATION_MODE_LABELS[mode]);
   return (
     <RoomNotificationModeSwitcher
       roomId={room.roomId}
@@ -108,7 +129,19 @@ function NotificationsEntry({ room, close, submenuSide }: RoomActionProps) {
         <MenuEntry
           label={t('mindroomUi.threads.mindroomRoomViewHeader.notifications')}
           icon={getRoomNotificationModeIcon(mode)}
-          after={changing ? <Spinner size="100" variant="Secondary" /> : undefined}
+          after={
+            changing ? (
+              <Spinner size="100" variant="Secondary" />
+            ) : (
+              <Box as="span" alignItems="Center" gap="200">
+                <Text id={modeId} as="span" size="T200" priority="300" aria-hidden="true">
+                  {modeLabel}
+                </Text>
+                <Icon size="100" src={getRoomNotificationModeIcon(mode)} />
+              </Box>
+            )
+          }
+          aria-describedby={changing ? undefined : modeId}
           fill={opened ? 'Soft' : 'None'}
           aria-haspopup="menu"
           aria-expanded={opened}
@@ -116,6 +149,23 @@ function NotificationsEntry({ room, close, submenuSide }: RoomActionProps) {
         />
       )}
     </RoomNotificationModeSwitcher>
+  );
+}
+
+/** Shows or hides agent tool calls for this room, over the default in Settings. */
+function ToolCallsEntry({ room }: RoomActionProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const members = useRoomMembers(client, room.roomId);
+  const [showToolCalls, setShowToolCalls] = useToolCallsShown(room.roomId);
+  if (!hasActiveMindroomAgent(members)) return null;
+  return (
+    <MenuSwitchEntry
+      label={t('mindroomUi.messages.showToolCalls')}
+      checked={showToolCalls}
+      onToggle={() => setShowToolCalls(!showToolCalls)}
+      data-tool-calls-toggle=""
+    />
   );
 }
 
@@ -428,21 +478,40 @@ function LeaveEntry({ room, close, showDialog, onLeft }: RoomActionProps) {
  * show these, in this order; an entry added here appears in each of them. The header's menu puts
  * what only works inside the open room in a section of its own, before these.
  */
-export const ROOM_ACTIONS: readonly (readonly RoomAction[])[] = [
-  [
-    { id: 'markRead', Entry: MarkReadEntry },
-    { id: 'notifications', Entry: NotificationsEntry },
-    { id: 'invite', Entry: InviteEntry },
-    { id: 'newSubRoom', Entry: NewSubRoomEntry },
-    { id: 'copyLink', Entry: CopyLinkEntry },
-    { id: 'settings', Entry: SettingsEntry },
-    { id: 'mindroomSettings', Entry: MindroomSettingsEntry },
-    { id: 'search', Entry: SearchEntry },
-    { id: 'jumpToTime', Entry: JumpToTimeEntry },
-  ],
-  [
-    { id: 'takeOff', Entry: TakeOffEntry },
-    { id: 'archive', Entry: ArchiveEntry },
-    { id: 'leave', Entry: LeaveEntry },
-  ],
+export const ROOM_ACTIONS: readonly RoomActionGroup[] = [
+  {
+    id: 'reading',
+    actions: [
+      { id: 'markRead', Entry: MarkReadEntry },
+      { id: 'search', Entry: SearchEntry },
+      { id: 'jumpToTime', Entry: JumpToTimeEntry },
+    ],
+  },
+  {
+    id: 'room',
+    labelKey: 'featureUi.roomActions.roomSection',
+    actions: [
+      { id: 'invite', Entry: InviteEntry },
+      { id: 'newSubRoom', Entry: NewSubRoomEntry },
+      { id: 'copyLink', Entry: CopyLinkEntry },
+      { id: 'settings', Entry: SettingsEntry },
+      { id: 'mindroomSettings', Entry: MindroomSettingsEntry },
+    ],
+  },
+  {
+    id: 'preferences',
+    labelKey: 'featureUi.roomActions.preferencesSection',
+    actions: [
+      { id: 'notifications', Entry: NotificationsEntry },
+      { id: 'toolCalls', Entry: ToolCallsEntry },
+    ],
+  },
+  {
+    id: 'exit',
+    actions: [
+      { id: 'takeOff', Entry: TakeOffEntry },
+      { id: 'archive', Entry: ArchiveEntry },
+      { id: 'leave', Entry: LeaveEntry },
+    ],
+  },
 ];

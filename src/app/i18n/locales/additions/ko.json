@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "초대할 권한이 없습니다",
-      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다"
+      "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다",
+      "viewSection": "보기",
+      "roomSection": "방",
+      "preferencesSection": "환경설정",
+      "notificationModeAll": "모두",
+      "notificationModeMentions": "멘션"
     },
     "phoneNav": {
       "navigation": "탐색"
@@ -2082,7 +2087,11 @@
     "done": "완료"
   },
   "threadActions": {
-    "openBeside": "두 번째 열에서 열기"
+    "openBeside": "두 번째 열에서 열기",
+    "detailsSection": "세부 정보",
+    "forkAndShareSection": "분기 및 공유",
+    "shareSection": "공유",
+    "viewSection": "보기"
   },
   "roomSchedules": {
     "thisThread": "이 스레드",

@@ -741,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Vous n’avez pas l’autorisation d’inviter",
-      "searchEncrypted": "Indisponible dans les salles chiffrées"
+      "searchEncrypted": "Indisponible dans les salles chiffrées",
+      "viewSection": "Affichage",
+      "roomSection": "Salon",
+      "preferencesSection": "Préférences",
+      "notificationModeAll": "Tous",
+      "notificationModeMentions": "Mentions"
     },
     "phoneNav": {
       "navigation": "Navigation"
@@ -2234,7 +2239,11 @@
     "done": "Terminés"
   },
   "threadActions": {
-    "openBeside": "Ouvrir dans la seconde colonne"
+    "openBeside": "Ouvrir dans la seconde colonne",
+    "detailsSection": "Détails",
+    "forkAndShareSection": "Dériver et partager",
+    "shareSection": "Partager",
+    "viewSection": "Affichage"
   },
   "roomSchedules": {
     "thisThread": "Ce fil",

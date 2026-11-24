@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Davet etme izniniz yok",
-      "searchEncrypted": "Şifreli odalarda kullanılamaz"
+      "searchEncrypted": "Şifreli odalarda kullanılamaz",
+      "viewSection": "Görünüm",
+      "roomSection": "Oda",
+      "preferencesSection": "Tercihler",
+      "notificationModeAll": "Tümü",
+      "notificationModeMentions": "Bahsetmeler"
     },
     "phoneNav": {
       "navigation": "Gezinme"
@@ -2158,7 +2163,11 @@
     "done": "Bitti"
   },
   "threadActions": {
-    "openBeside": "İkinci sütunda aç"
+    "openBeside": "İkinci sütunda aç",
+    "detailsSection": "Ayrıntılar",
+    "forkAndShareSection": "Ayır ve paylaş",
+    "shareSection": "Paylaş",
+    "viewSection": "Görünüm"
   },
   "roomSchedules": {
     "thisThread": "Bu konu",

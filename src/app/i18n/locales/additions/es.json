@@ -741,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "No tienes permiso para invitar",
-      "searchEncrypted": "No disponible en salas cifradas"
+      "searchEncrypted": "No disponible en salas cifradas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferencias",
+      "notificationModeAll": "Todos",
+      "notificationModeMentions": "Menciones"
     },
     "phoneNav": {
       "navigation": "Navegación"
@@ -2234,7 +2239,11 @@
     "done": "Hechos"
   },
   "threadActions": {
-    "openBeside": "Abrir en la segunda columna"
+    "openBeside": "Abrir en la segunda columna",
+    "detailsSection": "Detalles",
+    "forkAndShareSection": "Bifurcar y compartir",
+    "shareSection": "Compartir",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este hilo",

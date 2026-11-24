@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
-      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়",
+      "viewSection": "প্রদর্শন",
+      "roomSection": "রুম",
+      "preferencesSection": "পছন্দসমূহ",
+      "notificationModeAll": "সব",
+      "notificationModeMentions": "উল্লেখ"
     },
     "phoneNav": {
       "navigation": "নেভিগেশন"
@@ -2158,7 +2163,11 @@
     "done": "সম্পন্ন"
   },
   "threadActions": {
-    "openBeside": "দ্বিতীয় কলামে খুলুন"
+    "openBeside": "দ্বিতীয় কলামে খুলুন",
+    "detailsSection": "বিবরণ",
+    "forkAndShareSection": "শাখা তৈরি ও শেয়ার",
+    "shareSection": "শেয়ার",
+    "viewSection": "প্রদর্শন"
   },
   "roomSchedules": {
     "thisThread": "এই থ্রেড",
