@@ -441,9 +441,11 @@ describe('RoomViewHeader', () => {
     await openRoomMenu(renderer);
     const desktopEntries = findMenuEntries(renderer, 'MindRoom Settings');
     expect(desktopEntries).toHaveLength(1);
-    expect(desktopEntries[0].findByProps({ 'data-icon': MindroomIcon })).toBeTruthy();
+    const [desktopEntry] = desktopEntries;
+    if (!desktopEntry) throw new Error('Expected MindRoom Settings menu entry');
+    expect(desktopEntry.findByProps({ 'data-icon': MindroomIcon })).toBeTruthy();
     act(() => {
-      desktopEntries[0].props.onClick();
+      desktopEntry.props.onClick();
     });
     expect(openRoomSettingsSpy).toHaveBeenCalledWith(
       '!room:example.org',
