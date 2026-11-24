@@ -24,7 +24,6 @@ import {
   createScrollMountMeasurement,
   measureMountedRows,
 } from './batchedMeasurementRef';
-import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { isDesktopWebKit } from '../lib/user-agent';
@@ -387,16 +386,6 @@ export const useTimelineScrollLedgerController = ({
     return () =>
       scrollElement.removeEventListener(STATUS_BAR_SCROLL_TOP_EVENT, onStatusBarScrollTop);
   }, [getScrollElement]);
-
-  useEffect(() => {
-    if (!isRideTraceEnabled()) return undefined;
-    const scrollElement = getScrollElement();
-    if (!scrollElement) return undefined;
-    return installRideTraceRecorder(scrollElement, () => virtualInnerRef.current, {
-      roomId,
-      threadId,
-    });
-  }, [getScrollElement, roomId, threadId]);
 
   useLayoutEffect(() => {
     if (!automaticFill) return;

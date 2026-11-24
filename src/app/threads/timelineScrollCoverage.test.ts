@@ -18,11 +18,6 @@ vi.mock('@tanstack/react-virtual', async (importOriginal) => {
   };
 });
 
-vi.mock('../timeline/rideTraceRecorder', () => ({
-  installRideTraceRecorder: vi.fn(),
-  isRideTraceEnabled: () => false,
-}));
-
 const measureCoverage = (
   sizes: number[],
   threadId: string | null = '$thread',

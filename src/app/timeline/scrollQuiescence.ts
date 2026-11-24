@@ -107,11 +107,6 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
-// Consulted by callers that need an instantaneous read of the global touch
-// state (currently the measurement-correction hook on the timeline
-// virtualizer, which cannot see virtual-core's private touch flags).
-export const hasActiveWindowTouches = (): boolean => windowActiveTouches > 0;
-
 // Mirrors @tanstack/virtual-core's unexported isIOSWebKit(): every iOS
 // browser is WebKit (UA carries iPhone/iPod/iPad), and iPadOS desktop mode
 // masquerades as MacIntel but exposes touch points.
