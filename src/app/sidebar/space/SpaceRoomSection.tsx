@@ -1,14 +1,9 @@
 import { Fragment, type MouseEventHandler, useCallback, useMemo, useRef } from 'react';
-import { atom, useAtom, useAtomValue } from 'jotai';
-import { useTranslation } from 'react-i18next';
+import { useAtom, useAtomValue } from 'jotai';
 import { KnownMembership, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { revealDirectionControls } from '../../ui/directional';
 import { NavCategory } from '../../ui/nav/NavItem';
-import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories';
-import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
-import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { useRoomOrders } from '../room-nav/roomOrder';
 import {
   SortableRoomList,
@@ -22,11 +17,9 @@ import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
-import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
-import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
@@ -38,13 +31,12 @@ import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { canSendState, moveSpaceRoom } from '../../spaces/lobby/spaceChildren';
 import {
-  type CollapsedSectionUnread,
   type SpaceRoomSection as SpaceRoomSectionData,
   collectShortcutRoomIds,
-  getCollapsedSectionUnread,
   getDescendantSubspaces,
   getSpaceRoomSections,
 } from './spaceRoomSections';
+import { SpaceSectionHeader } from './SpaceSectionHeader';
 
 export type RenderedSpaceRoomSection = SpaceRoomSectionData & {
   closed: boolean;
@@ -200,7 +192,7 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
         movingRoomIdsRef.current.delete(roomId);
       }
     },
-    [canMoveRoom, client]
+    [client, canMoveRoom]
   );
 
   return {
@@ -214,79 +206,6 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
     canMoveRoom,
     onMoveRoom,
   };
-}
-
-const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
-
-type SectionHeaderButtonProps = {
-  label: string;
-  ownDirection?: boolean;
-  categoryId: string;
-  closed: boolean;
-  shownRoomIds: readonly string[];
-  selectedRoomId: string | undefined;
-  onClick: MouseEventHandler<HTMLElement>;
-};
-
-/**
- * Collapsible heading for a space room section. Keeps one button mounted across toggles
- * (preserving keyboard focus) and subscribes to unread state only while collapsed.
- */
-function SectionHeaderButton({
-  label,
-  ownDirection,
-  categoryId,
-  closed,
-  shownRoomIds,
-  selectedRoomId,
-  onClick,
-}: SectionHeaderButtonProps) {
-  const { t } = useTranslation();
-  const unreadAtom = useMemo(
-    () =>
-      closed
-        ? atom((get) =>
-            getCollapsedSectionUnread(
-              true,
-              shownRoomIds,
-              selectedRoomId,
-              get(navigationRoomToUnreadAtom)
-            )
-          )
-        : EMPTY_UNREAD_ATOM,
-    [closed, shownRoomIds, selectedRoomId]
-  );
-  const unread = useAtomValue(unreadAtom);
-
-  return (
-    <RoomNavCategoryButton
-      closed={closed}
-      ownDirection={ownDirection}
-      data-category-id={categoryId}
-      aria-label={unread ? t('featureUi.spaceNav.subspaceUnread', { name: label }) : undefined}
-      after={
-        unread && (
-          <UnreadBadgeCenter>
-            <span data-unread>
-              <UnreadBadge count={0} highlight={unread.highlight} />
-            </span>
-          </UnreadBadgeCenter>
-        )
-      }
-      onClick={onClick}
-    >
-      {label}
-    </RoomNavCategoryButton>
-  );
-}
-
-/** Sub-space section heading that subscribes to live room name updates. */
-function SubspaceCategoryButton({
-  subspace,
-  ...props
-}: Omit<SectionHeaderButtonProps, 'label' | 'ownDirection'> & { subspace: Room }) {
-  const name = revealDirectionControls(useRoomName(subspace));
-  return <SectionHeaderButton {...props} label={name} ownDirection />;
 }
 
 export type SpaceRoomSectionProps = {
@@ -308,11 +227,13 @@ export function SpaceRoomSection({
   onReorder,
 }: SpaceRoomSectionProps) {
   const client = useMatrixClient();
-  const { t } = useTranslation();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const sectionDrop = useRoomSectionDrop(section.spaceId);
-  const subspace = section.isRoot ? undefined : client.getRoom(section.spaceId) ?? undefined;
-  if (!section.isRoot && !subspace) return null;
+  const sectionSpace = client.getRoom(section.spaceId) ?? undefined;
+  if (!sectionSpace) return null;
+  const parentSpace = section.parentSpaceId
+    ? client.getRoom(section.parentSpaceId) ?? undefined
+    : undefined;
 
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
@@ -328,27 +249,17 @@ export function SpaceRoomSection({
 
   return (
     <NavCategory {...sectionDrop}>
-      <NavCategoryHeader>
-        {subspace ? (
-          <SubspaceCategoryButton
-            subspace={subspace}
-            categoryId={section.categoryId}
-            closed={section.closed}
-            shownRoomIds={section.shownRoomIds}
-            selectedRoomId={selectedRoomId}
-            onClick={onCategoryClick}
-          />
-        ) : (
-          <SectionHeaderButton
-            label={t('sharedUi.space.rooms')}
-            categoryId={section.categoryId}
-            closed={section.closed}
-            shownRoomIds={section.shownRoomIds}
-            selectedRoomId={selectedRoomId}
-            onClick={onCategoryClick}
-          />
-        )}
-      </NavCategoryHeader>
+      <SpaceSectionHeader
+        space={sectionSpace}
+        parentSpace={parentSpace}
+        isRoot={section.isRoot}
+        isEmpty={section.isEmpty}
+        categoryId={section.categoryId}
+        closed={section.closed}
+        shownRoomIds={section.shownRoomIds}
+        selectedRoomId={selectedRoomId}
+        onCategoryClick={onCategoryClick}
+      />
       <SortableRoomList
         listId={section.spaceId}
         roomIds={section.listedRoomIds}
@@ -358,7 +269,7 @@ export function SpaceRoomSection({
           const room = client.getRoom(roomId);
           return room ? (
             <Fragment key={roomId}>
-              <SortableRoomRow {...rowProps(room)} />
+              <SortableRoomRow {...rowProps(room)} removeFromSpaceId={section.spaceId} />
               {!section.closed && (
                 <SubRoomRows
                   parent={room}

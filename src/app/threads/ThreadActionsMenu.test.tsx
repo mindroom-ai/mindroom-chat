@@ -61,7 +61,7 @@ vi.mock('./summary/threadSummaryActions', async (original) => ({
 vi.mock('../lib/dom', () => ({ copyToClipboard: state.copy }));
 vi.mock('../matrix/via-servers', () => ({ getViaServers: () => ['test'] }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),

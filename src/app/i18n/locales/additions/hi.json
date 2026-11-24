@@ -547,7 +547,14 @@
     "spaceNav": {
       "options": "स्पेस विकल्प",
       "subspaceUnread": "{{name}}, अपठित संदेश",
-      "backToParent": "{{name}} पर वापस जाएँ"
+      "backToParent": "{{name}} पर वापस जाएँ",
+      "add": "जोड़ें",
+      "newRoom": "नया रूम",
+      "addExistingRoom": "मौजूदा रूम जोड़ें",
+      "newSubspace": "नया सब-स्पेस",
+      "addExistingSubspace": "मौजूदा सब-स्पेस जोड़ें",
+      "addToSpace": "{{name}} में जोड़ें",
+      "subspaceOptions": "{{name}} विकल्प"
     },
     "calls": {
       "panel": {

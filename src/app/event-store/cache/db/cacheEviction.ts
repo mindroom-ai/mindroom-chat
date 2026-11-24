@@ -30,6 +30,7 @@ import {
 type ProtectedVerdict = {
   result: EvictionResult;
   budget: number;
+  protectedBytes: number;
   expiresAt: number;
 };
 
@@ -41,6 +42,22 @@ export const invalidateEvictionVerdict = (sessionId?: string): void => {
   verdictGeneration += 1;
   if (sessionId === undefined) protectedVerdictsBySession.clear();
   else protectedVerdictsBySession.delete(sessionId);
+};
+
+/**
+ * Subtract freed bytes from cached protected verdicts without re-running eviction while protected
+ * bytes still clearly exceed the budget, invalidating once freed bytes could drop below budget.
+ */
+export const noteEvictionBytesFreed = (freedBytes: number): void => {
+  if (!(freedBytes > 0)) return;
+  if (runningEvictions.size > 0) verdictGeneration += 1;
+  protectedVerdictsBySession.forEach((verdict, sessionId) => {
+    verdict.protectedBytes -= freedBytes;
+    if (verdict.protectedBytes <= verdict.budget) {
+      protectedVerdictsBySession.delete(sessionId);
+      verdictGeneration += 1;
+    }
+  });
 };
 
 const sameRoomIds = (
@@ -486,6 +503,7 @@ const evictUntilUnderBudget = async (sessionId: string): Promise<EvictionResult>
     protectedVerdictsBySession.set(sessionId, {
       result: { ...result, bytesBefore: result.bytesAfter, evictedMxcUris: [], evictedRoomIds: [] },
       budget,
+      protectedBytes: media.protectedBytes,
       expiresAt: Date.now() + EVICTION_PROTECTED_VERDICT_TTL_MS,
     });
   }

@@ -1,5 +1,5 @@
 import { ChangeEvent, useMemo, useState } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, Icons, Input, Text, config } from 'folds';

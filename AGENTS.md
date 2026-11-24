@@ -26,7 +26,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just strict` | `tsc --noEmit -p config/tsconfig.strict.json`: everything, tests and `e2e/` included, with the stricter flags; must report 0 errors |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
 | `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for TypeScript, `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx`, and logical sides in styles (the files each rule covers and its exceptions: the `justfile` comment) |
-| `just format <paths>` | Prettier 3 on the files you changed |
+| `just format <paths>` | Prettier (2.8.8) on the files you changed |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/` (`scripts/build.sh`, which `npm run build:ios` runs too), with the client plugins `bundled-plugins.txt` pins while `MINDROOM_CLIENT_PLUGINS` is unset; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
 | `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`, which CI checks after its build. Options: the `scripts/perf/bundle-report.mjs` header |

@@ -547,7 +547,14 @@
     "spaceNav": {
       "options": "Alan seçenekleri",
       "subspaceUnread": "{{name}}, okunmamış mesajlar",
-      "backToParent": "{{name}} alanına dön"
+      "backToParent": "{{name}} alanına dön",
+      "add": "Ekle",
+      "newRoom": "Yeni oda",
+      "addExistingRoom": "Mevcut odayı ekle",
+      "newSubspace": "Yeni alt alan",
+      "addExistingSubspace": "Mevcut alt alanı ekle",
+      "addToSpace": "{{name}} içine ekle",
+      "subspaceOptions": "{{name}} seçenekleri"
     },
     "calls": {
       "panel": {

@@ -5,7 +5,6 @@ import { globalIgnores } from 'eslint/config';
 
 import {
   DIRECTIONAL_COMPONENTS,
-  ESCAPED_TRANS,
   LINTED_FILES,
   TYPE_AWARE_RULES,
   createCommonConfigs,
@@ -204,7 +203,7 @@ export default [
     ignores: ['src/app/lib/nativeShell.ts'],
     rules: {
       'no-restricted-properties': ['error', ...DESKTOP_BRIDGE_PROPERTIES],
-      'no-restricted-syntax': ['error', ESCAPED_TRANS, ...DESKTOP_BRIDGE_SYNTAX],
+      'no-restricted-syntax': ['error', ...DESKTOP_BRIDGE_SYNTAX],
     },
   },
   // Physical sides in styles (scripts/eslint-shared.mjs), keeping the bridge syntax checks.

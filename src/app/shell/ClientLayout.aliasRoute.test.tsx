@@ -46,7 +46,7 @@ vi.mock('../rooms/RoomCard.css', () => ({
   RoomCardTopic: 'RoomCardTopic',
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 vi.mock('folds', async () => {

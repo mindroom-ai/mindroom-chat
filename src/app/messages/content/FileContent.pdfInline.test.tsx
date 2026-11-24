@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileContent } from './FileContent';
 
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
-vi.mock('focus-trap-react', () => ({ default: () => null }));
+vi.mock('focus-trap-react', () => ({ FocusTrap: () => null }));
 vi.mock('../../ui/Modal500.css', () => ({
   PhoneModal: 'phone-modal',
   PhoneOverlayCenter: 'phone-center',

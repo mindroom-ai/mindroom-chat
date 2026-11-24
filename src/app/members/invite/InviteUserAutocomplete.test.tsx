@@ -25,7 +25,7 @@ vi.mock('../../ui/page/PageScroll', () => ({
     React.createElement('div', null, header, children),
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     active,
     children,
     focusTrapOptions,

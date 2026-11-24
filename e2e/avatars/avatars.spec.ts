@@ -58,7 +58,7 @@ const upload = async (accessToken: string, png: Buffer) => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'image/png' },
-    body: png,
+    body: new Uint8Array(png),
   });
   expect(response.ok).toBe(true);
   return ((await response.json()) as { content_uri: string }).content_uri;

@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Box, Overlay, OverlayBackdrop, OverlayCenter, Text, config, toRem } from 'folds';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { Header, Modal } from '../ui/glass/GlassPrimitives';

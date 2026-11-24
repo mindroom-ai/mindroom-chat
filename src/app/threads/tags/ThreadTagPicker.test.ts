@@ -44,7 +44,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: React.PropsWithChildren) =>
+  FocusTrap: ({ children }: React.PropsWithChildren) =>
     React.createElement(React.Fragment, null, children),
 }));
 
