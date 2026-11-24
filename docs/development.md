@@ -58,8 +58,10 @@ A client plugin ([client-plugins.md](client-plugins.md)) can live in a repositor
   ```
 
   ```bash
-  .mindroom-chat/node_modules/.bin/eslint src e2e
+  .mindroom-chat/node_modules/.bin/eslint src
   ```
+
+  Append `e2e` when the plugin has an `e2e/` directory.
 
 - **Unit tests.** From the checkout, `MINDROOM_CLIENT_PLUGINS=<plugin directory> MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1 npx vitest run` runs the plugin's tests alone, with its build module's hooks, so the names its `resolveId` maps resolve as in the build (`vitest.config.ts`); without `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY` they run with the app's. Tests of the checkout inside the plugin's directory never run as the plugin's.
 - **Build.** `MINDROOM_CLIENT_PLUGINS=<plugin directory> just build` in the checkout, or the image's `MINDROOM_CLIENT_PLUGINS` build argument (`docker/Dockerfile`).

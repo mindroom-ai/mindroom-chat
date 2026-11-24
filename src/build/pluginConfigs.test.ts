@@ -114,8 +114,7 @@ describe('eslint.config.plugin.mjs', () => {
   // A plugin's own config that re-exports it, linted from the plugin's directory as
   // docs/development.md says. Without a TypeScript program here, the type-aware rules stay off.
   const dir = pluginDir({
-    'eslint.config.mjs':
-      "export { default } from './.mindroom-chat/eslint.config.plugin.mjs';\n",
+    'eslint.config.mjs': "export { default } from './.mindroom-chat/eslint.config.plugin.mjs';\n",
     // The resolver resolves nothing from a folder that does not exist, which would leave the
     // boundary rule silent.
     'src/panel.tsx': '',

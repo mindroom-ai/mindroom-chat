@@ -113,7 +113,6 @@ export const createCommonConfigs = ({
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
       globals: {
-        ...globals.browser,
         ...globals.es2022,
         ...globals.node,
       },
@@ -130,6 +129,13 @@ export const createCommonConfigs = ({
       'import-x/resolver-next': [resolver],
     },
     rules: COMMON_RULES,
+  },
+  {
+    name: 'mindroom/browser-globals',
+    files: ['src/**/*.{ts,tsx,js,jsx,mjs,cjs}', 'e2e/**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+    languageOptions: {
+      globals: globals.browser,
+    },
   },
 ];
 
