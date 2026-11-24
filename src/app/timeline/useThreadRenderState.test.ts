@@ -1383,14 +1383,14 @@ describe('useThreadRenderState', () => {
 
 describe('useThreadRenderState in a fork', () => {
   const ids = (events: readonly MatrixEvent[]) => events.map((event) => event.getId());
-  // The parent's root and two of its messages up to the fork point, the last its title notice.
+  // The parent's root and two of its messages up to the fork point, in segment order, the last its title notice.
   const makeParentPrefix = () => [
+    makeMessageEvent('$parent', 1),
+    makeThreadReplyEvent('$p1', 2, '$parent'),
     makeThreadReplyEvent('$p2', 3, '$parent', {
       msgtype: 'm.notice',
       'io.mindroom.thread_summary': { version: 1, summary: 'Lisbon trip', message_count: 2 },
     }),
-    makeMessageEvent('$parent', 1),
-    makeThreadReplyEvent('$p1', 2, '$parent'),
   ];
   const renderFork = (prefixEvents: MatrixEvent[]) => {
     const rootEvent = makeMessageEvent('$fork', 10);
@@ -1438,6 +1438,38 @@ describe('useThreadRenderState in a fork', () => {
 
     expect(getSnapshot().threadEvents).toEqual([]);
     expect(getSnapshot().threadInitialRenderMode).toBe('loading');
+
+    renderer.unmount();
+  });
+
+  it('keeps prefix segments before own events even when clock skew gives child events earlier timestamps', () => {
+    // Grandparent on skewed HS (ts 300) -> parent (ts 200) -> child fork (ts 50, 60).
+    const prefix = [
+      makeMessageEvent('$grandparent', 300),
+      makeMessageEvent('$parent', 200),
+      makeThreadReplyEvent('$p1', 210, '$parent'),
+    ];
+    const rootEvent = makeMessageEvent('$fork', 50);
+    const reply = makeThreadReplyEvent('$reply', 60, '$fork');
+    const { getSnapshot, renderer } = renderHookHarness({
+      room: makeRoom(rootEvent),
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$fork',
+      thread: makeThread(rootEvent, [reply]),
+      threadInitialCacheHydrated: true,
+      prefixEvents: prefix,
+    });
+
+    expect(ids(getSnapshot().threadEvents)).toEqual([
+      '$grandparent',
+      '$parent',
+      '$p1',
+      '$fork',
+      '$reply',
+    ]);
+    expect(ids(getSnapshot().ownThreadEvents)).toEqual(['$fork', '$reply']);
+    expect(getSnapshot().threadEventIndexMap.get('$fork')).toBe(3);
 
     renderer.unmount();
   });

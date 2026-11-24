@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { THREAD_FORK_KEY } from '../../matrix/protocol/threadFork';
+import { buildLongTextPreview } from '../../matrix/protocol/longText';
 import {
   MAX_FORK_DEPTH,
   cutThreadAtForkPoint,
@@ -24,10 +25,12 @@ const makeEvent = (
     redacted = false,
     relType = undefined as string | undefined,
     content = {},
+    roomId = undefined as string | undefined,
   } = {}
 ) =>
   ({
     getId: () => id,
+    getRoomId: () => roomId,
     getTs: () => ts,
     getType: () => type,
     getContent: () => content,
@@ -66,6 +69,42 @@ describe('parseThreadForkRef', () => {
       [THREAD_FORK_KEY]: { thread_id: '$p', event_id: '$e' },
     });
     expect(parseThreadForkRef(threadForkContent(ref))).toEqual(ref);
+  });
+
+  it('parses optional room_id (including v12 server-less room IDs) and rejects malformed room_id', () => {
+    expect(
+      parseThreadForkRef({
+        [THREAD_FORK_KEY]: { room_id: '!alpha:example.org', thread_id: '$p', event_id: '$e' },
+      })
+    ).toEqual({ roomId: '!alpha:example.org', threadId: '$p', eventId: '$e' });
+    expect(
+      parseThreadForkRef({
+        [THREAD_FORK_KEY]: { room_id: '!v12opaqueid', thread_id: '$p', event_id: '$e' },
+      })
+    ).toEqual({ roomId: '!v12opaqueid', threadId: '$p', eventId: '$e' });
+    for (const badRoomId of [null, '', 42, '#alias:example.org', 'alpha:example.org', '!bad id']) {
+      expect(
+        parseThreadForkRef({
+          [THREAD_FORK_KEY]: { room_id: badRoomId, thread_id: '$p', event_id: '$e' },
+        })
+      ).toBeUndefined();
+    }
+  });
+
+  it('omits room_id in threadForkContent when undefined or matching targetRoomId, and preserves it in long-text previews', () => {
+    const cross = { roomId: '!alpha:example.org', threadId: '$p', eventId: '$e' };
+    expect(threadForkContent(cross, '!alpha:example.org')).toEqual({
+      [THREAD_FORK_KEY]: { thread_id: '$p', event_id: '$e' },
+    });
+    expect(threadForkContent(cross, '!beta:example.org')).toEqual({
+      [THREAD_FORK_KEY]: { room_id: '!alpha:example.org', thread_id: '$p', event_id: '$e' },
+    });
+    expect(parseThreadForkRef(threadForkContent(cross, '!beta:example.org'))).toEqual(cross);
+    const preview = buildLongTextPreview({
+      body: 'long body',
+      ...threadForkContent(cross, '!beta:example.org'),
+    });
+    expect(parseThreadForkRef(preview)).toEqual(cross);
   });
 
   it('caps the chain at 8 parents', () => {
@@ -141,6 +180,23 @@ describe('forkTargetFor', () => {
     ).toBeUndefined();
     expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { type: 'm.sticker' }))).toBeUndefined();
   });
+  it('preserves roomId from the event unless it matches currentRoomId', () => {
+    const ev = makeEvent('$e', 1, '$p', false, { roomId: '!alpha:example.org' });
+    expect(forkTargetFor(ev)).toEqual({
+      roomId: '!alpha:example.org',
+      threadId: '$p',
+      eventId: '$e',
+    });
+    expect(forkTargetFor(ev, '!beta:example.org')).toEqual({
+      roomId: '!alpha:example.org',
+      threadId: '$p',
+      eventId: '$e',
+    });
+    expect(forkTargetFor(ev, '!alpha:example.org')).toEqual({
+      threadId: '$p',
+      eventId: '$e',
+    });
+  });
 });
 
 describe('latestForkPoint', () => {
@@ -197,18 +253,29 @@ describe('latestForkPoint', () => {
 describe('threadForkDraftId', () => {
   it("keys a fork draft's composer text apart from its thread's", () => {
     expect(threadForkDraftId({ threadId: '$p', eventId: '$e' })).toBe('fork:$p:$e');
+    expect(threadForkDraftId({ roomId: '!alpha:example.org', threadId: '$p', eventId: '$e' })).toBe(
+      'fork:!alpha:example.org:$p:$e'
+    );
   });
 });
 
 describe('keepThreadForkRef', () => {
   const ref = { threadId: '$p', eventId: '$e' };
 
-  it("gives an edit of a fork's root the reference its original carries", () => {
+  it("gives an edit of a fork's root the reference its original carries, including room_id", () => {
     expect(keepThreadForkRef(threadForkContent(ref), { msgtype: 'm.text', body: 'new' })).toEqual({
       msgtype: 'm.text',
       body: 'new',
       ...threadForkContent(ref),
     });
+    const cross = { roomId: '!alpha:example.org', threadId: '$p', eventId: '$e' };
+    expect(keepThreadForkRef(threadForkContent(cross), { msgtype: 'm.text', body: 'new' })).toEqual(
+      {
+        msgtype: 'm.text',
+        body: 'new',
+        ...threadForkContent(cross),
+      }
+    );
   });
 
   it('leaves the edit of any other message as it is', () => {
