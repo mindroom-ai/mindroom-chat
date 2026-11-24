@@ -1,4 +1,3 @@
-import HeicDecodeWorker from './heicDecodeWorker?worker';
 import type { HeicDecodeRequest, HeicWorkerResponse } from './heicDecodeWorker';
 
 const JPEG_QUALITY = 0.92;
@@ -65,7 +64,9 @@ const encodeRgbaOnCanvas = (
 
 const ensureWorker = (): Worker => {
   if (worker) return worker;
-  const instance = new HeicDecodeWorker();
+  const instance = new Worker(new URL('./heicDecodeWorker.ts', import.meta.url), {
+    type: 'module',
+  });
   instance.onmessage = (event: MessageEvent<HeicWorkerResponse>) => {
     const response = event.data;
     const entry = pending.get(response.id);
