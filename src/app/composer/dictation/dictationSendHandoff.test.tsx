@@ -774,16 +774,27 @@ describe('dictationSendHandoff', () => {
     );
     expect(startSendSession).not.toHaveBeenCalled();
 
-    // Home ask wraps mention, passes beforeSend/onLocalEcho, and clears onSendingChange.
+    // Home ask wraps mention, keeps staged attachments (including empty-speech attachment sends), dismisses lost notices, and tracks lifecycle.
     const onSendingChange = vi.fn();
     const onLocalEcho = vi.fn();
+    const dismissLostNotices = vi.fn();
+    const askFile = new File(['pic'], 'note.png', { type: 'image/png' });
+    const askItem: TUploadItem = {
+      file: askFile,
+      originalFile: askFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const { access: askAttachments, getEnrolled: getAskEnrolled } = makeAttachmentAccess([askItem]);
     const sAsk = makeMockSession();
     startSendSession.mockImplementationOnce(async (opts) => {
       expect(opts?.beforeSend?.(room)).toBe(true);
       opts?.onLocalEchoCreated?.('~!room:txn1', room);
     });
-    startDetachedDictationSend(
-      makeStartInput({
+    const askEditor = withInlineElements(createEditor());
+    askEditor.children = makeDoc();
+    handoffComposerDictationSend({
+      ...makeStartInput({
         store,
         room,
         session: sAsk.session,
@@ -795,9 +806,22 @@ describe('dictationSendHandoff', () => {
           onSendingChange,
           onLocalEcho,
         },
+        attachments: askAttachments,
         sessions: { startSendSession, restoreText: vi.fn() },
-      })
-    );
+        dismissLostNotices,
+      }),
+      editor: askEditor,
+      room,
+      roomId: room.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: vi.fn(() => undefined),
+      uploadItem: vi.fn(async () => 'mxc://example.org/note'),
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+    expect(getAskEnrolled()).toEqual([askItem]);
     await act(async () => {
       sAsk.resolveFinish({ status: 'completed', text: 'summarize today' });
       await Promise.resolve();
@@ -805,8 +829,30 @@ describe('dictationSendHandoff', () => {
     expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain(
       '@mindroom_helper:example.org'
     );
+    expect(startSendSession.mock.calls[0]![0]!.batch?.fileItems).toEqual([askItem]);
+    expect(dismissLostNotices).toHaveBeenCalledTimes(1);
     expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', room);
     expect(onSendingChange).toHaveBeenCalledWith(false);
+
+    const sAskFileOnly = makeMockSession();
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sAskFileOnly.session,
+        ownerKey: key,
+        parseCommands: false,
+        stagedSnapshot: [askItem],
+        ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true },
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
+    );
+    await act(async () => {
+      sAskFileOnly.resolveFinish({ status: 'completed', text: '' });
+      await Promise.resolve();
+    });
+    expect(startSendSession.mock.calls[1]![0]!.textContent).toBeUndefined();
+    expect(startSendSession.mock.calls[1]![0]!.batch?.fileItems).toEqual([askItem]);
 
     // Non-collapsed selection replacement off-DOM does not apply pending marks.
     const merged = mergeDictatedDoc(

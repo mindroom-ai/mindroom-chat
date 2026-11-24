@@ -200,7 +200,7 @@ export const handoffComposerDictationSend = (
   const pendingMarks = editor.marks ? { ...editor.marks } : null;
   const savedSelection =
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
-  const { staged, enrolled } = ask ? { staged: [], enrolled: [] } : attachments.snapshot();
+  const { staged, enrolled } = attachments.snapshot();
   const enrolledFiles = new Set(enrolled.map((item) => item.file));
   const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
   const rootModel =
@@ -266,7 +266,7 @@ export const startDetachedDictationSend = (
   };
 
   const getActiveStaged = (): TUploadItem[] => {
-    if (ask || input.stagedSnapshot.length === 0) return [];
+    if (input.stagedSnapshot.length === 0) return [];
     if (!input.tracksEnrollment) return input.stagedSnapshot;
     const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
     return input.stagedSnapshot
@@ -402,7 +402,7 @@ export const startDetachedDictationSend = (
         }
       : undefined;
     const activeStaged = getActiveStaged();
-    if (!textContent && (ask || activeStaged.length === 0)) {
+    if (!textContent && activeStaged.length === 0) {
       restoreDraftAndCleanup(input.docSnapshot);
       deleteJournal();
       const mountedOwner = getMountedOwner(store, ownerKey);
@@ -432,7 +432,7 @@ export const startDetachedDictationSend = (
     }
     removeEntry();
     clearMatchingError();
-    if (textContent && !ask) input.dismissLostNotices?.();
+    if (textContent) input.dismissLostNotices?.();
 
     let textConsumed = false;
     const onTextConsumed = () => {

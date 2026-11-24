@@ -51,6 +51,7 @@ import {
 } from './roomInputAttachmentAccess';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import { buildDiagnosticsExport } from '../diagnostics/diagnosticsExport';
+import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
@@ -74,6 +75,10 @@ type UseRoomInputAttachmentsOptions = {
   isMarkdown: boolean;
   fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
+  /** Moves non-enrolled staged files to the new room when `room` changes. */
+  moveStagedOnRoomChange?: boolean;
+  /** Renders the upload board in normal flow above the composer instead of floating. */
+  inlineUploadBoard?: boolean;
 };
 
 type RoomInputAttachments = {
@@ -141,6 +146,8 @@ export const useRoomInputAttachments = ({
   isMarkdown,
   fileDropContainerRef,
   createUploadItems,
+  moveStagedOnRoomChange = false,
+  inlineUploadBoard = false,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
   // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
@@ -156,8 +163,8 @@ export const useRoomInputAttachments = ({
   const listeners = useRef(new Set<() => void>());
   const notifyQueued = useRef(false);
   const mounted = useRef(true);
-  const current = useRef({ roomId, draftKey, editor });
-  current.current = { roomId, draftKey, editor };
+  const current = useRef({ room, roomId, draftKey, editor });
+  current.current = { room, roomId, draftKey, editor };
 
   const releaseClaims = useCallback(() => {
     if (!mounted.current && enrolled.current.length === 0) claims.delete(enrolled);
@@ -436,6 +443,68 @@ export const useRoomInputAttachments = ({
   const restorePastesRef = useRef(restorePastes);
   restorePastesRef.current = restorePastes;
 
+  // On Home, switching rooms carries non-enrolled staged files along, re-preparing when encryption differs.
+  const prevRoomRef = useRef(room);
+  useEffect(() => {
+    const prevRoom = prevRoomRef.current;
+    prevRoomRef.current = room;
+    if (!moveStagedOnRoomChange || prevRoom.roomId === room.roomId) return;
+    const prevAtom = composerUploadItemsAtom(prevRoom.roomId, view);
+    const enrolledFiles = new Set(enrolled.current.map((item) => item.file));
+    const movable = store.get(prevAtom).filter((item) => !enrolledFiles.has(item.file));
+    if (movable.length === 0) return;
+
+    if (prevRoom.hasEncryptionStateEvent() === room.hasEncryptionStateEvent()) {
+      store.set(prevAtom, { type: 'DELETE', item: movable });
+      store.set(composerUploadItemsAtom(room.roomId, view), { type: 'PUT', item: movable });
+      keepNames(prevRoom.roomId);
+      keepNames(room.roomId);
+      watchedRooms.current.add(room.roomId);
+      syncUploadWatches();
+      notify();
+      return;
+    }
+
+    const entries = movable.map((item) => ({
+      item,
+      hasOwner: owners.current.has(item.file),
+      owner: owners.current.get(item.file),
+    }));
+    access.remove(
+      prevRoom.roomId,
+      movable.map((item) => item.file)
+    );
+    const reprepare = async (targetRoom: Room): Promise<void> => {
+      const prepared = await createRoomUploadItems(
+        entries.map(({ item }) => item.originalFile),
+        targetRoom,
+        (_file, index) => entries[index]!.item.metadata
+      );
+      if (!mounted.current) return;
+      const latest = current.current.room;
+      if (latest.hasEncryptionStateEvent() !== targetRoom.hasEncryptionStateEvent()) {
+        return reprepare(latest);
+      }
+      prepared.forEach((item, index) => {
+        if (entries[index]!.hasOwner) owners.current.set(item.file, entries[index]!.owner);
+        if (
+          !item.prepError &&
+          store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Error
+        ) {
+          store.set(roomUploadAtomFamily(item.file), { status: UploadStatus.Idle });
+        }
+      });
+      access.append(latest.roomId, prepared);
+    };
+    const pending = reprepare(room).catch(() => undefined);
+    pasteRestores.current = pasteRestores.current
+      .then(() => pending)
+      .then(
+        () => true,
+        () => true
+      );
+  }, [access, keepNames, moveStagedOnRoomChange, notify, room, store, syncUploadWatches, view]);
+
   // The draft this composer shows now, restored from storage after a reload above all.
   useEffect(() => {
     setLostPastes(false);
@@ -665,6 +734,7 @@ export const useRoomInputAttachments = ({
   const board =
     visibleItems.length > 0 ? (
       <UploadBoard
+        inline={inlineUploadBoard}
         header={
           <UploadBoardHeader
             open={boardOpen}

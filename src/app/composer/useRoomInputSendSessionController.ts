@@ -608,7 +608,9 @@ export const useRoomInputSendSessionController = ({
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
-        session.onLocalEchoCreated?.(localEventId, session.room);
+        if (!relation && session.sentFiles.size === 0) {
+          session.onLocalEchoCreated?.(localEventId, session.room);
+        }
         notifyRoomMessageSent(localEventId);
       }
 

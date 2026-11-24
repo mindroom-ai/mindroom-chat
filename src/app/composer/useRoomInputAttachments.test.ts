@@ -6,11 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
 import { resetEditor } from '../editor/utils';
 import {
+  composerUploadItemsAtom,
   roomUploadAtomFamily,
   getRoomInputDraftKey,
   clearRoomInputDrafts,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversationView';
+import * as uploadPreparation from '../matrix/send/roomInputUploadPreparation';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
@@ -75,21 +78,29 @@ afterEach(() => {
   });
 });
 
+const makeTestRoom = (roomId: string, encrypted = false) =>
+  ({ roomId, name: roomId, hasEncryptionStateEvent: () => encrypted }) as Room;
+
 const renderHarness = (
-  prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => []
+  prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
+  options?: { moveStagedOnRoomChange?: boolean; view?: string; draftKey?: string }
 ) => {
   const store = createStore();
   const editor = createEditor();
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
   const mx = { cancelUpload: vi.fn() };
-  const room = {
-    roomId: ROOM_ID,
-    name: 'Attachments',
-    hasEncryptionStateEvent: () => false,
-  } as Room;
+  const initialRoom = makeTestRoom(ROOM_ID);
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   let saveDraft!: () => void;
-  const Harness = ({ threadId, roomId = ROOM_ID }: { threadId?: string; roomId?: string }) => {
+  const Harness = ({
+    threadId,
+    roomId = ROOM_ID,
+    room = initialRoom,
+  }: {
+    threadId?: string;
+    roomId?: string;
+    room?: Room;
+  }) => {
     saveDraft = useRoomInputDraft(
       editor,
       getRoomInputDraftKey('@tester:example.org', roomId, threadId)
@@ -99,19 +110,32 @@ const renderHarness = (
       userId: '@tester:example.org',
       room,
       roomId,
-      draftKey: threadId
-        ? getRoomInputDraftKey('@tester:example.org', roomId, threadId)
-        : undefined,
+      draftKey:
+        options?.draftKey ??
+        (threadId ? getRoomInputDraftKey('@tester:example.org', roomId, threadId) : undefined),
       editor,
       isMarkdown: true,
       fileDropContainerRef: createRef<HTMLElement>(),
       createUploadItems: prepare,
+      moveStagedOnRoomChange: options?.moveStagedOnRoomChange,
     });
     return feature.board;
   };
+  const wrap = (props: { threadId?: string; roomId?: string; room?: Room } = {}) =>
+    React.createElement(
+      Provider,
+      { store },
+      options?.view !== undefined
+        ? React.createElement(
+            ConversationViewContext.Provider,
+            { value: options.view },
+            React.createElement(Harness, props)
+          )
+        : React.createElement(Harness, props)
+    );
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(React.createElement(Provider, { store }, React.createElement(Harness)));
+    renderer = create(wrap());
   });
   renderers.push(renderer);
   return {
@@ -122,20 +146,9 @@ const renderHarness = (
     editor,
     renderer,
     mx,
-    changeThread: (threadId: string) => {
-      act(() =>
-        renderer.update(
-          React.createElement(Provider, { store }, React.createElement(Harness, { threadId }))
-        )
-      );
-    },
-    changeRoom: (roomId: string) => {
-      act(() =>
-        renderer.update(
-          React.createElement(Provider, { store }, React.createElement(Harness, { roomId }))
-        )
-      );
-    },
+    changeThread: (threadId: string) => act(() => renderer.update(wrap({ threadId }))),
+    changeRoom: (roomId: string, room?: Room) =>
+      act(() => renderer.update(wrap({ roomId, room: room ?? initialRoom }))),
     onEditorChange: () => {
       saveDraft();
       feature.onEditorChange();
@@ -586,5 +599,82 @@ describe('attachment staging ownership', () => {
 
     act(() => harness.store.set(roomUploadAtomFamily(item.file), { mxc: 'mxc://example.org/ok' }));
     expect(harness.feature.hasSendableFiles).toBe(true);
+  });
+
+  it('moves non-enrolled staged files on room switch, re-prepares across encryption, and handles rapid async switches', async () => {
+    const harness = renderHarness(undefined, {
+      moveStagedOnRoomChange: true,
+      view: HOME_ASK_VIEW,
+      draftKey: 'home-draft',
+    });
+    const plainB = makeTestRoom('!plain-b:example.org', false);
+    const encC = makeTestRoom('!enc-c:example.org', true);
+    const plainD = makeTestRoom('!plain-d:example.org', false);
+    const enrolledItem = createUploadItem('sending.txt');
+    const stagedPaste = createPasteItem();
+    const inflight = new Promise<{ content_uri: string }>(() => undefined);
+
+    act(() => {
+      harness.feature.access.append(ROOM_ID, [enrolledItem, stagedPaste]);
+      harness.feature.access.enroll([enrolledItem]);
+      harness.store.set(roomUploadAtomFamily(stagedPaste.file), { promise: inflight });
+    });
+
+    // Same encryption: moves non-enrolled file (keeping upload state & owner) and leaves enrolled untouched.
+    harness.changeRoom(plainB.roomId, plainB);
+    expect(harness.store.get(composerUploadItemsAtom(ROOM_ID, HOME_ASK_VIEW))).toEqual([
+      enrolledItem,
+    ]);
+    expect(harness.feature.access.snapshot().staged).toEqual([stagedPaste]);
+    expect(harness.store.get(roomUploadAtomFamily(stagedPaste.file)).status).toBe(
+      UploadStatus.Loading
+    );
+    expect(harness.mx.cancelUpload).not.toHaveBeenCalled();
+
+    // Cross encryption + rapid switch (plainB -> encC -> plainD before encC prep resolves).
+    let resolveEnc!: (items: TUploadItem[]) => void;
+    const prepSpy = vi
+      .spyOn(uploadPreparation, 'createRoomUploadItems')
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveEnc = resolve)))
+      .mockImplementationOnce(async (files, targetRoom, getMetadata) =>
+        files.map((file, i) => ({
+          file,
+          originalFile: file,
+          encInfo: targetRoom.hasEncryptionStateEvent() ? ({ v: 'v2' } as never) : undefined,
+          metadata: getMetadata?.(file, i) ?? { markedAsSpoiler: false },
+        }))
+      );
+    try {
+      harness.changeRoom(encC.roomId, encC);
+      expect(harness.mx.cancelUpload).toHaveBeenCalledWith(inflight);
+      expect(harness.store.get(composerUploadItemsAtom(plainB.roomId, HOME_ASK_VIEW))).toEqual([]);
+
+      harness.changeRoom(plainD.roomId, plainD);
+      await act(async () => {
+        resolveEnc([
+          {
+            file: new File(['cipher'], stagedPaste.originalFile.name),
+            originalFile: stagedPaste.originalFile,
+            encInfo: { v: 'v2' } as never,
+            metadata: stagedPaste.metadata,
+          },
+        ]);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(prepSpy).toHaveBeenCalledTimes(2);
+      expect(harness.store.get(composerUploadItemsAtom(encC.roomId, HOME_ASK_VIEW))).toEqual([]);
+      const finalItems = harness.store.get(composerUploadItemsAtom(plainD.roomId, HOME_ASK_VIEW));
+      expect(finalItems).toHaveLength(1);
+      expect(finalItems[0]).toMatchObject({
+        originalFile: stagedPaste.originalFile,
+        encInfo: undefined,
+        metadata: stagedPaste.metadata,
+      });
+      expect(harness.feature.access.snapshot().staged).toEqual(finalItems);
+    } finally {
+      prepSpy.mockRestore();
+    }
   });
 });

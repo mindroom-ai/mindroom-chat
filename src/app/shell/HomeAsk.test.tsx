@@ -15,11 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoomInput } from '../composer/RoomInput';
 import {
   clearRoomInputDrafts,
+  composerUploadItemsAtom,
   getHomeAskDraftKey,
   homeAskDestinationAtomFamily,
   homeAskPendingAtomFamily,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
+import { HOME_ASK_VIEW } from '../navigation/conversationView';
+import { ROOM_THREAD_MODE_EVENT } from '../matrix/protocol/roomThreadMode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { HomeAsk } from './HomeAsk';
 import { startDirectChat, type HomeAgent } from './homeAgents';
@@ -31,13 +34,7 @@ const ECHO_ID = '~!eng:txn-1';
 
 const { lastRoomInputProps, navigateRoom, navigateRoomThreadDirect } = vi.hoisted(() => ({
   lastRoomInputProps: {
-    current: undefined as
-      | {
-          roomId: string;
-          onRoomMessageSent?: (eventId: string) => boolean | void;
-          ask?: ComponentProps<typeof RoomInput>['ask'];
-        }
-      | undefined,
+    current: undefined as Partial<ComponentProps<typeof RoomInput>> | undefined,
   },
   navigateRoom: vi.fn(),
   navigateRoomThreadDirect: vi.fn(),
@@ -54,11 +51,7 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom, navigateRoomThreadDirect }),
 }));
 vi.mock('../composer/RoomInput', () => ({
-  RoomInput: (props: {
-    roomId: string;
-    onRoomMessageSent?: (eventId: string) => boolean | void;
-    ask?: ComponentProps<typeof RoomInput>['ask'];
-  }) => {
+  RoomInput: (props: ComponentProps<typeof RoomInput>) => {
     lastRoomInputProps.current = props;
     return (
       <div data-testid="room-input" data-room-id={props.roomId}>
@@ -100,6 +93,7 @@ type FakeRoom = Room & {
   joined: number;
   echoes: Map<string, MatrixEvent>;
   alias: string | null;
+  threadMode?: 'room' | 'thread';
 };
 
 const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joined = 3) => {
@@ -111,6 +105,7 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     joined,
     echoes: new Map<string, MatrixEvent>(),
     alias: null as string | null,
+    threadMode: undefined as 'room' | 'thread' | undefined,
     getCanonicalAlias: () => room.alias,
     findEventById: (eventId: string) => room.echoes.get(eventId),
     getMyMembership: () => 'join',
@@ -123,7 +118,12 @@ const makeRoom = (roomId: string, name: string, joinedAgents: string[] = [], joi
     getInvitedMemberCount: () => 0,
     membersLoaded: () => true,
     currentState: {
-      getStateEvents: (_type: string, stateKey?: string) => (stateKey === undefined ? [] : null),
+      getStateEvents: (type: string, stateKey?: string) =>
+        type === ROOM_THREAD_MODE_EVENT && stateKey === '' && room.threadMode
+          ? { getContent: () => ({ mode: room.threadMode }) }
+          : stateKey === undefined
+            ? []
+            : null,
     },
     getLiveTimeline: () => ({
       getEvents: () => [],
@@ -163,12 +163,13 @@ const quillAgent: HomeAgent = {
 const renderAsk = (
   mx: ReturnType<typeof makeClient>,
   agents: HomeAgent[],
-  store = createStore()
+  store = createStore(),
+  fileDropContainerRef?: ComponentProps<typeof HomeAsk>['fileDropContainerRef']
 ) => {
   vi.mocked(useMatrixClient).mockReturnValue(mx as unknown as MatrixClient);
   const tree = (shown: HomeAgent[]) => (
     <Provider store={store}>
-      <HomeAsk agents={shown} />
+      <HomeAsk agents={shown} fileDropContainerRef={fileDropContainerRef} />
     </Provider>
   );
   const view = render(tree(agents));
@@ -493,5 +494,53 @@ describe('HomeAsk', () => {
     fireEvent.click(screen.getAllByRole('menuitemradio')[0]!);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Helper answers' }));
     expect(screen.queryByTestId('room-input')).toBeNull();
+  });
+
+  it('wires drop zone ref, room thread mode, onRoomMessageSent handoff, and freezes/restores destination on staged files', () => {
+    const eng = makeRoom('!eng', 'Engineering', [HELPER]);
+    const lobby = makeRoom('!lobby', 'Lobby', [HELPER]);
+    lobby.threadMode = 'room';
+    const mx = makeClient([eng, lobby]);
+    const store = createStore();
+
+    const first = renderAsk(mx, [helperAgent, quillAgent], store);
+    expect(lastRoomInputProps.current?.fileDropContainerRef?.current).toBeInstanceOf(HTMLElement);
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(true);
+    expect(lastRoomInputProps.current?.onRoomMessageSent?.(ECHO_ID)).toBe(false);
+    expect(lastRoomInputProps.current?.onRoomMessageSent?.('$root-1')).toBe(true);
+    expect(navigateRoomThreadDirect).toHaveBeenCalledWith('!eng', '$root-1');
+
+    // Staged file without typed text freezes destination against ranking updates.
+    const file = new File(['pic'], 'note.png', { type: 'image/png' });
+    const item = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    act(() =>
+      store.set(composerUploadItemsAtom('!eng', HOME_ASK_VIEW), { type: 'PUT', item: [item] })
+    );
+    first.refresh([{ ...quillAgent, lastUsedTs: 999 }, helperAgent]);
+    expect(lastRoomInputProps.current?.roomId).toBe('!eng');
+
+    // Room-mode room disables threading and returns false from onRoomMessageSent.
+    fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Lobby/ }));
+    expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
+    expect(lastRoomInputProps.current?.onRoomMessageSent?.('$room-msg')).toBe(false);
+    expect(navigateRoom).toHaveBeenCalledWith('!lobby', '$room-msg');
+
+    // Remount with staged file in Lobby (no typed text) restores Lobby and forwards caller drop ref.
+    act(() => {
+      store.set(composerUploadItemsAtom('!eng', HOME_ASK_VIEW), { type: 'RESET' });
+      store.set(composerUploadItemsAtom('!lobby', HOME_ASK_VIEW), { type: 'PUT', item: [item] });
+    });
+    first.unmount();
+    const outerRef = { current: document.createElement('div') };
+    const restored = renderAsk(mx, [helperAgent, quillAgent], store, outerRef);
+    expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
+    expect(lastRoomInputProps.current?.fileDropContainerRef).toBe(outerRef);
+    restored.unmount();
   });
 });
