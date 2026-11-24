@@ -724,7 +724,18 @@
       "manage": "Gerir"
     },
     "roomOrder": {
-      "sortByName": "Ordenar salas de A a Z"
+      "sortRooms": "Ordenar salas",
+      "sortHeading": "Ordenar salas",
+      "displayHeading": "Exibição",
+      "recentActivity": "Atividade recente",
+      "aToZ": "De A a Z",
+      "customOrder": "Ordem personalizada",
+      "saved": "Salvo",
+      "showActivityTimes": "Mostrar horários de atividade",
+      "matchSpace": "Igual ao espaço ({{mode}})",
+      "shortRecent": "Recente",
+      "shortName": "A a Z",
+      "shortManual": "Pers."
     },
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",

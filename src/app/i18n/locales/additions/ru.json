@@ -741,7 +741,18 @@
       "manage": "Управлять"
     },
     "roomOrder": {
-      "sortByName": "Сортировать комнаты от А до Я"
+      "sortRooms": "Сортировка комнат",
+      "sortHeading": "Сортировка комнат",
+      "displayHeading": "Отображение",
+      "recentActivity": "Недавняя активность",
+      "aToZ": "От А до Я",
+      "customOrder": "Свой порядок",
+      "saved": "Сохранено",
+      "showActivityTimes": "Показывать время активности",
+      "matchSpace": "Как в пространстве ({{mode}})",
+      "shortRecent": "Недавние",
+      "shortName": "А–Я",
+      "shortManual": "Свой"
     },
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",

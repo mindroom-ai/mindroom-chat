@@ -707,7 +707,18 @@
       "manage": "Manage"
     },
     "roomOrder": {
-      "sortByName": "Sort Rooms A to Z"
+      "sortRooms": "Sort rooms",
+      "sortHeading": "Sort rooms",
+      "displayHeading": "Display",
+      "recentActivity": "Recent activity",
+      "aToZ": "A to Z",
+      "customOrder": "Custom order",
+      "saved": "Saved",
+      "showActivityTimes": "Show activity times",
+      "matchSpace": "Match space ({{mode}})",
+      "shortRecent": "Recent",
+      "shortName": "A to Z",
+      "shortManual": "Custom"
     },
     "roomActions": {
       "noInvitePermission": "You don't have permission to invite",

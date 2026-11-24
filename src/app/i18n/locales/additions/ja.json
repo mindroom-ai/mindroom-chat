@@ -690,7 +690,18 @@
       "manage": "管理"
     },
     "roomOrder": {
-      "sortByName": "ルームを A から Z の順に並べる"
+      "sortRooms": "ルームを並べ替え",
+      "sortHeading": "ルームを並べ替え",
+      "displayHeading": "表示",
+      "recentActivity": "最近のアクティビティ",
+      "aToZ": "A から Z",
+      "customOrder": "カスタム順",
+      "saved": "保存済み",
+      "showActivityTimes": "最終更新時刻を表示",
+      "matchSpace": "スペースに合わせる ({{mode}})",
+      "shortRecent": "最近",
+      "shortName": "A–Z",
+      "shortManual": "カスタム"
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",

@@ -690,7 +690,18 @@
       "manage": "Kelola"
     },
     "roomOrder": {
-      "sortByName": "Urutkan ruang dari A ke Z"
+      "sortRooms": "Urutkan ruang",
+      "sortHeading": "Urutkan ruang",
+      "displayHeading": "Tampilan",
+      "recentActivity": "Aktivitas terbaru",
+      "aToZ": "A ke Z",
+      "customOrder": "Urutan kustom",
+      "saved": "Tersimpan",
+      "showActivityTimes": "Tampilkan waktu aktivitas",
+      "matchSpace": "Ikuti space ({{mode}})",
+      "shortRecent": "Terbaru",
+      "shortName": "A ke Z",
+      "shortManual": "Kustom"
     },
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",

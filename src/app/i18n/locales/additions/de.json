@@ -707,7 +707,18 @@
       "manage": "Verwalten"
     },
     "roomOrder": {
-      "sortByName": "Räume von A bis Z sortieren"
+      "sortRooms": "Räume sortieren",
+      "sortHeading": "Räume sortieren",
+      "displayHeading": "Anzeige",
+      "recentActivity": "Letzte Aktivität",
+      "aToZ": "A bis Z",
+      "customOrder": "Eigene Reihenfolge",
+      "saved": "Gespeichert",
+      "showActivityTimes": "Aktivitätszeiten anzeigen",
+      "matchSpace": "Wie Space ({{mode}})",
+      "shortRecent": "Aktiv",
+      "shortName": "A bis Z",
+      "shortManual": "Eigene"
     },
     "roomActions": {
       "noInvitePermission": "Du hast keine Berechtigung zum Einladen",

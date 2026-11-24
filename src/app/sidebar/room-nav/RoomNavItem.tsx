@@ -23,6 +23,7 @@ import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useInCall } from '../../calls/callStore';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
+import { RoomActivityTime } from './RoomActivityTime';
 import type { RoomActionDialog } from '../../room/roomActions';
 
 const AVATAR_SIZE = 96;
@@ -46,6 +47,8 @@ type RoomNavItemProps = {
   dragging: boolean;
   /** The row sits under the room it is a sub-room of: its hash is framed. */
   subRoom: boolean;
+  /** Compact relative activity timestamp shown on quiet rows when activity times are enabled. */
+  activityTimestamp: number;
 }>;
 
 /**
@@ -381,6 +384,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
     spaceId,
     removeFromSpaceId,
     dragging,
+    activityTimestamp,
   } = props;
   const subRoom = Boolean(props.subRoom);
   const { t } = useTranslation();
@@ -409,6 +413,8 @@ export function RoomNavItem(props: RoomNavItemProps) {
         style={{ opacity: config.opacity.P300 }}
       />
     );
+  } else if (!showOptions && activityTimestamp) {
+    status = <RoomActivityTime timestamp={activityTimestamp} />;
   }
 
   // A long press opens the menu at the row, below or above it; touches inside the menu, which
