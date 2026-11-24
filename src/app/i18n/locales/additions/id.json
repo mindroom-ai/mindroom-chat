@@ -513,7 +513,7 @@
         "checkForUpdates": "Periksa pembaruan",
         "checkingForUpdates": "Memeriksa pembaruan…",
         "upToDate": "MindRoom sudah menggunakan versi terbaru.",
-        "updateDownloading": "Pembaruan sedang diunduh di latar belakang. Anda dapat memulai ulang setelah siap.",
+        "updateAvailable": "Pembaruan tersedia. Anda dapat memulai ulang di sini setelah siap.",
         "updateCheckFailed": "Tidak dapat memeriksa pembaruan saat ini. Coba lagi.",
         "updateReady": "Versi {{version}} siap dipasang.",
         "restartToUpdate": "Mulai ulang untuk memperbarui",

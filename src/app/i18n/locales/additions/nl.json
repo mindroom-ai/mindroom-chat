@@ -526,7 +526,7 @@
         "checkForUpdates": "Controleren op updates",
         "checkingForUpdates": "Controleren op updates…",
         "upToDate": "MindRoom is up-to-date.",
-        "updateDownloading": "Er wordt op de achtergrond een update gedownload. Je kunt opnieuw opstarten zodra deze klaar is.",
+        "updateAvailable": "Er is een update beschikbaar. Zodra deze klaar is, kun je hier opnieuw opstarten.",
         "updateCheckFailed": "Kan nu niet controleren op updates. Probeer het opnieuw.",
         "updateReady": "Versie {{version}} staat klaar om te installeren.",
         "restartToUpdate": "Opnieuw opstarten om bij te werken",

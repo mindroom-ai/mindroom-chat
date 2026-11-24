@@ -526,7 +526,7 @@
         "checkForUpdates": "Check for updates",
         "checkingForUpdates": "Checking for updates…",
         "upToDate": "MindRoom is up to date.",
-        "updateDownloading": "An update is downloading in the background. You can restart once it is ready.",
+        "updateAvailable": "An update is available. You can restart here once it's ready.",
         "updateCheckFailed": "Couldn't check for updates right now. Try again.",
         "updateReady": "Version {{version}} is ready to install.",
         "restartToUpdate": "Restart to update",

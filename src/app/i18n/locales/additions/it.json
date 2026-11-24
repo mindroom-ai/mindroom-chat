@@ -539,7 +539,7 @@
         "checkForUpdates": "Verifica aggiornamenti",
         "checkingForUpdates": "Verifica degli aggiornamenti…",
         "upToDate": "MindRoom è aggiornato.",
-        "updateDownloading": "È in corso il download di un aggiornamento in background. Potrai riavviare non appena sarà pronto.",
+        "updateAvailable": "È disponibile un aggiornamento. Potrai riavviare qui non appena sarà pronto.",
         "updateCheckFailed": "Impossibile verificare gli aggiornamenti in questo momento. Riprova.",
         "updateReady": "La versione {{version}} è pronta per l’installazione.",
         "restartToUpdate": "Riavvia per aggiornare",

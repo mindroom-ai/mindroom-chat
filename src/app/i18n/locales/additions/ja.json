@@ -513,7 +513,7 @@
         "checkForUpdates": "アップデートを確認",
         "checkingForUpdates": "アップデートを確認しています…",
         "upToDate": "MindRoom は最新です。",
-        "updateDownloading": "バックグラウンドでアップデートをダウンロードしています。準備ができたら再起動できます。",
+        "updateAvailable": "アップデートがあります。準備ができたらここから再起動できます。",
         "updateCheckFailed": "現在アップデートを確認できませんでした。もう一度試してください。",
         "updateReady": "バージョン {{version}} をインストールする準備ができました。",
         "restartToUpdate": "再起動してアップデート",

@@ -513,7 +513,7 @@
         "checkForUpdates": "檢查更新",
         "checkingForUpdates": "正在檢查更新…",
         "upToDate": "MindRoom 已是最新版本。",
-        "updateDownloading": "正在背景下載更新。準備就緒後即可重新啟動安裝。",
+        "updateAvailable": "有可用更新。準備就緒後可在此處重新啟動。",
         "updateCheckFailed": "目前無法檢查更新，請再試一次。",
         "updateReady": "版本 {{version}} 已準備好安裝。",
         "restartToUpdate": "重新啟動以更新",

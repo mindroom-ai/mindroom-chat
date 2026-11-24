@@ -107,13 +107,18 @@ vi.mock('../../ui/SettingTile', () => ({
   }: {
     focusId?: string;
     title: string;
-    description: string;
+    description: React.ReactNode;
     after?: React.ReactNode;
     children?: React.ReactNode;
   }) =>
     React.createElement(
       'section',
-      { 'data-setting-id': focusId, 'data-setting-title': title, 'data-description': description },
+      {
+        'data-setting-id': focusId,
+        'data-setting-title': title,
+        'data-description': typeof description === 'string' ? description : undefined,
+      },
+      React.createElement('div', { 'data-slot': 'description' }, description),
       React.createElement('div', { 'data-slot': 'after' }, after),
       React.createElement('div', { 'data-slot': 'under' }, children)
     ),
@@ -890,6 +895,12 @@ describe('About app updates', () => {
   const updateTile = (renderer: ReactTestRenderer): ReactTestInstance =>
     renderer.root.findByProps({ 'data-setting-id': 'appUpdates' });
 
+  const updateStatus = (renderer: ReactTestRenderer): ReactTestInstance =>
+    updateTile(renderer).findByProps({ role: 'status' });
+
+  const statusText = (renderer: ReactTestRenderer): string =>
+    updateStatus(renderer).children.join('');
+
   const updateButton = (renderer: ReactTestRenderer): ReactTestInstance =>
     updateTile(renderer).findByType('button');
 
@@ -916,7 +927,7 @@ describe('About app updates', () => {
     renderer.unmount();
   });
 
-  it('checks for updates, guards re-entrancy, and reflects none, found, and error outcomes', async () => {
+  it('checks for updates inside a status region and reflects none, found, and error outcomes', async () => {
     mocks.isNativeUpdateAvailable.mockReturnValue(true);
     let resolveCheck!: (result: { outcome: 'none' | 'found' | 'error'; version?: string }) => void;
     mocks.checkNativeUpdate.mockImplementationOnce(
@@ -927,44 +938,37 @@ describe('About app updates', () => {
     );
 
     const renderer = create(<About requestClose={vi.fn()} />);
-    expect(updateTile(renderer).props).toMatchObject({
-      'data-setting-title': 'App updates',
-      'data-description': 'Updates download automatically in the background.',
-    });
+    expect(updateTile(renderer).props['data-setting-title']).toBe('App updates');
+    expect(updateStatus(renderer).props.role).toBe('status');
+    expect(statusText(renderer)).toBe('Updates download automatically in the background.');
     expect(labelOf(updateButton(renderer))).toBe('Check for updates');
 
     act(() => {
       updateButton(renderer).props.onClick();
     });
-    expect(updateTile(renderer).props['data-description']).toBe('Checking for updates…');
+    expect(statusText(renderer)).toBe('Checking for updates…');
     expect(updateButton(renderer).props.disabled).toBe(true);
-
-    act(() => {
-      updateButton(renderer).props.onClick();
-    });
     expect(mocks.checkNativeUpdate).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveCheck({ outcome: 'none' });
     });
-    expect(updateTile(renderer).props['data-description']).toBe('MindRoom is up to date.');
+    expect(statusText(renderer)).toBe('MindRoom is up to date.');
     expect(updateButton(renderer).props.disabled).toBe(false);
 
     mocks.checkNativeUpdate.mockResolvedValueOnce({ outcome: 'found' });
     await act(async () => {
       updateButton(renderer).props.onClick();
     });
-    expect(updateTile(renderer).props['data-description']).toBe(
-      'An update is downloading in the background. You can restart once it is ready.'
+    expect(statusText(renderer)).toBe(
+      "An update is available. You can restart here once it's ready."
     );
 
     mocks.checkNativeUpdate.mockResolvedValueOnce({ outcome: 'error' });
     await act(async () => {
       updateButton(renderer).props.onClick();
     });
-    expect(updateTile(renderer).props['data-description']).toBe(
-      "Couldn't check for updates right now. Try again."
-    );
+    expect(statusText(renderer)).toBe("Couldn't check for updates right now. Try again.");
     renderer.unmount();
   });
 
@@ -980,9 +984,7 @@ describe('About app updates', () => {
     );
 
     const renderer = create(<About requestClose={vi.fn()} />);
-    expect(updateTile(renderer).props['data-description']).toBe(
-      'Version 2026.11.20 is ready to install.'
-    );
+    expect(statusText(renderer)).toBe('Version 2026.11.20 is ready to install.');
     expect(labelOf(updateButton(renderer))).toBe('Restart to update');
 
     act(() => {
@@ -997,14 +999,10 @@ describe('About app updates', () => {
     });
     expect(updateButton(renderer).props.disabled).toBe(false);
     expect(labelOf(updateButton(renderer))).toBe('Restart to update');
-    expect(updateTile(renderer).props['data-description']).toBe(
-      "Couldn't restart to install the update. Try again."
-    );
+    expect(statusText(renderer)).toBe("Couldn't restart to install the update. Try again.");
 
     act(() => setReady(undefined));
-    expect(updateTile(renderer).props['data-description']).toBe(
-      'Updates download automatically in the background.'
-    );
+    expect(statusText(renderer)).toBe('Updates download automatically in the background.');
     expect(labelOf(updateButton(renderer))).toBe('Check for updates');
     renderer.unmount();
   });

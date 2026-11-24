@@ -312,58 +312,37 @@ function TourSetting({ onStart }: { onStart: () => void }) {
 function AppUpdateSetting() {
   const { t } = useTranslation();
   const readyVersion = useSyncExternalStore(subscribeToNewVersion, getReadyVersion);
+  const [trackedVersion, setTrackedVersion] = useState(readyVersion);
   const [checking, setChecking] = useState(false);
   const [checkOutcome, setCheckOutcome] = useState<DesktopUpdateCheckOutcome>();
-  const [restarting, setRestarting] = useState(false);
-  const [installFailed, setInstallFailed] = useState(false);
-  const checkingRef = useRef(false);
-  const mountedRef = useRef(true);
-  const prevReadyVersionRef = useRef(readyVersion);
+  const [installState, setInstallState] = useState<'idle' | 'restarting' | 'failed'>('idle');
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (prevReadyVersionRef.current === readyVersion) return;
-    prevReadyVersionRef.current = readyVersion;
-    setInstallFailed(false);
-    setRestarting(false);
+  if (trackedVersion !== readyVersion) {
+    setTrackedVersion(readyVersion);
     setCheckOutcome(undefined);
-  }, [readyVersion]);
+    setInstallState('idle');
+  }
 
   const handleCheck = async () => {
-    if (checkingRef.current) return;
-    checkingRef.current = true;
     setChecking(true);
     setCheckOutcome(undefined);
     try {
       const result = await checkNativeUpdate();
-      if (mountedRef.current) setCheckOutcome(result.outcome);
+      setCheckOutcome(result.version ? undefined : result.outcome);
     } finally {
-      checkingRef.current = false;
-      if (mountedRef.current) setChecking(false);
+      setChecking(false);
     }
   };
 
   const handleRestart = () => {
-    if (restarting) return;
-    setRestarting(true);
-    setInstallFailed(false);
-    void reloadForNewVersion().catch(() => {
-      if (mountedRef.current) {
-        setRestarting(false);
-        setInstallFailed(true);
-      }
-    });
+    setInstallState('restarting');
+    void reloadForNewVersion().catch(() => setInstallState('failed'));
   };
 
+  const restarting = installState === 'restarting';
   const description =
     readyVersion !== undefined
-      ? installFailed
+      ? installState === 'failed'
         ? t('featureUi.settings.about.updateInstallFailed')
         : t('featureUi.settings.about.updateReady', { version: readyVersion })
       : checking
@@ -371,7 +350,7 @@ function AppUpdateSetting() {
       : checkOutcome === 'none'
       ? t('featureUi.settings.about.upToDate')
       : checkOutcome === 'found'
-      ? t('featureUi.settings.about.updateDownloading')
+      ? t('featureUi.settings.about.updateAvailable')
       : checkOutcome === 'error'
       ? t('featureUi.settings.about.updateCheckFailed')
       : t('featureUi.settings.about.updatesDescription');
@@ -380,7 +359,7 @@ function AppUpdateSetting() {
     <SettingTile
       focusId="appUpdates"
       title={t('featureUi.settings.about.updatesTitle')}
-      description={description}
+      description={<span role="status">{description}</span>}
       after={
         readyVersion !== undefined ? (
           <Button

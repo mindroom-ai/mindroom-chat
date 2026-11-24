@@ -526,7 +526,7 @@
         "checkForUpdates": "Nach Updates suchen",
         "checkingForUpdates": "Suche nach Updates…",
         "upToDate": "MindRoom ist auf dem neuesten Stand.",
-        "updateDownloading": "Ein Update wird im Hintergrund heruntergeladen. Du kannst neu starten, sobald es bereit ist.",
+        "updateAvailable": "Ein Update ist verfügbar. Sobald es bereit ist, kannst du hier neu starten.",
         "updateCheckFailed": "Derzeit konnte nicht nach Updates gesucht werden. Versuche es erneut.",
         "updateReady": "Version {{version}} kann installiert werden.",
         "restartToUpdate": "Zum Aktualisieren neu starten",

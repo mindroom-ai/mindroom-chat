@@ -539,7 +539,7 @@
         "checkForUpdates": "Procurar atualizações",
         "checkingForUpdates": "A procurar atualizações…",
         "upToDate": "O MindRoom está atualizado.",
-        "updateDownloading": "Uma atualização está a ser transferida em segundo plano. Pode reiniciar assim que estiver pronta.",
+        "updateAvailable": "Está disponível uma atualização. Pode reiniciar aqui assim que estiver pronta.",
         "updateCheckFailed": "Não foi possível procurar atualizações agora. Tente novamente.",
         "updateReady": "A versão {{version}} está pronta para instalar.",
         "restartToUpdate": "Reiniciar para atualizar",

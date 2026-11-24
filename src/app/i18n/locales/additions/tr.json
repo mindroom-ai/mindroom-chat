@@ -526,7 +526,7 @@
         "checkForUpdates": "Güncellemeleri denetle",
         "checkingForUpdates": "Güncellemeler denetleniyor…",
         "upToDate": "MindRoom güncel.",
-        "updateDownloading": "Arka planda bir güncelleme indiriliyor. Hazır olduğunda yeniden başlatabilirsiniz.",
+        "updateAvailable": "Bir güncelleme mevcut. Hazır olduğunda buradan yeniden başlatabilirsiniz.",
         "updateCheckFailed": "Şu anda güncellemeler denetlenemedi. Tekrar deneyin.",
         "updateReady": "{{version}} sürümü yüklenmeye hazır.",
         "restartToUpdate": "Güncellemek için yeniden başlat",
