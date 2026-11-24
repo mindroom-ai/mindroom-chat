@@ -32,7 +32,7 @@ const fakeRoom = (
         },
       }),
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const stateListeners = new Set<(event: { getType: () => string }) => void>();
 
@@ -44,7 +44,7 @@ const fakeClient = (rooms: Room[]): MatrixClient =>
       stateListeners.add(listener),
     removeListener: (_name: string, listener: (event: { getType: () => string }) => void) =>
       stateListeners.delete(listener),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 describe('findServerEmojiRoom', () => {
   it('returns the joined room for a room ID', () => {

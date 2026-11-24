@@ -45,4 +45,5 @@ export const agentDisplayName = (
 export const userDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
   userId: string
-): string => isolateInSentence(room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId);
+): string =>
+  isolateInSentence(room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId);

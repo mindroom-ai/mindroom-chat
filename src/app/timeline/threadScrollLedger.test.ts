@@ -72,7 +72,7 @@ describe('planThreadLedgerRender', () => {
     const previous = events('$root', '$step', '$reader');
     const next = events('$root', '$person', '$break', '$step', '$reader');
     const previousPrice = (eventId: string) => (eventId === '$step' ? 190 : 0);
-    const price = (eventId: string) => ({ $person: 30, $break: 42 })[eventId] ?? 0;
+    const price = (eventId: string) => ({ $person: 30, $break: 42 }[eventId] ?? 0);
 
     expect(plan(anchorOn(previous, '$reader', previousPrice), next, price)).toEqual({
       foldPx: 30 + 42 - 190,

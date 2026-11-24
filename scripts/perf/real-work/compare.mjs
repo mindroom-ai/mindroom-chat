@@ -108,15 +108,8 @@ export function compareRuns(base, head) {
         metric,
         base: round(baseMedian),
         head: round(headMedian),
-        changePct:
-          baseMedian === 0
-            ? headMedian === 0
-              ? 0
-              : null
-            : round(((headMedian - baseMedian) / baseMedian) * 100, 2),
-        overlap:
-          Math.min(...headValues) <= Math.max(...baseValues) &&
-          Math.max(...headValues) >= Math.min(...baseValues),
+        changePct: baseMedian === 0 ? (headMedian === 0 ? 0 : null) : round(((headMedian - baseMedian) / baseMedian) * 100, 2),
+        overlap: Math.min(...headValues) <= Math.max(...baseValues) && Math.max(...headValues) >= Math.min(...baseValues),
       });
     }
   }
@@ -163,9 +156,7 @@ function main() {
   const head = args.head.map(loadDir);
   const excluded = excludedLabels(base, head);
   if (excluded.length) {
-    console.error(
-      `warning: left out results the spec failed or measured under a short load: ${excluded.join(', ')}`
-    );
+    console.error(`warning: left out results the spec failed or measured under a short load: ${excluded.join(', ')}`);
   }
   const rows = compareRuns(base, head);
   if (args.json) {
@@ -174,13 +165,11 @@ function main() {
   }
   const w = Math.max(5, ...rows.map((r) => r.label.length));
   const m = Math.max(6, ...rows.map((r) => r.metric.length));
-  console.log(
-    `${'label'.padEnd(w)}  ${'metric'.padEnd(m)}  ${'base'.padStart(10)}  ${'head'.padStart(10)}  ${'change'.padStart(9)}  overlap`
-  );
+  console.log(`${'label'.padEnd(w)}  ${'metric'.padEnd(m)}  ${'base'.padStart(10)}  ${'head'.padStart(10)}  ${'change'.padStart(9)}  overlap`);
   for (const r of rows) {
     const change = r.changePct === null ? 'n/a' : `${r.changePct > 0 ? '+' : ''}${r.changePct}%`;
     console.log(
-      `${r.label.padEnd(w)}  ${r.metric.padEnd(m)}  ${String(r.base).padStart(10)}  ${String(r.head).padStart(10)}  ${change.padStart(9)}  ${r.overlap}`
+      `${r.label.padEnd(w)}  ${r.metric.padEnd(m)}  ${String(r.base).padStart(10)}  ${String(r.head).padStart(10)}  ${change.padStart(9)}  ${r.overlap}`,
     );
   }
 }

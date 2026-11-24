@@ -84,7 +84,7 @@ const makeEvent = ({
     isRedacted: () => false,
     isRedaction: () => false,
     status,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const makeRoom = ({
   rootEvent,
@@ -115,12 +115,12 @@ const makeRoom = ({
           }
         : undefined;
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeMx = (): MatrixClient =>
   ({
     getUserId: () => '@me:server',
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 const buildModel = (
   room: Room,

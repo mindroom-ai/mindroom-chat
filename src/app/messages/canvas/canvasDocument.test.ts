@@ -807,7 +807,7 @@ describe('inline canvas sizing', () => {
       origin: 'null',
       data: { type: 'mindroom.canvas.size', version: 1, height },
       ...overrides,
-    }) as MessageEvent;
+    } as MessageEvent);
 
   it('reads only finite positive sizes from its opaque canvas frame', () => {
     expect(readCanvasSize(message(412.3), frame)).toBe(412.3);

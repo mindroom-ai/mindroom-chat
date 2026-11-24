@@ -102,8 +102,7 @@ describe('RoomTimeline', () => {
 
       it('computes room-event focus against the frozen overview order', async () => {
         const { getRoomEventFocusTarget } = await import('../../threads/threadRoomFocus');
-        const { createThreadSortControlSignature } =
-          await import('../../event-store/threads/roomThreadOverviewModel');
+        const { createThreadSortControlSignature } = await import('../../event-store/threads/roomThreadOverviewModel');
         const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
         const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
         const thirdThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -147,8 +146,7 @@ describe('RoomTimeline', () => {
 
       it('computes room-event focus against compact-only roots in the frozen compact order', async () => {
         const { getRoomEventFocusTarget } = await import('../../threads/threadRoomFocus');
-        const { createThreadSortControlSignature } =
-          await import('../../event-store/threads/roomThreadOverviewModel');
+        const { createThreadSortControlSignature } = await import('../../event-store/threads/roomThreadOverviewModel');
         const firstThread = makeEvent('$thread-1', { isThreadRoot: true });
         const secondThread = makeEvent('$thread-2', { isThreadRoot: true });
         const compactOnlyThread = makeEvent('$thread-3', { isThreadRoot: true });
@@ -486,8 +484,7 @@ describe('RoomTimeline', () => {
       });
 
       it('uses stopInView=false for the explicit room focus scroll', async () => {
-        const { getRoomFocusScrollToItemOptions } =
-          await import('../../event-store/timeline/timelineScrollUtils');
+        const { getRoomFocusScrollToItemOptions } = await import('../../event-store/timeline/timelineScrollUtils');
 
         expect(getRoomFocusScrollToItemOptions(10, 100)).toEqual({
           align: 'center',
@@ -498,8 +495,9 @@ describe('RoomTimeline', () => {
       });
 
       it('switches room focus to start alignment near the loaded room start', async () => {
-        const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } =
-          await import('../../event-store/timeline/timelineScrollUtils');
+        const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
+          '../../event-store/timeline/timelineScrollUtils'
+        );
 
         expect(getRoomFocusScrollOptions(0, 100)).toEqual({
           align: 'start',
@@ -522,8 +520,9 @@ describe('RoomTimeline', () => {
 
     describe('refresh and jump-to-latest', () => {
       it('switches room focus to end alignment near the loaded room end', async () => {
-        const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } =
-          await import('../../event-store/timeline/timelineScrollUtils');
+        const { getRoomFocusScrollOptions, getRoomFocusScrollToItemOptions } = await import(
+          '../../event-store/timeline/timelineScrollUtils'
+        );
 
         expect(getRoomFocusScrollOptions(8, 12)).toEqual({
           align: 'end',
@@ -539,8 +538,7 @@ describe('RoomTimeline', () => {
       });
 
       it('recenters focus during observed resize activity and finishes after the idle window', async () => {
-        const { setupFocusObserver } =
-          await import('../../event-store/timeline/timelineScrollUtils');
+        const { setupFocusObserver } = await import('../../event-store/timeline/timelineScrollUtils');
         vi.useFakeTimers();
 
         try {

@@ -176,7 +176,7 @@ const makeTimelineSet = (): EventTimelineSet =>
       aggregateChildEvent: vi.fn(),
       getChildEventsForEvent: vi.fn(() => undefined),
     },
-  }) as unknown as EventTimelineSet;
+  } as unknown as EventTimelineSet);
 
 const makeRoom = (rootEvent?: MatrixEvent, txnMap?: Map<string, MatrixEvent>): Room =>
   Object.assign(new EventEmitter(), {

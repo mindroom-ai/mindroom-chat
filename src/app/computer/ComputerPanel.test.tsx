@@ -81,7 +81,7 @@ const jsonResponse = (status: number, body?: unknown): Response =>
     ok: status >= 200 && status < 300,
     status,
     json: vi.fn().mockResolvedValue(body),
-  }) as unknown as Response;
+  } as unknown as Response);
 
 const makeStatus = (sessionId: string, mode: 'view' | 'control' = 'view') => ({
   session_id: sessionId,
@@ -168,7 +168,7 @@ const makeMatrixClient = (userId = '@alice:example.org') =>
         memberId === '@mindroom_helper:example.org' ? { rawDisplayName: 'Helper <Bot>' } : null,
     }),
     sendMessage: vi.fn().mockResolvedValue({ event_id: '$continuation' }),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 const findButton = (container: HTMLElement, name: string): HTMLButtonElement => {
   const button = Array.from(container.querySelectorAll('button')).find(

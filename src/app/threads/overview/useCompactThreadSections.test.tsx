@@ -38,14 +38,15 @@ const record = (rootId: string, status: Partial<ThreadStatusSnapshot> = {}): Thr
     threadRootId: rootId,
     status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: {},
-  }) as unknown as ThreadRecord;
+  } as unknown as ThreadRecord);
 
 const recordsOf = (...items: ThreadRecord[]) =>
   new Map(items.map((item) => [item.threadRootId, item] as const));
 
 const wrapperOf =
   (store: ReturnType<typeof createStore>) =>
-  ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+  ({ children }: { children: ReactNode }) =>
+    <Provider store={store}>{children}</Provider>;
 
 describe('useCompactThreadSections', () => {
   it('reads nothing while Sections are off', () => {
@@ -112,7 +113,7 @@ describe('useCompactThreadSections', () => {
         roomId: ROOM_ID,
         threadRootId: rootId,
         resolvedTs,
-      }) as CrossRoomThreadIndexEntry;
+      } as CrossRoomThreadIndexEntry);
     store.set(crossRoomThreadIndexAtom, {
       ...emptyCrossRoomThreadIndexSnapshot(),
       entries: new Map(

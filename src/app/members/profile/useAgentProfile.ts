@@ -7,7 +7,9 @@ import { parseAgentProfile, type AgentProfile } from './agentProfile';
 
 /** `loading` until the agent's server answers; `none` when there is no profile to show. */
 export type AgentProfileState =
-  { status: 'loading' } | { status: 'none' } | { status: 'ready'; profile: AgentProfile };
+  | { status: 'loading' }
+  | { status: 'none' }
+  | { status: 'ready'; profile: AgentProfile };
 
 /** How long a card waits for the profile before it shows what the room says instead. */
 const TIMEOUT_MS = 8000;

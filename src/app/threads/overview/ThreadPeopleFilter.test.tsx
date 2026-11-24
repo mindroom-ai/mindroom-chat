@@ -11,12 +11,9 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../event-store/threads/threadPeopleFilter', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../event-store/threads/threadPeopleFilter')>();
+  const actual = await importOriginal<typeof import('../../event-store/threads/threadPeopleFilter')>();
   return { ...actual, buildThreadPeopleActivity: vi.fn(actual.buildThreadPeopleActivity) };
 });
 
@@ -38,7 +35,7 @@ const record = (threadRootId: string, peopleIds: string[]): ThreadRecord =>
     threadRootId,
     presentation: { participantIds: [], replyParticipantIds: [], peopleIds },
     status: { lastActivityTs: 0 },
-  }) as unknown as ThreadRecord;
+  } as unknown as ThreadRecord);
 
 const records = new Map([
   ['$1', record('$1', ['@alice:example.org', '@mindroom_helper:example.org'])],

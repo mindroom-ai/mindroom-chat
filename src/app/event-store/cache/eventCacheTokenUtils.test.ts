@@ -14,8 +14,12 @@ import {
   type CachedPaginationTokenMap,
 } from './eventCacheTokenUtils';
 
-const buildMap = (entries: Array<[string, string | null, number]>): CachedPaginationTokenMap =>
-  Object.fromEntries(entries.map(([id, token, savedAt]) => [id, { token, savedAt }]));
+const buildMap = (
+  entries: Array<[string, string | null, number]>
+): CachedPaginationTokenMap =>
+  Object.fromEntries(
+    entries.map(([id, token, savedAt]) => [id, { token, savedAt }])
+  );
 
 describe('mergeCachedPaginationTokens', () => {
   afterEach(() => vi.useRealTimers());
@@ -55,11 +59,15 @@ describe('mergeCachedPaginationTokens', () => {
 
 describe('getCachedPaginationToken', () => {
   it('returns the stored token for an event', () => {
-    expect(getCachedPaginationToken(buildMap([['$event', 'token', 100]]), '$event')).toBe('token');
+    expect(
+      getCachedPaginationToken(buildMap([['$event', 'token', 100]]), '$event')
+    ).toBe('token');
   });
 
   it('returns null for explicitly cleared tokens (no more pages)', () => {
-    expect(getCachedPaginationToken(buildMap([['$event', null, 100]]), '$event')).toBeNull();
+    expect(
+      getCachedPaginationToken(buildMap([['$event', null, 100]]), '$event')
+    ).toBeNull();
   });
 
   it('returns undefined for unknown events (no cache data)', () => {
@@ -73,10 +81,16 @@ describe('getCachedPaginationToken', () => {
 describe('compareCachedPaginationAnchors', () => {
   it('orders anchors by timestamp before event id', () => {
     expect(
-      compareCachedPaginationAnchors({ eventId: '$b', ts: 200 }, { eventId: '$a', ts: 100 })
+      compareCachedPaginationAnchors(
+        { eventId: '$b', ts: 200 },
+        { eventId: '$a', ts: 100 }
+      )
     ).toBeGreaterThan(0);
     expect(
-      compareCachedPaginationAnchors({ eventId: '$b', ts: 200 }, { eventId: '$c', ts: 200 })
+      compareCachedPaginationAnchors(
+        { eventId: '$b', ts: 200 },
+        { eventId: '$c', ts: 200 }
+      )
     ).toBeLessThan(0);
   });
 
@@ -88,9 +102,7 @@ describe('compareCachedPaginationAnchors', () => {
 
   it('handles missing anchors deterministically', () => {
     expect(compareCachedPaginationAnchors(undefined, { eventId: '$a', ts: 100 })).toBeLessThan(0);
-    expect(compareCachedPaginationAnchors({ eventId: '$a', ts: 100 }, undefined)).toBeGreaterThan(
-      0
-    );
+    expect(compareCachedPaginationAnchors({ eventId: '$a', ts: 100 }, undefined)).toBeGreaterThan(0);
     expect(compareCachedPaginationAnchors(undefined, undefined)).toBe(0);
   });
 });

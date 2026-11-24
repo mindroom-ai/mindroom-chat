@@ -93,7 +93,7 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
   const resolutionMap = useRoomThreadResolutionMap(room);
 
   return useMemo(
-    () => (threadRootId ? (resolutionMap.get(threadRootId) ?? unresolvedState) : unresolvedState),
+    () => (threadRootId ? resolutionMap.get(threadRootId) ?? unresolvedState : unresolvedState),
     [resolutionMap, threadRootId]
   );
 };

@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSetAtom } from 'jotai';
-import { threadViewVoiceComposersAtom, voiceComposerKey } from '../composer/roomInputDrafts';
+import {
+  threadViewVoiceComposersAtom,
+  voiceComposerKey,
+} from '../composer/roomInputDrafts';
 import { useInConversationView } from '../navigation/conversationView';
 import { act, create } from 'react-test-renderer';
 import { createClient, Room, type IContent, type ISendEventResponse } from 'matrix-js-sdk';
@@ -59,9 +62,7 @@ vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: approvalHistory.load,
   useSyncEngine: () => ({ scheduler }),
 }));
-vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({
-  useLiveEventArrive: () => undefined,
-}));
+vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../matrix/hooks/usePowerLevels', () => {
   // The thread column's view reads the room's levels itself, the same ones every render.

@@ -192,8 +192,8 @@ function OpenButton({
   }
 
   const label = failed
-    ? (errorButtonText ?? t('sharedUi.fileContent.loadFailed'))
-    : (buttonText ?? defaultText);
+    ? errorButtonText ?? t('sharedUi.fileContent.loadFailed')
+    : buttonText ?? defaultText;
   return (
     <Button
       size={buttonSize}
@@ -377,8 +377,8 @@ export function DownloadFile({
     >
       <Text size="B300">
         {failed
-          ? (errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size }))
-          : (buttonText ?? t('sharedUi.fileContent.downloadSize', { size }))}
+          ? errorButtonText ?? t('sharedUi.fileContent.retryDownload', { size })
+          : buttonText ?? t('sharedUi.fileContent.downloadSize', { size })}
       </Text>
     </Button>
   );

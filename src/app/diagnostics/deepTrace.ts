@@ -153,7 +153,11 @@ type TracedFetch = typeof globalThis.fetch & {
 };
 
 export type DeepTraceRuntimeStatus =
-  'starting' | 'recording' | 'memory-only' | 'disabled' | 'unavailable';
+  | 'starting'
+  | 'recording'
+  | 'memory-only'
+  | 'disabled'
+  | 'unavailable';
 
 const SAFE_FAILURE_NAMES = new Set([
   'AbortError',
@@ -179,8 +183,8 @@ const sanitizeFailureName = (value: unknown): string => {
     value instanceof Error
       ? value.name
       : typeof value === 'object' && value !== null && 'name' in value
-        ? (value as { name?: unknown }).name
-        : undefined;
+      ? (value as { name?: unknown }).name
+      : undefined;
   return typeof name === 'string' && SAFE_FAILURE_NAMES.has(name) ? name : 'UnknownError';
 };
 

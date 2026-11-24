@@ -63,8 +63,8 @@ const roomState = (events: MatrixEvent[]) => ({
   getStateEvents: (type: string, stateKey?: string) =>
     stateKey === undefined
       ? events.filter((event) => event.getType() === type)
-      : (events.find((event) => event.getType() === type && event.getStateKey() === stateKey) ??
-        null),
+      : events.find((event) => event.getType() === type && event.getStateKey() === stateKey) ??
+        null,
 });
 
 const makeRoom = ({
@@ -102,7 +102,7 @@ const makeEntry = (
     lastActivityTs: 100,
     generation: 1,
     ...fields,
-  }) as unknown as CrossRoomThreadIndexEntry;
+  } as unknown as CrossRoomThreadIndexEntry);
 
 describe('readCaptureThreads', () => {
   beforeEach(() => {

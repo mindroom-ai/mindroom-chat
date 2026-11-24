@@ -107,7 +107,7 @@ export const clearCallWindowStore = (userId: string): void => {
 
 export const useCallWindowSettings = (): readonly [
   CallWindowSettings,
-  (next: CallWindowSettings) => void,
+  (next: CallWindowSettings) => void
 ] => {
   const userId = useMatrixClient().getSafeUserId();
   return useAtom(getCallWindowSettingsAtom(userId));
@@ -195,7 +195,8 @@ export const useCallViewFloats = (): boolean => {
  * is that button, which may stay a moment while the docked panel it was in moves out.
  */
 export type FocusHandOff = { from: Element | null } & (
-  { to: 'window' | 'transcript' } | { to: 'panel'; roomId: string }
+  | { to: 'window' | 'transcript' }
+  | { to: 'panel'; roomId: string }
 );
 export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
 

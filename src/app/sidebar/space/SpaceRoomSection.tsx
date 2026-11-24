@@ -311,7 +311,7 @@ export function SpaceRoomSection({
   const { t } = useTranslation();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const sectionDrop = useRoomSectionDrop(section.spaceId);
-  const subspace = section.isRoot ? undefined : (client.getRoom(section.spaceId) ?? undefined);
+  const subspace = section.isRoot ? undefined : client.getRoom(section.spaceId) ?? undefined;
   if (!section.isRoot && !subspace) return null;
 
   // A room's row, the same at top level and under the room it sits under, except that there it

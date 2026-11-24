@@ -22,13 +22,19 @@ export const SyncEngineProvider = ({
   engine,
   children,
 }: SyncEngineProviderProps): React.ReactElement => {
-  return <SyncEngineContext.Provider value={engine}>{children}</SyncEngineContext.Provider>;
+  return (
+    <SyncEngineContext.Provider value={engine}>
+      {children}
+    </SyncEngineContext.Provider>
+  );
 };
 
 export const useSyncEngine = (): SyncEngine => {
   const engine = useContext(SyncEngineContext);
   if (!engine) {
-    throw new Error('useSyncEngine must be used within a SyncEngineProvider (see ClientRoot.tsx)');
+    throw new Error(
+      'useSyncEngine must be used within a SyncEngineProvider (see ClientRoot.tsx)'
+    );
   }
   return engine;
 };

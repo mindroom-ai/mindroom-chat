@@ -119,8 +119,8 @@ export function PublicRooms() {
                   {rooms.map((room) => {
                     const space = room.room_type === 'm.space';
                     const avatarUrl = room.avatar_url
-                      ? (mxcUrlToHttp(client, room.avatar_url, useAuthentication, 96, 96, 'crop') ??
-                        undefined)
+                      ? mxcUrlToHttp(client, room.avatar_url, useAuthentication, 96, 96, 'crop') ??
+                        undefined
                       : undefined;
                     return (
                       <RoomCard

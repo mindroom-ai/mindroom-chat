@@ -9,7 +9,7 @@ import { EMPTY_TURN_FOLD_VIEW, viewThreadTurnFolds, type ThreadTurnFold } from '
 // The row that draws a turn's break measured 600 px with its long reply; folded off screen, it
 // must take its estimate again rather than keep that height.
 
-const events = ['$q', '$a1', '$a2', '$a3'].map((id) => ({ getId: () => id }) as MatrixEvent);
+const events = ['$q', '$a1', '$a2', '$a3'].map((id) => ({ getId: () => id } as MatrixEvent));
 const fold: ThreadTurnFold = { key: '$q', hiddenIds: ['$a1', '$a2'], count: 2 };
 const estimate = (index: number) => (index === 1 ? 42 : 30);
 

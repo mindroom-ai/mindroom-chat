@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makeEvent,
-  makeRoom,
-  makeTimeline,
-} from '../../timeline/test-utils/RoomTimeline.test.shared';
+import { makeEvent, makeRoom, makeTimeline } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { runThreadOpenTargetEvent } from './threadOpenTargetEvent';
 
 describe('runThreadOpenTargetEvent', () => {

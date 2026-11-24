@@ -21,7 +21,7 @@ const surfaceOf = (tone: Pick<ContainerTone, 'Container' | 'OnContainer'>) => ({
 });
 
 /** A flex row whose items share one centre line. */
-const centeredRow = (gap: string) => ({ display: 'flex', alignItems: 'center', gap }) as const;
+const centeredRow = (gap: string) => ({ display: 'flex', alignItems: 'center', gap } as const);
 
 /** An element that is `size` wide and tall. */
 const square = (size: string) => ({ width: size, height: size });

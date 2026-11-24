@@ -127,7 +127,7 @@ export function ResizablePanel({
   // (PanelRow) measures.
   const [availableWidth, setAvailableWidth] = useState(
     () =>
-      (Number.isFinite(maxPanelWidth) ? maxPanelWidth : (preferredWidth ?? defaultWidth)) +
+      (Number.isFinite(maxPanelWidth) ? maxPanelWidth : preferredWidth ?? defaultWidth) +
       minContentWidth
   );
   const panelRef = useRef<HTMLDivElement>(null);

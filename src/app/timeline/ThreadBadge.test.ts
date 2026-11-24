@@ -27,7 +27,7 @@ const makeEvent = (content: Record<string, unknown>, threadRootId?: string) =>
     getContent: () => content,
     getOriginalContent: () => content,
     threadRootId,
-  }) as any;
+  } as any);
 
 const makeRecord = (threadRootId = '$root'): ThreadRecord => ({
   roomId: '!room:example.org',

@@ -140,10 +140,7 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
   await waitForApproval(stack, rootId, 'pending');
   const reply = await waitForShellReply(stack, rootId);
 
-  const stop = messageRow(page, reply.event_id).getByRole('button', {
-    name: 'Stop reply',
-    exact: true,
-  });
+  const stop = messageRow(page, reply.event_id).getByRole('button', { name: 'Stop reply', exact: true });
   await expect(stop).toBeVisible({ timeout: 30_000 });
   await stop.click();
   await waitForThreadEvent(

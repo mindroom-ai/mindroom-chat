@@ -75,7 +75,7 @@ const recordPlays = (page: Page) =>
           left: this.hasAttribute('inert'),
           anchor: this.hasAttribute('data-scroll-anchor'),
           properties: Object.keys(first ?? {}),
-          pseudo: typeof options === 'object' ? (options.pseudoElement ?? undefined) : undefined,
+          pseudo: typeof options === 'object' ? options.pseudoElement ?? undefined : undefined,
         });
       }
       return animate.call(this, keyframes, options);

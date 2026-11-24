@@ -52,7 +52,7 @@ const mx = vi.hoisted(() => ({
       ({
         '@alice:example.org': { name: 'Alice' },
         '@mindroom_assistant:example.org': { name: 'Ada' },
-      })[userId] ?? null,
+      }[userId] ?? null),
     getJoinedMembers: () => [],
   }),
 }));

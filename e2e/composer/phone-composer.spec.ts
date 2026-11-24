@@ -70,13 +70,10 @@ const seed = async (engine: string) => {
 type World = Awaited<ReturnType<typeof seed>>;
 
 const openRoom = async (page: Page, world: World) => {
-  await page.evaluate(
-    (to) => {
-      window.history.pushState(null, '', to);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/home/${encodeURIComponent(world.roomId)}`
-  );
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
   await expect(page.getByText(MESSAGES[3], { exact: true })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible();
 };

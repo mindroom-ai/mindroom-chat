@@ -265,18 +265,18 @@ test.describe('thread reply chips', () => {
     await expect
       .poll(
         async () =>
-          (await snapshotReplyChips(page)).find((c) =>
-            c.rowText.includes('Explicit reply to an old message')
-          )?.hasUsername,
+          (
+            await snapshotReplyChips(page)
+          ).find((c) => c.rowText.includes('Explicit reply to an old message'))?.hasUsername,
         { timeout: 30_000 }
       )
       .toBe(true);
     await expect
       .poll(
         async () =>
-          (await snapshotReplyChips(page)).find((c) =>
-            c.rowText.includes('Explicit reply to an unfetchable event')
-          )?.chipText,
+          (
+            await snapshotReplyChips(page)
+          ).find((c) => c.rowText.includes('Explicit reply to an unfetchable event'))?.chipText,
         { timeout: 30_000 }
       )
       .toContain('Failed to load message');

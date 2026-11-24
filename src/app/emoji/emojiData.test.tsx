@@ -25,7 +25,7 @@ const clientWithRecent = (recentEmoji: Array<[string, number]>) =>
       new MatrixEvent({ type: 'io.element.recent_emoji', content: { recent_emoji: recentEmoji } }),
     on: () => undefined,
     off: () => undefined,
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 it('gives recent emoji as their text at once and names them once the data it asks for loads', async () => {
   const { useRecentEmoji } = await import('./useRecentEmoji');

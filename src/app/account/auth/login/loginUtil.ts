@@ -1,9 +1,5 @@
 import type { LoginRequest, LoginResponse, MatrixError } from 'matrix-js-sdk';
-import {
-  AutoDiscoveryAction,
-  autoDiscovery,
-  isAllowedHomeserverBaseUrl,
-} from '../../../matrix/cs-api';
+import { AutoDiscoveryAction, autoDiscovery, isAllowedHomeserverBaseUrl } from '../../../matrix/cs-api';
 import {
   createMatrixClient,
   createMatrixFetchFn,

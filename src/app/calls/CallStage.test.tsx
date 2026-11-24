@@ -52,7 +52,7 @@ class FakeResizeObserver {
 }
 
 const room = { roomId: '!stage:stage.test' } as Room;
-const track = () => ({ attach: vi.fn(), detach: vi.fn() }) as unknown as CallVideoTrack;
+const track = () => ({ attach: vi.fn(), detach: vi.fn() } as unknown as CallVideoTrack);
 
 const person = (name: string, rest: Partial<CallParticipant> = {}): CallParticipant => ({
   key: `@${name}:stage.test:DEVICE`,

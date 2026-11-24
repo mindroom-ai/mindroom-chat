@@ -22,7 +22,7 @@ const fakeRoom = (members: FakeMember[], state: Record<string, unknown> = {}) =>
         return content ? { getContent: () => content } : null;
       },
     },
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const fakeClient = (overrides: Record<string, unknown> = {}) => {
   let direct: Record<string, string[]> = {};

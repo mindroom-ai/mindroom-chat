@@ -1,10 +1,4 @@
-import {
-  expect,
-  test,
-  type BrowserContextOptions,
-  type Locator,
-  type Page,
-} from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
@@ -145,9 +139,9 @@ test('long English names keep their start in a right-to-left interface', async (
   const card = page.locator('main').getByText(LONG_ROOM, { exact: true });
   await expect(card).toBeVisible();
   expect(await direction(card)).toBe('ltr');
-  expect(
-    await direction(page.locator('main').getByText('Weekly notes and decisions').first())
-  ).toBe('ltr');
+  expect(await direction(page.locator('main').getByText('Weekly notes and decisions').first())).toBe(
+    'ltr'
+  );
 
   await page.goto('/activity/invites/');
   const invite = page.locator('main').getByText(INVITE_NAME, { exact: true });

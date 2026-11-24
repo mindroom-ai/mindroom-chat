@@ -53,7 +53,7 @@ const savedReplyWords = (page: Page, replyId: string): Promise<number> =>
             const edit = rawEvent?.unsigned?.['m.relations']?.['m.replace'];
             const newContent = edit?.content?.['m.new_content'] as { body?: unknown } | undefined;
             const body = newContent?.body ?? rawEvent?.content?.body;
-            const words = typeof body === 'string' ? (body.match(/word\d+/g)?.length ?? 0) : 0;
+            const words = typeof body === 'string' ? body.match(/word\d+/g)?.length ?? 0 : 0;
             most = Math.max(most, words);
           });
       }

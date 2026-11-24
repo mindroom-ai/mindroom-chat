@@ -11,8 +11,7 @@ vi.mock('../../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
-    Box: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('div', null, children),
+    Box: ({ children }: { children: React.ReactNode }) => reactModule.createElement('div', null, children),
   };
 });
 
@@ -222,12 +221,9 @@ describe('ClientLayout', () => {
 
     expect(getRoomIdForAlias).toHaveBeenCalledWith('#space:mindroom.chat');
     expect(getRoomIdForAlias).toHaveBeenCalledWith('#room:mindroom.chat');
-    expect(navigate).toHaveBeenCalledWith(
-      '/!space%3Amindroom.chat/!room%3Amindroom.chat?threadId=%24abc',
-      {
-        replace: true,
-      }
-    );
+    expect(navigate).toHaveBeenCalledWith('/!space%3Amindroom.chat/!room%3Amindroom.chat?threadId=%24abc', {
+      replace: true,
+    });
   });
 
   it('does not override explicit room navigation on startup', async () => {

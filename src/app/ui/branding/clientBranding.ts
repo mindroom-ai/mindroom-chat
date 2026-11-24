@@ -23,7 +23,7 @@ const configuredCopy = (
   value: string | undefined,
   fallback: string,
   localized: string | undefined
-) => (value !== undefined && value !== fallback ? value : (localized ?? fallback));
+) => (value !== undefined && value !== fallback ? value : localized ?? fallback);
 
 export const getWelcomePageContent = (
   welcome: ClientConfig['welcome'] | undefined,

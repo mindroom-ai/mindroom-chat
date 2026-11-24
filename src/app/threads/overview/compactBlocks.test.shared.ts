@@ -65,7 +65,7 @@ export function stubCompactLayout({
     if (isView(this)) return new DOMRect(0, 0, w, clientHeight);
     const offset = clampScrollTop
       ? scrollTop
-      : (this.closest<HTMLElement>(`[${viewAttr}]`)?.scrollTop ?? 0);
+      : this.closest<HTMLElement>(`[${viewAttr}]`)?.scrollTop ?? 0;
     if (isView(this.parentElement))
       return new DOMRect(
         0,

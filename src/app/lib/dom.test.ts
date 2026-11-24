@@ -103,9 +103,7 @@ class MockBody {
 
   querySelectorAll(selector: string) {
     if (selector === 'input[type=file]') {
-      return this.inputs.filter(
-        (input) => input.type === 'file'
-      ) as unknown as NodeListOf<HTMLInputElement>;
+      return this.inputs.filter((input) => input.type === 'file') as unknown as NodeListOf<HTMLInputElement>;
     }
 
     return [] as unknown as NodeListOf<HTMLInputElement>;

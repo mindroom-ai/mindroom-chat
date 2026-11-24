@@ -75,7 +75,8 @@ export const getPasteFileName = (id: string): string => {
   return `mindroom-${id}.txt`;
 };
 
-export const isPasteFileName = (fileName: string): boolean => PASTE_FILE_NAME_REG.test(fileName);
+export const isPasteFileName = (fileName: string): boolean =>
+  PASTE_FILE_NAME_REG.test(fileName);
 
 export const getPasteIdFromFileName = (fileName: string): string | undefined =>
   fileName.match(PASTE_FILE_NAME_REG)?.[1];
@@ -195,13 +196,15 @@ export const withPasteAttachmentMetadata = (
 export const getPasteAttachmentFile = (
   content: Record<string, unknown>
 ): PasteAttachmentFile | undefined => {
-  const metadata = parsePasteAttachmentMetadata(content[MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]);
+  const metadata = parsePasteAttachmentMetadata(
+    content[MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]
+  );
   const contentFileName =
     typeof content.filename === 'string'
       ? content.filename
       : typeof content.body === 'string'
-        ? content.body
-        : undefined;
+      ? content.body
+      : undefined;
   const fileName = metadata?.file ?? contentFileName;
   if (!fileName || !isPasteFileName(fileName)) return undefined;
   if (metadata && contentFileName && contentFileName !== metadata.file) return undefined;
@@ -213,8 +216,8 @@ export const getPasteAttachmentFile = (
     typeof encryptedFile?.url === 'string'
       ? encryptedFile.url
       : typeof content.url === 'string'
-        ? content.url
-        : undefined;
+      ? content.url
+      : undefined;
   if (!mxcUri) return undefined;
 
   const info = isRecord(content.info) ? content.info : undefined;

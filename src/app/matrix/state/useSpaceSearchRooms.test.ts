@@ -75,7 +75,7 @@ describe('a space and its sub-spaces', () => {
       getLiveTimeline: () => ({
         getState: () => ({ getStateEvents: () => (space ? SPACE_TYPE : undefined) }),
       }),
-    }) as never;
+    } as never);
   const spaces = new Set(['!parent:example.org', '!sub:example.org']);
   const mx = { getRoom: (roomId: string) => room(spaces.has(roomId)) } as never;
   const joined = [

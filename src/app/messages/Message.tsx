@@ -821,7 +821,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const avatarMxc = getMemberAvatarMxc(room, senderId);
     // The spec's 96 px crop: sharp at twice the 36 px avatar, and the thumbnail other lists share.
     const avatarUrl = avatarMxc
-      ? (mxcUrlToHttp(client, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined)
+      ? mxcUrlToHttp(client, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
       : undefined;
 
     const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;

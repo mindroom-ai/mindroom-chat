@@ -191,7 +191,7 @@ const makeRoom = ({
   ({
     getThread: vi.fn((threadRootId: string) => (threadRootId === rootEventId ? thread : undefined)),
     getUnfilteredTimelineSet: () => roomTimelineSet,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const renderHookHarness = (
   room: Room,

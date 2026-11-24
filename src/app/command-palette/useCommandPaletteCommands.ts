@@ -142,23 +142,25 @@ export const useCommandPaletteCommands = ({
   );
 
   const themePage = useMemo<CommandPalettePage>(() => {
-    const choices = THEMES.map((theme): Choice => ({
-      value: theme.id,
-      title: t(`options.themeName.${theme.name}`),
-      current: theme.id === themeId,
-      // As the fixed pick in Settings: the chosen theme, and the system theme off.
-      choose: () =>
-        store.set(settingsAtom, {
-          ...store.get(settingsAtom),
-          themeId: theme.id,
-          useSystemTheme: false,
-        }),
-      // The whole app shows the highlighted theme; nothing is stored until it is chosen.
-      preview: () => {
-        store.set(themePreviewAtom, theme.id);
-        return () => store.set(themePreviewAtom, undefined);
-      },
-    }));
+    const choices = THEMES.map(
+      (theme): Choice => ({
+        value: theme.id,
+        title: t(`options.themeName.${theme.name}`),
+        current: theme.id === themeId,
+        // As the fixed pick in Settings: the chosen theme, and the system theme off.
+        choose: () =>
+          store.set(settingsAtom, {
+            ...store.get(settingsAtom),
+            themeId: theme.id,
+            useSystemTheme: false,
+          }),
+        // The whole app shows the highlighted theme; nothing is stored until it is chosen.
+        preview: () => {
+          store.set(themePreviewAtom, theme.id);
+          return () => store.set(themePreviewAtom, undefined);
+        },
+      })
+    );
     const systemTheme: Executable<CommandPaletteActionItem> = {
       id: 'theme:system',
       kind: 'action',
@@ -240,19 +242,21 @@ export const useCommandPaletteCommands = ({
   const actions = useMemo(() => {
     // A call is about a conversation.
     const callRows = inRoom
-      ? candidates.map(({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
-          id: `call-agent:${userId}`,
-          kind: 'action',
-          title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
-          description: room.name,
-          icon: Icons.Phone,
-          sortRank: 75,
-          keywords: ['voice', 'agent'],
-          // A call that does not start is reported by the account's call notices.
-          onSelect: () => {
-            void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
-          },
-        }))
+      ? candidates.map(
+          ({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
+            id: `call-agent:${userId}`,
+            kind: 'action',
+            title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
+            description: room.name,
+            icon: Icons.Phone,
+            sortRank: 75,
+            keywords: ['voice', 'agent'],
+            // A call that does not start is reported by the account's call notices.
+            onSelect: () => {
+              void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
+            },
+          })
+        )
       : [];
     // The open room's header commands, so none without a room open. A room command closes the
     // palette: it was read once, so the palette could not show what the command changed. It runs
@@ -278,16 +282,18 @@ export const useCommandPaletteCommands = ({
       : [];
     const shortcutRows = shortcutCommands
       .filter(([id]) => someUnread || (id !== 'nextUnread' && id !== 'previousUnread'))
-      .map(([id, sortRank]): Executable<CommandPaletteActionItem> => ({
-        id: `shortcut:${id}`,
-        kind: 'action',
-        title: t(SHORTCUTS[id].labelKey),
-        shortcut: id,
-        sortRank,
-        onSelect: () => {
-          runShortcut(id, new KeyboardEvent('keydown'));
-        },
-      }));
+      .map(
+        ([id, sortRank]): Executable<CommandPaletteActionItem> => ({
+          id: `shortcut:${id}`,
+          kind: 'action',
+          title: t(SHORTCUTS[id].labelKey),
+          shortcut: id,
+          sortRank,
+          onSelect: () => {
+            runShortcut(id, new KeyboardEvent('keydown'));
+          },
+        })
+      );
     return [...callRows, ...roomCommandRows, ...shortcutRows];
   }, [call, candidates, inRoom, room, roomCommands, shortcutCommands, someUnread, t, threadId]);
 

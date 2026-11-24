@@ -24,8 +24,7 @@ export const activeMemberships = (session: Pick<MatrixRTCSession, 'memberships'>
       const appData = membership.applicationData as Record<string, unknown> | undefined;
       const screenOnly = appData?.[SCREEN_ONLY_MEMBER_KEY] === true;
       const rawParent = appData?.[SCREEN_PARENT_DEVICE_KEY];
-      const screenParentDeviceId =
-        typeof rawParent === 'string' && rawParent ? rawParent : undefined;
+      const screenParentDeviceId = typeof rawParent === 'string' && rawParent ? rawParent : undefined;
       return {
         userId: membership.userId,
         deviceId: membership.deviceId,

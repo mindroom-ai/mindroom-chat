@@ -28,7 +28,7 @@ export const mirrorPlacement = (
   if (!rightToLeft) return { position, align };
   const side = (position && otherSide[position]) ?? position;
   const beside = side === 'Left' || side === 'Right';
-  return { position: side, align: !beside && align ? (otherEnd[align] ?? align) : align };
+  return { position: side, align: !beside && align ? otherEnd[align] ?? align : align };
 };
 
 /**

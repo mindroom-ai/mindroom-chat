@@ -1,6 +1,9 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from '../env';
-import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
+import {
+  expectLoggedInShellStable,
+  loginWithPassword,
+} from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,

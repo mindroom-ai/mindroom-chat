@@ -29,7 +29,7 @@ export function RoomIntro({ room }: RoomIntroProps) {
   const topic = roomTopic && revealDirectionControls(roomTopic);
   const pictureMxc = useRoomAvatar(room, withPerson);
   const avatarSrc = pictureMxc
-    ? (mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined)
+    ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined
     : undefined;
 
   return (

@@ -19,7 +19,7 @@ vi.mock('../event-store/timeline/roomTimelineEvents', () => ({
 }));
 
 const event = (eventId: string, ts: number) =>
-  ({ getId: () => eventId, getTs: () => ts }) as unknown as MatrixEvent;
+  ({ getId: () => eventId, getTs: () => ts } as unknown as MatrixEvent);
 
 /** Room rows at the given timeline positions, in timeline order. */
 const roomRows = (...rows: Array<[string, number, number]>): TimelineEventEntry[] =>
@@ -32,7 +32,7 @@ const rowEvent = (rows: TimelineEventEntry[], index: number): MatrixEvent =>
 const roomWithThreads = (threads: Record<string, MatrixEvent[]>) =>
   ({
     getThreads: () => Object.entries(threads).map(([id, events]) => ({ id, liveTimeline: events })),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const FILTERS = {
   ignoredUsersSet: new Set<string>(),

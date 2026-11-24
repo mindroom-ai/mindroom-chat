@@ -120,9 +120,9 @@ const startSampling = (page: Page) =>
         phase,
         t: performance.now(),
         rowId: row
-          ? ((row as HTMLElement)
+          ? (row as HTMLElement)
               .querySelector('[data-message-id]')
-              ?.getAttribute('data-message-id') ?? `row ${(row as HTMLElement).dataset.index}`)
+              ?.getAttribute('data-message-id') ?? `row ${(row as HTMLElement).dataset.index}`
           : null,
         rowTop: rect?.top ?? NaN,
         rowHeight: rect?.height ?? NaN,

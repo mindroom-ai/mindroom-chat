@@ -25,7 +25,8 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 const { threadUtilsMockState } = vi.hoisted(() => ({
   threadUtilsMockState: {
     defaultGetValidThreadRootEvent: undefined as
-      typeof import('../../event-store/threads/threadUtils').getValidThreadRootEvent | undefined,
+      | typeof import('../../event-store/threads/threadUtils').getValidThreadRootEvent
+      | undefined,
   },
 }));
 
@@ -118,11 +119,11 @@ const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixE
           eventType === MINDROOM_THREAD_TAGS_EVENT
             ? events
             : stateKey === undefined
-              ? []
-              : undefined,
+            ? []
+            : undefined,
       }),
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 /** The thread's tags as shown: live tags with the pending writes on top; undefined without any. */
 const pendingTags = (room: Room, threadRootId: string) => {
@@ -171,10 +172,10 @@ describe('useMutateThreadTags', () => {
               type === 'm.room.pinned_events'
                 ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
                 : stateKey === undefined
-                  ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
-                  : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
+                ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+                : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
           }),
-        }) as never;
+        } as never);
       let snapshot!: ReturnType<typeof useMutateThreadTags>;
       let renderer!: ReturnType<typeof create>;
       act(() => {
@@ -732,10 +733,10 @@ describe('useMutateThreadTags', () => {
             type === 'm.room.pinned_events'
               ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
               : stateKey === undefined
-                ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
-                : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
+              ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+              : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
         }),
-      }) as never;
+      } as never);
     const pinned = renderHarness(room);
     await act(async () => {
       written = await pinned.current().snooze('$root', new Date('2026-11-14T08:00:00Z'));

@@ -139,7 +139,7 @@ const scenarios: Record<string, () => Outcome | Promise<Outcome>> = {
     pageIn(
       room,
       Array.from({ length: 400 }, (_, index) =>
-        message(`$message-${index}`, index < 350 ? OTHER : (late[index - 350] ?? OTHER), index + 1)
+        message(`$message-${index}`, index < 350 ? OTHER : late[index - 350] ?? OTHER, index + 1)
       )
     );
     const ask = () => ({ readers: readersOf(room, '$message-0', late) });

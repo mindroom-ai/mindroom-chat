@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { estimateTextMessageContentBytes, shouldConvertPasteToAttachment } from './pasteAttachment';
+import {
+  estimateTextMessageContentBytes,
+  shouldConvertPasteToAttachment,
+} from './pasteAttachment';
 
 describe('pasteAttachment', () => {
   it('converts when pasted text pushes content over the budget', () => {

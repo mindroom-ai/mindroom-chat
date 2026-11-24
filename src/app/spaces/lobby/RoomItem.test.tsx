@@ -112,7 +112,7 @@ const cachedRoom = (membership: string, joinRule: JoinRule): Room =>
     getCanonicalAlias: () => null,
     getJoinedMemberCount: () => 12,
     getType: () => undefined,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('RoomItemCard room access', () => {
   beforeEach(() => {

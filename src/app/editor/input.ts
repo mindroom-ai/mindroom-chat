@@ -334,7 +334,7 @@ function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
     }
     case 'pre': {
       const codeNode = node.children.find((child) => isTag(child) && child.name === 'code');
-      const className = codeNode && isTag(codeNode) ? (codeNode.attribs.class ?? '') : '';
+      const className = codeNode && isTag(codeNode) ? codeNode.attribs.class ?? '' : '';
       const language = className.match(/language-(\S+)/)?.[1] ?? '';
       const lines = getText(node).replace(/\n$/, '').split('\n');
       if (markdown) {

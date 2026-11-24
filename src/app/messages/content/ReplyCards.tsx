@@ -11,7 +11,8 @@ import * as css from './ReplyCards.css';
 
 /** A canvas as the viewer may open it (`readChatUiAction`), or a task. */
 export type ReplyCard =
-  { canvas: Extract<ChatUiAction, { action: 'show_canvas' }> } | { reminder: ParsedScheduledTask };
+  | { canvas: Extract<ChatUiAction, { action: 'show_canvas' }> }
+  | { reminder: ParsedScheduledTask };
 
 const dateTime = (time: number, locale?: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(time);

@@ -51,7 +51,7 @@ const makeMembership = (overrides: Partial<CallMembership> = {}): CallMembership
     memberId: MEMBER_ID,
     eventId: '$membership-1',
     ...overrides,
-  }) as unknown as CallMembership;
+  } as unknown as CallMembership);
 
 const makeRingEvent = (
   status: EventStatus | null,

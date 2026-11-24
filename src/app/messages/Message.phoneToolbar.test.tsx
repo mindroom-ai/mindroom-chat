@@ -38,10 +38,10 @@ const createEvent = () =>
     getSender: () => '@alice:example.org',
     getTs: () => 1,
     isRedacted: () => false,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const createRoom = () =>
-  ({ roomId: '!room:example.org', getTimelineForEvent: () => undefined }) as unknown as Room;
+  ({ roomId: '!room:example.org', getTimelineForEvent: () => undefined } as unknown as Room);
 
 /** Renders one confirmed message whose body is a plain paragraph, and returns that paragraph. */
 const renderMessage = async () => {

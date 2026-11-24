@@ -152,10 +152,10 @@ export const installThreadJumpProbe = () => {
         const drift = !this.burstClamped
           ? rawDrift
           : rawDrift > 0
-            ? rawDrift
-            : this.burstRowPx < 0
-              ? this.burstRowPx
-              : 0;
+          ? rawDrift
+          : this.burstRowPx < 0
+          ? this.burstRowPx
+          : 0;
         if (Math.abs(drift) > this.maxUnexplainedPx) this.maxUnexplainedPx = Math.abs(drift);
         if (Math.abs(drift) >= 8 && this.jumps.length < 40) {
           this.jumps.push({
@@ -369,7 +369,7 @@ export const installThreadJumpProbe = () => {
           probe.scrolledPx += Math.abs(dScroll);
 
           const ds = [...moved].sort((a, b) => a - b);
-          median = ds.length > 0 ? (ds[Math.floor(ds.length / 2)] ?? 0) : 0;
+          median = ds.length > 0 ? ds[Math.floor(ds.length / 2)] ?? 0 : 0;
           spread = ds.length > 0 ? Math.max(...ds.map((d) => Math.abs(d - median))) : 0;
           const movedPx = dScroll - appDelta;
           unexplained = ds.length > 0 ? median + movedPx : 0;

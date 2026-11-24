@@ -16,7 +16,7 @@ function Harness({ closeDelayMs, triggerKey }: { closeDelayMs?: number; triggerK
       <button
         key={triggerKey}
         ref={(node) => {
-          if (node) node.getBoundingClientRect = () => ({ ...rect }) as DOMRect;
+          if (node) node.getBoundingClientRect = () => ({ ...rect } as DOMRect);
           triggerRef.current = node;
         }}
         type="button"

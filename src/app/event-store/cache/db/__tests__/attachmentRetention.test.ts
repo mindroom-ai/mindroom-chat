@@ -170,15 +170,13 @@ it('keeps previous references when registering a replacement fails atomically', 
   const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
     if (!String(args[0]).startsWith('[mindroom-cache:roomEventCache.save]')) originalWarn(...args);
   });
-  const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failReference(
-    this: IDBObjectStore,
-    value,
-    key
-  ) {
-    if (this.name === 'attachment_references' && value.mxcUri === 'mxc://test/new')
-      throw new Error('write failed');
-    return key === undefined ? original.call(this, value) : original.call(this, value, key);
-  });
+  const put = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function failReference(this: IDBObjectStore, value, key) {
+      if (this.name === 'attachment_references' && value.mxcUri === 'mxc://test/new')
+        throw new Error('write failed');
+      return key === undefined ? original.call(this, value) : original.call(this, value, key);
+    });
   expect(
     await saveAttachmentOwner(session, 'room-a', '$message', 2, [
       { mxcUri: 'mxc://test/new', essential: true },

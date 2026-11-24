@@ -12,7 +12,7 @@ import {
 
 const makeSessions = (
   send = vi.fn<(path: string, init?: RequestInit) => Promise<Response>>()
-): ClientSessions => ({ send }) as unknown as ClientSessions;
+): ClientSessions => ({ send } as unknown as ClientSessions);
 
 describe('DictationClient', () => {
   it('probes GET /api/dictation/v1/status with optional encoded room_id', async () => {

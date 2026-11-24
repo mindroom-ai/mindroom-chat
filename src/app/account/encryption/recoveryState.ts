@@ -23,10 +23,7 @@ export type RecoveryState =
   | { kind: 'locked'; key: DefaultSecretStorageKey }
   | { kind: 'ready'; key: DefaultSecretStorageKey | null };
 
-export const describeKey = ([
-  keyId,
-  description,
-]: SecretStorageKeyTuple): DefaultSecretStorageKey => {
+export const describeKey = ([keyId, description]: SecretStorageKeyTuple): DefaultSecretStorageKey => {
   const keyContent: SecretStorageKeyContent = description;
   return { keyId, keyContent, hasPassphrase: Boolean(keyContent.passphrase) };
 };

@@ -5,7 +5,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../matrix/session/sessions';
 import { createSyncEngine } from '../engine/syncEngine';
 import { createEngineWriteThrough } from '../engine/engineWriteThrough';
-import { clearAttachmentRepositoryMemory, prefetchEventAttachments } from './attachmentRepository';
+import {
+  clearAttachmentRepositoryMemory,
+  prefetchEventAttachments,
+} from './attachmentRepository';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
   clearRoomCachedContent,

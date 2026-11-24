@@ -280,7 +280,7 @@ const createRoom = (invitedCount = 0): Room =>
     roomId: '!room:example.org',
     getJoinedMemberCount: () => 3,
     getInvitedMemberCount: () => invitedCount,
-  }) as Room;
+  } as Room);
 
 const hasVisibleFilterLabel = (renderer: ReactTestRenderer | undefined, label: string): boolean =>
   renderer?.root.findAllByType('span').some((element) => element.children.includes(label)) ?? false;

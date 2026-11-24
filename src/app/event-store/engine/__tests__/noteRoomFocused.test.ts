@@ -14,7 +14,7 @@ const makeRoom = (roomId: string): Room =>
     roomId,
     hasEncryptionStateEvent: () => false,
     getLastActiveTimestamp: () => 0,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const createClient = (rooms: Map<string, Room>): MatrixClient =>
   ({
@@ -25,7 +25,7 @@ const createClient = (rooms: Map<string, Room>): MatrixClient =>
     getSafeUserId: () => '@bob:mindroom.chat',
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
     getRooms: () => Array.from(rooms.values()),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 describe('engine.noteRoomFocused (ISSUE-207 P4.2)', () => {
   beforeEach(() => {

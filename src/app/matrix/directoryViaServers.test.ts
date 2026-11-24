@@ -6,7 +6,7 @@ import {
   rememberDirectoryViaServers,
 } from './directoryViaServers';
 
-const makeClient = () => ({}) as MatrixClient;
+const makeClient = () => ({} as MatrixClient);
 
 describe('boundDirectoryViaServers', () => {
   it('keeps the first five servers of a long list', () => {

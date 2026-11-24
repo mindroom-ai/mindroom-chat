@@ -1,14 +1,7 @@
 #!/usr/bin/env node
 // Generate latest-mac.yml for the Electron Mac app from verified arm64 and x64 ZIPs.
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -38,19 +31,10 @@ function readZipEntry(filePath, repository, version) {
 
 /** @param {{ version: string; releaseDate?: string; repository: string; files: string[] }} options */
 export function buildDesktopLatestYml({ version, releaseDate, repository, files }) {
-  check(
-    typeof version === 'string' && CALVER_RE.test(version),
-    `Invalid version '${String(version)}'`
-  );
-  check(
-    typeof repository === 'string' && REPO_RE.test(repository),
-    `Invalid repository '${String(repository)}'`
-  );
+  check(typeof version === 'string' && CALVER_RE.test(version), `Invalid version '${String(version)}'`);
+  check(typeof repository === 'string' && REPO_RE.test(repository), `Invalid repository '${String(repository)}'`);
   const date = releaseDate ?? new Date().toISOString();
-  check(
-    typeof date === 'string' && date.trim() && !Number.isNaN(Date.parse(date)),
-    `Invalid releaseDate '${String(releaseDate)}'`
-  );
+  check(typeof date === 'string' && date.trim() && !Number.isNaN(Date.parse(date)), `Invalid releaseDate '${String(releaseDate)}'`);
   check(Array.isArray(files), 'files must be an array of ZIP archive paths');
 
   const byName = new Map();
@@ -79,9 +63,7 @@ if (
   realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])
 ) {
   const required = ['version', 'repo', 'arm64', 'x64', 'out'];
-  const options = Object.fromEntries(
-    [...required, 'release-date'].map((k) => [k, { type: 'string' }])
-  );
+  const options = Object.fromEntries([...required, 'release-date'].map((k) => [k, { type: 'string' }]));
   const { values } = parseArgs({ options });
   for (const flag of required) check(values[flag], `Missing required flag --${flag}`);
   const yml = buildDesktopLatestYml({

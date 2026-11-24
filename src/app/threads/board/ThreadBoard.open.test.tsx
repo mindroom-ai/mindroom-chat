@@ -35,22 +35,24 @@ vi.mock('../../navigation/useRoomNavigate', () => ({
 }));
 vi.mock('../overview/compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: ({ threadRootIds }: { threadRootIds: string[] }) =>
-    threadRootIds.map((threadRootId): CompactThreadCardViewModel => ({
-      id: { roomId: ROOM_ID, threadRootId },
-      titleText: threadRootId,
-      displayTitleText: threadRootId,
-      previewText: '',
-      messageCount: 1,
-      messageCountLabel: '1 reply',
-      messageCountText: '1',
-      attentionState: 'idle',
-      attentionStatusText: 'Idle',
-      participants: [],
-      tags: [],
-      isResolved: false,
-      isUnread: false,
-      isStreaming: false,
-    })),
+    threadRootIds.map(
+      (threadRootId): CompactThreadCardViewModel => ({
+        id: { roomId: ROOM_ID, threadRootId },
+        titleText: threadRootId,
+        displayTitleText: threadRootId,
+        previewText: '',
+        messageCount: 1,
+        messageCountLabel: '1 reply',
+        messageCountText: '1',
+        attentionState: 'idle',
+        attentionStatusText: 'Idle',
+        participants: [],
+        tags: [],
+        isResolved: false,
+        isUnread: false,
+        isStreaming: false,
+      })
+    ),
 }));
 vi.mock('../tags/useRoomThreadTags', () => ({
   useToggleThreadResolution: () => ({

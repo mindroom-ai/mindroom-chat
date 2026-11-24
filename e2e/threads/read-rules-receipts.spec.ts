@@ -211,12 +211,16 @@ const expectSettled = async (
   overview: string,
   row: string
 ) => {
-  await expect.poll(() => overviewState(page, room, eventIds), { timeout: 30_000 }).toBe(overview);
+  await expect
+    .poll(() => overviewState(page, room, eventIds), { timeout: 30_000 })
+    .toBe(overview);
   await expectRow(page, room, phone, row);
   await page.reload();
   await expectRow(page, room, phone, row);
   await openOverview(page, room, eventIds);
-  await expect.poll(() => overviewState(page, room, eventIds), { timeout: 30_000 }).toBe(overview);
+  await expect
+    .poll(() => overviewState(page, room, eventIds), { timeout: 30_000 })
+    .toBe(overview);
 };
 
 const olderUnthreadedReceipt: Check = async (page, phone, engine) => {

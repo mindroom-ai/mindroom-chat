@@ -250,7 +250,7 @@ const drawnIndicator = async (page: Page, button: Locator) => {
   const { x, top, uncovered } = await entry.evaluate((element) => {
     const nav = element.closest('nav')?.getBoundingClientRect();
     const rtl = getComputedStyle(element).direction === 'rtl';
-    const edge = rtl ? (nav?.right ?? 0) - 4 : (nav?.left ?? 0);
+    const edge = rtl ? (nav?.right ?? 0) - 4 : nav?.left ?? 0;
     const box = element.getBoundingClientRect();
     const middle = box.top + box.height / 2;
     return {

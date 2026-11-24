@@ -77,9 +77,7 @@ const latestThreadReply = (thread: Thread): MatrixEvent | undefined => {
   const tail = summaryLoaded
     ? loaded
     : newer(loaded, summary && isConfirmedReply(summary) ? summary : undefined);
-  return tail && !tail.isRelation(RelationType.Replace)
-    ? newer(tail, finishingEditOf(tail, thread))
-    : tail;
+  return tail && !tail.isRelation(RelationType.Replace) ? newer(tail, finishingEditOf(tail, thread)) : tail;
 };
 
 const send = (promise: Promise<unknown> | undefined): Promise<void> =>
@@ -300,12 +298,12 @@ export const markThreadAsRead = async (
   await markThreadRootAsRead(mx, room, rootId, hideActivity);
   const target = shown
     ? reachedReply(shown, thread)
-    : (known ??
+    : known ??
       (await fetchThreadTail(mx, roomId, rootId)) ??
       room
         .getLiveTimeline()
         .getEvents()
-        .findLast((event) => isConfirmedReply(event) && event.threadRootId === rootId));
+        .findLast((event) => isConfirmedReply(event) && event.threadRootId === rootId);
   const targetId = target?.getId();
   if (!target || !targetId || !isConfirmed(target)) return;
   if (thread && threadReceiptReads(thread, mx.getUserId() ?? undefined, target)) return;

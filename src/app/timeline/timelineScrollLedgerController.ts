@@ -925,8 +925,8 @@ export const useTimelineScrollLedgerController = ({
         currentScrollTop > previousScrollTop
           ? 'forward'
           : currentScrollTop < previousScrollTop
-            ? 'backward'
-            : null;
+          ? 'backward'
+          : null;
       // Keep the baseline current even while the ledger is zero or below
       // its arming floor. Otherwise the first correction-bearing event can
       // compare against an arbitrarily old offset.

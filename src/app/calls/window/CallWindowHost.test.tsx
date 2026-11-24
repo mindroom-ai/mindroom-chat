@@ -64,7 +64,7 @@ vi.mock('../CallPanel', () => ({
 const emit = (name: string, ...args: unknown[]) =>
   act(() => listeners.get(name)?.forEach((listener) => listener(...args)));
 
-const fakeRoom = (roomId: string, name: string) => ({ roomId, name }) as unknown as Room;
+const fakeRoom = (roomId: string, name: string) => ({ roomId, name } as unknown as Room);
 
 let location = '';
 let navigate: ReturnType<typeof useNavigate> | undefined;
@@ -283,7 +283,7 @@ describe('CallWindowHost', () => {
       call: { room: { roomId }, leave: vi.fn(async () => undefined), getState: () => ({ phase }) },
       kind: origin ? 'agent' : 'room',
       origin: origin ? { roomId: origin } : undefined,
-    }) as unknown as ActiveCall;
+    } as unknown as ActiveCall);
 
   it('expands a stored bar when a call starts in the room it shows, and only there', () => {
     const store = createStore();

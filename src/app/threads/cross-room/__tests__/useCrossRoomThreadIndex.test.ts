@@ -122,7 +122,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => null,
     getUnfilteredTimelineSet: () => makeTimelineSet([root, ...replies]),
-  }) as unknown as Thread;
+  } as unknown as Thread);
 
 const makeRoom = (
   roomId = '!room:example.org',
@@ -1583,7 +1583,7 @@ describe('useCrossRoomThreadIndex', () => {
       FixtureRoom,
       FixtureRoom,
       FixtureRoom,
-      FixtureRoom,
+      FixtureRoom
     ];
     const mx = makeClient([room1, room2, room3, room4]);
     matrixClientMock.mockReturnValue(mx);

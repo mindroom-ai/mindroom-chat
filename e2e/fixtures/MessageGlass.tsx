@@ -3,7 +3,10 @@ import parse from 'html-react-parser';
 import { CustomEditor, useEditor } from '../../src/app/editor/Editor';
 import { ThreadSummaryCard } from '../../src/app/messages/thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../src/app/approvals/ToolApprovalCard';
-import { ApprovalGroup, ApprovalHistory } from '../../src/app/approvals/ThreadApprovalControls';
+import {
+  ApprovalGroup,
+  ApprovalHistory,
+} from '../../src/app/approvals/ThreadApprovalControls';
 import { ApprovalReceipt } from '../../src/app/approvals/ApprovalReceipt';
 import { useToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReactParserOptions';
@@ -76,7 +79,11 @@ export function MessageGlass() {
           />
         </div>
         <div data-testid="approval">
-          <ToolApprovalCard approval={approval} roomId="!glass:example.org" eventId="$pending" />
+          <ToolApprovalCard
+            approval={approval}
+            roomId="!glass:example.org"
+            eventId="$pending"
+          />
         </div>
         <div data-testid="receipt">
           <ApprovalReceipt approval={{ ...approval, status: 'approved' }} />

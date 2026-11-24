@@ -194,7 +194,7 @@ describe('ReplyDetails', () => {
   const placeBars = (direction: 'ltr' | 'rtl') =>
     bars().forEach((bar, offset) => {
       const left = direction === 'ltr' ? offset * 10 : 30 - offset * 10;
-      bar.getBoundingClientRect = () => ({ left, right: left + 8 }) as DOMRect;
+      bar.getBoundingClientRect = () => ({ left, right: left + 8 } as DOMRect);
     });
 
   it('names the reply under the pointer in the caption', () => {

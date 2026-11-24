@@ -25,7 +25,8 @@ export const collectThreadPeopleIds = (
  */
 export const currentUserTookPart = (rootEvent: MatrixEvent | undefined): boolean => {
   const thread = rootEvent?.getUnsigned()?.['m.relations']?.['m.thread'] as
-    { current_user_participated?: unknown } | undefined;
+    | { current_user_participated?: unknown }
+    | undefined;
   return thread?.current_user_participated === true;
 };
 

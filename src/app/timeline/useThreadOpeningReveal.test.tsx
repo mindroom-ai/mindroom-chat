@@ -18,7 +18,7 @@ const scrollArea = ({ mounted = [20], ...geometry }: Geometry) =>
     ...geometry,
     querySelector: (selector: string) =>
       mounted.some((index) => selector === `[data-index="${index}"]`) ? {} : null,
-  }) as unknown as HTMLElement;
+  } as unknown as HTMLElement);
 
 const message = (index: number) =>
   new MatrixEvent({ event_id: `$${index}`, type: 'm.room.message', content: { body: `${index}` } });

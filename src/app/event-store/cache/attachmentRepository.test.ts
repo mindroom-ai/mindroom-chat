@@ -3,7 +3,10 @@ import { encryptAttachment } from 'browser-encrypt-attachment';
 import { IDBFactory } from 'fake-indexeddb';
 import { createClient, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLegacyMediaClient, saveAttachmentOwner } from './__tests__/attachmentFixtures';
+import {
+  createLegacyMediaClient,
+  saveAttachmentOwner,
+} from './__tests__/attachmentFixtures';
 import { writeCachedSpecVersions } from '../../matrix/cachedSpecVersions';
 import { createSessionId } from '../../matrix/session/sessions';
 import type { IEncryptedFile } from '../../matrix/types/common';
@@ -75,19 +78,18 @@ const hydrate = (mx: MatrixClient) =>
 const pauseAttachmentLookup = (mxcUri: string) => {
   const originalGet = IDBObjectStore.prototype.get;
   let request: IDBRequest | undefined;
-  const spy = vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function pausedGet(
-    this: IDBObjectStore,
-    query
-  ) {
-    if (query !== mxcUri) return originalGet.call(this, query);
-    request = {
-      error: null,
-      onerror: null,
-      onsuccess: null,
-      result: undefined,
-    } as unknown as IDBRequest;
-    return request;
-  });
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'get')
+    .mockImplementation(function pausedGet(this: IDBObjectStore, query) {
+      if (query !== mxcUri) return originalGet.call(this, query);
+      request = {
+        error: null,
+        onerror: null,
+        onsuccess: null,
+        result: undefined,
+      } as unknown as IDBRequest;
+      return request;
+    });
 
   return {
     waitUntilStarted: (timeout = 1000) =>
@@ -770,7 +772,9 @@ it('cancels shared HTTP transport when its last consumer leaves', async () => {
 
 it('validates a second admitted warm-memory owner and keeps its body after clearing the first room', async () => {
   const repository = await import('./attachmentRepository');
-  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import('./db');
+  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import(
+    './db'
+  );
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
@@ -835,7 +839,9 @@ it('does not resurrect a retired interactive long-text body after delayed transp
 
 it('persists for a surviving shared hydration owner after the first room is cleared', async () => {
   const { hydrateCachedLongText } = await import('./attachmentRepository');
-  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import('./db');
+  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import(
+    './db'
+  );
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
@@ -925,7 +931,9 @@ it('keeps an original sidecar file incomplete until body validation even without
   );
   const source = { ...SOURCE, owner: { roomId: 'room-a', eventId: '$body', revisionTs: 1 } };
   await admitSource(mx, source, true);
-  expect(await (await downloadLongTextSidecarBlob(mx, source, true)).text()).toBe('invalid json');
+  expect(await (await downloadLongTextSidecarBlob(mx, source, true)).text()).toBe(
+    'invalid json'
+  );
   expect(await readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
     saved: 0,
     missingEssential: 1,
@@ -970,14 +978,12 @@ it('validated owned cache hits do not rewrite attachment payloads', async () => 
   clearLongTextHydrationCache();
   const writes: string[] = [];
   const original = IDBObjectStore.prototype.put;
-  const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function countWrites(
-    this: IDBObjectStore,
-    value,
-    key
-  ) {
-    writes.push(this.name);
-    return original.call(this, value, key);
-  });
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
+      writes.push(this.name);
+      return original.call(this, value, key);
+    });
   try {
     expect((await hydrateCachedLongText(mx, source)).body).toBe('owned body');
     expect(writes.filter((name) => name === 'attachments')).toHaveLength(0);

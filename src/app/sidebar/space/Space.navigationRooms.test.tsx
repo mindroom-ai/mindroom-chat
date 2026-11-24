@@ -89,7 +89,8 @@ const {
     moveSpaceRoomMock: vi.fn(async (): Promise<void> => undefined),
     dragGroup: {
       canMoveRoom: undefined as
-        ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean) | undefined,
+        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
+        | undefined,
       onMoveRoom: undefined as
         | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => void | Promise<void>)
         | undefined,

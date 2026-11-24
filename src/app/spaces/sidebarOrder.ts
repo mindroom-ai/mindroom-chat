@@ -26,8 +26,7 @@ const uniqueStrings = (value: unknown): string[] => {
   });
 };
 
-const readStringArray = (key: string): string[] =>
-  uniqueStrings(getLocalStorageItem<unknown>(key, []));
+const readStringArray = (key: string): string[] => uniqueStrings(getLocalStorageItem<unknown>(key, []));
 
 export const makeSpaceOrderAtom = (userId: string): SpaceOrderAtom => {
   const baseSpaceOrderAtom = atomWithLocalStorage<SpaceOrderState>(

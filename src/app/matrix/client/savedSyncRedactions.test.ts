@@ -85,7 +85,7 @@ describe('keepRedactionsInSavedSync', () => {
 
   it('saves the sync store after a redaction a room took without a synced event', async () => {
     const roomWith = (...editIds: string[]) =>
-      ({ redactedBundledEdits: new Set(editIds) }) as unknown as Room;
+      ({ redactedBundledEdits: new Set(editIds) } as unknown as Room);
     const forgotten = roomWith('$old-edit');
     const room = roomWith();
     const rooms = [forgotten, room];
@@ -388,7 +388,7 @@ const syncOf = (events: object[], prevBatch: string, nextBatch: string, state: o
         },
       },
     },
-  }) as unknown as ISyncResponse;
+  } as unknown as ISyncResponse);
 
 const savedTimeline = (accumulator: SyncAccumulator) =>
   accumulator.getJSON(true).roomsData.join[ROOM]?.timeline;

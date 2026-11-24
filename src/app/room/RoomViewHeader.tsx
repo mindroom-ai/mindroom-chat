@@ -303,7 +303,7 @@ export function RoomViewHeader({
   const pictureMxc = useRoomAvatar(room, direct);
   // Twice the 36 px avatar, so it stays sharp on high-density screens.
   const avatarSrc = pictureMxc
-    ? (mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined)
+    ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
     : undefined;
   // Direction controls in the name and topic show as code points, so they cannot reorder them.
   const roomName = revealDirectionControls(useRoomName(room));
@@ -358,8 +358,7 @@ export function RoomViewHeader({
     (opener?: HTMLElement) =>
       opener?.isConnected
         ? opener
-        : (headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ??
-          false),
+        : headerRef.current?.querySelector<HTMLButtonElement>('[data-room-more-options]') ?? false,
     [headerRef]
   );
   const restoreFocusAfterDismiss = useCallback(
@@ -604,18 +603,20 @@ export function RoomViewHeader({
         run: () => onPanelToggle?.(id),
       })
     ),
-    ...pluginActions.map(({ id, label, icon, placement, run }): RoomHeaderAction => ({
-      id: `action:${id}`,
-      label,
-      icon,
-      placement,
-      // A thread whose root the server has not confirmed yet has no id a plugin could use.
-      run: () =>
-        run({
-          roomId: room.roomId,
-          threadId: isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined,
-        }),
-    })),
+    ...pluginActions.map(
+      ({ id, label, icon, placement, run }): RoomHeaderAction => ({
+        id: `action:${id}`,
+        label,
+        icon,
+        placement,
+        // A thread whose root the server has not confirmed yet has no id a plugin could use.
+        run: () =>
+          run({
+            roomId: room.roomId,
+            threadId: isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined,
+          }),
+      })
+    ),
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
   // The command palette offers the actions the header draws, bar the ones that need their button's place.

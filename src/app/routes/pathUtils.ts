@@ -97,7 +97,7 @@ const hashRouterBasename = (hashRouter: HashRouterOption): string | undefined =>
  * deployment base path, and with a hash router the `#basename` part.
  */
 export const getOriginBaseUrl = (hashRouter?: HashRouterOption): string => {
-  const origin = typeof window !== 'undefined' ? (window.location?.origin ?? '') : '';
+  const origin = typeof window !== 'undefined' ? window.location?.origin ?? '' : '';
   const basePath = trimSlashes(getAppBasePath());
   const base = basePath ? `${origin}/${basePath}` : origin;
   const hashBasename = hashRouterBasename(hashRouter);

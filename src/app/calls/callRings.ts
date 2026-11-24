@@ -115,7 +115,8 @@ export const declinedRingId = (event: MatrixEvent, myUserId: string): string | u
   if (!matchesEnum(event.getType(), EventType.RTCDecline) || event.getSender() !== myUserId)
     return undefined;
   const relation = event.getContent()['m.relates_to'] as
-    { rel_type?: unknown; event_id?: unknown } | undefined;
+    | { rel_type?: unknown; event_id?: unknown }
+    | undefined;
   if (relation?.rel_type !== RelationType.Reference) return undefined;
   return typeof relation.event_id === 'string' ? relation.event_id : undefined;
 };

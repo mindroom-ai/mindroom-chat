@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createApprovalActions, getApprovalCapabilities } from '../approvals/approvalActions';
-import {
-  buildToolApprovalResponseContent,
-  parseToolApprovalContent,
-} from '../matrix/protocol/toolApproval';
+import { buildToolApprovalResponseContent, parseToolApprovalContent } from '../matrix/protocol/toolApproval';
 import { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import { formatApprovalTime, scheduledScopeLabelKey } from '../approvals/approvalScheduleText';
 

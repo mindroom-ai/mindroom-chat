@@ -168,9 +168,7 @@ describe('notificationServiceUploadProblems', () => {
       'MindRoomNotificationService'
     );
     expect(nseProblems({ projectText: mismatchedVersion })).toEqual([
-      expect.stringContaining(
-        'Target MindRoomNotificationService MARKETING_VERSION (9.9.9) must match App'
-      ),
+      expect.stringContaining('Target MindRoomNotificationService MARKETING_VERSION (9.9.9) must match App'),
     ]);
 
     const mismatchedBuild = replaceAppTargetBuildSetting(
@@ -180,19 +178,14 @@ describe('notificationServiceUploadProblems', () => {
       'MindRoomNotificationService'
     );
     expect(nseProblems({ projectText: mismatchedBuild })).toEqual([
-      expect.stringContaining(
-        'Target MindRoomNotificationService CURRENT_PROJECT_VERSION (99999) must match App'
-      ),
+      expect.stringContaining('Target MindRoomNotificationService CURRENT_PROJECT_VERSION (99999) must match App'),
     ]);
   });
 
   it('rejects invalid extension Info.plist values and missing INSendMessageIntent in App Info.plist', () => {
     const badPlist = checkedInNotificationServiceInfoPlist
       .replace('<string>$(MARKETING_VERSION)</string>', '<string>1.0.0</string>')
-      .replace(
-        '<string>com.apple.usernotifications.service</string>',
-        '<string>com.apple.wrong</string>'
-      );
+      .replace('<string>com.apple.usernotifications.service</string>', '<string>com.apple.wrong</string>');
     expect(nseProblems({ notificationServiceInfoPlistText: badPlist })).toEqual([
       "MindRoomNotificationService Info.plist CFBundleShortVersionString must be $(MARKETING_VERSION), got '1.0.0'.",
       "MindRoomNotificationService Info.plist NSExtensionPointIdentifier must be com.apple.usernotifications.service, got 'com.apple.wrong'.",
@@ -247,10 +240,7 @@ describe('broadcastExtensionUploadProblems', () => {
   it('rejects invalid extension Info.plist values and missing App Info.plist keys', () => {
     const badExtPlist = checkedInBroadcastExtensionInfoPlist
       .replace('<string>$(MARKETING_VERSION)</string>', '<string>1.0.0</string>')
-      .replace(
-        '<string>com.apple.broadcast-services-upload</string>',
-        '<string>com.apple.wrong</string>'
-      )
+      .replace('<string>com.apple.broadcast-services-upload</string>', '<string>com.apple.wrong</string>')
       .replace('<string>RPBroadcastProcessModeSampleBuffer</string>', '<string>WrongMode</string>')
       .replace('<string>group.chat.mindroom.app</string>', '<string>group.wrong</string>');
     expect(broadcastProblems({ broadcastExtensionInfoPlistText: badExtPlist })).toEqual([

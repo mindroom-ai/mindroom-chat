@@ -23,7 +23,7 @@ vi.mock('react-i18next', async () => {
 });
 
 const ROOT = '$root:test';
-const room = (roomId = '!room:test') => ({ roomId }) as unknown as Room;
+const room = (roomId = '!room:test') => ({ roomId } as unknown as Room);
 
 const editor = (text: string, rootId = ROOT, roomValue = room()) => (
   <InlineThreadTitleEditor room={roomValue} rootId={rootId} text={text}>

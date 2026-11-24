@@ -103,13 +103,10 @@ const signIn = async (
     password: PASSWORD,
   });
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.evaluate(
-    (to) => {
-      window.history.pushState(null, '', to);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/home/${encodeURIComponent(world.roomId)}`
-  );
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
   await expect(page.getByText(LAST, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
   await expect(button(page, 'Send message')).toBeVisible();
   return { context, page };

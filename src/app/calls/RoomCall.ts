@@ -36,7 +36,10 @@ import {
   isNativeScreenShareAvailable,
   type NativeScreenShareSheetStrings,
 } from './nativeScreenShare';
-import { companionMembershipStateKey, NativeScreenShareSession } from './NativeScreenShareSession';
+import {
+  companionMembershipStateKey,
+  NativeScreenShareSession,
+} from './NativeScreenShareSession';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -528,7 +531,9 @@ export class RoomCall {
       local,
       ...memberships
         .filter((membership) => !membership.screenOnly)
-        .map(({ userId, deviceId: memberDeviceId, key }) => describe(userId, memberDeviceId, key)),
+        .map(({ userId, deviceId: memberDeviceId, key }) =>
+          describe(userId, memberDeviceId, key)
+        ),
     ];
     const unmatchedCompanions: CallParticipant[] = [];
     memberships
@@ -1063,10 +1068,9 @@ export class RoomCall {
         if (this.media !== media || op !== this.toggleOps[kind]) return;
       }
     }
-    const failed = await (
-      kind === 'microphone'
-        ? media.localParticipant.setMicrophoneEnabled(on)
-        : media.localParticipant.setCameraEnabled(on)
+    const failed = await (kind === 'microphone'
+      ? media.localParticipant.setMicrophoneEnabled(on)
+      : media.localParticipant.setCameraEnabled(on)
     ).then(
       () => false,
       () => true

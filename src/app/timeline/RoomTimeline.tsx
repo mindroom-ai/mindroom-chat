@@ -492,7 +492,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = threadId
-    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
+    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
     : undefined;
   const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
@@ -1327,8 +1327,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           threadLoading ? 'loading' : '',
         ].join('|')
       : roomSurfaceShown && !latestAtTop
-        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-        : '',
+      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+      : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,

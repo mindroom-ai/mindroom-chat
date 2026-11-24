@@ -94,7 +94,7 @@ export const groupThreadBoard = (
   });
   const laterTs = ({ status }: ThreadRecord) =>
     Math.min(
-      isSnoozedAt(status.snoozedUntilTs, now) ? (status.snoozedUntilTs ?? Infinity) : Infinity,
+      isSnoozedAt(status.snoozedUntilTs, now) ? status.snoozedUntilTs ?? Infinity : Infinity,
       status.nextScheduledTs ?? Infinity
     );
   const soonest = (a: ThreadRecord, b: ThreadRecord) =>

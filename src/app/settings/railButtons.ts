@@ -6,7 +6,13 @@ import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 /** The icon rail buttons each person can hide in Settings. */
 export type RailButton =
-  'threads' | 'canvases' | 'usage' | 'explore' | 'createSpace' | 'search' | 'localMindroom';
+  | 'threads'
+  | 'canvases'
+  | 'usage'
+  | 'explore'
+  | 'createSpace'
+  | 'search'
+  | 'localMindroom';
 
 export type RailButtons = Record<RailButton, boolean>;
 

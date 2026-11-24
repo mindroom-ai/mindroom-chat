@@ -492,43 +492,45 @@ function RoomContent() {
         </ResizablePanel>
       ),
     },
-    ...pluginPanels.map((panel): PanelEntry => ({
-      id: panel.id,
-      open: pluginPanel?.id === panel.id,
-      close: closePluginPanel,
-      show: () => showPluginPanel(panel),
-      label: panel.label,
-      covers: mobile,
-      ownFrame: panel.frame === 'own',
-      render: () => {
-        const content = (
-          <PluginSidePanel
-            panel={panel}
-            roomId={roomId}
-            request={pluginPanel?.request}
-            onClose={closePluginPanel}
-          />
-        );
-        // One that draws its own frame has no box of the room's either: it sizes itself.
-        if (panel.frame === 'own') return content;
-        return (
-          <ResizablePanel
-            side="end"
-            storageKey={pluginPanelWidthStorageKey(ownUserId, panel.id)}
-            defaultWidth={CALL_DEFAULT_WIDTH}
-            minContentWidth={CONVERSATION_MIN_WIDTH}
-            maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
-            passthrough={mobile}
-            resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
-            collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
-            onCollapse={closePluginPanel}
-            testId="resizable-plugin-panel"
-          >
-            {content}
-          </ResizablePanel>
-        );
-      },
-    })),
+    ...pluginPanels.map(
+      (panel): PanelEntry => ({
+        id: panel.id,
+        open: pluginPanel?.id === panel.id,
+        close: closePluginPanel,
+        show: () => showPluginPanel(panel),
+        label: panel.label,
+        covers: mobile,
+        ownFrame: panel.frame === 'own',
+        render: () => {
+          const content = (
+            <PluginSidePanel
+              panel={panel}
+              roomId={roomId}
+              request={pluginPanel?.request}
+              onClose={closePluginPanel}
+            />
+          );
+          // One that draws its own frame has no box of the room's either: it sizes itself.
+          if (panel.frame === 'own') return content;
+          return (
+            <ResizablePanel
+              side="end"
+              storageKey={pluginPanelWidthStorageKey(ownUserId, panel.id)}
+              defaultWidth={CALL_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+              passthrough={mobile}
+              resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
+              collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
+              onCollapse={closePluginPanel}
+              testId="resizable-plugin-panel"
+            >
+              {content}
+            </ResizablePanel>
+          );
+        },
+      })
+    ),
     {
       id: 'members',
       open: membersOpen,

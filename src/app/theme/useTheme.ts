@@ -164,8 +164,8 @@ export const useChosenTheme = (): Theme => {
   return useMemo(() => {
     if (!useSystemTheme) return getThemeById(themeId) ?? LightTheme;
     return systemKind === ThemeKind.Dark
-      ? (getThemeById(darkThemeId) ?? DarkTheme)
-      : (getThemeById(lightThemeId) ?? LightTheme);
+      ? getThemeById(darkThemeId) ?? DarkTheme
+      : getThemeById(lightThemeId) ?? LightTheme;
   }, [useSystemTheme, themeId, systemKind, lightThemeId, darkThemeId]);
 };
 

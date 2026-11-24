@@ -37,7 +37,7 @@ const makeCrypto = (calls: string[]): FakeCrypto => {
 };
 
 const clientWith = (crypto: FakeCrypto | undefined) =>
-  ({ getCrypto: () => crypto, http: {} }) as unknown as Pick<MatrixClient, 'getCrypto' | 'http'>;
+  ({ getCrypto: () => crypto, http: {} } as unknown as Pick<MatrixClient, 'getCrypto' | 'http'>);
 
 beforeEach(() => {
   vi.clearAllMocks();

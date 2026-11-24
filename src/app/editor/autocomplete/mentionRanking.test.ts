@@ -9,7 +9,7 @@ import {
 } from './mentionRanking';
 
 const member = (userId: string, name: string) =>
-  ({ userId, name, rawDisplayName: name }) as unknown as RoomMember;
+  ({ userId, name, rawDisplayName: name } as unknown as RoomMember);
 
 // A MindRoom team: agents and the owner under `mindroom_`, beside people without the prefix.
 const scout = member('@mindroom_scout:example.org', 'Scout');
@@ -88,7 +88,7 @@ describe('filterAndOrderMentionCandidates', () => {
 });
 
 const event = (type: string, sender: string, ts: number) =>
-  ({ getType: () => type, getSender: () => sender, getTs: () => ts }) as unknown as MatrixEvent;
+  ({ getType: () => type, getSender: () => sender, getTs: () => ts } as unknown as MatrixEvent);
 
 describe('recentSenders', () => {
   it('lists who sent messages in the room and its threads, latest first, once each', () => {

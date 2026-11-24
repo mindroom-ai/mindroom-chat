@@ -27,7 +27,7 @@ const makeClient = (initial: Record<string, Record<string, unknown>> = {}) => {
         type === eventType
           ? new MatrixEvent({ type, content: contents.get(roomId) ?? {} })
           : undefined,
-    }) as Room;
+    } as Room);
   const sync = (roomId: string, next: Record<string, unknown>, type = eventType) => {
     if (type === eventType) contents.set(roomId, next);
     emitter.emit(RoomEvent.AccountData, new MatrixEvent({ type, content: next }), getRoom(roomId));

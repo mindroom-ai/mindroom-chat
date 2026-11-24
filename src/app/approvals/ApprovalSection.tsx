@@ -62,7 +62,7 @@ export function ApprovalAgentAvatar({
       <UserAvatar
         userId={member?.userId ?? agentName}
         src={
-          mxc ? (mxcUrlToHttp(mx, mxc, useAuthentication, 64, 64, 'crop') ?? undefined) : undefined
+          mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, 64, 64, 'crop') ?? undefined : undefined
         }
         alt={name}
         renderFallback={() => <Icon size="100" src={Icons.User} filled />}

@@ -14,7 +14,7 @@ const clientWith = (rooms: FakeRoom[], direct: Record<string, string[]> = {}): M
         getMember: (userId: string) =>
           room.members[userId] ? { membership: room.members[userId] } : null,
       })),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 describe('categorizeInvite', () => {
   it('puts spam first, whoever sent it', () => {

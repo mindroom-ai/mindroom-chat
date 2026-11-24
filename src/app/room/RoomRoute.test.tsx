@@ -27,14 +27,14 @@ const makeRoom = (canonicalAlias?: string, membership = (): string => KnownMembe
     getCanonicalAlias: () => canonicalAlias ?? null,
     getAltAliases: () => [],
     isSpaceRoom: () => false,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeClient = (rooms: Room[], getRoomIdForAlias = vi.fn()): MatrixClient =>
   ({
     getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
     getRooms: () => rooms,
     getRoomIdForAlias,
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 function ShownRoom() {
   return <div data-shown-room={useRoom().roomId} />;

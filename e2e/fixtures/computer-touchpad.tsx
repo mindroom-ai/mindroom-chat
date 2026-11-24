@@ -4,7 +4,10 @@ import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '../../src/index.css';
 import { lightTheme } from '../../src/app/theme/colors.css';
-import { ComputerScreen, type ComputerScreenHandle } from '../../src/app/computer/ComputerScreen';
+import {
+  ComputerScreen,
+  type ComputerScreenHandle,
+} from '../../src/app/computer/ComputerScreen';
 
 const params = new URLSearchParams(window.location.search);
 const initialMode = params.get('mode') === 'control' ? 'control' : 'view';

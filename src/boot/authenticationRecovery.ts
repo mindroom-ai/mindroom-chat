@@ -2,7 +2,12 @@ import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigat
 import { dropInviteFragment } from './inviteFragment';
 
 export type AuthenticationRecoveryResult =
-  'disabled' | 'blocked' | 'navigating' | 'unavailable' | 'denied' | 'healthy';
+  | 'disabled'
+  | 'blocked'
+  | 'navigating'
+  | 'unavailable'
+  | 'denied'
+  | 'healthy';
 
 export type AuthenticationRecovery = {
   check: () => Promise<AuthenticationRecoveryResult>;

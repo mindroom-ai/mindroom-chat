@@ -1,8 +1,5 @@
 import type { Room } from 'matrix-js-sdk';
-import {
-  isVisibleThreadRootEvent,
-  type TimelineEventEntry,
-} from '../../event-store/timeline/roomTimelineEvents';
+import { isVisibleThreadRootEvent, type TimelineEventEntry } from '../../event-store/timeline/roomTimelineEvents';
 
 type TimelineRangeLike = {
   start: number;

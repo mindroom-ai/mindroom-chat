@@ -11,7 +11,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('./blurHash', async () => {
-  const actual = await vi.importActual<typeof import('./blurHash')>('./blurHash');
+  const actual = await vi.importActual<typeof import('./blurHash')>(
+    './blurHash'
+  );
   return {
     ...actual,
     encodeBlurHash: mocks.encodeBlurHash,
@@ -37,8 +39,7 @@ vi.mock('../matrix', async () => {
 
 const createUploadItem = (file: File): TUploadItem => ({
   file,
-  originalFile: file,
-  encInfo: undefined,
+  originalFile: file, encInfo: undefined,
   metadata: {
     // Only the spoiler flag matters to these tests.
     markedAsSpoiler: false,

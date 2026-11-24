@@ -15,8 +15,7 @@ const CLIPBOARD_PERMISSIONS: Record<string, string[]> = {
 };
 
 test.use({
-  permissions: async ({ browserName }, provide) =>
-    provide(CLIPBOARD_PERMISSIONS[browserName] ?? []),
+  permissions: async ({ browserName }, provide) => provide(CLIPBOARD_PERMISSIONS[browserName] ?? []),
 });
 
 const recorded = (page: Page) =>

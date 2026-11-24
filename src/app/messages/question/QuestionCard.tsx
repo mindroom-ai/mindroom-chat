@@ -205,7 +205,7 @@ export function QuestionCard({
     !isMindroomAgentUserIdForViewer(viewerId, viewerId);
   const answererName =
     answer && answer.senderId !== viewerId
-      ? ((room && getMemberDisplayName(room, answer.senderId)) ?? answer.senderId)
+      ? (room && getMemberDisplayName(room, answer.senderId)) ?? answer.senderId
       : undefined;
 
   const choose = (key: string) => {

@@ -106,11 +106,11 @@ const expectFocusOnCancel = async () =>
   );
 /** Treats attached elements as laid out, so the real focus trap finds its controls in jsdom. */
 const layOut = () =>
-  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
-    this: HTMLElement
-  ) {
-    return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
-  });
+  vi
+    .spyOn(HTMLElement.prototype, 'getClientRects')
+    .mockImplementation(function rects(this: HTMLElement) {
+      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+    });
 
 // As in Settings: the shared large dialog opens a separate, focus-trapped log-out prompt.
 function SettingsWithLogout() {

@@ -76,7 +76,7 @@ type MxcHttpExtras = [
   height?: number,
   resizeMethod?: string,
   allowDirectLinks?: boolean,
-  allowRedirects?: boolean,
+  allowRedirects?: boolean
 ];
 
 const buildMediaUrl = (

@@ -1,7 +1,12 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 
 export type EventSourceDocKind =
-  'event' | 'original' | 'latestEdit' | 'decrypted' | 'decryptionError' | 'encrypted';
+  | 'event'
+  | 'original'
+  | 'latestEdit'
+  | 'decrypted'
+  | 'decryptionError'
+  | 'encrypted';
 
 export type EventSourceDoc = { kind: EventSourceDocKind; data: unknown; rawJson: string };
 export type EventSourceBundle = {
@@ -110,7 +115,7 @@ const readOriginalEffective = (mEvent: MatrixEvent): unknown => {
 export const buildEventSourceBundle = (mEvent: MatrixEvent): EventSourceBundle => {
   const edit = mEvent.replacingEvent?.() ?? undefined;
   const editDoc = edit
-    ? makeDoc('latestEdit', edit.isEncrypted() ? (readEffective(edit) ?? edit.event) : edit.event)
+    ? makeDoc('latestEdit', edit.isEncrypted() ? readEffective(edit) ?? edit.event : edit.event)
     : undefined;
   const editDocs = editDoc ? [editDoc] : [];
   const withEditRaw = (base: string) => (editDoc ? `${base}\n\n${editDoc.rawJson}` : base);

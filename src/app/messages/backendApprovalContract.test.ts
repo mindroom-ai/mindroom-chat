@@ -58,8 +58,8 @@ describe('backend approval wire contract', () => {
         kind === 'denied'
           ? 'Wrong workspace'
           : kind === 'expired'
-            ? 'Tool approval request timed out.'
-            : null
+          ? 'Tool approval request timed out.'
+          : null
       );
       if (kind.startsWith('timed_') || kind === 'automatic') {
         expect(approval?.provenance).toEqual({

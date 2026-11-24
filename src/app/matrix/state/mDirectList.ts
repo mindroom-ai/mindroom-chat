@@ -6,7 +6,8 @@ import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
 
 type MDirectAction =
-  { type: 'INITIALIZE'; rooms: Set<string> } | { type: 'UPDATE'; rooms: Set<string> };
+  | { type: 'INITIALIZE'; rooms: Set<string> }
+  | { type: 'UPDATE'; rooms: Set<string> };
 
 type MDirectAtom = WritableAtom<Set<string>, [MDirectAction], void>;
 

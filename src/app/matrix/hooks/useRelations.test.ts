@@ -59,9 +59,7 @@ describe('useRelations', () => {
     expect(renderer.toJSON()).toBe('["👍"]');
 
     act(() => {
-      renderer.update(
-        React.createElement(HookHarness, { relations: secondRelations, getRelations })
-      );
+      renderer.update(React.createElement(HookHarness, { relations: secondRelations, getRelations }));
     });
 
     expect(renderer.toJSON()).toBe('[]');
@@ -69,8 +67,7 @@ describe('useRelations', () => {
 
   it('refreshes on relation add/remove/redaction events', () => {
     const relations = new MockRelations(['👍']);
-    const getRelations = (currentRelations: MockRelations<string[]>) =>
-      currentRelations.readValue();
+    const getRelations = (currentRelations: MockRelations<string[]>) => currentRelations.readValue();
 
     let renderer!: ReactTestRenderer;
     act(() => {

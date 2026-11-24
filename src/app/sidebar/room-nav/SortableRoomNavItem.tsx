@@ -38,15 +38,21 @@ const sortableStyle = (
 });
 
 export function SortableRoomNavItem({ parentSpaceId, room, ...props }: SortableRoomNavItemProps) {
-  const { listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } =
-    useSortable({
-      id: makeRoomSortableId(parentSpaceId, room.roomId),
-      animateLayoutChanges: animateSortableLayoutDuringDrag,
-      data: {
-        roomId: room.roomId,
-        parentSpaceId,
-      } satisfies SortableRoomNavItemData,
-    });
+  const {
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: makeRoomSortableId(parentSpaceId, room.roomId),
+    animateLayoutChanges: animateSortableLayoutDuringDrag,
+    data: {
+      roomId: room.roomId,
+      parentSpaceId,
+    } satisfies SortableRoomNavItemData,
+  });
 
   // The room's menu renders elsewhere in the page but its events pass through this row: they are
   // the menu's (its arrow keys, Enter on an entry), not the row's or a drag's.

@@ -771,9 +771,7 @@ const checkUnloadedPins =
     } catch (error) {
       // WebKit runs in a browser of its own, which Playwright does not photograph on failure.
       await shoot(page, testInfo, `unloaded-failed-${engine}-${form}`);
-      throw new Error(`${String(error)}\nThe menu reads: ${await menu.innerText()}`, {
-        cause: error,
-      });
+      throw new Error(`${String(error)}\nThe menu reads: ${await menu.innerText()}`, { cause: error });
     }
     await expect(menu.getByText(THREAD_PINS[2])).toHaveCount(0);
     await expect(

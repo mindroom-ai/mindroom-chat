@@ -683,31 +683,31 @@ describe('the edits a room keeps of a message', () => {
     });
   });
 
-  // A message's edits fetched with its relations: the relations hold them, no timeline does.
-  it.each(['readable', 'unreadable'] as const)(
-    'release an older %s edit the room knows redacted only through its bundle',
-    async (kind) => {
-      const { room, add, reply, kept, shown } = await roomWithReply();
-      await add(edit('$readable', 20));
-      const older =
-        kind === 'readable'
-          ? { event: editWith('$older', 10, { [TOOL_TRACE]: trace('search') }), keyArrives: tick }
-          : await encryptedEdit('$older', 10, { [TOOL_TRACE]: trace('search') });
-      room.relations.aggregateChildEvent(older.event);
-      await tick();
-      expect(kept()).toEqual(['$readable', '$older']);
-      expect(room.findEventById('$older')).toBeUndefined();
-      reply.setUnsigned({ 'm.relations': { 'm.replace': { ...older.event.event } } });
+    // A message's edits fetched with its relations: the relations hold them, no timeline does.
+    it.each(['readable', 'unreadable'] as const)(
+      'release an older %s edit the room knows redacted only through its bundle',
+      async (kind) => {
+        const { room, add, reply, kept, shown } = await roomWithReply();
+        await add(edit('$readable', 20));
+        const older =
+          kind === 'readable'
+            ? { event: editWith('$older', 10, { [TOOL_TRACE]: trace('search') }), keyArrives: tick }
+            : await encryptedEdit('$older', 10, { [TOOL_TRACE]: trace('search') });
+        room.relations.aggregateChildEvent(older.event);
+        await tick();
+        expect(kept()).toEqual(['$readable', '$older']);
+        expect(room.findEventById('$older')).toBeUndefined();
+        reply.setUnsigned({ 'm.relations': { 'm.replace': { ...older.event.event } } });
 
-      await add(redaction('$redact-bundle', '$older', 40));
-      await older.keyArrives();
-      await tick();
+        await add(redaction('$redact-bundle', '$older', 40));
+        await older.keyArrives();
+        await tick();
 
-      expect(room.redactedBundledEdits.has('$older')).toBe(true);
-      expect(kept()).toEqual(['$readable']);
-      expect(shown()?.[TOOL_TRACE]).toBeUndefined();
-    }
-  );
+        expect(room.redactedBundledEdits.has('$older')).toBe(true);
+        expect(kept()).toEqual(['$readable']);
+        expect(shown()?.[TOOL_TRACE]).toBeUndefined();
+      }
+    );
 
   describe('with an edit of the user’s own that is still being sent', () => {
     /** The user's message with a sent edit and a pending one, which the server names `$echoed`. */
@@ -993,6 +993,7 @@ describe('the edits a room keeps of a message', () => {
       expect(made.kept()).toEqual(['$last']);
       expect(older.event.listenerCount(MatrixEventEvent.BeforeRedaction)).toBe(before);
     });
+
   });
 
   it('leave the reactions to the message as they are', async () => {

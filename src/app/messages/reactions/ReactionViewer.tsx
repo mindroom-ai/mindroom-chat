@@ -29,7 +29,7 @@ function SenderRow({ room, userId }: { room: Room; userId: string }) {
   const authenticatedMedia = useMediaAuthentication();
   const avatarMxc = getMemberAvatarMxc(room, userId);
   const avatarSrc = avatarMxc
-    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined)
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
   const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
 

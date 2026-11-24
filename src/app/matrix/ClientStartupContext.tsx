@@ -12,9 +12,14 @@ export const ClientStartupProvider = ({
   hasCompletedInitialSync,
   children,
 }: ClientStartupContextValue & { children: ReactNode }) => {
-  const value = useMemo(() => ({ hasCompletedInitialSync }), [hasCompletedInitialSync]);
+  const value = useMemo(
+    () => ({ hasCompletedInitialSync }),
+    [hasCompletedInitialSync]
+  );
 
-  return <ClientStartupContext.Provider value={value}>{children}</ClientStartupContext.Provider>;
+  return (
+    <ClientStartupContext.Provider value={value}>{children}</ClientStartupContext.Provider>
+  );
 };
 
 export const useClientStartupContext = (): ClientStartupContextValue =>

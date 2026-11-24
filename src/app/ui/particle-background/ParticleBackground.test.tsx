@@ -2,7 +2,10 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MindRoomParticleBackground, resolveMindRoomParticleCount } from './ParticleBackground';
+import {
+  MindRoomParticleBackground,
+  resolveMindRoomParticleCount,
+} from './ParticleBackground';
 
 vi.mock('@basnijholt/particular-drift/react', () => ({
   ParticularDriftCanvas: ({

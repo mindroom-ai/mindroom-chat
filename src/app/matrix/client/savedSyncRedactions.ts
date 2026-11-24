@@ -146,7 +146,8 @@ export const dropRedactedContent = (
     room._timeline = timeline.flatMap((entry) => {
       const { event } = entry;
       const relation = event.content?.['m.relates_to'] as
-        { rel_type?: string; event_id?: string } | undefined;
+        | { rel_type?: string; event_id?: string }
+        | undefined;
       if (relation?.rel_type === 'm.replace' && redacted.has(relation.event_id ?? '')) {
         token ??= entry.token;
         return [];

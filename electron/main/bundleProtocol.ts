@@ -150,8 +150,8 @@ export const serveBundle = (distDir: string): void => {
       ...(served.file === CANVAS_FRAME_FILE
         ? withCsp(url.pathname, CANVAS_FRAME_POLICY)
         : served.file.endsWith('.html')
-          ? pageHeaders(url.pathname)
-          : { 'Content-Security-Policy': NON_HTML_CSP }),
+        ? pageHeaders(url.pathname)
+        : { 'Content-Security-Policy': NON_HTML_CSP }),
     };
     return new Response(served.body, { status: 200, headers });
   });

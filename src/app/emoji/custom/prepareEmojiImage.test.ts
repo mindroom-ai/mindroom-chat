@@ -4,7 +4,7 @@ import { EmojiImageTooLargeError, fitWithin, prepareEmojiImage } from './prepare
 
 vi.mock('../../lib/dom', () => ({ getThumbnail: vi.fn() }));
 
-const loaded = (width: number, height: number) => ({ width, height }) as HTMLImageElement;
+const loaded = (width: number, height: number) => ({ width, height } as HTMLImageElement);
 const fileOf = (bytes: number, name: string, type: string) =>
   new File([new Uint8Array(bytes)], name, { type });
 

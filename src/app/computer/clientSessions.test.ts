@@ -14,12 +14,14 @@ import { computerServicePreferenceAtom } from './computerServiceSettings';
 const API_URL = 'https://mindroom.example.org';
 const NOW = Date.UTC(2026, 10, 7, 9, 30);
 
-const TOKEN = vi.hoisted((): IOpenIDToken => ({
-  access_token: 'openid',
-  token_type: 'Bearer',
-  matrix_server_name: 'example.org',
-  expires_in: 3600,
-}));
+const TOKEN = vi.hoisted(
+  (): IOpenIDToken => ({
+    access_token: 'openid',
+    token_type: 'Bearer',
+    matrix_server_name: 'example.org',
+    expires_in: 3600,
+  })
+);
 vi.mock('../matrix/openidAudience', () => ({
   requestAudienceOpenIdToken: vi.fn(async () => TOKEN),
 }));

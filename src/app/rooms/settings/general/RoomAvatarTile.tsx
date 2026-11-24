@@ -38,7 +38,7 @@ export function RoomAvatarTile({ room, space }: { room: Room; space: boolean }) 
   const [failed, setFailed] = useState(false);
   const allowed = may.stateEvent(StateEvent.RoomAvatar, client.getSafeUserId());
   const src = mxc
-    ? (mxcUrlToHttp(client, mxc, authenticated, PICTURE_PX, PICTURE_PX, 'crop') ?? undefined)
+    ? mxcUrlToHttp(client, mxc, authenticated, PICTURE_PX, PICTURE_PX, 'crop') ?? undefined
     : undefined;
 
   const setPicture = (change: () => Promise<string>) => {

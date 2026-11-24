@@ -14,3 +14,4 @@ describe('isMessageMetadataKey', () => {
     expect(isMessageMetadataKey('com.example.key')).toBe(false);
   });
 });
+

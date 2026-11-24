@@ -16,14 +16,13 @@ beforeEach(() => {
 
 it('declines a progress write revoked during its metadata read without reporting storage failure', async () => {
   const original = IDBObjectStore.prototype.get;
-  const read = vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function get(
-    this: IDBObjectStore,
-    key
-  ) {
-    const request = original.call(this, key);
-    if (this.name === 'meta') revokeRoomCacheStoreWrites('session', '!room:test');
-    return request;
-  });
+  const read = vi
+    .spyOn(IDBObjectStore.prototype, 'get')
+    .mockImplementation(function get(this: IDBObjectStore, key) {
+      const request = original.call(this, key);
+      if (this.name === 'meta') revokeRoomCacheStoreWrites('session', '!room:test');
+      return request;
+    });
   try {
     expect(await updateRoomOfflineProgress('session', '!room:test', { opened: true })).toBe(false);
     expect(getCacheProbeSnapshot().writeErrors).toBe(0);
@@ -35,15 +34,13 @@ it('declines a progress write revoked during its metadata read without reporting
 
 it('reports a real metadata transaction failure while keeping progress uncommitted', async () => {
   const original = IDBObjectStore.prototype.put;
-  const write = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function put(
-    this: IDBObjectStore,
-    value,
-    key
-  ) {
-    const request = original.call(this, value, key);
-    if (this.name === 'meta') this.transaction.abort();
-    return request;
-  });
+  const write = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function put(this: IDBObjectStore, value, key) {
+      const request = original.call(this, value, key);
+      if (this.name === 'meta') this.transaction.abort();
+      return request;
+    });
   const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   try {
     expect(await updateRoomOfflineProgress('session', '!room:test', { opened: true })).toBe(false);

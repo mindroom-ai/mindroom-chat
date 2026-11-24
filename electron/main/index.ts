@@ -48,8 +48,8 @@ const distDir =
   unpackaged && process.env.MINDROOM_DESKTOP_DIST
     ? path.resolve(process.env.MINDROOM_DESKTOP_DIST)
     : app.isPackaged
-      ? path.join(app.getAppPath(), 'dist')
-      : path.resolve(__dirname, '../../dist');
+    ? path.join(app.getAppPath(), 'dist')
+    : path.resolve(__dirname, '../../dist');
 
 const telemetry = isTest
   ? {
@@ -194,8 +194,8 @@ void app.whenReady().then(() => {
         outcome === 'none'
           ? 'MindRoom Chat is up to date.'
           : outcome === 'found'
-            ? 'An update is available and downloading in the background. You can restart from the menu once it is ready.'
-            : 'Could not check for updates right now.';
+          ? 'An update is available and downloading in the background. You can restart from the menu once it is ready.'
+          : 'Could not check for updates right now.';
       await showUpdateDialog({ type: outcome === 'error' ? 'error' : 'info', message });
     })().catch(() => undefined);
   };

@@ -92,7 +92,7 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
     const { marginTop } = inner.style;
 
     // The newest row ends where the list ends.
-    const box = (bottom: number, height: number) => () => ({ bottom, height }) as DOMRect;
+    const box = (bottom: number, height: number) => () => ({ bottom, height } as DOMRect);
     inner.getBoundingClientRect = box(800, 400);
     inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile, index) => {
       Object.defineProperty(tile, 'offsetHeight', { value: 200 });
@@ -147,7 +147,7 @@ it('reads no shrink when leading content (e.g. Load older messages) mounts above
   const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
   const origGetVirtualItemForOffset = virtualizer.getVirtualItemForOffset;
-  virtualizer.getVirtualItemForOffset = () => ({ index: 0, start: 0, size: 200 }) as never;
+  virtualizer.getVirtualItemForOffset = () => ({ index: 0, start: 0, size: 200 } as never);
   const scrollElement = document.createElement('div');
   scrollElement.scrollTop = 400;
   const rect = vi

@@ -43,7 +43,7 @@ const nextSnapshot = (
 const readInitialSnapshot = (mx: MatrixClient): SyncSnapshot => {
   const current = typeof mx.getSyncState === 'function' ? mx.getSyncState() : null;
   const data =
-    typeof mx.getSyncStateData === 'function' ? (mx.getSyncStateData() ?? undefined) : undefined;
+    typeof mx.getSyncStateData === 'function' ? mx.getSyncStateData() ?? undefined : undefined;
   return nextSnapshot({ current: null, catchingUp: false }, current, data);
 };
 

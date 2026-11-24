@@ -234,11 +234,11 @@ export function InviteCard({
   // A direct chat has no picture of its own; it shows the person who started it.
   const directAvatar =
     invite.isDirect && invite.senderAvatar
-      ? (mxcUrlToHttp(client, invite.senderAvatar, useAuthentication, 96, 96, 'crop') ?? undefined)
+      ? mxcUrlToHttp(client, invite.senderAvatar, useAuthentication, 96, 96, 'crop') ?? undefined
       : undefined;
   const avatar = hideAvatar
     ? undefined
-    : (directAvatar ?? getRoomAvatarUrl(client, room, 96, useAuthentication));
+    : directAvatar ?? getRoomAvatarUrl(client, room, 96, useAuthentication);
 
   const handleAccept = async () => {
     setState('joining');

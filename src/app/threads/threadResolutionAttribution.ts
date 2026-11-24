@@ -12,5 +12,5 @@ export const getThreadResolverDisplayName = (
   const memberDisplayName = getMemberDisplayName(room, normalizedUserId);
   return memberDisplayName?.trim()
     ? memberDisplayName
-    : (getMxIdLocalPart(normalizedUserId) ?? normalizedUserId);
+    : getMxIdLocalPart(normalizedUserId) ?? normalizedUserId;
 };

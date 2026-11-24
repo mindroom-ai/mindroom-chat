@@ -29,8 +29,8 @@ export function ApprovalGrantStatus({
         {state === 'active'
           ? t('mindroomUi.messages.approvalGrantStatus.autoApprovalActive')
           : state === 'revoked'
-            ? t('mindroomUi.messages.approvalGrantStatus.autoApprovalStopped')
-            : t('mindroomUi.messages.approvalGrantStatus.autoApprovalExpired')}
+          ? t('mindroomUi.messages.approvalGrantStatus.autoApprovalStopped')
+          : t('mindroomUi.messages.approvalGrantStatus.autoApprovalExpired')}
         <br />
         {t('mindroomUi.messages.approvalGrantStatus.fixedExpiry', {
           timestamp: new Date(expiry).toLocaleString(language),

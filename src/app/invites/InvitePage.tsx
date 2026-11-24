@@ -20,7 +20,7 @@ import { dropInviteFragment } from '../../boot/inviteFragment';
 const takeLink = (): InviteLink | null | undefined => {
   const { hash } = window.location;
   dropInviteFragment();
-  return hash ? (parseInviteFragment(hash) ?? null) : undefined;
+  return hash ? parseInviteFragment(hash) ?? null : undefined;
 };
 
 type PageState =

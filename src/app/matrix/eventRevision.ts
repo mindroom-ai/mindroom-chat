@@ -142,8 +142,8 @@ export const collectExplicitRedactedEventIds = (
         typeof rawEvent.redacts === 'string'
           ? rawEvent.redacts
           : typeof contentRedacts === 'string'
-            ? contentRedacts
-            : undefined;
+          ? contentRedacts
+          : undefined;
       if (redactedEventId) redactedEventIds.add(redactedEventId);
     }
 
@@ -537,8 +537,8 @@ export const mergeEventRevisionDescriptors = (
     current.redacted || incoming.redacted
       ? undefined
       : compareReplacementRevision(incoming.replacement, current.replacement) > 0
-        ? incoming.replacement
-        : current.replacement,
+      ? incoming.replacement
+      : current.replacement,
   aggregations: mergeNonReplacementRelations(current.aggregations, incoming.aggregations),
 });
 
@@ -622,8 +622,8 @@ export const mergeRawEventRevisions = (
         ? incomingReplacement
         : undefined
       : currentRevision.replacement
-        ? currentReplacement
-        : undefined;
+      ? currentReplacement
+      : undefined;
   return withMergedRelations(incoming, current, incoming, replacement, relationSnapshotMode);
 };
 

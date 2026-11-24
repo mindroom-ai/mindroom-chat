@@ -62,13 +62,13 @@ const makeRoom = ({
     getCanonicalAlias: () => canonicalAlias,
     getAltAliases: () => altAliases,
     isSpaceRoom: () => isSpace,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeClient = (rooms: Room[]): MatrixClient =>
   ({
     getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
     getRooms: () => rooms,
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 function MentionPill({
   mentionId,

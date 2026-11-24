@@ -36,12 +36,7 @@ const raw = (
   content,
 });
 
-const ROOT = raw(
-  '$root',
-  1000,
-  { msgtype: 'm.text', body: 'Which fixes go into the notes?' },
-  READER
-);
+const ROOT = raw('$root', 1000, { msgtype: 'm.text', body: 'Which fixes go into the notes?' }, READER);
 const REPLY = raw('$reply', 2000, {
   msgtype: 'm.text',
   body: 'Checking the notes.',
@@ -101,8 +96,7 @@ const serve =
         state: [],
       });
     }
-    if (path.endsWith('/event/$root'))
-      return json(server.replies.length ? rootWithSummary() : ROOT);
+    if (path.endsWith('/event/$root')) return json(server.replies.length ? rootWithSummary() : ROOT);
     if (path.includes('/relations/$root')) {
       await server.holdRelations;
       // Relations are newest first; nothing precedes the root.
@@ -187,10 +181,7 @@ describe('runThreadOpenSdkBootstrap and a reply /sync brings later', () => {
     const updates = vi.fn();
     thread.on(ThreadEvent.Update, updates);
     await sync(room, REPLY);
-    await sync(
-      room,
-      edit('$step', 3000, 'Checking the notes. Two entries are missing.', 'streaming')
-    );
+    await sync(room, edit('$step', 3000, 'Checking the notes. Two entries are missing.', 'streaming'));
     await sync(room, edit('$finish', 4000, FINISHED, 'completed'));
     await vi.waitFor(() => expect(updates).toHaveBeenCalled());
 

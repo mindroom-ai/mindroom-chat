@@ -47,7 +47,7 @@ export const composeSticker = (
   };
   if (relation) Object.assign(content, { 'm.relates_to': relation });
   const threadRootId =
-    relation?.rel_type === RelationType.Thread ? (relation.event_id ?? null) : null;
+    relation?.rel_type === RelationType.Thread ? relation.event_id ?? null : null;
   return { threadRootId, content };
 };
 

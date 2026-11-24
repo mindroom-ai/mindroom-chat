@@ -30,13 +30,13 @@ const fakeEvent = (eventId: string) =>
     isSending: () => false,
     isDecryptionFailure: () => false,
     isBeingDecrypted: () => false,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const makeRoom = (threads: Record<string, FakeThread>) =>
   ({
     roomId: '!room:example.org',
     getThread: (id: string) => threads[id] ?? null,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeThread = (rootEvent?: MatrixEvent): FakeThread => ({
   rootEvent,

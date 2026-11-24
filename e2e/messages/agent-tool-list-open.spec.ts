@@ -31,7 +31,8 @@ const VIEWPORTS = [
 type ListWatch = { changes: string[] };
 
 /** The reply's tool-call line: the button that opens its list. */
-const toolLine = (row: Locator): Locator => row.getByRole('button', { name: /\d+ tool calls?\b/ });
+const toolLine = (row: Locator): Locator =>
+  row.getByRole('button', { name: /\d+ tool calls?\b/ });
 
 /**
  * Marks the open list's button, and every element up to the reply's row, and records each change
@@ -76,10 +77,10 @@ const watchList = (page: Page, eventId: string) =>
       const state = !button
         ? 'gone'
         : !button.hasAttribute('data-watched-list')
-          ? drawnAgain(button)
-          : button.getAttribute('aria-expanded') !== 'true'
-            ? 'closed'
-            : undefined;
+        ? drawnAgain(button)
+        : button.getAttribute('aria-expanded') !== 'true'
+        ? 'closed'
+        : undefined;
       if (state !== last && state !== undefined)
         watch.changes.push(`${Math.round(performance.now() - started)} ms: ${state}`);
       last = state;

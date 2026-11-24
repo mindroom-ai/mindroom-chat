@@ -156,7 +156,7 @@ const sameDestination = (a?: HomeAskDestination, b?: HomeAskDestination): boolea
 // can keep editing in memory but no longer writes to storage.
 const draftGenerations = new Map<string, number>();
 const getDraftGeneration = (userId: string | undefined) =>
-  userId === undefined ? 0 : (draftGenerations.get(userId) ?? 0);
+  userId === undefined ? 0 : draftGenerations.get(userId) ?? 0;
 
 /**
  * An account's Home ask draft: its text and where it goes, read from storage in one snapshot and
@@ -449,8 +449,8 @@ export const composerUploadItemsAtom = (roomId: string, view: string | undefined
 export type StagedList = ReturnType<typeof composerUploadItemsAtom>;
 
 /** The upload state of a staged file. */
-export const roomUploadAtomFamily = atomFamily((file: TUploadContent): TUploadAtom =>
-  createUploadAtom(file)
+export const roomUploadAtomFamily = atomFamily(
+  (file: TUploadContent): TUploadAtom => createUploadAtom(file)
 );
 
 /**

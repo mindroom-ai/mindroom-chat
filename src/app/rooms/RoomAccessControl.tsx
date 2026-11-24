@@ -333,7 +333,7 @@ function RoomAccessRequestDialog({
 
   const knownError = describeKnownError(t, error);
   const shownError =
-    error === undefined ? undefined : (knownError ?? errorMessage(error) ?? fallbackErrorMessage);
+    error === undefined ? undefined : knownError ?? errorMessage(error) ?? fallbackErrorMessage;
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>

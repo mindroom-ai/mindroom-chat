@@ -195,13 +195,10 @@ const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], r
 
   // The client follows the reply's thread; the reader reads the start, then leaves for the lobby.
   await expect(page.getByText(/\bword3\b/).first()).toBeVisible({ timeout: 60_000 });
-  await page.evaluate(
-    (url) => {
-      window.history.pushState(null, '', url);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/home/${encodeURIComponent(stack.rooms.lobby)}`
-  );
+  await page.evaluate((url) => {
+    window.history.pushState(null, '', url);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
   await expect(page.getByText(/\bword3\b/)).toHaveCount(0, { timeout: 30_000 });
 
   // The finished reply counts as unread on the server.
@@ -294,13 +291,10 @@ test('a reply that comes while the reader is away counts once, also after a relo
     await expect(composer(page)).toBeVisible({ timeout: 90_000 });
     // 30 words, one every quarter second.
     await mentionHelper(page, stack, '#slow what is on the agenda today?');
-    await page.evaluate(
-      (url) => {
-        window.history.pushState(null, '', url);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      },
-      `/home/${encodeURIComponent(stack.rooms.lobby)}`
-    );
+    await page.evaluate((url) => {
+      window.history.pushState(null, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
     await expect(composer(page)).toBeVisible({ timeout: 30_000 });
 
     // The reply finishes and the server counts it.

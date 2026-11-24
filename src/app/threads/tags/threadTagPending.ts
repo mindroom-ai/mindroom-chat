@@ -13,7 +13,8 @@ const pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingListeners = new Set<() => void>();
 let pendingVersion = 0;
 
-const pendingKey = (roomId: string, threadRootId: string): string => `${roomId}\0${threadRootId}`;
+const pendingKey = (roomId: string, threadRootId: string): string =>
+  `${roomId}\0${threadRootId}`;
 
 const emitPendingChange = () => {
   pendingVersion += 1;

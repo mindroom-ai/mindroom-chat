@@ -54,7 +54,7 @@ const stopReaction = (): MatrixEvent =>
 const relationsWithStop = (): Relations =>
   ({
     getSortedAnnotationsByKey: () => [['🛑', new Set([stopReaction()])]],
-  }) as unknown as Relations;
+  } as unknown as Relations);
 
 describe("the agent's stop reaction on a reply it cannot read yet", () => {
   it('is the Stop button while the newest edit of a streaming reply waits for its key', () => {

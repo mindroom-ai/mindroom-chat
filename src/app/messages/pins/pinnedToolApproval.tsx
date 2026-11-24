@@ -41,7 +41,7 @@ export const renderPinnedToolApprovalEvent = (
   const newContent = asRecord(editedEvent?.getContent()?.['m.new_content']);
   const getContent = (() =>
     newContent ? { ...event.getContent(), 'm.new_content': newContent } : event.getContent()) as <
-    T,
+    T
   >() => T;
 
   return (

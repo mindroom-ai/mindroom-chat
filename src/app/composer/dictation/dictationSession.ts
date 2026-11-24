@@ -20,7 +20,12 @@ const TRANSIENT_STATUSES = new Set([0, 429, 502, 503, 504]);
 
 export type { DictationCaptureFactory, DictationCaptureHandle } from './dictationAudioCapture';
 export type DictationPhase =
-  'idle' | 'requesting' | 'recording' | 'paused' | 'finishing' | 'failed';
+  | 'idle'
+  | 'requesting'
+  | 'recording'
+  | 'paused'
+  | 'finishing'
+  | 'failed';
 
 export type DictationSnapshot = {
   phase: DictationPhase;

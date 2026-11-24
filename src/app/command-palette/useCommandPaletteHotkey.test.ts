@@ -29,7 +29,7 @@ const createKeyboardEvent = (): KeyboardEvent =>
     key: 'k',
     ctrlKey: true,
     preventDefault: vi.fn(),
-  }) as unknown as KeyboardEvent;
+  } as unknown as KeyboardEvent);
 
 const renderHookHarness = (portalChildren: unknown[] = []) => {
   const snapshot: Snapshot = {

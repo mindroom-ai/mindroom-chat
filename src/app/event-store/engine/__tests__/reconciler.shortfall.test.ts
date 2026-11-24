@@ -71,7 +71,7 @@ const makeFakeEvent = (raw: Partial<IEvent>): MatrixEvent =>
     getContent: () => raw.content ?? {},
     getWireContent: () => raw.content ?? {},
     event: raw,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 /** Raw JSON for a first-class thread reply as `/relations` returns it. */
 const makeReplyRaw = (id: string, ts: number): Partial<IEvent> => ({
@@ -101,9 +101,9 @@ const makeCachedPage = (
 const makeFakeRoom = (rootEvent?: MatrixEvent): Room =>
   ({
     roomId: '!room:example',
-    findEventById: (id: string) => (id === THREAD_ID ? (rootEvent ?? null) : null),
+    findEventById: (id: string) => (id === THREAD_ID ? rootEvent ?? null : null),
     getThread: () => undefined,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeMockClient = (
   room: Room,

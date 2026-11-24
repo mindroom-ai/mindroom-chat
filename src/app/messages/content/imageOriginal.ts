@@ -24,11 +24,7 @@ export const MAX_HEIC_BYTES = 30 * 1024 * 1024;
 
 /** A HEIC/HEIF picture could not be decoded or exceeded the decode size budget. */
 export class HeicDecodeError extends Error {
-  constructor(
-    message: string,
-    readonly originalBlob?: Blob,
-    cause?: unknown
-  ) {
+  constructor(message: string, readonly originalBlob?: Blob, cause?: unknown) {
     super(message, { cause });
     this.name = 'HeicDecodeError';
   }

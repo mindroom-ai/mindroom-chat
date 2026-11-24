@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 /** A config.json with this `plugins` section. */
-const withPlugins = (plugins: unknown): ClientConfig => ({ plugins }) as unknown as ClientConfig;
+const withPlugins = (plugins: unknown): ClientConfig => ({ plugins } as unknown as ClientConfig);
 
 describe('isPluginEnabled', () => {
   it('turns a plugin off only where its section sets enabled to false', () => {

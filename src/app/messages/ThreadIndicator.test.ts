@@ -11,7 +11,7 @@ const makeEvent = (threadMeta?: Record<string, unknown>) =>
             },
           }
         : {},
-  }) as never;
+  } as never);
 
 describe('getThreadRootReplyCount', () => {
   it('reads current Matrix thread count metadata', () => {

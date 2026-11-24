@@ -17,7 +17,10 @@ export const isEditDebugEnabled = (): boolean => {
   }
 };
 
-export const logEditDebug = (scope: string, details: Record<string, unknown>) => {
+export const logEditDebug = (
+  scope: string,
+  details: Record<string, unknown>
+) => {
   if (!isEditDebugEnabled()) return;
   console.info(`[mindroom-edits:${scope}]`, details);
 };

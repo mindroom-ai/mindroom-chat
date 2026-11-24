@@ -26,7 +26,7 @@ describe('useCompactScrollFallback', () => {
         offset = value;
       },
     });
-    view.getBoundingClientRect = () => ({ top: 0, bottom: 400 }) as DOMRect;
+    view.getBoundingClientRect = () => ({ top: 0, bottom: 400 } as DOMRect);
     const show = (shownIds: string[]) => {
       let rowTop = 0;
       view.replaceChildren(
@@ -181,7 +181,7 @@ describe('useCompactScrollFallback', () => {
 });
 
 describe('usePointerOverCards', () => {
-  const pointer = (pointerType: string) => ({ pointerType }) as PointerEvent<HTMLElement>;
+  const pointer = (pointerType: string) => ({ pointerType } as PointerEvent<HTMLElement>);
 
   it('lets a mouse go when it leaves', () => {
     const { result } = renderHook(() => usePointerOverCards());
@@ -192,7 +192,7 @@ describe('usePointerOverCards', () => {
   });
 
   describe('a mouse at rest', () => {
-    const mouse = (buttons = 0) => ({ pointerType: 'mouse', buttons }) as PointerEvent<HTMLElement>;
+    const mouse = (buttons = 0) => ({ pointerType: 'mouse', buttons } as PointerEvent<HTMLElement>);
     afterEach(() => {
       vi.useRealTimers();
     });

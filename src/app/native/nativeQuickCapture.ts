@@ -4,7 +4,10 @@ import { desktopBridge } from '../lib/nativeShell';
  *  and screenshot capture; rejections carry `ScreenshotError.code`. */
 export type ScreenshotTarget = 'window' | 'screen';
 export type ScreenshotErrorCode =
-  'PERMISSION_DENIED' | 'NO_WINDOW' | 'UNSUPPORTED' | 'CAPTURE_FAILED';
+  | 'PERMISSION_DENIED'
+  | 'NO_WINDOW'
+  | 'UNSUPPORTED'
+  | 'CAPTURE_FAILED';
 
 const SCREENSHOT_ERROR_CODES: readonly ScreenshotErrorCode[] = [
   'PERMISSION_DENIED',

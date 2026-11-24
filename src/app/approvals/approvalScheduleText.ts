@@ -1,7 +1,4 @@
-import {
-  parseToolApprovalExpiryTimestamp,
-  ToolApprovalScheduledScope,
-} from '../matrix/protocol/toolApproval';
+import { parseToolApprovalExpiryTimestamp, ToolApprovalScheduledScope } from '../matrix/protocol/toolApproval';
 
 // Backend timestamps can carry sub-millisecond fractions that browser date parsing rejects.
 export const formatApprovalTime = (value: string, language: string): string => {

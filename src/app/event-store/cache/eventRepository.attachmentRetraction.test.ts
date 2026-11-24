@@ -9,7 +9,10 @@ import {
   prefetchEventAttachments,
 } from './attachmentRepository';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { clearLongTextHydrationCache, getLongTextSource } from '../../matrix/protocol/longText';
+import {
+  clearLongTextHydrationCache,
+  getLongTextSource,
+} from '../../matrix/protocol/longText';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
   getCachedAttachmentMetadata,

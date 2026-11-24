@@ -64,7 +64,7 @@ it("keeps a fork root's reference in the edit, which MindRoom reads as the messa
   const [, , edit] = state.sendMessage.mock.calls[0] as unknown as [
     string,
     unknown,
-    Record<string, unknown>,
+    Record<string, unknown>
   ];
   expect(edit['m.new_content']).toMatchObject({
     body: 'Try Porto and Braga',

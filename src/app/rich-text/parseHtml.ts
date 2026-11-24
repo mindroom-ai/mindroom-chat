@@ -13,7 +13,8 @@ export const normalizeHtmlLineEndings = (html: string): string => html.replace(/
 export const parseHtml = (
   html: string,
   options?: HTMLReactParserOptions
-): ReturnType<typeof parseHtmlToReact> => parseHtmlToReact(normalizeHtmlLineEndings(html), options);
+): ReturnType<typeof parseHtmlToReact> =>
+  parseHtmlToReact(normalizeHtmlLineEndings(html), options);
 
 export const parseHtmlToDom = (
   html: string,

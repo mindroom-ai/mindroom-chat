@@ -47,7 +47,7 @@ function ReplyBody({ room, replyEvent, timelineSet }: ReplyBodyProps) {
 
   const sender = replyEvent.getSender();
   const senderName = sender
-    ? (getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender)
+    ? getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender
     : undefined;
 
   let body: React.ReactNode;

@@ -55,7 +55,7 @@ const clampLines = (lines: number) =>
     overflow: 'hidden',
     WebkitBoxOrient: 'vertical',
     WebkitLineClamp: lines,
-  }) as const;
+  } as const);
 
 // The topic is a bare button that opens the full text; on the card it is cut at three lines.
 export const RoomCardTopic = style([plainButton, clampLines(3)]);

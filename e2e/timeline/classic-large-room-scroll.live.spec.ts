@@ -243,11 +243,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
         const image = await new Promise<HTMLImageElement>((done, fail) => {
           const img = document.createElement('img');
           img.addEventListener('load', () => done(img), { once: true });
-          img.addEventListener(
-            'error',
-            () => fail(new Error('Compositor frame could not be decoded')),
-            { once: true }
-          );
+          img.addEventListener('error', () => fail(new Error('Compositor frame could not be decoded')), { once: true });
           img.src = `data:image/png;base64,${frame.data}`;
         });
         canvas.width = image.width;

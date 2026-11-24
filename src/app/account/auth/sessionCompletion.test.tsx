@@ -6,10 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { LoginResponse, RegisterResponse } from 'matrix-js-sdk';
 import { useLoginComplete } from './login/loginUtil';
 import { useRegisterComplete } from './register/registerUtil';
-import {
-  getAfterLoginRedirectPath,
-  setAfterLoginRedirectPath,
-} from '../../routes/afterLoginRedirectPath';
+import { getAfterLoginRedirectPath, setAfterLoginRedirectPath } from '../../routes/afterLoginRedirectPath';
 import { getActiveSession } from '../../matrix/session/sessions';
 
 const originalLocalStorage = globalThis.localStorage;

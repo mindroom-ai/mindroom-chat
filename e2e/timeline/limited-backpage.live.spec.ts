@@ -165,10 +165,10 @@ for (const engine of ['chromium', 'webkit'] as const) {
               const kind = !token
                 ? 'background'
                 : releasingOld
-                  ? 'recovery'
-                  : oldTokens.has(token)
-                    ? 'old'
-                    : 'direct-failure';
+                ? 'recovery'
+                : oldTokens.has(token)
+                ? 'old'
+                : 'direct-failure';
               const entry = {
                 kind,
                 completed: false,
@@ -220,13 +220,10 @@ for (const engine of ['chromium', 'webkit'] as const) {
             await seedRoomOverviewState({ page, roomId, userId: viewer.userId, viewMode });
             // Stay in the same client: a full navigation would cancel its pending old page,
             // and WebKit can finish background cache loading before that navigation starts.
-            await page.evaluate(
-              (path) => {
-                window.history.pushState(null, '', path);
-                window.dispatchEvent(new PopStateEvent('popstate'));
-              },
-              `/home/${encodeURIComponent(roomId)}`
-            );
+            await page.evaluate((path) => {
+              window.history.pushState(null, '', path);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }, `/home/${encodeURIComponent(roomId)}`);
             const message = page.locator(`[data-message-id="${messageId}"]`);
             await expect(message).toContainText('Name Before', { timeout: 30_000 });
             const timeline = page.getByTestId('room-virtual-inner');

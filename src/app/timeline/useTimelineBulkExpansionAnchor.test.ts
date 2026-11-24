@@ -14,7 +14,7 @@ const rect = (top: number, bottom: number): DOMRect =>
     top,
     bottom,
     height: bottom - top,
-  }) as DOMRect;
+  } as DOMRect);
 
 const makeScroller = ({
   clientHeight = 800,
@@ -33,7 +33,7 @@ const makeScroller = ({
     scrollTop,
     getBoundingClientRect: () => rect(100, 900),
     querySelectorAll: () => messages,
-  }) as unknown as HTMLDivElement;
+  } as unknown as HTMLDivElement);
 
 let scrollPaddingTop = 0;
 beforeEach(() => {

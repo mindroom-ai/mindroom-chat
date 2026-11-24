@@ -114,7 +114,7 @@ export function RoomModelSettingTile({
     inherited: [],
     override:
       stored.kind === 'default' ? null : stored.kind === 'known' ? stored.model.key : stored.raw,
-    reasoning: stored.kind === 'known' ? (stored.level ?? null) : null,
+    reasoning: stored.kind === 'known' ? stored.level ?? null : null,
     pending: false,
     error: unavailable ? t(`${STRINGS}.model.catalogUnavailable`) : undefined,
     // A model or level writes once the shown runtime answered the query this opening started
@@ -141,13 +141,13 @@ export function RoomModelSettingTile({
     stored.kind === 'default'
       ? defaultLabel
       : stored.kind === 'known'
-        ? stored.level
-          ? t(`${PICKER_STRINGS}.withLevel`, {
-              model: stored.model.display_name,
-              level: t(`${PICKER_STRINGS}.levels.${stored.level}`),
-            })
-          : stored.model.display_name
-        : stored.raw;
+      ? stored.level
+        ? t(`${PICKER_STRINGS}.withLevel`, {
+            model: stored.model.display_name,
+            level: t(`${PICKER_STRINGS}.levels.${stored.level}`),
+          })
+        : stored.model.display_name
+      : stored.raw;
 
   const popover = anchor && (
     <TrappedModelPickerPanel

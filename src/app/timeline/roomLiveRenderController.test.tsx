@@ -53,7 +53,7 @@ const makePendingReply = (): MatrixEvent =>
     isRedaction: () => false,
     isSending: () => true,
     threadRootId: THREAD_ID,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const renderController = (scrollTop: number) => {
   const { room, emitPendingReply, emitTimelineReply } = makeRoom();

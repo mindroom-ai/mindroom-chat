@@ -109,10 +109,7 @@ describe('markThreadAsRead, streamed replies', () => {
   });
 
   it('sends nothing when the finishing edit is already read', async () => {
-    const mx = setup(
-      [reply('$answer', 2), editIn('$finish', 4, '$answer', 'completed')],
-      '$finish'
-    );
+    const mx = setup([reply('$answer', 2), editIn('$finish', 4, '$answer', 'completed')], '$finish');
 
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
@@ -244,7 +241,7 @@ describe('markThreadAsRead, a thread opened after the stream finished', () => {
 });
 
 describe('markThreadAsRead, ties and the server fallback', () => {
-  it('reads the finishing edit the server bundled with its newest reply', async () => {
+  it("reads the finishing edit the server bundled with its newest reply", async () => {
     const mx = setup([]);
     const answer = replyWithBundledEdit('completed');
     mx.fetchRelations.mockImplementation(async (...args: unknown[]) => ({
@@ -320,11 +317,7 @@ describe('markMainTimelineAsRead, streamed thread replies', () => {
     const finish = message('$finish', 4, {
       msgtype: 'm.text',
       body: '* Done',
-      'm.new_content': {
-        msgtype: 'm.text',
-        body: 'Done',
-        'io.mindroom.stream_status': 'completed',
-      },
+      'm.new_content': { msgtype: 'm.text', body: 'Done', 'io.mindroom.stream_status': 'completed' },
       'm.relates_to': { rel_type: RelationType.Replace, event_id: '$unloaded-reply' },
     });
     const ownEdit = message('$own-edit', 5, {

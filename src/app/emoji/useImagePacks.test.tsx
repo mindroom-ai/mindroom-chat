@@ -25,7 +25,7 @@ const roomWithPack = (roomId: string): Room => {
       getState: () => ({
         getStateEvents: (type: string, stateKey?: string) => {
           const ofType = type === 'im.ponies.room_emotes' ? [pack] : [];
-          return stateKey === undefined ? ofType : (ofType[0] ?? null);
+          return stateKey === undefined ? ofType : ofType[0] ?? null;
         },
       }),
     }),

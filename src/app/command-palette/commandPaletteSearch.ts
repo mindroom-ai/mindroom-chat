@@ -343,10 +343,8 @@ export const matchCommandPaletteSection = <T extends SearchableCommandPaletteIte
         (ordered ? left.index - right.index : compareId(left.item.id, right.item.id))
     )
     .slice(0, config.limit)
-    .map(({ item, score, found }): CommandPaletteMatch<T> => ({
-      item,
-      score,
-      marks: marksOf(found),
-    }));
+    .map(
+      ({ item, score, found }): CommandPaletteMatch<T> => ({ item, score, marks: marksOf(found) })
+    );
   return [...matches, ...unmatched.map(unmarked)].slice(0, config.limit);
 };

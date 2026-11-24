@@ -59,10 +59,7 @@ const linesShareAColumn = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/state-rows-${name}.png` });
   // Where each row's sender name starts.
   const start = (row: typeof rows.joined) =>
-    row
-      .locator('b')
-      .first()
-      .evaluate((element) => element.getBoundingClientRect().left);
+    row.locator('b').first().evaluate((element) => element.getBoundingClientRect().left);
   const joined = await start(rows.joined);
   expect(await start(rows.name), 'room name row').toBeCloseTo(joined, 0);
   expect(await start(rows.topic), 'room topic row').toBeCloseTo(joined, 0);

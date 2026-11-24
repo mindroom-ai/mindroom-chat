@@ -20,7 +20,8 @@ const KEY = 'sharedUi.recoveryPassword';
 
 /** Where the restore of the backed up room keys stands once the device is unlocked. */
 type Restore =
-  { phase: 'running'; progress?: ImportRoomKeyProgressData } | { phase: 'done' | 'failed' };
+  | { phase: 'running'; progress?: ImportRoomKeyProgressData }
+  | { phase: 'done' | 'failed' };
 
 type StatusProps = { tone: 'Success' | 'Critical'; children: ReactNode; detailOf?: unknown };
 

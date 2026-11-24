@@ -173,7 +173,9 @@ describe('mounted thread gap recovery', () => {
         releasePage(new Response(JSON.stringify({ chunk: [message('$second', 'Second')] })));
         await vi.waitFor(async () =>
           expect(
-            (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
+            (
+              await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+            ).events
           ).toHaveLength(2)
         );
         releaseRead();
@@ -207,7 +209,9 @@ describe('mounted thread gap recovery', () => {
       recover();
       await vi.waitFor(async () =>
         expect(
-          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events
         ).toHaveLength(1)
       );
     });
@@ -225,7 +229,9 @@ describe('mounted thread gap recovery', () => {
       renderer.update(<Harness engine={engine} room={room} threadId="$elsewhere" />);
       await vi.waitFor(async () =>
         expect(
-          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events
         ).toHaveLength(1)
       );
     });
@@ -271,7 +277,9 @@ describe('mounted thread gap recovery', () => {
       recover();
       await vi.waitFor(async () =>
         expect(
-          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events
         ).toHaveLength(2)
       );
     });
@@ -424,9 +432,9 @@ describe('mounted thread gap recovery', () => {
       relations.release();
       await vi.waitFor(async () =>
         expect(
-          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events.map(
-            (event) => event.event_id
-          )
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events.map((event) => event.event_id)
         ).toContain('$missed')
       );
     });

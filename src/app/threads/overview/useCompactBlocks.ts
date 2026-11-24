@@ -117,7 +117,7 @@ export function useCompactBlocks(options: Options) {
   const held = [...(follows ? survivors : []), ...(moved && state.order ? geometry.visible : [])];
   // Beside them stay the target's block and, for End, the blocks that fill the last screen.
   const wanted = targetReady ? [...reader, targetSlot!] : [...reader];
-  const screen = state.end ? (scrollRef.current?.clientHeight ?? 0) : 0;
+  const screen = state.end ? scrollRef.current?.clientHeight ?? 0 : 0;
   for (let slot = blocks.length - 1, room = screen; slot >= 0 && room > 0; slot -= 1) {
     wanted.push(slot);
     for (const id of blocks[slot]!) room -= (heights.get(id) ?? 0) + gap;

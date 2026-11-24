@@ -365,7 +365,7 @@ export const putSession = (
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const sessionId = createSessionId(baseUrl, input.userId);
   const existing = current.sessions.find((session) => session.sessionId === sessionId);
-  const lastUsedAt = setActive ? nextUsedAt(current) : (existing?.lastUsedAt ?? Date.now());
+  const lastUsedAt = setActive ? nextUsedAt(current) : existing?.lastUsedAt ?? Date.now();
 
   const session: StoredSession = {
     ...existing,

@@ -285,9 +285,9 @@ for (const mode of ['legacy', 'current', 'none'] as const) {
         };
       }),
       cached: await (await (await caches.open('unrelated-assets')).match('/keep.txt'))?.text(),
-      registrations: (await navigator.serviceWorker.getRegistrations()).map(
-        (item) => new URL(item.scope).pathname
-      ),
+      registrations: (
+        await navigator.serviceWorker.getRegistrations()
+      ).map((item) => new URL(item.scope).pathname),
       precaches: (await caches.keys()).filter((name) => name.startsWith('workbox-precache')),
     }));
     expect(state.token).toBe('keep-token-and-keys');

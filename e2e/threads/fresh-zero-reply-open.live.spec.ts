@@ -113,8 +113,9 @@ test.describe('live issue-068 fresh zero-reply open', () => {
     page,
   }, testInfo) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const { homeserver, username, password, userId, roomId, rootBody } =
-      await prepareFreshRoom('compact');
+    const { homeserver, username, password, userId, roomId, rootBody } = await prepareFreshRoom(
+      'compact'
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({
@@ -179,8 +180,9 @@ test.describe('live issue-068 fresh zero-reply open', () => {
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
-    const { homeserver, username, password, userId, roomId, rootBody } =
-      await prepareFreshRoom('threaded');
+    const { homeserver, username, password, userId, roomId, rootBody } = await prepareFreshRoom(
+      'threaded'
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await seedRoomOverviewState({

@@ -266,70 +266,64 @@ test.describe('thread live updates after IndexedDB connection loss', () => {
     }
   });
 
-  test(
-    'recovers when WebKit really kills its networking process',
-    { tag: '@webkit' },
-    async ({ browserName }) => {
-      test.skip(browserName !== 'webkit', 'Only WebKit hosts IndexedDB in a networking process');
-      const homeserver = getHomeserver();
-      const credentials = getPrimaryCredentials();
-      const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-      const stamp = Date.now();
-      const fixture = await createThreadFixture(homeserver, session.accessToken, {
-        name: `Networking process kill ${stamp}`,
-        topic: 'Recovery after WebKit networking-process exit',
-        rootBody: `Networking process kill root ${stamp}`,
-        replyBody: `Reply before networking process kill ${stamp}`,
+  test('recovers when WebKit really kills its networking process', { tag: '@webkit' }, async ({ browserName }) => {
+    test.skip(browserName !== 'webkit', 'Only WebKit hosts IndexedDB in a networking process');
+    const homeserver = getHomeserver();
+    const credentials = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+    const stamp = Date.now();
+    const fixture = await createThreadFixture(homeserver, session.accessToken, {
+      name: `Networking process kill ${stamp}`,
+      topic: 'Recovery after WebKit networking-process exit',
+      rootBody: `Networking process kill root ${stamp}`,
+      replyBody: `Reply before networking process kill ${stamp}`,
+    });
+    // A persistent profile, like the app's: an ephemeral one also loses the
+    // Web Storage (and with it the login) written before the kill.
+    const profile = mkdtempSync(join(tmpdir(), 'idb-loss-'));
+    const existing = new Set(findOwnWebKitNetworkProcesses());
+    const context = await webkit.launchPersistentContext(profile, {
+      baseURL: test.info().project.use.baseURL,
+    });
+    try {
+      const page = context.pages()[0] ?? (await context.newPage());
+      await loginWithPassword(page, { homeserver, ...credentials });
+      await page.goto(
+        `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
+      );
+      await expect(page.locator(`[data-message-id="${fixture.replyId}"]`)).toContainText(
+        fixture.replyBody,
+        { timeout: 60_000 }
+      );
+      await page.waitForTimeout(2_000);
+      let loads = 0;
+      page.on('load', () => {
+        loads += 1;
       });
-      // A persistent profile, like the app's: an ephemeral one also loses the
-      // Web Storage (and with it the login) written before the kill.
-      const profile = mkdtempSync(join(tmpdir(), 'idb-loss-'));
-      const existing = new Set(findOwnWebKitNetworkProcesses());
-      const context = await webkit.launchPersistentContext(profile, {
-        baseURL: test.info().project.use.baseURL,
+
+      // Only the networking process of the persistent context launched above.
+      const pids = findOwnWebKitNetworkProcesses().filter((pid) => !existing.has(pid));
+      test.skip(pids.length === 0, 'No WebKit networking process visible to this runner');
+      pids.forEach((pid) => process.kill(pid, 'SIGKILL'));
+
+      await expect.poll(() => loads, { timeout: 15_000 }).toBeGreaterThan(0);
+      // The reload guard was written after the loss and survives the reload.
+      await expect
+        .poll(() => page.evaluate(() => localStorage.getItem('mindroom.indexedDbLoss.reloadAt.v1')))
+        .not.toBeNull();
+      const replyBody = `Reply after networking process kill ${stamp}`;
+      const replyId = await sendRoomMessage(
+        homeserver,
+        session.accessToken,
+        fixture.roomId,
+        threadReply(fixture.rootId, replyBody)
+      );
+      await expect(page.locator(`[data-message-id="${replyId}"]`)).toContainText(replyBody, {
+        timeout: 60_000,
       });
-      try {
-        const page = context.pages()[0] ?? (await context.newPage());
-        await loginWithPassword(page, { homeserver, ...credentials });
-        await page.goto(
-          `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
-        );
-        await expect(page.locator(`[data-message-id="${fixture.replyId}"]`)).toContainText(
-          fixture.replyBody,
-          { timeout: 60_000 }
-        );
-        await page.waitForTimeout(2_000);
-        let loads = 0;
-        page.on('load', () => {
-          loads += 1;
-        });
-
-        // Only the networking process of the persistent context launched above.
-        const pids = findOwnWebKitNetworkProcesses().filter((pid) => !existing.has(pid));
-        test.skip(pids.length === 0, 'No WebKit networking process visible to this runner');
-        pids.forEach((pid) => process.kill(pid, 'SIGKILL'));
-
-        await expect.poll(() => loads, { timeout: 15_000 }).toBeGreaterThan(0);
-        // The reload guard was written after the loss and survives the reload.
-        await expect
-          .poll(() =>
-            page.evaluate(() => localStorage.getItem('mindroom.indexedDbLoss.reloadAt.v1'))
-          )
-          .not.toBeNull();
-        const replyBody = `Reply after networking process kill ${stamp}`;
-        const replyId = await sendRoomMessage(
-          homeserver,
-          session.accessToken,
-          fixture.roomId,
-          threadReply(fixture.rootId, replyBody)
-        );
-        await expect(page.locator(`[data-message-id="${replyId}"]`)).toContainText(replyBody, {
-          timeout: 60_000,
-        });
-      } finally {
-        await context.close();
-        rmSync(profile, { recursive: true, force: true });
-      }
+    } finally {
+      await context.close();
+      rmSync(profile, { recursive: true, force: true });
     }
-  );
+  });
 });

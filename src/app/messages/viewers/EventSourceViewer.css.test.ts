@@ -20,8 +20,9 @@ describe('the event source viewer styles', () => {
       getIdentOption: () => 'debug',
     });
     try {
-      const { MetaChipValue, MetaChipValueTechnical, ToolbarButton } =
-        await import('./EventSourceViewer.css');
+      const { MetaChipValue, MetaChipValueTechnical, ToolbarButton } = await import(
+        './EventSourceViewer.css'
+      );
       const { color } = await import('folds');
       const ruleOf = (className: string) => rules.find((css) => css.selector === className)?.rule;
 

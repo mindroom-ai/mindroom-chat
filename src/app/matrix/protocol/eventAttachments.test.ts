@@ -15,10 +15,7 @@ import {
   getCachedAttachmentMetadata,
 } from '../../event-store/cache/db';
 import { resetCacheHealthForTesting } from '../../event-store/cache/cacheHealth';
-import {
-  clearAttachmentRepositoryMemory,
-  downloadCachedAttachment,
-} from '../../event-store/cache/attachmentRepository';
+import { clearAttachmentRepositoryMemory, downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
 import { collectEventAttachments } from './eventAttachments';
 import { prefetchEventAttachments } from '../../event-store/cache/attachmentRepository';
 
@@ -260,14 +257,12 @@ it('keeps body coverage incomplete after quota failure while interactive bytes r
       originalError(...args);
   });
   const original = IDBObjectStore.prototype.put;
-  const put = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failBlob(
-    this: IDBObjectStore,
-    value,
-    key
-  ) {
-    if (this.name === 'attachments') throw new DOMException('Storage full', 'QuotaExceededError');
-    return key === undefined ? original.call(this, value) : original.call(this, value, key);
-  });
+  const put = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function failBlob(this: IDBObjectStore, value, key) {
+      if (this.name === 'attachments') throw new DOMException('Storage full', 'QuotaExceededError');
+      return key === undefined ? original.call(this, value) : original.call(this, value, key);
+    });
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'complete body' })))

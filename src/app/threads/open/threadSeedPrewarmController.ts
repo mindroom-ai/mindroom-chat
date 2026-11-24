@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
-import {
-  createPreferLiveEventMapper,
-  loadThreadCachedSnapshot,
-} from '../../event-store/cache/eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from '../../event-store/cache/threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from '../../event-store/engine/threadRelationsFetcher';
 import { useSyncEngine } from '../../event-store/engine';
 
