@@ -119,7 +119,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     thumbnailRef.current = thumbnail;
     const thumbnailKey = thumbnail ? `${thumbnail.mxcUri}|${thumbnail.mimeType}` : '';
 
-    const abortRef = useRef<AbortController>();
+    const abortRef = useRef<AbortController>(undefined);
     const onFallbackRef = useRef(onFallbackToFile);
     onFallbackRef.current = onFallbackToFile;
     useEffect(() => () => abortRef.current?.abort(), []);

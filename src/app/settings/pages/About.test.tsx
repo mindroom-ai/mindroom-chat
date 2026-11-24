@@ -991,9 +991,12 @@ describe('About app updates', () => {
   });
 
   it('is hidden when the native updater bridge is absent', () => {
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     expect(updateTiles(renderer)).toHaveLength(0);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('checks for updates inside a status region and reflects none, found, and error outcomes', async () => {
@@ -1006,7 +1009,10 @@ describe('About app updates', () => {
         })
     );
 
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     expect(updateTile(renderer).props['data-setting-title']).toBe('App updates');
     expect(updateStatus(renderer).props.role).toBe('status');
     expect(statusText(renderer)).toBe('Updates download automatically in the background.');
@@ -1038,7 +1044,7 @@ describe('About app updates', () => {
       updateButton(renderer).props.onClick();
     });
     expect(statusText(renderer)).toBe("Couldn't check for updates right now. Try again.");
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('offers Restart to update when staged and reports install failures', async () => {
@@ -1052,7 +1058,10 @@ describe('About app updates', () => {
         })
     );
 
-    const renderer = create(<About requestClose={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
     expect(statusText(renderer)).toBe('Version 2026.11.20 is ready to install.');
     expect(labelOf(updateButton(renderer))).toBe('Restart to update');
 
@@ -1073,6 +1082,6 @@ describe('About app updates', () => {
     act(() => setReady(undefined));
     expect(statusText(renderer)).toBe('Updates download automatically in the background.');
     expect(labelOf(updateButton(renderer))).toBe('Check for updates');
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 });
