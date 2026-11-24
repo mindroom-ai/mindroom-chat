@@ -157,7 +157,9 @@ const seedWorkflowJob = async (room: PanelRoom) => {
 };
 
 const expectWorkflowDeltaReceived = async (page: Page) => {
-  await expect(page.getByText('Audit the sample module')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Audit the sample module', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByText('1 done, 0 running, 0 waiting')).toBeVisible({ timeout: 15_000 });
 };
 
@@ -233,6 +235,6 @@ test.describe('workflow ephemeral frame sync', () => {
     // In an encrypted room plaintext ephemeral workflow frames must be rejected by the client.
     const { snapshot } = makeFrames(room);
     await putWorkflowFrame(room, snapshot, 'enc-plain');
-    await expect(page.getByText('Audit the sample module')).toBeHidden();
+    await expect(page.getByText('Audit the sample module', { exact: true })).toBeHidden();
   });
 });
