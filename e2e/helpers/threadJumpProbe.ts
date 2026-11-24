@@ -22,7 +22,13 @@ export type JumpFrame = {
   anchorId?: string;
   anchorTop?: number;
   anchorDriftPx?: number;
-  writes?: { api: string; delta: number; wheelLive: boolean; msSinceWheel: number; caller: string }[];
+  writes?: {
+    api: string;
+    delta: number;
+    wheelLive: boolean;
+    msSinceWheel: number;
+    caller: string;
+  }[];
 };
 
 export type ProbeReport = {
@@ -79,7 +85,13 @@ export const installThreadJumpProbe = () => {
     active: false,
     mode: 'open' as ProbeMode,
     writeDelta: 0,
-    frameWrites: [] as { api: string; delta: number; wheelLive: boolean; msSinceWheel: number; caller: string }[],
+    frameWrites: [] as {
+      api: string;
+      delta: number;
+      wheelLive: boolean;
+      msSinceWheel: number;
+      caller: string;
+    }[],
     lastWheelAt: -Infinity,
     wheelPx: 0,
     burstWheelPx: 0,
@@ -222,11 +234,11 @@ export const installThreadJumpProbe = () => {
     const delta = value - from;
     probe.writeDelta += delta;
     const msSinceWheel = Math.round(performance.now() - probe.lastWheelAt);
-    const caller = (new Error().stack || "")
-      .split("\n")
+    const caller = (new Error().stack || '')
+      .split('\n')
       .slice(2, 6)
       .map((line) => line.trim())
-      .join(" <- ");
+      .join(' <- ');
     probe.frameWrites.push({
       api,
       delta: Math.round(delta),
