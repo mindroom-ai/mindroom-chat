@@ -690,7 +690,18 @@
       "manage": "관리"
     },
     "roomOrder": {
-      "sortByName": "방을 가나다순으로 정렬"
+      "sortRooms": "방 정렬",
+      "sortHeading": "방 정렬",
+      "displayHeading": "표시",
+      "recentActivity": "최근 활동",
+      "aToZ": "가나다순",
+      "customOrder": "사용자 지정 순서",
+      "saved": "저장됨",
+      "showActivityTimes": "활동 시간 표시",
+      "matchSpace": "스페이스와 동일 ({{mode}})",
+      "shortRecent": "최근",
+      "shortName": "가나다",
+      "shortManual": "사용자 지정"
     },
     "roomActions": {
       "noInvitePermission": "초대할 권한이 없습니다",

@@ -1,6 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { addRoomToSpace, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import {
+  addRoomToSpace,
+  matrixFetch,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -39,19 +44,28 @@ const rowOrder = (page: Page, nav: string) =>
 const row = (page: Page, nav: string, roomId: string) =>
   rows(page, nav).and(page.locator(`[data-room-id="${roomId}"]`));
 
-/** The saved lists of `io.mindroom.room_order`, straight from the homeserver. */
-const savedLists = async (account: Account): Promise<Record<string, unknown> | undefined> => {
+type SavedRoomOrder = {
+  lists?: Record<string, unknown>;
+  modes?: Record<string, unknown>;
+  showTimes?: Record<string, unknown>;
+};
+
+/** The stored `io.mindroom.room_order` account data, straight from the homeserver. */
+const savedRoomOrder = async (account: Account): Promise<SavedRoomOrder | undefined> => {
   try {
-    const content = await matrixFetch<{ lists?: Record<string, unknown> }>(
+    return await matrixFetch<SavedRoomOrder>(
       HOMESERVER,
       `/user/${encodeURIComponent(account.userId)}/account_data/io.mindroom.room_order`,
       { accessToken: account.accessToken }
     );
-    return content.lists;
   } catch {
     return undefined;
   }
 };
+
+/** The saved lists of `io.mindroom.room_order`, straight from the homeserver. */
+const savedLists = async (account: Account): Promise<Record<string, unknown> | undefined> =>
+  (await savedRoomOrder(account))?.lists;
 
 /**
  * Drags `from` with the mouse onto the upper edge of `to`, near enough to its middle that `to`
@@ -153,11 +167,22 @@ test('a room dragged above another keeps its place after a reload and on a secon
   await expect.poll(() => rowOrder(page, 'Home')).toEqual([alder, cedar, birch]);
   await expect.poll(() => savedLists(account)).toEqual({ home: [alder, cedar, birch] });
 
-  // Home's menu puts the rooms back in A to Z order and forgets the saved order.
-  await page.getByRole('button', { name: 'Home Options' }).click();
-  await page.getByRole('menuitem', { name: 'Sort Rooms A to Z' }).click();
+  // Home's Sort rooms menu switches back to A to Z while preserving the saved Custom order.
+  await page.getByRole('button', { name: 'Sort rooms' }).click();
+  await page.getByRole('menuitemradio', { name: 'A to Z' }).click();
   await expect.poll(() => rowOrder(page, 'Home')).toEqual([alder, birch, cedar]);
-  await expect.poll(() => savedLists(account)).toEqual({});
+  await expect
+    .poll(() => savedRoomOrder(account))
+    .toEqual({
+      lists: { home: [alder, cedar, birch] },
+      modes: { home: 'name' },
+    });
+
+  // Switching back to Custom order restores the preserved custom list.
+  await page.getByRole('button', { name: 'Sort rooms' }).click();
+  await expect(page.getByRole('menuitemradio', { name: /Custom order/ })).toContainText('Saved');
+  await page.getByRole('menuitemradio', { name: /Custom order/ }).click();
+  await expect.poll(() => rowOrder(page, 'Home')).toEqual([alder, cedar, birch]);
 });
 
 test('a room dragged slowly moves without opening it or reloading the page', async ({ page }) => {
@@ -256,4 +281,95 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
     .toEqual([fern, elm, dahlia]);
   await expect.poll(railOrder).toEqual([lower, upper]);
+});
+
+test('sorts by recent activity with activity times, preserves custom order, and overrides sub-spaces', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const account = await registerAndLogin('sort');
+  const grove = await createRoom(HOMESERVER, account.accessToken, { name: 'Grove', space: true });
+  const canopy = await createRoom(HOMESERVER, account.accessToken, { name: 'Canopy', space: true });
+  await addRoomToSpace(HOMESERVER, account.accessToken, grove, canopy);
+
+  const alder = await createRoom(HOMESERVER, account.accessToken, { name: 'Alder' });
+  const birch = await createRoom(HOMESERVER, account.accessToken, { name: 'Birch' });
+  const cedar = await createRoom(HOMESERVER, account.accessToken, { name: 'Cedar' });
+  const dahlia = await createRoom(HOMESERVER, account.accessToken, { name: 'Dahlia' });
+  await addRoomToSpace(HOMESERVER, account.accessToken, grove, alder);
+  await addRoomToSpace(HOMESERVER, account.accessToken, grove, birch);
+  await addRoomToSpace(HOMESERVER, account.accessToken, canopy, cedar);
+  await addRoomToSpace(HOMESERVER, account.accessToken, canopy, dahlia);
+
+  await signIn(page, account);
+  const rail = page.getByRole('group', { name: 'Spaces' });
+  await rail.locator(`button[data-id="${grove}"]`).click();
+  await expect
+    .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
+    .toEqual([alder, birch, cedar, dahlia]);
+
+  // Drag Birch above Alder to create a saved Custom order for Grove.
+  await dragOnto(page, row(page, 'Grove', birch), row(page, 'Grove', alder));
+  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([birch, alder, cedar, dahlia]);
+
+  // Open Grove's Sort rooms menu: enable Show activity times, then switch to Recent activity.
+  const groveNav = page.getByRole('navigation', { name: 'Grove', exact: true });
+  await groveNav.getByRole('button', { name: 'Sort rooms' }).click();
+  const showTimesToggle = page.getByRole('menuitemcheckbox', { name: 'Show activity times' });
+  await showTimesToggle.click();
+  await expect(showTimesToggle).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('menuitemradio', { name: 'Recent activity' }).click();
+
+  // Send live messages: Birch first, then Alder so Alder moves to the top; Dahlia moves above Cedar.
+  await sendRoomMessage(HOMESERVER, account.accessToken, birch, {
+    msgtype: 'm.text',
+    body: 'earlier in birch',
+  });
+  await sendRoomMessage(HOMESERVER, account.accessToken, cedar, {
+    msgtype: 'm.text',
+    body: 'earlier in cedar',
+  });
+  await page.waitForTimeout(50);
+  await sendRoomMessage(HOMESERVER, account.accessToken, alder, {
+    msgtype: 'm.text',
+    body: 'latest in alder',
+  });
+  await sendRoomMessage(HOMESERVER, account.accessToken, dahlia, {
+    msgtype: 'm.text',
+    body: 'latest in dahlia',
+  });
+
+  await expect
+    .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
+    .toEqual([alder, birch, dahlia, cedar]);
+  await expect(row(page, 'Grove', alder).locator('[data-room-activity-time]')).toBeVisible();
+
+  // Override Canopy sub-space to A to Z independently of Grove.
+  await groveNav.getByRole('button', { name: 'Canopy' }).hover();
+  await groveNav.getByRole('button', { name: 'Canopy options' }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Match space (Recent)' })).toHaveAttribute(
+    'aria-checked',
+    'true'
+  );
+  await page.getByRole('menuitemradio', { name: 'A to Z' }).click();
+  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([alder, birch, cedar, dahlia]);
+
+  // Reset Canopy back to Match space (Recent).
+  await groveNav.getByRole('button', { name: 'Canopy' }).hover();
+  await groveNav.getByRole('button', { name: 'Canopy options' }).click();
+  await page.getByRole('menuitemradio', { name: 'Match space (Recent)' }).click();
+  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([alder, birch, dahlia, cedar]);
+
+  // Switching Grove back to Custom order restores the preserved [birch, alder] order.
+  await groveNav.getByRole('button', { name: 'Sort rooms' }).click();
+  await expect(page.getByRole('menuitemradio', { name: /Custom order/ })).toContainText('Saved');
+  await page.getByRole('menuitemradio', { name: /Custom order/ }).click();
+  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([birch, alder, cedar, dahlia]);
+
+  // Reload preserves the mode and activity times.
+  await page.reload();
+  await expect
+    .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
+    .toEqual([birch, alder, cedar, dahlia]);
+  await expect(row(page, 'Grove', birch).locator('[data-room-activity-time]')).toBeVisible();
 });

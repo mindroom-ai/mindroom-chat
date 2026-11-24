@@ -23,6 +23,7 @@ import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useInCall } from '../../calls/callStore';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
+import { useRelativeTime } from '../../i18n/useRelativeTime';
 import type { RoomActionDialog } from '../../room/roomActions';
 
 const AVATAR_SIZE = 96;
@@ -46,6 +47,8 @@ type RoomNavItemProps = {
   dragging: boolean;
   /** The row sits under the room it is a sub-room of: its hash is framed. */
   subRoom: boolean;
+  /** Compact relative activity timestamp shown on quiet rows when activity times are enabled. */
+  activityTimestamp: number;
 }>;
 
 /**
@@ -364,6 +367,23 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
   height: 0,
 });
 
+const activityTimeStyle: React.CSSProperties = {
+  fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+};
+
+/** Compact relative timestamp mounted only on quiet rows when activity times are shown. */
+function RoomActivityTime({ timestamp }: { timestamp: number }) {
+  const time = useRelativeTime(timestamp, 'compact');
+  if (!time) return null;
+  return (
+    <Text as="span" size="T200" priority="300" data-room-activity-time="" style={activityTimeStyle}>
+      {time}
+    </Text>
+  );
+}
+
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
  * for a call or agent background jobs, and a menu on hover or focus, by right-click or by a
@@ -380,6 +400,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
     spaceId,
     removeFromSpaceId,
     dragging,
+    activityTimestamp,
   } = props;
   const subRoom = Boolean(props.subRoom);
   const { t } = useTranslation();
@@ -408,6 +429,8 @@ export function RoomNavItem(props: RoomNavItemProps) {
         style={{ opacity: config.opacity.P300 }}
       />
     );
+  } else if (!showOptions && activityTimestamp) {
+    status = <RoomActivityTime timestamp={activityTimestamp} />;
   }
 
   // A long press opens the menu at the row, below or above it; touches inside the menu, which

@@ -7,9 +7,11 @@ import {
   appendRoomOrder,
   applyRoomOrder,
   moveRoom,
+  parseRoomOrderData,
   parseRoomOrderLists,
   saveRoomOrders,
   useRoomOrders,
+  withRoomOrderChanges,
   withRoomOrders,
   type RoomOrders,
 } from './roomOrder';
@@ -257,5 +259,215 @@ describe('useRoomOrders', () => {
     expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
       lists: { '!manual': ['!c', '!b', '!a', '!e', '!d'] },
     });
+  });
+});
+
+describe('parseRoomOrderData & withRoomOrderChanges', () => {
+  it('validates modes and showTimes, drops malformed entries, and preserves unknown keys', () => {
+    expect(
+      parseRoomOrderData({
+        lists: { home: ['!b', '!a'] },
+        modes: { home: 'manual', '!wa': 'recent', '!sub': 'inherit', '!bad': 'alpha', '!n': 1 },
+        showTimes: { '!wa': true, '!sub': false, '!bad': 'yes' },
+      })
+    ).toEqual({
+      lists: { home: ['!b', '!a'] },
+      modes: { home: 'manual', '!wa': 'recent', '!sub': 'inherit' },
+      showTimes: { '!wa': true, '!sub': false },
+    });
+
+    expect(
+      withRoomOrderChanges(
+        { lists: { home: ['!b', '!a'] }, futureKey: 42 },
+        { modes: { home: 'recent' }, showTimes: { home: true } }
+      )
+    ).toEqual({
+      lists: { home: ['!b', '!a'] },
+      modes: { home: 'recent' },
+      showTimes: { home: true },
+      futureKey: 42,
+    });
+
+    // Removing the last entry omits empty modes/showTimes objects.
+    expect(
+      withRoomOrderChanges(
+        { modes: { home: 'recent' }, showTimes: { home: true }, futureKey: 42 },
+        { modes: { home: undefined }, showTimes: { home: undefined } }
+      )
+    ).toEqual({ futureKey: 42 });
+  });
+});
+
+describe('useRoomOrders sort modes, showTimes, inheritance, and rollback', () => {
+  let renderer: ReactTestRenderer | undefined;
+
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+  });
+
+  const mount = (
+    stored: Record<string, unknown> | undefined,
+    setAccountData = vi.fn(async () => ({}))
+  ) => {
+    const event = stored ? ({ getContent: () => stored } as unknown as MatrixEvent) : undefined;
+    const client = {
+      getAccountData: vi.fn((type: string) =>
+        type === 'io.mindroom.room_order' ? event : undefined
+      ),
+      setAccountData,
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+    let current!: RoomOrders;
+    const Harness = () => {
+      current = useRoomOrders();
+      return null;
+    };
+    act(() => {
+      renderer = create(
+        React.createElement(MatrixClientProvider, { value: client }, React.createElement(Harness))
+      );
+    });
+    return {
+      get orders() {
+        return current;
+      },
+      setAccountData,
+    };
+  };
+
+  it('resolves legacy lists-only data as manual and defaults unset lists to name/false', () => {
+    const harness = mount({ lists: { home: ['!b', '!a'] } });
+    expect(harness.orders.modeOf('home')).toBe('manual');
+    expect(harness.orders.hasExplicitMode('home')).toBe(true);
+    expect(harness.orders.hasSavedOrder('home')).toBe(true);
+    expect(harness.orders.modeOf('!fresh')).toBe('name');
+    expect(harness.orders.hasExplicitMode('!fresh')).toBe(false);
+    expect(harness.orders.showTimesOf('!fresh')).toBe(false);
+  });
+
+  it('preserves saved custom lists across mode switches and freezes currentOrder on first Custom switch', () => {
+    const harness = mount({});
+
+    // Recent -> Custom with no saved order freezes currentOrder.
+    act(() => harness.orders.setMode('home', 'recent'));
+    expect(harness.orders.modeOf('home')).toBe('recent');
+    expect(harness.orders.hasSavedOrder('home')).toBe(false);
+
+    act(() => harness.orders.setMode('home', 'manual', ['!c', '!a', '!b']));
+    expect(harness.orders.modeOf('home')).toBe('manual');
+    expect(harness.orders.hasSavedOrder('home')).toBe(true);
+    expect(harness.orders.orderOf('home', ['!a', '!b', '!c'])).toEqual(['!c', '!a', '!b']);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      lists: { home: ['!c', '!a', '!b'] },
+      modes: { home: 'manual' },
+    });
+
+    // Switching to A to Z preserves lists.home untouched.
+    act(() => harness.orders.setMode('home', 'name'));
+    expect(harness.orders.modeOf('home')).toBe('name');
+    expect(harness.orders.hasSavedOrder('home')).toBe(true);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      lists: { home: ['!c', '!a', '!b'] },
+      modes: { home: 'name' },
+    });
+
+    // Switching back to Custom restores saved list instead of overwriting with currentOrder.
+    act(() => harness.orders.setMode('home', 'manual', ['!a', '!b', '!c']));
+    expect(harness.orders.orderOf('home', ['!a', '!b', '!c'])).toEqual(['!c', '!a', '!b']);
+  });
+
+  it('save writes lists and manual mode atomically', () => {
+    const harness = mount({ modes: { '!space': 'name' } });
+    act(() => harness.orders.save('!space', ['!b', '!a']));
+    expect(harness.orders.modeOf('!space')).toBe('manual');
+    expect(harness.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!space': ['!b', '!a'] },
+      modes: { '!space': 'manual' },
+    });
+  });
+
+  it('inherits mode and showTimes across parent chains and resets sub-space overrides losslessly', () => {
+    const harness = mount({
+      lists: { '!subWithList': ['!z', '!a'] },
+      modes: { '!root': 'recent', '!subNoList': 'name' },
+      showTimes: { '!root': true, '!subNoList': false },
+    });
+
+    // Un-overridden child & grandchild inherit from !root.
+    expect(harness.orders.modeOf('!child', '!root')).toBe('recent');
+    expect(harness.orders.modeOf('!grand', ['!child', '!root'])).toBe('recent');
+    expect(harness.orders.showTimesOf('!grand', ['!child', '!root'])).toBe(true);
+    expect(harness.orders.hasExplicitMode('!child')).toBe(false);
+
+    // Explicit sub-space override blocks inheritance.
+    expect(harness.orders.modeOf('!subNoList', '!root')).toBe('name');
+    expect(harness.orders.showTimesOf('!subNoList', '!root')).toBe(false);
+    expect(harness.orders.hasExplicitMode('!subNoList')).toBe(true);
+
+    // Legacy sub-space with saved list counts as explicit manual until reset.
+    expect(harness.orders.modeOf('!subWithList', '!root')).toBe('manual');
+    expect(harness.orders.hasExplicitMode('!subWithList')).toBe(true);
+
+    // Resetting sub-space with saved list writes "inherit" and keeps the saved list intact.
+    act(() => harness.orders.resetSubspaceOverride('!subWithList'));
+    expect(harness.orders.hasExplicitMode('!subWithList')).toBe(false);
+    expect(harness.orders.modeOf('!subWithList', '!root')).toBe('recent');
+    expect(harness.orders.hasSavedOrder('!subWithList')).toBe(true);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      lists: { '!subWithList': ['!z', '!a'] },
+      modes: { '!root': 'recent', '!subNoList': 'name', '!subWithList': 'inherit' },
+      showTimes: { '!root': true, '!subNoList': false },
+    });
+
+    // Resetting sub-space without a saved list deletes both mode and showTimes cleanly.
+    act(() => harness.orders.resetSubspaceOverride('!subNoList'));
+    expect(harness.orders.hasExplicitMode('!subNoList')).toBe(false);
+    expect(harness.orders.modeOf('!subNoList', '!root')).toBe('recent');
+    expect(harness.orders.showTimesOf('!subNoList', '!root')).toBe(true);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      lists: { '!subWithList': ['!z', '!a'] },
+      modes: { '!root': 'recent', '!subWithList': 'inherit' },
+      showTimes: { '!root': true },
+    });
+  });
+
+  it('keeps root showTimes=false lean while storing explicit false when parent shows times', () => {
+    const harness = mount({ showTimes: { '!root': true } });
+
+    // Turning off showTimes on a sub-space under a parent with showTimes=true stores explicit false.
+    act(() => harness.orders.setShowTimes('!sub', false, '!root'));
+    expect(harness.orders.showTimesOf('!sub', '!root')).toBe(false);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      showTimes: { '!root': true, '!sub': false },
+    });
+
+    // Turning off showTimes on a root list deletes the entry instead of storing false.
+    act(() => harness.orders.setShowTimes('!root', false));
+    expect(harness.orders.showTimesOf('!root')).toBe(false);
+    expect(harness.setAccountData).toHaveBeenLastCalledWith('io.mindroom.room_order', {
+      showTimes: { '!sub': false },
+    });
+  });
+
+  it('reverts optimistic pending state if setAccountData rejects', async () => {
+    let rejectSave!: (err: Error) => void;
+    const setAccountData = vi.fn(
+      () =>
+        new Promise<Record<string, never>>((_, reject) => {
+          rejectSave = reject;
+        })
+    );
+    const harness = mount({}, setAccountData);
+
+    act(() => harness.orders.setMode('home', 'recent'));
+    expect(harness.orders.modeOf('home')).toBe('recent');
+
+    await act(async () => {
+      rejectSave(new Error('network'));
+      await Promise.resolve();
+    });
+    expect(harness.orders.modeOf('home')).toBe('name');
   });
 });

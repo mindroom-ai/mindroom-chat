@@ -707,7 +707,18 @@
       "manage": "Beheren"
     },
     "roomOrder": {
-      "sortByName": "Kamers sorteren van A tot Z"
+      "sortRooms": "Kamers sorteren",
+      "sortHeading": "Kamers sorteren",
+      "displayHeading": "Weergave",
+      "recentActivity": "Recente activiteit",
+      "aToZ": "A tot Z",
+      "customOrder": "Aangepaste volgorde",
+      "saved": "Opgeslagen",
+      "showActivityTimes": "Activiteitstijden tonen",
+      "matchSpace": "Zoals space ({{mode}})",
+      "shortRecent": "Recent",
+      "shortName": "A tot Z",
+      "shortManual": "Eigen"
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",

@@ -724,7 +724,18 @@
       "manage": "Gestisci"
     },
     "roomOrder": {
-      "sortByName": "Ordina le stanze dalla A alla Z"
+      "sortRooms": "Ordina le stanze",
+      "sortHeading": "Ordina le stanze",
+      "displayHeading": "Visualizzazione",
+      "recentActivity": "Attività recente",
+      "aToZ": "Dalla A alla Z",
+      "customOrder": "Ordine personalizzato",
+      "saved": "Salvato",
+      "showActivityTimes": "Mostra orari di attività",
+      "matchSpace": "Come lo spazio ({{mode}})",
+      "shortRecent": "Recenti",
+      "shortName": "A–Z",
+      "shortManual": "Pers."
     },
     "roomActions": {
       "noInvitePermission": "Non hai il permesso di invitare",

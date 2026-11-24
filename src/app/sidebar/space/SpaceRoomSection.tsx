@@ -1,10 +1,16 @@
-import { Fragment, type MouseEventHandler, useCallback, useMemo, useRef } from 'react';
+import { Fragment, type MouseEventHandler, useCallback, useMemo, useReducer, useRef } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { KnownMembership, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { NavCategory } from '../../ui/nav/NavItem';
 import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories';
-import { useRoomOrders } from '../room-nav/roomOrder';
+import { type RoomSortMode, useRoomOrders } from '../room-nav/roomOrder';
+import {
+  type ActivityTrackedSection,
+  getRoomActivityTimestamp,
+  orderRoomsForMode,
+  useRoomActivityListener,
+} from '../room-nav/roomActivity';
 import {
   SortableRoomList,
   SortableRoomRow,
@@ -36,20 +42,53 @@ import {
   getDescendantSubspaces,
   getSpaceRoomSections,
 } from './spaceRoomSections';
-import { SpaceSectionHeader } from './SpaceSectionHeader';
+import { SpaceSectionHeader, type SubspaceSortOptions } from './SpaceSectionHeader';
 
 export type RenderedSpaceRoomSection = SpaceRoomSectionData & {
   closed: boolean;
   tree: SubRoomTree;
+  orderedTop: string[];
   shownRoomIds: string[];
   listedRoomIds: string[];
+  mode: RoomSortMode;
+  showTimes: boolean;
+  inheritFrom: readonly string[] | undefined;
+  sort?: SubspaceSortOptions;
+};
+
+const walkChain = (
+  start: string | undefined,
+  exclude: string,
+  nextOf: (id: string) => string | undefined
+): string[] => {
+  const chain: string[] = [];
+  const seen = new Set<string>([exclude]);
+  let cur = start;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    chain.push(cur);
+    cur = nextOf(cur);
+  }
+  return chain;
+};
+
+export type SpaceSortControl = {
+  mode: RoomSortMode;
+  showTimes: boolean;
+  hasSavedOrder: boolean;
+  setMode: (mode: RoomSortMode) => void;
+  setShowTimes: (show: boolean) => void;
 };
 
 /**
  * Derives a space's visible rooms, inline collapsible room/sub-space sections, shortcut order,
- * collapse handler, manual reorder handler, and atomic "Sort by name" reset callback.
+ * per-space and per-sub-space sort controls, live activity sorting, and drag-and-drop handlers.
  */
-export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | undefined) {
+export function useSpaceRoomSections(
+  spaceId: string,
+  selectedRoomId: string | undefined,
+  parentSpaceId?: string
+) {
   const client = useMatrixClient();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const visibleJoinedRoomIds = useVisibleRooms(joinedRoomIds);
@@ -134,27 +173,96 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
     ]
   );
   const roomOrders = useRoomOrders();
-  const sections = useMemo<RenderedSpaceRoomSection[]>(
+  const [activityVersion, bumpActivity] = useReducer((count: number) => count + 1, 0);
+
+  const rootAncestors = useMemo(
     () =>
-      rawSections.map((section) => {
-        const closed = closedCategories.has(section.categoryId);
-        const list = buildSubRoomList(
-          section.ownRoomsByName,
-          section.scopeRoomsByName,
-          roomToParents,
-          chatRooms,
-          (top) => roomOrders.orderOf(section.spaceId, top),
-          closed,
-          selectedRoomId
-        );
-        return { ...section, closed, ...list };
-      }),
-    [rawSections, closedCategories, roomToParents, chatRooms, roomOrders, selectedRoomId]
+      walkChain(parentSpaceId, spaceId, (id) =>
+        [...(roomToParents.get(id) ?? [])].find(
+          (parentId) =>
+            joinedRoomSet.has(parentId) && Boolean(client.getRoom(parentId)?.isSpaceRoom())
+        )
+      ),
+    [client, joinedRoomSet, parentSpaceId, roomToParents, spaceId]
   );
+
+  const sections = useMemo<RenderedSpaceRoomSection[]>(() => {
+    void activityVersion;
+    const parentBySection = new Map(
+      rawSections.flatMap((s) => (s.parentSpaceId ? [[s.spaceId, s.parentSpaceId] as const] : []))
+    );
+    return rawSections.map((section) => {
+      const closed = closedCategories.has(section.categoryId);
+      const localAncestors = walkChain(section.parentSpaceId, section.spaceId, (id) =>
+        parentBySection.get(id)
+      );
+      const chain = [...new Set([...localAncestors, ...rootAncestors])].filter(
+        (id) => id !== section.spaceId
+      );
+      const inheritFrom = chain.length > 0 ? chain : undefined;
+      const mode = roomOrders.modeOf(section.spaceId, inheritFrom);
+      const showTimes = roomOrders.showTimesOf(section.spaceId, inheritFrom);
+      const list = buildSubRoomList(
+        section.ownRoomsByName,
+        section.scopeRoomsByName,
+        roomToParents,
+        chatRooms,
+        (top, tree) =>
+          orderRoomsForMode(
+            client,
+            mode,
+            top,
+            (ids) => roomOrders.orderOf(section.spaceId, ids),
+            tree
+          ),
+        closed,
+        selectedRoomId
+      );
+      const sort: SubspaceSortOptions | undefined = section.isRoot
+        ? undefined
+        : {
+            mode,
+            inheritedMode: inheritFrom
+              ? roomOrders.modeOf(inheritFrom[0]!, inheritFrom.slice(1))
+              : 'name',
+            overridden: roomOrders.hasExplicitMode(section.spaceId),
+            showTimes,
+            hasSavedOrder: roomOrders.hasSavedOrder(section.spaceId),
+            onModeChange: (nextMode) =>
+              roomOrders.setMode(section.spaceId, nextMode, list.orderedTop),
+            onShowTimesChange: (show) =>
+              roomOrders.setShowTimes(section.spaceId, show, inheritFrom),
+            onResetOverride: () => roomOrders.resetSubspaceOverride(section.spaceId),
+          };
+      return { ...section, closed, ...list, mode, showTimes, inheritFrom, sort };
+    });
+  }, [
+    activityVersion,
+    client,
+    rawSections,
+    rootAncestors,
+    closedCategories,
+    roomToParents,
+    chatRooms,
+    roomOrders,
+    selectedRoomId,
+  ]);
+
+  const trackedSections = useMemo<ActivityTrackedSection[]>(
+    () =>
+      sections.map((section) => ({
+        recent: section.mode === 'recent',
+        showTimes: section.showTimes,
+        baseTop: section.tree.top,
+        orderedTop: section.orderedTop,
+        tree: section.tree,
+        trackedRoomIds: new Set(section.shownRoomIds),
+      })),
+    [sections]
+  );
+  useRoomActivityListener(trackedSections, bumpActivity);
+
   const shortcutRoomIds = useMemo(() => collectShortcutRoomIds(sections), [sections]);
-  const manualSectionIds = sections
-    .filter((section) => roomOrders.isManual(section.spaceId))
-    .map((section) => section.spaceId);
 
   const movingRoomIdsRef = useRef(new Set<string>());
   const roomOrdersRef = useRef(roomOrders);
@@ -185,7 +293,12 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
         const targetSection = sectionsRef.current.find(
           (section) => section.spaceId === targetSpaceId
         );
-        roomOrdersRef.current.appendRoom(targetSpaceId, targetSection?.tree.top ?? [], roomId);
+        roomOrdersRef.current.appendRoom(
+          targetSpaceId,
+          targetSection?.tree.top ?? [],
+          roomId,
+          targetSection?.inheritFrom
+        );
       } catch {
         // Leave Matrix state authoritative if the move fails.
       } finally {
@@ -195,14 +308,23 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
     [client, canMoveRoom]
   );
 
+  const rootInheritFrom = rootAncestors.length > 0 ? rootAncestors : undefined;
+  const rootSection = sections.find((section) => section.isRoot);
+  const sort: SpaceSortControl = {
+    mode: roomOrders.modeOf(spaceId, rootInheritFrom),
+    showTimes: roomOrders.showTimesOf(spaceId, rootInheritFrom),
+    hasSavedOrder: roomOrders.hasSavedOrder(spaceId),
+    setMode: (nextMode) => roomOrders.setMode(spaceId, nextMode, rootSection?.orderedTop),
+    setShowTimes: (show) => roomOrders.setShowTimes(spaceId, show, rootInheritFrom),
+  };
+
   return {
     spaceRooms,
     sections,
     shortcutRoomIds,
+    sort,
     onCategoryClick,
     onReorder: roomOrders.save,
-    onSortByName:
-      manualSectionIds.length > 0 ? () => roomOrders.reset(manualSectionIds) : undefined,
     canMoveRoom,
     onMoveRoom,
   };
@@ -243,6 +365,7 @@ export function SpaceRoomSection({
     linkPath: getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, room.roomId)),
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
     spaceId,
+    activityTimestamp: section.showTimes ? getRoomActivityTimestamp(room) || undefined : undefined,
   });
   const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
   const previewPath = (roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId);
@@ -259,11 +382,13 @@ export function SpaceRoomSection({
         shownRoomIds={section.shownRoomIds}
         selectedRoomId={selectedRoomId}
         onCategoryClick={onCategoryClick}
+        sort={section.sort}
       />
       <SortableRoomList
         listId={section.spaceId}
         roomIds={section.listedRoomIds}
         onReorder={(order) => onReorder(section.spaceId, order)}
+        reorderDisabled={section.mode === 'recent'}
       >
         {section.listedRoomIds.map((roomId) => {
           const room = client.getRoom(roomId);

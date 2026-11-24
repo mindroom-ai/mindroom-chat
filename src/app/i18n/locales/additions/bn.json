@@ -707,7 +707,18 @@
       "manage": "পরিচালনা করুন"
     },
     "roomOrder": {
-      "sortByName": "রুমগুলো এ থেকে জেড সাজান"
+      "sortRooms": "রুম সাজান",
+      "sortHeading": "রুম সাজান",
+      "displayHeading": "প্রদর্শন",
+      "recentActivity": "সাম্প্রতিক কার্যকলাপ",
+      "aToZ": "এ থেকে জেড",
+      "customOrder": "নিজস্ব ক্রম",
+      "saved": "সংরক্ষিত",
+      "showActivityTimes": "কার্যকলাপের সময় দেখান",
+      "matchSpace": "স্পেসের সাথে মিল ({{mode}})",
+      "shortRecent": "সাম্প্রতিক",
+      "shortName": "এ–জেড",
+      "shortManual": "নিজস্ব"
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",

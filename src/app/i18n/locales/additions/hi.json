@@ -707,7 +707,18 @@
       "manage": "प्रबंधित करें"
     },
     "roomOrder": {
-      "sortByName": "रूम A से Z क्रम में लगाएँ"
+      "sortRooms": "रूम क्रमबद्ध करें",
+      "sortHeading": "रूम क्रमबद्ध करें",
+      "displayHeading": "प्रदर्शन",
+      "recentActivity": "हाल की गतिविधि",
+      "aToZ": "A से Z",
+      "customOrder": "कस्टम क्रम",
+      "saved": "सहेजा गया",
+      "showActivityTimes": "गतिविधि का समय दिखाएँ",
+      "matchSpace": "स्पेस के अनुसार ({{mode}})",
+      "shortRecent": "हाल का",
+      "shortName": "A से Z",
+      "shortManual": "कस्टम"
     },
     "roomActions": {
       "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",

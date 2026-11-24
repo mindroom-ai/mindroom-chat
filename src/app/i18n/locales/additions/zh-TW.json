@@ -690,7 +690,18 @@
       "manage": "管理"
     },
     "roomOrder": {
-      "sortByName": "依 A 到 Z 排序房間"
+      "sortRooms": "排序房間",
+      "sortHeading": "排序房間",
+      "displayHeading": "顯示",
+      "recentActivity": "最近動態",
+      "aToZ": "A 到 Z",
+      "customOrder": "自訂順序",
+      "saved": "已儲存",
+      "showActivityTimes": "顯示動態時間",
+      "matchSpace": "跟隨空間（{{mode}}）",
+      "shortRecent": "動態",
+      "shortName": "A 到 Z",
+      "shortManual": "自訂"
     },
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
