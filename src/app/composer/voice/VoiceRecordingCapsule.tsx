@@ -1,4 +1,5 @@
-import { Box, Icon, Icons, Spinner, Text } from 'folds';
+import type { AriaRole, ReactNode } from 'react';
+import { Box, Icon, Icons, Spinner, Text, type IconSrc } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { millisecondsToMinutesAndSeconds } from '../../lib/common';
@@ -7,6 +8,99 @@ import { VoiceRecorderPhase } from './useVoiceRecorder';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
 import * as css from './VoiceRecordingCapsule.css';
 import { IconTooltip } from '../../ui/IconTooltip';
+
+export function CapsuleControlButton(props: {
+  label: string;
+  variant?: 'SurfaceVariant' | 'Primary';
+  disabled?: boolean;
+  pressed?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <IconTooltip label={props.label} position="Top">
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          variant={props.variant ?? 'SurfaceVariant'}
+          size="300"
+          radii="300"
+          className={css.Control}
+          onClick={props.onClick}
+          disabled={props.disabled}
+          aria-label={props.label}
+          aria-pressed={props.pressed}
+        >
+          {props.children}
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+}
+
+export type RecordingCapsuleProps = {
+  top?: ReactNode;
+  dismissIcon: IconSrc;
+  dismissLabel: string;
+  dismissDisabled?: boolean;
+  onDismiss: () => void;
+  waveform: number[];
+  liveSampleCount?: number;
+  waveformDimmed?: boolean;
+  timerText: string;
+  paused: boolean;
+  pauseLabel: string;
+  pauseDisabled?: boolean;
+  pauseBusy?: boolean;
+  onTogglePause: () => void;
+  after?: ReactNode;
+  statusText: string;
+  statusRole?: AriaRole;
+};
+
+export function RecordingCapsule(props: RecordingCapsuleProps) {
+  const glassRef = useLiquidGlass<HTMLDivElement>();
+
+  return (
+    <Box ref={glassRef} className={css.CapsuleStacked}>
+      {props.top}
+      <div className={css.ControlsRow}>
+        <CapsuleControlButton
+          label={props.dismissLabel}
+          disabled={props.dismissDisabled}
+          onClick={props.onDismiss}
+        >
+          <Icon src={props.dismissIcon} size="50" />
+        </CapsuleControlButton>
+        <VoiceWaveform
+          waveform={props.waveform}
+          liveSampleCount={props.liveSampleCount}
+          dimmed={props.waveformDimmed}
+          compact
+        />
+        <Text className={css.Timer} size="B300">
+          {props.timerText}
+        </Text>
+        <CapsuleControlButton
+          label={props.pauseLabel}
+          disabled={props.pauseDisabled}
+          pressed={props.paused}
+          onClick={props.onTogglePause}
+        >
+          {props.pauseBusy ? (
+            <Spinner size="50" variant="Secondary" />
+          ) : (
+            <Icon src={props.paused ? Icons.Play : Icons.Pause} size="50" />
+          )}
+        </CapsuleControlButton>
+        {props.after}
+      </div>
+      <span className={css.HiddenStatus} role={props.statusRole}>
+        {props.statusText}
+      </span>
+    </Box>
+  );
+}
 
 type VoiceRecordingCapsuleProps = {
   phase: VoiceRecorderPhase;
@@ -45,78 +139,36 @@ export function VoiceRecordingCapsule({
   onResume,
 }: VoiceRecordingCapsuleProps) {
   const { t } = useTranslation();
-  const glassRef = useLiquidGlass<HTMLDivElement>();
   const busy = isBusyPhase(phase);
   const paused = phase === 'paused';
   const recording = phase === 'recording';
   const pendingReady = hasPendingSend && phase === 'idle';
   const pauseDisabled = pendingReady || busy || (!paused && (!recording || !canPause));
+  const time = millisecondsToMinutesAndSeconds(elapsedMs);
   const statusText = pendingReady
     ? t('mindroomUi.voice.statusReadyToRetry')
     : t(getStatusKey(phase));
 
   return (
-    <Box ref={glassRef} className={css.Capsule}>
-      <IconTooltip label={t('mindroomUi.voice.discardRecording')} position="Top">
-        {(triggerRef) => (
-          <IconButton
-            ref={triggerRef}
-            variant="SurfaceVariant"
-            size="300"
-            radii="300"
-            className={css.Control}
-            onClick={onDiscard}
-            disabled={phase === 'sending'}
-            aria-label={t('mindroomUi.voice.discardRecording')}
-          >
-            <Icon src={Icons.Delete} size="50" />
-          </IconButton>
-        )}
-      </IconTooltip>
-      <VoiceWaveform
-        waveform={waveform}
-        // Only a recording glides: paused or finishing, the bars stop, and the count starts
-        // afresh on resume rather than gliding in everything since.
-        liveSampleCount={recording ? sampleCount : undefined}
-        dimmed={paused || busy}
-        compact
-      />
-      <Text className={css.Timer} size="B300">
-        {recovered
-          ? t('mindroomUi.voice.recoveredRecording', {
-              time: millisecondsToMinutesAndSeconds(elapsedMs),
-            })
-          : millisecondsToMinutesAndSeconds(elapsedMs)}
-      </Text>
-      <IconTooltip
-        label={
-          paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
-        }
-        position="Top"
-      >
-        {(triggerRef) => (
-          <IconButton
-            ref={triggerRef}
-            variant="SurfaceVariant"
-            size="300"
-            radii="300"
-            className={css.Control}
-            onClick={paused ? onResume : onPause}
-            disabled={pauseDisabled}
-            aria-label={
-              paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
-            }
-            aria-pressed={paused}
-          >
-            {busy ? (
-              <Spinner size="50" variant="Secondary" />
-            ) : (
-              <Icon src={paused ? Icons.Play : Icons.Pause} size="50" />
-            )}
-          </IconButton>
-        )}
-      </IconTooltip>
-      <span className={css.HiddenStatus}>{statusText}</span>
-    </Box>
+    <RecordingCapsule
+      dismissIcon={Icons.Delete}
+      dismissLabel={t('mindroomUi.voice.discardRecording')}
+      dismissDisabled={phase === 'sending'}
+      onDismiss={onDiscard}
+      waveform={waveform}
+      // Only a recording glides: paused or finishing, the bars stop, and the count starts
+      // afresh on resume rather than gliding in everything since.
+      liveSampleCount={recording ? sampleCount : undefined}
+      waveformDimmed={paused || busy}
+      timerText={recovered ? t('mindroomUi.voice.recoveredRecording', { time }) : time}
+      paused={paused}
+      pauseLabel={
+        paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
+      }
+      pauseDisabled={pauseDisabled}
+      pauseBusy={busy}
+      onTogglePause={paused ? onResume : onPause}
+      statusText={statusText}
+    />
   );
 }
