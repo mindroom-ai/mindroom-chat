@@ -448,6 +448,93 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(unrenderedPx).toBe(-80);
   });
 
+  it('keeps the anchor when two rows above the reader grow in one ResizeObserver report', () => {
+    // In virtual-core 3.19, once the first row in a ResizeObserver batch
+    // applies a sync scroll adjustment, resizeItem refreshes measurementsCache
+    // before judging the second row, so its end already includes the first
+    // row's growth. Subtracting unrenderedCorrectionPx a second time would
+    // misclassify the second row as in-view and drop its +100px compensation.
+    let observerCallback: ResizeObserverCallback | undefined;
+    class BatchResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        observerCallback = callback;
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', BatchResizeObserver);
+    try {
+      const elementRef: { current?: { scrollTop: number } } = {};
+      const scrollToFn = vi.fn((offset: number, options: { adjustments?: number }) => {
+        if (elementRef.current) {
+          elementRef.current.scrollTop = offset + (options.adjustments ?? 0);
+        }
+      });
+      const { virtualizer, holder } = makeVirtualizer(scrollToFn);
+      elementRef.current = holder.element;
+      let unrenderedPx = 0;
+      virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
+        {
+          isIOSWebKitDevice: () => false,
+          onDroppedCorrection: () => {},
+          onAppliedCorrection: (deltaPx) => {
+            unrenderedPx += deltaPx;
+          },
+          unrenderedCorrectionPx: () => unrenderedPx,
+        }
+      );
+
+      const makeRowNode = (index: number, height: number) => {
+        const node = document.createElement('div');
+        node.setAttribute('data-index', String(index));
+        Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+        document.body.appendChild(node);
+        node.getBoundingClientRect = () => ({
+          height,
+          width: 390,
+          top: 0,
+          left: 0,
+          bottom: height,
+          right: 390,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        });
+        return node;
+      };
+
+      const lastRowAbove = START_OFFSET / ROW_ESTIMATE - 1;
+      const rowA = makeRowNode(lastRowAbove - 1, ROW_ESTIMATE);
+      const rowB = makeRowNode(lastRowAbove, ROW_ESTIMATE);
+      virtualizer.measureElement(rowA);
+      virtualizer.measureElement(rowB);
+      expect(observerCallback).toBeDefined();
+
+      // Both rows grow by +100px in a single ResizeObserver delivery.
+      const grownHeight = ROW_ESTIMATE + 100;
+      observerCallback!(
+        [
+          {
+            target: rowA,
+            borderBoxSize: [{ inlineSize: 390, blockSize: grownHeight }],
+          } as unknown as ResizeObserverEntry,
+          {
+            target: rowB,
+            borderBoxSize: [{ inlineSize: 390, blockSize: grownHeight }],
+          } as unknown as ResizeObserverEntry,
+        ],
+        {} as ResizeObserver
+      );
+
+      expect(holder.element.scrollTop).toBe(START_OFFSET + 200);
+      expect(unrenderedPx).toBe(200);
+    } finally {
+      document.body.replaceChildren();
+      vi.unstubAllGlobals();
+    }
+  });
+
   // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
   // round-8 transform compensation shifted PAINT while the window math
   // stayed ignorant — the on-device trace showed ±3000px accumulated

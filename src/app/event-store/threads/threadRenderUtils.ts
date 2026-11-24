@@ -222,10 +222,22 @@ export const buildMeasurementScrollCorrectionHook =
     const cachedOffset = instance.scrollOffset ?? 0;
     const liveOffset = instance.scrollElement?.scrollTop;
     const scrollOffset = liveOffset ?? cachedOffset;
-    // Judge the row in the rendered layout, where the reader has not moved yet.
+    // Judge the row in the layout its bounds describe: inside a synced
+    // ResizeObserver batch (virtual-core 3.19+), getMeasurements() already
+    // refreshed measurementsCache to include prior adjustments in the batch,
+    // while outside a synced batch bounds still describe the rendered layout.
     const unrenderedPx = unrenderedCorrectionPx?.() ?? 0;
+    const unrenderedEndPx = unrenderedEndCorrectionPx?.() ?? 0;
     const renderedOffset = scrollOffset - unrenderedPx;
-    const itemFullyAboveViewport = item.end <= renderedOffset;
+    const { itemSizeCacheVersion, builtItemSizeCacheVersion } = instance as unknown as {
+      itemSizeCacheVersion?: number;
+      builtItemSizeCacheVersion?: number;
+    };
+    const boundsRefreshed =
+      typeof itemSizeCacheVersion === 'number' &&
+      itemSizeCacheVersion === builtItemSizeCacheVersion;
+    const itemFullyAboveViewport =
+      item.end <= (boundsRefreshed ? scrollOffset - unrenderedEndPx : renderedOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
     const isIOS = isIOSWebKitDevice();
     const above = shouldApplyMeasurementScrollCorrection({
@@ -249,7 +261,7 @@ export const buildMeasurementScrollCorrectionHook =
             renderedOffset,
             instance.scrollElement,
             shownPx,
-            unrenderedPx - (unrenderedEndCorrectionPx?.() ?? 0)
+            unrenderedPx - unrenderedEndPx
           );
     }
     // Scrolling cannot go above the top: the browser would clamp the write and
