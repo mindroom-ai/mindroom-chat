@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { allowBackgroundJobsState, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePanels';
 
 // The jobs bar's rows join each job to what the client holds of it: a sub-agent job, by the
@@ -113,26 +113,7 @@ const row = (bar: Locator, kind: 'subagent' | 'tool', depth = 0) =>
   bar.locator(`li[data-job-kind="${kind}"][data-job-depth="${depth}"]`);
 
 async function allowBackgroundJobs(room: Awaited<ReturnType<typeof openPanelRoom>>) {
-  const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
-  const powerLevels = await matrixFetch<Record<string, unknown>>(
-    DISPOSABLE_HOMESERVER,
-    powerLevelsPath,
-    { accessToken: room.viewer.accessToken }
-  );
-  await sendStateEvent(
-    DISPOSABLE_HOMESERVER,
-    room.viewer.accessToken,
-    room.roomId,
-    'm.room.power_levels',
-    '',
-    {
-      ...powerLevels,
-      events: {
-        ...(powerLevels.events as Record<string, number>),
-        'io.mindroom.background_jobs': 0,
-      },
-    }
-  );
+  await allowBackgroundJobsState(DISPOSABLE_HOMESERVER, room.viewer.accessToken, room.roomId);
 }
 
 test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
@@ -398,7 +379,9 @@ test('shows a workflow job as its own row whose counts follow a workflow delta',
   page,
 }) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver is not running');
+  test.setTimeout(3 * 60_000);
   const room = await openPanelRoom(context, page, { showUsageDetails: true });
+  await allowBackgroundJobs(room);
   const runId = 'wf-11111111111111111111111111111111';
   const startedAt = Math.floor(Date.now() / 1000) - 20;
 

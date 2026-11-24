@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { allowBackgroundJobsState, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
 import {
   checkPanelFrame,
@@ -106,6 +106,7 @@ const seedLiveWorkflow = async (room: PanelRoom) => {
   const startedAt = Math.floor(Date.now() / 1000) - 20;
   const sid = `${Date.now()}-a1b2c3d4`;
 
+  await allowBackgroundJobsState(DISPOSABLE_HOMESERVER, room.viewer.accessToken, room.roomId);
   await sendStateEvent(
     DISPOSABLE_HOMESERVER,
     room.agent.accessToken,
@@ -317,6 +318,7 @@ test.describe('workflow graph panel integration', () => {
     context,
     page,
   }, testInfo) => {
+    test.setTimeout(5 * 60_000);
     const room = await openPanelRoom(context, page);
     const { startedAt, sid, node4, node5, baseMeta } = await seedLiveWorkflow(room);
 
@@ -436,6 +438,7 @@ test.describe('workflow graph panel integration', () => {
   });
 
   test('covers the conversation at phone width and Close returns', async ({ context, page }) => {
+    test.setTimeout(3 * 60_000);
     await page.setViewportSize({ width: 390, height: 844 });
     const room = await openPanelRoom(context, page);
     await seedLiveWorkflow(room);

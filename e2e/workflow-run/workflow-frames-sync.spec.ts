@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { matrixFetch, sendStateEvent } from '../helpers/matrix';
+import { allowBackgroundJobsState, matrixFetch, sendStateEvent } from '../helpers/matrix';
 import { openPanelRoom, type PanelRoom } from '../helpers/sidePanels';
 
 // Proves that `/sync` delivers `io.mindroom.workflow` ephemeral frames (snapshot + delta) to the
@@ -133,6 +133,7 @@ const makeFrames = (room: PanelRoom) => {
 };
 
 const seedWorkflowJob = async (room: PanelRoom) => {
+  await allowBackgroundJobsState(DISPOSABLE_HOMESERVER, room.viewer.accessToken, room.roomId);
   await sendStateEvent(
     DISPOSABLE_HOMESERVER,
     room.agent.accessToken,
@@ -203,7 +204,13 @@ test.describe('workflow ephemeral frame sync', () => {
       },
       { userId: room.viewer.userId, filterId: oldFilter.filter_id }
     );
+    const liveSync = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
+    });
     await page.reload();
+    await expect(page.getByText(room.replyBody, { exact: true })).toBeVisible({ timeout: 60_000 });
+    await liveSync;
     await seedWorkflowJob(room);
     const { snapshot, delta } = makeFrames(room);
     await putWorkflowFrame(room, snapshot, 'reload-1');
@@ -222,6 +229,7 @@ test.describe('workflow ephemeral frame sync', () => {
       { algorithm: 'm.megolm.v1.aes-sha2' }
     );
     await seedWorkflowJob(room);
+    await expect(page.locator('[data-job-kind="workflow"]')).toBeVisible({ timeout: 15_000 });
     // In an encrypted room plaintext ephemeral workflow frames must be rejected by the client.
     const { snapshot } = makeFrames(room);
     await putWorkflowFrame(room, snapshot, 'enc-plain');
