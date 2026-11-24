@@ -51,7 +51,6 @@ import {
   getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
 } from '../../event-store/cache/db';
 import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
-import { clearNativeVoiceRecordings } from '../../native/nativeVoiceRecorder';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';
@@ -82,8 +81,6 @@ vi.mock('../../matrix/protocol/longText', () => ({
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
   clearAttachmentRepositoryMemory: vi.fn(),
 }));
-
-vi.mock('../../native/nativeVoiceRecorder', () => ({ clearNativeVoiceRecordings: vi.fn() }));
 
 vi.mock('../../matrix/client/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
@@ -1813,13 +1810,7 @@ describe('logoutClient', () => {
     const getHomeserverUrl = vi.fn().mockReturnValue('https://example.com');
     const getDeviceId = vi.fn().mockReturnValue(deviceId);
 
-    let finishNativeClear!: () => void;
-    vi.mocked(clearNativeVoiceRecordings).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishNativeClear = resolve;
-      })
-    );
-    const signingOut = logoutClient({
+    await logoutClient({
       clearStores,
       getDeviceId,
       getHomeserverUrl,
@@ -1827,12 +1818,6 @@ describe('logoutClient', () => {
       logout,
       stopClient,
     } as never);
-    await vi.waitFor(() =>
-      expect(clearNativeVoiceRecordings).toHaveBeenCalledExactlyOnceWith(userId)
-    );
-    expect(reload).not.toHaveBeenCalled();
-    finishNativeClear();
-    await signingOut;
 
     expect(logout).toHaveBeenCalledTimes(1);
     expect(clearStores).toHaveBeenCalledWith({

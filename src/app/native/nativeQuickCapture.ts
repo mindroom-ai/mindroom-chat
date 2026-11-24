@@ -1,8 +1,7 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
 import { desktopBridge } from '../lib/nativeShell';
 
-/** Plugin `MindRoomQuickCapture`: hide(), showMainWindow(), openScreenRecordingSettings(),
- *  captureScreenshot({ target }) resolving { path, name }; rejections carry `code`. */
+/** Desktop Quick Capture bridge helpers: hide, showMainWindow, openScreenRecordingSettings,
+ *  and screenshot capture; rejections carry `ScreenshotError.code`. */
 export type ScreenshotTarget = 'window' | 'screen';
 export type ScreenshotErrorCode =
   | 'PERMISSION_DENIED'
@@ -24,62 +23,24 @@ export class ScreenshotError extends Error {
   }
 }
 
-type MindRoomQuickCapturePlugin = {
-  hide(): Promise<void>;
-  showMainWindow(): Promise<void>;
-  openScreenRecordingSettings(): Promise<void>;
-  captureScreenshot(options: { target: ScreenshotTarget }): Promise<{ path: string; name: string }>;
-};
-
-let quickCapturePlugin: MindRoomQuickCapturePlugin | undefined;
-
-const getQuickCapturePlugin = (): MindRoomQuickCapturePlugin => {
-  if (!quickCapturePlugin) {
-    quickCapturePlugin = registerPlugin<MindRoomQuickCapturePlugin>('MindRoomQuickCapture');
-  }
-  return quickCapturePlugin;
-};
-
-const hasCapacitorQuickCapturePlugin = (): boolean =>
-  Capacitor.isNativePlatform() &&
-  Capacitor.getPlatform() === 'ios' &&
-  Capacitor.isPluginAvailable('MindRoomQuickCapture');
-
-export const isNativeQuickCaptureAvailable = (): boolean =>
-  Boolean(desktopBridge()?.quickCapture) || hasCapacitorQuickCapturePlugin();
+export const isNativeQuickCaptureAvailable = (): boolean => Boolean(desktopBridge()?.quickCapture);
 
 export const isNativeScreenshotAvailable = (): boolean =>
-  Boolean(desktopBridge()?.quickCapture?.captureScreenshot) || hasCapacitorQuickCapturePlugin();
+  Boolean(desktopBridge()?.quickCapture?.captureScreenshot);
 
 export const hideQuickCapture = async (): Promise<void> => {
-  const desktop = desktopBridge()?.quickCapture;
-  if (desktop) {
-    await desktop.hide();
-    return;
-  }
-  if (!hasCapacitorQuickCapturePlugin()) return;
-  await getQuickCapturePlugin().hide();
+  await desktopBridge()?.quickCapture?.hide();
 };
 
 export const showMainWindow = async (): Promise<void> => {
   const bridge = desktopBridge();
-  if (bridge?.quickCapture) {
-    const res = await bridge.showMainWindow();
-    if (!res.ok) throw new Error(res.code);
-    return;
-  }
-  if (!hasCapacitorQuickCapturePlugin()) return;
-  await getQuickCapturePlugin().showMainWindow();
+  if (!bridge?.quickCapture) return;
+  const res = await bridge.showMainWindow();
+  if (!res.ok) throw new Error(res.code);
 };
 
 export const openScreenRecordingSettings = async (): Promise<void> => {
-  const desktop = desktopBridge()?.quickCapture;
-  if (desktop) {
-    await desktop.openScreenRecordingSettings();
-    return;
-  }
-  if (!hasCapacitorQuickCapturePlugin()) return;
-  await getQuickCapturePlugin().openScreenRecordingSettings();
+  await desktopBridge()?.quickCapture?.openScreenRecordingSettings();
 };
 
 const toScreenshotError = (error: unknown): ScreenshotError => {
@@ -93,23 +54,11 @@ const toScreenshotError = (error: unknown): ScreenshotError => {
 /** The capture as a PNG `File` named by the native side. */
 export const captureScreenshot = async (target: ScreenshotTarget): Promise<File> => {
   const desktop = desktopBridge()?.quickCapture;
-  if (desktop) {
-    if (!desktop.captureScreenshot) throw new ScreenshotError('UNSUPPORTED');
-    try {
-      const res = await desktop.captureScreenshot(target);
-      if (!res.ok) throw toScreenshotError({ code: res.code });
-      return new File([new Uint8Array(res.value.bytes)], res.value.name, { type: 'image/png' });
-    } catch (error) {
-      throw toScreenshotError(error);
-    }
-  }
-  if (!hasCapacitorQuickCapturePlugin()) throw new ScreenshotError('UNSUPPORTED');
+  if (!desktop?.captureScreenshot) throw new ScreenshotError('UNSUPPORTED');
   try {
-    const { path, name } = await getQuickCapturePlugin().captureScreenshot({ target });
-    const response = await fetch(Capacitor.convertFileSrc(path));
-    if (!response.ok) throw new ScreenshotError('CAPTURE_FAILED');
-    const blob = await response.blob();
-    return new File([blob], name, { type: 'image/png' });
+    const res = await desktop.captureScreenshot(target);
+    if (!res.ok) throw toScreenshotError({ code: res.code });
+    return new File([new Uint8Array(res.value.bytes)], res.value.name, { type: 'image/png' });
   } catch (error) {
     throw toScreenshotError(error);
   }

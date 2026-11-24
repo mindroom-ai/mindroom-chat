@@ -50,7 +50,7 @@ IOS_DEPLOYMENT_TARGET = '16.4'
 project.root_object.compatibility_version = 'Xcode 16.0'
 project.instance_variable_set(:@object_version, '77')
 
-# Add MindRoomNotificationsPlugin.swift to the iOS build of App (skipped on Mac Catalyst).
+# Add MindRoomNotificationsPlugin.swift to the iOS build of App.
 plugin_ref = app_group.files.find { |file| file.path == 'MindRoomNotificationsPlugin.swift' } ||
              app_group.new_file('MindRoomNotificationsPlugin.swift')
 unless app.source_build_phase.files_references.include?(plugin_ref)
@@ -134,7 +134,7 @@ link_package(
   platform_filter: 'ios'
 )
 
-# iOS only: the Mac Catalyst build does not embed the iOS Notification Service Extension.
+# Embed the iOS Notification Service Extension in the iOS app.
 app.add_dependency(service)
 app.dependencies.find { |dependency| dependency.target == service }.platform_filter = 'ios'
 
@@ -145,7 +145,7 @@ embedded = embed_extensions.add_file_reference(service.product_reference)
 embedded.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 embedded.platform_filter = 'ios'
 
-# Place before post-build script phases (e.g. "Add the updater's Info.plist keys") to prevent an Xcode cycle.
+# Place before post-build script phases to prevent an Xcode cycle.
 position_embed_phase_after_resources(app, embed_extensions)
 
 project.save

@@ -120,7 +120,7 @@ embed_widgets = watch.new_copy_files_build_phase('Embed Foundation Extensions')
 embed_widgets.symbol_dst_subfolder_spec = :plug_ins
 embed_widgets.add_file_reference(widgets.product_reference).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
-# The iPhone only: the Mac build of the app (Mac Catalyst) has no watch app.
+# Embed the watch app inside the iOS app.
 app.add_dependency(watch)
 app.dependencies.find { |dependency| dependency.target == watch }.platform_filter = 'ios'
 embed_watch = app.new_copy_files_build_phase('Embed Watch Content')

@@ -8,22 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */; };
-		014C6463D54994614E14F947 /* MindRoomDiagnosticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */; };
 		04BF986D5944CED16F35DEA0 /* MindRoomNotificationKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = ios; productRef = D59117155A8FD663E0B64F59 /* MindRoomNotificationKit */; };
-		0C0000000000000000000002 /* QuickCaptureSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000001 /* QuickCaptureSceneDelegate.swift */; };
-		0C0000000000000000000004 /* MacWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000003 /* MacWindowing.swift */; };
-		0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */; };
-		0C0000000000000000000008 /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
-		0C50F9CA9632366F26D1064F /* MindRoomDiagnosticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */; };
-		0C6F76D616079C393F0475DA /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 87795339677153DEC6826E2F /* Cocoa.framework */; };
-		0EB3518C25E737F7AD1C64C9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
-		21C73799E96EA34CE273455A /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A18A00000000000000000001 /* InfoPlist.strings */; };
-		2A526C5EFED912F0FAEA400E /* MindRoomDiagnosticsRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */; };
-		2A5E5246A3B9F2950ACBE0F1 /* MacWindowingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DE23D5631526A255AD86CB /* MacWindowingStore.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		3239663AB279ED0721CDAFB0 /* MindRoomNotificationKit in Frameworks */ = {isa = PBXBuildFile; productRef = E38C9CB3D65D811FC3476DDC /* MindRoomNotificationKit */; };
-		43058421F5AFF09E2B626793 /* MindRoomWatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */; };
-		4426B337DBA8F5597EA1AD57 /* MindRoomQuickCapturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -31,58 +18,27 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		525804A9D89766D91C052708 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
-		5607C77C2B08948DA0FE7236 /* MindRoomMacSupportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */; };
-		5A0000000000000000000002 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
-		5A0000000000000000000003 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
-		5B970209E27EB413F9F80129 /* MindRoomAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */; };
-		66964B857163CFBAA375CA3B /* MindRoomMacUpdater.bundle in Embed Mac Updater */ = {isa = PBXBuildFile; fileRef = E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		6A144DF55DEECEA2EFEE3376 /* MindRoomMacSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A27EE41BC509082EB29A25 /* MindRoomMacSupport.swift */; };
 		6A496C5B7FBC4E20A2D784F9 /* MatrixRustSDK in Frameworks */ = {isa = PBXBuildFile; productRef = FE89B787D18AF34B13E63160 /* MatrixRustSDK */; };
-		6C08BB7B403AC934D33AE22B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000007 /* PrivacyInfo.xcprivacy */; };
-		6EFA77CC23C196F79EF56888 /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-		709FB5E9C80813AB7DAE22E0 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
-		7A65B94786FF949EF0E4CD2F /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
 		7A745045E4F6B376A3999DDE /* MindRoomWatchKit in Frameworks */ = {isa = PBXBuildFile; productRef = B5E27C236ED630B7A2434486 /* MindRoomWatchKit */; };
-		7CE6F5DED105D44E79BFEAFD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000006 /* Localizable.strings */; };
-		7EEEF7FC79B94313A581C118 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE000000000000000A /* SceneDelegate.swift */; };
-		802FA907131E7013397E92B4 /* Pods_AppStoreMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8AE896A6002904AFA4E475C8 /* Pods_AppStoreMac.framework */; };
-		8B0CD764049E8328F1D75D12 /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88F1D4F4557F374B2C4440 /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		8FA59D4C526A0C755E03E0D1 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
-		99C7F1A1B647ABB5EBF4AEDA /* MindRoomMacUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBFA2A6877BA5BEA6ADEFDA8 /* MindRoomMacUpdater.swift */; };
 		9C13823873EFC353A8CAB26F /* MindRoomNotificationsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7653CE543FC53D1DA0B46A8D /* MindRoomNotificationsPlugin.swift */; platformFilter = ios; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 		A1532E46DC0DF3FA23B0F23C /* MindRoomNotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A18A00000000000000000002 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A18A00000000000000000001 /* InfoPlist.strings */; };
-		A69E05E1A38204028A89636C /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CCBD0D43D3B49B4ABDD0FAA0 /* Foundation.framework */; };
-		AA9CA4E64A547450890799C9 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
-		AE3B0275A3F4DAF6184EAA44 /* MindRoomMacSupportProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */; };
 		B03008D4DAA39978AA502638 /* MindRoomWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0C534A4503B3860B63E31A5E /* MindRoomWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B50195693EE6D7EBB6A8A573 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
-		B588122A7BC911C23286447C /* QuickCaptureSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000001 /* QuickCaptureSceneDelegate.swift */; };
-		B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */; };
-		BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */; platformFilter = maccatalyst; };
 		C0DEC0DE0000000000000002 /* MindRoomAuthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */; };
 		C0DEC0DE0000000000000004 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
 		C0DEC0DE0000000000000007 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000006 /* Localizable.strings */; };
 		C0DEC0DE0000000000000009 /* MindRoomFileSavePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */; };
 		C0DEC0DE000000000000000B /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE000000000000000A /* SceneDelegate.swift */; };
 		C41100000000000000000002 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
-		C41100000000000000000003 /* ring.wav in Resources */ = {isa = PBXBuildFile; fileRef = C41100000000000000000001 /* ring.wav */; };
 		D1A600000000000000000002 /* MindRoomDiagnosticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */; };
 		D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */; };
 		D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */; };
 		D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000007 /* PrivacyInfo.xcprivacy */; };
-		D6B57F28DE5EC100E058EA0A /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C88F1D4F4557F374B2C4440 /* Sparkle.framework */; };
-		DA3AD4B2E87E997225BB3F9A /* MindRoomMacUpdaterProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */; };
-		E4DF166CECBD0BE8FE1DAE6C /* MindRoomMacSupport.bundle in Embed Native Mac Support */ = {isa = PBXBuildFile; fileRef = C5EC83EEE765DAD7BD0560F5 /* MindRoomMacSupport.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E9247C296E470AD2069F0880 /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		EB491C9CD9DEA9F13556F494 /* MindRoomWatchKit in Frameworks */ = {isa = PBXBuildFile; productRef = B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */; };
-		EDCD461733A2B9AD403C8968 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		EF6E5B83AB5780B777F8D61F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C3E1F32E1DFBBE9CCBB9A3 /* Foundation.framework */; };
-		F4C5C03211DC909AA4D445EC /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
-		F4D9C3B6CB9FA38829DE3D2C /* MindRoomFileSavePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */; };
 		F52948A09D1988535D64FD86 /* MindRoomWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,26 +56,12 @@
 			remoteGlobalIDString = D1E0D1FB66F4A7CE9B110B6E;
 			remoteInfo = MindRoomNotificationService;
 		};
-		3BF64E60846320B106B2AFFC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 431B2DB6E4F0EC913A9FB2B1;
-			remoteInfo = MindRoomMacUpdater;
-		};
 		71A305713B41DC181CB4A6C7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 926F9D3B3244570B5EE57113;
 			remoteInfo = MindRoomWatchWidgets;
-		};
-		956BCCF5454D47BA475E500D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 446E82D0D196A0881E219AA3;
-			remoteInfo = MindRoomMacSupport;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -133,39 +75,6 @@
 				A1532E46DC0DF3FA23B0F23C /* MindRoomNotificationService.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		5E372A38303CD2E78281B4A9 /* Embed Mac Updater */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				66964B857163CFBAA375CA3B /* MindRoomMacUpdater.bundle in Embed Mac Updater */,
-			);
-			name = "Embed Mac Updater";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		6436873DA08E85EEF10E1C36 /* Embed Native Mac Support */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				E4DF166CECBD0BE8FE1DAE6C /* MindRoomMacSupport.bundle in Embed Native Mac Support */,
-			);
-			name = "Embed Native Mac Support";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		838A9A8B25314A3CF4DEA3D8 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				8B0CD764049E8328F1D75D12 /* Sparkle.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		ECA5505488067692DFA91F88 /* Embed Foundation Extensions */ = {
@@ -193,19 +102,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0C0000000000000000000001 /* QuickCaptureSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCaptureSceneDelegate.swift; sourceTree = "<group>"; };
-		0C0000000000000000000003 /* MacWindowing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowing.swift; sourceTree = "<group>"; };
-		0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomQuickCapturePlugin.swift; sourceTree = "<group>"; };
-		0C0000000000000000000007 /* MacScreenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshot.swift; sourceTree = "<group>"; };
 		0C534A4503B3860B63E31A5E /* MindRoomWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindRoomWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13DE23D5631526A255AD86CB /* MacWindowingStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacWindowingStore.swift; sourceTree = "<group>"; };
-		1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomUpdatePlugin.swift; sourceTree = "<group>"; };
 		22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomNotificationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
-		4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUpdater.swift; sourceTree = "<group>"; };
-		47042207AB0736B60BAA16FF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		4C88F1D4F4557F374B2C4440 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle/Sparkle.framework; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* MindRoom.chat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindRoom.chat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -214,12 +114,7 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
-		59975261A442BF170452F05F /* Pods-AppStoreMac.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStoreMac.debug.xcconfig"; path = "Pods/Target Support Files/Pods-AppStoreMac/Pods-AppStoreMac.debug.xcconfig"; sourceTree = "<group>"; };
-		5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomVoiceRecorderPlugin.swift; sourceTree = "<group>"; };
-		6DDEF2419347C21B21B7CABB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7653CE543FC53D1DA0B46A8D /* MindRoomNotificationsPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomNotificationsPlugin.swift; sourceTree = "<group>"; };
-		87795339677153DEC6826E2F /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		8AE896A6002904AFA4E475C8 /* Pods_AppStoreMac.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppStoreMac.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A02C0E28C92536C30CEA5B63 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A18A00000000000000000065 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
 		A18A00000000000000000066 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -254,30 +149,20 @@
 		A18A000000000000000000D6 /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A18A000000000000000000D7 /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = id; path = id.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A18A000000000000000000D8 /* bn */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = bn; path = bn.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		A6A27EE41BC509082EB29A25 /* MindRoomMacSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomMacSupport.swift; sourceTree = "<group>"; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
-		B246145829119D6F6D69043F /* Pods-AppStoreMac.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppStoreMac.release.xcconfig"; path = "Pods/Target Support Files/Pods-AppStoreMac/Pods-AppStoreMac.release.xcconfig"; sourceTree = "<group>"; };
 		BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomWatchPlugin.swift; sourceTree = "<group>"; };
-		BF78A59379D59B831E38D806 /* App-macOS-AppStore.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = "App-macOS-AppStore.entitlements"; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomAuthPlugin.swift; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomBridgeViewController.swift; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000005 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomFileSavePlugin.swift; sourceTree = "<group>"; };
 		C0DEC0DE000000000000000A /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		C41100000000000000000001 /* ring.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = ring.wav; sourceTree = "<group>"; };
-		C5EC83EEE765DAD7BD0560F5 /* MindRoomMacSupport.bundle */ = {isa = PBXFileReference; explicitFileType = "wrapper.plug-in"; includeInIndex = 0; path = MindRoomMacSupport.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
-		CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomMacUpdaterProtocol.swift; sourceTree = "<group>"; };
-		CCBD0D43D3B49B4ABDD0FAA0 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsStore.swift; sourceTree = "<group>"; };
 		D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsRecorder.swift; sourceTree = "<group>"; };
 		D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsPlugin.swift; sourceTree = "<group>"; };
 		D1A600000000000000000007 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */ = {isa = PBXFileReference; explicitFileType = "wrapper.plug-in"; includeInIndex = 0; path = MindRoomMacUpdater.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
-		E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomMacSupportProtocol.swift; sourceTree = "<group>"; };
 		F6C3E1F32E1DFBBE9CCBB9A3 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		F97337D6BB32E68C80643DAF /* AppStoreMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AppStoreMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FBFA2A6877BA5BEA6ADEFDA8 /* MindRoomMacUpdater.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomMacUpdater.swift; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -343,23 +228,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		3F27A9D5F00F09909E9B8D5D /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				D6B57F28DE5EC100E058EA0A /* Sparkle.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		44BA7BBFD74FEA3EDCCF0A8B /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A69E05E1A38204028A89636C /* Foundation.framework in Frameworks */,
-				802FA907131E7013397E92B4 /* Pods_AppStoreMac.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		4F7A32C5C34B68BDB32047A9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -375,14 +243,6 @@
 			files = (
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
 				04BF986D5944CED16F35DEA0 /* MindRoomNotificationKit in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		8F27340C35F24402F6AA54B5 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				0C6F76D616079C393F0475DA /* Cocoa.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -404,8 +264,6 @@
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
 				31195A55096CE179E667661F /* watchOS */,
 				858809F4039E960ED6F56DB1 /* iOS */,
-				9AAC31FA38400759B72C708F /* OS X */,
-				8AE896A6002904AFA4E475C8 /* Pods_AppStoreMac.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -436,8 +294,6 @@
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
 				2F424D78DB612F32F7F4D79C /* Watch */,
-				DEDC196FCB1459F390F5C7AA /* MacSupport */,
-				B8C82D41895B109719E70195 /* MacUpdater */,
 				AC1C97CA67E7ECEAF3971FEF /* NotificationService */,
 			);
 			sourceTree = "<group>";
@@ -448,9 +304,6 @@
 				504EC3041FED79650016851F /* MindRoom.chat.app */,
 				0C534A4503B3860B63E31A5E /* MindRoomWatch.app */,
 				24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */,
-				F97337D6BB32E68C80643DAF /* AppStoreMac.app */,
-				C5EC83EEE765DAD7BD0560F5 /* MindRoomMacSupport.bundle */,
-				E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */,
 				22D0A354FCF049E547B16316 /* MindRoomNotificationService.appex */,
 			);
 			name = Products;
@@ -468,13 +321,6 @@
 				D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */,
 				D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */,
 				D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */,
-				0C0000000000000000000001 /* QuickCaptureSceneDelegate.swift */,
-				0C0000000000000000000003 /* MacWindowing.swift */,
-				0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */,
-				0C0000000000000000000007 /* MacScreenshot.swift */,
-				5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */,
-				4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */,
-				1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */,
 				D1A600000000000000000007 /* PrivacyInfo.xcprivacy */,
 				C41100000000000000000001 /* ring.wav */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -486,8 +332,6 @@
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */,
-				13DE23D5631526A255AD86CB /* MacWindowingStore.swift */,
-				BF78A59379D59B831E38D806 /* App-macOS-AppStore.entitlements */,
 				7653CE543FC53D1DA0B46A8D /* MindRoomNotificationsPlugin.swift */,
 			);
 			path = App;
@@ -498,8 +342,6 @@
 			children = (
 				FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */,
 				AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */,
-				B246145829119D6F6D69043F /* Pods-AppStoreMac.release.xcconfig */,
-				59975261A442BF170452F05F /* Pods-AppStoreMac.debug.xcconfig */,
 			);
 			name = Pods;
 			sourceTree = "<group>";
@@ -507,18 +349,9 @@
 		858809F4039E960ED6F56DB1 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				CCBD0D43D3B49B4ABDD0FAA0 /* Foundation.framework */,
 				F6C3E1F32E1DFBBE9CCBB9A3 /* Foundation.framework */,
 			);
 			name = iOS;
-			sourceTree = "<group>";
-		};
-		9AAC31FA38400759B72C708F /* OS X */ = {
-			isa = PBXGroup;
-			children = (
-				87795339677153DEC6826E2F /* Cocoa.framework */,
-			);
-			name = "OS X";
 			sourceTree = "<group>";
 		};
 		AC1C97CA67E7ECEAF3971FEF /* NotificationService */ = {
@@ -530,67 +363,9 @@
 			path = ../NotificationService;
 			sourceTree = "<group>";
 		};
-		B8C82D41895B109719E70195 /* MacUpdater */ = {
-			isa = PBXGroup;
-			children = (
-				CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */,
-				FBFA2A6877BA5BEA6ADEFDA8 /* MindRoomMacUpdater.swift */,
-				6DDEF2419347C21B21B7CABB /* Info.plist */,
-				4C88F1D4F4557F374B2C4440 /* Sparkle.framework */,
-			);
-			name = MacUpdater;
-			path = ../MacUpdater;
-			sourceTree = "<group>";
-		};
-		DEDC196FCB1459F390F5C7AA /* MacSupport */ = {
-			isa = PBXGroup;
-			children = (
-				E3DD7E742045AC1BD193DB10 /* MindRoomMacSupportProtocol.swift */,
-				A6A27EE41BC509082EB29A25 /* MindRoomMacSupport.swift */,
-				47042207AB0736B60BAA16FF /* Info.plist */,
-			);
-			name = MacSupport;
-			path = ../MacSupport;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		431B2DB6E4F0EC913A9FB2B1 /* MindRoomMacUpdater */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 77006705F31DD4F2EF567356 /* Build configuration list for PBXNativeTarget "MindRoomMacUpdater" */;
-			buildPhases = (
-				FE4C72D8A49F9E1487549F19 /* Sources */,
-				3F27A9D5F00F09909E9B8D5D /* Frameworks */,
-				5A8441247020AA998A213960 /* Resources */,
-				838A9A8B25314A3CF4DEA3D8 /* Embed Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = MindRoomMacUpdater;
-			productName = MindRoomMacUpdater;
-			productReference = E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */;
-			productType = "com.apple.product-type.bundle";
-		};
-		446E82D0D196A0881E219AA3 /* MindRoomMacSupport */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 9476E6C890662933F15DB52D /* Build configuration list for PBXNativeTarget "MindRoomMacSupport" */;
-			buildPhases = (
-				B9D36B2D3FB6EBD88EC93481 /* Sources */,
-				8F27340C35F24402F6AA54B5 /* Frameworks */,
-				D6D478B359EFC1F594411F8E /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = MindRoomMacSupport;
-			productName = MindRoomMacSupport;
-			productReference = C5EC83EEE765DAD7BD0560F5 /* MindRoomMacSupport.bundle */;
-			productType = "com.apple.product-type.bundle";
-		};
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -602,14 +377,11 @@
 				33C232407FC2A1EB60F6433B /* Embed Foundation Extensions */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
 				F6D5A971363E8A93FE00CDB5 /* Embed Watch Content */,
-				5E372A38303CD2E78281B4A9 /* Embed Mac Updater */,
-				969EC44F675DD55196899972 /* Add the updater's Info.plist keys */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				F115A9556690951FA84C772F /* PBXTargetDependency */,
-				F37D490DFA7E030205D77EEB /* PBXTargetDependency */,
 				00F643A7454981652A2EC1AE /* PBXTargetDependency */,
 			);
 			name = App;
@@ -618,27 +390,6 @@
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
-			productType = "com.apple.product-type.application";
-		};
-		5E8ACD73DAB2B0465B7172B7 /* AppStoreMac */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E13E45C16A724CCE9CDACE20 /* Build configuration list for PBXNativeTarget "AppStoreMac" */;
-			buildPhases = (
-				58463FB7F979A90EE7BDF976 /* [CP] Check Pods Manifest.lock */,
-				CE41E24A651CB19EE9B8BC46 /* Sources */,
-				44BA7BBFD74FEA3EDCCF0A8B /* Frameworks */,
-				AE278EB215B473C88DDBA8AE /* Resources */,
-				6436873DA08E85EEF10E1C36 /* Embed Native Mac Support */,
-				49D35AF55E8B76E1C9F18180 /* [CP] Embed Pods Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				3020E115B7C64D46801D614C /* PBXTargetDependency */,
-			);
-			name = AppStoreMac;
-			productName = AppStoreMac;
-			productReference = F97337D6BB32E68C80643DAF /* AppStoreMac.app */;
 			productType = "com.apple.product-type.application";
 		};
 		926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */ = {
@@ -722,14 +473,6 @@
 				LastSwiftUpdateCheck = 0920;
 				LastUpgradeCheck = 0920;
 				TargetAttributes = {
-					431B2DB6E4F0EC913A9FB2B1 = {
-						DevelopmentTeam = DNA6966LGZ;
-						ProvisioningStyle = Automatic;
-					};
-					446E82D0D196A0881E219AA3 = {
-						DevelopmentTeam = DNA6966LGZ;
-						ProvisioningStyle = Automatic;
-					};
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
@@ -739,10 +482,6 @@
 								enabled = 1;
 							};
 						};
-					};
-					5E8ACD73DAB2B0465B7172B7 = {
-						DevelopmentTeam = DNA6966LGZ;
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -783,9 +522,6 @@
 				504EC3031FED79650016851F /* App */,
 				D7D31FF8B14971A37B635916 /* MindRoomWatch */,
 				926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */,
-				5E8ACD73DAB2B0465B7172B7 /* AppStoreMac */,
-				446E82D0D196A0881E219AA3 /* MindRoomMacSupport */,
-				431B2DB6E4F0EC913A9FB2B1 /* MindRoomMacUpdater */,
 				D1E0D1FB66F4A7CE9B110B6E /* MindRoomNotificationService */,
 			);
 		};
@@ -806,13 +542,6 @@
 				A18A00000000000000000002 /* InfoPlist.strings in Resources */,
 				D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */,
 				C41100000000000000000002 /* ring.wav in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		5A8441247020AA998A213960 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -837,70 +566,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AE278EB215B473C88DDBA8AE /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				EDCD461733A2B9AD403C8968 /* LaunchScreen.storyboard in Resources */,
-				6EFA77CC23C196F79EF56888 /* public in Resources */,
-				0EB3518C25E737F7AD1C64C9 /* Assets.xcassets in Resources */,
-				E9247C296E470AD2069F0880 /* capacitor.config.json in Resources */,
-				8FA59D4C526A0C755E03E0D1 /* Main.storyboard in Resources */,
-				AA9CA4E64A547450890799C9 /* config.xml in Resources */,
-				7CE6F5DED105D44E79BFEAFD /* Localizable.strings in Resources */,
-				21C73799E96EA34CE273455A /* InfoPlist.strings in Resources */,
-				6C08BB7B403AC934D33AE22B /* PrivacyInfo.xcprivacy in Resources */,
-				C41100000000000000000003 /* ring.wav in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		D6D478B359EFC1F594411F8E /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		49D35AF55E8B76E1C9F18180 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-AppStoreMac/Pods-AppStoreMac-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		58463FB7F979A90EE7BDF976 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-AppStoreMac-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
 		6634F4EFEBD30273BCE97C65 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -934,23 +602,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-App/Pods-App-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		969EC44F675DD55196899972 /* Add the updater's Info.plist keys */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
-			);
-			name = "Add the updater's Info.plist keys";
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${SRCROOT}/../../scripts/macos-updater-info-plist.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -966,15 +617,7 @@
 				D1A600000000000000000002 /* MindRoomDiagnosticsStore.swift in Sources */,
 				D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */,
 				D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */,
-				0C0000000000000000000002 /* QuickCaptureSceneDelegate.swift in Sources */,
-				0C0000000000000000000004 /* MacWindowing.swift in Sources */,
-				0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */,
-				0C0000000000000000000008 /* MacScreenshot.swift in Sources */,
-				5A0000000000000000000002 /* MindRoomVoiceRecorderPlugin.swift in Sources */,
 				00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */,
-				BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */,
-				FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */,
-				B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */,
 				9C13823873EFC353A8CAB26F /* MindRoomNotificationsPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -993,50 +636,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B9D36B2D3FB6EBD88EC93481 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				5607C77C2B08948DA0FE7236 /* MindRoomMacSupportProtocol.swift in Sources */,
-				6A144DF55DEECEA2EFEE3376 /* MindRoomMacSupport.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		CE41E24A651CB19EE9B8BC46 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F4C5C03211DC909AA4D445EC /* AppDelegate.swift in Sources */,
-				7EEEF7FC79B94313A581C118 /* SceneDelegate.swift in Sources */,
-				709FB5E9C80813AB7DAE22E0 /* MindRoomBridgeViewController.swift in Sources */,
-				5B970209E27EB413F9F80129 /* MindRoomAuthPlugin.swift in Sources */,
-				F4D9C3B6CB9FA38829DE3D2C /* MindRoomFileSavePlugin.swift in Sources */,
-				014C6463D54994614E14F947 /* MindRoomDiagnosticsStore.swift in Sources */,
-				2A526C5EFED912F0FAEA400E /* MindRoomDiagnosticsRecorder.swift in Sources */,
-				0C50F9CA9632366F26D1064F /* MindRoomDiagnosticsPlugin.swift in Sources */,
-				B588122A7BC911C23286447C /* QuickCaptureSceneDelegate.swift in Sources */,
-				4426B337DBA8F5597EA1AD57 /* MindRoomQuickCapturePlugin.swift in Sources */,
-				7A65B94786FF949EF0E4CD2F /* MacScreenshot.swift in Sources */,
-				5A0000000000000000000003 /* MindRoomVoiceRecorderPlugin.swift in Sources */,
-				43058421F5AFF09E2B626793 /* MindRoomWatchPlugin.swift in Sources */,
-				2A5E5246A3B9F2950ACBE0F1 /* MacWindowingStore.swift in Sources */,
-				AE3B0275A3F4DAF6184EAA44 /* MindRoomMacSupportProtocol.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		DE33CA62A579D2FCA49365E3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		FE4C72D8A49F9E1487549F19 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				DA3AD4B2E87E997225BB3F9A /* MindRoomMacUpdaterProtocol.swift in Sources */,
-				99C7F1A1B647ABB5EBF4AEDA /* MindRoomMacUpdater.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1050,12 +653,6 @@
 			target = D1E0D1FB66F4A7CE9B110B6E /* MindRoomNotificationService */;
 			targetProxy = 336B16C858A22DF495F801E4 /* PBXContainerItemProxy */;
 		};
-		3020E115B7C64D46801D614C /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = MindRoomMacSupport;
-			target = 446E82D0D196A0881E219AA3 /* MindRoomMacSupport */;
-			targetProxy = 956BCCF5454D47BA475E500D /* PBXContainerItemProxy */;
-		};
 		6E2CAF3D39AC1D90F4C8F7B0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = MindRoomWatchWidgets;
@@ -1068,13 +665,6 @@
 			platformFilter = ios;
 			target = D7D31FF8B14971A37B635916 /* MindRoomWatch */;
 			targetProxy = 10133580AEEC5915A5D8B13E /* PBXContainerItemProxy */;
-		};
-		F37D490DFA7E030205D77EEB /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = MindRoomMacUpdater;
-			platformFilter = maccatalyst;
-			target = 431B2DB6E4F0EC913A9FB2B1 /* MindRoomMacUpdater */;
-			targetProxy = 3BF64E60846320B106B2AFFC /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1146,29 +736,6 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-		00495F594E87D1428BCDD13D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 33;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ../MacSupport/Info.plist;
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 13.3;
-				MARKETING_VERSION = 4.12.6;
-				PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-support";
-				PRODUCT_NAME = MindRoomMacSupport;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				WRAPPER_EXTENSION = bundle;
-			};
-			name = Release;
-		};
 		032DDEC6F81ABC05BE3414B8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1226,67 +793,6 @@
 			};
 			name = Debug;
 		};
-		18301C28CDBC33EC8411443C /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 33;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ../MacSupport/Info.plist;
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 13.3;
-				MARKETING_VERSION = 4.12.6;
-				PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-support";
-				PRODUCT_NAME = MindRoomMacSupport;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				WRAPPER_EXTENSION = bundle;
-			};
-			name = Debug;
-		};
-		394DCF6772C060F9FFC3B3E1 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 59975261A442BF170452F05F /* Pods-AppStoreMac.debug.xcconfig */;
-			buildSettings = {
-				APS_ENVIRONMENT = development;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "App/App-macOS-AppStore.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_APP_SANDBOX = YES;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = App/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "2026 Bas Nijholt";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 4.12.6;
-				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
-				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
-				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;
-				PRODUCT_MODULE_NAME = AppStoreMac;
-				PRODUCT_NAME = MindRoom.chat;
-				SUPPORTED_PLATFORMS = macosx;
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG MINDROOM_MAC_APP_STORE";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1337,8 +843,6 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MINDROOM_BUNDLE_NAME = "$(PRODUCT_NAME)";
-				MINDROOM_DISPLAY_NAME = MindRoom;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -1391,8 +895,6 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				MINDROOM_BUNDLE_NAME = "$(PRODUCT_NAME)";
-				MINDROOM_DISPLAY_NAME = MindRoom;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
@@ -1407,12 +909,9 @@
 				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "App/App-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 33;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = DNA6966LGZ;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1420,15 +919,10 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 4.12.6;
-				"MINDROOM_BUNDLE_NAME[sdk=macosx*]" = "MindRoom Chat";
-				"MINDROOM_DISPLAY_NAME[sdk=macosx*]" = "MindRoom Chat";
-				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
-				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;
 				PRODUCT_NAME = MindRoom.chat;
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "$(MINDROOM_MACOS_PROVISIONING_PROFILE_SPECIFIER)";
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1442,12 +936,9 @@
 				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
-				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "App/App-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 33;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				DEVELOPMENT_TEAM = DNA6966LGZ;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1455,16 +946,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 4.12.6;
-				"MINDROOM_BUNDLE_NAME[sdk=macosx*]" = "MindRoom Chat";
-				"MINDROOM_DISPLAY_NAME[sdk=macosx*]" = "MindRoom Chat";
-				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
-				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
-				MINDROOM_UPDATE_FEED_URL = "https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml";
-				MINDROOM_UPDATE_PUBLIC_KEY = "he65VFC6KQjH8xkoYxPKmIe6cbbspSFr7oMsttWYPRE=";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;
 				PRODUCT_NAME = MindRoom.chat;
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]" = "$(MINDROOM_MACOS_PROVISIONING_PROFILE_SPECIFIER)";
-				SUPPORTS_MACCATALYST = YES;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1572,74 +1056,6 @@
 			};
 			name = Release;
 		};
-		A9B1B687B9D4A34A0CB441E7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = B246145829119D6F6D69043F /* Pods-AppStoreMac.release.xcconfig */;
-			buildSettings = {
-				APS_ENVIRONMENT = production;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "App/App-macOS-AppStore.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 33;
-				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_APP_SANDBOX = YES;
-				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = App/Info.plist;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "2026 Bas Nijholt";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 4.12.6;
-				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
-				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;
-				PRODUCT_MODULE_NAME = AppStoreMac;
-				PRODUCT_NAME = MindRoom.chat;
-				SUPPORTED_PLATFORMS = macosx;
-				SUPPORTS_MACCATALYST = YES;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) MINDROOM_MAC_APP_STORE";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		D383D58358675CDD103FBD43 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 33;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/../MacUpdater/Sparkle",
-				);
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ../MacUpdater/Info.plist;
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.3;
-				MARKETING_VERSION = 4.12.6;
-				PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-updater";
-				PRODUCT_NAME = MindRoomMacUpdater;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				WRAPPER_EXTENSION = bundle;
-			};
-			name = Debug;
-		};
 		D9C495755D9EE7202F9C8C24 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1666,37 +1082,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		FE006A5C4B7403F4FA57EC14 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 33;
-				DEVELOPMENT_TEAM = DNA6966LGZ;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/../MacUpdater/Sparkle",
-				);
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ../MacUpdater/Info.plist;
-				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.3;
-				MARKETING_VERSION = 4.12.6;
-				PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-updater";
-				PRODUCT_NAME = MindRoomMacUpdater;
-				SDKROOT = macosx;
-				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 5.0;
-				WRAPPER_EXTENSION = bundle;
 			};
 			name = Release;
 		};
@@ -1739,38 +1124,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		77006705F31DD4F2EF567356 /* Build configuration list for PBXNativeTarget "MindRoomMacUpdater" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				FE006A5C4B7403F4FA57EC14 /* Release */,
-				D383D58358675CDD103FBD43 /* Debug */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		9476E6C890662933F15DB52D /* Build configuration list for PBXNativeTarget "MindRoomMacSupport" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				00495F594E87D1428BCDD13D /* Release */,
-				18301C28CDBC33EC8411443C /* Debug */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		990F3963FF824A429A4481D0 /* Build configuration list for PBXNativeTarget "MindRoomWatchWidgets" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9CF154A5196D192AF5762962 /* Release */,
 				032DDEC6F81ABC05BE3414B8 /* Debug */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E13E45C16A724CCE9CDACE20 /* Build configuration list for PBXNativeTarget "AppStoreMac" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A9B1B687B9D4A34A0CB441E7 /* Release */,
-				394DCF6772C060F9FFC3B3E1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
