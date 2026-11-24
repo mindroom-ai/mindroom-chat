@@ -18,6 +18,8 @@ import { READER_INTENT_EVENTS } from './roomTimelineScroll';
  * cannot tell a pinned reader from one a little above the bottom.
  * Only a timeline at its live end follows: at the bottom of older history, the growth is newer
  * events loading, and following it would page the reader through history they have not read.
+ * Growth or shrink without a live frame refreshes bottom pinning from the live viewport distance,
+ * and an active disclosure reveal suppresses growth-follow writes so the reveal owns scrollTop.
  */
 export const useFollowContentGrowth = (
   getScrollElement: () => HTMLElement | null,
@@ -60,6 +62,7 @@ export const useFollowContentGrowth = (
       const entry = entries.find(({ target }) => target === content);
       if (!entry) return;
       const grew = height !== undefined && entry.contentRect.height > height;
+      const shrank = height !== undefined && entry.contentRect.height < height;
       const framed = liveReplies.frameCount(roomId) !== framesAtGesture;
       height = entry.contentRect.height;
       seenScrollHeight = scrollElement.scrollHeight;
@@ -71,7 +74,7 @@ export const useFollowContentGrowth = (
       if (grew && framed && pinned && atLiveEndRef.current) {
         const end = scrollElement.scrollHeight - scrollElement.clientHeight - pendingListShrinkPx();
         scrollElement.scrollTo({ top: Math.max(0, end), behavior: 'instant' });
-      } else if (grew && !framed) {
+      } else if (shrank || (grew && !framed)) {
         pinned = isViewportAtBottomNow();
       }
     });

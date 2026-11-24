@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef } from 'react';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { readScrollPadding } from './styles/threadHeaderInset';
 
 /** Clearance left above a disclosure toggle when clamping a tall reveal at the top inset. */
@@ -15,8 +16,8 @@ const NOOP = () => {};
 export type DisclosureRevealMetrics = {
   containerTop: number;
   containerBottom: number;
-  topInset: number;
-  bottomInset: number;
+  insetTop: number;
+  insetBottom: number;
   toggleTop: number;
   expandedBottom: number;
   topMargin?: number;
@@ -29,25 +30,44 @@ export type DisclosureRevealMetrics = {
 export const computeDisclosureRevealDelta = ({
   containerTop,
   containerBottom,
-  topInset,
-  bottomInset,
+  insetTop,
+  insetBottom,
   toggleTop,
   expandedBottom,
   topMargin = DISCLOSURE_REVEAL_TOP_MARGIN_PX,
 }: DisclosureRevealMetrics): number => {
-  const visibleTop = containerTop + topInset;
-  const visibleBottom = containerBottom - bottomInset;
+  const visibleTop = containerTop + insetTop;
+  const visibleBottom = containerBottom - insetBottom;
   if (expandedBottom <= visibleBottom) return 0;
   return Math.max(0, Math.min(expandedBottom - visibleBottom, toggleTop - visibleTop - topMargin));
 };
 
-/** First ancestor whose computed `overflowY` creates a vertical scroll container. */
+/**
+ * Nearest vertical scroll container ancestor: prefers the first scrollable ancestor that currently
+ * overflows vertically (so an inner `overflowX: auto` box cannot shadow the timeline scroller),
+ * then a scrollable ancestor holding `[data-timeline-rows]` or bottom scroll padding (a short
+ * thread before `listHeight` grows), else the first scrollable ancestor.
+ */
 export const findScrollContainer = (element: HTMLElement): HTMLElement | null => {
   if (typeof getComputedStyle !== 'function') return null;
+  let timelineFallback: HTMLElement | null = null;
+  let firstFallback: HTMLElement | null = null;
   for (let node = element.parentElement; node; node = node.parentElement) {
-    if (SCROLLABLE_OVERFLOW.has(getComputedStyle(node).overflowY)) return node;
+    const style = getComputedStyle(node);
+    if (!SCROLLABLE_OVERFLOW.has(style.overflowY)) continue;
+    if (node.scrollHeight > node.clientHeight) return node;
+    if (!firstFallback) firstFallback = node;
+    if (!timelineFallback) {
+      const paddingBottom = Number.parseFloat(style.scrollPaddingBottom ?? '');
+      if (
+        (Number.isFinite(paddingBottom) && paddingBottom > 0) ||
+        node.querySelector('[data-timeline-rows]') !== null
+      ) {
+        timelineFallback = node;
+      }
+    }
   }
-  return null;
+  return timelineFallback ?? firstFallback;
 };
 
 /**
@@ -149,12 +169,12 @@ export const scheduleDisclosureReveal = ({
       return;
     }
     const scrollerRect = scroller.getBoundingClientRect();
-    const { top: topInset, bottom: bottomInset } = readScrollPadding(scroller);
+    const { top: insetTop, bottom: insetBottom } = readScrollPadding(scroller);
     const delta = computeDisclosureRevealDelta({
       containerTop: scrollerRect.top,
       containerBottom: scrollerRect.bottom,
-      topInset,
-      bottomInset,
+      insetTop,
+      insetBottom,
       toggleTop: toggle.getBoundingClientRect().top,
       expandedBottom,
       topMargin,
@@ -254,8 +274,7 @@ export const useRevealOnOpen = (
   animated?: ElementSource
 ): (() => void) => {
   const armedRef = useRef(false);
-  const latestRef = useRef({ toggle, targets, animated });
-  latestRef.current = { toggle, targets, animated };
+  const latestRef = useLatestRef({ toggle, targets, animated });
 
   const armReveal = useCallback(() => {
     armedRef.current = true;
@@ -274,7 +293,7 @@ export const useRevealOnOpen = (
       getTargets: () => readTargets(latestRef.current.targets),
       animatedElement: readElement(latestRef.current.animated) ?? undefined,
     });
-  }, [open]);
+  }, [latestRef, open]);
 
   return armReveal;
 };
@@ -306,13 +325,6 @@ export const useDetailsRevealOnOpen = () => {
     }
   }, [cancel]);
 
-  const onSummaryKeyDown = useCallback(
-    (event: { key: string; repeat?: boolean }) => {
-      if (!event.repeat && (event.key === 'Enter' || event.key === ' ')) arm();
-    },
-    [arm]
-  );
-
   const onToggle = useCallback(() => {
     const wasArmed = armedRef.current;
     armedRef.current = false;
@@ -327,9 +339,5 @@ export const useDetailsRevealOnOpen = () => {
     }
   }, [cancel]);
 
-  return {
-    detailsRef,
-    onToggle,
-    summaryProps: { ref: summaryRef, onClick: arm, onKeyDown: onSummaryKeyDown },
-  };
+  return { detailsRef, onToggle, summaryProps: { ref: summaryRef, onClick: arm } };
 };

@@ -242,4 +242,20 @@ describe('useFollowContentGrowth', () => {
     expect(scroller.scrollTo).not.toHaveBeenCalled();
     expect(scroller.scrollTop).toBe(600);
   });
+
+  it('re-pins when a zero-jump disclosure opens and collapses without a scroll event', () => {
+    // Reader at bottom opens a 150px disclosure without scrolling (pinned refreshes to false).
+    grow(150, { frame: false });
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+
+    // Reader closes it: scrollHeight shrinks back to 1000 with no scroll event (600 is in range).
+    scroller.scrollHeight -= 150;
+    act(() =>
+      resize?.([{ target: content, contentRect: { height: scroller.scrollHeight } } as never])
+    );
+
+    // Next live streaming frame resumes following from the bottom.
+    grow(80, { frame: true });
+    expect(scroller.scrollTop).toBe(680);
+  });
 });

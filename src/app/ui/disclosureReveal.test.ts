@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DISCLOSURE_REVEAL_TOP_MARGIN_PX,
   computeDisclosureRevealDelta,
+  findScrollContainer,
   isDisclosureRevealActive,
   measureExpandedBottom,
   scheduleDisclosureReveal,
@@ -22,7 +23,7 @@ const rect = (top: number, height: number): DOMRect => ({
 });
 
 describe('computeDisclosureRevealDelta', () => {
-  const base = { containerTop: 0, containerBottom: 600, topInset: 56, bottomInset: 96 };
+  const base = { containerTop: 0, containerBottom: 600, insetTop: 56, insetBottom: 96 };
 
   it('returns 0 when the expanded disclosure already fits above the bottom inset', () => {
     expect(computeDisclosureRevealDelta({ ...base, toggleTop: 220, expandedBottom: 504 })).toBe(0);
@@ -37,7 +38,7 @@ describe('computeDisclosureRevealDelta', () => {
 
   it('clamps a huge disclosure so the toggle stops at visibleTop + topMargin', () => {
     const delta = computeDisclosureRevealDelta({ ...base, toggleTop: 380, expandedBottom: 2400 });
-    expect(delta).toBe(380 - (base.containerTop + base.topInset) - DISCLOSURE_REVEAL_TOP_MARGIN_PX);
+    expect(delta).toBe(380 - (base.containerTop + base.insetTop) - DISCLOSURE_REVEAL_TOP_MARGIN_PX);
   });
 
   it('returns 0 and never scrolls upward when the toggle is already at or above top clamp', () => {
@@ -226,5 +227,24 @@ describe('scheduleDisclosureReveal', () => {
     expect(isDisclosureRevealActive(scroller)).toBe(true);
     vi.advanceTimersByTime(400);
     expect(isDisclosureRevealActive(scroller)).toBe(false);
+  });
+
+  it('skips an inner non-overflowing overflowX: auto wrapper to find the real scroller', () => {
+    const { scroller, rows, toggle } = createFixture();
+    const inner = document.createElement('div');
+    inner.style.overflowY = 'auto';
+    Object.defineProperty(inner, 'scrollHeight', { configurable: true, value: 160 });
+    Object.defineProperty(inner, 'clientHeight', { configurable: true, value: 160 });
+    rows.append(inner);
+    inner.append(toggle);
+
+    // Short thread before overflow: timeline scroller still wins via [data-timeline-rows]/padding.
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 400 });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 600 });
+    expect(findScrollContainer(toggle)).toBe(scroller);
+
+    // Overflowing scroller: returns immediately on scrollHeight > clientHeight.
+    Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 1200 });
+    expect(findScrollContainer(toggle)).toBe(scroller);
   });
 });
