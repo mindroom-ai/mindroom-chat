@@ -2,17 +2,20 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { Box, Button, Spinner, Text, config } from 'folds';
 import { Dialog } from '../ui/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { SpecVersionsLoader } from '../matrix/SpecVersionsLoader';
 import { SplashScreen } from '../ui/splash/SplashScreen';
 import { MindRoomSplashScreen } from '../ui/splash/BrandedSplashScreen';
 import { SpecVersionsProvider } from '../matrix/hooks/useSpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
+import { listSessions } from '../matrix/session/sessions';
 import { specVersions, type SpecVersions as ServerSpecVersions } from '../matrix/cs-api';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../matrix/cachedSpecVersions';
-import {
-  clearAllCacheAndReload,
-  removeSessionAndReload,
-} from '../account/lifecycle/sessionLifecycle';
+import { useOptionalClientConfig } from '../config/useClientConfig';
+import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
+import { withAddAccountSearchIf } from '../navigation/addAccount';
+import { cancelConnectingSession } from '../account/lifecycle/initMatrix';
+import { clearAllCacheAndReload } from '../account/lifecycle/sessionLifecycle';
 
 const EMPTY_SPEC_VERSIONS: ServerSpecVersions = { versions: [] };
 
@@ -23,6 +26,7 @@ type SpecVersionsProps = {
    * cache miss the children then render without capabilities until it does.
    */
   allowCachedContent?: boolean;
+  mx?: MatrixClient;
   children?: ReactNode;
 };
 
@@ -43,12 +47,26 @@ const useSessionRequest = (accessToken: string | undefined): typeof fetch =>
   );
 
 /** The branded splash says what it waits for; its column already holds the one spinner. */
-function ConnectingSplash({ onCancel }: { onCancel?: () => void }) {
+function ConnectingSplash({
+  onCancel,
+  cancelling = false,
+}: {
+  onCancel?: () => void;
+  cancelling?: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <MindRoomSplashScreen message={t('sharedUi.specVersions.connectingToServer')}>
       {onCancel && (
-        <Button variant="Secondary" fill="Soft" size="300" radii="300" onClick={onCancel}>
+        <Button
+          variant="Secondary"
+          fill="Soft"
+          size="300"
+          radii="300"
+          disabled={cancelling}
+          before={cancelling ? <Spinner size="100" variant="Secondary" /> : undefined}
+          onClick={onCancel}
+        >
           <Text size="B300">{t('sharedUi.specVersions.cancelAndReturnToSignIn')}</Text>
         </Button>
       )}
@@ -137,10 +155,26 @@ function LoadedVersions({
  * refreshes in the background; otherwise it waits for the server, unless
  * cached rooms may already show.
  */
-export function SpecVersions({ baseUrl, allowCachedContent = false, children }: SpecVersionsProps) {
+export function SpecVersions({
+  baseUrl,
+  allowCachedContent = false,
+  mx,
+  children,
+}: SpecVersionsProps) {
   const session = useActiveSession();
+  const hashRouter = useOptionalClientConfig()?.hashRouter;
   const userId = session?.userId;
+  const sessionId = session?.sessionId;
   const request = useSessionRequest(session?.accessToken);
+  const [cancelling, setCancelling] = useState(false);
+  const cancellingRef = useRef(false);
+  const cancelSessionIdRef = useRef(sessionId);
+
+  useEffect(() => {
+    cancelSessionIdRef.current = sessionId;
+    cancellingRef.current = false;
+    setCancelling(false);
+  }, [sessionId]);
 
   const cachedVersions = useMemo(
     () => (userId ? readCachedSpecVersions(baseUrl, userId) : undefined),
@@ -183,7 +217,25 @@ export function SpecVersions({ baseUrl, allowCachedContent = false, children }: 
     [baseUrl, userId]
   );
 
-  const handleCancel = session ? () => void removeSessionAndReload(session) : undefined;
+  const handleCancel = session
+    ? () => {
+        if (cancellingRef.current) return;
+        cancellingRef.current = true;
+        setCancelling(true);
+        const otherAccounts = listSessions().some(
+          (stored) => stored.sessionId !== session.sessionId
+        );
+        const loginHref = `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(
+          getLoginPath(session.baseUrl),
+          otherAccounts
+        )}`;
+        cancelConnectingSession(session, loginHref, mx).catch(() => {
+          if (cancelSessionIdRef.current !== session.sessionId) return;
+          cancellingRef.current = false;
+          setCancelling(false);
+        });
+      }
+    : undefined;
 
   if (showWithoutLoader) {
     const versions =
@@ -195,7 +247,7 @@ export function SpecVersions({ baseUrl, allowCachedContent = false, children }: 
     <SpecVersionsLoader
       baseUrl={baseUrl}
       fetchFn={request}
-      fallback={() => <ConnectingSplash onCancel={handleCancel} />}
+      fallback={() => <ConnectingSplash onCancel={handleCancel} cancelling={cancelling} />}
       error={(_error: unknown, retry: () => void, ignore: () => void) => (
         <ConnectionError baseUrl={baseUrl} onRetry={retry} onContinue={ignore} />
       )}

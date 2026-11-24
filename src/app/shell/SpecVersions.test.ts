@@ -1,12 +1,13 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  clearAllCacheAndReload,
-  removeSessionAndReload,
-} from '../account/lifecycle/sessionLifecycle';
+import type { MatrixClient } from 'matrix-js-sdk';
+import { clearAllCacheAndReload } from '../account/lifecycle/sessionLifecycle';
+import { cancelConnectingSession } from '../account/lifecycle/initMatrix';
+import { ClientConfigProvider } from '../config/useClientConfig';
 import { SpecVersions } from './SpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
+import { putSession } from '../matrix/session/sessions';
 import { specVersions } from '../matrix/cs-api';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../matrix/cachedSpecVersions';
 import { useSpecVersions } from '../matrix/hooks/useSpecVersions';
@@ -92,7 +93,10 @@ vi.mock('../matrix/cs-api', () => ({
 
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
-  removeSessionAndReload: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('../account/lifecycle/initMatrix', () => ({
+  cancelConnectingSession: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../matrix/session/useSessionStore', () => ({
@@ -106,6 +110,7 @@ describe('SpecVersions', () => {
     storageState.clear();
     loadedSpecVersions = { versions: [] };
     specVersionsLoaderRenderCount = 0;
+    vi.mocked(cancelConnectingSession).mockResolvedValue(undefined);
     vi.stubGlobal('localStorage', {
       getItem: vi.fn((key: string) => storageState.get(key) ?? null),
       removeItem: vi.fn((key: string) => {
@@ -565,31 +570,8 @@ describe('SpecVersions', () => {
     expect(specVersions).not.toHaveBeenCalled();
   });
 
-  it('supports canceling from connecting state', async () => {
-    specVersionsLoaderMode = 'fallback';
-    vi.mocked(useActiveSession).mockReturnValue({
-      sessionId: 'session-a',
-      baseUrl: 'https://example.com',
-      userId: '@alice:example.com',
-      deviceId: 'DEVICE',
-      accessToken: 'token',
-      lastUsedAt: 1,
-    });
-
-    let renderer!: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(
-        React.createElement(
-          SpecVersions,
-          {
-            baseUrl: 'https://example.com',
-          },
-          React.createElement('div', null, 'child')
-        )
-      );
-    });
-
-    const cancelButton = renderer.root
+  const findCancelButton = (renderer: ReturnType<typeof create>) =>
+    renderer.root
       .findAllByType('button')
       .find((node) =>
         node
@@ -597,13 +579,155 @@ describe('SpecVersions', () => {
           .some((textNode) => textNode.children.join('') === 'Cancel and return to sign in')
       );
 
-    expect(cancelButton).toBeDefined();
+  const seedConnectingSession = () => {
+    specVersionsLoaderMode = 'fallback';
+    const session = putSession({
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+    });
+    vi.mocked(useActiveSession).mockReturnValue(session);
+    return session;
+  };
 
-    await act(async () => {
-      cancelButton?.props.onClick();
+  it.each([
+    { withOtherAccount: false, expectedHref: '/login/https%3A%2F%2Fexample.com' },
+    { withOtherAccount: true, expectedHref: '/login/https%3A%2F%2Fexample.com?addAccount=1' },
+  ])(
+    'cancels to the homeserver login URL (other account: $withOtherAccount)',
+    async ({ withOtherAccount, expectedHref }) => {
+      const session = seedConnectingSession();
+      if (withOtherAccount) {
+        putSession(
+          {
+            baseUrl: 'https://other.example',
+            userId: '@bob:other.example',
+            deviceId: 'DEVICE_B',
+            accessToken: 'token-b',
+          },
+          { setActive: false }
+        );
+      }
+
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            SpecVersions,
+            { baseUrl: 'https://example.com' },
+            React.createElement('div', null, 'child')
+          )
+        );
+      });
+
+      const cancelButton = findCancelButton(renderer);
+      expect(cancelButton).toBeDefined();
+
+      await act(async () => {
+        cancelButton?.props.onClick();
+      });
+
+      expect(cancelConnectingSession).toHaveBeenCalledTimes(1);
+      expect(cancelConnectingSession).toHaveBeenCalledWith(session, expectedHref, undefined);
+      act(() => {
+        renderer.unmount();
+      });
+    }
+  );
+
+  it('uses the hash router prefix and forwards mx when canceling', async () => {
+    const session = seedConnectingSession();
+    const mx = { stopClient: vi.fn(), http: { abort: vi.fn() } } as unknown as MatrixClient;
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: { hashRouter: { enabled: true } } },
+          React.createElement(
+            SpecVersions,
+            { baseUrl: 'https://example.com', mx },
+            React.createElement('div', null, 'child')
+          )
+        )
+      );
     });
 
-    expect(vi.mocked(removeSessionAndReload)).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      findCancelButton(renderer)?.props.onClick();
+    });
+
+    expect(cancelConnectingSession).toHaveBeenCalledWith(
+      session,
+      '/#/login/https%3A%2F%2Fexample.com',
+      mx
+    );
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('disables cancel with a spinner while pending and re-enables on rejection', async () => {
+    seedConnectingSession();
+    let rejectCancel: ((error: Error) => void) | undefined;
+    vi.mocked(cancelConnectingSession).mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectCancel = reject;
+        })
+    );
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          { baseUrl: 'https://example.com' },
+          React.createElement('div', null, 'child')
+        )
+      );
+    });
+
+    const initialButton = findCancelButton(renderer);
+    expect(initialButton?.props.disabled).toBe(false);
+    expect(initialButton?.findAllByType('div')).toHaveLength(0);
+
+    act(() => {
+      initialButton?.props.onClick();
+    });
+
+    const cancellingButton = findCancelButton(renderer);
+    expect(cancelConnectingSession).toHaveBeenCalledTimes(1);
+    expect(cancellingButton?.props.disabled).toBe(true);
+    expect(cancellingButton?.findAllByType('div').map((node) => node.children.join(''))).toEqual([
+      'spinner',
+    ]);
+
+    act(() => {
+      cancellingButton?.props.onClick();
+    });
+    expect(cancelConnectingSession).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rejectCancel?.(new Error('cancel failed'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const recoveredButton = findCancelButton(renderer);
+    expect(recoveredButton?.props.disabled).toBe(false);
+    expect(recoveredButton?.findAllByType('div')).toHaveLength(0);
+
+    await act(async () => {
+      recoveredButton?.props.onClick();
+    });
+    expect(cancelConnectingSession).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      renderer.unmount();
+    });
   });
 
   it('uses the particle background while connecting to the server', () => {

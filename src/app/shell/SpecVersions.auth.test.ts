@@ -36,7 +36,9 @@ vi.mock('../ui/splash/BrandedSplashScreen', () => ({
 
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
-  removeSessionAndReload: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('../account/lifecycle/initMatrix', () => ({
+  cancelConnectingSession: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('../matrix/session/useSessionStore', () => ({

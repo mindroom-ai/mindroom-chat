@@ -17,6 +17,7 @@ import { restoreCachedReplies } from '../../event-store/sdk/restoreCachedReplies
 import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
 import {
   type ClientBootstrapSession,
+  IDENTITY_CHECK_TIMEOUT_MS,
   inspectCryptoStoreContinuity,
   serverHasDeviceIdentity,
   DeviceIdentityVerificationError,
@@ -37,8 +38,14 @@ import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceip
 import type { MarkClientStartup } from '../../lib/startupTimeline';
 import { recordSyncStoreFailure } from '../../diagnostics/deepTrace';
 
+// Server-side logout waits at most this long so an unreachable homeserver cannot block teardown.
+const SERVER_LOGOUT_TIMEOUT_MS = 5_000;
+
 /** A client of `session` without stores or sync, for requests in its name. */
-export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>
+export const createSessionRequestClient = (
+  session: ClientBootstrapSession,
+  localTimeoutMs?: number
+): MatrixClient =>
   createMatrixClient({
     baseUrl: session.baseUrl,
     accessToken: session.accessToken,
@@ -46,11 +53,12 @@ export const createSessionRequestClient = (session: ClientBootstrapSession): Mat
     tokenRefreshFunction: createStoredSessionTokenRefresh(session),
     userId: session.userId,
     deviceId: session.deviceId,
+    ...(localTimeoutMs !== undefined ? { localTimeoutMs } : {}),
   });
 
 /** The homeserver logs the session's device out and drops the keys it keeps for it. */
 const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> => {
-  const mx = createSessionRequestClient(session);
+  const mx = createSessionRequestClient(session, SERVER_LOGOUT_TIMEOUT_MS);
   // A logout that cannot pass Cloudflare Access leaves the device on the server.
   await renewExpiredCloudflareAccess(session.baseUrl);
   try {
@@ -58,6 +66,27 @@ const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> =>
   } catch {
     // The server may already have dropped this device; local cleanup still runs.
   }
+};
+
+/**
+ * Cancels a connecting session and opens `nextHref`: stops any started client before server logout
+ * so in-flight requests cannot race a `SessionLoggedOut` reload, then removes the local session.
+ */
+export const cancelConnectingSession = async (
+  session: ClientBootstrapSession,
+  nextHref: string,
+  mx?: MatrixClient
+): Promise<void> => {
+  if (mx) {
+    try {
+      mx.stopClient();
+      mx.http.abort();
+    } catch {
+      // Best effort: aborting in-flight requests avoids a racing SessionLoggedOut reload.
+    }
+  }
+  await logoutOnServer(session);
+  await removeSessionAndReload(session, mx, nextHref);
 };
 
 /**
@@ -188,9 +217,6 @@ const abandonClient = async (mx: MatrixClient, store: SyncArchiveStore): Promise
 type DeviceKeysQueryResponse = {
   device_keys?: Record<string, Record<string, { keys?: Record<string, string> }>>;
 };
-
-// A first start after an update waits at most this long for the homeserver's answer.
-const IDENTITY_CHECK_TIMEOUT_MS = 10_000;
 
 /** The ed25519 key the homeserver holds for the session's device; undefined when it has none. */
 const serverDeviceIdentityKey = async (

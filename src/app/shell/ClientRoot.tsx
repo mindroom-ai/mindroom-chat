@@ -559,7 +559,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SpecVersions baseUrl={session.baseUrl} allowCachedContent={sync.restoredRooms}>
+      <SpecVersions baseUrl={session.baseUrl} allowCachedContent={sync.restoredRooms} mx={mx}>
         {mx && shellEngine && shellReady ? (
           // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
           <Suspense fallback={<StartupSplash session={session} mx={mx} />}>
