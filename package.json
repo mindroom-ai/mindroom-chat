@@ -73,7 +73,7 @@
     "html-dom-parser": "5.0.13",
     "html-react-parser": "5.2.3",
     "i18next": "23.12.2",
-    "idb": "7.1.1",
+    "idb": "8.0.4",
     "immer": "9.0.16",
     "is-hotkey": "0.2.1",
     "jotai": "2.6.0",
