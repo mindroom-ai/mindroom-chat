@@ -1706,7 +1706,17 @@
     "continueInNewThread": "Continuer dans un nouveau fil",
     "forkCount_one": "{{count}} dérivation",
     "forkCount_many": "{{count}} dérivations",
-    "forkCount_other": "{{count}} dérivations"
+    "forkCount_other": "{{count}} dérivations",
+    "forkedFromInRoom": "Dérivé de {{title}} dans {{room}}",
+    "forkedFromAnotherRoom": "Dérivé d'un autre salon",
+    "forkingIntoRoom": "Dérivation de {{title}} vers {{room}}",
+    "forkToRoom": "Dériver vers un salon…",
+    "forkToRoomTitle": "Dériver vers un salon",
+    "forkToRoomSearchPlaceholder": "Rechercher des salons…",
+    "forkToRoomEmpty": "Aucun salon correspondant",
+    "forkToRoomAgentWarning": "Les agents de ce salon ne sont pas dans {{room}} et ne verront pas le fil d'origine",
+    "forkingFromRoom": "Dérivation depuis {{room}}",
+    "forkDraftAgentWarning": "Les agents ici ne sont pas dans {{room}} et ne verront pas le fil d'origine"
   },
   "activity": {
     "title": "Activité",
@@ -2014,6 +2024,46 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    },
+    "help": {
+      "button": "Aide et guides",
+      "buttonWithTip": "Aide et guides (1 conseil)",
+      "title": "Aide et guides",
+      "subtitle": "Guides rapides",
+      "oneTip": "1 conseil",
+      "suggested": "Suggéré pour vous",
+      "showHow": "Voir comment",
+      "dismissTip": "Ignorer le conseil",
+      "guidesHeading": "Guides d’interface",
+      "guides": {
+        "conversation": "Comment fonctionnent les fils",
+        "resolve": "Résoudre ce qui est terminé",
+        "filters": "Retrouver les fils résolus",
+        "snooze": "Reporter à plus tard",
+        "pinAndTag": "Épingler et étiqueter",
+        "views": "Vue Compact ou Fils",
+        "activity": "Activité et approbations"
+      },
+      "fullTour": "Visite complète",
+      "shortcuts": "Raccourcis"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Résolvez les fils terminés",
+        "cardTitle": "Résolvez les fils terminés",
+        "roomSummary_one": "{{count}} fil ouvert ici, aucun résolu pour l’instant",
+        "roomSummary_many": "{{count}} fils ouverts ici, aucun résolu pour l’instant",
+        "roomSummary_other": "{{count}} fils ouverts ici, aucun résolu pour l’instant",
+        "allSummary_one": "{{count}} fil ouvert, aucun résolu pour l’instant",
+        "allSummary_many": "{{count}} fils ouverts, aucun résolu pour l’instant",
+        "allSummary_other": "{{count}} fils ouverts, aucun résolu pour l’instant",
+        "cardTextRoom_one": "{{count}} fil ouvert ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextRoom_many": "{{count}} fils ouverts ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextRoom_other": "{{count}} fils ouverts ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_one": "{{count}} fil ouvert, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_many": "{{count}} fils ouverts, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_other": "{{count}} fils ouverts, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire."
+      }
     }
   },
   "threadNav": {
@@ -2128,5 +2178,36 @@
   },
   "nav": {
     "usage": "Utilisation"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} salon",
+      "roomsCount_many": "{{count}} salons",
+      "roomsCount_other": "{{count}} salons",
+      "roomsFiltered": "{{active}} sur {{total}} salons"
+    },
+    "roomFilter": {
+      "label": "Salons",
+      "ariaLabel": "Filtrer les fils par salon",
+      "ariaLabelActive": "Filtrer les fils par salon (sélection : {{number}})",
+      "ariaLabelOne": "Salons : {{room}}",
+      "search": "Rechercher des salons",
+      "noMatch": "Aucun salon correspondant"
+    },
+    "composer": {
+      "postTo": "Publier dans :",
+      "postToRoom": "Publier dans #{{room}}",
+      "chooseRoomAria": "Choisir le salon de publication",
+      "draftPinned": "Brouillon pour #{{room}}",
+      "readOnly": "Aucun salon de cet espace ne permet de publier."
+    },
+    "loading": "Chargement des fils...",
+    "empty": {
+      "noRooms": "Rejoignez un salon dans cet espace pour voir les fils ici.",
+      "noThreads": "Aucun fil dans cet espace pour le moment."
+    },
+    "error": {
+      "title": "Impossible de charger les fils de l’espace"
+    }
   }
 }

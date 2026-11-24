@@ -5,8 +5,10 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactThreadCard } from './CompactThreadCard';
-import type { Room } from 'matrix-js-sdk';
+import { EventEmitter } from 'events';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 
 vi.mock('./CompactRoomView.css', () => ({
@@ -639,5 +641,77 @@ describe('the badge of a fork', () => {
     expect(
       container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')
     ).not.toContain('Forked from');
+  });
+
+  it('names the parent room for a joined cross-room fork, and falls back when unjoined', () => {
+    const alphaRoomId = '!alpha:server';
+    const alphaRoot = new MatrixEvent({
+      event_id: '$alphaRoot',
+      room_id: alphaRoomId,
+      sender: '@maya:server',
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: { msgtype: 'm.text', body: 'API migration plan' },
+    });
+    const alphaRoom = {
+      roomId: alphaRoomId,
+      name: 'Project Alpha',
+      getMyMembership: () => 'join',
+      getThread: () => null,
+      findEventById: (id: string) => (id === '$alphaRoot' ? alphaRoot : undefined),
+      getUnfilteredTimelineSet: () => ({
+        relations: { getChildEventsForEvent: () => undefined },
+      }),
+      hasEncryptionStateEvent: () => false,
+      getMember: () => null,
+    } as unknown as Room;
+    const joinedMx = Object.assign(new EventEmitter(), {
+      getRoom: (id: string) => (id === alphaRoomId ? alphaRoom : null),
+    }) as unknown as MatrixClient;
+
+    const joined = render(
+      <MatrixClientProvider value={joinedMx}>
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            forkedFrom: { roomId: alphaRoomId, threadId: '$alphaRoot', eventId: '$a2' },
+          })}
+          room={room}
+          onClick={vi.fn()}
+        />
+      </MatrixClientProvider>
+    );
+    const joinedBadge = joined.container.querySelector(
+      '[data-compact-card-fork-badge]'
+    ) as HTMLElement;
+    expect(joinedBadge.title).toBe('Forked from API migration plan in Project Alpha');
+    expect(
+      joined.container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')?.split('. ')
+    ).toContain('Forked from API migration plan in Project Alpha');
+    cleanup();
+
+    const unjoinedMx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
+    const unjoined = render(
+      <MatrixClientProvider value={unjoinedMx}>
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            forkedFrom: { roomId: alphaRoomId, threadId: '$alphaRoot', eventId: '$a2' },
+          })}
+          room={room}
+          onClick={vi.fn()}
+        />
+      </MatrixClientProvider>
+    );
+    const unjoinedBadge = unjoined.container.querySelector(
+      '[data-compact-card-fork-badge]'
+    ) as HTMLElement;
+    expect(unjoinedBadge.title).toBe('Forked from another room');
+    expect(
+      unjoined.container
+        .querySelector('[data-thread-root-id]')
+        ?.getAttribute('aria-label')
+        ?.split('. ')
+    ).toContain('Forked from another room');
   });
 });

@@ -45,6 +45,29 @@ describe('getSearchResultPreviewText', () => {
     ).toBe('File: report.pdf');
   });
 
+  it('previews long-text m.file messages without the File prefix', () => {
+    expect(
+      getSearchResultPreviewText({
+        type: MessageEvent.RoomMessage,
+        content: {
+          body: 'Long summary text\n\n[Message continues in attached file]',
+          msgtype: MsgType.File,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      } as never)
+    ).toBe('Long summary text [Message continues in attached file]');
+
+    expect(
+      getSearchResultPreviewText({
+        type: MessageEvent.RoomMessage,
+        content: {
+          msgtype: MsgType.File,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      } as never)
+    ).toBe('Message');
+  });
+
   it('returns a stable preview for redacted messages', () => {
     expect(
       getSearchResultPreviewText({

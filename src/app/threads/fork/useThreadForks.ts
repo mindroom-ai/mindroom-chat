@@ -22,7 +22,8 @@ export type ThreadFork = { threadId: string; ts: number };
  */
 export const groupThreadForks = (
   roots: Iterable<MatrixEvent>,
-  threadId: string
+  threadId: string,
+  roomId?: string
 ): Map<string, ThreadFork[]> => {
   const seen = new Set<string>();
   const found: Array<{ pointId: string; fork: ThreadFork }> = [];
@@ -33,7 +34,7 @@ export const groupThreadForks = (
     // A reply or an edit relates to another event; a root relates to none.
     if (root.isRedacted() || root.getRelation()?.rel_type) continue;
     const ref = parseThreadForkRef(root.getOriginalContent());
-    if (ref?.threadId === threadId) {
+    if (ref?.threadId === threadId && (!ref.roomId || ref.roomId === roomId)) {
       found.push({ pointId: ref.eventId, fork: { threadId: rootId, ts: root.getTs() } });
     }
   }
@@ -55,8 +56,11 @@ const knownRoots = (room: Room): MatrixEvent[] => [
   ),
 ];
 
-const makesForkOf = (event: MatrixEvent | undefined, threadId: string): boolean =>
-  !!event && parseThreadForkRef(event.getOriginalContent())?.threadId === threadId;
+const makesForkOf = (event: MatrixEvent | undefined, threadId: string, roomId: string): boolean => {
+  if (!event) return false;
+  const ref = parseThreadForkRef(event.getOriginalContent());
+  return ref?.threadId === threadId && (!ref.roomId || ref.roomId === roomId);
+};
 
 /**
  * The forks of thread `threadId` (none outside a thread), by the ID of the message each was made at. The open thread's own
@@ -73,10 +77,10 @@ export const useThreadForks = (
     if (!threadId) return undefined;
     // Only a root that forks this thread changes the answer; the timeline streams all the time.
     const onEvent = (event: MatrixEvent) => {
-      if (makesForkOf(event, threadId)) bump();
+      if (makesForkOf(event, threadId, room.roomId)) bump();
     };
     const onThread = (thread: Thread) => {
-      if (makesForkOf(thread.rootEvent, threadId)) bump();
+      if (makesForkOf(thread.rootEvent, threadId, room.roomId)) bump();
     };
     // The client re-emits its rooms' timeline events; a thread's creation only the room emits.
     const onRoomEvent = (event: MatrixEvent, eventRoom: Room | undefined) => {
@@ -98,6 +102,6 @@ export const useThreadForks = (
   return useMemo(() => {
     // The roots live in the SDK's mutable timelines: `version` renews the read.
     void version;
-    return threadId ? groupThreadForks(knownRoots(room), threadId) : NO_FORKS;
+    return threadId ? groupThreadForks(knownRoots(room), threadId, room.roomId) : NO_FORKS;
   }, [room, threadId, version]);
 };

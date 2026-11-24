@@ -1706,7 +1706,17 @@
     "continueInNewThread": "Continuar em um novo tópico",
     "forkCount_one": "{{count}} bifurcação",
     "forkCount_many": "{{count}} bifurcações",
-    "forkCount_other": "{{count}} bifurcações"
+    "forkCount_other": "{{count}} bifurcações",
+    "forkedFromInRoom": "Bifurcado de {{title}} em {{room}}",
+    "forkedFromAnotherRoom": "Bifurcado de outra sala",
+    "forkingIntoRoom": "Bifurcando {{title}} para {{room}}",
+    "forkToRoom": "Bifurcar para sala…",
+    "forkToRoomTitle": "Bifurcar para sala",
+    "forkToRoomSearchPlaceholder": "Pesquisar salas…",
+    "forkToRoomEmpty": "Nenhuma sala encontrada",
+    "forkToRoomAgentWarning": "Os agentes nesta sala não estão em {{room}} e não verão o tópico original",
+    "forkingFromRoom": "Bifurcando de {{room}}",
+    "forkDraftAgentWarning": "Os agentes aqui não estão em {{room}} e não verão o tópico original"
   },
   "activity": {
     "title": "Atividade",
@@ -2014,6 +2024,46 @@
       "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
+    },
+    "help": {
+      "button": "Ajuda e guias",
+      "buttonWithTip": "Ajuda e guias (1 dica)",
+      "title": "Ajuda e guias",
+      "subtitle": "Guias rápidos",
+      "oneTip": "1 dica",
+      "suggested": "Sugerido para si",
+      "showHow": "Ver como",
+      "dismissTip": "Ignorar dica",
+      "guidesHeading": "Guias da interface",
+      "guides": {
+        "conversation": "Como funcionam os tópicos",
+        "resolve": "Resolver o que está concluído",
+        "filters": "Encontrar tópicos resolvidos",
+        "snooze": "Adiar para mais tarde",
+        "pinAndTag": "Fixar e etiquetar tópicos",
+        "views": "Vista Compacto vs. Tópicos",
+        "activity": "Atividade e aprovações"
+      },
+      "fullTour": "Visita completa",
+      "shortcuts": "Atalhos"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolva tópicos concluídos",
+        "cardTitle": "Resolva tópicos concluídos",
+        "roomSummary_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda",
+        "roomSummary_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "roomSummary_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "allSummary_one": "{{count}} tópico aberto, nenhum resolvido ainda",
+        "allSummary_many": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "allSummary_other": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "cardTextRoom_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_one": "{{count}} tópico aberto, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_many": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_other": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada."
+      }
     }
   },
   "threadNav": {
@@ -2128,5 +2178,36 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar tópicos por sala",
+      "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada"
+    },
+    "composer": {
+      "postTo": "Enviar para:",
+      "postToRoom": "Enviar para #{{room}}",
+      "chooseRoomAria": "Escolher sala para enviar",
+      "draftPinned": "Rascunho para #{{room}}",
+      "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
+    },
+    "loading": "Carregando conversas...",
+    "empty": {
+      "noRooms": "Entre em uma sala neste espaço para ver as conversas aqui.",
+      "noThreads": "Ainda não há conversas neste espaço."
+    },
+    "error": {
+      "title": "Não foi possível carregar as conversas do espaço"
+    }
   }
 }

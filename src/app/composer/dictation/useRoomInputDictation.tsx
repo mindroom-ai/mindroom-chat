@@ -12,10 +12,16 @@ import {
 import { useAtomValue, useStore, type createStore } from 'jotai';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Editor as SlateEditor, type BaseRange, type Editor, type RangeRef } from 'slate';
+import {
+  Editor as SlateEditor,
+  Transforms,
+  type BaseRange,
+  type Editor,
+  type RangeRef,
+} from 'slate';
 import { ReactEditor } from 'slate-react';
 import { resolveComputerApiUrl } from '../../computer/api';
-import { computerOwnsKeyboardEvent } from '../../computer/computerFocus';
+import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../../computer/computerFocus';
 import { restoreEditorContent } from '../../editor/utils';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
@@ -36,6 +42,7 @@ import {
   discardLiveCapture,
   liveCaptureAtom,
 } from '../capture/liveCapture';
+import { isComposerShown, pickComposerTarget } from '../composerTarget';
 import { ComposerIconButton } from '../RoomInput.css';
 import {
   detachedDictationErrorAtom,
@@ -70,7 +77,7 @@ export type UseRoomInputDictationOptions = {
   editor: Editor;
   roomId: string;
   threadId?: string;
-  /** Whether this composer writes a thread (used to prioritize Mod+Shift+D finishing). */
+  /** Whether this composer writes a thread (used to prioritize Mod+Shift+D). */
   thread?: boolean;
   ownerKey: string;
   /** Stable composer key across remounts for detached Finish & Send recovery; defaults to ownerKey. */
@@ -78,6 +85,7 @@ export type UseRoomInputDictationOptions = {
   /** Persisted message draft key for mid-Finish unmounted delivery; defaults to sendKey. */
   draftKey?: string;
   rootRef: RefObject<HTMLElement | null>;
+  containerRef?: RefObject<HTMLElement | null>;
   createSession?: (opts: DictationSessionOptions) => DictationSession;
   onCommandProblem?: (problem: string) => void;
   restoreAttachments?: (roomId: string, items: TUploadItem[]) => void;
@@ -104,10 +112,11 @@ type JotaiStore = ReturnType<typeof createStore>;
 type DictationComposerEntry = {
   store: JotaiStore;
   root: () => HTMLElement | null;
+  container?: () => HTMLElement | null;
   thread: boolean;
   confirmed: () => boolean;
   showingLive: () => boolean;
-  startFromShortcut: () => void;
+  startFromShortcut: () => boolean;
   finish: () => void;
 };
 
@@ -142,10 +151,6 @@ const keepTextFocus = (event: MouseEvent) => event.preventDefault();
 
 const mountedComposers = new Set<DictationComposerEntry>();
 
-/** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
-const shown = (root: HTMLElement | null | undefined): boolean =>
-  !!root?.isConnected && !root.closest('[inert]') && root.getClientRects().length > 0;
-
 const canCancelWithoutConfirm = (snap: DictationSnapshot): boolean =>
   snap.phase === 'requesting' &&
   snap.elapsedMs === 0 &&
@@ -164,40 +169,41 @@ const matchesOriginApiUrl = (
 };
 
 const onDictationShortcutCapture = (event: KeyboardEvent): void => {
-  if (event.repeat || isComposingKey(event)) return;
+  if (event.defaultPrevented || event.repeat || isComposingKey(event)) return;
   if (!matchesShortcut(event, 'dictate')) return;
-  if (computerOwnsKeyboardEvent(event) || openOverlay() !== 'none') return;
+  if (
+    computerOwnsKeyboardEvent(event) ||
+    computerOwnsKeyboardFocus() ||
+    openOverlay() !== 'none'
+  ) {
+    return;
+  }
 
-  const visible = [...mountedComposers].filter((entry) => shown(entry.root()));
+  const visible = [...mountedComposers].reverse().filter((entry) => isComposerShown(entry.root()));
   if (visible.length === 0) return;
 
   const focused = document.activeElement;
   const liveOwner = visible.find((entry) => entry.store.get(liveCaptureAtom) !== undefined);
   const liveCapture = liveOwner?.store.get(liveCaptureAtom);
 
-  if (liveCapture !== undefined) {
+  if (liveOwner && liveCapture !== undefined) {
     if (liveCapture.kind !== 'dictation') return;
     const { phase } = liveCapture.session.getSnapshot();
     if (phase !== 'recording' && phase !== 'paused') return;
     const candidates = visible.filter(
-      (entry) => entry.store === liveOwner!.store && entry.showingLive()
+      (entry) => entry.store === liveOwner.store && entry.showingLive()
     );
-    const winner =
-      candidates.find((entry) => focused !== null && Boolean(entry.root()?.contains(focused))) ??
-      candidates.find((entry) => entry.thread) ??
-      candidates[0];
+    const winner = pickComposerTarget(candidates, focused);
     if (!winner) return;
     event.preventDefault();
     winner.finish();
     return;
   }
 
-  const focusedEntry = visible.find(
-    (entry) => focused !== null && Boolean(entry.root()?.contains(focused))
-  );
-  if (!focusedEntry || !focusedEntry.confirmed()) return;
+  const winner = pickComposerTarget(visible, focused);
+  if (!winner || !winner.confirmed()) return;
   event.preventDefault();
-  focusedEntry.startFromShortcut();
+  winner.startFromShortcut();
 };
 
 const registerDictationComposer = (entry: DictationComposerEntry): (() => void) => {
@@ -211,6 +217,13 @@ const registerDictationComposer = (entry: DictationComposerEntry): (() => void) 
       window.removeEventListener('keydown', onDictationShortcutCapture, true);
     }
   };
+};
+
+const selectEndIfUnselected = (editor: Editor): void => {
+  if (editor.selection) return;
+  const pendingMarks = editor.marks;
+  Transforms.select(editor, SlateEditor.end(editor, []));
+  if (pendingMarks) editor.marks = pendingMarks;
 };
 
 const isEditorFocused = (editor: Editor, rootRef: RefObject<HTMLElement | null>): boolean => {
@@ -233,6 +246,7 @@ export const useRoomInputDictation = ({
   sendKey = ownerKey,
   draftKey = sendKey,
   rootRef,
+  containerRef,
   createSession,
   onCommandProblem,
   restoreAttachments,
@@ -308,6 +322,7 @@ export const useRoomInputDictation = ({
 
   const focusEditor = useCallback(() => {
     try {
+      selectEndIfUnselected(editor);
       ReactEditor.focus(editor);
     } catch {
       // Editor may not be attached to a DOM tree in headless unit tests.
@@ -396,63 +411,77 @@ export const useRoomInputDictation = ({
     };
   }, [callbacksRef, clearSelectionRef, consumeSelectionRef, editor, rootRef, sendKey, store]);
 
-  const start = useCallback((): boolean => {
-    const pendingFocus = pendingButtonFocusRef.current;
-    pendingButtonFocusRef.current = undefined;
-    if (!confirmed || !sessions) return false;
-    if (
-      store.get(liveCaptureAtom) !== undefined ||
-      store.get(voiceAutoSendPendingAtom) ||
-      store.get(detachedDictationSendsAtom).has(sendKey) ||
-      restoresPending(store.get(dictationRestoresAtom), store.get(voiceDraftRestoresAtom))
-    ) {
-      return false;
-    }
-    setLocalNotice(undefined);
-    clearSelectionRef();
-    const initialSelection = editor.selection;
-    shouldRestoreFocusRef.current = pendingFocus ?? isEditorFocused(editor, rootRef);
-    const startPromise = startLiveDictation(store, {
-      client: new DictationClient(sessions),
+  const start = useCallback(
+    ({ fromShortcut = false }: { fromShortcut?: boolean } = {}): boolean => {
+      const pendingFocus = pendingButtonFocusRef.current;
+      pendingButtonFocusRef.current = undefined;
+      if (!confirmed || !sessions) return false;
+      if (
+        store.get(liveCaptureAtom) !== undefined ||
+        store.get(voiceAutoSendPendingAtom) ||
+        store.get(detachedDictationSendsAtom).has(sendKey) ||
+        restoresPending(store.get(dictationRestoresAtom), store.get(voiceDraftRestoresAtom))
+      ) {
+        return false;
+      }
+      setLocalNotice(undefined);
+      clearSelectionRef();
+      if (fromShortcut) {
+        try {
+          selectEndIfUnselected(editor);
+        } catch {
+          // Editor may have an uninitialized tree in headless unit tests.
+        }
+      }
+      const initialSelection = editor.selection;
+      shouldRestoreFocusRef.current = fromShortcut
+        ? true
+        : (pendingFocus ?? isEditorFocused(editor, rootRef));
+      const startPromise = startLiveDictation(store, {
+        client: new DictationClient(sessions),
+        roomId,
+        originApiUrl: apiUrl,
+        sessionId,
+        createSession: callbacksRef.current.createSession,
+      });
+      const startedCapture = store.get(liveCaptureAtom);
+      const startedSession =
+        startedCapture?.kind === 'dictation' ? startedCapture.session : undefined;
+      if (startedSession && initialSelection) {
+        selectionRef.current = {
+          session: startedSession,
+          rangeRef: SlateEditor.rangeRef(editor, initialSelection),
+        };
+      }
+      if (fromShortcut) focusEditor();
+      void startPromise.then((started) => {
+        if (started) return;
+        if (!startedSession || selectionRef.current?.session === startedSession) {
+          clearSelectionRef();
+        }
+        const current = store.get(liveCaptureAtom);
+        if (!current || current.session === startedSession) {
+          shouldRestoreFocusRef.current = false;
+        }
+      });
+      return true;
+    },
+    [
+      apiUrl,
+      callbacksRef,
+      clearSelectionRef,
+      confirmed,
+      editor,
+      focusEditor,
+      restoresPending,
       roomId,
-      originApiUrl: apiUrl,
+      rootRef,
+      sendKey,
       sessionId,
-      createSession: callbacksRef.current.createSession,
-    });
-    const startedCapture = store.get(liveCaptureAtom);
-    const startedSession =
-      startedCapture?.kind === 'dictation' ? startedCapture.session : undefined;
-    if (startedSession && initialSelection) {
-      selectionRef.current = {
-        session: startedSession,
-        rangeRef: SlateEditor.rangeRef(editor, initialSelection),
-      };
-    }
-    void startPromise.then((started) => {
-      if (started) return;
-      if (!startedSession || selectionRef.current?.session === startedSession) {
-        clearSelectionRef();
-      }
-      const current = store.get(liveCaptureAtom);
-      if (!current || current.session === startedSession) {
-        shouldRestoreFocusRef.current = false;
-      }
-    });
-    return true;
-  }, [
-    apiUrl,
-    callbacksRef,
-    clearSelectionRef,
-    confirmed,
-    editor,
-    restoresPending,
-    roomId,
-    rootRef,
-    sendKey,
-    sessionId,
-    sessions,
-    store,
-  ]);
+      sessions,
+      store,
+    ]
+  );
 
   const getLiveStatus = useCallback((): 'idle' | 'sendable' | 'blocked' => {
     const currentDetached = store.get(detachedDictationSendsAtom).get(sendKey);
@@ -655,15 +684,13 @@ export const useRoomInputDictation = ({
   Object.assign(composerEntryRef.current, {
     store,
     root: () => rootRef.current,
+    container: () => containerRef?.current ?? null,
     thread,
     confirmed: () => confirmed,
     showingLive: () =>
       !store.get(detachedDictationSendsAtom).has(sendKey) &&
       store.get(liveCaptureAtom)?.kind === 'dictation',
-    startFromShortcut: () => {
-      pendingButtonFocusRef.current = undefined;
-      start();
-    },
+    startFromShortcut: () => start({ fromShortcut: true }),
     finish: handleFinish,
   });
 

@@ -14,6 +14,7 @@ const threadColumnKeys = new WeakSet<Event>();
 export const noteThreadColumnKey = (evt: ReactKeyboardEvent): void => {
   threadColumnKeys.add(evt.nativeEvent);
 };
+export const isThreadColumnKey = (evt: Event): boolean => threadColumnKeys.has(evt);
 
 // Keys pressed in a view of another thread on the page (the second thread beside the open one),
 // with that thread: Escape there marks it read.

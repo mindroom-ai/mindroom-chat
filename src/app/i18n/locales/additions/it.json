@@ -1706,7 +1706,17 @@
     "continueInNewThread": "Continua in un nuovo thread",
     "forkCount_one": "{{count}} diramazione",
     "forkCount_many": "{{count}} diramazioni",
-    "forkCount_other": "{{count}} diramazioni"
+    "forkCount_other": "{{count}} diramazioni",
+    "forkedFromInRoom": "Diramato da {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Diramato da un'altra stanza",
+    "forkingIntoRoom": "Diramazione di {{title}} in {{room}}",
+    "forkToRoom": "Dirama in una stanza…",
+    "forkToRoomTitle": "Dirama in una stanza",
+    "forkToRoomSearchPlaceholder": "Cerca stanze…",
+    "forkToRoomEmpty": "Nessuna stanza corrispondente",
+    "forkToRoomAgentWarning": "Gli agenti in questa stanza non sono in {{room}} e non vedranno il thread originale",
+    "forkingFromRoom": "Diramazione da {{room}}",
+    "forkDraftAgentWarning": "Gli agenti qui non sono in {{room}} e non vedranno il thread originale"
   },
   "activity": {
     "title": "Attività",
@@ -2014,6 +2024,46 @@
       "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
+    },
+    "help": {
+      "button": "Aiuto e guide",
+      "buttonWithTip": "Aiuto e guide (1 suggerimento)",
+      "title": "Aiuto e guide",
+      "subtitle": "Guide rapide",
+      "oneTip": "1 suggerimento",
+      "suggested": "Suggerito per te",
+      "showHow": "Mostra come",
+      "dismissTip": "Ignora suggerimento",
+      "guidesHeading": "Guide dell’interfaccia",
+      "guides": {
+        "conversation": "Come funzionano i thread",
+        "resolve": "Risolvi ciò che è concluso",
+        "filters": "Trova i thread risolti",
+        "snooze": "Posticipa per dopo",
+        "pinAndTag": "Fissa e aggiungi tag",
+        "views": "Vista Compatto vs Thread",
+        "activity": "Attività e approvazioni"
+      },
+      "fullTour": "Tour completo",
+      "shortcuts": "Scorciatoie"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Risolvi i thread conclusi",
+        "cardTitle": "Risolvi i thread conclusi",
+        "roomSummary_one": "{{count}} thread aperto qui, nessuno risolto finora",
+        "roomSummary_many": "{{count}} thread aperti qui, nessuno risolto finora",
+        "roomSummary_other": "{{count}} thread aperti qui, nessuno risolto finora",
+        "allSummary_one": "{{count}} thread aperto, nessuno risolto finora",
+        "allSummary_many": "{{count}} thread aperti, nessuno risolto finora",
+        "allSummary_other": "{{count}} thread aperti, nessuno risolto finora",
+        "cardTextRoom_one": "{{count}} thread aperto qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_many": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_other": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_one": "{{count}} thread aperto, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_many": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_other": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco."
+      }
     }
   },
   "threadNav": {
@@ -2128,5 +2178,36 @@
   },
   "nav": {
     "usage": "Utilizzo"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} stanza",
+      "roomsCount_many": "{{count}} stanze",
+      "roomsCount_other": "{{count}} stanze",
+      "roomsFiltered": "{{active}} di {{total}} stanze"
+    },
+    "roomFilter": {
+      "label": "Stanze",
+      "ariaLabel": "Filtra i thread per stanza",
+      "ariaLabelActive": "Filtra i thread per stanza (selezionate: {{number}})",
+      "ariaLabelOne": "Stanze: {{room}}",
+      "search": "Cerca stanze",
+      "noMatch": "Nessuna stanza corrispondente"
+    },
+    "composer": {
+      "postTo": "Pubblica in:",
+      "postToRoom": "Pubblica in #{{room}}",
+      "chooseRoomAria": "Scegli la stanza in cui pubblicare",
+      "draftPinned": "Bozza per #{{room}}",
+      "readOnly": "Nessuna stanza di questo spazio consente la pubblicazione."
+    },
+    "loading": "Caricamento discussioni...",
+    "empty": {
+      "noRooms": "Unisciti a una stanza in questo spazio per vedere le discussioni qui.",
+      "noThreads": "Non ci sono ancora discussioni in questo spazio."
+    },
+    "error": {
+      "title": "Impossibile caricare le discussioni dello spazio"
+    }
   }
 }

@@ -132,6 +132,31 @@ describe('native Universal Links', () => {
       [`/home/${R}?forkAt=$point`, paths.getHomeRoomPath(R)],
       [`/home/${R}?threadId=bad&forkAt=$point`, paths.getHomeRoomPath(R)],
       [`/home/${R}?threadId=$root&forkAt=bad`, q(paths.getHomeRoomPath(R), { threadId: '$root' })],
+      [
+        `/home/${R}?forkRoom=%21alpha%3Aexample.org&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), {
+          forkRoom: '!alpha:example.org',
+          forkThread: '$root',
+          forkAt: '$point',
+        }),
+      ],
+      [
+        `/home/${R}?forkRoom=%21v12opaque&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), {
+          forkRoom: '!v12opaque',
+          forkThread: '$root',
+          forkAt: '$point',
+        }),
+      ],
+      [`/home/${R}?forkRoom=%21alpha%3Aexample.org&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=bad&forkThread=$root&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=$r&forkAt=%24`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=%24&forkAt=$p`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?threadId=&forkRoom=%21a:ex&forkThread=$r&forkAt=$p`, paths.getHomeRoomPath(R)],
+      [
+        `/home/${R}?threadId=$t&forkRoom=%21alpha%3Aexample.org&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), { threadId: '$t' }),
+      ],
       ['/direct/%23dm:example.org/$e2', paths.getDirectRoomPath('#dm:example.org', '$e2')],
       [
         `/threads/${R}?threadId=$r2&focusEvent=1`,
@@ -141,6 +166,10 @@ describe('native Universal Links', () => {
       [
         `/${S}/Lobby/?via=example.org&threadId=$r1&forkAt=$point&focusEvent=1#h`,
         q(paths.getSpaceLobbyPath(S), { viaServers: 'example.org' }),
+      ],
+      [
+        `/${S}/Threads/?via=example.org&threadId=$r1&forkAt=$point&focusEvent=1#h`,
+        q(paths.getSpaceThreadsPath(S), { viaServers: 'example.org' }),
       ],
       [`/${S}/%23n:example.org/$e4`, paths.getSpaceRoomPath(S, '#n:example.org', '$e4')],
       ['/connect?code=ABCD-EFGH&via=example.org#frag', paths.getConnectPath('ABCD-EFGH')],
@@ -181,6 +210,7 @@ describe('native Universal Links', () => {
       U('/%23missing-server'),
       U(`/home/${R}/not-an-event`),
       U(`/${S}/lobby/$e1`),
+      U(`/${S}/threads/$e1`),
       U(`/${S}/${R}/$e1/extra`),
     ];
     await register();
@@ -391,6 +421,7 @@ describe('native Universal Links', () => {
         `/${R}`,
         '/%23notes:remote.example.org',
         `/${S}/Lobby`,
+        `/${S}/threads`,
         `/${S}/%23search:example.org`,
         `/home/${R}/$e1`,
         '/direct/!dm:example.org/$e1',

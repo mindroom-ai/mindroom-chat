@@ -152,7 +152,7 @@ const measureRow = async (row: Locator[]) => {
           : [];
         return `not a button: ${element?.tagName ?? 'nothing'} ${attributes.join(' ')}`;
       };
-      const rects = elements.map((element) => element!.getBoundingClientRect());
+      const rects = elements.map((element) => element.getBoundingClientRect());
       const centres = rects.map((rect) => rect.left + rect.width / 2);
       const pitch = Math.min(
         size,

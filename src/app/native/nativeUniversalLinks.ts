@@ -1,5 +1,5 @@
 import type { createBrowserRouter } from 'react-router-dom';
-import { isRoomAlias, isRoomId } from '../lib/matrixIds';
+import { isEventId, isRoomAlias, isRoomId } from '../lib/matrixIds';
 import { OPENED_FROM_OUTSIDE_STATE } from '../routes/historyStack';
 import {
   getActivityRoomPath,
@@ -9,6 +9,7 @@ import {
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
+  getSpaceThreadsPath,
   getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
@@ -127,8 +128,6 @@ const decodeSegment = (segment: string): string | undefined => {
 };
 
 const isRoomOrAlias = (value: string): boolean => isRoomId(value) || isRoomAlias(value);
-const isEventId = (value: string): boolean =>
-  !ASCII_CONTROL_CHARS.test(value) && /^\$\S+$/.test(value);
 
 const readSafeViaServers = (params: URLSearchParams): string[] => {
   const raw = [
@@ -142,7 +141,7 @@ const readSafeViaServers = (params: URLSearchParams): string[] => {
 
 const resolveUniversalLinkBaseRoute = (
   segments: readonly string[]
-): { basePath: string; isLobby?: boolean } | undefined => {
+): { basePath: string; isSpacePage?: boolean } | undefined => {
   const [first, second, third] = segments;
   if (!first) return undefined;
 
@@ -159,7 +158,9 @@ const resolveUniversalLinkBaseRoute = (
   if (segments.length === 1) return { basePath: getSpacePath(first) };
   if (segments.length === 2 && second) {
     if (second.toLowerCase() === 'lobby')
-      return { basePath: getSpaceLobbyPath(first), isLobby: true };
+      return { basePath: getSpaceLobbyPath(first), isSpacePage: true };
+    if (second.toLowerCase() === 'threads')
+      return { basePath: getSpaceThreadsPath(first), isSpacePage: true };
     if (isEventId(second) || isRoomOrAlias(second))
       return { basePath: getSpaceRoomPath(first, second) };
     return undefined;
@@ -199,15 +200,35 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
   if (!route) return undefined;
 
   const viaServers = readSafeViaServers(url.searchParams);
+  const hasThreadId = url.searchParams.has('threadId');
   const rawThreadId = url.searchParams.get('threadId');
-  const threadId =
-    !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const threadId = !route.isSpacePage && isEventId(rawThreadId) ? rawThreadId : undefined;
+  const hasForkRoom = url.searchParams.has('forkRoom');
+  const hasForkThread = url.searchParams.has('forkThread');
+  const rawForkRoom = url.searchParams.get('forkRoom');
+  const rawForkThread = url.searchParams.get('forkThread');
   const rawForkAt = url.searchParams.get('forkAt');
-  const forkAt = threadId && rawForkAt && isEventId(rawForkAt) ? rawForkAt : undefined;
+  const crossRoomFork =
+    !route.isSpacePage &&
+    !hasThreadId &&
+    rawForkRoom &&
+    !ASCII_CONTROL_CHARS.test(rawForkRoom) &&
+    isRoomId(rawForkRoom) &&
+    isEventId(rawForkThread) &&
+    isEventId(rawForkAt)
+      ? { forkRoom: rawForkRoom, forkThread: rawForkThread, forkAt: rawForkAt }
+      : undefined;
+  const forkAt = crossRoomFork
+    ? crossRoomFork.forkAt
+    : threadId && !hasForkRoom && !hasForkThread && isEventId(rawForkAt)
+      ? rawForkAt
+      : undefined;
   return withSearchParam(route.basePath, {
     viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
     threadId,
+    forkRoom: crossRoomFork?.forkRoom,
+    forkThread: crossRoomFork?.forkThread,
     forkAt,
-    focusEvent: !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
+    focusEvent: !route.isSpacePage && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
   });
 };

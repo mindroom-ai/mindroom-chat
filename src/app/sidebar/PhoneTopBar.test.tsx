@@ -39,6 +39,10 @@ vi.mock('react-i18next', async () => {
 });
 vi.mock('../lib/user-agent', () => ({ isMacOS: () => false, isIOS: () => false }));
 vi.mock('../matrix/state/useUnread', () => ({ useRoomsUnread: () => unread.value }));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: ({ inTopBar }: { inTopBar?: boolean }) =>
+    React.createElement('button', { 'data-help': inTopBar }),
+}));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: ({ inTopBar }: { inTopBar?: boolean }) =>
     React.createElement('button', { 'data-account': inTopBar }),
@@ -190,8 +194,9 @@ describe('PhoneTopBar', () => {
     activity.badge = { count: 0, needsYou: false };
   });
 
-  it('puts the account at the end of the bar', () => {
+  it('puts help and the account at the end of the bar', () => {
     const { renderer } = renderBar();
+    expect(renderer.root.find((node) => node.props['data-help'] === true)).toBeTruthy();
     expect(renderer.root.find((node) => node.props['data-account'] === true)).toBeTruthy();
   });
 });

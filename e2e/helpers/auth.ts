@@ -19,6 +19,12 @@ type LoginOptions = {
    * say, for the specs of those details.
    */
   showUsageDetails?: boolean;
+  /**
+   * The app hides developer options in settings and message menus (View Source, Download Original)
+   * until the reader enables them (`developerTools`); `true` turns them on unless the page's
+   * settings already say.
+   */
+  developerTools?: boolean;
 };
 
 export const activeAccountButtonNamePattern = /Open account menu for /;
@@ -127,11 +133,13 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
     baseUrl,
     showToolCalls = true,
     showUsageDetails = false,
+    developerTools = false,
   } = options;
 
   const shown = [
     ...(showToolCalls ? ['showToolCalls'] : []),
     ...(showUsageDetails ? ['showUsageDetails'] : []),
+    ...(developerTools ? ['developerTools'] : []),
   ];
   if (shown.length > 0) {
     await page.addInitScript((keys: string[]) => {

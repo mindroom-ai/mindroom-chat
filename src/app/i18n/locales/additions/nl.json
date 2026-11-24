@@ -1658,7 +1658,17 @@
     "forking": "{{title}} afsplitsen",
     "continueInNewThread": "Verdergaan in een nieuwe thread",
     "forkCount_one": "{{count}} afsplitsing",
-    "forkCount_other": "{{count}} afsplitsingen"
+    "forkCount_other": "{{count}} afsplitsingen",
+    "forkedFromInRoom": "Afgesplitst van {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Afgesplitst uit een andere kamer",
+    "forkingIntoRoom": "{{title}} afsplitsen naar {{room}}",
+    "forkToRoom": "Afsplitsen naar kamer…",
+    "forkToRoomTitle": "Afsplitsen naar kamer",
+    "forkToRoomSearchPlaceholder": "Kamers zoeken…",
+    "forkToRoomEmpty": "Geen overeenkomende kamers",
+    "forkToRoomAgentWarning": "Agenten in deze kamer zitten niet in {{room}} en zien de oorspronkelijke thread niet",
+    "forkingFromRoom": "Afsplitsen uit {{room}}",
+    "forkDraftAgentWarning": "Agenten hier zitten niet in {{room}} en zien de oorspronkelijke thread niet"
   },
   "activity": {
     "title": "Activiteit",
@@ -1958,6 +1968,42 @@
       "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
       "howThreadsWork": "Hoe threads werken",
       "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
+    },
+    "help": {
+      "button": "Hulp & gidsen",
+      "buttonWithTip": "Hulp & gidsen (1 tip)",
+      "title": "Hulp & gidsen",
+      "subtitle": "Snelle gidsen",
+      "oneTip": "1 tip",
+      "suggested": "Aanbevolen voor jou",
+      "showHow": "Bekijk hoe",
+      "dismissTip": "Tip sluiten",
+      "guidesHeading": "UI-gidsen",
+      "guides": {
+        "conversation": "Hoe threads werken",
+        "resolve": "Los op wat klaar is",
+        "filters": "Opgeloste threads vinden",
+        "snooze": "Snoozen voor later",
+        "pinAndTag": "Threads vastmaken & taggen",
+        "views": "Compact vs. Threads-weergave",
+        "activity": "Activiteit & goedkeuringen"
+      },
+      "fullTour": "Volledige rondleiding",
+      "shortcuts": "Sneltoetsen"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Los afgeronde threads op",
+        "cardTitle": "Los afgeronde threads op",
+        "roomSummary_one": "{{count}} open thread hier, nog geen opgelost",
+        "roomSummary_other": "{{count}} open threads hier, nog geen opgelost",
+        "allSummary_one": "{{count}} open thread, nog geen opgelost",
+        "allSummary_other": "{{count}} open threads, nog geen opgelost",
+        "cardTextRoom_one": "{{count}} open thread hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextRoom_other": "{{count}} open threads hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_one": "{{count}} open thread, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_other": "{{count}} open threads, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden."
+      }
     }
   },
   "threadNav": {
@@ -2067,5 +2113,35 @@
   },
   "nav": {
     "usage": "Verbruik"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} kamer",
+      "roomsCount_other": "{{count}} kamers",
+      "roomsFiltered": "{{active}} van {{total}} kamers"
+    },
+    "roomFilter": {
+      "label": "Kamers",
+      "ariaLabel": "Threads filteren op kamer",
+      "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "ariaLabelOne": "Kamers: {{room}}",
+      "search": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers"
+    },
+    "composer": {
+      "postTo": "Plaatsen in:",
+      "postToRoom": "Plaatsen in #{{room}}",
+      "chooseRoomAria": "Kies een kamer om in te plaatsen",
+      "draftPinned": "Concept voor #{{room}}",
+      "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
+    },
+    "loading": "Threads laden...",
+    "empty": {
+      "noRooms": "Neem deel aan een kamer in deze ruimte om hier threads te zien.",
+      "noThreads": "Nog geen threads in deze ruimte."
+    },
+    "error": {
+      "title": "Kon threads van de ruimte niet laden"
+    }
   }
 }

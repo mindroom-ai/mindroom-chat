@@ -14,6 +14,7 @@ import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getAiRunInfo, readOwnStreamStatus, readStreamStatus } from '../../matrix/protocol/aiRun';
 import { STREAM_STATUS_TS_KEY } from '../../matrix/protocol/editMetadata';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { ORIGINAL_SENDER_KEY } from '../../matrix/protocol/originalSender';
 import {
   readInteractiveQuestion,
@@ -176,18 +177,19 @@ const previewOf = (content: Record<string, unknown>): ThreadPreview => {
     case 'm.video':
       return { kind: 'video' };
     case 'm.file':
-      return { kind: 'file' };
-    default: {
-      // As the rest of the app previews it: tool calls counted, Markdown and reply quotes dropped.
-      const text = getThreadMessagePreviewText(content) ?? '';
-      const localization = getThreadPreviewLocalization(content, text);
-      return {
-        kind: 'text',
-        text: text.slice(0, PREVIEW_LENGTH),
-        ...(localization ? { localization } : {}),
-      };
-    }
+      if (!hasLongTextMetadata(content)) return { kind: 'file' };
+      break;
+    default:
+      break;
   }
+  // As the rest of the app previews it: tool calls counted, Markdown and reply quotes dropped.
+  const text = getThreadMessagePreviewText(content) ?? '';
+  const localization = getThreadPreviewLocalization(content, text);
+  return {
+    kind: 'text',
+    text: text.slice(0, PREVIEW_LENGTH),
+    ...(localization ? { localization } : {}),
+  };
 };
 
 /**

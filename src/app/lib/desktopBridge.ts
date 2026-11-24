@@ -4,7 +4,10 @@ export type DesktopShellEvent =
   | { type: 'zoom'; action: 'in' | 'out' | 'reset' }
   | { type: 'window-hidden' }
   | { type: 'window-focus'; focused: boolean }
-  | { type: 'update-status' };
+  | { type: 'update-status' }
+  | { type: 'swipe-tracking'; enabled: boolean }
+  | { type: 'scroll-gesture'; phase: 'begin' | 'end' }
+  | { type: 'swipe'; direction: 'left' | 'right' };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
