@@ -7,7 +7,7 @@
   "type": "module",
   "main": "build/electron/main.cjs",
   "engines": {
-    "node": ">=24"
+    "node": "^24.15.0 || >=26"
   },
   "autoRelease": true,
   "scripts": {

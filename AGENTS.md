@@ -17,7 +17,7 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 
 ## Commands
 
-Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`). Outside it, use Node 24 or newer (`package.json` `engines`): some unit tests fail on Node 22.
+Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`). Outside it, use Node 24.15+ or 26+ (`package.json` `engines`): jsdom 31 requires `^24.15.0 || >=26` and some unit tests fail on Node 22.
 
 | Recipe | What it does |
 |---|---|
