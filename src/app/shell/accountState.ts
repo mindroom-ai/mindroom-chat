@@ -12,6 +12,7 @@ import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
 import { tourAtom } from '../navigation/tourState';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
+import { workflowRunPanelAtom } from '../navigation/workflowPanel';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -118,6 +119,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(pauseRequestAtom),
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
+  toInitial(workflowRunPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(detachedGrantErrorAtom),
   toInitial(settingsModalAtom),

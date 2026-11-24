@@ -1430,7 +1430,7 @@
           "peer": "Ждёт сообщения"
         },
         "sessionTurns_one": "{{count}} шаг",
-        "sessionTurns_few": "{{count}} шагов",
+        "sessionTurns_few": "{{count}} шага",
         "sessionTurns_many": "{{count}} шагов",
         "sessionTurns_other": "{{count}} шагов",
         "result": "Результат",
