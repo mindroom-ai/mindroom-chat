@@ -195,8 +195,8 @@ describe('PopOut and TooltipProvider', () => {
         </>
       );
     });
-    expect(received.popOut[0]).toMatchObject({ ref: popOutRef });
-    expect(received.tooltip[0]).toMatchObject({ ref: tooltipRef });
+    expect(received.popOut[0]?.ref).toBe(popOutRef);
+    expect(received.tooltip[0]?.ref).toBe(tooltipRef);
   });
 });
 

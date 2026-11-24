@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
-import { type ComponentType, createRef, type ReactNode, useLayoutEffect, useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  type ComponentProps,
+  type ComponentType,
+  createRef,
+  type ReactNode,
+  type Ref,
+  type RefAttributes,
+  useLayoutEffect,
+  useState,
+} from 'react';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import {
   ScreenSizeProvider,
@@ -243,6 +252,16 @@ describe('MarkdownContent', () => {
   it('puts the HTML in as it is outside the app, as on a fixture page', () => {
     const { container } = render(<MarkdownContent html={TABLE} />);
     expect(container.querySelector('div > table td code')?.textContent).toBe('ed6eed9');
+  });
+
+  it('keeps React RefAttributes in its public prop type', () => {
+    const props: ComponentProps<typeof MarkdownContent> = { key: 'markdown', html: '<p>hi</p>' };
+    const optionalRef: Ref<HTMLDivElement> | undefined = undefined;
+    expectTypeOf<ComponentProps<typeof MarkdownContent>>().toExtend<
+      RefAttributes<HTMLDivElement>
+    >();
+    const { container } = render(<MarkdownContent html={props.html} ref={optionalRef} />);
+    expect(container.querySelector('p')?.textContent).toBe('hi');
   });
 });
 

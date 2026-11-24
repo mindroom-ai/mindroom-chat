@@ -1,6 +1,6 @@
 // HTML a plugin shows as the timeline shows an agent's reply, which `/ui` gives plugins as
 // `MarkdownContent`. Not a subpath: only the SDK's own modules import it.
-import { type Ref, useMemo } from 'react';
+import { type RefAttributes, useMemo } from 'react';
 import { parseHtml } from '../../app/rich-text/parseHtml';
 import { useOptionalMatrixClient } from '../../app/matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../app/matrix/hooks/useMediaAuthentication';
@@ -19,7 +19,6 @@ type MarkdownContentProps = {
    * homeserver fetch media for whoever reads it.
    */
   mxcImages?: boolean;
-  ref?: Ref<HTMLDivElement>;
 };
 
 /**
@@ -29,7 +28,12 @@ type MarkdownContentProps = {
  * else their alt text). Outside the app (a fixture page, which
  * has no account) the HTML goes in as it is.
  */
-export function MarkdownContent({ html, className, mxcImages = false, ref }: MarkdownContentProps) {
+export function MarkdownContent({
+  html,
+  className,
+  mxcImages = false,
+  ref,
+}: MarkdownContentProps & RefAttributes<HTMLDivElement>) {
   const mx = useOptionalMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const content = useMemo(
