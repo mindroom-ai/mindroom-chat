@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
-import { RoomSortMenuContent } from '../room-nav/RoomSortMenu';
+import { type RoomSortInheritOption, RoomSortMenuContent } from '../room-nav/RoomSortMenu';
 import type { RoomSortMode } from '../room-nav/roomOrder';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
@@ -29,6 +29,7 @@ import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread
 import {
   SpaceAddMenuEntries,
   SpaceMenuGroups,
+  type SpaceMenuGroupsProps,
   type SpaceQuickDialogHandlers,
   type SpaceQuickPermissions,
   useSpaceQuickDialogs,
@@ -111,6 +112,8 @@ function SubspaceOptionsWithParent({
   permissions,
   dialogs,
   showAdd,
+  pinMode,
+  showOverview,
   onClose,
 }: {
   subspace: Room;
@@ -118,6 +121,8 @@ function SubspaceOptionsWithParent({
   permissions: SpaceQuickPermissions;
   dialogs: SpaceQuickDialogHandlers;
   showAdd: boolean;
+  pinMode?: SpaceMenuGroupsProps['pinMode'];
+  showOverview?: boolean;
   onClose: () => void;
 }) {
   const parentName = useRoomName(parentSpace);
@@ -129,7 +134,8 @@ function SubspaceOptionsWithParent({
       dialogs={dialogs}
       onClose={onClose}
       showAdd={showAdd}
-      pinMode="toggle"
+      showOverview={showOverview}
+      pinMode={pinMode}
       removeFromParent={
         canEditParent ? { parentSpaceId: parentSpace.roomId, parentName } : undefined
       }
@@ -160,13 +166,11 @@ const isTouchOrNoHover = (event: MouseEvent): boolean =>
 
 export type SubspaceSortOptions = {
   mode: RoomSortMode;
-  inheritedMode: RoomSortMode;
-  overridden: boolean;
+  inherit?: RoomSortInheritOption;
   showTimes: boolean;
   hasSavedOrder: boolean;
   onModeChange: (mode: RoomSortMode) => void;
   onShowTimesChange: (show: boolean) => void;
-  onResetOverride: () => void;
 };
 
 export type SpaceSectionHeaderProps = {
@@ -181,26 +185,33 @@ export type SpaceSectionHeaderProps = {
   shownRoomIds: readonly string[];
   selectedRoomId: string | undefined;
   onCategoryClick: MouseEventHandler<HTMLElement>;
-  /** Per-sub-space sort controls shown inside the sub-space options menu. */
+  /** Per-section sort controls shown inside the space options menu. */
   sort?: SubspaceSortOptions;
+  /** Sidebar pin entry for space options menus (defaults to `'toggle'` when omitted). */
+  pinMode?: SpaceMenuGroupsProps['pinMode'];
+  /** Include a `Space overview` entry navigating directly to the space lobby. */
+  showOverview?: boolean;
 };
 
 /**
  * Collapsible Space sidebar section heading with pure-CSS hover/focus quick actions (`+` and
  * sub-space `⋮`), plus right-click and touch long-press menu support.
  */
-export function SpaceSectionHeader({
-  space,
-  parentSpace,
-  isRoot,
-  isEmpty,
-  categoryId,
-  closed,
-  shownRoomIds,
-  selectedRoomId,
-  onCategoryClick,
-  sort,
-}: SpaceSectionHeaderProps) {
+export function SpaceSectionHeader(props: SpaceSectionHeaderProps) {
+  const {
+    space,
+    parentSpace,
+    isRoot,
+    isEmpty,
+    categoryId,
+    closed,
+    shownRoomIds,
+    selectedRoomId,
+    onCategoryClick,
+    sort,
+    showOverview = false,
+  } = props;
+  const pinMode = 'pinMode' in props ? props.pinMode : 'toggle';
   const { t } = useTranslation();
   const spaceName = revealDirectionControls(useRoomName(space));
   const label = isRoot ? t('sharedUi.space.rooms') : spaceName;
@@ -384,14 +395,17 @@ export function SpaceSectionHeader({
                             mode={sort.mode}
                             showTimes={sort.showTimes}
                             hasSavedOrder={sort.hasSavedOrder}
-                            inherit={{
-                              mode: sort.inheritedMode,
-                              overridden: sort.overridden,
-                              onReset: () => {
-                                sort.onResetOverride();
-                                closeMenu();
-                              },
-                            }}
+                            inherit={
+                              sort.inherit
+                                ? {
+                                    ...sort.inherit,
+                                    onReset: () => {
+                                      sort.inherit!.onReset();
+                                      closeMenu();
+                                    },
+                                  }
+                                : undefined
+                            }
                             onModeChange={(nextMode) => {
                               sort.onModeChange(nextMode);
                               closeMenu();
@@ -409,6 +423,8 @@ export function SpaceSectionHeader({
                           permissions={permissions}
                           dialogs={dialogs}
                           showAdd={menu.kind === 'context'}
+                          pinMode={pinMode}
+                          showOverview={showOverview}
                           onClose={closeMenu}
                         />
                       ) : (
@@ -418,7 +434,8 @@ export function SpaceSectionHeader({
                           dialogs={dialogs}
                           onClose={closeMenu}
                           showAdd={menu.kind === 'context'}
-                          pinMode="toggle"
+                          showOverview={showOverview}
+                          pinMode={pinMode}
                         />
                       )}
                     </>

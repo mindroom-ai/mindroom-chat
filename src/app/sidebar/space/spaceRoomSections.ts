@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
+import { isSpace } from '../../matrix/room';
 import { getJoinedSubspaces, getSpaceOwnRooms } from '../../matrix/state/useSpaceSearchRooms';
 import type { RoomToParents, RoomToUnread } from '../../matrix/types/room';
 import { makeNavCategoryId } from '../../ui/nav/closedNavCategories';
@@ -107,6 +108,83 @@ const belongsToSpaceSection = (
   return false;
 };
 
+const createSectionBuilder = (
+  mx: MatrixClient,
+  visibleRoomIds: string[],
+  roomsByName: string[],
+  directs: Set<string>,
+  roomToParents: RoomToParents,
+  chatRooms: ReadonlySet<string>
+) => {
+  const roomSet = new Set(roomsByName);
+  return (
+    spaceId: string,
+    isRoot: boolean,
+    parentSpaceId: string | undefined,
+    ancestorSpaceIds: string[],
+    categoryId: string
+  ): SpaceRoomSection => {
+    const ownRoomsByName = sortRoomIdsByName(
+      mx,
+      getSpaceOwnRooms(mx, spaceId, visibleRoomIds, directs, roomToParents)
+    );
+    const scopeRoomsByName = roomsByName.filter((roomId) =>
+      belongsToSpaceSection(roomId, spaceId, roomToParents, roomSet, chatRooms)
+    );
+    return {
+      spaceId,
+      isRoot,
+      parentSpaceId,
+      ancestorSpaceIds,
+      isEmpty: scopeRoomsByName.length === 0,
+      categoryId,
+      ownRoomsByName,
+      scopeRoomsByName,
+    };
+  };
+};
+
+const omitRooms = (section: SpaceRoomSection, excluded: ReadonlySet<string>): SpaceRoomSection => {
+  if (excluded.size === 0) return section;
+  const scopeRoomsByName = section.scopeRoomsByName.filter((id) => !excluded.has(id));
+  return {
+    ...section,
+    isEmpty: scopeRoomsByName.length === 0,
+    ownRoomsByName: section.ownRoomsByName.filter((id) => !excluded.has(id)),
+    scopeRoomsByName,
+  };
+};
+
+/** Joined ancestor spaces upward via `roomToParents` (cycle-safe, nearest joined parent first). */
+const getJoinedAncestorSpaceIds = (
+  mx: MatrixClient,
+  spaceId: string,
+  joinedSpaceSet: ReadonlySet<string>,
+  roomToParents: RoomToParents,
+  preferredParentId?: string
+): string[] => {
+  const ancestors: string[] = [];
+  const seen = new Set<string>([spaceId]);
+  const enqueue = (id: string, firstParentId?: string) => {
+    const direct = sortRoomIdsByName(
+      mx,
+      [...(roomToParents.get(id) ?? [])].filter((parentId) => joinedSpaceSet.has(parentId))
+    );
+    const ordered =
+      firstParentId && direct.includes(firstParentId)
+        ? [firstParentId, ...direct.filter((parentId) => parentId !== firstParentId)]
+        : direct;
+    ordered.forEach((parentId) => {
+      if (seen.has(parentId)) return;
+      seen.add(parentId);
+      ancestors.push(parentId);
+    });
+  };
+  enqueue(spaceId, preferredParentId);
+  for (let i = 0; i < ancestors.length; i += 1) enqueue(ancestors[i]!);
+  return ancestors;
+};
+
 /**
  * Flat ordered room sections for a Space sidebar: the active space's Rooms section first, followed
  * by joined descendant sub-spaces in pre-order DFS. A room listed in a sub-space is left out of
@@ -126,68 +204,145 @@ export const getSpaceRoomSections = (
   chatRooms: ReadonlySet<string>,
   canEditSpace: (spaceId: string) => boolean = () => false
 ): SpaceRoomSection[] => {
-  const spaceRoomSet = new Set(spaceRoomsByName);
-  const buildSection = (
-    sectionSpaceId: string,
-    isRoot: boolean,
-    parentSpaceId: string | undefined,
-    ancestorSpaceIds: string[]
-  ): SpaceRoomSection => {
-    const ownRoomsByName = sortRoomIdsByName(
-      mx,
-      getSpaceOwnRooms(mx, sectionSpaceId, visibleRoomIds, directs, roomToParents)
-    );
-    const scopeRoomsByName = spaceRoomsByName.filter((roomId) =>
-      belongsToSpaceSection(roomId, sectionSpaceId, roomToParents, spaceRoomSet, chatRooms)
-    );
-    return {
-      spaceId: sectionSpaceId,
-      isRoot,
-      parentSpaceId,
-      ancestorSpaceIds,
-      isEmpty: scopeRoomsByName.length === 0,
-      categoryId: isRoot
-        ? makeNavCategoryId(rootSpaceId, 'room')
-        : makeNavCategoryId(rootSpaceId, 'subspace', sectionSpaceId),
-      ownRoomsByName,
-      scopeRoomsByName,
-    };
-  };
-
-  const builtRoot = buildSection(rootSpaceId, true, undefined, []);
+  const build = createSectionBuilder(
+    mx,
+    visibleRoomIds,
+    spaceRoomsByName,
+    directs,
+    roomToParents,
+    chatRooms
+  );
+  const builtRoot = build(rootSpaceId, true, undefined, [], makeNavCategoryId(rootSpaceId, 'room'));
   const builtSubspaces = getDescendantSubspaceEntries(
     mx,
     rootSpaceId,
     joinedRoomIds,
     roomToParents
   ).map(({ spaceId, parentSpaceId, ancestorSpaceIds }) =>
-    buildSection(spaceId, false, parentSpaceId, ancestorSpaceIds)
+    build(
+      spaceId,
+      false,
+      parentSpaceId,
+      ancestorSpaceIds,
+      makeNavCategoryId(rootSpaceId, 'subspace', spaceId)
+    )
   );
   // A room that a sub-space lists shows there only, not again in the spaces above it.
-  const withoutRoomsListedBelow = (section: SpaceRoomSection): SpaceRoomSection => {
-    const listedBelow = new Set(
-      builtSubspaces
-        .filter((other) => other.ancestorSpaceIds.includes(section.spaceId))
-        .flatMap((other) => other.scopeRoomsByName)
+  const dedupe = (section: SpaceRoomSection): SpaceRoomSection =>
+    omitRooms(
+      section,
+      new Set(
+        builtSubspaces
+          .filter((other) => other.ancestorSpaceIds.includes(section.spaceId))
+          .flatMap((other) => other.scopeRoomsByName)
+      )
     );
-    if (listedBelow.size === 0) return section;
-    const scopeRoomsByName = section.scopeRoomsByName.filter((id) => !listedBelow.has(id));
-    return {
-      ...section,
-      isEmpty: scopeRoomsByName.length === 0,
-      ownRoomsByName: section.ownRoomsByName.filter((id) => !listedBelow.has(id)),
-      scopeRoomsByName,
-    };
-  };
-  const rootSection = withoutRoomsListedBelow(builtRoot);
+  const rootSection = dedupe(builtRoot);
   const subspaceSections = builtSubspaces
-    .map(withoutRoomsListedBelow)
+    .map(dedupe)
     .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
 
   if (rootSection.isEmpty && subspaceSections.length > 0 && !canEditSpace(rootSpaceId)) {
     return subspaceSections;
   }
   return [rootSection, ...subspaceSections];
+};
+
+export type HomeSpaceSections = {
+  /** Visible ordinary rooms outside every joined space, sorted A to Z. */
+  unspacedByName: string[];
+  /** Ordered joined space sections for Home (rail order + DFS sub-spaces + remaining sweep). */
+  sections: SpaceRoomSection[];
+};
+
+/**
+ * Splits Home's visible ordinary rooms into unspaced rooms and flat ordered space sections:
+ * spaces follow `railSpaceIds` with each space's joined descendants immediately below in pre-order
+ * DFS, then any remaining joined spaces (e.g. mutual cycles or sub-spaces whose parent was left).
+ * Rooms listed in any Matrix descendant sub-space are omitted from ancestor spaces regardless of
+ * rail pin order, and empty spaces are kept only when `canEditSpace` allows adding rooms.
+ */
+export const getHomeSpaceSections = (
+  mx: MatrixClient,
+  railSpaceIds: readonly string[],
+  joinedRoomIds: string[],
+  visibleRoomIds: string[],
+  homeRoomsByName: string[],
+  directs: Set<string>,
+  roomToParents: RoomToParents,
+  chatRooms: ReadonlySet<string>,
+  canEditSpace: (spaceId: string) => boolean = () => false
+): HomeSpaceSections => {
+  const joinedSpaceIds = joinedRoomIds.filter((roomId) => isSpace(mx.getRoom(roomId)));
+  const joinedSpaceSet = new Set(joinedSpaceIds);
+  const build = createSectionBuilder(
+    mx,
+    visibleRoomIds,
+    homeRoomsByName,
+    directs,
+    roomToParents,
+    chatRooms
+  );
+
+  const emitted = new Set<string>();
+  const built: SpaceRoomSection[] = [];
+  const emit = (spaceId: string, preferredParentId?: string) => {
+    if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return;
+    emitted.add(spaceId);
+    const ancestors = getJoinedAncestorSpaceIds(
+      mx,
+      spaceId,
+      joinedSpaceSet,
+      roomToParents,
+      preferredParentId
+    );
+    built.push(
+      build(spaceId, false, ancestors[0], ancestors, makeNavCategoryId('home', 'space', spaceId))
+    );
+  };
+  const emitTree = (rootSpaceId: string) => {
+    if (emitted.has(rootSpaceId) || !joinedSpaceSet.has(rootSpaceId)) return;
+    emit(rootSpaceId);
+    getDescendantSubspaceEntries(mx, rootSpaceId, joinedRoomIds, roomToParents).forEach(
+      ({ spaceId, parentSpaceId }) => emit(spaceId, parentSpaceId)
+    );
+  };
+
+  railSpaceIds.forEach(emitTree);
+  const remaining = sortRoomIdsByName(
+    mx,
+    joinedSpaceIds.filter((id) => !emitted.has(id))
+  );
+  const remainingRoots = remaining.filter(
+    (id) => ![...(roomToParents.get(id) ?? [])].some((parentId) => joinedSpaceSet.has(parentId))
+  );
+  [...remainingRoots, ...remaining].forEach(emitTree);
+
+  const covered = new Set(built.flatMap((section) => section.scopeRoomsByName));
+  const unspacedByName = homeRoomsByName.filter((roomId) => !covered.has(roomId));
+  const descendantsOf = new Map(
+    built.map((section) => [
+      section.spaceId,
+      new Set(getDescendantSubspaces(mx, section.spaceId, joinedRoomIds, roomToParents)),
+    ])
+  );
+  const bySpace = new Map(built.map((section, index) => [section.spaceId, { section, index }]));
+
+  const sections = built
+    .map((section, index) => {
+      const listedBelow = new Set<string>();
+      descendantsOf.get(section.spaceId)?.forEach((descendantId) => {
+        const entry = bySpace.get(descendantId);
+        if (!entry) return;
+        const mutualCycle = descendantsOf.get(descendantId)?.has(section.spaceId) ?? false;
+        if (mutualCycle && entry.index < index) return;
+        entry.section.scopeRoomsByName.forEach((roomId) => listedBelow.add(roomId));
+      });
+      return omitRooms(section, listedBelow);
+    })
+    .filter((section) => !section.isEmpty || canEditSpace(section.spaceId));
+
+  return { unspacedByName, sections };
 };
 
 export type CollapsedSectionUnread = { readonly highlight: boolean };

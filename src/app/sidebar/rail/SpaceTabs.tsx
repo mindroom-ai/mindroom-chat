@@ -33,7 +33,7 @@ import { useSelectedSpace } from '../../navigation/useSelectedSpace';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
+import { spaceOrderAtomFor } from '../../spaces/sidebarOrder';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
@@ -83,17 +83,6 @@ type DragData = { drag: SidebarDragItem };
 
 const readDrag = (data: unknown): SidebarDragItem | undefined =>
   (data as { current?: DragData } | undefined)?.current?.drag;
-
-// One local order atom per account, made once, so every rail of that account shares it.
-const spaceOrderAtoms = new Map<string, SpaceOrderAtom>();
-const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
-  let orderAtom = spaceOrderAtoms.get(userId);
-  if (!orderAtom) {
-    orderAtom = makeSpaceOrderAtom(userId);
-    spaceOrderAtoms.set(userId, orderAtom);
-  }
-  return orderAtom;
-};
 
 /** Folders open in the rail in this session, by folder ID. */
 export const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
