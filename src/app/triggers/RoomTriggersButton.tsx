@@ -5,51 +5,30 @@ import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { RoomDialogOverlay } from '../schedules/RoomDialogOverlay';
 import * as schedCss from '../schedules/roomSchedules.css';
-import { RoomTriggersDialog } from './RoomTriggersDialog';
+import { RoomTriggersDialog, type RoomTriggersDialogProps } from './RoomTriggersDialog';
 import { TriggersIcon } from './TriggersIcon';
-import type { RoomTrigger } from './roomTriggersApi';
 
-type RoomTriggersOverlayProps = {
-  roomId: string;
-  triggers: readonly RoomTrigger[];
-  loading?: boolean;
-  highlightTriggerId?: string;
-  highlightRequest?: object;
+type RoomTriggersOverlayProps = Omit<RoomTriggersDialogProps, 'onClose'> & {
   headerRef?: RefObject<HTMLElement | null>;
   onClose: (dismissed?: boolean) => void;
-  onOpenThread: (threadId: string, targetRoomId?: string) => void;
-  onToggleTrigger: (triggerId: string, enabled: boolean) => Promise<void>;
-  onDeleteTrigger: (triggerId: string) => Promise<void>;
 };
 
 /** The room's triggers dialog centered over the room view. */
 export function RoomTriggersOverlay({
-  roomId,
-  triggers,
-  loading,
-  highlightTriggerId,
-  highlightRequest,
   headerRef,
   onClose,
   onOpenThread,
-  onToggleTrigger,
-  onDeleteTrigger,
+  ...dialogProps
 }: RoomTriggersOverlayProps) {
   return (
     <RoomDialogOverlay headerRef={headerRef} onClose={onClose}>
       <RoomTriggersDialog
-        roomId={roomId}
-        triggers={triggers}
-        loading={loading}
-        highlightTriggerId={highlightTriggerId}
-        highlightRequest={highlightRequest}
+        {...dialogProps}
         onClose={() => onClose(true)}
         onOpenThread={(threadId, targetRoomId) => {
           onClose();
           onOpenThread(threadId, targetRoomId);
         }}
-        onToggleTrigger={onToggleTrigger}
-        onDeleteTrigger={onDeleteTrigger}
       />
     </RoomDialogOverlay>
   );
@@ -74,17 +53,18 @@ export function RoomTriggersMenuEntry({
   );
 }
 
-type RoomTriggersButtonProps = {
+/** Opens room triggers from the room header, with the room's trigger count. */
+export function RoomTriggersButton({
+  total,
+  open,
+  onOpen,
+}: {
   total: number;
   open: boolean;
   onOpen: (opener: HTMLButtonElement) => void;
-};
-
-/** Opens room triggers from the room header, with the room's trigger count. */
-export function RoomTriggersButton({ total, open, onOpen }: RoomTriggersButtonProps) {
+}) {
   const { t } = useTranslation();
   const label = t('roomTriggers.openLabel', { total });
-
   return (
     <TooltipProvider
       position="Bottom"

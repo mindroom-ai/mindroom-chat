@@ -25,22 +25,20 @@ export type RoomTrigger = {
 };
 
 const TIMEOUT_MS = 8_000;
-const TRIGGER_KINDS = new Set<string>(['webhook', 'room_message', 'thread_tag', 'external_event']);
-const TRIGGER_RELATIONS = new Set<string>(['target', 'watch']);
+const KINDS = new Set<string>(['webhook', 'room_message', 'thread_tag', 'external_event']);
+const RELATIONS = new Set<string>(['target', 'watch']);
 const THREAD_MODES = new Set<string>(['room', 'thread', 'new_thread', 'origin']);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const optionalString = (value: unknown): string | null | undefined => {
-  if (value === null || value === undefined) return null;
-  return typeof value === 'string' ? value : undefined;
-};
-
-const optionalFiniteNumber = (value: unknown): number | null | undefined => {
-  if (value === null || value === undefined) return null;
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-};
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const optStr = (v: unknown): string | null | undefined =>
+  v === null || v === undefined ? null : typeof v === 'string' ? v : undefined;
+const optNum = (v: unknown): number | null | undefined =>
+  v === null || v === undefined
+    ? null
+    : typeof v === 'number' && Number.isFinite(v)
+      ? v
+      : undefined;
 
 export const roomTriggersPath = (roomId: string): string =>
   `/api/rooms/${encodeURIComponent(roomId)}/triggers`;
@@ -51,74 +49,71 @@ export const roomTriggerPath = (roomId: string, triggerId: string): string =>
 /** Parses one backend TriggerRow defensively; unknown fields are ignored and malformed rows drop. */
 export const parseTriggerRow = (raw: unknown): RoomTrigger | null => {
   if (!isRecord(raw)) return null;
-  const triggerId =
-    typeof raw.trigger_id === 'string' && raw.trigger_id.trim().length > 0
-      ? raw.trigger_id
-      : undefined;
-  const kind =
-    typeof raw.kind === 'string' && TRIGGER_KINDS.has(raw.kind)
-      ? (raw.kind as TriggerKind)
-      : undefined;
-  const relation =
-    typeof raw.relation === 'string' && TRIGGER_RELATIONS.has(raw.relation)
-      ? (raw.relation as TriggerRelation)
-      : undefined;
-  const threadMode =
-    typeof raw.thread_mode === 'string' && THREAD_MODES.has(raw.thread_mode)
-      ? (raw.thread_mode as TriggerThreadMode)
-      : undefined;
-  const description = typeof raw.description === 'string' ? raw.description : undefined;
-  const prompt = optionalString(raw.prompt);
-  const agent = optionalString(raw.agent);
-  const targetRoomId = optionalString(raw.target_room_id);
-  const targetThreadId = optionalString(raw.target_thread_id);
-  const disabledReason = optionalString(raw.disabled_reason);
-  const expiresAt = optionalFiniteNumber(raw.expires_at);
-  const lastFiredAt = optionalFiniteNumber(raw.last_fired_at);
-  const ownerUserId = typeof raw.owner_user_id === 'string' ? raw.owner_user_id : undefined;
+  const {
+    trigger_id: id,
+    kind,
+    relation,
+    description,
+    thread_mode: threadMode,
+    enabled,
+    once,
+    owner_user_id: ownerUserId,
+    can_manage: canManage,
+  } = raw;
+  const prompt = optStr(raw.prompt);
+  const agent = optStr(raw.agent);
+  const targetRoomId = optStr(raw.target_room_id);
+  const targetThreadId = optStr(raw.target_thread_id);
+  const disabledReason = optStr(raw.disabled_reason);
+  const expiresAt = optNum(raw.expires_at);
+  const lastFiredAt = optNum(raw.last_fired_at);
 
   if (
-    triggerId === undefined ||
-    kind === undefined ||
-    relation === undefined ||
-    threadMode === undefined ||
-    description === undefined ||
+    typeof id !== 'string' ||
+    id.trim().length === 0 ||
+    typeof kind !== 'string' ||
+    !KINDS.has(kind) ||
+    typeof relation !== 'string' ||
+    !RELATIONS.has(relation) ||
+    typeof threadMode !== 'string' ||
+    !THREAD_MODES.has(threadMode) ||
+    typeof description !== 'string' ||
+    typeof ownerUserId !== 'string' ||
+    typeof enabled !== 'boolean' ||
+    typeof once !== 'boolean' ||
+    typeof canManage !== 'boolean' ||
     prompt === undefined ||
     agent === undefined ||
     targetRoomId === undefined ||
     targetThreadId === undefined ||
     disabledReason === undefined ||
     expiresAt === undefined ||
-    lastFiredAt === undefined ||
-    ownerUserId === undefined ||
-    typeof raw.enabled !== 'boolean' ||
-    typeof raw.once !== 'boolean' ||
-    typeof raw.can_manage !== 'boolean'
+    lastFiredAt === undefined
   ) {
     return null;
   }
 
   return {
-    triggerId,
-    kind,
-    relation,
+    triggerId: id,
+    kind: kind as TriggerKind,
+    relation: relation as TriggerRelation,
     description,
     prompt,
     agent,
     targetRoomId,
     targetThreadId,
-    threadMode,
-    enabled: raw.enabled,
-    disabledReason: disabledReason && disabledReason.trim().length > 0 ? disabledReason : null,
-    once: raw.once,
+    threadMode: threadMode as TriggerThreadMode,
+    enabled,
+    disabledReason: disabledReason?.trim() ? disabledReason : null,
+    once,
     expiresAt,
     lastFiredAt,
     ownerUserId,
-    canManage: raw.can_manage,
+    canManage,
   };
 };
 
-/** Parses `{ triggers: [...] }`; malformed rows are dropped and duplicate trigger IDs keep the first. */
+/** Parses `{ triggers: [...] }`; malformed rows drop and duplicate IDs keep the first. */
 export const parseRoomTriggersResponse = (raw: unknown): RoomTrigger[] => {
   if (!isRecord(raw) || !Array.isArray(raw.triggers)) return [];
   const seen = new Set<string>();
@@ -132,7 +127,6 @@ export const parseRoomTriggersResponse = (raw: unknown): RoomTrigger[] => {
   return rows;
 };
 
-/** Runs `send` with an 8 s timeout combined with an optional caller `AbortSignal`. */
 const sendWithTimeout = async (
   mx: MatrixClient,
   apiUrl: string,
@@ -140,10 +134,9 @@ const sendWithTimeout = async (
   init: RequestInit = {}
 ): Promise<Response> => {
   const controller = new AbortController();
-  const callerSignal = init.signal;
-  const onCallerAbort = () => controller.abort();
-  if (callerSignal?.aborted) controller.abort();
-  else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+  const onAbort = () => controller.abort();
+  if (init.signal?.aborted) controller.abort();
+  else init.signal?.addEventListener('abort', onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     return await clientSessions(mx, apiUrl).send(path, {
@@ -153,14 +146,11 @@ const sendWithTimeout = async (
     });
   } finally {
     clearTimeout(timer);
-    callerSignal?.removeEventListener('abort', onCallerAbort);
+    init.signal?.removeEventListener('abort', onAbort);
   }
 };
 
-/**
- * Fetches the room's triggers. Returns `[]` on 404 (older backend), 401/403, network error,
- * or timeout so the header entry stays hidden. Rethrows only if the caller's signal aborted.
- */
+/** Returns `[]` on 404/401/403/network/timeout; rethrows only if `signal` aborted. */
 export const fetchRoomTriggers = async (
   mx: MatrixClient,
   apiUrl: string,
@@ -168,12 +158,11 @@ export const fetchRoomTriggers = async (
   signal?: AbortSignal
 ): Promise<RoomTrigger[]> => {
   try {
-    const response = await sendWithTimeout(mx, apiUrl, roomTriggersPath(roomId), {
+    const res = await sendWithTimeout(mx, apiUrl, roomTriggersPath(roomId), {
       headers: { Accept: 'application/json' },
       signal,
     });
-    if (!response.ok) return [];
-    return parseRoomTriggersResponse(await response.json());
+    return res.ok ? parseRoomTriggersResponse(await res.json()) : [];
   } catch (error) {
     if (signal?.aborted) throw error;
     return [];
@@ -189,7 +178,6 @@ export class RoomTriggerMutationError extends Error {
   }
 }
 
-/** Enables or disables a trigger owned by the caller via `PATCH`. */
 export const setRoomTriggerEnabled = async (
   mx: MatrixClient,
   apiUrl: string,
@@ -197,35 +185,23 @@ export const setRoomTriggerEnabled = async (
   triggerId: string,
   enabled: boolean
 ): Promise<RoomTrigger | null> => {
-  const response = await sendWithTimeout(mx, apiUrl, roomTriggerPath(roomId, triggerId), {
+  const res = await sendWithTimeout(mx, apiUrl, roomTriggerPath(roomId, triggerId), {
     method: 'PATCH',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled }),
   });
-  if (!response.ok) {
-    throw new RoomTriggerMutationError(
-      `Could not update trigger (${response.status}).`,
-      response.status
-    );
-  }
-  const body: unknown = await response.json().catch(() => undefined);
-  return parseTriggerRow(body);
+  if (!res.ok) throw new RoomTriggerMutationError(`Update failed (${res.status}).`, res.status);
+  return parseTriggerRow(await res.json().catch(() => undefined));
 };
 
-/** Deletes a trigger owned by the caller via `DELETE`. */
 export const deleteRoomTrigger = async (
   mx: MatrixClient,
   apiUrl: string,
   roomId: string,
   triggerId: string
 ): Promise<void> => {
-  const response = await sendWithTimeout(mx, apiUrl, roomTriggerPath(roomId, triggerId), {
+  const res = await sendWithTimeout(mx, apiUrl, roomTriggerPath(roomId, triggerId), {
     method: 'DELETE',
   });
-  if (!response.ok) {
-    throw new RoomTriggerMutationError(
-      `Could not delete trigger (${response.status}).`,
-      response.status
-    );
-  }
+  if (!res.ok) throw new RoomTriggerMutationError(`Delete failed (${res.status}).`, res.status);
 };

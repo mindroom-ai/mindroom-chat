@@ -1,7 +1,10 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}`;
+const neutralSurface = {
+  backgroundColor: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+} as const;
 
 export const TriggerCard = style({
   selectors: {
@@ -9,10 +12,7 @@ export const TriggerCard = style({
       borderColor: color.Primary.Main,
       backgroundColor: `color-mix(in srgb, ${color.Primary.Container} 45%, transparent)`,
     },
-    '&:focus-visible': {
-      outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: toRem(2),
-    },
+    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: toRem(2) },
   },
 });
 
@@ -32,7 +32,6 @@ export const CardBody = style({
   flexDirection: 'column',
   gap: config.space.S200,
   minWidth: 0,
-  paddingBlockStart: 0,
   paddingBlockEnd: config.space.S300,
   paddingInline: config.space.S300,
 });
@@ -46,8 +45,7 @@ export const IconTileNeutral = style({
   borderRadius: config.radii.R300,
   flexShrink: 0,
   marginBlockStart: toRem(1),
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
+  ...neutralSurface,
 });
 
 export const StatusPillNeutral = style({
@@ -61,7 +59,6 @@ export const StatusPillNeutral = style({
   lineHeight: 1.3,
   flexShrink: 0,
   maxWidth: '100%',
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  border: solid(config.borderWidth.B300, color.SurfaceVariant.ContainerLine),
+  ...neutralSurface,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
 });
