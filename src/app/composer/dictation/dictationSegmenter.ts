@@ -15,12 +15,12 @@ const REDEMPTION_FRAMES = 8;
 const DEFAULT_LONG_SILENCE_FRAMES = Math.round(8_000 / DICTATION_FRAME_MS) - REDEMPTION_FRAMES;
 const SOFT_CUT_FRAMES = Math.round(15_000 / DICTATION_FRAME_MS);
 const SOFT_CUT_QUIET_FRAMES = 2;
-const HARD_CUT_FRAMES = Math.round(25_000 / DICTATION_FRAME_MS);
+export const DICTATION_HARD_CUT_FRAMES = Math.round(25_000 / DICTATION_FRAME_MS);
 const HARD_CUT_SEARCH_FRAMES = Math.round(1_000 / DICTATION_FRAME_MS);
-const HARD_CUT_OVERLAP_FRAMES = 6;
+export const DICTATION_HARD_CUT_OVERLAP_FRAMES = 6;
 /** Minimum voiced frames (~192 ms) accepted on both natural pauses and Finish. */
 const MIN_SPEECH_FRAMES = 2;
-const SILENCE_RMS_FLOOR = 0.004;
+export const SILENCE_RMS_FLOOR = 0.004;
 const FALLBACK_RMS_THRESHOLD = 0.015;
 
 export type DictationSegmentCutReason = 'natural' | 'soft' | 'hard' | 'flush';
@@ -68,7 +68,7 @@ type ScoredFrame = {
 };
 
 /** Computes root-mean-square amplitude for a PCM float frame in [-1, 1]. */
-const computeFrameRms = (frame: Float32Array): number => {
+export const computeFrameRms = (frame: Float32Array): number => {
   if (frame.length === 0) return 0;
   let sum = 0;
   for (let i = 0; i < frame.length; i += 1) {
@@ -364,7 +364,7 @@ export class DictationSegmenter {
       return;
     }
 
-    if (this.segmentFrames.length >= HARD_CUT_FRAMES) {
+    if (this.segmentFrames.length >= DICTATION_HARD_CUT_FRAMES) {
       this.hardCut();
     }
   }
@@ -391,7 +391,7 @@ export class DictationSegmenter {
 
     const emittedFrames = frames.slice(0, cutIndex + 1);
     const overlapped = this.nextSegmentOverlapped;
-    const overlapStart = Math.max(0, cutIndex + 1 - HARD_CUT_OVERLAP_FRAMES);
+    const overlapStart = Math.max(0, cutIndex + 1 - DICTATION_HARD_CUT_OVERLAP_FRAMES);
     this.segmentFrames = frames.slice(overlapStart);
     this.nextSegmentOverlapped = true;
     this.speaking = true;

@@ -26,10 +26,14 @@ import {
   restoreLiveCapture,
 } from '../capture/liveCapture';
 import {
+  computeFrameRms,
+  decodePcm16Frames,
   DICTATION_FRAME_SAMPLES,
+  DICTATION_MAX_SEGMENT_BYTES,
   DICTATION_SAMPLE_RATE,
   encodePcm16Frames,
   encodePcm16WavBuffer,
+  SILENCE_RMS_FLOOR,
 } from './dictationSegmenter';
 import type { DictationCaptureFactory, DictationSessionOptions } from './dictationSession';
 import {
@@ -563,7 +567,12 @@ describe('startLiveDictation and recovery', () => {
     journalB2.release();
     await waitForJournalSettled();
 
-    const storedA = putSession({ baseUrl: HS_A, userId: USER_A, deviceId: 'DEV_A', accessToken: 'a' });
+    const storedA = putSession({
+      baseUrl: HS_A,
+      userId: USER_A,
+      deviceId: 'DEV_A',
+      accessToken: 'a',
+    });
     putSession({ baseUrl: HS_B, userId: USER_A, deviceId: 'DEV_B', accessToken: 'b' });
     await removeStoredSession(storedA);
 
@@ -743,5 +752,208 @@ describe('startLiveDictation and recovery', () => {
 
     await live.session.discard();
     settingsView.unmount();
+  });
+  it('recovers quiet-speech tail (max RMS 0.014) with Silero VAD scorer and releases VAD', async () => {
+    const quietSpeechFrame = makeFrame(0.014 * Math.SQRT2);
+    const decodedRms = computeFrameRms(
+      decodePcm16Frames(encodePcm16Frames([quietSpeechFrame]))[0]!
+    );
+    expect(decodedRms).toBeGreaterThan(SILENCE_RMS_FLOOR);
+    expect(decodedRms).toBeLessThan(0.015);
+
+    const journal = beginDictationJournal(SESSION_A, {
+      startedAt: 30_000,
+      elapsedMs: 0,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    // 4 silent lead frames + 46 quiet speech frames (~4.4s) + 4 silent trail frames.
+    const frames = [
+      ...Array.from({ length: 4 }, () => makeFrame(0)),
+      ...Array.from({ length: 46 }, () => quietSpeechFrame),
+      ...Array.from({ length: 4 }, () => makeFrame(0)),
+    ];
+    await journal.appendTail(0, encodePcm16Frames(frames), 5_184, 0, frames.length);
+    journal.release();
+    await waitForJournalSettled();
+
+    const release = vi.fn(async () => undefined);
+    const loadVad = vi.fn(async () => ({
+      score: async (frame: Float32Array) => (computeFrameRms(frame) >= 0.01 ? 0.92 : 0.04),
+      reset: vi.fn(),
+      release,
+    }));
+
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+    await recoverDictationForAccount(store, makeMatrixClient(USER_A), {}, { loadVad });
+    await waitForJournalSettled(60);
+
+    expect(loadVad).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(await hasDictationJournalRecord(SESSION_A)).toBe(true);
+
+    const live = store.get(liveCaptureAtom);
+    expect(live?.kind).toBe('dictation');
+    if (live?.kind !== 'dictation') throw new Error('expected dictation');
+    expect(live.session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      recovered: true,
+      pendingUploads: 1,
+      elapsedMs: 5_184,
+    });
+
+    const mockTranscribe = vi.fn(async () => ({ text: 'Quiet speech recovered.', seconds: 4.4 }));
+    live.session.attachClient({ transcribe: mockTranscribe }, '!room:example.org');
+    await waitFor(() => {
+      expect(live.session.getSnapshot().previewText).toBe('Quiet speech recovered.');
+    });
+    await live.session.discard();
+  });
+
+  it('preserves quiet-speech tail (max RMS 0.014) as bounded fallback WAV(s) when Silero VAD load fails', async () => {
+    const quietSpeechFrame = makeFrame(0.014 * Math.SQRT2);
+    const decodedRms = computeFrameRms(
+      decodePcm16Frames(encodePcm16Frames([quietSpeechFrame]))[0]!
+    );
+    expect(decodedRms).toBeGreaterThan(SILENCE_RMS_FLOOR);
+    expect(decodedRms).toBeLessThan(0.015);
+
+    const journal = beginDictationJournal(SESSION_A, {
+      startedAt: 40_000,
+      elapsedMs: 0,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    const frames = Array.from({ length: 46 }, () => quietSpeechFrame);
+    await journal.appendTail(0, encodePcm16Frames(frames), 4_416, 0, frames.length);
+    journal.release();
+    await waitForJournalSettled();
+
+    const loadVad = vi.fn(async () => {
+      throw new Error('WASM unavailable offline');
+    });
+
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+    await recoverDictationForAccount(store, makeMatrixClient(USER_A), {}, { loadVad });
+    await waitForJournalSettled(60);
+
+    expect(loadVad).toHaveBeenCalledTimes(1);
+    const row = await readJournalRow(journal.id);
+    expect(row.recording).toBeDefined();
+    expect(row.chunks.some((c) => c.seq === 0)).toBe(true);
+    expect(row.chunks.some((c) => c.seq >= TAIL_SEQ_OFFSET)).toBe(false);
+
+    const live = store.get(liveCaptureAtom);
+    expect(live?.kind).toBe('dictation');
+    if (live?.kind !== 'dictation') throw new Error('expected dictation');
+    expect(live.session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      recovered: true,
+      pendingUploads: 1,
+      elapsedMs: 4_416,
+    });
+
+    const receivedSizes: number[] = [];
+    live.session.attachClient(
+      {
+        transcribe: async (wav) => {
+          receivedSizes.push(wav.size);
+          return { text: 'Fallback quiet speech.', seconds: 4.4 };
+        },
+      },
+      '!room:example.org'
+    );
+    await waitFor(() => {
+      expect(live.session.getSnapshot().previewText).toBe('Fallback quiet speech.');
+    });
+    expect(receivedSizes).toHaveLength(1);
+    expect(receivedSizes[0]).toBeLessThanOrEqual(DICTATION_MAX_SEGMENT_BYTES);
+    await live.session.discard();
+
+    // Long quiet speech (>25s) splits into multiple bounded WAV segments <= DICTATION_MAX_SEGMENT_BYTES.
+    const longJournal = beginDictationJournal(SESSION_A, {
+      startedAt: 41_000,
+      elapsedMs: 0,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    const longFrames = Array.from({ length: 280 }, () => quietSpeechFrame);
+    await longJournal.appendTail(0, encodePcm16Frames(longFrames), 26_880, 0, longFrames.length);
+    longJournal.release();
+    await waitForJournalSettled();
+
+    const longStore = createStore();
+    longStore.set(computerServicePreferenceAtom, '');
+    const capturedOpts: DictationSessionOptions[] = [];
+    await recoverDictationForAccount(
+      longStore,
+      makeMatrixClient(USER_A),
+      {},
+      {
+        loadVad,
+        createSession: (opts) => {
+          capturedOpts.push(opts);
+          return makePausedStubSession();
+        },
+      }
+    );
+    const recoveredRecords = capturedOpts[0]?.recovered?.records ?? [];
+    expect(recoveredRecords).toHaveLength(2);
+    expect(recoveredRecords[0]?.segment.cutReason).toBe('hard');
+    expect(recoveredRecords[1]?.segment.overlapped).toBe(true);
+    for (const rec of recoveredRecords) {
+      expect(rec.wav?.size).toBeGreaterThan(0);
+      expect(rec.wav?.size).toBeLessThanOrEqual(DICTATION_MAX_SEGMENT_BYTES);
+    }
+    await deleteCapture(longJournal.id);
+  });
+
+  it('still deletes pure silence tail journals as empty when Silero VAD load fails or finds no speech', async () => {
+    // 1. Digital zero silence with failing VAD -> deleted.
+    const zeroJournal = beginDictationJournal(SESSION_A, {
+      startedAt: 50_000,
+      elapsedMs: 1_000,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    const zeroFrames = Array.from({ length: 12 }, () => makeFrame(0));
+    await zeroJournal.appendTail(0, encodePcm16Frames(zeroFrames), 1_152, 0, zeroFrames.length);
+    zeroJournal.release();
+
+    // 2. Floor noise <= SILENCE_RMS_FLOOR with failing VAD -> also deleted.
+    const floorFrame = makeFrame(0.003 * Math.SQRT2);
+    expect(
+      computeFrameRms(decodePcm16Frames(encodePcm16Frames([floorFrame]))[0]!)
+    ).toBeLessThanOrEqual(SILENCE_RMS_FLOOR);
+    const floorJournal = beginDictationJournal(SESSION_A, {
+      startedAt: 51_000,
+      elapsedMs: 1_000,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    const floorFrames = Array.from({ length: 12 }, () => floorFrame);
+    await floorJournal.appendTail(0, encodePcm16Frames(floorFrames), 1_152, 0, floorFrames.length);
+    floorJournal.release();
+    await waitForJournalSettled();
+
+    const failingVad = vi.fn(async () => {
+      throw new Error('WASM unavailable');
+    });
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+    await recoverDictationForAccount(store, makeMatrixClient(USER_A), {}, { loadVad: failingVad });
+    await waitForJournalSettled();
+
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect((await readJournalRow(zeroJournal.id)).recording).toBeUndefined();
+    expect((await readJournalRow(floorJournal.id)).recording).toBeUndefined();
+    expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
   });
 });

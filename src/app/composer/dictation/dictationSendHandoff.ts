@@ -49,7 +49,7 @@ type JotaiStore = ReturnType<typeof createStore>;
 type ComposerContext = { roomId: string; threadId: string | undefined };
 
 export type MountedDictationOwner = {
-  insertDictatedText: (text: string, focus: boolean) => void;
+  insertDictatedText: (text: string, focus: boolean, session: DictationSession) => void;
   restoreText: (fragment: Descendant[]) => void;
   restoreReplyDraft: (replyDraft: IReplyDraft) => void;
   restoreAttachments: (roomId: string, items: TUploadItem[]) => void;

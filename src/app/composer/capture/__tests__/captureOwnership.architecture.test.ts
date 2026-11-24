@@ -18,6 +18,7 @@ import {
 
 const CAPTURE_OWNER = appFile('composer/voice/voiceCaptureSession.ts');
 const DICTATION_SESSION = appFile('composer/dictation/dictationSession.ts');
+const DICTATION_CHECKPOINT = appFile('composer/dictation/dictationCheckpoint.ts');
 const LIVE_OWNER = appFile('composer/capture/liveCapture.ts');
 const NON_UI_FEATURES = appFile('shell/ClientNonUIFeatures.tsx');
 const CAPTURE_JOURNAL = appFile('composer/capture/captureJournal.ts');
@@ -144,6 +145,7 @@ describe('shared live capture and voice ownership architecture', () => {
       'composer/voice/startLiveVoiceRecording.ts',
       'composer/capture/captureJournal.ts',
       'composer/dictation/dictationSession.ts',
+      'composer/dictation/dictationCheckpoint.ts',
       'composer/dictation/dictationAudioCapture.ts',
       'composer/dictation/sileroVad.ts',
     ];
@@ -175,6 +177,7 @@ describe('shared live capture and voice ownership architecture', () => {
         (specifier) =>
           specifier.includes('startLiveDictation') ||
           specifier.includes('dictationSession') ||
+          specifier.includes('dictationCheckpoint') ||
           specifier.includes('dictationAudioCapture') ||
           specifier.includes('sileroVad') ||
           specifier.includes('voiceCaptureSession')
@@ -182,24 +185,26 @@ describe('shared live capture and voice ownership architecture', () => {
     ).toEqual([]);
   });
 
-  it('keeps dictationSession free of UI, Jotai, Matrix, Slate, and draft dependencies', () => {
-    const dictationSpecifiers = moduleDependencies(DICTATION_SESSION).map(
-      (dependency) => dependency.specifier
-    );
-    expect(
-      dictationSpecifiers.filter(
-        (specifier) =>
-          specifier === 'react' ||
-          specifier.startsWith('react/') ||
-          specifier === 'jotai' ||
-          specifier.startsWith('jotai/') ||
-          specifier === 'matrix-js-sdk' ||
-          specifier.startsWith('matrix-js-sdk/') ||
-          specifier === 'slate' ||
-          specifier.startsWith('slate/') ||
-          specifier.includes('roomInputDrafts')
-      )
-    ).toEqual([]);
+  it('keeps dictationSession and dictationCheckpoint free of UI, Jotai, Matrix, Slate, and draft dependencies', () => {
+    for (const file of [DICTATION_SESSION, DICTATION_CHECKPOINT]) {
+      const dictationSpecifiers = moduleDependencies(file).map(
+        (dependency) => dependency.specifier
+      );
+      expect(
+        dictationSpecifiers.filter(
+          (specifier) =>
+            specifier === 'react' ||
+            specifier.startsWith('react/') ||
+            specifier === 'jotai' ||
+            specifier.startsWith('jotai/') ||
+            specifier === 'matrix-js-sdk' ||
+            specifier.startsWith('matrix-js-sdk/') ||
+            specifier === 'slate' ||
+            specifier.startsWith('slate/') ||
+            specifier.includes('roomInputDrafts')
+        )
+      ).toEqual([]);
+    }
   });
 
   it('keeps browser capture separate from durable voice delivery', () => {

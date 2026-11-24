@@ -23,28 +23,14 @@ import {
   type RecoveredDictationJournal,
 } from '../capture/captureJournal';
 import { DictationClient } from './api';
-import {
-  appendSegmentToGroups,
-  sealRefinementGroup,
-  summarizeSessionRecords,
-} from './dictationRefinement';
-import {
-  decodePcm16Frames,
-  DICTATION_FRAME_MS,
-  DICTATION_FRAME_SAMPLES,
-  DICTATION_MAX_ACTIVE_FRAMES,
-  DICTATION_SAMPLE_RATE,
-  DictationSegmenter,
-  type DictationSegment,
-} from './dictationSegmenter';
+import { persistRecoveredTail, prepareRecoveredDictation } from './dictationCheckpoint';
 import {
   createDictationSession,
-  hydrateDictationRecords,
-  serializeDictationMeta,
   type DictationSession,
   type DictationSessionOptions,
   type DictationTranscriber,
 } from './dictationSession';
+import type { SileroVadInstance } from './sileroVad';
 
 type JotaiStore = ReturnType<typeof createStore>;
 
@@ -59,6 +45,7 @@ export type StartLiveDictationOptions = Omit<
 
 export type RecoverDictationOptions = {
   createSession?: (options: DictationSessionOptions) => DictationSession;
+  loadVad?: (signal?: AbortSignal) => Promise<SileroVadInstance>;
 };
 
 /**
@@ -70,8 +57,7 @@ export const getDictationSessionId = (
 ): string | undefined => {
   const userId = mx?.getUserId() ?? undefined;
   if (!mx || !userId) return undefined;
-  const baseUrl =
-    typeof mx.getHomeserverUrl === 'function' ? mx.getHomeserverUrl() : mx.baseUrl;
+  const baseUrl = typeof mx.getHomeserverUrl === 'function' ? mx.getHomeserverUrl() : mx.baseUrl;
   return baseUrl ? createSessionId(baseUrl, userId) : userId;
 };
 
@@ -137,6 +123,7 @@ const resolveRecoveryTranscriber = (
 ): { client?: DictationTranscriber; roomId?: string; originApiUrl?: string } => {
   const computers = clientConfig.mindroom?.computers;
   const trusted = trustedServerOrigins(computers);
+  // Saved originApiUrl is trusted when no allowlist is configured because this client wrote it, matching useDictationServer discovery.
   const isTrustedOrigin = (origin: string): boolean => trusted === undefined || trusted.has(origin);
 
   let resolvedUrl: string | undefined;
@@ -171,84 +158,21 @@ const offerRecoveredDictation = async (
   clientConfig: ClientConfig,
   sameAccount: () => boolean,
   recovered: RecoveredDictationJournal,
-  createSession: (options: DictationSessionOptions) => DictationSession
+  createSession: (options: DictationSessionOptions) => DictationSession,
+  loadVad?: (signal?: AbortSignal) => Promise<SileroVadInstance>
 ): Promise<boolean> => {
   if (!sameAccount() || store.get(liveCaptureAtom) !== undefined) return false;
 
   const { meta, wavs, tailChunks, journal } = recovered;
-  const { records, groups } = hydrateDictationRecords(meta, wavs);
+  const prepared = await prepareRecoveredDictation(meta, wavs, tailChunks, loadVad);
 
-  const sortedTail = [...tailChunks].sort(
-    (a, b) => a.startFramePos - b.startFramePos || a.seq - b.seq
-  );
-  let effectiveElapsedMs = meta.elapsedMs;
-  for (const chunk of sortedTail) {
-    if (chunk.elapsedMs > effectiveElapsedMs) effectiveElapsedMs = chunk.elapsedMs;
-  }
-
-  const tailSegments: DictationSegment[] = [];
-  const prunedOnSeal: number[] = [];
-  if (sortedTail.length > 0) {
-    const tailSegmenter = new DictationSegmenter({
-      initialSegmentIndex: records.length,
-      initialOverlapped: records.at(-1)?.segment.cutReason === 'hard',
-      maxActiveFrames: Infinity,
-      onSegment: (seg) => tailSegments.push(seg),
-    });
-    let lastEndPos = meta.consumedThroughFramePos ?? 0;
-    for (const chunk of sortedTail) {
-      if (chunk.endFramePos > lastEndPos) {
-        const frames = decodePcm16Frames(chunk.bytes);
-        const skipFrames =
-          chunk.startFramePos < lastEndPos
-            ? Math.min(frames.length, lastEndPos - chunk.startFramePos)
-            : 0;
-        for (let i = skipFrames; i < frames.length; i += 1) {
-          const frame = frames[i];
-          if (frame) tailSegmenter.pushFrame(frame);
-        }
-        lastEndPos = Math.max(lastEndPos, chunk.endFramePos);
-      }
-    }
-    await tailSegmenter.markVadFailed();
-    await tailSegmenter.flush();
-
-    for (const seg of tailSegments) {
-      const { wav, wavBuffer: _wavBuffer, consumedThroughFramePos: _pos, ...segMeta } = seg;
-      records.push({
-        segment: segMeta,
-        wav,
-        status: 'queued',
-        retryable: true,
-      });
-      appendSegmentToGroups(groups, records, prunedOnSeal);
-    }
-  }
-
-  for (const group of groups) {
-    if (group.state === 'open') {
-      sealRefinementGroup(group, records, prunedOnSeal);
-    }
-  }
-
-  const summary = summarizeSessionRecords(records, groups);
-  const hasTranscribedText = summary.previewText.trim().length > 0;
-  if (records.length === 0 && !hasTranscribedText) {
+  // Recheck account before mutating disk state or hydrating after async tail replay.
+  if (!sameAccount()) return false;
+  if (prepared.isEmpty) {
     await journal.remove();
     return false;
   }
-
-  // Recheck account and slot occupancy after async tail flushing before hydrating into the store.
-  if (!sameAccount() || store.get(liveCaptureAtom) !== undefined) return false;
-
-  const initialSegmentIndex = records.length;
-  const elapsedFrames = Math.floor(effectiveElapsedMs / DICTATION_FRAME_MS);
-  const segmentFrames = Math.round(
-    records.reduce((total, record) => total + record.segment.seconds, 0) *
-      (DICTATION_SAMPLE_RATE / DICTATION_FRAME_SAMPLES)
-  );
-  const initialActiveFrames = elapsedFrames > 0 ? elapsedFrames : segmentFrames;
-  const capReached = meta.capReached || initialActiveFrames >= DICTATION_MAX_ACTIVE_FRAMES;
+  if (store.get(liveCaptureAtom) !== undefined) return false;
 
   const { client, roomId, originApiUrl } = resolveRecoveryTranscriber(
     store,
@@ -268,14 +192,14 @@ const offerRecoveredDictation = async (
     journal,
     recovered: {
       startedAt: meta.startedAt,
-      elapsedMs: effectiveElapsedMs,
-      capReached,
+      elapsedMs: prepared.effectiveElapsedMs,
+      capReached: prepared.capReached,
       originApiUrl: sessionOriginApiUrl,
       originRoomId: roomId,
-      records,
-      groups,
-      initialSegmentIndex,
-      initialActiveFrames,
+      records: prepared.records,
+      groups: prepared.groups,
+      initialSegmentIndex: prepared.initialSegmentIndex,
+      initialActiveFrames: prepared.initialActiveFrames,
     },
   });
 
@@ -284,27 +208,21 @@ const offerRecoveredDictation = async (
     return false;
   }
 
-  // Convert replayed tail PCM chunks into durable segment WAVs and clear old tail rows so a
-  // subsequent Resume never collides with pre-crash tail sequence numbers.
-  if (tailSegments.length > 0 || tailChunks.length > 0 || prunedOnSeal.length > 0) {
-    const recoveredMeta = serializeDictationMeta({
+  persistRecoveredTail(
+    journal,
+    {
       startedAt: meta.startedAt,
-      elapsedMs: effectiveElapsedMs,
-      capReached,
+      elapsedMs: prepared.effectiveElapsedMs,
+      capReached: prepared.capReached,
       originApiUrl: sessionOriginApiUrl,
       originRoomId: roomId,
-      records,
-      groups,
-    });
-    for (const seg of tailSegments) {
-      if (seg.wavBuffer) {
-        void journal.commitSegment(seg.index, seg.wavBuffer, recoveredMeta).catch(() => undefined);
-      }
-    }
-    void journal
-      .updateState(recoveredMeta, prunedOnSeal.length > 0 ? prunedOnSeal : undefined, true)
-      .catch(() => undefined);
-  }
+      records: prepared.records,
+      groups: prepared.groups,
+    },
+    prepared.tailSegments,
+    tailChunks.length,
+    prepared.prunedOnSeal
+  );
 
   return true;
 };
@@ -339,7 +257,15 @@ export const recoverDictationForAccount = (
 
   const createSession = options?.createSession ?? createDictationSession;
   const pending = recoverDictationJournal(sessionId, (recovered) =>
-    offerRecoveredDictation(store, mx, clientConfig, sameAccount, recovered, createSession)
+    offerRecoveredDictation(
+      store,
+      mx,
+      clientConfig,
+      sameAccount,
+      recovered,
+      createSession,
+      options?.loadVad
+    )
   ).finally(() => {
     if (store.get(dictationRestoresAtom).get(sessionId) === pending) {
       store.set(dictationRestoresAtom, (prev) => new Map(prev).set(sessionId, null));

@@ -2,7 +2,7 @@
 import React, { useRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import type { MatrixClient } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { createEditor, Editor, Node, Transforms, type Descendant } from 'slate';
 import { HistoryEditor, withHistory } from 'slate-history';
 import { ReactEditor, withReact } from 'slate-react';
@@ -19,17 +19,22 @@ import {
   liveCaptureCapsulesShownAtom,
   restoreLiveCapture,
 } from '../capture/liveCapture';
+import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
 import {
   composersHoldUnsavedWork,
+  detachedDictationSendsAtom,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../roomInputDrafts';
 import { voiceDraftRestoresAtom } from '../voice/savedVoiceDraft';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
-import type {
-  DictationFinishResult,
-  DictationSession,
-  DictationSnapshot,
+import { DICTATION_FRAME_SAMPLES, encodePcm16Wav } from './dictationSegmenter';
+import { startDetachedDictationSend } from './dictationSendHandoff';
+import {
+  createDictationSession,
+  type DictationFinishResult,
+  type DictationSession,
+  type DictationSnapshot,
 } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 import { dictationRestoresAtom } from './startLiveDictation';
@@ -1449,6 +1454,305 @@ describe('useRoomInputDictation', () => {
       store.set(voiceDraftRestoresAtom, new Map([[userId, null]]));
     });
     expect(btn.disabled).toBe(false);
+    view.unmount();
+  });
+  it('binds saved Slate RangeRef to its DictationSession so side-by-side Room + Thread handoffs never reuse a stale selection', async () => {
+    const store = createStore();
+    const roomEditor = makeSlateEditor('red blue');
+    const threadEditor = makeSlateEditor('');
+
+    const mock1 = createMockSession();
+    mock1.setFinishResult({ status: 'completed', text: 'first' });
+    const mock2 = createMockSession();
+    mock2.setFinishResult({ status: 'completed', text: 'second' });
+    const sessionQueue = [mock1.session, mock2.session];
+    const createSession = vi.fn(() => {
+      const next = sessionQueue.shift();
+      if (!next) throw new Error('unexpected createSession call');
+      return next;
+    });
+
+    function SideBySideComposer({
+      testId,
+      editor,
+      ownerKey,
+      threadId,
+    }: {
+      testId: string;
+      editor: Editor;
+      ownerKey: string;
+      threadId?: string;
+    }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      const dictation = useRoomInputDictation({
+        editor,
+        roomId: '!room:example.org',
+        threadId,
+        ownerKey,
+        rootRef,
+        createSession,
+      });
+      return (
+        <div ref={rootRef} data-testid={testId}>
+          {dictation.button}
+          {dictation.capsule}
+        </div>
+      );
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <SideBySideComposer testId="room-composer" editor={roomEditor} ownerKey="room" />
+        <SideBySideComposer
+          testId="thread-composer"
+          editor={threadEditor}
+          ownerKey="thread"
+          threadId="$root"
+        />
+      </Provider>
+    );
+
+    const roomEl = screen.getByTestId('room-composer');
+    const threadEl = screen.getByTestId('thread-composer');
+
+    // 1. Select "blue" in Room ("red blue") and start dictation 1 in Room.
+    Transforms.select(roomEditor, {
+      anchor: { path: [0, 0], offset: 4 },
+      focus: { path: [0, 0], offset: 8 },
+    });
+    await act(async () => {
+      fireEvent.click(within(roomEl).getByLabelText('composer.dictation.label'));
+    });
+    expect(Editor.rangeRefs(roomEditor).size).toBe(1);
+
+    // 2. Finish dictation 1 in Thread -> Thread gets "first", Room unrefs its stale RangeRef.
+    await act(async () => {
+      fireEvent.click(within(threadEl).getByLabelText('composer.dictation.finish'));
+    });
+    expect(readText(threadEditor)).toBe('first');
+    expect(readText(roomEditor)).toBe('red blue');
+    expect(Editor.rangeRefs(roomEditor).size).toBe(0);
+
+    // 3. Place Room cursor at end ("red blue|"), start dictation 2 in Thread, finish dictation 2 in Room.
+    Transforms.select(roomEditor, Editor.end(roomEditor, []));
+    await act(async () => {
+      fireEvent.click(within(threadEl).getByLabelText('composer.dictation.label'));
+    });
+    await act(async () => {
+      fireEvent.click(within(roomEl).getByLabelText('composer.dictation.finish'));
+    });
+
+    // Room inserts at its current end selection ("red blue second") instead of overwriting "blue".
+    expect(readText(roomEditor)).toBe('red blue second');
+    expect(Editor.rangeRefs(roomEditor).size).toBe(0);
+    expect(Editor.rangeRefs(threadEditor).size).toBe(0);
+    view.unmount();
+  });
+
+  it('binds matching server client to failed detached dictation sessions when opening a matching room so Retry and send succeeds to the original destination', async () => {
+    const store = createStore();
+    const editorNoDict = makeSlateEditor();
+    const editorOther = makeSlateEditor();
+    const roomNoDictId = '!room-no-dict:example.org';
+    const roomWrongServerId = '!room-wrong:example.org';
+    const roomMatchingId = '!room-matching:example.org';
+
+    const wrongSessions = { send: vi.fn() } as unknown as ClientSessions;
+    const matchingSend = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ text: 'Recovered detached speech.', seconds: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+    );
+    const matchingSessions = { send: matchingSend } as unknown as ClientSessions;
+
+    serverMock.byRoom.set(roomNoDictId, {
+      available: false,
+      confirmed: false,
+      apiUrl: undefined,
+      sessions: undefined,
+    });
+    serverMock.byRoom.set(roomWrongServerId, {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-b.example',
+      sessions: wrongSessions,
+    });
+    serverMock.byRoom.set(roomMatchingId, {
+      available: true,
+      confirmed: true,
+      apiUrl: 'https://server-a.example/',
+      sessions: matchingSessions,
+    });
+
+    const speechFrame = new Float32Array(DICTATION_FRAME_SAMPLES).fill(0.25);
+    const session = createDictationSession({
+      originApiUrl: 'https://server-a.example',
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 2_000,
+        capReached: false,
+        originApiUrl: 'https://server-a.example',
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 1,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 0,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: Infinity,
+            },
+            wav: encodePcm16Wav([speechFrame, speechFrame]),
+            status: 'queued',
+            retryable: true,
+          },
+        ],
+        groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+        initialSegmentIndex: 1,
+        initialActiveFrames: 20,
+      },
+    });
+    expect(session.hasClient()).toBe(false);
+    restoreLiveCapture(store, { kind: 'dictation', session });
+
+    const mockRoomNoDict = {
+      roomId: roomNoDictId,
+      name: 'No Dictation Room',
+      hasEncryptionStateEvent: () => false,
+      getMembers: () => [],
+      currentState: { getStateEvents: () => null },
+    } as unknown as Room;
+    const mx = {
+      baseUrl: 'https://hs.example.org',
+      getHomeserverUrl: () => 'https://hs.example.org',
+      getUserId: () => '@alice:example.org',
+      getRoom: (id: string) => (id === roomNoDictId ? mockRoomNoDict : null),
+    } as unknown as MatrixClient;
+    const startSendSession = vi.fn(async () => undefined);
+    const emptyAttachments: RoomInputAttachmentAccess = {
+      snapshot: () => ({ staged: [], enrolled: [], uploads: [] }),
+      append: vi.fn(),
+      remove: vi.fn(),
+      release: vi.fn(),
+      enroll: vi.fn(),
+      clearEnrollment: vi.fn(),
+      protectPasteItems: () => () => undefined,
+      subscribe: () => () => undefined,
+    };
+
+    let latest!: RoomInputDictationFeature;
+    function RoomComposer({ roomId, editor }: { roomId: string; editor: Editor }) {
+      const rootRef = useRef<HTMLDivElement | null>(null);
+      latest = useRoomInputDictation({
+        editor,
+        roomId,
+        ownerKey: roomId,
+        rootRef,
+      });
+      return (
+        <div ref={rootRef}>
+          {latest.button}
+          {latest.capsule}
+        </div>
+      );
+    }
+
+    // 1. Mount Room without dictation and trigger Finish & Send -> detaches and fails offline.
+    const view = render(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomNoDictId} editor={editorNoDict} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    let detached: ReturnType<RoomInputDictationFeature['detachForSend']>;
+    await act(async () => {
+      detached = latest.detachForSend();
+      expect(detached?.session).toBe(session);
+      startDetachedDictationSend({
+        store,
+        mx,
+        ownerKey: roomNoDictId,
+        draftKey: roomNoDictId,
+        roomName: 'No Dictation Room',
+        sendContext: {
+          roomId: roomNoDictId,
+          room: mockRoomNoDict,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        composerContext: { roomId: roomNoDictId, threadId: undefined },
+        session: detached!.session,
+        docSnapshot: structuredClone(editorNoDict.children),
+        savedSelection: detached!.savedSelection,
+        pendingMarks: null,
+        stagedSnapshot: [],
+        tracksEnrollment: false,
+        midTurnMode: 'auto',
+        explicitMidTurnMode: false,
+        isMarkdown: true,
+        ownUserId: '@alice:example.org',
+        parseCommands: false,
+        commandsSnapshot: {},
+        attachments: emptyAttachments,
+        sessions: { startSendSession, restoreText: vi.fn() },
+        restoreReplyDraft: vi.fn(),
+      });
+    });
+
+    await waitFor(() => {
+      expect(store.get(detachedDictationSendsAtom).get(roomNoDictId)?.status).toBe('failed');
+    });
+    expect(session.hasClient()).toBe(false);
+    expect(screen.getByText(/Open a room with dictation to retry./)).toBeTruthy();
+
+    // 2. Opening a room with a different server MUST NOT bind the failed detached session.
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomWrongServerId} editor={editorOther} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    expect(session.hasClient()).toBe(false);
+
+    // 3. Opening a room with the matching server binds the failed detached session!
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomMatchingId} editor={editorOther} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    expect(session.hasClient()).toBe(true);
+
+    // 4. Returning to the original no-dictation room and clicking "Retry and send" sends to roomNoDictId.
+    view.rerender(
+      <Provider store={store}>
+        <MatrixClientProvider value={mx}>
+          <RoomComposer roomId={roomNoDictId} editor={editorNoDict} />
+        </MatrixClientProvider>
+      </Provider>
+    );
+    fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
+
+    await waitFor(() => {
+      expect(startSendSession).toHaveBeenCalledTimes(1);
+    });
+    expect(matchingSend).toHaveBeenCalledTimes(1);
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ roomId: roomNoDictId }),
+        textContent: expect.objectContaining({ body: 'Recovered detached speech.' }),
+      })
+    );
+    expect(store.get(detachedDictationSendsAtom).size).toBe(0);
     view.unmount();
   });
 });

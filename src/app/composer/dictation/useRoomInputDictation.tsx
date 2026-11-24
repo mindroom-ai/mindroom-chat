@@ -115,6 +115,11 @@ type DiscardTarget =
   | { readonly kind: 'live'; readonly session: DictationSession; readonly restoreFocus: boolean }
   | { readonly kind: 'detached'; readonly entry: DetachedDictationSend };
 
+type SessionSelectionRef = {
+  readonly session: DictationSession;
+  readonly rangeRef: RangeRef;
+};
+
 const IDLE_SNAPSHOT: DictationSnapshot = {
   phase: 'idle',
   elapsedMs: 0,
@@ -253,7 +258,8 @@ export const useRoomInputDictation = ({
   const discardDialogWasMountedRef = useRef(false);
   const discardTargetRef = useLatestRef(discardTarget);
 
-  const selectionRef = useRef<RangeRef | null>(null);
+  const selectionRef = useRef<SessionSelectionRef | null>(null);
+  const finishingSessionRef = useRef<DictationSession | null>(null);
   const pendingButtonFocusRef = useRef<boolean | undefined>(undefined);
   const shouldRestoreFocusRef = useRef(false);
   const callbacksRef = useLatestRef({
@@ -280,14 +286,16 @@ export const useRoomInputDictation = ({
   const livePhase = showingLive ? displaySnapshot.phase : 'idle';
 
   const clearSelectionRef = useCallback(() => {
-    selectionRef.current?.unref();
+    selectionRef.current?.rangeRef.unref();
     selectionRef.current = null;
   }, []);
 
-  const consumeSelectionRef = useCallback((): BaseRange | null => {
-    const range = selectionRef.current?.unref() ?? null;
+  const consumeSelectionRef = useCallback((targetSession: DictationSession): BaseRange | null => {
+    const entry = selectionRef.current;
     selectionRef.current = null;
-    return range;
+    if (!entry) return null;
+    const range = entry.rangeRef.unref();
+    return entry.session === targetSession ? range : null;
   }, []);
 
   const consumeRestoreFocus = useCallback((): boolean => {
@@ -313,12 +321,37 @@ export const useRoomInputDictation = ({
     [dictationRestores, sessionId, userId, voiceDraftRestores]
   );
 
-  // Lazy client binding for recovered sessions whose server matches (or had no fixed origin).
+  // Release any saved Slate RangeRef once its owning session changes or ends elsewhere.
   useEffect(() => {
-    if (!liveSession || liveSession.hasClient() || !confirmed || !sessions) return;
-    if (!matchesOriginApiUrl(liveSession.getOriginApiUrl(), apiUrl)) return;
-    liveSession.attachClient(new DictationClient(sessions), roomId, apiUrl);
-  }, [apiUrl, confirmed, liveSession, roomId, sessions]);
+    if (
+      selectionRef.current &&
+      selectionRef.current.session !== liveSession &&
+      selectionRef.current.session !== finishingSessionRef.current
+    ) {
+      clearSelectionRef();
+    }
+    if (!liveSession && !finishingSessionRef.current && !discardTargetRef.current) {
+      shouldRestoreFocusRef.current = false;
+    }
+  }, [clearSelectionRef, discardTargetRef, liveSession]);
+
+  // Lazy client binding for recovered live or failed detached sessions whose server matches
+  // (or had no fixed origin). Checks all detached sends for this account so opening another room
+  // with the matching server binds a failed send waiting in a room without dictation.
+  useEffect(() => {
+    if (!confirmed || !sessions) return;
+    const bindMatchingSession = (session: DictationSession | undefined) => {
+      if (!session || session.hasClient()) return;
+      if (!matchesOriginApiUrl(session.getOriginApiUrl(), apiUrl)) return;
+      session.attachClient(new DictationClient(sessions), roomId, apiUrl);
+    };
+    bindMatchingSession(liveSession);
+    detachedSends.forEach((entry) => {
+      if (entry.status === 'failed') {
+        bindMatchingSession(entry.session);
+      }
+    });
+  }, [apiUrl, confirmed, detachedSends, liveSession, roomId, sessions]);
 
   // Register this mounted composer so background Finish (✓) and Finish & Send reach a live view.
   useEffect(() => {
@@ -327,8 +360,8 @@ export const useRoomInputDictation = ({
       store.set(detachedDictationErrorAtom, undefined);
     }
     const unregister = registerMountedDictationOwner(store, sendKey, {
-      insertDictatedText: (text, focus) => {
-        const savedSelection = consumeSelectionRef();
+      insertDictatedText: (text, focus, targetSession) => {
+        const savedSelection = consumeSelectionRef(targetSession);
         const canFocus =
           focus &&
           (!document.activeElement ||
@@ -356,6 +389,7 @@ export const useRoomInputDictation = ({
     });
     return () => {
       unregister();
+      finishingSessionRef.current = null;
       shouldRestoreFocusRef.current = false;
       pendingButtonFocusRef.current = undefined;
       clearSelectionRef();
@@ -376,20 +410,32 @@ export const useRoomInputDictation = ({
     }
     setLocalNotice(undefined);
     clearSelectionRef();
-    if (editor.selection) {
-      selectionRef.current = SlateEditor.rangeRef(editor, editor.selection);
-    }
+    const initialSelection = editor.selection;
     shouldRestoreFocusRef.current = pendingFocus ?? isEditorFocused(editor, rootRef);
-    void startLiveDictation(store, {
+    const startPromise = startLiveDictation(store, {
       client: new DictationClient(sessions),
       roomId,
       originApiUrl: apiUrl,
       sessionId,
       createSession: callbacksRef.current.createSession,
-    }).then((started) => {
-      if (!started) {
-        shouldRestoreFocusRef.current = false;
+    });
+    const startedCapture = store.get(liveCaptureAtom);
+    const startedSession =
+      startedCapture?.kind === 'dictation' ? startedCapture.session : undefined;
+    if (startedSession && initialSelection) {
+      selectionRef.current = {
+        session: startedSession,
+        rangeRef: SlateEditor.rangeRef(editor, initialSelection),
+      };
+    }
+    void startPromise.then((started) => {
+      if (started) return;
+      if (!startedSession || selectionRef.current?.session === startedSession) {
         clearSelectionRef();
+      }
+      const current = store.get(liveCaptureAtom);
+      if (!current || current.session === startedSession) {
+        shouldRestoreFocusRef.current = false;
       }
     });
     return true;
@@ -433,49 +479,66 @@ export const useRoomInputDictation = ({
     shouldRestoreFocusRef.current = false;
     pendingButtonFocusRef.current = undefined;
     const savedSelection =
-      consumeSelectionRef() ?? (editor.selection ? structuredClone(editor.selection) : null);
+      consumeSelectionRef(claimed) ?? (editor.selection ? structuredClone(editor.selection) : null);
     return { session: claimed, savedSelection };
   }, [consumeSelectionRef, editor, sendKey, store, threadId]);
 
   const completeLiveDictation = useCallback(
     (session: DictationSession, action: 'finish' | 'retry') => {
-      if (!selectionRef.current && editor.selection) {
-        selectionRef.current = SlateEditor.rangeRef(editor, editor.selection);
+      if (selectionRef.current && selectionRef.current.session !== session) {
+        clearSelectionRef();
       }
+      if (!selectionRef.current && editor.selection) {
+        selectionRef.current = {
+          session,
+          rangeRef: SlateEditor.rangeRef(editor, editor.selection),
+        };
+      }
+      finishingSessionRef.current = session;
       const wantedFocus = shouldRestoreFocusRef.current;
       shouldRestoreFocusRef.current = false;
       const sameAccount = captureAccountGuard(store);
       const targetSendKey = sendKey;
       const targetDraftKey = draftKey;
       const promise = action === 'finish' ? session.finish() : session.retryFailed();
-      void promise.then((result) => {
-        if (result.status === 'completed') {
-          if (!sameAccount()) {
-            if (result.journalId) releaseCapture(result.journalId);
-            return;
-          }
-          if (result.text.trim().length > 0) {
-            const owner = getMountedOwner(store, targetSendKey);
-            if (owner) {
-              owner.insertDictatedText(result.text, wantedFocus);
-            } else {
-              const draftAtom = roomIdToMsgDraftAtomFamily(targetDraftKey);
-              const currentDraft = store.get(draftAtom);
-              const merged = mergeDictatedDoc(currentDraft, result.text, null, null);
-              store.set(draftAtom, merged.children);
+      void promise
+        .then((result) => {
+          if (result.status === 'completed') {
+            if (!sameAccount()) {
+              if (selectionRef.current?.session === session) clearSelectionRef();
+              if (result.journalId) releaseCapture(result.journalId);
+              return;
             }
-          } else {
-            clearSelectionRef();
+            if (result.text.trim().length > 0) {
+              const owner = getMountedOwner(store, targetSendKey);
+              if (owner) {
+                owner.insertDictatedText(result.text, wantedFocus, session);
+              } else {
+                const draftAtom = roomIdToMsgDraftAtomFamily(targetDraftKey);
+                const currentDraft = store.get(draftAtom);
+                const merged = mergeDictatedDoc(currentDraft, result.text, null, null);
+                store.set(draftAtom, merged.children);
+              }
+            } else if (selectionRef.current?.session === session) {
+              clearSelectionRef();
+            }
+            if (result.journalId) void deleteCapture(result.journalId).catch(() => undefined);
+            clearLiveCapture(store, session);
+          } else if (result.status === 'cancelled') {
+            if (!sameAccount()) {
+              if (selectionRef.current?.session === session) clearSelectionRef();
+              return;
+            }
+            shouldRestoreFocusRef.current = false;
+            if (selectionRef.current?.session === session) clearSelectionRef();
+            clearLiveCapture(store, session);
           }
-          if (result.journalId) void deleteCapture(result.journalId).catch(() => undefined);
-          clearLiveCapture(store, session);
-        } else if (result.status === 'cancelled') {
-          if (!sameAccount()) return;
-          shouldRestoreFocusRef.current = false;
-          clearSelectionRef();
-          clearLiveCapture(store, session);
-        }
-      });
+        })
+        .finally(() => {
+          if (finishingSessionRef.current === session) {
+            finishingSessionRef.current = null;
+          }
+        });
     },
     [clearSelectionRef, draftKey, editor, sendKey, store]
   );
@@ -504,7 +567,7 @@ export const useRoomInputDictation = ({
     if (!current) return;
     const { text, journalId } = current.takePartialText();
     if (
-      insertDictatedText(editor, text, consumeSelectionRef(), {
+      insertDictatedText(editor, text, consumeSelectionRef(current), {
         focus: consumeRestoreFocus(),
       })
     ) {
