@@ -75,7 +75,7 @@ vi.mock('folds', () => ({
     React.createElement(
       'button',
       { ...props, onClick, ref, type: props.type ?? 'button' },
-      children as React.ReactNode
+      children
     ),
   Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
   Icons: {

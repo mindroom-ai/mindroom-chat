@@ -15,7 +15,7 @@ vi.mock('folds', () => {
       style,
       ref,
     }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
-      React.createElement(name, { ref, style, ...extra }, children as React.ReactNode);
+      React.createElement(name, { ref, style, ...extra }, children);
   return {
     Box: tag('div'),
     Scroll: tag('div', { 'data-scroll': true }),

@@ -84,7 +84,7 @@ vi.mock('folds', () => {
     ...props
   }: { children?: React.ReactNode; [key: string]: unknown } & {
     ref?: React.Ref<HTMLDivElement>;
-  }) => React.createElement('div', { ...props, ref }, children as React.ReactNode);
+  }) => React.createElement('div', { ...props, ref }, children);
 
   return {
     Avatar: Box,

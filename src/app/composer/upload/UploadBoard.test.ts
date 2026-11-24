@@ -16,7 +16,7 @@ vi.mock('folds', async () => {
       ref,
       ...props
     }: Record<string, unknown> & { children?: React.ReactNode; ref?: React.Ref<HTMLElement> }) =>
-      reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode);
+      reactModule.createElement(tag, { ...props, ref }, children);
 
   return {
     Badge: forwardTag('span'),
