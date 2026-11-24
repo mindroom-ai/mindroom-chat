@@ -314,7 +314,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     viewerId
   );
 
-  let preview = '';
+  let preview: string;
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
   else if (row.kind === 'approval' && row.signals.pendingApproval) {
     // What it runs shows beside Approve, as the thread's approval card shows it.

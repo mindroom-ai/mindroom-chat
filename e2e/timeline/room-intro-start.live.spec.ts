@@ -296,7 +296,7 @@ test.use({
 test.describe("a room's timeline begins with its start", () => {
   test.beforeAll(async () => {
     test.setTimeout(300_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

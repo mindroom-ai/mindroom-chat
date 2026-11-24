@@ -443,7 +443,7 @@ test.describe('live issue073 persistent thread navigation', () => {
         'Resize Recently Opened'
       );
       if (viewport.label === 'desktop') {
-        expectedExpandedHeight = await dragRecentlyOpenedPanel(page, -80, viewport.height);
+        await dragRecentlyOpenedPanel(page, -80, viewport.height);
         expectedExpandedHeight = await dragRecentlyOpenedPanel(page, 40, viewport.height);
         await page.reload();
         await waitForLoggedInShell(page);

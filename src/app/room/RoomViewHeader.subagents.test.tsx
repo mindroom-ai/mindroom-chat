@@ -817,8 +817,11 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     run('running');
     schedules.events = [schedule('orchard', THREAD)];
     const layout = phoneLayout(430, 0, 1);
-    const calls = Promise.withResolvers<{ default: () => React.ReactElement }>();
-    const CallButtons = lazy(() => calls.promise);
+    let resolveCalls!: (value: { default: () => React.ReactElement }) => void;
+    const callsPromise = new Promise<{ default: () => React.ReactElement }>((resolve) => {
+      resolveCalls = resolve;
+    });
+    const CallButtons = lazy(() => callsPromise);
     renderHeader(
       {
         hasMindroomAgents: true,
@@ -839,7 +842,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       'More Options',
     ]);
     await act(async () => {
-      calls.resolve({
+      resolveCalls({
         default: () => (
           <>
             <IconButton aria-label="Room call" />

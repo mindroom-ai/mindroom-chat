@@ -15,9 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { ESLint } from 'eslint';
 import ts from 'typescript';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CLIENT_PLUGIN_API_VERSION, SHARED_PACKAGES } from '../../scripts/client-plugins.mjs';
-import { TYPE_AWARE_RULES } from '../../scripts/eslint-shared.cjs';
+import { TYPE_AWARE_RULES } from '../../scripts/eslint-shared.mjs';
 
 // The configs a client plugin outside this repository uses (docs/development.md "A client plugin in
 // its own repository"), tried on made-up plugins that link the app in as `.mindroom-chat`.
@@ -110,12 +110,11 @@ describe('tsconfig.plugin.strict.json', () => {
   });
 });
 
-describe('.eslintrc.plugin.cjs', () => {
-  // A plugin's own config that extends it, linted from the plugin's directory as docs/development.md
-  // says. Without a TypeScript program here, the type-aware rules stay off.
+describe('eslint.config.plugin.mjs', () => {
+  // A plugin's own config that re-exports it, linted from the plugin's directory as
+  // docs/development.md says. Without a TypeScript program here, the type-aware rules stay off.
   const dir = pluginDir({
-    '.eslintrc.cjs':
-      "module.exports = { root: true, extends: ['./.mindroom-chat/.eslintrc.plugin.cjs'] };\n",
+    'eslint.config.mjs': "export { default } from './.mindroom-chat/eslint.config.plugin.mjs';\n",
     // The resolver resolves nothing from a folder that does not exist, which would leave the
     // boundary rule silent.
     'src/panel.tsx': '',
@@ -123,12 +122,16 @@ describe('.eslintrc.plugin.cjs', () => {
   });
   const eslint = new ESLint({
     cwd: dir,
-    resolvePluginsRelativeTo: ROOT,
     overrideConfig: {
-      parserOptions: { project: null },
+      files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+      languageOptions: { parserOptions: { project: null } },
       rules: Object.fromEntries(Object.keys(TYPE_AWARE_RULES).map((rule) => [rule, 'off'])),
     },
   });
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(path.join(dir, 'src/panel.tsx'));
+  }, 30_000);
+
   const lint = async (source: string, file = 'src/panel.tsx') => {
     const [result] = await eslint.lintText(source, { filePath: path.join(dir, file) });
     expect(result?.fatalErrorCount).toBe(0);

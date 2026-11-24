@@ -259,7 +259,7 @@ test.use({
 test.describe('scrolling away right after the view went to the newest row', () => {
   test.beforeAll(async () => {
     test.setTimeout(180_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {
