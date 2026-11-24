@@ -73,9 +73,9 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   await expect(railTile).toHaveAccessibleName('Garden club');
   await page.screenshot({ path: testInfo.outputPath('lobby-empty.png') });
 
-  // Add Room, Chat Room: the new room opens inside the space.
-  await page.getByRole('button', { name: 'Add Room' }).first().click();
-  await page.getByRole('menuitem', { name: 'Chat Room' }).click();
+  // Add -> New Room: the new room opens inside the space.
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
+  await page.getByRole('menuitem', { name: 'New Room', exact: true }).click();
   const roomDialog = page.getByRole('dialog', { name: 'Create Room' });
   await roomDialog.locator('input[name="nameInput"]').fill('Seedlings');
   await roomDialog.getByRole('button', { name: 'Create', exact: true }).click();
@@ -88,11 +88,11 @@ test('a space is created from the rail and filled from its lobby', async ({ page
     timeout: 30_000,
   });
 
-  // Add Room, Existing Room: pick one of the user's rooms.
-  await nav.getByRole('link', { name: 'Lobby', exact: true }).click();
+  // Add -> Add Existing Room: pick one of the user's rooms.
+  await nav.getByRole('link', { name: 'Space overview', exact: true }).click();
   await expect(lobbyCard(page, 'Seedlings')).toBeVisible();
-  await page.getByRole('button', { name: 'Add Room' }).first().click();
-  await page.getByRole('menuitem', { name: 'Existing Room' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
+  await page.getByRole('menuitem', { name: 'Add Existing Room', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Add Existing' });
   await expect(picker.getByText('Seedlings', { exact: true })).toHaveCount(0);
   await picker.getByRole('textbox', { name: 'Search' }).fill('comp');
@@ -104,9 +104,9 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   await expect(lobbyCard(page, 'Compost')).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Compost', exact: true })).toBeVisible();
 
-  // Add Space, New Space: a subspace heading appears in the lobby.
-  await page.getByRole('button', { name: 'Add Space' }).first().click();
-  await page.getByRole('menuitem', { name: 'New Space' }).click();
+  // Add -> New Sub-space: a subspace heading appears in the lobby.
+  await page.getByRole('button', { name: 'Add', exact: true }).first().click();
+  await page.getByRole('menuitem', { name: 'New Sub-space', exact: true }).click();
   const subspaceDialog = page.getByRole('dialog', { name: 'New Space' });
   await subspaceDialog.getByRole('textbox', { name: 'Name' }).fill('Orchard');
   await subspaceDialog.getByRole('button', { name: 'Create', exact: true }).click();

@@ -534,7 +534,14 @@
     "spaceNav": {
       "options": "空間選項",
       "subspaceUnread": "{{name}}，有未讀訊息",
-      "backToParent": "返回 {{name}}"
+      "backToParent": "返回 {{name}}",
+      "add": "新增",
+      "newRoom": "新增房間",
+      "addExistingRoom": "新增現有房間",
+      "newSubspace": "新增子空間",
+      "addExistingSubspace": "新增現有子空間",
+      "addToSpace": "新增至 {{name}}",
+      "subspaceOptions": "{{name}} 選項"
     },
     "calls": {
       "panel": {
