@@ -212,13 +212,13 @@ vi.mock('../../ui/MenuEntry', () => ({
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: React.forwardRef<
     HTMLButtonElement,
-    {
+    React.ButtonHTMLAttributes<HTMLButtonElement> & {
       closed?: boolean;
       ownDirection?: boolean;
       after?: React.ReactNode;
       children?: React.ReactNode;
       'data-category-id'?: string;
-    } & Record<string, unknown>
+    }
   >(function MockRoomNavCategoryButton({ closed, ownDirection, after, children, ...props }, ref) {
     const categoryId = props['data-category-id'] ?? '';
     categoryButtonStats.renders.set(
