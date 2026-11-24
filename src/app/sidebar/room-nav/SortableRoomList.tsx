@@ -122,6 +122,69 @@ const sectionSpaceIdOf = (id: UniqueIdentifier | undefined, data: unknown): stri
     : undefined;
 };
 
+const CLIPPING_OVERFLOW = new Set(['auto', 'scroll', 'hidden', 'clip']);
+
+const clipsOverflow = (style: CSSStyleDeclaration): { x: boolean; y: boolean } => {
+  const [shortX = '', shortY = shortX] = style.overflow.trim().split(/\s+/);
+  return {
+    x: CLIPPING_OVERFLOW.has(style.overflowX || shortX),
+    y: CLIPPING_OVERFLOW.has(style.overflowY || shortY),
+  };
+};
+
+/**
+ * Whether `point` falls inside `element`'s visible bounds after intersecting every clipping
+ * ancestor (e.g. a scroll viewport above Recently Opened) and excluding any sticky header pinned
+ * at the top of a scroll viewport (e.g. `PageScrollHeader`). Returns `true` when `element` is
+ * absent so `pointerWithin` falls back to `container.rect.current`.
+ */
+const isPointerWithinVisibleBounds = (
+  element: HTMLElement | null,
+  point: { x: number; y: number }
+): boolean => {
+  if (!element) return true;
+  const view = element.ownerDocument.defaultView;
+  let { top, bottom, left, right } = element.getBoundingClientRect();
+  let child: HTMLElement = element;
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    const style = view?.getComputedStyle(ancestor);
+    const clips = style ? clipsOverflow(style) : { x: false, y: false };
+    if (clips.x || clips.y) {
+      const rect = ancestor.getBoundingClientRect();
+      if (clips.x) {
+        left = Math.max(left, rect.left);
+        right = Math.min(right, rect.right);
+      }
+      if (clips.y) {
+        top = Math.max(top, rect.top);
+        bottom = Math.min(bottom, rect.bottom);
+        for (let prev = child.previousElementSibling; prev; prev = prev.previousElementSibling) {
+          if (view?.getComputedStyle(prev).position === 'sticky') {
+            const stickyRect = prev.getBoundingClientRect();
+            if (
+              stickyRect.height > 0 &&
+              stickyRect.width > 0 &&
+              stickyRect.left < right &&
+              stickyRect.right > left
+            ) {
+              top = Math.max(top, stickyRect.bottom);
+            }
+          }
+        }
+      }
+    }
+    child = ancestor;
+  }
+  return (
+    left < right &&
+    top < bottom &&
+    point.x >= left &&
+    point.x <= right &&
+    point.y >= top &&
+    point.y <= bottom
+  );
+};
+
 type GroupListEntry = { roomIds: readonly string[]; onReorder: (order: string[]) => void };
 
 type RoomGroupDrag = {
@@ -184,10 +247,15 @@ export function SortableRoomGroup({ canMoveRoom, onMoveRoom, children }: Sortabl
 
     const sections = args.droppableContainers.filter((c) => isSectionData(c.data.current));
     if (sections.length === 0) return closestCenter({ ...args, droppableContainers: sourceRows() });
+    const pointer = args.pointerCoordinates;
+    if (!pointer) return [];
 
-    const hitSection = pointerWithin({ ...args, droppableContainers: sections })[0];
+    const visibleSections = sections.filter((c) =>
+      isPointerWithinVisibleBounds(c.node.current, pointer)
+    );
+    const hitSection = pointerWithin({ ...args, droppableContainers: visibleSections })[0];
     if (!hitSection) return [];
-    const hitContainer = sections.find((c) => c.id === hitSection.id);
+    const hitContainer = visibleSections.find((c) => c.id === hitSection.id);
     const targetSpaceId = sectionSpaceIdOf(hitSection.id, hitContainer?.data.current);
     if (!targetSpaceId) return [];
     if (targetSpaceId === activeRoom.parentSpaceId) {

@@ -141,6 +141,8 @@ describe('SortableRoomGroup', () => {
     'section:!design': makeRect(140, 120),
     'room:!cedar': makeRect(160, 40),
     'section:!empty': makeRect(280, 40),
+    viewport: makeRect(0, 200),
+    'sticky-header': makeRect(0, 50),
   };
 
   beforeEach(() => {
@@ -153,6 +155,7 @@ describe('SortableRoomGroup', () => {
         if (this.dataset.sectionId)
           return rects[`section:${this.dataset.sectionId}`] ?? makeRect(0, 0);
         if (this.dataset.roomId) return rects[`room:${this.dataset.roomId}`] ?? makeRect(0, 0);
+        if (this.dataset.rectKey) return rects[this.dataset.rectKey] ?? makeRect(0, 0);
         return makeRect(0, 0);
       });
   });
@@ -313,5 +316,56 @@ describe('SortableRoomGroup', () => {
 
     expect(onMoveRoom).not.toHaveBeenCalled();
     expect(onReorderRoot).not.toHaveBeenCalled();
+  });
+
+  it('clips section hit-testing to the visible scroll viewport and sticky header', async () => {
+    const onMoveRoom = vi.fn();
+
+    act(() => {
+      root.render(
+        <div data-rect-key="viewport" style={{ overflowY: 'auto' }}>
+          <header data-rect-key="sticky-header" style={{ position: 'sticky', top: 0 }} />
+          <div>
+            <SortableRoomGroup canMoveRoom={() => true} onMoveRoom={onMoveRoom}>
+              <TestSection spaceId="!root" roomIds={['!alder', '!birch']} onReorder={vi.fn()} />
+              <TestSection spaceId="!design" roomIds={['!cedar']} onReorder={vi.fn()} />
+            </SortableRoomGroup>
+          </div>
+        </div>
+      );
+    });
+
+    // `!design` spans y=140..260, extending below the scroll viewport (y=0..200). Releasing in the
+    // clipped overflow (e.g. over a footer below the scroll container) must not move the room.
+    await dragRow('!birch', 80, 230, () => {
+      expect(container.querySelector('[data-section-drop-target="true"]')).toBeNull();
+    });
+    expect(onMoveRoom).not.toHaveBeenCalled();
+
+    // `!root` spans y=0..120, extending behind the sticky header (y=0..50). Releasing over the
+    // sticky header must not move the room either.
+    await dragRow('!cedar', 170, 30, () => {
+      expect(container.querySelector('[data-section-drop-target="true"]')).toBeNull();
+    });
+    expect(onMoveRoom).not.toHaveBeenCalled();
+
+    // Releasing inside each section's visible unclipped region still highlights and moves.
+    await dragRow('!birch', 80, 180, () => {
+      expect(
+        container
+          .querySelector('[data-section-id="!design"]')!
+          .getAttribute('data-section-drop-target')
+      ).toBe('true');
+    });
+    expect(onMoveRoom).toHaveBeenLastCalledWith('!root', '!design', '!birch');
+
+    await dragRow('!cedar', 170, 80, () => {
+      expect(
+        container
+          .querySelector('[data-section-id="!root"]')!
+          .getAttribute('data-section-drop-target')
+      ).toBe('true');
+    });
+    expect(onMoveRoom).toHaveBeenLastCalledWith('!design', '!root', '!cedar');
   });
 });

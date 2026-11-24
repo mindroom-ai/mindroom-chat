@@ -626,9 +626,10 @@ describe('Space navigation', () => {
     editableSpaces.add(space);
     editableSpaces.add(design);
     editableSpaces.add(research);
+    const archivedDesignRoom = '!archived-design:example.org';
     accountData.content = {
       lists: {
-        [design]: [iconSketches, designReview],
+        [design]: [iconSketches, archivedDesignRoom, designReview],
       },
     };
     renderSpace(
@@ -664,7 +665,8 @@ describe('Space navigation', () => {
     );
     expect(accountData.setAccountData).not.toHaveBeenCalled();
 
-    // Moving into a manually ordered target (design) appends the moved room once.
+    // Moving into a manually ordered target (design) preserves hidden/archived saved IDs and
+    // appends the moved room once.
     moveSpaceRoomMock.mockClear();
     let resolveMove!: () => void;
     moveSpaceRoomMock.mockImplementationOnce(
@@ -692,7 +694,7 @@ describe('Space navigation', () => {
     expect(accountData.setAccountData).toHaveBeenCalledTimes(1);
     expect(accountData.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
       lists: {
-        [design]: [iconSketches, designReview, joined],
+        [design]: [iconSketches, archivedDesignRoom, designReview, joined],
       },
     });
     expect(dragGroup.canMoveRoom?.(space, design, joined)).toBe(true);

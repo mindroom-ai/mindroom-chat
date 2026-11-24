@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import {
+  appendRoomOrder,
   applyRoomOrder,
   moveRoom,
   parseRoomOrderLists,
@@ -47,6 +48,30 @@ describe('moveRoom', () => {
     expect(moveRoom(['!a', '!b'], '!a', 9)).toEqual(['!b', '!a']);
     expect(moveRoom(['!a', '!b'], '!b', -3)).toEqual(['!b', '!a']);
     expect(moveRoom(['!a', '!b'], '!x', 0)).toEqual(['!a', '!b']);
+  });
+});
+
+describe('appendRoomOrder', () => {
+  it('preserves archived/hidden saved rooms, keeps unsaved visible rooms, and appends the moved room', () => {
+    const next = appendRoomOrder(['!c', '!b', '!a'], ['!c', '!a', '!e'], '!d');
+    expect(next).toEqual(['!c', '!b', '!a', '!e', '!d']);
+    // Unarchiving `!b` later keeps its original saved position.
+    expect(applyRoomOrder(['!a', '!b', '!c', '!d', '!e'], next)).toEqual([
+      '!c',
+      '!b',
+      '!a',
+      '!e',
+      '!d',
+    ]);
+  });
+
+  it('deduplicates when the moved room is already present in saved or visible rooms', () => {
+    expect(appendRoomOrder(['!d', '!c', '!b', '!a'], ['!c', '!a', '!d'], '!d')).toEqual([
+      '!c',
+      '!b',
+      '!a',
+      '!d',
+    ]);
   });
 });
 
@@ -194,5 +219,43 @@ describe('useRoomOrders', () => {
     expect(orders!.isManual('!sub')).toBe(false);
     expect(orders!.orderOf('!root', ['!a', '!b'])).toEqual(['!a', '!b']);
     expect(orders!.orderOf('!sub', ['!c', '!d'])).toEqual(['!c', '!d']);
+  });
+
+  it('appendRoom writes only for manual lists and preserves archived saved room IDs', () => {
+    const stored = {
+      lists: { '!manual': ['!c', '!b', '!a'] },
+    };
+    const event = { getContent: () => stored } as unknown as MatrixEvent;
+    const setAccountData = vi.fn(async () => ({}));
+    const client = {
+      getAccountData: vi.fn((type: string) =>
+        type === 'io.mindroom.room_order' ? event : undefined
+      ),
+      setAccountData,
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    let orders: RoomOrders | undefined;
+    const Harness = () => {
+      orders = useRoomOrders();
+      return null;
+    };
+    act(() => {
+      renderer = create(
+        React.createElement(MatrixClientProvider, { value: client }, React.createElement(Harness))
+      );
+    });
+
+    // Non-manual lists stay in A to Z order without writing account data.
+    act(() => orders!.appendRoom('!auto', ['!x'], '!d'));
+    expect(setAccountData).not.toHaveBeenCalled();
+
+    // Manual lists keep archived `!b`, add unsaved visible `!e`, and append `!d`.
+    act(() => orders!.appendRoom('!manual', ['!a', '!c', '!e'], '!d'));
+    expect(setAccountData).toHaveBeenCalledTimes(1);
+    expect(setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!manual': ['!c', '!b', '!a', '!e', '!d'] },
+    });
   });
 });

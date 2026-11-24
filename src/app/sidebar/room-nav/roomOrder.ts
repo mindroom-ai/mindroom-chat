@@ -59,6 +59,20 @@ export const moveRoom = (order: readonly string[], roomId: string, toIndex: numb
 };
 
 /**
+ * Appends `roomId` to a saved manual order while preserving all saved room IDs (including hidden
+ * or archived ones) in their saved order, followed by any visible rooms not yet in `saved`, then
+ * `roomId` once at the end.
+ */
+export const appendRoomOrder = (
+  saved: readonly string[],
+  visibleRoomIds: readonly string[],
+  roomId: string
+): string[] => [
+  ...[...new Set([...saved, ...visibleRoomIds])].filter((id) => id !== roomId),
+  roomId,
+];
+
+/**
  * The account data content with each entry of `changes` applied: a room ID list sets that list's
  * order, and `undefined` removes it (back to A to Z). Other lists and unknown keys stay as they
  * are.
@@ -101,6 +115,11 @@ export type RoomOrders = {
   isManual: (listId: string) => boolean;
   /** Saves `order` as `listId`'s order. */
   save: (listId: string, order: string[]) => void;
+  /**
+   * Appends `roomId` to `listId` only when `listId` is already ordered by hand, preserving hidden
+   * or archived saved room IDs plus any unsaved visible rooms before `roomId`.
+   */
+  appendRoom: (listId: string, visibleRoomIds: readonly string[], roomId: string) => void;
   /** Forgets the saved order of every list in `listIds` in one account-data write. */
   reset: (listIds: readonly string[]) => void;
 };
@@ -148,6 +167,11 @@ export const useRoomOrders = (): RoomOrders => {
       orderOf: (listId, roomIds) => applyRoomOrder(roomIds, savedOf(listId)),
       isManual: (listId) => savedOf(listId) !== undefined,
       save: (listId, order) => write({ [listId]: order }),
+      appendRoom: (listId, visibleRoomIds, roomId) => {
+        const saved = savedOf(listId);
+        if (!saved) return;
+        write({ [listId]: appendRoomOrder(saved, visibleRoomIds, roomId) });
+      },
       reset: (listIds) => {
         const changes: Record<string, undefined> = {};
         listIds.forEach((listId) => {

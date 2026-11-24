@@ -190,16 +190,10 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
       movingRoomIdsRef.current.add(roomId);
       try {
         await moveSpaceRoom(client, sourceSpaceId, targetSpace, roomId);
-        const latestOrders = roomOrdersRef.current;
-        if (latestOrders.isManual(targetSpaceId)) {
-          const targetSection = sectionsRef.current.find(
-            (section) => section.spaceId === targetSpaceId
-          );
-          const current = (
-            targetSection ? latestOrders.orderOf(targetSpaceId, targetSection.tree.top) : []
-          ).filter((id) => id !== roomId);
-          latestOrders.save(targetSpaceId, [...current, roomId]);
-        }
+        const targetSection = sectionsRef.current.find(
+          (section) => section.spaceId === targetSpaceId
+        );
+        roomOrdersRef.current.appendRoom(targetSpaceId, targetSection?.tree.top ?? [], roomId);
       } catch {
         // Leave Matrix state authoritative if the move fails.
       } finally {
