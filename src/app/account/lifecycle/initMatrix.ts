@@ -57,11 +57,16 @@ export const createSessionRequestClient = (
   });
 
 /** The homeserver logs the session's device out and drops the keys it keeps for it. */
-const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> => {
+const logoutOnServer = async (
+  session: ClientBootstrapSession,
+  renewAccess = true
+): Promise<void> => {
   const mx = createSessionRequestClient(session, SERVER_LOGOUT_TIMEOUT_MS);
-  const attempt = (async () => {
+  if (renewAccess) {
     // A logout that cannot pass Cloudflare Access leaves the device on the server.
     await renewExpiredCloudflareAccess(session.baseUrl);
+  }
+  const attempt = (async () => {
     await mx.logout(true);
   })().catch(() => undefined);
 
@@ -74,7 +79,7 @@ const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> =>
           try {
             mx.http.abort();
           } catch {
-            // Best effort: abort any in-flight logout or token refresh request.
+            // Best effort: abort the logout client's in-flight HTTP requests.
           }
           resolve();
         }, SERVER_LOGOUT_TIMEOUT_MS);
@@ -102,7 +107,7 @@ export const cancelConnectingSession = async (
       // Best effort: aborting in-flight requests avoids a racing SessionLoggedOut reload.
     }
   }
-  await logoutOnServer(session);
+  await logoutOnServer(session, false);
   await removeSessionAndReload(session, mx, nextHref);
 };
 

@@ -12,6 +12,9 @@ const server = vi.hoisted(() => ({
   abort: vi.fn(),
   createMatrixClient: vi.fn(),
 }));
+const cloudflare = vi.hoisted(() => ({
+  renewExpiredCloudflareAccess: vi.fn(async (): Promise<void> => undefined),
+}));
 
 vi.mock('../../account/lifecycle/sessionLifecycle', () => lifecycle);
 vi.mock('./matrixClientFactory', () => ({
@@ -20,9 +23,7 @@ vi.mock('./matrixClientFactory', () => ({
     http: { abort: server.abort },
   })),
 }));
-vi.mock('../../native/cloudflareAccess', () => ({
-  renewExpiredCloudflareAccess: vi.fn(async () => undefined),
-}));
+vi.mock('../../native/cloudflareAccess', () => cloudflare);
 
 const session = { sessionId: 'bob-session', userId: '@bob:hs.test' } as StoredSession;
 
@@ -63,6 +64,36 @@ describe('signing out an inactive account', () => {
 
     expect(lifecycle.removeStoredSession).toHaveBeenCalledWith(session);
   });
+
+  it('waits for Cloudflare Access renewal before starting the 5s logout deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveAccess: (() => void) | undefined;
+      cloudflare.renewExpiredCloudflareAccess.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveAccess = resolve;
+          })
+      );
+
+      const pending = logoutStoredSession({ ...session, baseUrl: 'https://hs.test' });
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      expect(cloudflare.renewExpiredCloudflareAccess).toHaveBeenCalledWith('https://hs.test');
+      expect(server.logout).not.toHaveBeenCalled();
+      expect(server.abort).not.toHaveBeenCalled();
+      expect(lifecycle.removeStoredSession).not.toHaveBeenCalled();
+
+      resolveAccess?.();
+      await pending;
+
+      expect(server.logout).toHaveBeenCalledWith(true);
+      expect(server.abort).not.toHaveBeenCalled();
+      expect(lifecycle.removeStoredSession).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('canceling a connecting session', () => {
@@ -91,6 +122,7 @@ describe('canceling a connecting session', () => {
         localTimeoutMs: 5_000,
       })
     );
+    expect(cloudflare.renewExpiredCloudflareAccess).not.toHaveBeenCalled();
     expect(server.logout).toHaveBeenCalledWith(true);
     expect(lifecycle.removeSessionAndReload).toHaveBeenCalledWith(
       stored,
@@ -156,6 +188,7 @@ describe('canceling a connecting session', () => {
       const pending = cancelConnectingSession(session, '/login/https%3A%2F%2Fhs.test');
       await vi.advanceTimersByTimeAsync(4_999);
 
+      expect(cloudflare.renewExpiredCloudflareAccess).not.toHaveBeenCalled();
       expect(server.logout).toHaveBeenCalledWith(true);
       expect(server.abort).not.toHaveBeenCalled();
       expect(lifecycle.removeSessionAndReload).not.toHaveBeenCalled();

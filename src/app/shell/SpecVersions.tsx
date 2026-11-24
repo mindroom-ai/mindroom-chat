@@ -27,6 +27,7 @@ type SpecVersionsProps = {
    */
   allowCachedContent?: boolean;
   mx?: MatrixClient;
+  onCancellingChange?: (cancelling: boolean) => void;
   children?: ReactNode;
 };
 
@@ -159,6 +160,7 @@ export function SpecVersions({
   baseUrl,
   allowCachedContent = false,
   mx,
+  onCancellingChange,
   children,
 }: SpecVersionsProps) {
   const session = useActiveSession();
@@ -214,6 +216,7 @@ export function SpecVersions({
         if (cancellingRef.current) return;
         cancellingRef.current = true;
         setCancelling(true);
+        onCancellingChange?.(true);
         const otherAccounts = listSessions().some(
           (stored) => stored.sessionId !== session.sessionId
         );
@@ -224,6 +227,7 @@ export function SpecVersions({
         cancelConnectingSession(session, loginHref, mx).catch(() => {
           cancellingRef.current = false;
           setCancelling(false);
+          onCancellingChange?.(false);
         });
       }
     : undefined;

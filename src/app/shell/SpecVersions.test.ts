@@ -679,12 +679,13 @@ describe('SpecVersions', () => {
         })
     );
 
+    const onCancellingChange = vi.fn();
     let renderer!: ReturnType<typeof create>;
     act(() => {
       renderer = create(
         React.createElement(
           SpecVersions,
-          { baseUrl: 'https://example.com' },
+          { baseUrl: 'https://example.com', onCancellingChange },
           React.createElement('div', null, 'child')
         )
       );
@@ -700,6 +701,7 @@ describe('SpecVersions', () => {
 
     const cancellingButton = findCancelButton(renderer);
     expect(cancelConnectingSession).toHaveBeenCalledTimes(1);
+    expect(onCancellingChange).toHaveBeenLastCalledWith(true);
     expect(cancellingButton?.props.disabled).toBe(true);
     expect(cancellingButton?.findAllByType('div').map((node) => node.children.join(''))).toEqual([
       'spinner',
@@ -717,6 +719,7 @@ describe('SpecVersions', () => {
     });
 
     const recoveredButton = findCancelButton(renderer);
+    expect(onCancellingChange).toHaveBeenLastCalledWith(false);
     expect(recoveredButton?.props.disabled).toBe(false);
     expect(recoveredButton?.findAllByType('div')).toHaveLength(0);
 
