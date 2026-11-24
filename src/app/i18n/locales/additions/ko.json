@@ -1041,6 +1041,19 @@
         "triageLabel": "트리아지: {{reason}}",
         "payloadLabel": "이벤트 페이로드 JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "할 일 {{count}}개 준비됨",
+        "hide": "숨기기",
+        "show": "표시",
+        "copyId": "할 일 ID {{id}} 복사",
+        "moreItems_other": "+실행 가능한 항목 {{count}}개 더 있음",
+        "priority": {
+          "critical": "긴급",
+          "high": "높음",
+          "medium": "보통",
+          "low": "낮음"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"

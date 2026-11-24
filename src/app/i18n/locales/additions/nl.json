@@ -1060,6 +1060,21 @@
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Gebeurtenispayload JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} taak klaar",
+        "readyCount_other": "{{count}} taken klaar",
+        "hide": "Verbergen",
+        "show": "Tonen",
+        "copyId": "Taak-ID {{id}} kopiëren",
+        "moreItems_one": "+{{count}} extra uitvoerbaar item",
+        "moreItems_other": "+{{count}} extra uitvoerbare items",
+        "priority": {
+          "critical": "Kritiek",
+          "high": "Hoog",
+          "medium": "Gemiddeld",
+          "low": "Laag"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"

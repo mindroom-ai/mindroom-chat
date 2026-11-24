@@ -1060,6 +1060,21 @@
         "triageLabel": "ट्रायज: {{reason}}",
         "payloadLabel": "इवेंट पेलोड JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} कार्य तैयार",
+        "readyCount_other": "{{count}} कार्य तैयार",
+        "hide": "छिपाएँ",
+        "show": "दिखाएँ",
+        "copyId": "कार्य आईडी {{id}} कॉपी करें",
+        "moreItems_one": "+{{count}} और करने योग्य आइटम",
+        "moreItems_other": "+{{count}} और करने योग्य आइटम",
+        "priority": {
+          "critical": "गंभीर",
+          "high": "उच्च",
+          "medium": "मध्यम",
+          "low": "निम्न"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"

@@ -1079,6 +1079,23 @@
         "triageLabel": "Triagem: {{reason}}",
         "payloadLabel": "Carga do evento JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} tarefa pronta",
+        "readyCount_many": "{{count}} tarefas prontas",
+        "readyCount_other": "{{count}} tarefas prontas",
+        "hide": "Ocultar",
+        "show": "Mostrar",
+        "copyId": "Copiar ID da tarefa {{id}}",
+        "moreItems_one": "+{{count}} outro item acionável",
+        "moreItems_many": "+{{count}} outros itens acionáveis",
+        "moreItems_other": "+{{count}} outros itens acionáveis",
+        "priority": {
+          "critical": "Crítica",
+          "high": "Alta",
+          "medium": "Média",
+          "low": "Baixa"
+        }
+      },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"

@@ -1041,6 +1041,19 @@
         "triageLabel": "トリアージ：{{reason}}",
         "payloadLabel": "イベントペイロード JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 件のタスクが準備完了",
+        "hide": "非表示",
+        "show": "表示",
+        "copyId": "タスク ID {{id}} をコピー",
+        "moreItems_other": "+他 {{count}} 件の対応可能な項目",
+        "priority": {
+          "critical": "緊急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"

@@ -1041,6 +1041,19 @@
         "triageLabel": "Triase: {{reason}}",
         "payloadLabel": "Payload acara JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} tugas siap",
+        "hide": "Sembunyikan",
+        "show": "Tampilkan",
+        "copyId": "Salin ID tugas {{id}}",
+        "moreItems_other": "+{{count}} item lain yang dapat ditindaklanjuti",
+        "priority": {
+          "critical": "Kritis",
+          "high": "Tinggi",
+          "medium": "Sedang",
+          "low": "Rendah"
+        }
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"

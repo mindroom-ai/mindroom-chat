@@ -60,7 +60,9 @@ import { WorkflowQuestionCard } from '../workflow-run/WorkflowQuestionCard';
 import { WorkflowRunCard } from '../workflow-run/WorkflowRunCard';
 import { readAgentNoticeMarker } from '../agentNoticeMarker';
 import { readTriggerWake, TRIGGER_WAKE_METADATA_KEYS } from '../../matrix/protocol/triggerWake';
+import { readTodoPoke, TODO_POKE_METADATA_KEYS } from '../../matrix/protocol/todoPoke';
 import { TriggerWakeMarker } from '../TriggerWakeMarker';
+import { TodoPokeMarker } from '../TodoPokeMarker';
 import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
@@ -84,7 +86,11 @@ const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
 
 /** Wrapper keys carried onto a hydrated sidecar when the sidecar leaves them out. */
-const FALLBACK_WRAPPER_KEYS = [COMPACTIONS_CONTENT_KEY, ...TRIGGER_WAKE_METADATA_KEYS];
+const FALLBACK_WRAPPER_KEYS = [
+  COMPACTIONS_CONTENT_KEY,
+  ...TRIGGER_WAKE_METADATA_KEYS,
+  ...TODO_POKE_METADATA_KEYS,
+];
 
 /**
  * The live reasoning and compactions of `outer`, moved onto the content a long text resolved, and
@@ -452,6 +458,16 @@ export const renderAgentMessageContent = ({
         />
       );
     }
+    const todoPoke = !highlightRegex && fromMindroomAgent ? readTodoPoke(mergedContent) : null;
+    if (todoPoke) {
+      return (
+        <TodoPokeMarker
+          poke={todoPoke}
+          ts={ts ?? mEvent?.getTs()}
+          senderDisplayName={displayName}
+        />
+      );
+    }
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -537,7 +553,12 @@ export const renderAgentMessageContent = ({
   // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
   const notice =
     fromMindroomAgent && !highlightRegex
-      ? readAgentNoticeMarker(content, ts ?? mEvent?.getTs(), roomId ?? mEvent?.getRoomId())
+      ? readAgentNoticeMarker(
+          content,
+          ts ?? mEvent?.getTs(),
+          roomId ?? mEvent?.getRoomId(),
+          displayName
+        )
       : null;
   if (notice) return notice;
 
@@ -632,7 +653,9 @@ export const renderAgentMessageContent = ({
 
     if (longTextSource) {
       const suppressLongTriggerUrls =
-        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
+        !highlightRegex &&
+        fromMindroomAgent &&
+        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
       const longText = (
         <LongTextText
           kind={LongTextKind.Text}
@@ -775,7 +798,9 @@ export const renderAgentMessageContent = ({
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       const suppressLongTriggerUrls =
-        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
+        !highlightRegex &&
+        fromMindroomAgent &&
+        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
       return (
         <LongTextText
           kind={LongTextKind.Notice}

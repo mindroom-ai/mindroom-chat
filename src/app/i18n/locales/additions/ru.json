@@ -1098,6 +1098,25 @@
         "triageLabel": "Триаж: {{reason}}",
         "payloadLabel": "Полезная нагрузка события JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "Готова {{count}} задача",
+        "readyCount_few": "Готовы {{count}} задачи",
+        "readyCount_many": "Готово {{count}} задач",
+        "readyCount_other": "Готово {{count}} задач",
+        "hide": "Скрыть",
+        "show": "Показать",
+        "copyId": "Копировать ID задачи {{id}}",
+        "moreItems_one": "+ещё {{count}} задача к выполнению",
+        "moreItems_few": "+ещё {{count}} задачи к выполнению",
+        "moreItems_many": "+ещё {{count}} задач к выполнению",
+        "moreItems_other": "+ещё {{count}} задач к выполнению",
+        "priority": {
+          "critical": "Критическая",
+          "high": "Высокая",
+          "medium": "Средняя",
+          "low": "Низкая"
+        }
+      },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"

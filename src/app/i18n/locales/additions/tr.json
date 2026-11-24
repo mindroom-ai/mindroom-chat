@@ -1060,6 +1060,21 @@
         "triageLabel": "Triyaj: {{reason}}",
         "payloadLabel": "Olay yükü JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} görev hazır",
+        "readyCount_other": "{{count}} görev hazır",
+        "hide": "Gizle",
+        "show": "Göster",
+        "copyId": "Görev kimliğini kopyala: {{id}}",
+        "moreItems_one": "+{{count}} uygulanabilir öğe daha",
+        "moreItems_other": "+{{count}} uygulanabilir öğe daha",
+        "priority": {
+          "critical": "Kritik",
+          "high": "Yüksek",
+          "medium": "Orta",
+          "low": "Düşük"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"

@@ -1041,6 +1041,19 @@
         "triageLabel": "分流：{{reason}}",
         "payloadLabel": "事件酬載 JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_other": "{{count}} 項待辦就緒",
+        "hide": "隱藏",
+        "show": "顯示",
+        "copyId": "複製待辦 ID {{id}}",
+        "moreItems_other": "+另外 {{count}} 項可執行待辦",
+        "priority": {
+          "critical": "緊急",
+          "high": "高",
+          "medium": "中",
+          "low": "低"
+        }
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
