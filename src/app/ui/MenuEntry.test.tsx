@@ -72,6 +72,16 @@ describe('MenuSwitchEntry', () => {
     expect(space.defaultPrevented).toBe(true);
     expect(onToggle).toHaveBeenCalledTimes(3);
 
+    const repeat = new KeyboardEvent('keydown', {
+      key: ' ',
+      repeat: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    item.dispatchEvent(repeat);
+    expect(repeat.defaultPrevented).toBe(true);
+    expect(onToggle).toHaveBeenCalledTimes(3);
+
     const other = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
     item.dispatchEvent(other);
     expect(other.defaultPrevented).toBe(false);

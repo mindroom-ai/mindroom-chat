@@ -10,6 +10,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { MenuEntry } from '../ui/MenuEntry';
+import * as scrollableMenuCss from '../ui/ScrollableMenu.css';
 import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { registerPluginTranslations } from '../plugins/pluginTranslations';
@@ -238,6 +239,15 @@ describe('the shared room actions', () => {
     expect(screen.getByRole('group', { name: 'Room' })).toBeTruthy();
     expect(screen.getByRole('group', { name: 'Preferences' })).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'View' })).toBeNull();
+  });
+
+  it('caps height and scrolls rows inside the menu rim on all viewports', () => {
+    render(<Harness />);
+    const menu = screen.getByRole('menu');
+    expect(menu.classList.contains(scrollableMenuCss.ScrollableMenu)).toBe(true);
+    expect(menu.firstElementChild?.classList.contains(scrollableMenuCss.ScrollableMenuRows)).toBe(
+      true
+    );
   });
 
   it.each([

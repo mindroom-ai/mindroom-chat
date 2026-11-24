@@ -10,7 +10,7 @@ import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins } from '../plugins/registry';
 import { usePluginRoomActions, type PluginRoomDialog } from '../plugins/roomActions';
 import { ROOM_ACTIONS, type RoomActionDialog, type RoomActionProps } from './roomActions';
-import * as css from './RoomActionsMenu.css';
+import * as scrollableMenuCss from '../ui/ScrollableMenu.css';
 
 type RoomActionsMenuProps = RoomActionProps & {
   /**
@@ -83,31 +83,34 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
     const ordinaryRows = pluginRows(false);
     const criticalRows = pluginRows(true);
     return (
-      <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
-        <div className={css.RoomMenuRows}>
+      <Menu ref={ref} className={scrollableMenuCss.ScrollableMenu} style={menuStyle}>
+        <div className={scrollableMenuCss.ScrollableMenuRows}>
           {roomEntries && (
             <>
               <MenuGroup label={t('featureUi.roomActions.viewSection')}>{roomEntries}</MenuGroup>
               <Line variant="Surface" size="300" />
             </>
           )}
-          {ROOM_ACTIONS.map((group, index) => (
-            <Fragment key={group.id}>
-              {index > 0 && <Line variant="Surface" size="300" />}
-              <MenuGroup label={group.labelKey ? t(group.labelKey) : undefined}>
-                {group.actions.map(({ id, Entry }) => (
-                  <Entry key={id} {...actionProps} />
-                ))}
-                {index === ROOM_ACTIONS.length - 1 && criticalRows}
-              </MenuGroup>
-              {index === ROOM_ACTIONS.length - 2 && ordinaryRows.length > 0 && (
-                <>
-                  <Line variant="Surface" size="300" />
-                  <MenuGroup>{ordinaryRows}</MenuGroup>
-                </>
-              )}
-            </Fragment>
-          ))}
+          {ROOM_ACTIONS.map((group, index) => {
+            const isExit = group.id === 'exit';
+            return (
+              <Fragment key={group.id}>
+                {index > 0 && <Line variant="Surface" size="300" />}
+                {isExit && ordinaryRows.length > 0 && (
+                  <>
+                    <MenuGroup>{ordinaryRows}</MenuGroup>
+                    <Line variant="Surface" size="300" />
+                  </>
+                )}
+                <MenuGroup label={group.labelKey ? t(group.labelKey) : undefined}>
+                  {group.actions.map(({ id, Entry }) => (
+                    <Entry key={id} {...actionProps} />
+                  ))}
+                  {isExit && criticalRows}
+                </MenuGroup>
+              </Fragment>
+            );
+          })}
         </div>
       </Menu>
     );

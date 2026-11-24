@@ -102,7 +102,7 @@ const menuArrowKeys = async (page: Page) => {
   await page.getByRole('button', { name: 'More Options', exact: true }).focus();
   await page.keyboard.press('Enter');
   const first = page.getByRole('menuitem', { name: 'Mark as Read', exact: true });
-  const second = page.getByRole('menuitem', { name: 'Notifications', exact: true });
+  const second = page.getByRole('menuitem', { name: 'Message Search', exact: true });
   await expect(first).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(second).toBeFocused();

@@ -159,6 +159,7 @@ export function MenuSwitchEntry({
         onKeyDown?.(event);
         if (!event.defaultPrevented && (event.key === 'Enter' || event.key === ' ')) {
           event.preventDefault();
+          if (event.repeat) return;
           onToggle();
         }
       }}

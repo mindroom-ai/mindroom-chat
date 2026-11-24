@@ -2,8 +2,7 @@ import { style } from '@vanilla-extract/css';
 
 // Rows scroll inside the menu when a tall menu outgrows a short viewport or landscape phone,
 // leaving its glass rim in place. The cap leaves out the safe areas, keeping the 4.5rem clearance
-// on coarse pointers (matching RoomActionsMenu) so the popout's clamp keeps the whole menu clear
-// of them.
+// on coarse pointers so the popout's clamp keeps the whole menu clear of them.
 export const ScrollableMenu = style({
   display: 'flex',
   flexDirection: 'column',
