@@ -434,7 +434,66 @@ describe('presentBackgroundJobs, rich rows', () => {
       jobId: 'job_wf',
       name: 'Audit the sample module',
       state: 'waiting',
-      waiting: true,
+      waiting: false,
+      workflowWaiting: true,
     });
+    // Workflow ask_user wait is not an approval wait; folded summary counts workflows with tools.
+    expect(model?.summary).toEqual({ subagents: 1, tools: 1, waiting: 0 });
+
+    // Peer-only wait is not a human wait; approval wait counts as waiting for approval.
+    const peerEntry = {
+      ...workflowEntry,
+      graph: {
+        ...workflowEntry.graph,
+        nodes: [
+          {
+            id: 'n1',
+            kind: 'agent',
+            label: 'Wait peer',
+            name: null,
+            phase: 0,
+            group: null,
+            status: 'waiting' as const,
+            waitingOn: 'peer' as const,
+            session: null,
+            turns: 1,
+            startedAt: 100,
+            endedAt: null,
+            cached: false,
+            error: null,
+          },
+        ],
+      },
+    };
+    const peerModel = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, peerEntry]]) }
+    );
+    expect(peerModel?.items[0]).toMatchObject({
+      state: 'running',
+      waiting: false,
+      workflowWaiting: false,
+    });
+    expect(peerModel?.summary.waiting).toBe(0);
+
+    const approvalEntry = {
+      ...peerEntry,
+      graph: {
+        ...peerEntry.graph,
+        nodes: [{ ...peerEntry.graph.nodes[0]!, waitingOn: 'approval' as const }],
+      },
+    };
+    const approvalModel = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, approvalEntry]]) }
+    );
+    expect(approvalModel?.items[0]).toMatchObject({ state: 'waiting', waiting: true });
+    expect(approvalModel?.summary.waiting).toBe(1);
   });
 });

@@ -652,32 +652,27 @@ function RoomContent() {
   // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
   // conversation, so the panel lists its run.
   const subagentsShown = useLatestRef({ threadId, classic: viewMode === 'classic' });
-  useEffect(
-    () =>
-      store.sub(subagentsPanelAtom, () => {
-        const opened = store.get(subagentsPanelAtom);
+  useEffect(() => {
+    const bind = (
+      panelAtom: typeof subagentsPanelAtom | typeof workflowRunPanelAtom,
+      panelId: 'subagents' | 'workflow'
+    ) =>
+      store.sub(panelAtom, () => {
+        const opened = store.get(panelAtom);
         if (opened?.roomId !== roomId) return;
-        request('subagents', () => undefined);
+        request(panelId, () => undefined);
         const shown = subagentsShown.current;
         const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
         if (target === null) navigateRoom(roomId);
         else if (target !== undefined) navigateRoomThread(roomId, target);
-      }),
-    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
-  );
-  useEffect(
-    () =>
-      store.sub(workflowRunPanelAtom, () => {
-        const opened = store.get(workflowRunPanelAtom);
-        if (opened?.roomId !== roomId) return;
-        request('workflow', () => undefined);
-        const shown = subagentsShown.current;
-        const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
-        if (target === null) navigateRoom(roomId);
-        else if (target !== undefined) navigateRoomThread(roomId, target);
-      }),
-    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
-  );
+      });
+    const unsubSub = bind(subagentsPanelAtom, 'subagents');
+    const unsubWf = bind(workflowRunPanelAtom, 'workflow');
+    return () => {
+      unsubSub();
+      unsubWf();
+    };
+  }, [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]);
   const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');

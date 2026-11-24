@@ -125,7 +125,8 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
  */
 const shownOfWorkflowRun = (entry: WorkflowRunEntry, listed: boolean) => {
   const { title, name, status, counts, usage, endedAt } = entry.meta;
-  return listed ? [entry.run, title, name, status, counts, usage, endedAt] : [entry.run, title, name, status];
+  const waits = entry.graph.nodes.filter((n) => n.status === 'waiting').map((n) => n.waitingOn);
+  return [entry.run, title, name, status, waits, ...(listed ? [counts, usage, endedAt] : [])];
 };
 
 const useJobWorkflowRuns = (

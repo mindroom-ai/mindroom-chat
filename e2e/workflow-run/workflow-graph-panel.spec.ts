@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
 import { sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
-import { checkPanelFrame, openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePanels';
+import {
+  checkPanelFrame,
+  openPanelRoom,
+  panelLocator,
+  type PanelRoom,
+} from '../helpers/sidePanels';
 
 // Workflow graph panel e2e coverage:
 // 1. Fixture screenshots at wide and phone widths, with a selected chip and message edges.
@@ -47,7 +52,7 @@ const putWorkflowFrame = async (
 };
 
 const putSubagentFrame = async (room: PanelRoom, startedAt: number) => {
-  const sid = `${Date.now()}-sub12345`;
+  const sid = `${Date.now()}-a1b2c3d4`;
   const response = await fetch(
     `${DISPOSABLE_HOMESERVER}/_matrix/client/unstable/org.matrix.msc2477/rooms/${encodeURIComponent(
       room.roomId
@@ -135,7 +140,15 @@ const seedLiveWorkflow = async (room: PanelRoom) => {
       requester: room.viewer.userId,
       title: 'Audit the sample module',
       status: 'running',
-      counts: { queued: 0, running: 1, waiting: 0, completed: 1, failed: 0, indeterminate: 0, cached: 0 },
+      counts: {
+        queued: 0,
+        running: 1,
+        waiting: 0,
+        completed: 1,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
       usage: {
         input_tokens: 12000,
         output_tokens: 900,
@@ -205,7 +218,15 @@ const seedLiveWorkflow = async (room: PanelRoom) => {
     max_concurrent: 16,
     max_cost_usd: null,
     large: false,
-    counts: { queued: 0, running: 1, waiting: 0, completed: 1, failed: 0, indeterminate: 0, cached: 0 },
+    counts: {
+      queued: 0,
+      running: 1,
+      waiting: 0,
+      completed: 1,
+      failed: 0,
+      indeterminate: 0,
+      cached: 0,
+    },
     usage: {
       input_tokens: 12000,
       output_tokens: 900,
@@ -228,7 +249,9 @@ const seedLiveWorkflow = async (room: PanelRoom) => {
       meta: baseMeta,
       snapshot: {
         phases: ['Audit'],
-        groups: [{ id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 1, failed: 0 }],
+        groups: [
+          { id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 1, failed: 0 },
+        ],
         nodes: [node4, node5],
         edges: [{ from: 'n4', to: 'n5', kind: 'message', count: 2 }],
         log: ['Round 1: 1 done, 1 running'],
@@ -314,16 +337,28 @@ test.describe('workflow graph panel integration', () => {
         seq: 2,
         meta: {
           ...baseMeta,
-          counts: { queued: 0, running: 0, waiting: 0, completed: 2, failed: 0, indeterminate: 0, cached: 0 },
+          counts: {
+            queued: 0,
+            running: 0,
+            waiting: 0,
+            completed: 2,
+            failed: 0,
+            indeterminate: 0,
+            cached: 0,
+          },
         },
         delta: {
-          groups: [{ id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 2, failed: 0 }],
+          groups: [
+            { id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 2, failed: 0 },
+          ],
           nodes: [{ ...node4, status: 'completed', ended_at: startedAt + 15 }],
         },
       },
       '2'
     );
-    await expect(chip4).toHaveAttribute('data-workflow-node-status', 'completed', { timeout: 15_000 });
+    await expect(chip4).toHaveAttribute('data-workflow-node-status', 'completed', {
+      timeout: 15_000,
+    });
 
     await checkPanelFrame(page, testInfo, room, { panel, label: 'Workflow' });
 
@@ -331,7 +366,11 @@ test.describe('workflow graph panel integration', () => {
     await chip4.click();
     await expect(panel.getByText('Messages to frontend: 2')).toBeVisible();
     await panel.getByRole('button', { name: 'Open' }).click();
-    await expect(panelLocator(page, 'subagents')).toBeVisible({ timeout: 15_000 });
+    const subPanel = panelLocator(page, 'subagents');
+    await expect(subPanel).toBeVisible({ timeout: 15_000 });
+    await expect(subPanel.getByText('Checking session rotation paths.')).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Post a finished run card carrying its final graph, reload (clearing ephemeral state),
     // and verify the finished card still opens its graph.
@@ -351,7 +390,15 @@ test.describe('workflow graph panel integration', () => {
         requester: room.viewer.userId,
         title: 'Audit the sample module',
         status: 'completed',
-        counts: { queued: 0, running: 0, waiting: 0, completed: 2, failed: 0, indeterminate: 0, cached: 0 },
+        counts: {
+          queued: 0,
+          running: 0,
+          waiting: 0,
+          completed: 2,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
         usage: {
           input_tokens: 15000,
           output_tokens: 1100,
@@ -367,7 +414,9 @@ test.describe('workflow graph panel integration', () => {
         large: false,
         graph: {
           phases: ['Audit'],
-          groups: [{ id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 2, failed: 0 }],
+          groups: [
+            { id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 2, done: 2, failed: 0 },
+          ],
           nodes: [{ ...node4, status: 'completed', ended_at: startedAt + 15 }, node5],
           edges: [{ from: 'n4', to: 'n5', kind: 'message', count: 2 }],
           log: ['Done.'],

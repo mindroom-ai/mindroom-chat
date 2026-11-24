@@ -622,7 +622,7 @@ function Fixture() {
                   stopping: false,
                   finished: false,
                   subagent: false,
-                  workflow: true,
+                  workflow: RUN_RUNNING,
                   workflowRun: workflowEntry,
                   agent: 'panels',
                   threadId: THREAD_ID,

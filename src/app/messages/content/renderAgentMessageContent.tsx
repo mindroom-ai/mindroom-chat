@@ -521,31 +521,16 @@ export const renderAgentMessageContent = ({
   // Workflow run and question notices render as cards only when sent by a MindRoom agent.
   const workflowRoomId = roomId ?? mEvent?.getRoomId();
   if (fromMindroomAgent && workflowRoomId) {
-    const workflowRunCard = parseWorkflowRunCard(content);
-    if (workflowRunCard) {
-      return (
-        <WorkflowRunCard
-          card={workflowRunCard}
-          roomId={workflowRoomId}
-          threadId={threadId ?? mEvent?.threadRootId ?? null}
-          eventId={eventId ?? mEvent?.getId()}
-          sender={mEvent?.getSender()}
-          readOnly={readOnly}
-        />
-      );
-    }
-    const workflowQuestion = parseWorkflowRunQuestion(content);
-    if (workflowQuestion) {
-      return (
-        <WorkflowQuestionCard
-          question={workflowQuestion}
-          roomId={workflowRoomId}
-          threadId={threadId ?? mEvent?.threadRootId ?? null}
-          eventId={eventId ?? mEvent?.getId()}
-          readOnly={readOnly}
-        />
-      );
-    }
+    const common = {
+      roomId: workflowRoomId,
+      threadId: threadId ?? mEvent?.threadRootId ?? null,
+      eventId: eventId ?? mEvent?.getId(),
+      readOnly,
+    };
+    const runCard = parseWorkflowRunCard(content);
+    if (runCard) return <WorkflowRunCard card={runCard} sender={mEvent?.getSender()} {...common} />;
+    const question = parseWorkflowRunQuestion(content);
+    if (question) return <WorkflowQuestionCard question={question} {...common} />;
   }
 
   // An agent asking for a key; any member can write this content, which then renders as its body.

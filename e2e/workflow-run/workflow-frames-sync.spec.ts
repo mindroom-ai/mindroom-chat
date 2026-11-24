@@ -166,7 +166,7 @@ test.describe('workflow ephemeral frame sync', () => {
   });
 
   test('delivers workflow snapshot and delta on a fresh login', async ({ context, page }) => {
-    const room = await openPanelRoom(context, page);
+    const room = await openPanelRoom(context, page, { showUsageDetails: true });
     await seedWorkflowJob(room);
     const { snapshot, delta } = makeFrames(room);
     await putWorkflowFrame(room, snapshot, '1');
@@ -178,7 +178,7 @@ test.describe('workflow ephemeral frame sync', () => {
     context,
     page,
   }) => {
-    const room = await openPanelRoom(context, page);
+    const room = await openPanelRoom(context, page, { showUsageDetails: true });
     // Create a filter on the homeserver that predates `io.mindroom.workflow` and seed its ID.
     const oldFilter = await matrixFetch<{ filter_id: string }>(
       DISPOSABLE_HOMESERVER,
@@ -190,7 +190,9 @@ test.describe('workflow ephemeral frame sync', () => {
           room: {
             timeline: { limit: 20 },
             state: { lazy_load_members: true },
-            ephemeral: { types: ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'] },
+            ephemeral: {
+              types: ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'],
+            },
           },
         }),
       }

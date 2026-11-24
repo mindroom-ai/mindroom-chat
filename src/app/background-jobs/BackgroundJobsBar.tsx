@@ -93,7 +93,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const ended = useRef(new Map<string, number>()).current;
   const endedAt = ({ finished, run, workflowRun, jobId }: BackgroundJobsBarItem) => {
     if (finished && !ended.has(jobId))
-      ended.set(jobId, (workflowRun?.meta.endedAt ?? run?.meta.endedAt ?? Date.now() / 1000) * 1000);
+      ended.set(
+        jobId,
+        (workflowRun?.meta.endedAt ?? run?.meta.endedAt ?? Date.now() / 1000) * 1000
+      );
     return finished ? ended.get(jobId) : undefined;
   };
   const anchor = useRef<HTMLDivElement>(null);
@@ -246,12 +249,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const finished = model.items.every((item) => item.finished);
   // A workflow job opens the Workflow graph panel; a sub-agent job opens the Sub-agents panel.
   const openRun = (item: BackgroundJobsBarItem) => {
-    if (item.workflow) {
-      const workflowRunId = item.workflowRun?.run ?? item.workflowId;
-      return (
-        workflowRunId &&
-        (() => openWorkflowRunPanel(store, room.roomId, workflowRunId, item.threadId))
-      );
+    if (item.workflow !== undefined) {
+      const runId = item.workflowRun?.run || item.workflow;
+      return runId
+        ? () => openWorkflowRunPanel(store, room.roomId, runId, item.threadId)
+        : undefined;
     }
     const run = item.run?.run;
     return run && (() => openSubagentsPanel(store, room.roomId, item.threadId, run));

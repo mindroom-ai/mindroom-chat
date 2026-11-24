@@ -20,10 +20,10 @@ export type BackgroundJobsBarItem = {
   finished: boolean;
   // A sub-agent's run, which the room's Sub-agents panel shows: its row's name opens the panel.
   subagent: boolean;
-  // A workflow run job (`kind: 'workflow'`), listed in its own top group.
-  workflow?: boolean;
-  // The workflow run ID on a workflow job (`job.workflow`), even before the first frame arrives.
-  workflowId?: string;
+  // Workflow run job (`kind: 'workflow'`), holding its run ID (or empty string before arrival).
+  workflow?: string;
+  // Workflow waits on a user question rather than a tool approval.
+  workflowWaiting?: boolean;
   // Live state of a workflow run job, joined by `job.workflow`.
   workflowRun?: WorkflowRunEntry;
   // The thread it runs for (its root's ID), or null for the room's own timeline.
@@ -57,7 +57,7 @@ export type BackgroundJobsBarModel = {
   items: BackgroundJobsBarItem[];
   // The items by kind, one group per kind present.
   groups: { kind: JobKind; items: BackgroundJobsBarItem[] }[];
-  summary: { workflows?: number; subagents: number; tools: number; waiting: number };
+  summary: { subagents: number; tools: number; waiting: number };
 };
 
 /** What the bar joins the jobs to: the room's sub-agent runs, and each tool job's call. */
@@ -77,11 +77,7 @@ const NO_LOOKUPS: BackgroundJobLookups = {
 
 export const MAX_JOB_DEPTH = 3;
 
-const jobName = (
-  job: BackgroundJob,
-  t: TFunction,
-  workflowRun?: WorkflowRunEntry
-): string => {
+const jobName = (job: BackgroundJob, t: TFunction, workflowRun?: WorkflowRunEntry): string => {
   if (job.kind === 'workflow') {
     return workflowRun
       ? workflowRunHeading(workflowRun.meta, t)
@@ -93,6 +89,21 @@ const jobName = (
 };
 
 const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiting_approval';
+
+const workflowWaitKind = (
+  job: BackgroundJob,
+  workflowRun?: WorkflowRunEntry
+): 'approval' | 'user' | null => {
+  if (awaitingApproval(job)) return 'approval';
+  const nodes = workflowRun?.graph.nodes;
+  if (nodes?.some((n) => n.status === 'waiting' && n.waitingOn === 'approval')) return 'approval';
+  if (nodes?.some((n) => n.status === 'waiting' && n.waitingOn === 'user')) return 'user';
+  if (workflowRun?.meta.status !== 'waiting') return null;
+  const waitingNodes = nodes?.filter((n) => n.status === 'waiting') ?? [];
+  return waitingNodes.length > 0 && waitingNodes.every((n) => n.waitingOn === 'peer')
+    ? null
+    : 'user';
+};
 
 /** The status the bar gives the jobs it keeps after they ended; agents list only live jobs. */
 export const FINISHED_JOB_STATUS = 'finished';
@@ -174,13 +185,13 @@ export const presentBackgroundJobs = (
     const isWorkflow = job.kind === 'workflow';
     const finished = job.status === FINISHED_JOB_STATUS;
     const stopping = !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId));
-    const waiting =
-      !finished &&
-      (awaitingApproval(job) || (isWorkflow && joined.workflowRun?.meta.status === 'waiting'));
+    const wfWait = !finished && isWorkflow ? workflowWaitKind(job, joined.workflowRun) : null;
+    const waiting = !finished && (isWorkflow ? wfWait === 'approval' : awaitingApproval(job));
+    const workflowWaiting = !finished && isWorkflow && wfWait === 'user';
     let state: JobState = 'running';
     if (finished) state = 'finished';
     else if (stopping) state = 'stopping';
-    else if (waiting) state = 'waiting';
+    else if (waiting || workflowWaiting) state = 'waiting';
     const name = jobName(job, t, joined.workflowRun);
     return {
       jobId: job.jobId,
@@ -189,23 +200,23 @@ export const presentBackgroundJobs = (
         ? { plainName: plainToolName(name, t) }
         : {}),
       waiting,
+      ...(isWorkflow ? { workflow: job.workflow ?? '', workflowWaiting } : {}),
       stopping,
       finished,
       state,
       subagent: job.kind === 'subagent',
-      ...(isWorkflow ? { workflow: true, ...(job.workflow ? { workflowId: job.workflow } : {}) } : {}),
       threadId: job.threadId,
       startedAt: Date.parse(job.startedAt),
       depth: 0,
       ...joined,
     };
   });
-  const workflows = listed.filter((item) => item.workflow);
+  const workflows = listed.filter((item) => item.workflow !== undefined);
   const subagents = nest(
     listed.filter((item) => item.subagent),
     new Map(jobs.map((job) => [job.jobId, job.run]))
   );
-  const tools = listed.filter((item) => !item.subagent && !item.workflow);
+  const tools = listed.filter((item) => !item.subagent && item.workflow === undefined);
   const groups = [
     { kind: 'workflow' as const, items: workflows },
     { kind: 'subagent' as const, items: subagents },
@@ -214,11 +225,11 @@ export const presentBackgroundJobs = (
   const items = [...workflows, ...subagents, ...tools];
   const finished = items.every((item) => item.finished);
   const summary = {
-    ...(workflows.length > 0 ? { workflows: workflows.length } : {}),
     subagents: subagents.length,
-    tools: tools.length,
-    // A job being stopped no longer waits, as its row says.
-    waiting: items.filter((item) => item.state === 'waiting').length,
+    // Folded bar counts workflows alongside tools (as before the workflow group existed).
+    tools: tools.length + workflows.length,
+    // Only real approval waits count as "needs approval".
+    waiting: items.filter((item) => item.waiting && !item.stopping).length,
   };
   if (several) {
     let title: string;
@@ -236,7 +247,9 @@ export const presentBackgroundJobs = (
   if (finished) return { title: t('mindroomUi.backgroundJobs.finished', { tool }), ...one };
   if (items[0]!.stopping)
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), ...one };
-  if (awaitingApproval(first))
+  if (items[0]!.waiting)
     return { title: t('mindroomUi.backgroundJobs.awaitingApproval', { tool }), ...one };
+  if (items[0]!.workflowWaiting)
+    return { title: `${t('mindroomUi.workflowRun.status.waiting')}: ${tool}`, ...one };
   return { title: t('mindroomUi.backgroundJobs.running', { tool }), ...one };
 };
