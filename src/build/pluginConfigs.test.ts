@@ -222,6 +222,9 @@ describe('eslint.config.plugin.mjs', () => {
       )
     ).toEqual(['no-undef']);
     expect(
+      (await lint('console.log(model);\n', 'public/frame.js')).map(({ ruleId }) => ruleId)
+    ).toEqual(['no-undef']);
+    expect(
       await lint(
         'export const info = () => [AudioWorkletProcessor, registerProcessor, sampleRate];\n',
         'src/captureWorklet.js'

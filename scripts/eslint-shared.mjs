@@ -17,7 +17,17 @@ export const RESOLVER_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
 /** Runtime-specific global sets from `globals` for explicit `files` entries. */
 export const RUNTIME_GLOBALS = {
-  browser: globals.browser,
+  browser: {
+    ...globals.browser,
+    // Turn off common-word globals@17 browser names so stray undeclared uses fail `no-undef`.
+    model: 'off',
+    when: 'off',
+    ai: 'off',
+    navigation: 'off',
+    viewport: 'off',
+    scheduler: 'off',
+    fence: 'off',
+  },
   node: globals.node,
   audioWorklet: globals.audioWorklet,
   serviceworker: globals.serviceworker,

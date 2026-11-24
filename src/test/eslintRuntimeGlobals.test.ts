@@ -39,6 +39,7 @@ describe('eslint.config.mjs runtime globals', () => {
     ['Node script accepts process', 'scripts/x.mjs', 'console.log(process.pid);\n', []],
     ['browser src JS accepts document', 'src/x.js', 'console.log(document.title);\n', []],
     ['browser src JS rejects process', 'src/x.js', 'console.log(process);\n', ['no-undef']],
+    ['browser src JS rejects model', 'src/x.js', 'console.log(model);\n', ['no-undef']],
     [
       'public browser JS accepts document',
       'public/viewport.js',
