@@ -160,7 +160,7 @@ const ROWS: ActivityRow[] = [
       mentionedMe: true,
       mentionedBy: '@maya:x',
       newCount: 2,
-      lastReply: {
+      lastOtherReply: {
         eventId: '$r',
         senderId: '@tom:x',
         ts: NOW,
@@ -174,7 +174,7 @@ const ROWS: ActivityRow[] = [
     'read',
     'reply',
     {
-      lastReply: {
+      lastOtherReply: {
         eventId: '$x',
         senderId: '@mindroom_mind:x',
         ts: NOW,
@@ -288,7 +288,7 @@ const greetingPlugin = (preview: (text: string) => string = (text) => `Greeting:
 const greetingRow = (key: string, sender: string) =>
   threadRow(key, 'reply', {
     newCount: 1,
-    lastReply: {
+    lastOtherReply: {
       eventId: `$${key}-reply`,
       senderId: sender,
       ts: NOW,
@@ -489,7 +489,7 @@ describe('ActivityList', () => {
       rows: [
         threadRow('tools', 'reply', {
           newCount: 1,
-          lastReply: {
+          lastOtherReply: {
             eventId: '$t',
             senderId: '@mindroom_mind:x',
             ts: NOW,
@@ -551,12 +551,66 @@ describe('ActivityList', () => {
     expect(row.textContent).not.toContain('Mind mentioned you');
   });
 
-  it('says You replied when the user wrote last', () => {
+  it("previews the other sender's reply and omits You replied when the user wrote last", () => {
     renderList({
-      rows: [threadRow('own', 'reply', {}, { unread: false, actorIds: ['@alice:x'] })],
+      rows: [
+        threadRow(
+          'own',
+          'reply',
+          {
+            lastReply: {
+              eventId: '$mine',
+              senderId: '@alice:x',
+              ts: NOW,
+              preview: { kind: 'text', text: 'My own follow-up' },
+              event: { sender: '@alice:x', content: {} },
+            },
+            lastOtherReply: {
+              eventId: '$tom',
+              senderId: '@tom:x',
+              ts: NOW - 60_000,
+              preview: { kind: 'text', text: 'Tom left an update' },
+              event: { sender: '@tom:x', content: {} },
+            },
+          },
+          { unread: false, actorIds: ['@tom:x'] }
+        ),
+      ],
       hiddenAutomations: 0,
     });
-    expect(screen.getByText('You replied')).toBeTruthy();
+    const row = rowByTitle('Thread own');
+    expect(within(row).getByText('Tom Becker replied')).toBeTruthy();
+    expect(within(row).getByText('Tom left an update')).toBeTruthy();
+    expect(screen.queryByText('You replied')).toBeNull();
+    expect(screen.queryByText('My own follow-up')).toBeNull();
+  });
+
+  it('does not fall back to the indexed reply preview when no other reply exists', () => {
+    const row = threadRow(
+      'root-mention',
+      'mention',
+      {
+        mentionedMe: true,
+        mentionedBy: '@maya:x',
+        lastReply: {
+          eventId: '$mine',
+          senderId: '@alice:x',
+          ts: NOW,
+          preview: { kind: 'text', text: 'My own note' },
+          event: { sender: '@alice:x', content: {} },
+        },
+        lastOtherReply: undefined,
+      },
+      { actorIds: ['@maya:x'] }
+    );
+    if (row.type === 'thread') {
+      row.entry.threadRecord.presentation.latestReplyPreviewText = 'Indexed own reply';
+    }
+    renderList({ rows: [row], hiddenAutomations: 0 });
+    const item = rowByTitle('Thread root-mention');
+    expect(within(item).getByText('Maya Chen mentioned you')).toBeTruthy();
+    expect(screen.queryByText('Indexed own reply')).toBeNull();
+    expect(screen.queryByText('My own note')).toBeNull();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
@@ -564,7 +618,7 @@ describe('ActivityList', () => {
       'bidi',
       'reply',
       {
-        lastReply: {
+        lastOtherReply: {
           eventId: '$b',
           senderId: '@tom:x',
           ts: NOW,

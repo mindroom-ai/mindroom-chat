@@ -1702,8 +1702,7 @@
       "replyAndOthers_one": "{{name}} en {{count}} ander hebben geantwoord",
       "replyAndOthers_other": "{{name}} en {{count}} anderen hebben geantwoord",
       "finished": "{{name}} is klaar",
-      "stopped": "{{name}} is gestopt",
-      "youReplied": "Je hebt gereageerd"
+      "stopped": "{{name}} is gestopt"
     },
     "newCount_one": "{{count}} nieuw",
     "newCount_other": "{{count}} nieuw",

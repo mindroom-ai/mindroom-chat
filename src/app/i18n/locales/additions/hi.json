@@ -1702,8 +1702,7 @@
       "replyAndOthers_one": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "replyAndOthers_other": "{{name}} और {{count}} अन्य ने जवाब दिया",
       "finished": "{{name}} ने काम पूरा किया",
-      "stopped": "{{name}} का काम रुक गया",
-      "youReplied": "आपने जवाब दिया"
+      "stopped": "{{name}} का काम रुक गया"
     },
     "newCount_one": "{{count}} नया",
     "newCount_other": "{{count}} नए",

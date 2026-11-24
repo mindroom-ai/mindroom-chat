@@ -1898,8 +1898,7 @@
       "replyAndOthers_many": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشاركًا آخر",
       "replyAndOthers_other": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
       "finished": "أنهى ⁨{{name}}⁩ عمله",
-      "stopped": "توقف ⁨{{name}}⁩",
-      "youReplied": "رددت"
+      "stopped": "توقف ⁨{{name}}⁩"
     },
     "newCount_zero": "جديدة: ⁨{{count}}⁩",
     "newCount_one": "جديدة: ⁨{{count}}⁩",

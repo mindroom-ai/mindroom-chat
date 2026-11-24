@@ -1702,8 +1702,7 @@
       "replyAndOthers_one": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "replyAndOthers_other": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "finished": "{{name}} কাজ শেষ করেছে",
-      "stopped": "{{name}} থেমে গেছে",
-      "youReplied": "আপনি উত্তর দিয়েছেন"
+      "stopped": "{{name}} থেমে গেছে"
     },
     "newCount_one": "{{count}}টি নতুন",
     "newCount_other": "{{count}}টি নতুন",

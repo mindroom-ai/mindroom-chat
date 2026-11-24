@@ -1653,8 +1653,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回复了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回复了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回复"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 条新消息",
     "runMinutes_other": "{{count}} 分钟",

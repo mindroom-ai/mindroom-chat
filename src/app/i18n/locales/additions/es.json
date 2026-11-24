@@ -1751,8 +1751,7 @@
       "replyAndOthers_many": "{{name}} y {{count}} más respondieron",
       "replyAndOthers_other": "{{name}} y {{count}} más respondieron",
       "finished": "{{name}} terminó",
-      "stopped": "{{name}} se detuvo",
-      "youReplied": "Respondiste"
+      "stopped": "{{name}} se detuvo"
     },
     "newCount_one": "{{count}} nuevo",
     "newCount_many": "{{count}} nuevos",

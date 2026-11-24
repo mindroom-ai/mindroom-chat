@@ -17,7 +17,6 @@ import { useMessagePreview } from '../plugins/messageRenderers';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
-  threadIndexReplyPreview,
   threadPreviewText,
   threadTitleText,
 } from '../threads/cross-room/threadText';
@@ -295,7 +294,6 @@ export const ActivityRowItem = memo(function ActivityRowItem({
         )
       : threadActorName(mx, room, userId)
   );
-  const own = row.kind === 'reply' && actorIds.length === 1 && actorIds[0] === mx.getUserId();
   const lead = actorIds[0];
   const avatarMxc = room && lead ? getMemberAvatarMxc(room, lead) : undefined;
   const avatarUrl = avatarMxc
@@ -306,7 +304,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   // A plugin that renders the reply, or the root, as a card in the timeline previews it here.
   const viewerId = mx.getUserId() ?? undefined;
   const replyPreview = useMessagePreview(
-    row.type === 'thread' ? row.signals.lastReply?.event : undefined,
+    row.type === 'thread' ? row.signals.lastOtherReply?.event : undefined,
     viewerId
   );
   const pluginTitle = useMessagePreview(
@@ -314,16 +312,16 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     viewerId
   );
 
-  let preview: string;
+  let preview = '';
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
   else if (row.kind === 'approval' && row.signals.pendingApproval) {
     // What it runs shows beside Approve, as the thread's approval card shows it.
     preview = revealDirectionControls(row.signals.pendingApproval.approval.toolName);
   } else if (row.kind === 'question' && row.signals.pendingQuestion) {
     preview = revealDirectionControls(row.signals.pendingQuestion.text);
-  } else if (row.signals.lastReply) {
-    preview = replyPreview ?? threadPreviewText(t, row.signals.lastReply.preview);
-  } else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
+  } else if (row.signals.lastOtherReply) {
+    preview = replyPreview ?? threadPreviewText(t, row.signals.lastOtherReply.preview);
+  }
   const context =
     row.type === 'thread'
       ? {
@@ -368,9 +366,9 @@ export const ActivityRowItem = memo(function ActivityRowItem({
           <span className={css.Line}>
             <Text as="span" size="T300" className={css.Sentence}>
               {row.unread ? (
-                <b>{own ? t('activity.sentence.youReplied') : sentence(t, row, names)}</b>
+                <b>{sentence(t, row, names)}</b>
               ) : (
-                <span>{own ? t('activity.sentence.youReplied') : sentence(t, row, names)}</span>
+                <span>{sentence(t, row, names)}</span>
               )}
               {suffix && (
                 <>

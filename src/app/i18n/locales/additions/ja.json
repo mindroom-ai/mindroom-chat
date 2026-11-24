@@ -1653,8 +1653,7 @@
       "replyAndOther": "{{name}} と {{other}} が返信しました",
       "replyAndOthers_other": "{{name}} とほか {{count}} 人が返信しました",
       "finished": "{{name}} が完了しました",
-      "stopped": "{{name}} が停止しました",
-      "youReplied": "あなたが返信しました"
+      "stopped": "{{name}} が停止しました"
     },
     "newCount_other": "新着 {{count}} 件",
     "runMinutes_other": "{{count}} 分",

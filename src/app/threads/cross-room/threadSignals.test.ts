@@ -208,6 +208,47 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(own, ROOT, ME, NOW).personNewsTs).toBeUndefined();
   });
 
+  it("keeps lastOtherReply and otherNewsTs apart from the reader's own replies", async () => {
+    const { room } = await setup(ME, [
+      event({ id: '$bob', ts: 2000, sender: BOB, content: { body: 'bob reply' } }),
+      event({ id: '$mine', ts: 3000, sender: ME, content: { body: 'my reply' } }),
+    ]);
+    const signals = readThreadSignals(room, ROOT, ME, NOW);
+    expect(signals.lastReply).toMatchObject({
+      eventId: '$mine',
+      senderId: ME,
+      ts: 3000,
+      preview: { kind: 'text', text: 'my reply' },
+    });
+    expect(signals.lastOtherReply).toMatchObject({
+      eventId: '$bob',
+      senderId: BOB,
+      ts: 2000,
+      preview: { kind: 'text', text: 'bob reply' },
+    });
+    expect(signals.newsTs).toBe(3000);
+    expect(signals.otherNewsTs).toBe(2000);
+
+    const { room: onlyMe } = await setup(ME, [
+      event({ id: '$mine', ts: 3000, sender: ME, content: { body: 'only mine' } }),
+    ]);
+    const ownSignals = readThreadSignals(onlyMe, ROOT, ME, NOW);
+    expect(ownSignals.lastReply).toMatchObject({ eventId: '$mine', senderId: ME, ts: 3000 });
+    expect(ownSignals.lastOtherReply).toBeUndefined();
+    expect(ownSignals.newsTs).toBe(3000);
+    expect(ownSignals.otherNewsTs).toBeUndefined();
+
+    const { room: withApproval } = await setup(ME, [
+      event({ id: '$mine', ts: 3000, sender: ME, content: { body: 'run it' } }),
+      approval('$ask', 4000, null),
+    ]);
+    const approvalSignals = readThreadSignals(withApproval, ROOT, ME, NOW);
+    expect(approvalSignals.lastReply?.eventId).toBe('$mine');
+    expect(approvalSignals.lastOtherReply).toBeUndefined();
+    expect(approvalSignals.otherNewsTs).toBe(4000);
+    expect(approvalSignals.newsTs).toBe(4000);
+  });
+
   it('previews an agent reply by its words, its tool calls counted, not written out', async () => {
     const body = '🔧 `job` [1]\n🔧 `read_file` [2]\nHere is the **reply** to the licensor.';
     const { room } = await setup(ME, [
@@ -691,11 +732,17 @@ describe('readThreadSignals in a loaded thread with edits', () => {
   });
 
   /** A MindRoom edit: the whole new content at the top level and in m.new_content. */
-  const edit = (id: string, targetId: string, ts: number, content: Record<string, unknown>) =>
+  const edit = (
+    id: string,
+    targetId: string,
+    ts: number,
+    content: Record<string, unknown>,
+    sender = AGENT
+  ) =>
     new MatrixEvent({
       event_id: id,
       room_id: ROOM_ID,
-      sender: AGENT,
+      sender,
       type: 'm.room.message',
       origin_server_ts: ts,
       content: {
@@ -734,6 +781,35 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       durationMs: FINISHED_AFTER_MS + 60_000,
     });
     expect(signals.newsTs).toBe(2000 + FINISHED_AFTER_MS + 60_000);
+  });
+
+  it('does not bump otherNewsTs when the reader edits their own reply', async () => {
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$bob', ts: 2000, sender: BOB, content: { body: 'bob reply' } }),
+        event({ id: '$mine', ts: 3000, sender: ME, content: { body: 'my reply' } }),
+        edit('$mine-edit', '$mine', 4000, { body: 'my edited reply' }, ME),
+      ],
+      { opened: true }
+    );
+
+    const signals = readThreadSignals(room, ROOT, ME, NOW);
+
+    expect(signals.lastReply).toMatchObject({
+      eventId: '$mine',
+      senderId: ME,
+      ts: 3000,
+      preview: { kind: 'text', text: 'my edited reply' },
+    });
+    expect(signals.lastOtherReply).toMatchObject({
+      eventId: '$bob',
+      senderId: BOB,
+      ts: 2000,
+      preview: { kind: 'text', text: 'bob reply' },
+    });
+    expect(signals.newsTs).toBe(4000);
+    expect(signals.otherNewsTs).toBe(2000);
   });
 
   it('previews long-text m.file replies as text while keeping regular files as file', async () => {

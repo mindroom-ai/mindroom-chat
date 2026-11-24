@@ -67,6 +67,8 @@ export type ThreadSignals = {
   /** The senders of the new replies, newest first. */
   newSenderIds: string[];
   lastReply?: ThreadReply;
+  /** Newest counted reply from a sender other than the reader. */
+  lastOtherReply?: ThreadReply;
   outcome?: ThreadOutcome;
   /** An agent started it and no person has written in it: a scheduled run, a hook. */
   automation: boolean;
@@ -74,6 +76,8 @@ export type ThreadSignals = {
   waitsUntil?: number;
   /** When the newest of what it counts came: a message, by its newest edit, or the approval. */
   newsTs?: number;
+  /** The same for messages from others only (not the reader), or the approval. */
+  otherNewsTs?: number;
   /** The same for messages from other people only: not agents, not the reader. */
   personNewsTs?: number;
 };
@@ -306,6 +310,11 @@ export const readThreadSignals = (
       : event.getSender() !== userId;
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
+  const otherCounted = counted.filter(({ event }) => {
+    const sender = event.getSender();
+    return !!sender && sender !== userId;
+  });
+  const newestOther = otherCounted.at(-1);
   const answeredByResolve = (askedTs: number | undefined) =>
     resolvedTs !== undefined && (askedTs ?? 0) <= resolvedTs;
 
@@ -326,6 +335,7 @@ export const readThreadSignals = (
   )
     .filter(
       (record) =>
+        record.sender !== userId &&
         isAgent(record.sender) &&
         isPendingApproval(record, now) &&
         !answeredByResolve(all.find((event) => event.getId() === record.eventId)?.getTs()) &&
@@ -333,7 +343,7 @@ export const readThreadSignals = (
     )
     .at(-1);
 
-  const newestAgentReply = counted.findLast(({ event }) => isAgent(event.getSender()));
+  const newestAgentReply = otherCounted.findLast(({ event }) => isAgent(event.getSender()));
   let pendingQuestion =
     resolvedTs === undefined && newestAgentReply ? readQuestion(newestAgentReply) : undefined;
   // A streamed reply asks once its last edit adds the question.
@@ -383,12 +393,26 @@ export const readThreadSignals = (
     approvalTs ?? 0,
     ...counted.map(({ event, editTs }) => editTs ?? event.getTs())
   );
+  const otherNewsTs = Math.max(
+    approvalTs ?? 0,
+    ...otherCounted.map(({ event, editTs }) => editTs ?? event.getTs())
+  );
   const personNewsTs = Math.max(
     0,
-    ...counted
-      .filter(({ event }) => event.getSender() !== userId && !isAgent(event.getSender()))
+    ...otherCounted
+      .filter(({ event }) => !isAgent(event.getSender()))
       .map(({ event, editTs }) => editTs ?? event.getTs())
   );
+  const toReply = ({ event, content }: Shown): ThreadReply => ({
+    eventId: event.getId() ?? '',
+    senderId: event.getSender() ?? '',
+    ts: event.getTs(),
+    preview: previewOf(content),
+    ...(hasMessagePreviews() ? { event: threadMessagePluginEvent(room, event, thread) } : {}),
+  });
+  const lastReply = newest ? toReply(newest) : undefined;
+  const lastOtherReply =
+    newestOther === newest ? lastReply : newestOther ? toReply(newestOther) : undefined;
 
   const lapses = [
     pendingApproval && parseToolApprovalExpiryTimestamp(pendingApproval.approval.expiresAt),
@@ -397,6 +421,7 @@ export const readThreadSignals = (
   return {
     ...(lapses.length > 0 ? { waitsUntil: Math.min(...lapses) } : {}),
     ...(newsTs > 0 ? { newsTs } : {}),
+    ...(otherNewsTs > 0 ? { otherNewsTs } : {}),
     ...(personNewsTs > 0 ? { personNewsTs } : {}),
     ...(pendingApproval ? { pendingApproval } : {}),
     ...(pendingQuestion ? { pendingQuestion } : {}),
@@ -404,19 +429,8 @@ export const readThreadSignals = (
     ...(mentionedBy ? { mentionedBy } : {}),
     newCount: unread.length,
     newSenderIds: [...new Set(unread.map(({ event }) => event.getSender() ?? '').reverse())],
-    ...(newest
-      ? {
-          lastReply: {
-            eventId: newest.event.getId() ?? '',
-            senderId: newest.event.getSender() ?? '',
-            ts: newest.event.getTs(),
-            preview: previewOf(newest.content),
-            ...(hasMessagePreviews()
-              ? { event: threadMessagePluginEvent(room, newest.event, thread) }
-              : {}),
-          },
-        }
-      : {}),
+    ...(lastReply ? { lastReply } : {}),
+    ...(lastOtherReply ? { lastOtherReply } : {}),
     ...(newestAgentReply ? withOutcome(readOutcome(newestAgentReply)) : {}),
     automation,
   };
