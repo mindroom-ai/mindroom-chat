@@ -310,7 +310,13 @@ export function useSpaceRoomSections(
       if (sourceSpaceId === targetSpaceId) return false;
       if (movingRoomIdsRef.current.has(roomId)) return false;
       const parents = roomToParents.get(roomId);
-      if (!parents?.has(sourceSpaceId) || parents.has(targetSpaceId)) return false;
+      if (!parents?.has(sourceSpaceId)) return false;
+      // A room the target already lists stays put, unless a sub-space hides it there: dropping it
+      // on the target then drops the sub-space link and shows the room in the target again.
+      const target = sectionsRef.current.find((section) => section.spaceId === targetSpaceId);
+      if (parents.has(targetSpaceId) && target?.ownRoomsByName.includes(roomId) !== false) {
+        return false;
+      }
       return canEditSpace(sourceSpaceId) && canEditSpace(targetSpaceId);
     },
     [roomToParents, canEditSpace]
