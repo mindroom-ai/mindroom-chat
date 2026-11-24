@@ -136,6 +136,17 @@ describe('CustomEditor', () => {
     });
   });
 
+  const slateFragmentData = (fragment: Descendant[], plainText: string): DataTransfer => {
+    const encoded = window.btoa(encodeURIComponent(JSON.stringify(fragment)));
+    return {
+      getData: (type: string) => {
+        if (type === 'application/x-slate-fragment') return encoded;
+        if (type === 'text/plain') return plainText;
+        return '';
+      },
+    } as unknown as DataTransfer;
+  };
+
   it('keeps list formatting on select-all rich fragment paste and restores the draft in one undo', () => {
     const editor = createComposerEditor();
     const draft: Descendant[] = [
@@ -163,15 +174,49 @@ describe('CustomEditor', () => {
       focus: Editor.end(editor, []),
     });
 
-    const encoded = window.btoa(encodeURIComponent(JSON.stringify(pastedList)));
-    const data = {
-      getData: (type: string) =>
-        type === 'application/x-slate-fragment' ? encoded : type === 'text/plain' ? 'A\nB' : '',
-    } as unknown as DataTransfer;
-    editor.insertData(data);
+    editor.insertData(slateFragmentData(pastedList, 'A\nB'));
 
     expect(editor.children).toEqual(pastedList);
     expect(toPlainText(editor.children, true)).toBe('1. A\n2. B');
+    expect(editor.history.undos).toHaveLength(1);
+
+    editor.undo();
+    expect(editor.children).toEqual(draft);
+  });
+
+  it('keeps list formatting on partial-selection rich fragment paste and restores the draft in one undo', () => {
+    const editor = createComposerEditor();
+    const keep: Descendant = { type: BlockType.Paragraph, children: [{ text: 'Keep' }] };
+    const draft: Descendant[] = [
+      keep,
+      { type: BlockType.Paragraph, children: [{ text: 'Intro' }] },
+      {
+        type: BlockType.OrderedList,
+        children: [
+          { type: BlockType.ListItem, children: [{ text: 'old 1' }] },
+          { type: BlockType.ListItem, children: [{ text: 'old 2' }] },
+        ],
+      },
+    ];
+    const pastedList: Descendant[] = [
+      {
+        type: BlockType.OrderedList,
+        children: [
+          { type: BlockType.ListItem, children: [{ text: 'A' }] },
+          { type: BlockType.ListItem, children: [{ text: 'B' }] },
+        ],
+      },
+    ];
+    editor.children = structuredClone(draft);
+    Transforms.select(editor, {
+      anchor: Editor.start(editor, [1]),
+      focus: Editor.end(editor, []),
+    });
+
+    editor.insertData(slateFragmentData(pastedList, 'A\nB'));
+
+    expect(editor.children).toEqual([keep, ...pastedList]);
+    expect(toPlainText(editor.children, true)).toBe('Keep\n1. A\n2. B');
     expect(editor.history.undos).toHaveLength(1);
 
     editor.undo();
