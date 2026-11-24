@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import { ClientEvent, type MatrixEvent } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { Button, Icon, Icons, Input, Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getMemberDisplayName } from '../../matrix/room';
@@ -23,13 +23,6 @@ const REJECTION_KEYS = {
   not_for_you: 'mindroomUi.workflowRun.question.rejected.notForYou',
 } as const;
 
-type RejectionKey = (typeof REJECTION_KEYS)[keyof typeof REJECTION_KEYS];
-
-const rejectionMessageKey = (reason: string): RejectionKey =>
-  Object.prototype.hasOwnProperty.call(REJECTION_KEYS, reason)
-    ? REJECTION_KEYS[reason as keyof typeof REJECTION_KEYS]
-    : 'mindroomUi.workflowRun.question.rejected.noLongerOpen';
-
 export type WorkflowQuestionCardProps = {
   question: WorkflowRunQuestion;
   roomId: string;
@@ -39,8 +32,8 @@ export type WorkflowQuestionCardProps = {
 };
 
 /**
- * Renders a workflow `ask_user` question notice card with option buttons and optional free-text
- * submission, guarded to the run's requester with rejection and timeout feedback.
+ * Workflow `ask_user` question notice card with option buttons and optional free-text input,
+ * guarded to the requester with clear/encrypted rejection and timeout feedback.
  */
 export function WorkflowQuestionCard({
   question,
@@ -54,12 +47,13 @@ export function WorkflowQuestionCard({
   const room = mx.getRoom(roomId);
   const viewerId = mx.getUserId();
 
-  const [pending, setPending] = useState(false);
-  const [sentEventId, setSentEventId] = useState<string | null>(null);
+  // null: idle, 'sending': send in flight, other string: sent answer event ID awaiting edit/rejection.
+  const [sent, setSent] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const isOpen = question.status === 'open';
+  const pending = isOpen && sent !== null;
   const isRequester =
     !readOnly &&
     !!room &&
@@ -67,78 +61,58 @@ export function WorkflowQuestionCard({
     question.requester !== null &&
     viewerId === question.requester;
 
-  // Reset pending state when the card is edited to answered or cancelled.
-  useEffect(() => {
-    if (!isOpen) {
-      setPending(false);
-      setSentEventId(null);
-      setFeedback(null);
-    }
-  }, [isOpen]);
+  const fail = useCallback((message: string) => {
+    setSent(null);
+    setFeedback(message);
+  }, []);
 
-  // Listen for an agent rejection event replying to our sent answer.
-  useEffect(() => {
-    if (!pending || !sentEventId) return undefined;
-    const onEvent = (event: MatrixEvent) => {
-      if (event.getRoomId() !== roomId) return;
-      const rejection = parseWorkflowAnswerRejection(event, viewerId);
-      if (!rejection || rejection.answerEventId !== sentEventId) return;
-      const key = rejectionMessageKey(rejection.reason);
-      setPending(false);
-      setSentEventId(null);
-      setFeedback(t(key));
-    };
-    mx.on(ClientEvent.Event, onEvent);
-    return () => {
-      mx.off(ClientEvent.Event, onEvent);
-    };
-  }, [mx, pending, roomId, sentEventId, t, viewerId]);
-
-  // Re-enable controls if neither edit nor rejection arrives within 15 seconds.
   useEffect(() => {
     if (!pending) return undefined;
-    const timer = window.setTimeout(() => {
-      setPending(false);
-      setSentEventId(null);
-      setFeedback(t('mindroomUi.workflowRun.question.noReply'));
-    }, ANSWER_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
-  }, [pending, t]);
+    const timer = window.setTimeout(
+      () => fail(t('mindroomUi.workflowRun.question.noReply')),
+      ANSWER_TIMEOUT_MS
+    );
+    const onEvent = (event: MatrixEvent) => {
+      if (!sent || sent === 'sending' || event.getRoomId() !== roomId) return;
+      const rejection = parseWorkflowAnswerRejection(event, viewerId);
+      if (!rejection || rejection.answerEventId !== sent) return;
+      const key = Object.prototype.hasOwnProperty.call(REJECTION_KEYS, rejection.reason)
+        ? REJECTION_KEYS[rejection.reason as keyof typeof REJECTION_KEYS]
+        : REJECTION_KEYS.no_longer_open;
+      fail(t(key));
+    };
+    mx.on(ClientEvent.Event, onEvent);
+    mx.on(MatrixEventEvent.Decrypted, onEvent);
+    return () => {
+      window.clearTimeout(timer);
+      mx.off(ClientEvent.Event, onEvent);
+      mx.off(MatrixEventEvent.Decrypted, onEvent);
+    };
+  }, [fail, mx, pending, roomId, sent, t, viewerId]);
 
   const submitAnswer = async (answer: { option: string } | { text: string }) => {
     if (!room || !eventId || !isRequester || pending || !isOpen) return;
-    setPending(true);
+    setSent('sending');
     setFeedback(null);
     try {
-      const answerEventId = await sendWorkflowRunAnswer(
-        mx,
-        room,
-        threadId,
-        eventId,
-        question,
-        answer
-      );
-      setSentEventId(answerEventId);
+      setSent(await sendWorkflowRunAnswer(mx, room, threadId, eventId, question, answer));
     } catch {
-      setPending(false);
-      setSentEventId(null);
-      setFeedback(t('activity.actions.failed'));
+      fail(t('activity.actions.failed'));
     }
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     const trimmed = draft.trim();
-    if (!trimmed) return;
-    void submitAnswer({ text: trimmed });
+    if (trimmed) void submitAnswer({ text: trimmed });
   };
 
   const requesterName =
     question.requester && room
       ? getMemberDisplayName(room, question.requester) ?? question.requester
       : question.requester;
-
   const controlsDisabled = !isRequester || pending;
+  const visibleFeedback = isOpen ? feedback : null;
 
   return (
     <section
@@ -161,25 +135,18 @@ export function WorkflowQuestionCard({
         </span>
         <Text
           size="T400"
-          className={classNames(
-            questionCss.Question,
-            question.status !== 'open' && questionCss.QuestionAnswered
-          )}
+          className={classNames(questionCss.Question, !isOpen && questionCss.QuestionAnswered)}
           {...ownDirectionBlock}
         >
           {question.text}
         </Text>
       </div>
 
-      {question.status === 'answered' && (
-        <Text size="T300" className={css.QuestionClosed} {...ownDirectionLine}>
-          {t('mindroomUi.workflowRun.question.answered', { answer: question.answer ?? '' })}
-        </Text>
-      )}
-
-      {question.status === 'cancelled' && (
-        <Text size="T300" className={css.QuestionClosed}>
-          {t('mindroomUi.workflowRun.question.cancelled')}
+      {!isOpen && (
+        <Text size="T300" className={questionCss.Chosen} {...ownDirectionLine}>
+          {question.status === 'answered'
+            ? t('mindroomUi.workflowRun.question.answered', { answer: question.answer ?? '' })
+            : t('mindroomUi.workflowRun.question.cancelled')}
         </Text>
       )}
 
@@ -204,7 +171,7 @@ export function WorkflowQuestionCard({
           )}
 
           {question.freeText && (
-            <form className={css.FreeTextForm} onSubmit={handleSubmit}>
+            <form className={css.Row} onSubmit={handleSubmit}>
               <Input
                 size="300"
                 variant="Surface"
@@ -226,7 +193,7 @@ export function WorkflowQuestionCard({
           )}
 
           {!isRequester && !readOnly && requesterName && (
-            <Text size="T200" className={css.QuestionNote}>
+            <Text size="T200" priority="300">
               {t('mindroomUi.workflowRun.question.onlyRequester', { name: requesterName })}
             </Text>
           )}
@@ -234,11 +201,11 @@ export function WorkflowQuestionCard({
       )}
 
       <Text
-        role={feedback ? 'alert' : 'status'}
+        role={visibleFeedback ? 'alert' : 'status'}
         size="T200"
-        className={feedback ? questionCss.Failed : css.LiveStatus}
+        className={visibleFeedback ? questionCss.Failed : questionCss.VisuallyHidden}
       >
-        {feedback ?? ''}
+        {visibleFeedback ?? ''}
       </Text>
     </section>
   );

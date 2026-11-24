@@ -649,7 +649,7 @@ export function WorkflowPanel({
               {heading}
             </Text>
             {showSavedName && entry?.name && (
-              <span className={cardCss.MetaBadge} {...ownDirectionLine}>
+              <span className={cardCss.Pill} {...ownDirectionLine}>
                 {entry.name}
               </span>
             )}
@@ -728,7 +728,7 @@ export function WorkflowPanel({
 
       <div className={css.Body}>
         {actionError && (
-          <Text role="alert" size="T200" className={cardCss.Alert}>
+          <Text role="alert" size="T200" className={cardCss.CriticalText}>
             {actionError}
           </Text>
         )}

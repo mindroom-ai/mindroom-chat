@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'node:events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { ClientEvent, MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  MatrixEvent,
+  MatrixEventEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import {
@@ -249,6 +255,43 @@ describe('WorkflowQuestionCard', () => {
     });
 
     expect(screen.getByText('No reply yet. Try again.')).toBeTruthy();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Yes' }).disabled).toBe(false);
+  });
+
+  it('handles a rejection event that finishes decrypting after initial sync delivery', async () => {
+    const sendEvent = vi.fn(async () => ({ event_id: '$ans-enc' }));
+    const { mx, emitter } = makeClient(sendEvent);
+    render(
+      <MatrixClientProvider value={mx}>
+        <WorkflowQuestionCard
+          question={makeQuestion()}
+          roomId={ROOM_ID}
+          threadId={THREAD_ID}
+          eventId={CARD_EVENT_ID}
+        />
+      </MatrixClientProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+    });
+
+    const decrypted = new MatrixEvent({
+      type: WORKFLOW_ANSWER_REJECTED_EVENT_TYPE,
+      event_id: '$rej-enc',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      origin_server_ts: 3,
+      content: {
+        reason: 'already_answered',
+        'm.relates_to': { 'm.in_reply_to': { event_id: '$ans-enc' } },
+      },
+    });
+    act(() => {
+      emitter.emit(MatrixEventEvent.Decrypted, decrypted);
+    });
+
+    expect(screen.getByText('Already answered.')).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Yes' }).disabled).toBe(false);
   });
 });

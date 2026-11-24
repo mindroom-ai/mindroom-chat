@@ -8,6 +8,7 @@ import { workflowRunPanelAtom } from '../../navigation/workflowPanel';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../matrix/protocol/backgroundJobsContract';
+import { keepCancelsOf } from '../../matrix/state/sentCancels';
 import {
   WORKFLOW_CONTROL_EVENT_TYPE,
   WORKFLOW_RUN_CONTENT_KEY,
@@ -123,6 +124,7 @@ describe('WorkflowRunCard', () => {
 
   afterEach(() => {
     cleanup();
+    keepCancelsOf(ROOM_ID, new Set());
     vi.useRealTimers();
   });
 
