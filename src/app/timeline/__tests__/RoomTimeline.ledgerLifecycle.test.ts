@@ -1019,12 +1019,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
-  // The open-at-latest pin is observable through the scrollToBottom dom
-  // util, which the shared harness mocks module-wide.
-  const getScrollToBottomMock = async () => {
-    const domUtils = await import('../../lib/dom');
-    return vi.mocked(domUtils.scrollToBottom);
-  };
+  // Thread open-at-latest pins route through virtualizer.scrollToEnd().
 
   const makePinHarnessElements = (initialScrollTop = 0) => {
     let scrollTop = initialScrollTop;
@@ -1095,7 +1090,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       })
     );
     const { scrollElement, innerElement } = makePinHarnessElements(3400);
-    const scrollToBottomMock = await getScrollToBottomMock();
+    const scrollToBottomMock = roomTimelineVirtualizerState.scrollToEndMock;
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
     let sessionOpeningPinQueued = false;
@@ -1172,7 +1167,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
     const { scrollElement, innerElement } = makePinHarnessElements();
-    const scrollToBottomMock = await getScrollToBottomMock();
+    const scrollToBottomMock = roomTimelineVirtualizerState.scrollToEndMock;
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
     try {
@@ -1251,7 +1246,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
     const { scrollElement, innerElement } = makePinHarnessElements();
-    const scrollToBottomMock = await getScrollToBottomMock();
+    const scrollToBottomMock = roomTimelineVirtualizerState.scrollToEndMock;
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
     // Hold A's open chain at its first await: pending stays true while

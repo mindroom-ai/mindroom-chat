@@ -10,6 +10,7 @@ import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: { scrollMargin: 0 },
+  cancelScroll: vi.fn(),
   scrollOffset: 129,
   setOptions: vi.fn(),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it

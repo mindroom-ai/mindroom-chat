@@ -24,7 +24,6 @@ import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { scrollToBottom } from '../lib/dom';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
@@ -1333,10 +1332,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
   cancelThreadScrollRef.current = threadId
-    ? () => {
-        const v = virtualizerRef.current as { cancelScroll?: () => void };
-        v.cancelScroll?.();
-      }
+    ? () => virtualizerRef.current.cancelScroll()
     : undefined;
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
   const { virtualInnerRef, readRowFoldPx } = ledger;
@@ -1435,16 +1431,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
   const scrollThreadToEnd = useCallback(
     (smooth = false) => {
-      const v = virtualizerRef.current as {
-        scrollToEnd?: (opts?: { behavior?: 'auto' | 'smooth' }) => void;
-      };
-      if (typeof v.scrollToEnd === 'function') {
-        v.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
-      } else if (scrollRef.current) {
-        scrollToBottom(scrollRef.current, smooth ? 'smooth' : 'instant');
-      }
+      virtualizerRef.current.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
     },
-    [scrollRef, virtualizerRef]
+    [virtualizerRef]
   );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);

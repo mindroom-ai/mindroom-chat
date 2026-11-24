@@ -1,35 +1,37 @@
-# Upstream PR draft: hold `scrollTop` writes during live wheel gestures (`@tanstack/virtual-core`)
+# Upstream PR drafts (`@tanstack/virtual-core` `packages/virtual-core/src/index.ts`)
 
-## Problem
+## PR 1: Hold `scrollTop` writes during live wheel gestures
 
-On desktop WebKit, synchronous `scrollTop` writes from `applyScrollAdjustment` during an active `wheel` / trackpad-momentum stream fight the compositor: subsequent wheel frames replay pre-write offsets over the adjustment, losing the reader's place by thousands of pixels on `anchorTo: 'end'` prepends. Separately, if user/app code mutates `scrollTop` before a `scroll` event delivers it, `applyScrollAdjustment` writes from the stale cached `scrollOffset`.
-
-## Reproduction
-
-Mount a vertical `Virtualizer` (`anchorTo: 'end'`, ~100 variable-height items, scrolled to bottom) in desktop WebKit, dispatch sustained upward `wheel` events (`deltaY: -120` every ~16 ms) while prepending 50-item pages near the top, and observe the visible anchor row jump >1,000 px when WebKit replays an earlier wheel offset over the prepend write.
-
-## Proposed diff (`packages/virtual-core/src/index.ts`)
+**Problem & repro:** On desktop WebKit, synchronous `scrollTop` writes from `applyScrollAdjustment` during a live `wheel` stream fight the compositor: subsequent wheel frames replay pre-write offsets over the adjustment. Mount an `anchorTo: 'end'` vertical `Virtualizer` (~100 variable-height items at bottom) in desktop WebKit, dispatch upward `wheel` ticks (`deltaY: -120` every ~16 ms) while prepending 50-item pages near the top, and observe >1,000 px anchor jumps.
 
 ```diff
 +  private _wheelLive = false
 +  private _wheelTimer: ReturnType<typeof setTimeout> | null = null
-   // In cleanup(): reset _wheelLive = false, clearTimeout(_wheelTimer), _wheelTimer = null.
-   // In _willUpdate() (`if ('addEventListener' in this.scrollElement)`):
+   // cleanup(): reset _wheelLive = false, clearTimeout(_wheelTimer), _wheelTimer = null.
+   // _willUpdate() (`if ('addEventListener' in this.scrollElement)`):
 +  const onWheel = () => {
++    if (!this.targetWindow) return
 +    this._wheelLive = true
-+    if (this._wheelTimer !== null) this.targetWindow?.clearTimeout(this._wheelTimer)
-+    this._wheelTimer = this.targetWindow?.setTimeout(() => {
++    if (this._wheelTimer !== null) this.targetWindow.clearTimeout(this._wheelTimer)
++    this._wheelTimer = this.targetWindow.setTimeout(() => {
 +      this._wheelTimer = null; this._wheelLive = false
 +      const live = this._readElementOffset()
 +      if (live !== null && this._holdOffset !== 0) this.scrollOffset = Math.max(0, live + this._holdOffset)
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
-+    }, 150) ?? null
++    }, 150)
 +  }
 +  el.addEventListener('wheel', onWheel, addEventListenerOptions)
 +  this.unsubs.push(() => el.removeEventListener('wheel', onWheel))
 -  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll
 +  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !this._wheelLive
-   // In applyScrollAdjustment() else-branch:
+```
+
+## PR 2: Reconcile unseen live `scrollTop` moves in `applyScrollAdjustment`
+
+**Problem & repro:** If app/driver code writes `scrollElement.scrollTop` synchronously and an item resizes before the `scroll` event delivers the new offset, `applyScrollAdjustment` writes from the stale cached `scrollOffset` and snaps the scroller back. Reproduce by mutating `el.scrollTop += 600` (without a scroll event) then calling `resizeItem(aboveIdx, size - 20)`.
+
+```diff
+   // applyScrollAdjustment() else-branch:
 -  const offset = this.getScrollOffset()
 +  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
 +  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()

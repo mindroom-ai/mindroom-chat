@@ -44,6 +44,7 @@ const OPEN_SETUPS: Setup[] = [
   { engine: 'chromium', viewport: 'desktop' },
   { engine: 'chromium', viewport: 'phone' },
   { engine: 'webkit', viewport: 'desktop' },
+  { engine: 'webkit', viewport: 'phone' },
 ];
 const SCROLL_SETUPS: Setup[] = [
   { engine: 'chromium', viewport: 'desktop' },
