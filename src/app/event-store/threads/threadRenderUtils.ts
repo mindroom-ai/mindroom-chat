@@ -114,7 +114,7 @@ const THREAD_ROW_BODY_SCAN_CHARS = 4096;
 // Extras sections render as collapsed accordion headers.
 const THREAD_ROW_SECTION_HEADER_PX = 40;
 
-const estimateBodyLines = (body: string): number => {
+const estimateBodyLines = (body: string, wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE): number => {
   const scanned =
     body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
   // Wrap is counted PER PHYSICAL LINE: the previous newlines-plus-
@@ -125,7 +125,7 @@ const estimateBodyLines = (body: string): number => {
   for (let i = 0; i <= scanned.length; i += 1) {
     if (i === scanned.length || scanned.charCodeAt(i) === 10) {
       const lineLength = i - lineStart;
-      lines += Math.max(1, Math.ceil(lineLength / THREAD_ROW_WRAP_CHARS_PER_LINE));
+      lines += Math.max(1, Math.ceil(lineLength / wrapChars));
       lineStart = i + 1;
       if (lines >= THREAD_ROW_MAX_ESTIMATED_LINES) return THREAD_ROW_MAX_ESTIMATED_LINES;
     }
@@ -136,7 +136,7 @@ const estimateBodyLines = (body: string): number => {
 
 export const estimateThreadEventRowHeight = (
   mEvent: MatrixEvent,
-  { compact }: { compact: boolean }
+  { compact, wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE }: { compact: boolean; wrapChars?: number }
 ): number => {
   const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
   const relationType = mEvent.getRelation()?.rel_type;
@@ -158,10 +158,12 @@ export const estimateThreadEventRowHeight = (
   if (hasThreadSummary(contentRecord) || hasMessageExtras(contentRecord)) {
     const sections = parseMessageExtras(contentRecord)?.sections.length ?? 0;
     return (
-      base + estimateBodyLines(body) * THREAD_ROW_LINE_PX + sections * THREAD_ROW_SECTION_HEADER_PX
+      base +
+      estimateBodyLines(body, wrapChars) * THREAD_ROW_LINE_PX +
+      sections * THREAD_ROW_SECTION_HEADER_PX
     );
   }
-  const lines = estimateBodyLines(body);
+  const lines = estimateBodyLines(body, wrapChars);
   if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
     return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX;
   }

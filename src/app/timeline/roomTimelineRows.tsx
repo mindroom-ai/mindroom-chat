@@ -32,7 +32,11 @@ import {
 import { getShownHistoryReplies } from '../event-store/timeline/classicHistoryReplies';
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
-import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
+import {
+  estimateMessageRowHeight,
+  estimateRoomRowHeight,
+  roomWrapCharsForWidth,
+} from './timelineRowEstimate';
 import { replyNeedingNoQuote } from './pluginHiddenRows';
 import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
 import { foldTimelineRowContexts } from './timelineRowFold';
@@ -205,6 +209,7 @@ export const timelineRowSizing = ({
   hiddenIds,
   membershipFoldsRef,
   renderedRoomRowsRef,
+  columnWidth,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -230,9 +235,11 @@ export const timelineRowSizing = ({
   membershipFoldsRef?: MutableRefObject<MembershipFoldView>;
   /** The room's list as it last rendered (`useMembershipFoldRowSizes`). */
   renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
+  columnWidth?: number;
 }) => {
   const threadLeadingOffset = threadId && hasThreadLoadOlder ? 1 : 0;
   const roomLeadingOffset = !threadId && hasRoomIntro ? 1 : 0;
+  const roomWrapChars = roomWrapCharsForWidth(columnWidth);
   const estimateSize = (index?: number): number => {
     if (!threadId) {
       if (roomLeadingOffset && index === 0) return ROOM_INTRO_ESTIMATE_PX;
@@ -261,7 +268,10 @@ export const timelineRowSizing = ({
         !showThreadRepliesInRoom &&
         hasThreadReplies(threadRecordMapRef.current.get(event.getId() ?? ''));
       return (
-        estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) +
+        estimateRoomRowHeight(event, rows[position - 1], {
+          threadBadge,
+          wrapChars: roomWrapChars,
+        }) +
         ROOM_ROW_UNMEASURED_PX +
         breakPx
       );

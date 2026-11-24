@@ -32,6 +32,7 @@ type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolea
 type ResizeBatch = { notify?: boolean; sync: boolean };
 type BatchedResizeVirtualizer = {
   _resizeBatch?: ResizeBatch | null;
+  observer?: { observe: (el: Element) => void; unobserve: (el: Element) => void };
   notify?: (sync: boolean) => void;
   _noteClampMax?: () => void;
   _flushHoldIfReady?: (sync: boolean) => void;
@@ -137,8 +138,24 @@ export const createScrollMountMeasurement = <T extends Element>(
     const index = virtualizer.indexFromElement(node);
     const isNew =
       index >= 0 && !virtualizer.itemSizeCache.has(virtualizer.options.getItemKey(index));
-    virtualizer.measureElement(node);
-    if (!isNew) return;
+    if (!isNew) {
+      virtualizer.measureElement(node);
+      return;
+    }
+    // Register with virtual-core's elementsCache and ResizeObserver without an unbatched
+    // synchronous resizeItem per row; measureAttached measures all new rows once in _resizeBatch.
+    const internal = virtualizer as unknown as BatchedResizeVirtualizer;
+    if (internal.observer && index < virtualizer.options.count) {
+      const key = virtualizer.options.getItemKey(index);
+      const prevNode = virtualizer.elementsCache.get(key);
+      if (prevNode !== node) {
+        if (prevNode) internal.observer.unobserve(prevNode);
+        internal.observer.observe(node);
+        virtualizer.elementsCache.set(key, node);
+      }
+    } else {
+      virtualizer.measureElement(node);
+    }
     if (attached.size === 0) queueMicrotask(measureAttached);
     attached.add(node);
   };

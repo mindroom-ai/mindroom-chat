@@ -147,14 +147,14 @@ describe('batched virtualizer measurement ref', () => {
     Object.defineProperty(row, 'offsetHeight', { get: () => height });
     virtualizer.scrollElement?.append(row);
     ref(row);
-    // virtual-core measures at rest in the ref, before the row's first-pass
-    // child update has flushed.
-    expect(virtualizer.itemSizeCache.get(0)).toBe(90);
+    // New rows wait for the batched microtask instead of measuring unbatched in the ref
+    // before the row's first-pass child update has flushed.
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
     height = 80;
     await Promise.resolve();
     expect(virtualizer.itemSizeCache.get(0)).toBe(80);
     expect(virtualizer.getVirtualItems()[1]?.start).toBe(80);
-    expect(notify).toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledTimes(1);
 
     // The row unmounts before any ResizeObserver entry; a remount during a
     // scroll reuses the settled height rather than the first pass.
@@ -175,6 +175,7 @@ describe('batched virtualizer measurement ref', () => {
     const { virtualizer, mount, dispose } = setup();
     const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
     mount(0, ref);
+    await Promise.resolve();
     virtualizer.isScrolling = true;
     const notify = vi.fn();
     virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
@@ -249,6 +250,28 @@ describe('batched virtualizer measurement ref', () => {
     expect(virtualizer.itemSizeCache.get(3)).toBe(80);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith(virtualizer, true);
+    dispose();
+  });
+
+  it('measures multiple new rows mounted at rest once in _resizeBatch with a single notify', async () => {
+    const { virtualizer, mount, dispose } = setup();
+    virtualizer.scrollOffset = 600;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = false;
+
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    mount(0, ref);
+    mount(1, ref);
+    mount(2, ref);
+    mount(3, ref);
+    expect(notify).not.toHaveBeenCalled();
+    await Promise.resolve();
+
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.itemSizeCache.get(3)).toBe(80);
+    expect(notify).toHaveBeenCalledTimes(1);
     dispose();
   });
 

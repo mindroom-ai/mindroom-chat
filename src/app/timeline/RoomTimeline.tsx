@@ -163,7 +163,10 @@ import {
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
-import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
+import {
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+  THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+} from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
@@ -1277,6 +1280,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hiddenIds: threadHiddenIds,
     membershipFoldsRef,
     renderedRoomRowsRef,
+    columnWidth: scrollRef.current?.clientWidth,
   });
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
@@ -2159,9 +2163,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // history is at the bottom. The sentinel above the rows sits inside the list at item 0's top
   // (-_holdOffset while virtual-core holds a prepend), so held rows above the reader count as loaded.
   const holdOffset = readVirtualizerHoldOffset(virtualizer);
+  const backHeadroomPx =
+    !latestAtTop && readerScrolledRef.current.value
+      ? (virtualizer.measurementsCache[
+          Math.min(THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS, itemCount - 1)
+        ]?.start ?? 0)
+      : 0;
   const topSentinelStyle =
-    holdOffset !== 0
-      ? { ...listTopSentinelStyle, insetBlockStart: -holdOffset }
+    holdOffset !== 0 || backHeadroomPx > 1
+      ? {
+          ...listTopSentinelStyle,
+          ...(holdOffset !== 0 ? { insetBlockStart: -holdOffset } : undefined),
+          ...(backHeadroomPx > 1 ? { height: backHeadroomPx } : undefined),
+        }
       : listTopSentinelStyle;
   const backSentinel = showRoomBackSentinel && (
     <div ref={paginator.observeBackAnchor} style={latestAtTop ? { height: 1 } : topSentinelStyle} />

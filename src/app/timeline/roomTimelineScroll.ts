@@ -448,7 +448,10 @@ export const useGestureBottomPins = ({
   /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
   const onRoomGesture = useCallback(() => {
     countAtGestureRef.current = scrollToBottomRef.current.count;
-  }, [scrollToBottomRef]);
+    if (readerScrolledRef.current.value) return;
+    readerScrolledRef.current.value = true;
+    onFirstGesture();
+  }, [onFirstGesture, readerScrolledRef, scrollToBottomRef]);
   const shouldApplyBottomPin = useCallback(
     (count: number) =>
       count !== countAtGestureRef.current && backController.shouldApplyBottomPin(count),
