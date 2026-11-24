@@ -76,8 +76,13 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
   const offered = useOfferedRailButtons();
   const shortcut = getCommandPaletteShortcutLabel();
   const helpShortcut = formatShortcut('help');
-  const sections: Array<{ title: string; switches: Array<[RailButton, string, string]> }> = [
+  const sections: Array<{
+    id: 'navigation' | 'mindroom';
+    title: string;
+    switches: Array<[RailButton, string, string]>;
+  }> = [
     {
+      id: 'navigation',
       title: t('featureUi.settings.sidebar.navigation'),
       switches: [
         [
@@ -108,6 +113,7 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
       ],
     },
     {
+      id: 'mindroom',
       title: t('featureUi.settings.menu.groups.mindroom'),
       switches: [
         [
@@ -132,13 +138,14 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
   return (
     <>
       {sections
-        .map(({ title, switches }) => ({
+        .map(({ id, title, switches }) => ({
+          id,
           title,
           switches: switches.filter(([button]) => offered[button]),
         }))
         .filter(({ switches }) => switches.length > 0)
-        .map(({ title, switches }) => (
-          <Box key={title} direction="Column" gap="100">
+        .map(({ id, title, switches }) => (
+          <Box key={id} direction="Column" gap="100">
             <Text size="L400" data-settings-heading="">
               {title}
             </Text>

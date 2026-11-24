@@ -727,7 +727,6 @@ export const SETTINGS = [
   {
     id: 'computerServer',
     page: 'mindroom',
-    group: 'featureUi.settings.sections.connectionsComputers',
     labelKey: 'settings.general.computers.apiUrl',
     descriptionKey: 'settings.general.computers.description',
     keywordsKey: `${KEYWORDS}.computers`,
