@@ -313,7 +313,7 @@ describe('CodeBlock clipboard feedback', () => {
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('copy me');
     expect(getCopyControl(renderer).props['aria-label']).toBe('Copied');
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('shows the direction controls in code as code points and copies the code as it is', async () => {
@@ -335,8 +335,8 @@ describe('CodeBlock clipboard feedback', () => {
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenNthCalledWith(1, code);
     expect(clipboardMocks.copyToClipboard).toHaveBeenNthCalledWith(2, code);
-    renderer.unmount();
-    formatted.unmount();
+    act(() => renderer.unmount());
+    act(() => formatted.unmount());
   });
 
   it('keeps Copy visible when every clipboard path fails', async () => {
@@ -348,7 +348,7 @@ describe('CodeBlock clipboard feedback', () => {
     });
 
     expect(getCopyControl(renderer).props['aria-label']).toBe('Copy code');
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 });
 
@@ -392,7 +392,7 @@ describe('CodeBlock header', () => {
         .props.onClick();
     });
     expect(expand()).toHaveLength(0);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('wraps lines by default and toggles wrapping from the toolbar', () => {
@@ -412,7 +412,7 @@ describe('CodeBlock header', () => {
 
     expect(pre().props['data-wrap']).toBe(false);
     expect(wrapButton().props['aria-pressed']).toBe(false);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 });
 
@@ -424,7 +424,7 @@ describe('fenced code syntax highlighting', () => {
 
     expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
     expect(collectTextContent(renderer.toJSON())).toContain('const a = 1;');
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   const renderSearch = (html: string) => {
@@ -444,14 +444,14 @@ describe('fenced code syntax highlighting', () => {
 
     expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(0);
     expect(renderer.root.findAllByProps({ className: 'highlightText' })).toHaveLength(1);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('keeps syntax colors in blocks without a search match', () => {
     const renderer = renderSearch('<pre><code class="language-js">let a = 1;</code></pre>');
 
     expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 });
 
@@ -1824,7 +1824,7 @@ describe('getReactCustomHtmlParser', () => {
     ]) {
       expect(collectTextContent(codeTree.toJSON())).toContain(userId);
       expect(codeTree.root.findAllByType('a')).toHaveLength(0);
-      codeTree.unmount();
+      act(() => codeTree.unmount());
     }
   });
 
@@ -1846,7 +1846,7 @@ describe('getReactCustomHtmlParser', () => {
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(userId);
-    codeTree.unmount();
+    act(() => codeTree.unmount());
   });
 
   it('preserves intentional Matrix-link labels inside code and Copy', async () => {
@@ -1870,7 +1870,7 @@ describe('getReactCustomHtmlParser', () => {
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(customLabel);
-    codeTree.unmount();
+    act(() => codeTree.unmount());
   });
 
   it('drops whitespace-only text nodes in table structure while preserving cell content', () => {
@@ -2020,7 +2020,7 @@ describe('copy stripping matches the app renderer', () => {
         (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
       );
     const shownText = textOutsideToolBlocks(renderer.root);
-    renderer.unmount();
+    act(() => renderer.unmount());
 
     // Repeated indexes render once as a block and again as text, so compare sets.
     const plainBodyFallback = formattedBody === undefined;
@@ -2101,7 +2101,7 @@ describe('placement markers and the fold match the app renderer', () => {
       .flatMap((node) =>
         (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
       );
-    renderer.unmount();
+    act(() => renderer.unmount());
     return order;
   };
   const placed = (html: string) => readRenderedToolCalls(html, baseOpts).indexes;
@@ -2176,7 +2176,7 @@ describe('direction controls in tool calls and code', () => {
     expect(text).toContain('echo hi <U+202E>; echo pwned #<U+202C> done');
     expect(text).toContain('hi <U+202E>x');
     expect(text).not.toMatch(CONTROL);
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('shows inline code and code blocks with their controls as code points', () => {
