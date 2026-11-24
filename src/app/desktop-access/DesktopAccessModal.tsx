@@ -104,6 +104,7 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
     pairedController !== undefined &&
     isControllerFullAccess(snapshot, pairedController.controller_key);
   const guiReady = snapshot?.permissions.gui_permissions_ready ?? false;
+  const shellReady = Boolean(snapshot?.status?.shell.ready);
   const busy = busyAction !== null;
 
   const handleClose = () => {
@@ -294,7 +295,12 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
                                 'Full Access active'
                               )
                             : full
-                              ? dt('featureUi.desktopAccess.status.shellReady', 'Shell ready')
+                              ? shellReady
+                                ? dt('featureUi.desktopAccess.status.shellReady', 'Shell ready')
+                                : dt(
+                                    'featureUi.desktopAccess.status.permissionsNeeded',
+                                    'Permissions needed'
+                                  )
                               : dt('featureUi.desktopAccess.status.restricted', 'Restricted')}
                         </Text>
                       </span>
@@ -396,7 +402,12 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
                     ? dt('featureUi.desktopAccess.status.fullAccessActive', 'Full Access active')
                     : !isFullAccess
                       ? dt('featureUi.desktopAccess.status.restricted', 'Restricted')
-                      : dt('featureUi.desktopAccess.status.shellReady', 'Shell ready')}
+                      : shellReady
+                        ? dt('featureUi.desktopAccess.status.shellReady', 'Shell ready')
+                        : dt(
+                            'featureUi.desktopAccess.status.permissionsNeeded',
+                            'Permissions needed'
+                          )}
                 </Text>
               </span>
             </Box>
@@ -410,10 +421,15 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
               <Icon size="100" src={guiReady ? Icons.Check : Icons.Warning} />
               <Text size="T300">
                 {!guiReady
-                  ? dt(
-                      'featureUi.desktopAccess.banner.shellReadyWaitingPermissions',
-                      'Shell ready - Waiting for macOS screen & input permissions'
-                    )
+                  ? shellReady
+                    ? dt(
+                        'featureUi.desktopAccess.banner.shellReadyWaitingPermissions',
+                        'Shell ready - Waiting for macOS screen & input permissions'
+                      )
+                    : dt(
+                        'featureUi.desktopAccess.banner.waitingPermissions',
+                        'Waiting for macOS screen & input permissions'
+                      )
                   : isFullAccess
                     ? dt('featureUi.desktopAccess.status.fullAccessActive', 'Full Access active')
                     : dt(
@@ -424,6 +440,25 @@ export function DesktopAccessModal({ mx, agents, runUia, onClose }: DesktopAcces
             </div>
 
             <PermissionsRow snapshot={snapshot} onSnapshot={setSnapshotOverride} />
+            {!justPaired && !isFullAccess && (
+              <div className={css.DisclosureBox}>
+                <Box direction="Column" gap="100">
+                  <Text size="T200" style={{ fontWeight: 600 }}>
+                    {dt(
+                      'featureUi.desktopAccess.consent.upgradeHeading',
+                      'Switching to Full Access'
+                    )}
+                  </Text>
+                  <Text size="T300">
+                    {dt(
+                      'featureUi.desktopAccess.consent.fullDisclosure',
+                      '{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.',
+                      { agent: selectedAgent.agentName }
+                    )}
+                  </Text>
+                </Box>
+              </div>
+            )}
             {error && (
               <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
                 {error}

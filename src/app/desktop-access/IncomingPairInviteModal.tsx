@@ -141,6 +141,7 @@ export function IncomingPairInviteModal() {
     if (outcome?.kind === 'paired') {
       const activeSnapshot = snapshotOverride ?? liveSnapshot ?? outcome.snapshot;
       const guiReady = activeSnapshot.permissions.gui_permissions_ready;
+      const shellReady = Boolean(activeSnapshot.status?.shell.ready);
       return (
         <>
           <div className={css.ModalHeader}>
@@ -165,10 +166,15 @@ export function IncomingPairInviteModal() {
               <Icon size="100" src={guiReady ? Icons.Check : Icons.Warning} />
               <Text size="T300">
                 {!guiReady
-                  ? dt(
-                      'featureUi.desktopAccess.banner.shellReadyWaitingPermissions',
-                      'Shell ready - Waiting for macOS screen & input permissions'
-                    )
+                  ? shellReady
+                    ? dt(
+                        'featureUi.desktopAccess.banner.shellReadyWaitingPermissions',
+                        'Shell ready - Waiting for macOS screen & input permissions'
+                      )
+                    : dt(
+                        'featureUi.desktopAccess.banner.waitingPermissions',
+                        'Waiting for macOS screen & input permissions'
+                      )
                   : outcome.mode === 'full'
                     ? dt('featureUi.desktopAccess.status.fullAccessActive', 'Full Access active')
                     : dt(

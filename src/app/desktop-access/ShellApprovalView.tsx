@@ -13,11 +13,21 @@ const ARMING_DELAY_MS = 1000;
 const COUNTDOWN_TICK_MS = 100;
 const AUTO_APPROVE_15_MIN_SECONDS = 900;
 
+type ArmingState = {
+  commandId: string | null;
+  remainingMs: number;
+  armedCommandId: string | null;
+};
+
 /** Floating non-focus-stealing window view for approving or denying a pending shell command. */
 export function ShellApprovalView() {
   const dt = useDesktopT();
   const [snapshot, setSnapshot] = useState<DesktopAccessSnapshot | null>(null);
-  const [remainingMs, setRemainingMs] = useState(ARMING_DELAY_MS);
+  const [arming, setArming] = useState<ArmingState>({
+    commandId: null,
+    remainingMs: ARMING_DELAY_MS,
+    armedCommandId: null,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,22 +51,25 @@ export function ShellApprovalView() {
   }, [refresh]);
 
   const pending = snapshot?.status?.shell.pending ?? null;
-  const commandId = pending?.command_id;
+  const commandId = pending?.command_id ?? null;
 
   useEffect(() => {
-    if (!commandId) {
-      setRemainingMs(ARMING_DELAY_MS);
+    if (commandId === null) {
+      setArming({ commandId: null, remainingMs: ARMING_DELAY_MS, armedCommandId: null });
       return undefined;
     }
     const deadline = Date.now() + ARMING_DELAY_MS;
-    setRemainingMs(ARMING_DELAY_MS);
+    setArming({ commandId, remainingMs: ARMING_DELAY_MS, armedCommandId: null });
     setError(null);
 
     const interval = setInterval(() => {
-      setRemainingMs(Math.max(0, deadline - Date.now()));
+      const remaining = Math.max(0, deadline - Date.now());
+      setArming((prev) =>
+        prev.commandId === commandId ? { ...prev, remainingMs: remaining } : prev
+      );
     }, COUNTDOWN_TICK_MS);
     const done = setTimeout(() => {
-      setRemainingMs(0);
+      setArming({ commandId, remainingMs: 0, armedCommandId: commandId });
       clearInterval(interval);
     }, ARMING_DELAY_MS);
 
@@ -66,13 +79,16 @@ export function ShellApprovalView() {
     };
   }, [commandId]);
 
-  const armed = remainingMs === 0;
-  const countdownText = `${(remainingMs / 1000).toFixed(1)}s`;
+  const isArmed =
+    commandId !== null && arming.armedCommandId === commandId && arming.remainingMs === 0;
+  const effectiveRemainingMs =
+    commandId !== null && arming.commandId === commandId ? arming.remainingMs : ARMING_DELAY_MS;
+  const countdownText = `${(effectiveRemainingMs / 1000).toFixed(1)}s`;
 
   const decide = async (approved: boolean, autoApproveSeconds?: number) => {
     const approval = desktopBridge()?.shellApproval;
     if (!approval || !pending || submitting) return;
-    if (approved && !armed) return;
+    if (approved && !isArmed) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -163,11 +179,11 @@ export function ShellApprovalView() {
                 radii="300"
                 variant="Secondary"
                 fill="Soft"
-                disabled={!armed || submitting}
+                disabled={!isArmed || submitting}
                 onClick={() => void decide(true, AUTO_APPROVE_15_MIN_SECONDS)}
               >
                 <Text size="B300">
-                  {armed
+                  {isArmed
                     ? dt(
                         'featureUi.desktopAccess.shellApproval.autoApprove15m',
                         'Auto-approve 15 min'
@@ -185,12 +201,12 @@ export function ShellApprovalView() {
                 radii="300"
                 variant="Primary"
                 fill="Solid"
-                disabled={!armed || submitting}
+                disabled={!isArmed || submitting}
                 before={submitting ? <Spinner size="100" /> : undefined}
                 onClick={() => void decide(true)}
               >
                 <Text size="B300">
-                  {armed
+                  {isArmed
                     ? dt('featureUi.desktopAccess.shellApproval.approveOnce', 'Approve once')
                     : dt(
                         'featureUi.desktopAccess.shellApproval.approveOnceCountdown',

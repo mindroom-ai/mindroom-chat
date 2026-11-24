@@ -17,7 +17,7 @@ import { isControllerFullAccess, useDesktopT } from './desktopAccessHelpers';
 import * as css from './desktopAccess.css';
 
 export type GuiControlChoice = 'observe' | '15m' | '1h' | 'full';
-export type ShellAccessChoice = 'off' | 'ask' | '15m' | '1h' | 'until_revoked';
+export type ShellApprovalChoice = 'ask' | '15m' | '1h' | 'until_revoked';
 
 export type ChooseLimitsResult = {
   mode: DesktopAccessMode;
@@ -50,14 +50,13 @@ const initialGuiChoice = (
   return 'observe';
 };
 
-const initialShellChoice = (
+const initialShellApproval = (
   snapshot: DesktopAccessSnapshot | null,
   controllerKey?: string
-): ShellAccessChoice => {
+): ShellApprovalChoice => {
   if (!controllerKey) return 'ask';
-  if (!snapshot?.status?.config.shell_enabled) return 'off';
   if (isControllerFullAccess(snapshot, controllerKey)) return 'until_revoked';
-  const shellCtrl = snapshot.status.shell.controllers[controllerKey];
+  const shellCtrl = snapshot?.status?.shell.controllers[controllerKey];
   if (shellCtrl?.auto_approve_until_revoked) return 'until_revoked';
   if ((shellCtrl?.auto_approve_remaining_seconds ?? 0) > 1200) return '1h';
   if ((shellCtrl?.auto_approve_remaining_seconds ?? 0) > 0) return '15m';
@@ -66,7 +65,8 @@ const initialShellChoice = (
 
 const buildResult = (
   guiChoice: GuiControlChoice,
-  shellChoice: ShellAccessChoice,
+  shellApproval: ShellApprovalChoice,
+  shellEnabled: boolean,
   fullScreen: boolean,
   selectedAppIds: string[],
   fileRoots: string[]
@@ -84,16 +84,22 @@ const buildResult = (
   const controlDurationSeconds =
     guiChoice === '15m' ? FIFTEEN_MINUTES : guiChoice === '1h' ? ONE_HOUR : undefined;
   const shellAutoApproveSeconds =
-    shellChoice === '15m' ? FIFTEEN_MINUTES : shellChoice === '1h' ? ONE_HOUR : undefined;
+    shellEnabled && shellApproval === '15m'
+      ? FIFTEEN_MINUTES
+      : shellEnabled && shellApproval === '1h'
+        ? ONE_HOUR
+        : undefined;
   return {
     mode: 'restricted',
     limits: {
       allowedAppIds,
       fileRoots,
-      shellEnabled: shellChoice !== 'off',
+      shellEnabled,
       ...(controlDurationSeconds !== undefined ? { controlDurationSeconds } : {}),
       ...(shellAutoApproveSeconds !== undefined ? { shellAutoApproveSeconds } : {}),
-      ...(shellChoice === 'until_revoked' ? { shellAutoApproveUntilRevoked: true } : {}),
+      ...(shellEnabled && shellApproval === 'until_revoked'
+        ? { shellAutoApproveUntilRevoked: true }
+        : {}),
     },
   };
 };
@@ -139,7 +145,7 @@ function ChoiceGroup<V extends string>({
   );
 }
 
-/** Granular per-agent control/shell limits and Mac-wide shared apps & read-only folders form. */
+/** Granular per-agent control/shell approval limits and Mac-wide shared apps, folders & shell toggles. */
 export function ChooseLimitsForm({
   agentName,
   snapshot,
@@ -151,13 +157,20 @@ export function ChooseLimitsForm({
 }: ChooseLimitsFormProps) {
   const dt = useDesktopT();
   const fullScreenLabelId = useId();
+  const shellEnabledLabelId = useId();
   const savedApps = snapshot?.status?.config.allowed_app_ids ?? [];
+  const otherHasFullAccess = Object.keys(snapshot?.consent ?? {}).some(
+    (key) => key !== controllerKey
+  );
 
   const [guiChoice, setGuiChoice] = useState<GuiControlChoice>(() =>
     initialGuiChoice(snapshot, controllerKey)
   );
-  const [shellChoice, setShellChoice] = useState<ShellAccessChoice>(() =>
-    initialShellChoice(snapshot, controllerKey)
+  const [shellApproval, setShellApproval] = useState<ShellApprovalChoice>(() =>
+    initialShellApproval(snapshot, controllerKey)
+  );
+  const [shellEnabled, setShellEnabled] = useState<boolean>(
+    () => snapshot?.status?.config.shell_enabled ?? true
   );
   const [fullScreen, setFullScreen] = useState<boolean>(() =>
     savedApps.length > 0 ? savedApps.includes(PRIMARY_SCREEN) : true
@@ -206,14 +219,20 @@ export function ChooseLimitsForm({
   const handleGuiChange = (next: GuiControlChoice) => {
     setGuiChoice(next);
     if (next === 'full') {
-      setShellChoice('until_revoked');
+      setShellEnabled(true);
+      setShellApproval('until_revoked');
       setFullScreen(true);
     }
   };
 
-  const handleShellChange = (next: ShellAccessChoice) => {
-    setShellChoice(next);
+  const handleShellApprovalChange = (next: ShellApprovalChoice) => {
+    setShellApproval(next);
     if (guiChoice === 'full' && next !== 'until_revoked') setGuiChoice('1h');
+  };
+
+  const handleShellEnabledChange = (next: boolean) => {
+    setShellEnabled(next);
+    if (guiChoice === 'full' && !next) setGuiChoice('1h');
   };
 
   const handleFullScreenChange = (next: boolean) => {
@@ -243,15 +262,17 @@ export function ChooseLimitsForm({
       value: '15m',
       label: dt('featureUi.desktopAccess.limits.gui15m', 'Allow control for 15 min'),
     },
-    { value: '1h', label: dt('featureUi.desktopAccess.limits.gui1h', 'Allow control for 1 hour') },
+    {
+      value: '1h',
+      label: dt('featureUi.desktopAccess.limits.gui1h', 'Allow control for 1 hour'),
+    },
     {
       value: 'full',
       label: dt('featureUi.desktopAccess.limits.guiFull', 'Full Access until revoked'),
     },
   ];
 
-  const shellOptions: Array<{ value: ShellAccessChoice; label: string }> = [
-    { value: 'off', label: dt('featureUi.desktopAccess.limits.shellOff', 'Off') },
+  const shellApprovalOptions: Array<{ value: ShellApprovalChoice; label: string }> = [
     {
       value: 'ask',
       label: dt('featureUi.desktopAccess.limits.shellAsk', 'Ask before each command'),
@@ -260,7 +281,10 @@ export function ChooseLimitsForm({
       value: '15m',
       label: dt('featureUi.desktopAccess.limits.shell15m', 'Auto-approve for 15 min'),
     },
-    { value: '1h', label: dt('featureUi.desktopAccess.limits.shell1h', 'Auto-approve for 1 hour') },
+    {
+      value: '1h',
+      label: dt('featureUi.desktopAccess.limits.shell1h', 'Auto-approve for 1 hour'),
+    },
     {
       value: 'until_revoked',
       label: dt('featureUi.desktopAccess.limits.shellUntilRevoked', 'Auto-approve until revoked'),
@@ -272,15 +296,15 @@ export function ChooseLimitsForm({
     fullScreen ||
     selectedAppIds.length > 0 ||
     fileRoots.length > 0 ||
-    shellChoice !== 'off';
+    shellEnabled;
 
   return (
     <Box direction="Column" gap="400">
-      <div className={css.LimitsSection}>
+      <div className={css.LimitsSection} data-testid="limits-per-agent-section">
         <Text size="L400" style={{ fontWeight: 600 }}>
           {dt(
             'featureUi.desktopAccess.limits.perAgentHeading',
-            'Control & shell permissions for {{agent}} (per-agent)',
+            'Control & shell approval for {{agent}} (per-agent)',
             { agent: agentName }
           )}
         </Text>
@@ -300,21 +324,55 @@ export function ChooseLimitsForm({
           </Text>
         )}
         <ChoiceGroup
-          label={dt('featureUi.desktopAccess.limits.shellLabel', 'Shell commands')}
-          value={shellChoice}
-          options={shellOptions}
-          disabled={busy}
-          onChange={handleShellChange}
+          label={dt('featureUi.desktopAccess.limits.shellApprovalLabel', 'Shell approval')}
+          value={shellApproval}
+          options={shellApprovalOptions}
+          disabled={busy || !shellEnabled}
+          onChange={handleShellApprovalChange}
         />
+        {!shellEnabled && (
+          <Text size="T200" priority="300">
+            {dt(
+              'featureUi.desktopAccess.limits.shellDisabledHint',
+              'Turn on "Allow shell commands on this Mac" below to configure shell approval.'
+            )}
+          </Text>
+        )}
       </div>
 
-      <div className={css.LimitsSection}>
-        <Text size="L400" style={{ fontWeight: 600 }}>
-          {dt(
-            'featureUi.desktopAccess.limits.sharedHeading',
-            'Shared apps & read-only folders on this Mac (applies to all paired agents)'
+      <div className={css.LimitsSection} data-testid="limits-shared-section">
+        <Box direction="Column" gap="100">
+          <Text size="L400" style={{ fontWeight: 600 }}>
+            {dt(
+              'featureUi.desktopAccess.limits.sharedHeading',
+              'Shared apps, folders & shell on this Mac (applies to all paired agents)'
+            )}
+          </Text>
+          {otherHasFullAccess && (
+            <Text size="T200" priority="300">
+              {dt(
+                'featureUi.desktopAccess.limits.sharedWithOthersHint',
+                'Shared with other paired agents on this Mac'
+              )}
+            </Text>
           )}
-        </Text>
+        </Box>
+
+        <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+          <Text id={shellEnabledLabelId} size="T300">
+            {dt(
+              'featureUi.desktopAccess.limits.allowShellOnMac',
+              'Allow shell commands on this Mac'
+            )}
+          </Text>
+          <Switch
+            variant="Primary"
+            aria-labelledby={shellEnabledLabelId}
+            value={shellEnabled}
+            disabled={busy}
+            onChange={handleShellEnabledChange}
+          />
+        </Box>
 
         <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
           <Text id={fullScreenLabelId} size="T300">
@@ -457,7 +515,16 @@ export function ChooseLimitsForm({
           before={busy ? <Spinner size="100" /> : undefined}
           onClick={() =>
             hasCapability &&
-            onSave(buildResult(guiChoice, shellChoice, fullScreen, selectedAppIds, fileRoots))
+            onSave(
+              buildResult(
+                guiChoice,
+                shellApproval,
+                shellEnabled,
+                fullScreen,
+                selectedAppIds,
+                fileRoots
+              )
+            )
           }
         >
           <Text size="B400">

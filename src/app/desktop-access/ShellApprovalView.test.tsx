@@ -114,11 +114,11 @@ afterEach(() => {
 });
 
 describe('ShellApprovalView', () => {
-  it('visibly escapes newlines, carriage returns, tabs, ANSI escapes, and bidi controls', async () => {
+  it('visibly escapes control characters, soft hyphens, zero-width chars, bidi controls, and Unicode tag characters', async () => {
     installBridge({
       command_id: 'cmd-escape',
-      command: 'echo ok\rrm -rf /\n\t\x1b[31mhidden\u202e',
-      cwd: '/tmp/dir\nfake',
+      command: 'echo ok\rrm -rf /\n\t\x1b[31mhi\u00ad\u200b\u202e\u{e0061}',
+      cwd: '/tmp/dir\nfake\u00ad',
       agent_name: 'code',
       requester_id: '@alice:example.org',
     });
@@ -129,18 +129,23 @@ describe('ShellApprovalView', () => {
     });
 
     const commandEl = screen.getByTestId('shell-approval-command');
-    expect(commandEl.textContent).toBe('echo ok\\rrm -rf /\\n\\t\\x1b[31mhidden\\u202e');
+    expect(commandEl.textContent).toBe(
+      'echo ok\\rrm -rf /\\n\\t\\x1b[31mhi\\xad\\u200b\\u202e\\u{e0061}'
+    );
     expect(commandEl.textContent).not.toContain('\n');
     expect(commandEl.textContent).not.toContain('\r');
     expect(commandEl.textContent).not.toContain('\x1b');
+    expect(commandEl.textContent).not.toContain('\u00ad');
+    expect(commandEl.textContent).not.toContain('\u200b');
+    expect(commandEl.textContent).not.toContain('\u{e0061}');
 
     const cwdEl = screen.getByTestId('shell-approval-cwd');
-    expect(cwdEl.textContent).toBe('/tmp/dir\\nfake');
+    expect(cwdEl.textContent).toBe('/tmp/dir\\nfake\\xad');
   });
 
-  it('disables Approve buttons during the 1 s arming delay while Deny works immediately, then enables Approve after 1000 ms', async () => {
+  it('disables Approve buttons during the 1 s arming delay while Deny works immediately, and re-locks immediately when switching from an armed command A to command B', async () => {
     installBridge({
-      command_id: 'cmd-1',
+      command_id: 'cmd-A',
       command: 'ls -la',
       cwd: '/Users/alice',
       agent_name: 'code',
@@ -169,22 +174,58 @@ describe('ShellApprovalView', () => {
     expect(approveOnce.disabled).toBe(true);
     expect(autoApprove.disabled).toBe(true);
 
-    // Deny works immediately even before arming finishes
+    // Arm command A completely at 1000 ms
     await act(async () => {
-      fireEvent.click(deny);
+      vi.advanceTimersByTime(500);
+    });
+    expect(approveOnce.disabled).toBe(false);
+    expect(autoApprove.disabled).toBe(false);
+
+    // Switching straight from armed command A to a brand new command B immediately disables Approve
+    mocks.status.mockResolvedValue({
+      ok: true,
+      value: makeSnapshot({
+        command_id: 'cmd-B',
+        command: 'rm -rf /tmp/test',
+        cwd: '/Users/alice/repo',
+        agent_name: 'code',
+      }),
+    });
+    await act(async () => {
+      mocks.shellListeners.forEach((listener) => listener({ type: 'desktop-access-status' }));
+      await Promise.resolve();
+    });
+
+    const approveB = screen.getByRole<HTMLButtonElement>('button', { name: /Approve once/i });
+    const autoB = screen.getByRole<HTMLButtonElement>('button', {
+      name: /Auto-approve 15 min/i,
+    });
+    const denyB = screen.getByRole<HTMLButtonElement>('button', { name: 'Deny' });
+
+    expect(approveB.disabled).toBe(true);
+    expect(autoB.disabled).toBe(true);
+    expect(denyB.disabled).toBe(false);
+
+    // Clicking disabled Approve during arming does not call decideShell
+    fireEvent.click(approveB);
+    expect(mocks.decideShell).not.toHaveBeenCalled();
+
+    // Deny works immediately while command B is still arming
+    await act(async () => {
+      fireEvent.click(denyB);
       await Promise.resolve();
     });
     expect(mocks.decideShell).toHaveBeenCalledWith({
-      commandId: 'cmd-1',
+      commandId: 'cmd-B',
       approved: false,
     });
 
-    // A second command arrives and restarts the 1000 ms arming delay
+    // Command C arrives, waits 1000 ms, then Auto-approve 15 min succeeds
     mocks.decideShell.mockClear();
     mocks.status.mockResolvedValue({
       ok: true,
       value: makeSnapshot({
-        command_id: 'cmd-2',
+        command_id: 'cmd-C',
         command: 'git status',
         cwd: '/Users/alice/repo',
         agent_name: 'code',
@@ -195,25 +236,22 @@ describe('ShellApprovalView', () => {
       await Promise.resolve();
     });
 
-    const approve2 = screen.getByRole<HTMLButtonElement>('button', { name: /Approve once/i });
-    const auto2 = screen.getByRole<HTMLButtonElement>('button', {
+    const autoC = screen.getByRole<HTMLButtonElement>('button', {
       name: /Auto-approve 15 min/i,
     });
-    expect(approve2.disabled).toBe(true);
-    expect(auto2.disabled).toBe(true);
+    expect(autoC.disabled).toBe(true);
 
     await act(async () => {
       vi.advanceTimersByTime(1000);
     });
-    expect(approve2.disabled).toBe(false);
-    expect(auto2.disabled).toBe(false);
+    expect(autoC.disabled).toBe(false);
 
     await act(async () => {
-      fireEvent.click(auto2);
+      fireEvent.click(autoC);
       await Promise.resolve();
     });
     expect(mocks.decideShell).toHaveBeenCalledWith({
-      commandId: 'cmd-2',
+      commandId: 'cmd-C',
       approved: true,
       autoApproveSeconds: 900,
     });

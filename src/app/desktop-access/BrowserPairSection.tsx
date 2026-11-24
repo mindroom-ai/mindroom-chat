@@ -303,7 +303,7 @@ export function BrowserPairSection({ mx, agent, onClose }: BrowserPairSectionPro
                 onClick={() => void handleSendToMac()}
               >
                 <Text size="B400">
-                  {dt('featureUi.desktopAccess.browser.allowOnMac', 'Allow on {{mac}}', {
+                  {dt('featureUi.desktopAccess.browser.sendToMac', 'Send to {{mac}}', {
                     mac: selectedMac.label,
                   })}
                 </Text>

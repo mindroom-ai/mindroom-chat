@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -102,6 +102,7 @@ type SnapshotOverrides = {
   allowedAppIds?: string[];
   fileRoots?: string[];
   shellEnabled?: boolean;
+  shellReady?: boolean;
   bridgeState?: 'stopped' | 'observe_only' | 'control' | 'stopping' | 'faulted';
 };
 
@@ -109,6 +110,8 @@ const makeSnapshot = (overrides: SnapshotOverrides = {}): DesktopAccessSnapshot 
   const accessibility = overrides.accessibility ?? 'missing';
   const screenRecording = overrides.screenRecording ?? 'missing';
   const guiPermissionsReady = accessibility === 'granted' && screenRecording === 'granted';
+  const shellEnabled = overrides.shellEnabled ?? true;
+  const shellReady = overrides.shellReady ?? shellEnabled;
   return {
     availability: 'available',
     helperRunning: true,
@@ -121,7 +124,7 @@ const makeSnapshot = (overrides: SnapshotOverrides = {}): DesktopAccessSnapshot 
         controllers: overrides.controllers ?? [],
         allowed_app_ids: overrides.allowedAppIds ?? ['primary-screen'],
         file_roots: overrides.fileRoots ?? [],
-        shell_enabled: overrides.shellEnabled ?? true,
+        shell_enabled: shellEnabled,
       },
       pairing: {
         state: 'ready',
@@ -148,8 +151,8 @@ const makeSnapshot = (overrides: SnapshotOverrides = {}): DesktopAccessSnapshot 
         gui_permissions_ready: guiPermissionsReady,
       },
       shell: {
-        enabled: overrides.shellEnabled ?? true,
-        ready: true,
+        enabled: shellEnabled,
+        ready: shellReady,
         pending: null,
         auto_approve_remaining_seconds: 0,
         auto_approve_until_revoked: false,
@@ -387,8 +390,13 @@ describe('DesktopAccessModal', () => {
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
   });
 
-  it('clearly separates per-agent control/shell from Mac-wide apps/folders in Choose limits...', async () => {
-    const initial = makeSnapshot({ allowedAppIds: ['primary-screen'], fileRoots: [] });
+  it('places the Mac-wide shell toggle in the shared section and keeps per-agent approval separate in Choose limits...', async () => {
+    const initial = makeSnapshot({
+      allowedAppIds: ['primary-screen'],
+      fileRoots: [],
+      shellEnabled: true,
+      consent: { 'ctrl:other': { mode: 'full', grantedAt: 1000, agentName: 'other' } },
+    });
     const access = makeDesktopAccessMock(initial);
     mocks.pairAgentOnThisMac.mockResolvedValueOnce(
       makeSnapshot({
@@ -414,21 +422,42 @@ describe('DesktopAccessModal', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Choose limits...' }));
 
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+
     expect(
-      await screen.findByText('Control & shell permissions for code (per-agent)')
+      within(perAgentSection).getByText('Control & shell approval for code (per-agent)')
+    ).toBeTruthy();
+    expect(within(perAgentSection).queryByRole('radio', { name: 'Off' })).toBeNull();
+    expect(
+      within(perAgentSection).queryByRole('switch', { name: 'Allow shell commands on this Mac' })
+    ).toBeNull();
+
+    expect(
+      within(sharedSection).getByText(
+        'Shared apps, folders & shell on this Mac (applies to all paired agents)'
+      )
     ).toBeTruthy();
     expect(
-      screen.getByText('Shared apps & read-only folders on this Mac (applies to all paired agents)')
+      within(sharedSection).getByText('Shared with other paired agents on this Mac')
     ).toBeTruthy();
+    const shellToggle = within(sharedSection).getByRole('switch', {
+      name: 'Allow shell commands on this Mac',
+    });
+    expect(shellToggle).toBeTruthy();
 
-    expect(await screen.findByText('Safari')).toBeTruthy();
-    fireEvent.click(screen.getByLabelText('Safari'));
+    expect(await within(sharedSection).findByText('Safari')).toBeTruthy();
+    fireEvent.click(within(sharedSection).getByLabelText('Safari'));
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Allow control for 15 min' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Auto-approve for 15 min' }));
+    fireEvent.click(
+      within(perAgentSection).getByRole('radio', { name: 'Allow control for 15 min' })
+    );
+    fireEvent.click(
+      within(perAgentSection).getByRole('radio', { name: 'Auto-approve for 15 min' })
+    );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add folder...' }));
-    expect(await screen.findByText('/Users/alice/Projects')).toBeTruthy();
+    fireEvent.click(within(sharedSection).getByRole('button', { name: 'Add folder...' }));
+    expect(await within(sharedSection).findByText('/Users/alice/Projects')).toBeTruthy();
     expect(access.pickFolder).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Allow with limits' }));
@@ -455,10 +484,61 @@ describe('DesktopAccessModal', () => {
     });
   });
 
-  it('lets an already-paired restricted agent switch to Full Access or disconnect', async () => {
+  it('disables per-agent shell approval radios and omits shellAutoApproveSeconds when Mac-wide shell toggle is turned off', async () => {
+    const initial = makeSnapshot({ allowedAppIds: ['primary-screen'], shellEnabled: true });
+    makeDesktopAccessMock(initial);
+    mocks.pairAgentOnThisMac.mockResolvedValueOnce(
+      makeSnapshot({ accessibility: 'granted', screenRecording: 'granted', shellEnabled: false })
+    );
+    mocks.mx = makeRoomClient([{ userId: '@mindroom_code:example.org', name: 'Code' }]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, { roomId: '!room:example.org' });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+
+    fireEvent.click(
+      within(perAgentSection).getByRole('radio', { name: 'Auto-approve for 15 min' })
+    );
+    fireEvent.click(
+      within(sharedSection).getByRole('switch', { name: 'Allow shell commands on this Mac' })
+    );
+
+    const askRadio = within(perAgentSection).getByRole<HTMLButtonElement>('radio', {
+      name: 'Ask before each command',
+    });
+    expect(askRadio.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Allow with limits' }));
+    await waitFor(() => {
+      expect(mocks.pairAgentOnThisMac).toHaveBeenCalledWith(
+        mocks.mx,
+        {
+          agentUserId: '@mindroom_code:example.org',
+          agentName: 'code',
+          mode: 'restricted',
+          limits: {
+            allowedAppIds: ['primary-screen'],
+            fileRoots: [],
+            shellEnabled: false,
+          },
+        },
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it('shows waiting-for-permissions banner without Shell ready when shell is disabled, and shows Full Access disclosure before Switch to Full Access', async () => {
     const restricted = makeSnapshot({
-      accessibility: 'granted',
-      screenRecording: 'granted',
+      accessibility: 'missing',
+      screenRecording: 'missing',
+      shellEnabled: false,
+      shellReady: false,
       controllers: [
         {
           controller_key: 'ctrl:code',
@@ -490,6 +570,16 @@ describe('DesktopAccessModal', () => {
     renderWithStore(<DesktopAccessModalRenderer />, store);
 
     expect(await screen.findByText('Restricted')).toBeTruthy();
+    expect(screen.getByText('Waiting for macOS screen & input permissions')).toBeTruthy();
+    expect(
+      screen.queryByText('Shell ready - Waiting for macOS screen & input permissions')
+    ).toBeNull();
+    expect(
+      screen.getByText(
+        'code can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.'
+      )
+    ).toBeTruthy();
+
     fireEvent.click(screen.getByRole('button', { name: 'Switch to Full Access' }));
     await waitFor(() => {
       expect(access.updateLimits).toHaveBeenCalledWith({
@@ -537,7 +627,7 @@ describe('DesktopAccessModal', () => {
     store.set(desktopAccessModalAtom, { roomId: '!room:example.org' });
     renderWithStore(<DesktopAccessModalRenderer />, store);
 
-    const sendBtn = await screen.findByRole('button', { name: "Allow on Bas's MacBook Pro" });
+    const sendBtn = await screen.findByRole('button', { name: "Send to Bas's MacBook Pro" });
     fireEvent.click(sendBtn);
 
     expect(await screen.findByText('482913')).toBeTruthy();
