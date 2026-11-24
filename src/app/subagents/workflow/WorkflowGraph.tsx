@@ -68,10 +68,11 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   onSelect,
 }: ChipProps) {
   const agentProfile = useAgentProfile(room, node.agent ?? '');
+  const isLive = isLiveWorkflowNodeStatus(node.status);
   const model = subagentRun?.meta.model
     ? getAiRunCompactModelLabel(subagentRun.meta.model)
     : node.model;
-  const usage = subagentRun?.meta.usage ?? node.usage;
+  const usage = isLive ? subagentRun?.meta.usage ?? node.usage : node.usage;
   const tokens = usage ? usage.inputTokens + usage.outputTokens : 0;
   const cost =
     usage?.costUsd !== undefined && (usage.costUsd > 0 || tokens > 0)
@@ -80,7 +81,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   const elapsed = formatWorkflowElapsed(
     node.startedAt,
     node.endedAt,
-    isLiveWorkflowNodeStatus(node.status) ? now : null,
+    isLive ? now : null,
     language
   );
   const note = node.cached

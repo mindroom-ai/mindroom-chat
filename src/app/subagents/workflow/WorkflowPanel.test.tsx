@@ -994,4 +994,133 @@ describe('WorkflowPanel', () => {
     details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
     expect(within(details).getByText('Waiting for your answer')).toBeTruthy();
   });
+
+  it('uses total node usage for completed nodes while keeping live sub-agent usage for active nodes', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    const subStore = getSubagentRunStore(mx);
+
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Schema checked step',
+            status: 'completed',
+            turns: 2,
+            run: 'delegation-final',
+            model: 'fallback-model',
+            endedAt: 1795389755,
+            usage: { inputTokens: 2000, outputTokens: 1000, toolCalls: 2, costUsd: 0.3 },
+          }),
+          makeNode('n2', {
+            label: 'Active streaming step',
+            status: 'running',
+            run: 'delegation-live',
+            usage: { inputTokens: 300, outputTokens: 200, toolCalls: 1, costUsd: 0.05 },
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    subStore.ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: 'delegation-final',
+        sid: '1795389755000-f1a2b3c4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          subagent: 'delegation-final',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          threadId: null,
+          source: 'workflow',
+          status: 'completed',
+          startedAt: 1795389750,
+          endedAt: 1795389755,
+          model: {
+            modelConfig: 'fable',
+            modelDisplayName: 'Fable 5.2',
+            modelProvider: 'anthropic',
+            modelId: 'claude-fable-5.2',
+          },
+          usage: { inputTokens: 700, outputTokens: 300, toolCalls: 1, costUsd: 0.1 },
+          result: 'Validated after schema correction.',
+        },
+        snapshot: {
+          md: 'Validated after schema correction.',
+          reasoning: '',
+          tools: [],
+          status: 'done',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
+
+    subStore.ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: 'delegation-live',
+        sid: '1795389756000-a1b2c3d4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          subagent: 'delegation-live',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          threadId: null,
+          source: 'workflow',
+          status: 'running',
+          startedAt: 1795389756,
+          endedAt: null,
+          usage: { inputTokens: 1100, outputTokens: 400, toolCalls: 2, costUsd: 0.25 },
+        },
+        snapshot: {
+          md: 'Still streaming.',
+          reasoning: '',
+          tools: [],
+          status: 'streaming',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const completedChip = screen.getByRole('button', { name: /Schema checked step/ });
+    expect(within(completedChip).getByText('3K')).toBeTruthy();
+    expect(within(completedChip).getByText('$0.30')).toBeTruthy();
+    expect(within(completedChip).queryByText('1K')).toBeNull();
+    expect(within(completedChip).queryByText('$0.10')).toBeNull();
+    expect(within(completedChip).getByText('Fable 5.2')).toBeTruthy();
+
+    fireEvent.click(completedChip);
+    const details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
+    expect(within(details).getByText('Validated after schema correction.')).toBeTruthy();
+
+    const activeChip = screen.getByRole('button', { name: /Active streaming step/ });
+    expect(within(activeChip).getByText('1.5K')).toBeTruthy();
+    expect(within(activeChip).getByText('$0.25')).toBeTruthy();
+    expect(within(activeChip).queryByText('500')).toBeNull();
+    expect(within(activeChip).queryByText('$0.05')).toBeNull();
+  });
 });
