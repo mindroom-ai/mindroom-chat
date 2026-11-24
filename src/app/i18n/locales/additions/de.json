@@ -1060,6 +1060,21 @@
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Ereignis-Payload JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} Aufgabe bereit",
+        "readyCount_other": "{{count}} Aufgaben bereit",
+        "hide": "Ausblenden",
+        "show": "Anzeigen",
+        "copyId": "Aufgaben-ID {{id}} kopieren",
+        "moreItems_one": "+{{count}} weiterer offener Punkt",
+        "moreItems_other": "+{{count}} weitere offene Punkte",
+        "priority": {
+          "critical": "Kritisch",
+          "high": "Hoch",
+          "medium": "Mittel",
+          "low": "Niedrig"
+        }
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"

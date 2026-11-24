@@ -1136,6 +1136,29 @@
         "triageLabel": "الفرز: ⁨{{reason}}⁩",
         "payloadLabel": "حمولة الحدث JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_zero": "⁨{{count}}⁩ مهام جاهزة",
+        "readyCount_one": "مهمة واحدة جاهزة (⁨{{count}}⁩)",
+        "readyCount_two": "مهمتان جاهزتان (⁨{{count}}⁩)",
+        "readyCount_few": "⁨{{count}}⁩ مهام جاهزة",
+        "readyCount_many": "⁨{{count}}⁩ مهمة جاهزة",
+        "readyCount_other": "⁨{{count}}⁩ مهمة جاهزة",
+        "hide": "إخفاء",
+        "show": "إظهار",
+        "copyId": "نسخ معرّف المهمة ⁨{{id}}⁩",
+        "moreItems_zero": "+⁨{{count}}⁩ عناصر إضافية قابلة للتنفيذ",
+        "moreItems_one": "+عنصر إضافي واحد قابل للتنفيذ (⁨{{count}}⁩)",
+        "moreItems_two": "+عنصران إضافيان قابلان للتنفيذ (⁨{{count}}⁩)",
+        "moreItems_few": "+⁨{{count}}⁩ عناصر إضافية قابلة للتنفيذ",
+        "moreItems_many": "+⁨{{count}}⁩ عنصرًا إضافيًا قابلًا للتنفيذ",
+        "moreItems_other": "+⁨{{count}}⁩ عنصر إضافي قابل للتنفيذ",
+        "priority": {
+          "critical": "حرج",
+          "high": "مرتفع",
+          "medium": "متوسط",
+          "low": "منخفض"
+        }
+      },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"

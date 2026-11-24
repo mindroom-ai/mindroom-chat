@@ -81,6 +81,7 @@ import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
 import { TriggerWakeMarker } from '../../messages/TriggerWakeMarker';
+import { TodoPokeMarker } from '../../messages/TodoPokeMarker';
 import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -332,6 +333,7 @@ const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([
   CompactionNoticeSeam,
   ModelChangeMarker,
   TriggerWakeMarker,
+  TodoPokeMarker,
 ]);
 const quietRunItemStyle = (node: ReactNode) =>
   isValidElement(node) && node.type === ThreadSummaryMarker
@@ -369,8 +371,10 @@ const readQuietMarker = (
       />
     );
   }
-  if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
-  return readAgentNoticeMarker(content, event.getTs(), room.roomId);
+  const sender = event.getSender() ?? undefined;
+  if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
+  const senderDisplayName = sender ? room.getMember?.(sender)?.name : undefined;
+  return readAgentNoticeMarker(content, event.getTs(), room.roomId, senderDisplayName);
 };
 
 /**

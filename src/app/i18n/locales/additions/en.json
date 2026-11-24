@@ -1060,6 +1060,21 @@
         "triageLabel": "Triage: {{reason}}",
         "payloadLabel": "Event payload JSON"
       },
+      "todoPokeMarker": {
+        "readyCount_one": "{{count}} todo ready",
+        "readyCount_other": "{{count}} todos ready",
+        "hide": "Hide",
+        "show": "Show",
+        "copyId": "Copy todo ID {{id}}",
+        "moreItems_one": "+{{count}} more actionable item",
+        "moreItems_other": "+{{count}} more actionable items",
+        "priority": {
+          "critical": "Critical",
+          "high": "High",
+          "medium": "Medium",
+          "low": "Low"
+        }
+      },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
