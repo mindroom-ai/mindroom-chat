@@ -476,6 +476,8 @@ export async function startReplayServer(options = {}) {
       next_batch: `s${syncSeq}`,
       account_data: { events: [...globalAccountData.values()] },
       to_device: { events: [] },
+      device_one_time_keys_count: { signed_curve25519: 50 },
+      device_unused_fallback_key_types: ['signed_curve25519'],
       rooms: { join, invite: {}, leave: {} },
     };
   }
@@ -521,6 +523,8 @@ export async function startReplayServer(options = {}) {
     }
     return {
       next_batch: `s${syncSeq}`,
+      device_one_time_keys_count: { signed_curve25519: 50 },
+      device_unused_fallback_key_types: ['signed_curve25519'],
       ...(accEvents.length ? { account_data: { events: accEvents } } : {}),
       rooms: { join },
     };
@@ -641,7 +645,10 @@ export async function startReplayServer(options = {}) {
     if (p === '/_matrix/client/v3/joined_rooms') {
       return json(200, { joined_rooms: [...rooms.keys()] });
     }
-    if (p === '/_matrix/client/v3/keys/upload') return json(200, { one_time_key_counts: {} });
+    if (p === '/_matrix/client/v3/keys/upload') {
+      await readJsonBody(req);
+      return json(200, { one_time_key_counts: { signed_curve25519: 50 } });
+    }
     if (p === '/_matrix/client/v3/keys/query') return json(200, { device_keys: {}, failures: {} });
     if (p === '/_matrix/client/v3/keys/claim') {
       return json(200, { one_time_keys: {}, failures: {} });
