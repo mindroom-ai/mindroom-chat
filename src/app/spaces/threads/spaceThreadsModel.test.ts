@@ -14,7 +14,6 @@ import {
   filterAndSortSpaceThreads,
   getRoomAccentColor,
   pruneSpaceRoomSelection,
-  resolveActiveSpaceRoomIds,
   resolveComposerTargetRoom,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
@@ -105,9 +104,9 @@ const makeEntry = (opts: EntryOpts): CrossRoomThreadIndexEntry => {
   };
 };
 
-const roomNames = new Map([
-  [ROOM_A, 'Engineering'],
-  [ROOM_B, 'Design'],
+const roomsById = new Map([
+  [ROOM_A, { name: 'Engineering' }],
+  [ROOM_B, { name: 'Design' }],
 ]);
 
 const runFilter = (
@@ -122,34 +121,35 @@ const runFilter = (
 ) =>
   filterAndSortSpaceThreads({
     entries,
-    spaceRoomIds: new Set([ROOM_A, ROOM_B]),
+    roomsById,
     selectedRoomIds: overrides.selectedRoomIds,
     filterState: { ...createDefaultThreadFilterState(), ...overrides.filterState },
     simpleMode: overrides.simpleMode ?? false,
     snoozeNow: NOW,
     hasMindroomAgents: overrides.hasMindroomAgents ?? true,
-    roomNameById: roomNames,
     groupSections: overrides.groupSections ?? false,
   });
 
+const rootIdsOf = (result: ReturnType<typeof runFilter>) =>
+  result.orderedKeys.map((key) => result.entryByKey.get(key)?.threadRootId);
+
 describe('spaceThreadsModel', () => {
-  it('scopes to space rooms, keeps 0-reply roots, counts rooms, and supports 1-room downselect', () => {
+  it('keeps 0-reply roots, counts rooms, and supports 1-room downselect', () => {
     const entries = [
       makeEntry({ roomId: ROOM_A, threadRootId: '$a1', replyCount: 0, lastActivityTs: NOW - 10 }),
       makeEntry({ roomId: ROOM_A, threadRootId: '$a2', replyCount: 3, lastActivityTs: NOW - 30 }),
       makeEntry({ roomId: ROOM_B, threadRootId: '$b1', replyCount: 2, lastActivityTs: NOW - 20 }),
-      makeEntry({ roomId: ROOM_OUTSIDE, threadRootId: '$x1', replyCount: 4, lastActivityTs: NOW }),
     ];
 
     const all = runFilter(entries);
-    expect(all.entries.map((e) => e.threadRootId)).toEqual(['$a1', '$b1', '$a2']);
+    expect(rootIdsOf(all)).toEqual(['$a1', '$b1', '$a2']);
     expect(all.scopedTotalCount).toBe(3);
     expect(all.roomCounts.get(ROOM_A)).toBe(2);
     expect(all.roomCounts.get(ROOM_B)).toBe(1);
     expect(all.roomCounts.has(ROOM_OUTSIDE)).toBe(false);
 
     const onlyB = runFilter(entries, { selectedRoomIds: new Set([ROOM_B]) });
-    expect(onlyB.entries.map((e) => e.threadRootId)).toEqual(['$b1']);
+    expect(rootIdsOf(onlyB)).toEqual(['$b1']);
     expect(onlyB.scopedTotalCount).toBe(1);
     expect(onlyB.roomCounts.get(ROOM_A)).toBe(2);
   });
@@ -205,35 +205,24 @@ describe('spaceThreadsModel', () => {
       done: 1,
       all: 4,
     });
-    expect(baseline.availableTags).toEqual(['release', 'urgent']);
     expect(baseline.tagCounts).toEqual({ urgent: 2, release: 1 });
 
+    expect(rootIdsOf(runFilter(entries, { filterState: { tab: 'working' } }))).toEqual([
+      '$working',
+    ]);
     expect(
-      runFilter(entries, { filterState: { tab: 'working' } }).entries.map((e) => e.threadRootId)
-    ).toEqual(['$working']);
-    expect(
-      runFilter(entries, { filterState: { tags: new Map([['urgent', 'include']]) } }).entries.map(
-        (e) => e.threadRootId
-      )
+      rootIdsOf(runFilter(entries, { filterState: { tags: new Map([['urgent', 'include']]) } }))
     ).toEqual(['$needs', '$done']);
+    expect(rootIdsOf(runFilter(entries, { filterState: { forMe: true } }))).toEqual(['$needs']);
     expect(
-      runFilter(entries, { filterState: { forMe: true } }).entries.map((e) => e.threadRootId)
-    ).toEqual(['$needs']);
-    expect(
-      runFilter(entries, { filterState: { people: ['@bob:example.org'] } }).entries.map(
-        (e) => e.threadRootId
-      )
+      rootIdsOf(runFilter(entries, { filterState: { people: ['@bob:example.org'] } }))
     ).toEqual(['$working']);
     // Search matches room name + thread text together.
+    expect(rootIdsOf(runFilter(entries, { filterState: { freeText: 'design logo' } }))).toEqual([
+      '$later',
+    ]);
     expect(
-      runFilter(entries, { filterState: { freeText: 'design logo' } }).entries.map(
-        (e) => e.threadRootId
-      )
-    ).toEqual(['$later']);
-    expect(
-      runFilter(entries, { filterState: { resolved: 'include', freeText: 'icon' } }).entries.map(
-        (e) => e.threadRootId
-      )
+      rootIdsOf(runFilter(entries, { filterState: { resolved: 'include', freeText: 'icon' } }))
     ).toEqual(['$done']);
   });
 
@@ -268,10 +257,9 @@ describe('spaceThreadsModel', () => {
       'later',
       'done',
     ]);
-    expect(grouped.sections[2]?.entries.map((e) => e.threadRootId)).toEqual([
-      '$laterSoon',
-      '$laterFar',
-    ]);
+    expect(
+      grouped.sections[2]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
+    ).toEqual(['$laterSoon', '$laterFar']);
   });
 
   it('sorts ascending and respects simple-mode projection', () => {
@@ -285,14 +273,12 @@ describe('spaceThreadsModel', () => {
       filterState: { sortDirection: 'asc', tab: 'done', resolved: 'exclude' },
     });
     // Simple mode drops the workflow tab and keeps resolved=exclude and sortDirection.
-    expect(asc.entries.map((e) => e.threadRootId)).toEqual(['$old']);
+    expect(rootIdsOf(asc)).toEqual(['$old']);
     expect(asc.effectiveFilterState.tab).toBeUndefined();
   });
 
   it('prunes and toggles room selection without ever yielding 0 active rooms', () => {
     const rooms = [ROOM_A, ROOM_B, '!gamma:example.org'];
-    expect(resolveActiveSpaceRoomIds(rooms, undefined)).toEqual(rooms);
-
     // Pruning drops departed rooms and normalizes empty or full sets back to All (undefined).
     expect(
       pruneSpaceRoomSelection(new Set([ROOM_B, '!gone:example.org']), [ROOM_A, ROOM_B])
@@ -336,7 +322,7 @@ describe('spaceThreadsModel', () => {
         currentTargetRoomId: ROOM_A,
         hasDraft: true,
       })
-    ).toBe(ROOM_A);
+    ).toEqual({ targetRoomId: ROOM_A, destinationRoomIds: [ROOM_A, ROOM_B] });
 
     // Without a draft, downselecting to 1 sendable room auto-selects it.
     expect(
@@ -346,7 +332,7 @@ describe('spaceThreadsModel', () => {
         currentTargetRoomId: ROOM_A,
         hasDraft: false,
       })
-    ).toBe(ROOM_B);
+    ).toEqual({ targetRoomId: ROOM_B, destinationRoomIds: [ROOM_B] });
 
     // If the drafted room is no longer sendable, fall back cleanly to an active sendable room.
     expect(
@@ -356,7 +342,7 @@ describe('spaceThreadsModel', () => {
         currentTargetRoomId: ROOM_A,
         hasDraft: true,
       })
-    ).toBe(ROOM_B);
+    ).toEqual({ targetRoomId: ROOM_B, destinationRoomIds: [ROOM_B] });
 
     // Multi-room active view preserves explicit currentTarget when still active and sendable.
     expect(
@@ -366,7 +352,7 @@ describe('spaceThreadsModel', () => {
         currentTargetRoomId: ROOM_B,
         hasDraft: false,
       })
-    ).toBe(ROOM_B);
+    ).toEqual({ targetRoomId: ROOM_B, destinationRoomIds: [ROOM_A, ROOM_B] });
 
     // Filtering to a read-only room falls back to sendable rooms and honors explicit selection among them.
     expect(
@@ -375,7 +361,7 @@ describe('spaceThreadsModel', () => {
         sendableRoomIds: sendable,
         hasDraft: false,
       })
-    ).toBe(ROOM_A);
+    ).toEqual({ targetRoomId: ROOM_A, destinationRoomIds: [ROOM_A, ROOM_B] });
     expect(
       resolveComposerTargetRoom({
         activeRoomIds: ['!readonly:example.org'],
@@ -383,7 +369,7 @@ describe('spaceThreadsModel', () => {
         currentTargetRoomId: ROOM_B,
         hasDraft: false,
       })
-    ).toBe(ROOM_B);
+    ).toEqual({ targetRoomId: ROOM_B, destinationRoomIds: [ROOM_A, ROOM_B] });
 
     expect(
       resolveComposerTargetRoom({
@@ -391,7 +377,7 @@ describe('spaceThreadsModel', () => {
         sendableRoomIds: [],
         hasDraft: false,
       })
-    ).toBeUndefined();
+    ).toEqual({ targetRoomId: undefined, destinationRoomIds: [] });
   });
 
   it('returns deterministic accent colors and merges 0-reply live timeline roots once', () => {
@@ -426,10 +412,13 @@ describe('spaceThreadsModel', () => {
       currentState: { getStateEvents: () => [] },
     } as unknown as Room;
 
+    const outsideEntry = makeEntry({ roomId: ROOM_OUTSIDE, threadRootId: '$x1' });
     const merged = collectSpaceThreadEntries(
-      new Map([[indexedEntry.key, indexedEntry]]),
+      new Map([
+        [indexedEntry.key, indexedEntry],
+        [outsideEntry.key, outsideEntry],
+      ]),
       [fakeRoom],
-      new Set([ROOM_A]),
       '@alice:example.org'
     );
     expect(merged.map((e) => e.threadRootId)).toEqual(['$existing', '$fresh']);
@@ -479,7 +468,6 @@ describe('spaceThreadsModel', () => {
         [blockedIndexed.key, blockedIndexed],
       ]),
       [fakeRoom],
-      new Set([ROOM_A]),
       '@alice:example.org',
       new Set(['@spam:example.org'])
     );

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -10,42 +9,43 @@ import {
   applyFrozenThreadOrder,
   applyThreadSearchQuery,
   createDefaultThreadFilterState,
+  createThreadSortControlSignature,
   removeTagFilter,
   resetThreadFilterState,
   selectThreadWorkflowTab,
   showsFilteredEmptyState,
   type ThreadFilterState,
+  type ThreadSortFreezeState,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
-import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
-import {
-  crossRoomThreadIndexAtom,
-  type CrossRoomThreadIndexEntry,
-} from '../../threads/cross-room/crossRoomThreadIndex';
+import { crossRoomThreadIndexAtom } from '../../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { getCompactRoomSectionsAtom } from '../../threads/overview/compactRoomSections';
-import * as compactCss from '../../threads/overview/CompactRoomView.css';
 import { roomThreadFilterAtomFamily } from '../../threads/overview/roomThreadFilterState';
 import { RoomThreadOverview } from '../../threads/overview/RoomThreadOverview';
+import { useThreadSortFreezeController } from '../../threads/overview/threadSortFreezeController';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { Page } from '../../ui/page/Page';
 import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadComposer } from './SpaceThreadComposer';
 import { SpaceThreadsHeader } from './SpaceThreadsHeader';
-import { SpaceThreadsList, type SpaceThreadsEmptyKey } from './SpaceThreadsList';
+import {
+  SpaceThreadsList,
+  SpaceThreadsNotice,
+  type SpaceThreadsEmptyKey,
+} from './SpaceThreadsList';
 import {
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
   pruneSpaceRoomSelection,
-  resolveActiveSpaceRoomIds,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
 import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
@@ -61,19 +61,28 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
 
-  const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
-  const { spaceRooms, roomMeta, hasMindroomAgents, threadListsSettled, timelineTick } =
-    useSpaceThreadsRooms(space.roomId);
+  const {
+    spaceRooms,
+    roomsById,
+    rooms,
+    orderedRoomIds,
+    hasMindroomAgents,
+    threadListsSettled,
+    timelineTick,
+  } = useSpaceThreadsRooms(space.roomId);
 
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string> | undefined>(undefined);
-  const [frozenKeys, setFrozenKeys] = useState<string[] | null>(null);
+  const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
+    null
+  );
 
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
   const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const [storedFilterState, setFilterState] = useAtom(
     useMemo(() => roomThreadFilterAtomFamily(myUserId, space.roomId), [myUserId, space.roomId])
   );
-  const filterState = storedFilterState ?? createDefaultThreadFilterState();
+  const defaultFilterState = useMemo(() => createDefaultThreadFilterState(), []);
+  const filterState = storedFilterState ?? defaultFilterState;
   const [compactSections, updateCompactSections] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
@@ -90,24 +99,21 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   }
 
   const effectiveSelectedRoomIds = useMemo(
-    () => pruneSpaceRoomSelection(selectedRoomIds, roomMeta.orderedIds),
-    [roomMeta.orderedIds, selectedRoomIds]
+    () => pruneSpaceRoomSelection(selectedRoomIds, orderedRoomIds),
+    [orderedRoomIds, selectedRoomIds]
   );
   const activeRoomIds = useMemo(
-    () => resolveActiveSpaceRoomIds(roomMeta.orderedIds, effectiveSelectedRoomIds),
-    [effectiveSelectedRoomIds, roomMeta.orderedIds]
+    () =>
+      effectiveSelectedRoomIds
+        ? orderedRoomIds.filter((roomId) => effectiveSelectedRoomIds.has(roomId))
+        : orderedRoomIds,
+    [effectiveSelectedRoomIds, orderedRoomIds]
   );
 
   const allSpaceEntries = useMemo(() => {
     void timelineTick;
-    return collectSpaceThreadEntries(
-      indexSnapshot.entries,
-      spaceRooms,
-      roomMeta.ids,
-      myUserId,
-      ignoredUsersSet
-    );
-  }, [ignoredUsersSet, indexSnapshot.entries, myUserId, roomMeta.ids, spaceRooms, timelineTick]);
+    return collectSpaceThreadEntries(indexSnapshot.entries, spaceRooms, myUserId, ignoredUsersSet);
+  }, [ignoredUsersSet, indexSnapshot.entries, myUserId, spaceRooms, timelineTick]);
   const snoozeNow = useSnoozeNow(
     useMemo(() => allSpaceEntries.map((entry) => entry.snoozedUntilTs), [allSpaceEntries])
   );
@@ -117,18 +123,17 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     () =>
       filterAndSortSpaceThreads({
         entries: allSpaceEntries,
-        spaceRoomIds: roomMeta.ids,
+        roomsById,
         selectedRoomIds: effectiveSelectedRoomIds,
         filterState,
         simpleMode,
         snoozeNow,
         quietNow,
         hasMindroomAgents,
-        roomNameById: roomMeta.nameById,
         groupSections: sectionsEnabled,
         signalsOf: sectionsEnabled
           ? (entry) => {
-              const room = roomMeta.byId.get(entry.roomId);
+              const room = roomsById.get(entry.roomId)?.room;
               return room
                 ? getThreadSignalsReader(mx).read(room, entry, myUserId, quietNow)
                 : undefined;
@@ -143,9 +148,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       mx,
       myUserId,
       quietNow,
-      roomMeta.byId,
-      roomMeta.ids,
-      roomMeta.nameById,
+      roomsById,
       sectionsEnabled,
       simpleMode,
       snoozeNow,
@@ -162,27 +165,35 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     return () => clearTimeout(timer);
   }, [nextQuietWakeTs, quietClock.now, sectionsEnabled]);
 
-  const effectiveFrozenKeys =
-    hasMindroomAgents && !simpleMode && !sectionsEnabled ? frozenKeys : null;
-  const displayEntries = useMemo(() => {
-    if (!effectiveFrozenKeys) return result.entries;
-    const byKey = new Map(result.entries.map((entry) => [entry.key, entry] as const));
-    return applyFrozenThreadOrder(
-      effectiveFrozenKeys,
-      result.entries.map((entry) => entry.key)
-    )
-      .map((key) => byKey.get(key))
-      .filter((entry): entry is CrossRoomThreadIndexEntry => Boolean(entry));
-  }, [effectiveFrozenKeys, result.entries]);
+  const sortControlSignature = useMemo(
+    () =>
+      `${createThreadSortControlSignature({
+        state: result.effectiveFilterState,
+        viewMode: 'compact',
+      })}|${activeRoomIds.join(',')}`,
+    [activeRoomIds, result.effectiveFilterState]
+  );
+  const effectiveSortFreezeState =
+    hasMindroomAgents && !simpleMode && !sectionsEnabled ? threadSortFreezeState : null;
+  useThreadSortFreezeController({
+    activeLiveOverviewThreadRootIds: result.orderedKeys,
+    setThreadSortFreezeState,
+    threadId: undefined,
+    threadSortControlSignature: sortControlSignature,
+    threadSortFreezeState: effectiveSortFreezeState,
+  });
+  const displayKeys = useMemo(
+    () =>
+      effectiveSortFreezeState && effectiveSortFreezeState.controlSignature === sortControlSignature
+        ? applyFrozenThreadOrder(effectiveSortFreezeState.orderedRootIds, result.orderedKeys)
+        : result.orderedKeys,
+    [effectiveSortFreezeState, result.orderedKeys, sortControlSignature]
+  );
 
   const updateFilter = useCallback(
     (mutate: (prev: ThreadFilterState) => ThreadFilterState) =>
-      setFilterState((prev) => mutate(prev ?? createDefaultThreadFilterState())),
-    [setFilterState]
-  );
-  const handleOpenThread = useCallback(
-    (roomId: string, threadRootId: string) => navigateRoomThread(roomId, threadRootId),
-    [navigateRoomThread]
+      setFilterState((prev) => mutate(prev ?? defaultFilterState)),
+    [defaultFilterState, setFilterState]
   );
   const handleThreadCreated = useCallback(
     (roomId: string, eventId: string) => {
@@ -197,13 +208,13 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   );
 
   const singleBucketTab: ThreadWorkflowBucket | undefined =
-    !simpleMode && result.effectiveFilterState.tab && result.effectiveFilterState.tab !== 'all'
+    result.effectiveFilterState.tab && result.effectiveFilterState.tab !== 'all'
       ? result.effectiveFilterState.tab
       : undefined;
-  const showLoading =
-    (!indexSnapshot.bootstrapped || !threadListsSettled) && allSpaceEntries.length === 0;
+  const isSettled = indexSnapshot.bootstrapped && threadListsSettled;
+  const showLoading = !isSettled && result.scopedTotalCount === 0;
   const overviewShowsFilteredEmpty = showsFilteredEmptyState(
-    displayEntries.length,
+    displayKeys.length,
     result.scopedTotalCount,
     result.effectiveFilterState
   );
@@ -213,7 +224,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       ? 'no-rooms'
       : allSpaceEntries.length === 0
         ? 'no-threads'
-        : displayEntries.length === 0 && !overviewShowsFilteredEmpty
+        : displayKeys.length === 0 && !overviewShowsFilteredEmpty
           ? 'no-matching'
           : undefined;
 
@@ -221,7 +232,6 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     <Page ref={pageRef} data-space-threads-page={space.roomId}>
       <SpaceThreadsHeader
         space={space}
-        spaceIdOrAlias={spaceIdOrAlias}
         activeRoomCount={activeRoomIds.length}
         totalRoomCount={spaceRooms.length}
       />
@@ -231,38 +241,32 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           <div className={css.OverviewSlot}>
             <RoomThreadOverview
               roomsFilter={
-                spaceRooms.length > 1 ? (
-                  <SpaceRoomFilter
-                    rooms={roomMeta.composerRooms.map(({ room, name, accentColor }) => ({
-                      roomId: room.roomId,
-                      name,
-                      count: result.roomCounts.get(room.roomId) ?? 0,
-                      accentColor,
-                    }))}
-                    selectedRoomIds={effectiveSelectedRoomIds}
-                    onSelectAll={() => setSelectedRoomIds(undefined)}
-                    onToggleRoom={(id) =>
-                      setSelectedRoomIds(
-                        toggleSpaceRoomSelection(effectiveSelectedRoomIds, id, roomMeta.orderedIds)
-                      )
-                    }
-                  />
-                ) : undefined
+                <SpaceRoomFilter
+                  rooms={rooms}
+                  roomCounts={result.roomCounts}
+                  selectedRoomIds={effectiveSelectedRoomIds}
+                  onSelectAll={() => setSelectedRoomIds(undefined)}
+                  onToggleRoom={(id) =>
+                    setSelectedRoomIds(
+                      toggleSpaceRoomSelection(effectiveSelectedRoomIds, id, orderedRoomIds)
+                    )
+                  }
+                />
               }
               roomId={space.roomId}
               hasMindroomAgents={hasMindroomAgents}
-              threadCount={displayEntries.length}
+              threadCount={displayKeys.length}
               totalThreadCount={result.scopedTotalCount}
               statusCounts={result.statusCounts}
               bucketCounts={result.bucketCounts}
-              countsSettled={indexSnapshot.bootstrapped && threadListsSettled}
+              countsSettled={isSettled}
               onSelectTab={(tab) => updateFilter((prev) => selectThreadWorkflowTab(prev, tab))}
               tagCounts={result.tagCounts}
               state={result.effectiveFilterState}
-              availableTags={result.availableTags}
-              isThreadSortFrozen={Boolean(effectiveFrozenKeys)}
+              availableTags={Object.keys(result.tagCounts)}
+              isThreadSortFrozen={Boolean(effectiveSortFreezeState)}
               onSortDirectionChange={() => {
-                setFrozenKeys(null);
+                setThreadSortFreezeState(null);
                 updateFilter((prev) => ({
                   ...prev,
                   sortBy: 'lastReply',
@@ -270,7 +274,14 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                 }));
               }}
               onToggleThreadSortFreeze={() =>
-                setFrozenKeys((cur) => (cur ? null : result.entries.map((entry) => entry.key)))
+                setThreadSortFreezeState((cur) =>
+                  cur
+                    ? null
+                    : {
+                        controlSignature: sortControlSignature,
+                        orderedRootIds: result.orderedKeys,
+                      }
+                )
               }
               onToggleUnresolvedOnly={() =>
                 updateFilter((prev) => ({
@@ -300,25 +311,24 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         )}
 
         <SpaceThreadsList
-          entries={displayEntries}
-          sections={result.sections}
-          sectionsEnabled={sectionsEnabled}
+          entryKeys={displayKeys}
+          entryByKey={result.entryByKey}
+          sections={sectionsEnabled ? result.sections : undefined}
           foldedSections={compactSections.folded}
           singleBucketTab={singleBucketTab}
           onToggleSectionFold={(id) => updateCompactSections({ type: 'TOGGLE_FOLD', id })}
-          roomById={roomMeta.byId}
-          roomNameById={roomMeta.nameById}
-          roomAccentById={roomMeta.accentById}
+          roomsById={roomsById}
           showRoomBadge={activeRoomIds.length > 1}
           snoozeNow={snoozeNow}
           showLoading={showLoading}
           emptyKey={emptyKey}
-          onOpenThread={handleOpenThread}
+          onOpenThread={navigateRoomThread}
         />
 
         {spaceRooms.length > 0 && (
           <SpaceThreadComposer
-            rooms={roomMeta.composerRooms}
+            rooms={rooms}
+            roomsById={roomsById}
             activeRoomIds={activeRoomIds}
             fileDropContainerRef={pageRef}
             onThreadCreated={handleThreadCreated}
@@ -330,28 +340,22 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 }
 
 export function SpaceThreadsPage() {
-  const mx = useMatrixClient();
   const space = useSpace();
   const { t } = useTranslation();
-  const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   return (
     <ErrorBoundary
+      key={space.roomId}
       fallback={
         <Page>
-          <SpaceThreadsHeader space={space} spaceIdOrAlias={spaceIdOrAlias} />
+          <SpaceThreadsHeader space={space} />
           <div className={css.ThreadListScroll}>
-            <div className={compactCss.EmptyState}>
-              <Text size="T300" priority="400">
-                {t('spaceThreads.error.title')}
-              </Text>
-            </div>
+            <SpaceThreadsNotice message={t('spaceThreads.error.title')} />
           </div>
         </Page>
       }
       onError={(error: unknown, info) => reportBoundaryError(error, info.componentStack)}
-      resetKeys={[space.roomId]}
     >
-      <SpaceThreadsPageContent key={space.roomId} space={space} />
+      <SpaceThreadsPageContent space={space} />
     </ErrorBoundary>
   );
 }

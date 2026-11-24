@@ -1,14 +1,31 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-export const PageBody = style({
+const FlexColumn = style({
   display: 'flex',
   flexDirection: 'column',
   flex: '1 1 auto',
   minBlockSize: 0,
   minInlineSize: 0,
-  overflow: 'hidden',
 });
+
+const PillBase = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  borderRadius: config.radii.Pill,
+  paddingInline: config.space.S200,
+});
+
+const OutlinedPill = style([
+  PillBase,
+  {
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
+
+export const PageBody = style([FlexColumn, { overflow: 'hidden' }]);
 
 export const OverviewSlot = style({
   flexShrink: 0,
@@ -16,26 +33,23 @@ export const OverviewSlot = style({
   zIndex: 5,
 });
 
-export const HeaderBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  flexShrink: 0,
-  paddingBlock: toRem(2),
-  paddingInline: config.space.S200,
-  borderRadius: config.radii.Pill,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  whiteSpace: 'nowrap',
-  fontVariantNumeric: 'tabular-nums',
-});
+export const HeaderBadge = style([
+  OutlinedPill,
+  {
+    paddingBlock: toRem(2),
+    backgroundColor: color.SurfaceVariant.Container,
+    whiteSpace: 'nowrap',
+    fontVariantNumeric: 'tabular-nums',
+  },
+]);
 
-export const RoomChipName = style({
-  maxInlineSize: '11rem',
+export const RoomBadgeName = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
+
+export const RoomChipName = style([RoomBadgeName, { maxInlineSize: '11rem' }]);
 
 export const RoomDot = style({
   display: 'inline-block',
@@ -45,42 +59,30 @@ export const RoomDot = style({
   flexShrink: 0,
 });
 
-export const ThreadListScroll = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minBlockSize: 0,
-  minInlineSize: 0,
-  overflowY: 'auto',
-  overflowX: 'hidden',
-  paddingBlockStart: config.space.S100,
-  paddingBlockEnd: config.space.S400,
-  paddingInline: config.space.S300,
-  rowGap: config.space.S200,
-  isolation: 'isolate',
-});
+export const ThreadListScroll = style([
+  FlexColumn,
+  {
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    paddingBlockStart: config.space.S100,
+    paddingBlockEnd: config.space.S400,
+    paddingInline: config.space.S300,
+    rowGap: config.space.S200,
+    isolation: 'isolate',
+  },
+]);
 
-export const RoomBadge = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  columnGap: toRem(4),
-  paddingBlock: toRem(1),
-  paddingInline: config.space.S200,
-  borderRadius: config.radii.Pill,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.Surface.Container,
-  color: color.SurfaceVariant.OnContainer,
-  maxInlineSize: '10rem',
-  fontSize: toRem(11),
-  lineHeight: 1.3,
-  flexShrink: 0,
-});
-
-export const RoomBadgeName = style({
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-});
+export const RoomBadge = style([
+  OutlinedPill,
+  {
+    columnGap: toRem(4),
+    paddingBlock: toRem(1),
+    backgroundColor: color.Surface.Container,
+    maxInlineSize: '10rem',
+    fontSize: toRem(11),
+    lineHeight: 1.3,
+  },
+]);
 
 export const ComposerDock = style({
   flexShrink: 0,
@@ -103,17 +105,16 @@ export const ComposerTargetBar = style({
   minInlineSize: 0,
 });
 
-export const ComposerDraftNote = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  paddingBlock: toRem(2),
-  paddingInline: config.space.S200,
-  borderRadius: config.radii.Pill,
-  backgroundColor: color.Warning.Container,
-  color: color.Warning.OnContainer,
-  marginInlineStart: 'auto',
-  whiteSpace: 'nowrap',
-});
+export const ComposerDraftNote = style([
+  PillBase,
+  {
+    paddingBlock: toRem(2),
+    backgroundColor: color.Warning.Container,
+    color: color.Warning.OnContainer,
+    marginInlineStart: 'auto',
+    whiteSpace: 'nowrap',
+  },
+]);
 
 export const ReadOnlyNotice = style({
   paddingBlock: config.space.S200,

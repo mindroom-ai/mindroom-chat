@@ -6,16 +6,11 @@ import {
 } from '../../threads/overview/ThreadFilterDropdown';
 import * as dropdownCss from '../../threads/overview/ThreadFilterDropdown.css';
 import { ownDirectionLine } from '../../ui/directional';
-
-export type SpaceRoomOption = {
-  roomId: string;
-  name: string;
-  count: number;
-  accentColor: string;
-};
+import type { SpaceRoomItem } from './spaceThreadsModel';
 
 export type SpaceRoomFilterProps = {
-  rooms: readonly SpaceRoomOption[];
+  rooms: readonly SpaceRoomItem[];
+  roomCounts: ReadonlyMap<string, number>;
   selectedRoomIds: ReadonlySet<string> | undefined;
   onToggleRoom: (roomId: string) => void;
   onSelectAll: () => void;
@@ -27,6 +22,7 @@ export type SpaceRoomFilterProps = {
  */
 export function SpaceRoomFilter({
   rooms,
+  roomCounts,
   selectedRoomIds,
   onToggleRoom,
   onSelectAll,
@@ -36,10 +32,10 @@ export function SpaceRoomFilter({
   if (rooms.length <= 1) return null;
 
   const selectedCount = selectedRoomIds?.size ?? 0;
-  const soleRoomId = selectedCount === 1 ? selectedRoomIds?.values().next().value : undefined;
-  const soleRoomName = soleRoomId
-    ? rooms.find((room) => room.roomId === soleRoomId)?.name
-    : undefined;
+  const soleRoomName =
+    selectedCount === 1
+      ? rooms.find((item) => selectedRoomIds?.has(item.room.roomId))?.name
+      : undefined;
   const label = t('spaceThreads.roomFilter.label');
   const ariaLabel = t('spaceThreads.roomFilter.ariaLabel');
   const triggerAriaLabel = soleRoomName
@@ -65,16 +61,16 @@ export function SpaceRoomFilter({
         options={(query) => {
           const needle = query.trim().toLocaleLowerCase();
           return rooms
-            .filter((room) => !needle || room.name.toLocaleLowerCase().includes(needle))
-            .map((room) => ({
-              id: room.roomId,
-              checked: Boolean(selectedRoomIds?.has(room.roomId)),
-              count: room.count,
+            .filter((item) => !needle || item.name.toLocaleLowerCase().includes(needle))
+            .map((item) => ({
+              id: item.room.roomId,
+              checked: Boolean(selectedRoomIds?.has(item.room.roomId)),
+              count: roomCounts.get(item.room.roomId) ?? 0,
               content: (
                 <>
                   <span
                     className={dropdownCss.Swatch}
-                    style={{ backgroundColor: room.accentColor }}
+                    style={{ backgroundColor: item.accentColor }}
                     aria-hidden="true"
                   />
                   <Text
@@ -84,7 +80,7 @@ export function SpaceRoomFilter({
                     className={dropdownCss.Name}
                     {...ownDirectionLine}
                   >
-                    {room.name}
+                    {item.name}
                   </Text>
                 </>
               ),
