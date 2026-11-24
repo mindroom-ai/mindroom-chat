@@ -254,7 +254,7 @@ describe('ThreadActionsMenu rows', () => {
     ) => {
       act(() =>
         root.render(
-          <SecondThreadContext.Provider value={second}>
+          <SecondThreadContext value={second}>
             <ThreadActionsMenu
               room={room}
               rootId="$root"
@@ -263,7 +263,7 @@ describe('ThreadActionsMenu rows', () => {
               onOpenThread={() => undefined}
               {...props}
             />
-          </SecondThreadContext.Provider>
+          </SecondThreadContext>
         )
       );
       return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];

@@ -185,10 +185,8 @@ const render = (
   act(() => {
     const tree = (
       <ClientConfigProvider value={clientConfig}>
-        <InlineSecretRequestsContext.Provider value={secrets}>
-          <ToolCallMessageContext.Provider
-            value={{ eventId: replyId, roomId: '!room:example.org' }}
-          >
+        <InlineSecretRequestsContext value={secrets}>
+          <ToolCallMessageContext value={{ eventId: replyId, roomId: '!room:example.org' }}>
             {renderAgentMessageContent({
               mEvent,
               eventId: replyId,
@@ -200,8 +198,8 @@ const render = (
               htmlReactParserOptions,
               linkifyOpts,
             })}
-          </ToolCallMessageContext.Provider>
-        </InlineSecretRequestsContext.Provider>
+          </ToolCallMessageContext>
+        </InlineSecretRequestsContext>
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);

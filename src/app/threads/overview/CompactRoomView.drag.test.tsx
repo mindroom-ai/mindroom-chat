@@ -104,7 +104,7 @@ const press = (target: Element, pointerType: string) => {
   fireEvent(target, event);
 };
 const onPage = (second: SecondThreadControl | undefined, ids: string[]) =>
-  render(<SecondThreadContext.Provider value={second}>{list(ids)}</SecondThreadContext.Provider>);
+  render(<SecondThreadContext value={second}>{list(ids)}</SecondThreadContext>);
 
 afterEach(() => {
   cleanup();
@@ -161,9 +161,9 @@ describe('dragging a compact thread card toward the second column', () => {
   it('still opens the thread on a plain click', () => {
     const onThreadClick = vi.fn();
     render(
-      <SecondThreadContext.Provider value={{ offers: () => true, open: vi.fn() }}>
+      <SecondThreadContext value={{ offers: () => true, open: vi.fn() }}>
         {list(['$b'], onThreadClick)}
-      </SecondThreadContext.Provider>
+      </SecondThreadContext>
     );
     fireEvent.click(shellOf('$b').querySelector('[data-thread-root-id]')!);
     expect(onThreadClick.mock.calls[0]?.[0]).toBe('$b');

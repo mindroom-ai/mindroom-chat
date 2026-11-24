@@ -325,7 +325,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
   // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
-    <ReasoningSegmentsContext.Provider value={reasoning}>
+    <ReasoningSegmentsContext value={reasoning}>
       <ReasoningTop
         label={label}
         open={open}
@@ -335,7 +335,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
       />
       {children}
       {activity !== undefined && <LiveActivity text={activity} />}
-    </ReasoningSegmentsContext.Provider>
+    </ReasoningSegmentsContext>
   );
 }
 

@@ -33,14 +33,14 @@ const SidebarItemActiveContext = createContext(false);
 export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
   const { as: Item = 'div', active, className, ...rest } = props;
   return (
-    <SidebarItemActiveContext.Provider value={!!active}>
+    <SidebarItemActiveContext value={!!active}>
       <Item
         ref={ref}
         {...rest}
         data-active={active || undefined}
         className={classNames(css.SidebarItem({ active }), className)}
       />
-    </SidebarItemActiveContext.Provider>
+    </SidebarItemActiveContext>
   );
 });
 

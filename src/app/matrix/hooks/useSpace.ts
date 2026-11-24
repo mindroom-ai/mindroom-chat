@@ -5,7 +5,7 @@ const SpaceContext = createContext<Room | null>(null);
 SpaceContext.displayName = 'Space';
 
 /** Provides the space whose pages render below it. */
-export const { Provider: SpaceProvider } = SpaceContext;
+export const SpaceProvider = SpaceContext;
 
 /** The surrounding space, or undefined outside space pages. */
 export function useSpaceOptionally(): Room | undefined {

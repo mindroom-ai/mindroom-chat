@@ -41,7 +41,7 @@ export const NavItem = as<'div', NavItemProps>(
     const selected = ariaSelected === true || ariaSelected === 'true';
     const keepsAriaSelected = SELECTABLE_ROLES.has(props.role ?? '');
     return (
-      <NavItemSelectedContext.Provider value={selected}>
+      <NavItemSelectedContext value={selected}>
         <AsNavItem
           className={classNames(css.NavItem({ variant, radii, highlight }), className)}
           data-highlight={highlight ? 'true' : 'false'}
@@ -50,7 +50,7 @@ export const NavItem = as<'div', NavItemProps>(
           {...props}
           ref={ref}
         />
-      </NavItemSelectedContext.Provider>
+      </NavItemSelectedContext>
     );
   }
 );

@@ -392,7 +392,7 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
     <ServerConfigsLoader mx={mx}>
       {(serverConfigs) => (
         <MatrixClientProvider value={mx}>
-          <ReloadWouldLoseWorkContext.Provider value={wouldLoseWork}>
+          <ReloadWouldLoseWorkContext value={wouldLoseWork}>
             <SyncEngineProvider engine={engine}>
               <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
                 <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
@@ -408,7 +408,7 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
                 </MediaConfigProvider>
               </CapabilitiesProvider>
             </SyncEngineProvider>
-          </ReloadWouldLoseWorkContext.Provider>
+          </ReloadWouldLoseWorkContext>
         </MatrixClientProvider>
       )}
     </ServerConfigsLoader>

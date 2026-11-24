@@ -4372,7 +4372,7 @@ describe('RoomInput', () => {
             'section',
             { 'data-composer': 'view', key: view.key ?? VIEW },
             React.createElement(
-              ConversationViewContext.Provider,
+              ConversationViewContext,
               { value: view.key ?? VIEW },
               React.createElement(RoomInput, {
                 editor: createEditor(),

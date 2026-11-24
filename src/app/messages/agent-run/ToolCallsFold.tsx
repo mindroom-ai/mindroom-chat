@@ -128,8 +128,8 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
     !shown && calls.length > 0 ? <Cog calls={calls} open={open} onToggle={toggle} /> : null;
 
   return (
-    <ToolCallsFoldContext.Provider value={fold}>
-      <ToolCallsCogContext.Provider value={cog}>{children}</ToolCallsCogContext.Provider>
-    </ToolCallsFoldContext.Provider>
+    <ToolCallsFoldContext value={fold}>
+      <ToolCallsCogContext value={cog}>{children}</ToolCallsCogContext>
+    </ToolCallsFoldContext>
   );
 }

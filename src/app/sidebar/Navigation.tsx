@@ -61,7 +61,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     [canCollapse, collapsed, setCollapsed, opening, opened]
   );
 
-  return <DesktopPageNavContext.Provider value={value}>{children}</DesktopPageNavContext.Provider>;
+  return <DesktopPageNavContext value={value}>{children}</DesktopPageNavContext>;
 }
 
 function PageNavToggle() {

@@ -8,10 +8,10 @@ const directFlag = createContext(false);
 directFlag.displayName = 'IsDirectRoom';
 
 /** Provides the room the surrounding view shows. */
-export const RoomProvider = providedRoom.Provider;
+export const RoomProvider = providedRoom;
 
 /** Marks the provided room as a direct room (`m.direct`). */
-export const IsDirectRoomProvider = directFlag.Provider;
+export const IsDirectRoomProvider = directFlag;
 
 /** The room from the nearest `RoomProvider`; throws when there is none. */
 export const useRoom = (): Room => {

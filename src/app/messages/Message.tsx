@@ -1164,11 +1164,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 position={menuSide}
                 align="End"
                 offset={POP_OUT_OFFSET}
-                content={
-                  <DialogOpenerContext.Provider value={hideMenu}>
-                    {menu}
-                  </DialogOpenerContext.Provider>
-                }
+                content={<DialogOpenerContext value={hideMenu}>{menu}</DialogOpenerContext>}
               >
                 <ToolbarAction
                   label={t('mindroomUi.messages.mindroomMessage.moreOptions')}

@@ -568,9 +568,7 @@ export function RoomViewHeader({
           className={css.CallGroup}
           data-room-header-call-group=""
         >
-          <RestoreHeaderFocus.Provider value={restoreFocusAfterDismiss}>
-            {calls}
-          </RestoreHeaderFocus.Provider>
+          <RestoreHeaderFocus value={restoreFocusAfterDismiss}>{calls}</RestoreHeaderFocus>
         </Box>
       ),
     },

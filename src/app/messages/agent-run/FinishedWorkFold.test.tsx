@@ -186,7 +186,7 @@ describe('FinishedWorkFold', () => {
   it('folds the work at once when collapse all comes as it folds back', () => {
     const key = nextKey();
     const tree = (expandAll: boolean | undefined) => (
-      <ExpandAllInitContext.Provider value={expandAll}>{fold(key)}</ExpandAllInitContext.Provider>
+      <ExpandAllInitContext value={expandAll}>{fold(key)}</ExpandAllInitContext>
     );
     render(tree(undefined));
     click();
@@ -209,9 +209,7 @@ describe('FinishedWorkFold', () => {
     const key = nextKey();
     const state = new Map<string, boolean>();
     const tree = (
-      <ManualExpansionStateContext.Provider value={state}>
-        {fold(key)}
-      </ManualExpansionStateContext.Provider>
+      <ManualExpansionStateContext value={state}>{fold(key)}</ManualExpansionStateContext>
     );
     render(tree);
     act(() => {
@@ -231,9 +229,9 @@ describe('FinishedWorkFold', () => {
       expandAll: boolean | undefined,
       state = new Map<string, boolean>()
     ) => (
-      <ManualExpansionStateContext.Provider value={state}>
-        <ExpandAllInitContext.Provider value={expandAll}>{fold(key)}</ExpandAllInitContext.Provider>
-      </ManualExpansionStateContext.Provider>
+      <ManualExpansionStateContext value={state}>
+        <ExpandAllInitContext value={expandAll}>{fold(key)}</ExpandAllInitContext>
+      </ManualExpansionStateContext>
     );
 
     it('opens the work of a reply that mounts under it', () => {

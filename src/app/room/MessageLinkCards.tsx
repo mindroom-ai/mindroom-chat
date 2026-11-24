@@ -332,10 +332,10 @@ export function MessageLinkCards({
   const anchor = shown?.link.getBoundingClientRect();
   const hoverAnchor = hoverContent && visible?.link.getBoundingClientRect();
   return (
-    <MessageLinkCardContext.Provider value={show}>
-      <MessageLinkHostContext.Provider value={hoverCards ? hoverId : undefined}>
+    <MessageLinkCardContext value={show}>
+      <MessageLinkHostContext value={hoverCards ? hoverId : undefined}>
         {children}
-      </MessageLinkHostContext.Provider>
+      </MessageLinkHostContext>
       <PopOut
         anchor={anchor}
         position={anchor && anchor.top > window.innerHeight / 2 ? 'Top' : 'Bottom'}
@@ -353,6 +353,6 @@ export function MessageLinkCards({
           content={hoverContent}
         />
       )}
-    </MessageLinkCardContext.Provider>
+    </MessageLinkCardContext>
   );
 }

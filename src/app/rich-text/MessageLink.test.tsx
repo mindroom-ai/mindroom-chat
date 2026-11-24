@@ -6,9 +6,7 @@ import { LinkFaviconContext, MessageLink } from './MessageLink';
 afterEach(() => vi.useRealTimers());
 
 // RenderBody allows icons where the deployment does.
-const allowed = (link: React.ReactElement) => (
-  <LinkFaviconContext.Provider value>{link}</LinkFaviconContext.Provider>
-);
+const allowed = (link: React.ReactElement) => <LinkFaviconContext value>{link}</LinkFaviconContext>;
 
 describe('MessageLink', () => {
   it.each([

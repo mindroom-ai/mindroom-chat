@@ -380,5 +380,5 @@ function ActiveThreadApprovalProvider({
       focusConversation,
     ]
   );
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return <Context value={value}>{children}</Context>;
 }

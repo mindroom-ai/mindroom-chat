@@ -128,9 +128,7 @@ export function usePanelSlot(
     [slot.phase, done, register]
   );
   const shown = panel ?? (slot.shownKey === undefined ? undefined : lastPanel.current);
-  return (
-    shown && <PanelPresenceContext.Provider value={value}>{shown}</PanelPresenceContext.Provider>
-  );
+  return shown && <PanelPresenceContext value={value}>{shown}</PanelPresenceContext>;
 }
 
 /**

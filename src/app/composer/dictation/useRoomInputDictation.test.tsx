@@ -764,11 +764,7 @@ describe('useRoomInputDictation', () => {
           {feat.button}
         </div>
       );
-      return view ? (
-        <ConversationViewContext.Provider value={view}>{node}</ConversationViewContext.Provider>
-      ) : (
-        node
-      );
+      return view ? <ConversationViewContext value={view}>{node}</ConversationViewContext> : node;
     }
 
     try {

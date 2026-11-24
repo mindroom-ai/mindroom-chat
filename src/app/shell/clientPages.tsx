@@ -78,7 +78,7 @@ export function SignedInChrome() {
     <ClientBindAtoms>
       <ClientShell>
         <NavigationProvider>
-          <FloatingCardsContext.Provider value={floating}>
+          <FloatingCardsContext value={floating}>
             <MembersOverlayFollowsNavigation />
             <ClientLayout
               nav={<RailBesidePage rail={nav} />}
@@ -93,7 +93,7 @@ export function SignedInChrome() {
             </ClientLayout>
             {/* A live voice recording or dictation belongs to the account, not to a page. */}
             <LiveCaptureIndicator />
-          </FloatingCardsContext.Provider>
+          </FloatingCardsContext>
         </NavigationProvider>
       </ClientShell>
     </ClientBindAtoms>

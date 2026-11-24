@@ -280,7 +280,7 @@ const mountComposer = async (
   const { RoomInput } = await import('./RoomInput');
   const element = (
     <Provider store={store}>
-      <ConversationViewContext.Provider value={view}>
+      <ConversationViewContext value={view}>
         <RoomInput
           editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
@@ -288,7 +288,7 @@ const mountComposer = async (
           room={room}
           {...props}
         />
-      </ConversationViewContext.Provider>
+      </ConversationViewContext>
     </Provider>
   );
   act(() => {
