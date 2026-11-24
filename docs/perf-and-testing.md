@@ -18,7 +18,7 @@ Operational reference for the performance tools under `scripts/perf/` and the te
 
 #### Privacy and safety
 
-- **Local-only captures and raw replay outputs outside git:** pass a fresh private subdirectory outside any git repository or worktree (for example `/tmp/mindroom-replay-capture` or `~/.cache/mindroom-replay/<name>`, never a shared parent like `/tmp` or `~/.cache` itself). `capture.mjs` refuses paths inside a git repo, runs `chmod 0700` on `--out` (and creates `blobs/` with mode `0700`), and passes creation mode `0600` when writing files (`manifest.json`, `snapshot.json`, `live.jsonl`, `blobs/*`; pre-existing files are not re-permissioned). Never commit, upload, or share captures or raw replay outputs (`--print-ready` emits captured `userId`, `roomName`, `password`, and `accessToken`; `PERF_TRACE=1` writes raw Chrome traces; failed scenarios can include error text in result JSON); keep raw outputs private outside git and share only reviewed aggregates.
+- **Local-only captures and raw replay outputs outside git:** pass a fresh private subdirectory outside any git repository or worktree (for example `/tmp/mindroom-replay-capture` or `~/.cache/mindroom-replay/<name>`, never a shared parent like `/tmp` or `~/.cache` itself). `capture.mjs` refuses paths inside a git repo, runs `chmod 0700` on `--out` (and creates `blobs/` with mode `0700`), and passes creation mode `0600` when writing files (`manifest.json`, `snapshot.json`, `live.jsonl`, `blobs/*`; pre-existing files are not re-permissioned). Never commit, upload, or share captures or raw replay outputs (`--print-ready` emits captured `userId` and `roomName`, plus a per-run replay `password` and `accessToken`; `PERF_TRACE=1` writes raw Chrome traces; failed scenarios can include error text in result JSON); keep raw outputs private outside git and share only reviewed aggregates.
 - **Dedicated temporary capture device:** live capture (`--duration > 0`) calls `GET /_matrix/client/v3/sync?since=...`, which advances the homeserver's sync cursor and acknowledges to-device messages on that device. Always create a fresh temporary login/device, pass `--device-id <id>` matching `/_matrix/client/v3/account/whoami`, never reuse an active MindRoom Chat session token, and log out or delete the capture device afterwards (or pass `--duration 0` for a snapshot-only capture).
 - **Personal machines only:** never capture real data or run real-data replay benchmarks on shared runners (`gce`) or work machines (`mw`).
 - **Read-only capture and loopback isolation:** `capture.mjs` issues `GET` requests only, passing `set_presence=offline` on `/v3/sync` requests (no filter creation, posts, receipts, or presence flips). `server.mjs` binds strictly to `127.0.0.1`, generates a per-run random password and bearer token, restricts CORS to loopback origins, and rejects non-loopback `Host` headers (`403`). Playwright external mode runs in Chromium only and blocks non-loopback HTTP, WebSockets, redirects (via a closed loopback proxy), and non-proxied WebRTC UDP.
@@ -122,7 +122,7 @@ npx vitest run scripts/perf/replay/sdk-integration.test.ts  # also run by `just 
   ```bash
   scripts/perf/real-work/matrix.sh <commit> <out-dir> <host>:<slot>[,<host>:<slot>...] [-- NAME=VALUE...]
   ```
-  Synthetic-only: refuses `PERF_TARGET`, `PERF_HOMESERVER`, `PERF_USERNAME`, `PERF_PASSWORD`, `PERF_ROOM` (and its own `E2E_SNAPSHOT_ROOT`, `E2E_AGENT_STACK_ROOT`, `TMPDIR`).
+  Synthetic-only: refuses `PERF_TARGET`, `PERF_HOMESERVER`, `PERF_USERNAME`, `PERF_PASSWORD`, `PERF_ROOM` (and its own `E2E_SNAPSHOT_ROOT`, `E2E_AGENT_STACK_ROOT`, `TMPDIR`). Check MacBook power and load first (never run on battery), and run more than 8 `gce` jobs in waves (each matrix job uses its own snapshot root, so `E2E_MAX_CONCURRENT` does not throttle it).
 - **`compare.mjs`**: computes per-label, per-metric medians, percent change, and range overlap across run directories:
   ```bash
   node scripts/perf/real-work/compare.mjs --base <dir>... --head <dir>... [--json]
@@ -133,7 +133,8 @@ npx vitest run scripts/perf/replay/sdk-integration.test.ts  # also run by `just 
 
 - **Bundle size (`scripts/perf/bundle-report.mjs`, `bundle-budget.json`)**:
   ```bash
-  just bundle-report [<dist>] [--json <file>] [--sources]
+  just bundle-report                                       # default dist/
+  just bundle-report dist [--json <file>] [--sources]      # pass dist before flags
   node scripts/perf/bundle-report.mjs [dist] [--json <file>] [--sources] [--budget scripts/perf/bundle-budget.json]
   ```
   Checks initial JS, entry JS, and initial CSS gzip bytes against `bundle-budget.json` (exit `1` when over). Build with `npx vite build --manifest` for stable source-module chunk names that diff cleanly between builds, and `npx vite build --sourcemap` to enable `--sources` attribution (and per-plugin sizes when `MINDROOM_CLIENT_PLUGINS` is set). Tested by `scripts/perf/bundle-report.test.mjs` (`just script-tests`).
@@ -181,7 +182,7 @@ just e2e-suite --rev HEAD --slots 25-30 --out results.tsv [specs...] [-- <playwr
 just e2e-suite --resume /tmp/mindroom-client-e2e/suite-<sha>-<ts> --slots 25-28
 ```
 
-- Runs each spec in its own `e2e-slot --snapshot=<rev> --preview` run (excluding `e2e/electron/` by default; specs importing `/src/` or all non-plugin specs under `--dev` use the dev server; call specs automatically add `--rtc`). Playwright options default to `--retries 1`.
+- Runs each spec in its own `e2e-slot --snapshot=<rev>` run, adding `--preview` by default (specs importing `/src/` use the dev server, and `--dev` switches non-plugin specs to the dev server; excludes `e2e/electron/` by default; call specs automatically add `--rtc`). Playwright options default to `--retries 1`.
 - Records the 1-minute load average at each spec start via `node:os` `loadavg()` (note: `e2e-suite.sh` and `e2e-slot.sh` require `flock` and Bash 4.4+ for `mapfile -d`, standard on Linux).
 - `scripts/e2e-results-tsv.mjs` (`--manifest <manifest.tsv>` or `<report.json>...`) emits columns: `spec`, `passed`, `failed`, `skipped`, `first error`, `flaky`, `seconds`, `server`, `load`, `skipped (no service)`. Skips caused by a missing service, fixture, account, or setting are broken out into `skipped (no service)` rather than `skipped`.
 
@@ -201,6 +202,7 @@ just agent-stack <slot> status | usage | down
 - **Ports (`slot 0-99`):** MindRoom API `29600+n`, stub model `29700+n`, plugin origins `29800+n`, sandbox runner `29900+n` (against slot homeserver `28100+n`, or `28008` on slot `0`).
 - **Key flags:** `--model stub|real|live` (default `$E2E_AGENT_MODEL` or `stub`), `--agents N` (stub only, adds `worker1..workerN`, default `0`), `--calls SERVICE_URL` (`--calls-profile realtime|live`), `--client-sessions`, `--terminals` (implies `--client-sessions`; incompatible with `--computers`), `--computers` (`--computer-image`, `--computer-tools`, implies `--client-sessions`), `--transcription stub|real`.
 - **Exit codes:** `2` invalid CLI arguments via `argparse` (such as `--terminals --computers`), `3` no MindRoom checkout, `4` no homeserver, `5` missing provider keys, `6` `--terminals` unsupported by backend ref, `1` other errors (such as `--model real --agents 1`).
+- **Secret hygiene:** when passing provider keys (`--model real`, `--transcription real`, `--calls`), set `E2E_AGENT_STACK_ROOT` to a private directory because the backend may persist them in its state, and keep `up`/`status` JSON output private (it includes the tester password and access token).
 
 ### Pre-push gate (`scripts/push-gate.sh`)
 
@@ -220,7 +222,7 @@ Runs all checks in parallel against a clean archive of `--rev` (default `HEAD`, 
 ### Convenience wrappers and verification pointers
 
 - **`scripts/test-e2e-docker-matrix.sh`**: starts standalone Docker Tuwunel (`e2e-matrix-up.sh`), registers 4 disposable accounts, seeds the fixture room, builds and serves `dist/` on port `28090` by default (`E2E_ENABLE_DEPLOYED_FIXTURE=1`; set `0` to skip), and runs Playwright.
-- **`scripts/test-e2e-mindroom.sh`**: legacy wrapper targeting lab (`mindroom.lab.mindroom.chat`) by default via SSH (`$MINDROOM_SSH_HOST`, default `mindroom`) and `scripts/with-mindroom-tunnel.sh` using disposable accounts on lab (not a disposable deployment); do not use for routine live testing (use `live.py` per `AGENTS.md`).
+- **`scripts/test-e2e-mindroom.sh`**: legacy wrapper targeting lab (`mindroom.lab.mindroom.chat`) by default via SSH (`$MINDROOM_SSH_HOST`, default `mindroom`) and `scripts/with-mindroom-tunnel.sh` using disposable accounts on lab (not a disposable deployment); never use it for live testing, which runs on a fresh throwaway `live.py` deployment per `AGENTS.md`.
 - **`scripts/license-check.mjs`**: checks installed npm packages (including `MINDROOM_CLIENT_PLUGINS` directories) against the SPDX allowlist and named exceptions (`just license-check`).
 - **`scripts/watch/check_sdk_licenses.py`**: checks linked Rust crates in a `matrix-rust-sdk` checkout for `aarch64-apple-watchos` (called by `just watch-sdk`).
 - **`scripts/watch/e2e.py`**: runs DEBUG Apple Watch app scenarios (`voice`, `approve`, `ask`, `listen`, `resolve`, `long_thread`) in a watchOS simulator on macOS against an agent stack.
