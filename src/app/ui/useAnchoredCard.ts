@@ -85,7 +85,7 @@ export function useLiveAnchor(
     const mutationObserver =
       typeof MutationObserver === 'undefined'
         ? undefined
-        : new MutationObserver(() => onMutation());
+        : new MutationObserver(() => schedule());
 
     const syncObserved = (scheduleOnTriggerChange: boolean) => {
       const trigger = getTrigger();
@@ -176,16 +176,6 @@ export function useLiveAnchor(
         frame = 0;
         measure();
       });
-    };
-
-    const onMutation = () => {
-      if (disposed) return;
-      if (onGone && isTriggerGone(getTrigger())) {
-        cancelFrame();
-        onGone();
-        return;
-      }
-      schedule();
     };
 
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
