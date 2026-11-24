@@ -8,7 +8,13 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
-import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
+import {
+  COMPACT_THREAD_TITLE_LIMIT,
+  getCompactThreadTitleText,
+  getThreadScheduledDisplayText,
+  getThreadScheduledLabel,
+  truncateCompactThreadText,
+} from './compactThreadCardUtils';
 import {
   classifyThreadWorkflow,
   type ThreadWorkflowStatus,
@@ -29,14 +35,10 @@ import { parseThreadForkRef, type ThreadForkRef } from '../../event-store/thread
 import { getThreadResolverDisplayName } from '../threadResolutionAttribution';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 
-const TITLE_TEXT_LIMIT = 160;
 const PREVIEW_TEXT_LIMIT = 96;
 
 // Share the active locale's formatter across new cards and changed message counts.
 let countFormatter: { locale: string | undefined; value: Intl.NumberFormat } | undefined;
-
-const truncateText = (value: string, limit: number): string =>
-  value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
 
 export const formatCompactThreadMessageCount = (messageCount: number, locale?: string): string => {
   if (!countFormatter || countFormatter.locale !== locale) {
@@ -168,12 +170,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   locale,
 }: BuildCompactThreadCardViewModelFromRecordOptions): CompactThreadCardViewModel => {
   const { presentation, status } = record;
-  const titleText = replaceMatrixUserIdsWithDisplayNames(
-    room,
-    getThreadPrimarySummaryText(presentation, t) ??
-      t?.('mindroomUi.threads.compactThreadCardViewModel.threadStarted') ??
-      'Thread started'
-  );
+  const titleText = getCompactThreadTitleText(room, presentation, t);
   const replyPreviewText = localizeThreadPreview(
     presentation.latestReplyPreviewText,
     presentation.latestReplyPreviewLocalization,
@@ -214,8 +211,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   const previewText = repeatsTitle
     ? (t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet')
     : lastSenderName
-      ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
-      : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
+      ? `${lastSenderName}: ${truncateCompactThreadText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
+      : truncateCompactThreadText(latestPreviewText, PREVIEW_TEXT_LIMIT);
   const attentionState = getCompactThreadAttentionState({
     ...status,
     now,
@@ -244,7 +241,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       threadRootId: record.threadRootId,
     },
     titleText,
-    displayTitleText: truncateText(titleText, TITLE_TEXT_LIMIT),
+    displayTitleText: truncateCompactThreadText(titleText, COMPACT_THREAD_TITLE_LIMIT),
     previewText,
     primarySummaryText: getThreadPrimarySummaryText(presentation),
     recentThreadSummaryText: presentation.recentThreadSummaryText,

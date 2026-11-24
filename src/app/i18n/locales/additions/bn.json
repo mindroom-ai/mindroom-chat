@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
-      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়",
+      "viewSection": "প্রদর্শন",
+      "roomSection": "রুম",
+      "preferencesSection": "পছন্দসমূহ",
+      "notificationModeAll": "সব",
+      "notificationModeMentions": "উল্লেখ"
     },
     "phoneNav": {
       "navigation": "নেভিগেশন"
@@ -1234,6 +1239,25 @@
         "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
         "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন",
         "showFullMessage": "পুরো বার্তা দেখুন"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "সব কাজ শেষ",
+        "resolvedCount_one": "{{count}}টি সমাধান করা হয়েছে",
+        "resolvedCount_other": "{{count}}টি সমাধান করা হয়েছে",
+        "snoozedCount_one": "{{count}}টি স্থগিত",
+        "snoozedCount_other": "{{count}}টি স্থগিত",
+        "showAll": "সব দেখান",
+        "startNewThreadBelow": "নিচে একটি নতুন থ্রেড শুরু করুন",
+        "recentlyResolved": "সম্প্রতি সমাধান করা হয়েছে",
+        "noMatchHeading": "কোনো থ্রেড আপনার ফিল্টারের সাথে মেলে না",
+        "hiddenByForMe_one": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByForMe_other": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByFilters_one": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "hiddenByFilters_other": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "adjustOrResetFilters": "এই রুমের থ্রেড দেখতে আপনার ফিল্টার সামঞ্জস্য বা রিসেট করুন।",
+        "turnOffForMe": "«আমার জন্য» বন্ধ করুন",
+        "resetAll": "সব রিসেট করুন",
+        "resetFilters": "ফিল্টার রিসেট করুন"
       }
     },
     "computer": {
@@ -2139,7 +2163,11 @@
     "done": "সম্পন্ন"
   },
   "threadActions": {
-    "openBeside": "দ্বিতীয় কলামে খুলুন"
+    "openBeside": "দ্বিতীয় কলামে খুলুন",
+    "detailsSection": "বিবরণ",
+    "forkAndShareSection": "শাখা তৈরি ও শেয়ার",
+    "shareSection": "শেয়ার",
+    "viewSection": "প্রদর্শন"
   },
   "roomSchedules": {
     "thisThread": "এই থ্রেড",

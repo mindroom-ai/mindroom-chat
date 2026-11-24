@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",
-      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं"
+      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं",
+      "viewSection": "दृश्य",
+      "roomSection": "रूम",
+      "preferencesSection": "प्राथमिकताएँ",
+      "notificationModeAll": "सभी",
+      "notificationModeMentions": "उल्लेख"
     },
     "phoneNav": {
       "navigation": "नेविगेशन"
@@ -1234,6 +1239,25 @@
         "expandAllLong": "सभी लंबे संदेश खोलें",
         "collapseAllLong": "सभी लंबे संदेश समेटें",
         "showFullMessage": "पूरा संदेश दिखाएँ"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "सब कुछ पूरा हो गया",
+        "resolvedCount_one": "{{count}} सुलझा हुआ",
+        "resolvedCount_other": "{{count}} सुलझे हुए",
+        "snoozedCount_one": "{{count}} स्थगित",
+        "snoozedCount_other": "{{count}} स्थगित",
+        "showAll": "सभी दिखाएँ",
+        "startNewThreadBelow": "नीचे एक नया थ्रेड शुरू करें",
+        "recentlyResolved": "हाल ही में सुलझे हुए",
+        "noMatchHeading": "कोई भी थ्रेड आपके फ़िल्टर से मेल नहीं खाता",
+        "hiddenByForMe_one": "{{count}} खुला थ्रेड «मेरे लिए» द्वारा छिपा हुआ है।",
+        "hiddenByForMe_other": "{{count}} खुले थ्रेड «मेरे लिए» द्वारा छिपे हुए हैं।",
+        "hiddenByFilters_one": "{{count}} खुला थ्रेड आपके फ़िल्टर द्वारा छिपा हुआ है।",
+        "hiddenByFilters_other": "{{count}} खुले थ्रेड आपके फ़िल्टर द्वारा छिपे हुए हैं।",
+        "adjustOrResetFilters": "इस रूम में थ्रेड देखने के लिए अपने फ़िल्टर बदलें या रीसेट करें।",
+        "turnOffForMe": "«मेरे लिए» बंद करें",
+        "resetAll": "सभी रीसेट करें",
+        "resetFilters": "फ़िल्टर रीसेट करें"
       }
     },
     "computer": {
@@ -2139,7 +2163,11 @@
     "done": "पूरे"
   },
   "threadActions": {
-    "openBeside": "दूसरे कॉलम में खोलें"
+    "openBeside": "दूसरे कॉलम में खोलें",
+    "detailsSection": "विवरण",
+    "forkAndShareSection": "शाखा बनाएँ और साझा करें",
+    "shareSection": "साझा करें",
+    "viewSection": "दृश्य"
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",

@@ -741,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",
-      "searchEncrypted": "Indisponível em salas encriptadas"
+      "searchEncrypted": "Indisponível em salas encriptadas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferências",
+      "notificationModeAll": "Todas",
+      "notificationModeMentions": "Menções"
     },
     "phoneNav": {
       "navigation": "Navegação"
@@ -1269,6 +1274,29 @@
         "expandAllLong": "Expandir todas as mensagens longas",
         "collapseAllLong": "Recolher todas as mensagens longas",
         "showFullMessage": "Mostrar mensagem completa"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tudo em dia",
+        "resolvedCount_one": "{{count}} resolvido",
+        "resolvedCount_many": "{{count}} resolvidos",
+        "resolvedCount_other": "{{count}} resolvidos",
+        "snoozedCount_one": "{{count}} adiado",
+        "snoozedCount_many": "{{count}} adiados",
+        "snoozedCount_other": "{{count}} adiados",
+        "showAll": "Mostrar todos",
+        "startNewThreadBelow": "Inicie um novo tópico abaixo",
+        "recentlyResolved": "Resolvidos recentemente",
+        "noMatchHeading": "Nenhum tópico corresponde aos seus filtros",
+        "hiddenByForMe_one": "{{count}} tópico aberto está oculto por Para mim.",
+        "hiddenByForMe_many": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByForMe_other": "{{count}} tópicos abertos estão ocultos por Para mim.",
+        "hiddenByFilters_one": "{{count}} tópico aberto está oculto pelos seus filtros.",
+        "hiddenByFilters_many": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "hiddenByFilters_other": "{{count}} tópicos abertos estão ocultos pelos seus filtros.",
+        "adjustOrResetFilters": "Ajuste ou redefina seus filtros para ver os tópicos nesta sala.",
+        "turnOffForMe": "Desativar Para mim",
+        "resetAll": "Redefinir tudo",
+        "resetFilters": "Redefinir filtros"
       }
     },
     "computer": {
@@ -2211,7 +2239,11 @@
     "done": "Concluídos"
   },
   "threadActions": {
-    "openBeside": "Abrir na segunda coluna"
+    "openBeside": "Abrir na segunda coluna",
+    "detailsSection": "Detalhes",
+    "forkAndShareSection": "Bifurcar e partilhar",
+    "shareSection": "Partilhar",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este tópico",

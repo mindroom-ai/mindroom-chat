@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您没有邀请权限",
-      "searchEncrypted": "在加密房间中不可用"
+      "searchEncrypted": "在加密房间中不可用",
+      "viewSection": "视图",
+      "roomSection": "房间",
+      "preferencesSection": "偏好设置",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "导航"
@@ -1199,6 +1204,21 @@
         "expandAllLong": "展开所有长消息",
         "collapseAllLong": "折叠所有长消息",
         "showFullMessage": "显示完整消息"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "已全部处理完毕",
+        "resolvedCount_other": "{{count}} 个已解决",
+        "snoozedCount_other": "{{count}} 个已延后",
+        "showAll": "显示全部",
+        "startNewThreadBelow": "在下方开始新讨论串",
+        "recentlyResolved": "最近已解决",
+        "noMatchHeading": "没有符合筛选条件的讨论串",
+        "hiddenByForMe_other": "{{count}} 个未解决的讨论串被“与我相关”隐藏。",
+        "hiddenByFilters_other": "{{count}} 个未解决的讨论串被筛选条件隐藏。",
+        "adjustOrResetFilters": "调整或重置筛选条件以查看此房间中的讨论串。",
+        "turnOffForMe": "关闭“与我相关”",
+        "resetAll": "全部重置",
+        "resetFilters": "重置筛选条件"
       }
     },
     "computer": {
@@ -2067,7 +2087,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二栏打开"
+    "openBeside": "在第二栏打开",
+    "detailsSection": "详情",
+    "forkAndShareSection": "分支与分享",
+    "shareSection": "分享",
+    "viewSection": "视图"
   },
   "roomSchedules": {
     "thisThread": "此讨论串",

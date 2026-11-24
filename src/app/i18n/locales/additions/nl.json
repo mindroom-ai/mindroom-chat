@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
-      "searchEncrypted": "Niet beschikbaar in versleutelde kamers"
+      "searchEncrypted": "Niet beschikbaar in versleutelde kamers",
+      "viewSection": "Weergave",
+      "roomSection": "Kamer",
+      "preferencesSection": "Voorkeuren",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Vermeldingen"
     },
     "phoneNav": {
       "navigation": "Navigatie"
@@ -1234,6 +1239,25 @@
         "expandAllLong": "Alle lange berichten uitklappen",
         "collapseAllLong": "Alle lange berichten inklappen",
         "showFullMessage": "Volledig bericht tonen"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Helemaal bij",
+        "resolvedCount_one": "{{count}} opgelost",
+        "resolvedCount_other": "{{count}} opgelost",
+        "snoozedCount_one": "{{count}} gesnoozed",
+        "snoozedCount_other": "{{count}} gesnoozed",
+        "showAll": "Alles tonen",
+        "startNewThreadBelow": "Start hieronder een nieuwe thread",
+        "recentlyResolved": "Recent opgelost",
+        "noMatchHeading": "Geen threads komen overeen met je filters",
+        "hiddenByForMe_one": "{{count}} open thread wordt verborgen door Voor mij.",
+        "hiddenByForMe_other": "{{count}} open threads worden verborgen door Voor mij.",
+        "hiddenByFilters_one": "{{count}} open thread wordt verborgen door je filters.",
+        "hiddenByFilters_other": "{{count}} open threads worden verborgen door je filters.",
+        "adjustOrResetFilters": "Pas je filters aan of zet ze terug om threads in deze kamer te zien.",
+        "turnOffForMe": "Voor mij uitschakelen",
+        "resetAll": "Alles terugzetten",
+        "resetFilters": "Filters terugzetten"
       }
     },
     "computer": {
@@ -2139,7 +2163,11 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Afsplitsen & delen",
+    "shareSection": "Delen",
+    "viewSection": "Weergave"
   },
   "roomSchedules": {
     "thisThread": "Deze thread",

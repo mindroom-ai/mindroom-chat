@@ -741,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "No tienes permiso para invitar",
-      "searchEncrypted": "No disponible en salas cifradas"
+      "searchEncrypted": "No disponible en salas cifradas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferencias",
+      "notificationModeAll": "Todos",
+      "notificationModeMentions": "Menciones"
     },
     "phoneNav": {
       "navigation": "Navegación"
@@ -1269,6 +1274,29 @@
         "expandAllLong": "Expandir todos los mensajes largos",
         "collapseAllLong": "Contraer todos los mensajes largos",
         "showFullMessage": "Mostrar mensaje completo"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Todo al día",
+        "resolvedCount_one": "{{count}} resuelto",
+        "resolvedCount_many": "{{count}} resueltos",
+        "resolvedCount_other": "{{count}} resueltos",
+        "snoozedCount_one": "{{count}} pospuesto",
+        "snoozedCount_many": "{{count}} pospuestos",
+        "snoozedCount_other": "{{count}} pospuestos",
+        "showAll": "Mostrar todos",
+        "startNewThreadBelow": "Inicia un nuevo hilo abajo",
+        "recentlyResolved": "Resueltos recientemente",
+        "noMatchHeading": "Ningún hilo coincide con tus filtros",
+        "hiddenByForMe_one": "{{count}} hilo abierto está oculto por Para mí.",
+        "hiddenByForMe_many": "{{count}} hilos abiertos están ocultos por Para mí.",
+        "hiddenByForMe_other": "{{count}} hilos abiertos están ocultos por Para mí.",
+        "hiddenByFilters_one": "{{count}} hilo abierto está oculto por tus filtros.",
+        "hiddenByFilters_many": "{{count}} hilos abiertos están ocultos por tus filtros.",
+        "hiddenByFilters_other": "{{count}} hilos abiertos están ocultos por tus filtros.",
+        "adjustOrResetFilters": "Ajusta o restablece tus filtros para ver hilos en esta sala.",
+        "turnOffForMe": "Desactivar Para mí",
+        "resetAll": "Restablecer todo",
+        "resetFilters": "Restablecer filtros"
       }
     },
     "computer": {
@@ -2211,7 +2239,11 @@
     "done": "Hechos"
   },
   "threadActions": {
-    "openBeside": "Abrir en la segunda columna"
+    "openBeside": "Abrir en la segunda columna",
+    "detailsSection": "Detalles",
+    "forkAndShareSection": "Bifurcar y compartir",
+    "shareSection": "Compartir",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este hilo",

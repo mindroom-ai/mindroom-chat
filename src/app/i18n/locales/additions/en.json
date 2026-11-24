@@ -724,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "You don't have permission to invite",
-      "searchEncrypted": "Not available in encrypted rooms"
+      "searchEncrypted": "Not available in encrypted rooms",
+      "viewSection": "View",
+      "roomSection": "Room",
+      "preferencesSection": "Preferences",
+      "notificationModeAll": "All",
+      "notificationModeMentions": "Mentions"
     },
     "phoneNav": {
       "navigation": "Navigation"
@@ -953,7 +958,7 @@
       "approvalDecisionControls": {
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
       },
-      "showToolCalls": "Show tool calls",
+      "showToolCalls": "Show Tool Calls",
       "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there.",
       "secretRequestCard": {
         "label": "Key request",
@@ -1234,6 +1239,25 @@
         "expandAllLong": "Expand all long messages",
         "collapseAllLong": "Collapse all long messages",
         "showFullMessage": "Show full message"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "All caught up",
+        "resolvedCount_one": "{{count}} resolved",
+        "resolvedCount_other": "{{count}} resolved",
+        "snoozedCount_one": "{{count}} snoozed",
+        "snoozedCount_other": "{{count}} snoozed",
+        "showAll": "Show all",
+        "startNewThreadBelow": "Start a new thread below",
+        "recentlyResolved": "Recently resolved",
+        "noMatchHeading": "No threads match your filters",
+        "hiddenByForMe_one": "{{count}} open thread is hidden by For me.",
+        "hiddenByForMe_other": "{{count}} open threads are hidden by For me.",
+        "hiddenByFilters_one": "{{count}} open thread is hidden by your filters.",
+        "hiddenByFilters_other": "{{count}} open threads are hidden by your filters.",
+        "adjustOrResetFilters": "Adjust or reset your filters to see threads in this room.",
+        "turnOffForMe": "Turn off For me",
+        "resetAll": "Reset all",
+        "resetFilters": "Reset filters"
       }
     },
     "computer": {
@@ -2139,7 +2163,11 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open in second column"
+    "openBeside": "Open in second column",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Fork & Share",
+    "shareSection": "Share",
+    "viewSection": "View"
   },
   "roomSchedules": {
     "thisThread": "This thread",

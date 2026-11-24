@@ -48,6 +48,7 @@ vi.mock('../ui/styles/Motion.css', () => ({
 const state = vi.hoisted(() => ({
   resolved: false,
   canEdit: true,
+  canPin: true,
   snoozedUntilTs: undefined as number | undefined,
   pinned: [] as string[],
   members: [] as { userId: string; membership: string }[],
@@ -68,7 +69,7 @@ vi.mock('./tags/useMutateThreadTags', () => ({
   useMutateThreadTags: () => ({ updating: false, ...mutations }),
 }));
 vi.mock('../event-store/threads/useThreadPinning', () => ({
-  useThreadPinning: () => ({ pinnedEventIds: state.pinned, canPin: true, updating: false }),
+  useThreadPinning: () => ({ pinnedEventIds: state.pinned, canPin: state.canPin, updating: false }),
 }));
 vi.mock('./summary/threadSummaryActions', () => ({
   getThreadSummaryActionError: () => undefined,
@@ -111,6 +112,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.resolved = false;
   state.canEdit = true;
+  state.canPin = true;
   state.snoozedUntilTs = undefined;
   state.pinned = [];
   mutations.snooze.mockReset();
@@ -128,16 +130,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const renderMenu = (props: Partial<ThreadActionsMenuProps> = {}) => {
+const renderMenu = (props: Partial<ThreadActionsMenuProps> = {}, second?: SecondThreadControl) => {
+  const menu = (
+    <ThreadActionsMenu
+      room={room}
+      rootId="$root"
+      anchor={{ x: 0, y: 0, width: 0, height: 0 }}
+      onClose={() => undefined}
+      {...props}
+    />
+  );
   act(() =>
     root.render(
-      <ThreadActionsMenu
-        room={room}
-        rootId="$root"
-        anchor={{ x: 0, y: 0, width: 0, height: 0 }}
-        onClose={() => undefined}
-        {...props}
-      />
+      second ? (
+        <SecondThreadContext.Provider value={second}>{menu}</SecondThreadContext.Provider>
+      ) : (
+        menu
+      )
     )
   );
   return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];
@@ -152,18 +161,29 @@ const rows = (items: HTMLElement[]) =>
   }));
 const rowOf = (items: HTMLElement[], action: string) =>
   items.find((item) => item.dataset.threadAction === action);
+const menuLayout = () => {
+  const container = host.querySelector<HTMLElement>('[role="menu"]')?.firstElementChild;
+  return Array.from(container?.children ?? []).map((part) => {
+    const items = [...part.querySelectorAll<HTMLElement>('[data-thread-action]')];
+    if (items.length === 0) return 'line';
+    const headingId = part.getAttribute('aria-labelledby');
+    const heading = headingId ? document.getElementById(headingId)?.textContent : undefined;
+    expect(part.getAttribute('role')).toBe(heading ? 'group' : null);
+    return [heading ?? null, ...items.map((item) => item.dataset.threadAction)];
+  });
+};
 
 describe('ThreadActionsMenu rows', () => {
-  it('lists the banner menu as tags, summary, resolve, pin, link, hide, each with its icon after the label', () => {
+  it('lists the banner menu as triage, details, fork & share, view, each with its icon after the label', () => {
     const items = renderMenu({ onHideDetails: () => undefined });
 
     expect(rows(items)).toEqual([
-      { action: 'tags', label: 'Edit tags', icon: glyph(Icons.Bookmark) },
-      { action: 'editSummary', label: 'Edit summary', icon: glyph(Icons.Pencil) },
-      { action: 'regenerate', label: 'Regenerate summary', icon: glyph(Icons.Bulb) },
       { action: 'resolve', label: 'Resolve', icon: glyph(Icons.CheckTwice) },
       { action: 'snooze', label: 'Snooze', icon: glyph(Icons.Clock) },
       { action: 'pin', label: 'Pin thread', icon: glyph(Icons.Pin) },
+      { action: 'tags', label: 'Edit tags', icon: glyph(Icons.Bookmark) },
+      { action: 'editSummary', label: 'Edit summary', icon: glyph(Icons.Pencil) },
+      { action: 'regenerate', label: 'Regenerate summary', icon: glyph(Icons.Bulb) },
       { action: 'fork', label: 'Fork thread', icon: glyph(ForkIcon) },
       { action: 'forkToRoom', label: 'Fork to room…', icon: glyph(ForkIcon) },
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
@@ -226,15 +246,15 @@ describe('ThreadActionsMenu rows', () => {
 
     expect(items.map((item) => item.action)).toEqual([
       'open',
+      'resolve',
+      'pin',
       'tags',
       'editSummary',
       'regenerate',
-      'resolve',
-      'pin',
       'copy',
     ]);
     expect(items[0]?.icon).toBe(glyph(Icons.Thread));
-    expect(items[4]).toEqual({
+    expect(items[1]).toEqual({
       action: 'resolve',
       label: 'Reopen thread',
       icon: glyph(Icons.Reload),
@@ -251,23 +271,7 @@ describe('ThreadActionsMenu rows', () => {
     const menuIn = (
       second: SecondThreadControl | undefined,
       props: Partial<ThreadActionsMenuProps>
-    ) => {
-      act(() =>
-        root.render(
-          <SecondThreadContext.Provider value={second}>
-            <ThreadActionsMenu
-              room={room}
-              rootId="$root"
-              anchor={{ x: 0, y: 0, width: 0, height: 0 }}
-              onClose={() => undefined}
-              onOpenThread={() => undefined}
-              {...props}
-            />
-          </SecondThreadContext.Provider>
-        )
-      );
-      return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-    };
+    ) => renderMenu({ onOpenThread: () => undefined, ...props }, second);
 
     it('offers Open in second column right after Open when the room page does', () => {
       const items = menuIn({ offers: () => true, open: vi.fn() }, {});
@@ -275,7 +279,7 @@ describe('ThreadActionsMenu rows', () => {
         rows(items)
           .slice(0, 3)
           .map((row) => row.label)
-      ).toEqual(['Open thread', 'Open in second column', 'Edit tags']);
+      ).toEqual(['Open thread', 'Open in second column', 'Resolve']);
       expect(rowOf(items, 'openBeside')?.querySelector('svg')?.innerHTML).toBe(
         glyph(Icons.ThreadPlus)
       );
@@ -400,6 +404,88 @@ describe('ThreadActionsMenu rows', () => {
   });
 });
 
+describe("ThreadActionsMenu's sections", () => {
+  it('groups open-thread actions with unlabelled triage on top and dividers between sections', () => {
+    state.members = [{ userId: '@mindroom_research:example.org', membership: 'join' }];
+    renderMenu({ onHideDetails: () => undefined });
+
+    expect(menuLayout()).toEqual([
+      [null, 'resolve', 'snooze', 'pin'],
+      'line',
+      ['Details', 'tags', 'editSummary', 'regenerate'],
+      'line',
+      ['Fork & Share', 'fork', 'forkToRoom', 'copy'],
+      'line',
+      ['View', 'toolCalls', 'hideDetails'],
+    ]);
+  });
+
+  it('groups card-menu open and triage unlabelled, labels Share without fork, and omits empty View', () => {
+    renderMenu({ onOpenThread: () => undefined }, { offers: () => true, open: vi.fn() });
+
+    expect(menuLayout()).toEqual([
+      [null, 'open', 'openBeside'],
+      'line',
+      [null, 'resolve', 'snooze', 'pin'],
+      'line',
+      ['Details', 'tags', 'editSummary', 'regenerate'],
+      'line',
+      ['Share', 'copy'],
+    ]);
+  });
+
+  it('uses Share without a fork point and omits empty groups without orphan dividers', () => {
+    renderMenu({ rootId: '~!room:test:m1' });
+    expect(menuLayout()).toEqual([
+      ['Details', 'tags', 'editSummary', 'regenerate'],
+      'line',
+      ['Share', 'copy'],
+    ]);
+
+    state.canEdit = false;
+    state.canPin = false;
+    renderMenu();
+    expect(menuLayout()).toEqual([
+      ['Details', 'tags', 'editSummary', 'regenerate'],
+      'line',
+      ['Fork & Share', 'fork', 'forkToRoom', 'copy'],
+    ]);
+  });
+
+  it('traverses items across MenuGroups including MenuSwitchEntry with ArrowDown and ArrowUp', () => {
+    state.members = [{ userId: '@mindroom_research:example.org', membership: 'join' }];
+    renderMenu({ onHideDetails: () => undefined });
+    const menu = host.querySelector<HTMLElement>('[role="menu"]')!;
+    const step = (key: string) => {
+      act(() => {
+        (menu.contains(document.activeElement) ? document.activeElement! : menu).dispatchEvent(
+          new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+        );
+      });
+      return (document.activeElement as HTMLElement | null)?.dataset.threadAction;
+    };
+    const expected = [
+      'resolve',
+      'snooze',
+      'pin',
+      'tags',
+      'editSummary',
+      'regenerate',
+      'fork',
+      'forkToRoom',
+      'copy',
+      'toolCalls',
+      'hideDetails',
+    ];
+    expect(expected.map(() => step('ArrowDown'))).toEqual(expected);
+    expect(['toolCalls', 'copy', 'forkToRoom'].map(() => step('ArrowUp'))).toEqual([
+      'toolCalls',
+      'copy',
+      'forkToRoom',
+    ]);
+  });
+});
+
 describe("ThreadActionsMenu's snooze", () => {
   it('offers Snooze on an open thread and Unsnooze on a snoozed one', async () => {
     mutations.snooze.mockResolvedValue(true);
@@ -479,19 +565,28 @@ describe("ThreadActionsMenu's tool calls switch", () => {
   });
   afterEach(() => clearToolCallOverrides(SESSION));
 
-  it('shows or hides the tool calls of this thread only, then closes the menu', () => {
+  it('shows or hides the tool calls of this thread only in place without closing the menu', () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'join' }];
     const onClose = vi.fn();
     renderMenu({ onClose });
     expect(entry()?.getAttribute('role')).toBe('menuitemcheckbox');
     expect(entry()?.getAttribute('aria-checked')).toBe('false');
-    expect(entry()?.textContent).toBe('Show tool calls');
+    expect(entry()?.textContent).toBe('Show Tool Calls');
 
     act(() => entry()?.click());
     expect(JSON.parse(stored() ?? 'null')).toEqual({ '!room:test': { threads: { $root: true } } });
     expect(getDefaultStore().get(settingsAtom).showToolCalls).toBe(false);
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
     expect(entry()?.getAttribute('aria-checked')).toBe('true');
+
+    act(() => {
+      entry()?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      );
+    });
+    expect(stored()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(entry()?.getAttribute('aria-checked')).toBe('false');
   });
 
   it('is left out of rooms without agents, which have no tool calls', () => {
@@ -502,7 +597,7 @@ describe("ThreadActionsMenu's tool calls switch", () => {
   it('is there while an agent is still invited, as in the room menu', () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'invite' }];
     renderMenu();
-    expect(entry()?.textContent).toBe('Show tool calls');
+    expect(entry()?.textContent).toBe('Show Tool Calls');
   });
 });
 

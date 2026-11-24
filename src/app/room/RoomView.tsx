@@ -181,8 +181,7 @@ export function RoomView({
   // while the person chose that (or a second thread shows) and the page has room, else filling
   // the page, over the room's conversation, which goes.
   const columnFills =
-    columnOpen &&
-    ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
+    columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
@@ -351,6 +350,7 @@ export function RoomView({
     onRemoveTag: threadState.handleRemoveTag,
     onClearTags: threadState.handleClearTags,
     onSelectTab: threadState.handleSelectTab,
+    onShowSnoozed: threadState.handleShowSnoozed,
     onSearchQueryChange: threadState.handleSearchQueryChange,
     threadSections: threadState.threadSections,
     onToggleThreadSections: threadState.handleToggleThreadSections,

@@ -707,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
-      "searchEncrypted": "暗号化されたルームでは使用できません"
+      "searchEncrypted": "暗号化されたルームでは使用できません",
+      "viewSection": "表示",
+      "roomSection": "ルーム",
+      "preferencesSection": "環境設定",
+      "notificationModeAll": "すべて",
+      "notificationModeMentions": "メンション"
     },
     "phoneNav": {
       "navigation": "ナビゲーション"
@@ -1199,6 +1204,21 @@
         "expandAllLong": "長いメッセージをすべて展開",
         "collapseAllLong": "長いメッセージをすべて折りたたむ",
         "showFullMessage": "メッセージ全体を表示"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "すべて完了しました",
+        "resolvedCount_other": "{{count}} 件解決済み",
+        "snoozedCount_other": "{{count}} 件スヌーズ中",
+        "showAll": "すべて表示",
+        "startNewThreadBelow": "下で新しいスレッドを開始",
+        "recentlyResolved": "最近解決済み",
+        "noMatchHeading": "フィルターに一致するスレッドはありません",
+        "hiddenByForMe_other": "{{count}} 件の未解決スレッドが「自分向け」で非表示になっています。",
+        "hiddenByFilters_other": "{{count}} 件の未解決スレッドがフィルターで非表示になっています。",
+        "adjustOrResetFilters": "このルームのスレッドを表示するには、フィルターを調整またはリセットしてください。",
+        "turnOffForMe": "「自分向け」をオフにする",
+        "resetAll": "すべてリセット",
+        "resetFilters": "フィルターをリセット"
       }
     },
     "computer": {
@@ -2067,7 +2087,11 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "2列目で開く"
+    "openBeside": "2列目で開く",
+    "detailsSection": "詳細",
+    "forkAndShareSection": "分岐と共有",
+    "shareSection": "共有",
+    "viewSection": "表示"
   },
   "roomSchedules": {
     "thisThread": "このスレッド",
