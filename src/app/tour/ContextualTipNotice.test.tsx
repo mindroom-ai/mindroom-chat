@@ -2,7 +2,10 @@
 import { EventEmitter } from 'events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { ClientEvent, SyncState } from 'matrix-js-sdk';
+import { ClientEvent, Direction, EventTimeline, SyncState } from 'matrix-js-sdk';
+import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
+import { matchesEnum } from '../lib/matchesEnum';
+import { StateEvent } from '../matrix/types/room';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -44,7 +47,42 @@ const makeEntry = (
     ...overrides,
   } as CrossRoomThreadIndexEntry);
 
-const makeAccount = (stored?: unknown, synced = true) => {
+const makeRoom = (powerLevels: Record<string, unknown>) => ({
+  getLiveTimeline: () => ({
+    getState: (direction: Direction) =>
+      direction === EventTimeline.FORWARDS
+        ? {
+            getStateEvents: (type: string, stateKey?: string) => {
+              if (stateKey !== '') return null;
+              if (matchesEnum(type, StateEvent.RoomCreate)) {
+                return {
+                  getType: () => StateEvent.RoomCreate,
+                  getSender: () => '@creator:example.org',
+                  getContent: () => ({ room_version: '11' }),
+                };
+              }
+              if (matchesEnum(type, StateEvent.RoomPowerLevels)) {
+                return {
+                  getType: () => StateEvent.RoomPowerLevels,
+                  getContent: () => powerLevels,
+                };
+              }
+              return null;
+            },
+          }
+        : null,
+  }),
+});
+
+const makeAccount = (
+  stored?: unknown,
+  synced = true,
+  roomPowerLevels: Record<string, unknown> = {
+    users_default: 0,
+    state_default: 50,
+    events: { [MINDROOM_THREAD_TAGS_EVENT]: 0 },
+  }
+) => {
   const settingsEvent = (content: unknown) => ({
     getType: () => MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
     getContent: () => content,
@@ -57,6 +95,8 @@ const makeAccount = (stored?: unknown, synced = true) => {
     getHomeserverUrl: () => 'https://example.org',
     getSyncState: () => syncState,
     getSyncStateData: () => (syncState === SyncState.Prepared ? { fromCache: true } : undefined),
+    getRoom: (roomId: string) =>
+      roomId === '!room:example.org' ? makeRoom(roomPowerLevels) : null,
     getAccountData: (type: string) =>
       type === MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE ? held : undefined,
     setAccountData,
@@ -87,6 +127,7 @@ const setup = ({
   entries = Array.from({ length: 5 }, (_, i) => makeEntry(`t${i}`)),
   config = {},
   selectedRoom,
+  roomPowerLevels,
 }: {
   stored?: unknown;
   synced?: boolean;
@@ -94,8 +135,9 @@ const setup = ({
   entries?: CrossRoomThreadIndexEntry[];
   config?: ClientConfig;
   selectedRoom?: string;
+  roomPowerLevels?: Record<string, unknown>;
 } = {}) => {
-  const acct = makeAccount(stored, synced);
+  const acct = makeAccount(stored, synced, roomPowerLevels);
   vi.mocked(useMatrixClient).mockReturnValue(
     acct.client as unknown as ReturnType<typeof useMatrixClient>
   );
@@ -207,6 +249,10 @@ describe('ContextualTipNotice', () => {
         version: current.version + 1,
       });
     });
+    expect(card()).toBeNull();
+  });
+  it('does not render when room power levels forbid writing com.mindroom.thread.tags', () => {
+    setup({ roomPowerLevels: { users_default: 0, state_default: 50 } });
     expect(card()).toBeNull();
   });
 });

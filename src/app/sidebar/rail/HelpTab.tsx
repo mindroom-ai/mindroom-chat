@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useState,
-  type CSSProperties,
-  type MouseEvent,
-  type RefCallback,
-} from 'react';
-import { IconButton, color } from 'folds';
+import { useCallback, useState, type MouseEvent, type RefCallback } from 'react';
+import { IconButton } from 'folds';
 import { IconHelpCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { HelpMenu } from '../../tour/HelpMenu';
@@ -16,29 +10,7 @@ import {
   SidebarItemBadge,
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
-
-const TIP_DOT_STYLE: CSSProperties = {
-  display: 'block',
-  inlineSize: '10px',
-  blockSize: '10px',
-  borderRadius: '9999px',
-  backgroundColor: color.Primary.Main,
-  boxShadow: `0 0 0 2px ${color.Background.Container}`,
-};
-
-const TOP_BAR_FRAME_STYLE: CSSProperties = {
-  position: 'relative',
-  flexShrink: 0,
-  display: 'inline-flex',
-};
-
-const TOP_BAR_DOT_STYLE: CSSProperties = {
-  ...TIP_DOT_STYLE,
-  position: 'absolute',
-  insetBlockStart: '4px',
-  insetInlineEnd: '4px',
-  pointerEvents: 'none',
-};
+import * as css from './HelpTab.css';
 
 type HelpTabProps = {
   /** In a phone's top bar rather than the icon rail: opens the menu below the button. */
@@ -69,7 +41,7 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
 
   if (inTopBar) {
     return (
-      <span style={TOP_BAR_FRAME_STYLE}>
+      <span className={css.TopBarFrame}>
         <IconButton
           className={className}
           size="400"
@@ -82,7 +54,7 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
         >
           <IconHelpCircle size={20} stroke={1.8} aria-hidden="true" />
         </IconButton>
-        {hasDot && <span style={TOP_BAR_DOT_STYLE} data-help-tip-dot="true" aria-hidden="true" />}
+        {hasDot && <span className={css.TopBarDot} data-help-tip-dot="true" aria-hidden="true" />}
         {helpMenu}
       </span>
     );
@@ -108,7 +80,7 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
       <SidebarItemTooltip tooltip={label}>{renderButton}</SidebarItemTooltip>
       {hasDot && (
         <SidebarItemBadge>
-          <span style={TIP_DOT_STYLE} data-help-tip-dot="true" aria-hidden="true" />
+          <span className={css.TipDot} data-help-tip-dot="true" aria-hidden="true" />
         </SidebarItemBadge>
       )}
       {helpMenu}

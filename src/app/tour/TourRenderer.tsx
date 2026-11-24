@@ -17,7 +17,8 @@ type Opening = {
 /**
  * The interface tour's dialog while the tour is open, and after its Done the handoff to the open
  * room's composer. Closing the tour any other way just closes it. A tour opened while one is open
- * (from the command palette, which opens over it) starts over at its first step.
+ * (from the command palette or Help menu) starts over at its requested `initialStep` (or the
+ * first step when omitted).
  */
 export function TourRenderer() {
   const [tour, setTour] = useAtom(tourAtom);

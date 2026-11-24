@@ -22,12 +22,14 @@ export type EvaluateContextualTipInput = {
   archivedRooms: ReadonlySet<string>;
   dismissedTips: ReadonlySet<string>;
   now: number;
+  /** Whether the user can write thread resolution tags in `roomId`; defaults to true when omitted. */
+  canResolveRoom?: (roomId: string) => boolean;
 };
 
 /**
  * Evaluates whether a contextual UI tip currently applies to the account's threads.
- * Suggests resolving finished threads once open non-snoozed threads accumulate without any
- * thread in visible rooms having been resolved yet.
+ * Suggests resolving finished threads once open non-snoozed threads accumulate in rooms where the
+ * user can resolve threads, without any thread in visible rooms having been resolved yet.
  */
 export const evaluateContextualTip = ({
   entries,
@@ -35,8 +37,19 @@ export const evaluateContextualTip = ({
   archivedRooms,
   dismissedTips,
   now,
+  canResolveRoom,
 }: EvaluateContextualTipInput): ContextualTip | undefined => {
   if (dismissedTips.has(RESOLVE_TIP_ID)) return undefined;
+
+  const canResolveCache = canResolveRoom ? new Map<string, boolean>() : undefined;
+  const isRoomResolvable = (roomId: string): boolean => {
+    if (!canResolveRoom || !canResolveCache) return true;
+    const cached = canResolveCache.get(roomId);
+    if (cached !== undefined) return cached;
+    const allowed = canResolveRoom(roomId);
+    canResolveCache.set(roomId, allowed);
+    return allowed;
+  };
 
   let totalOpen = 0;
   let totalOld = 0;
@@ -47,6 +60,7 @@ export const evaluateContextualTip = ({
     if (!isRoomVisible(entry.roomId, archivedRooms)) continue;
     if (entry.isResolved) return undefined;
     if (entry.snoozedUntilTs !== undefined && entry.snoozedUntilTs > now) continue;
+    if (!isRoomResolvable(entry.roomId)) continue;
 
     const isOld = now - entry.lastActivityTs >= RESOLVE_TIP_OLD_AGE_MS;
     totalOpen += 1;

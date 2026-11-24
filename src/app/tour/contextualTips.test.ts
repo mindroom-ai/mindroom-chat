@@ -3,7 +3,10 @@ import { EventEmitter } from 'events';
 import { createElement } from 'react';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { ClientEvent, SyncState } from 'matrix-js-sdk';
+import { ClientEvent, Direction, EventTimeline, RoomStateEvent, SyncState } from 'matrix-js-sdk';
+import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
+import { matchesEnum } from '../lib/matchesEnum';
+import { StateEvent } from '../matrix/types/room';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
@@ -238,9 +241,151 @@ describe('evaluateContextualTip', () => {
       openCount: 6,
     });
   });
+
+  it('ignores rooms where canResolveRoom returns false and caches per room ID', () => {
+    const entries = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`locked-${i}`, { roomId: '!locked:example.org' })
+    );
+    const canResolveRoom = vi.fn(() => false);
+    expect(
+      evaluateContextualTip({
+        entries,
+        selectedRoomId: '!locked:example.org',
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+        canResolveRoom,
+      })
+    ).toBeUndefined();
+    expect(canResolveRoom).toHaveBeenCalledTimes(1);
+    expect(canResolveRoom).toHaveBeenCalledWith('!locked:example.org');
+  });
+
+  it('counts only resolvable rooms when mixed with restricted rooms, while still suppressing on any resolved thread', () => {
+    const mixed = [
+      ...Array.from({ length: 4 }, (_, i) =>
+        makeEntry(`locked-${i}`, { roomId: '!locked:example.org', lastActivityTs: OLD })
+      ),
+      ...Array.from({ length: 3 }, (_, i) =>
+        makeEntry(`ok-${i}`, { roomId: '!ok:example.org', lastActivityTs: OLD })
+      ),
+    ];
+    const canResolveRoom = vi.fn((roomId: string) => roomId === '!ok:example.org');
+
+    // Viewing the restricted room falls back to all resolvable rooms (3, not 7).
+    expect(
+      evaluateContextualTip({
+        entries: mixed,
+        selectedRoomId: '!locked:example.org',
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+        canResolveRoom,
+      })
+    ).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'all',
+      openCount: 3,
+    });
+    expect(canResolveRoom).toHaveBeenCalledTimes(2);
+
+    // Viewing the resolvable room scopes to that room with only its open count.
+    expect(
+      evaluateContextualTip({
+        entries: mixed,
+        selectedRoomId: '!ok:example.org',
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+        canResolveRoom,
+      })
+    ).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'room',
+      openCount: 3,
+    });
+
+    // Any resolved thread in a visible room still suppresses the tip even if that room is now locked.
+    expect(
+      evaluateContextualTip({
+        entries: [...mixed, makeEntry('done', { roomId: '!locked:example.org', isResolved: true })],
+        selectedRoomId: '!ok:example.org',
+        archivedRooms: empty,
+        dismissedTips: empty,
+        now: NOW,
+        canResolveRoom,
+      })
+    ).toBeUndefined();
+  });
 });
 
-const makeClient = (userId: string, stored?: unknown, synced = true) => {
+type StubRoomOptions = {
+  powerLevels?: Record<string, unknown> | null;
+  roomVersion?: string;
+  creator?: string;
+};
+
+const makeRoom = ({
+  powerLevels = {
+    users_default: 0,
+    state_default: 50,
+    events: { [MINDROOM_THREAD_TAGS_EVENT]: 0 },
+  },
+  roomVersion = '11',
+  creator = '@creator:example.org',
+}: StubRoomOptions = {}) => {
+  const createEvent = {
+    getType: () => StateEvent.RoomCreate,
+    getSender: () => creator,
+    getContent: () => ({ room_version: roomVersion }),
+  };
+  let powerLevelsEvent =
+    powerLevels === null
+      ? null
+      : {
+          getType: () => StateEvent.RoomPowerLevels,
+          getContent: () => powerLevels,
+        };
+  const room = {
+    getLiveTimeline: () => ({
+      getState: (direction: Direction) =>
+        direction === EventTimeline.FORWARDS
+          ? {
+              getStateEvents: (type: string, stateKey?: string) => {
+                if (stateKey !== '') return null;
+                if (matchesEnum(type, StateEvent.RoomCreate)) return createEvent;
+                if (matchesEnum(type, StateEvent.RoomPowerLevels)) return powerLevelsEvent;
+                return null;
+              },
+            }
+          : null,
+    }),
+  };
+  return {
+    room,
+    setPowerLevels: (next: Record<string, unknown> | null) => {
+      powerLevelsEvent =
+        next === null
+          ? null
+          : {
+              getType: () => StateEvent.RoomPowerLevels,
+              getContent: () => next,
+            };
+      return powerLevelsEvent;
+    },
+  };
+};
+
+const makeClient = (
+  userId: string,
+  stored?: unknown,
+  synced = true,
+  rooms: ReadonlyMap<string, ReturnType<typeof makeRoom>['room'] | null> = new Map([
+    ['!room-a:example.org', makeRoom().room],
+  ])
+) => {
   const settingsEvent = (content: unknown) => ({
     getType: () => MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
     getContent: () => content,
@@ -253,6 +398,7 @@ const makeClient = (userId: string, stored?: unknown, synced = true) => {
     getHomeserverUrl: () => 'https://example.org',
     getSyncState: () => syncState,
     getSyncStateData: () => (syncState === SyncState.Prepared ? { fromCache: true } : undefined),
+    getRoom: (roomId: string) => rooms.get(roomId) ?? null,
     getAccountData: (type: string) =>
       type === MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE ? held : undefined,
     setAccountData,
@@ -361,5 +507,70 @@ describe('useContextualTip', () => {
     );
     view.rerender();
     expect(view.result.current.tip).toBeUndefined();
+  });
+  it('suppresses the tip when room power levels forbid com.mindroom.thread.tags and respects room v12 creators and live updates', () => {
+    const restricted = makeRoom({ powerLevels: { users_default: 0, state_default: 50 } });
+    const v12CreatorRoom = makeRoom({
+      powerLevels: { users_default: 0, state_default: 50 },
+      roomVersion: '12',
+      creator: '@alice:example.org',
+    });
+    const rooms = new Map([
+      ['!restricted:example.org', restricted.room],
+      ['!v12:example.org', v12CreatorRoom.room],
+    ]);
+    const alice = makeClient('@alice:example.org', {}, true, rooms);
+    vi.mocked(useMatrixClient).mockReturnValue(
+      alice.client as unknown as ReturnType<typeof useMatrixClient>
+    );
+
+    const store = createStore();
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(Provider, { store }, children);
+
+    // 5 open threads in a restricted room -> no tip.
+    const restrictedEntries = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`r-${i}`, { roomId: '!restricted:example.org' })
+    );
+    store.set(crossRoomThreadIndexAtom, indexWith(restrictedEntries, true));
+    const view = renderHook(() => useContextualTip(), { wrapper });
+    expect(view.result.current.tip).toBeUndefined();
+
+    // Missing room fails closed.
+    const missingRoomEntries = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`m-${i}`, { roomId: '!missing:example.org' })
+    );
+    act(() => store.set(crossRoomThreadIndexAtom, indexWith(missingRoomEntries, true)));
+    expect(view.result.current.tip).toBeUndefined();
+
+    // Granting permission via a live m.room.power_levels state event makes the tip appear.
+    act(() => store.set(crossRoomThreadIndexAtom, indexWith(restrictedEntries, true)));
+    expect(view.result.current.tip).toBeUndefined();
+    const updatedPl = restricted.setPowerLevels({
+      users_default: 0,
+      state_default: 50,
+      events: { [MINDROOM_THREAD_TAGS_EVENT]: 0 },
+    });
+    act(() => {
+      alice.client.emit(RoomStateEvent.Events, updatedPl, {}, null);
+    });
+    expect(view.result.current.tip).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'all',
+      openCount: 5,
+    });
+
+    // Room version 12 creator can resolve even when state_default is 50 and users_default is 0.
+    const v12Entries = Array.from({ length: 5 }, (_, i) =>
+      makeEntry(`v-${i}`, { roomId: '!v12:example.org' })
+    );
+    act(() => store.set(crossRoomThreadIndexAtom, indexWith(v12Entries, true)));
+    expect(view.result.current.tip).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'all',
+      openCount: 5,
+    });
   });
 });
