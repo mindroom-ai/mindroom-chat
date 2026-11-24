@@ -6,19 +6,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { MessageReadReceiptItem, MessageSourceCodeItem } from './MessageInspectionActions';
 
 vi.mock('folds', () => ({
-  as: (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
-    React.forwardRef((props, ref) => render(props, ref)),
+  as:
+    (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
+    ({ ref, ...props }: { ref?: React.Ref<unknown> } & Record<string, unknown>) =>
+      render(props, ref ?? null),
   Icon: () => null,
   Icons: { BlockCode: 'code', CheckTwice: 'read' },
-  MenuItem: React.forwardRef(
-    (
-      { children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>,
-      ref: React.ForwardedRef<HTMLButtonElement>
-    ) => (
-      <button ref={ref} type="button" {...props}>
-        {children}
-      </button>
-    )
+  MenuItem: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button ref={ref} type="button" {...props}>
+      {children}
+    </button>
   ),
   Modal: ({
     children,

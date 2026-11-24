@@ -179,6 +179,25 @@ describe('PopOut and TooltipProvider', () => {
     expect(received.popOut[0]).toMatchObject({ position: 'Bottom', align: 'Start', offset: 4 });
     expect(received.tooltip[0]).toMatchObject({ position: 'Left', align: 'Start' });
   });
+
+  it('forwards ref to folds PopOut and TooltipProvider', () => {
+    const popOutRef = { current: null as HTMLDivElement | null };
+    const tooltipRef = { current: null as HTMLDivElement | null };
+    act(() => {
+      create(
+        <>
+          <PopOut ref={popOutRef} position="Bottom" align="End" content={<span />}>
+            <span />
+          </PopOut>
+          <TooltipProvider ref={tooltipRef} position="Right" align="Start" tooltip={<span />}>
+            {() => <span />}
+          </TooltipProvider>
+        </>
+      );
+    });
+    expect(received.popOut[0]).toMatchObject({ ref: popOutRef });
+    expect(received.tooltip[0]).toMatchObject({ ref: tooltipRef });
+  });
 });
 
 describe('TooltipProvider on a touch screen', () => {

@@ -19,12 +19,14 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
       null,
       children(() => undefined)
     ),
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' | 'div' }
-  >(({ as: As = 'div', children, ...props }, ref) =>
-    React.createElement(As, { ...props, ref }, children)
-  ),
+  SidebarAvatar: ({
+    as: As = 'div',
+    children,
+    ref,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' | 'div' } & {
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement(As, { ...props, ref }, children),
 }));
 
 vi.mock('../../ui/Modal500', () => ({

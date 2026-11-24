@@ -172,12 +172,11 @@ vi.mock('../../members/PhoneMembersSheet.css', () => ({
 }));
 // The sheet's notice place brings its styles; it is tested in ui/noticeSlots.test.tsx.
 vi.mock('../../ui/noticeSlots', async () => {
-  const { createElement, forwardRef } = await import('react');
+  const { createElement } = await import('react');
   return {
     NoticeSlot: () => null,
-    DialogFrame: forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>((props, ref) =>
-      createElement('div', { ref, role: 'dialog', ...props })
-    ),
+    DialogFrame: (props: React.ComponentPropsWithRef<'div'>) =>
+      createElement('div', { role: 'dialog', ...props }),
   };
 });
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));

@@ -17,9 +17,11 @@ function tab(name: string) {
 }
 
 vi.mock('folds', () => ({
-  Scroll: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
-    React.createElement('div', { ref }, children)
-  ),
+  Scroll: ({
+    children,
+    ref,
+  }: { children: React.ReactNode } & { ref?: React.Ref<HTMLDivElement> }) =>
+    React.createElement('div', { ref }, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem', () => ({

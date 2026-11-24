@@ -78,12 +78,13 @@ vi.mock('folds', () => {
     [key: string]: unknown;
   }) => React.createElement('button', { ...props, onClick, type: 'button' }, children);
 
-  const ForwardedDiv = React.forwardRef<
-    HTMLDivElement,
-    { children?: React.ReactNode; [key: string]: unknown }
-  >(({ children, ...props }, ref) =>
-    React.createElement('div', { ...props, ref }, children as React.ReactNode)
-  );
+  const ForwardedDiv = ({
+    children,
+    ref,
+    ...props
+  }: { children?: React.ReactNode; [key: string]: unknown } & {
+    ref?: React.Ref<HTMLDivElement>;
+  }) => React.createElement('div', { ...props, ref }, children as React.ReactNode);
 
   return {
     Avatar: Box,

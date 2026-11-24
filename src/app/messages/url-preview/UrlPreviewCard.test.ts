@@ -12,11 +12,16 @@ const previewState = vi.hoisted(() => ({
 vi.mock('folds', async () => {
   const reactModule = await import('react');
 
-  const forwardTag = (tag: string) =>
-    React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, ...props }, ref) =>
-        reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode)
-    );
+  const forwardTag =
+    (tag: string) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode } & {
+      ref?: React.Ref<HTMLElement>;
+    }) =>
+      reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode);
 
   return {
     Box: forwardTag('div'),
@@ -29,9 +34,10 @@ vi.mock('folds', async () => {
     Scroll: forwardTag('div'),
     Spinner: forwardTag('span'),
     Text: forwardTag('span'),
-    as: <P extends object>(
-      render: (props: P, ref: React.ForwardedRef<HTMLElement>) => React.ReactElement
-    ) => React.forwardRef<HTMLElement, P>((props, ref) => render(props as P, ref)),
+    as:
+      <P extends object>(render: (props: P, ref: React.Ref<HTMLElement>) => React.ReactElement) =>
+      ({ ref, ...props }: P & { ref?: React.Ref<HTMLElement> }) =>
+        render(props as P, ref ?? null),
     color: {
       Success: {
         Main: 'green',
@@ -62,9 +68,8 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('./UrlPreview', () => ({
-  UrlPreview: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-    ({ children, ...props }, ref) => React.createElement('div', { ...props, ref }, children)
-  ),
+  UrlPreview: ({ children, ref, ...props }: React.ComponentPropsWithRef<'div'>) =>
+    React.createElement('div', { ...props, ref }, children),
   UrlPreviewContent: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   UrlPreviewDescription: ({ children }: { children: React.ReactNode }) =>

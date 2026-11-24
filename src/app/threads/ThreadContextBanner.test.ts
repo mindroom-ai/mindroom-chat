@@ -96,9 +96,8 @@ vi.mock('folds', async () => {
     Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       React.createElement('button', props, children),
     Icon: (props: Record<string, unknown>) => React.createElement('i', props),
-    IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
-      ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
-    ),
+    IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) =>
+      React.createElement('button', { ...props, ref }, children),
     Icons: { ArrowLeft: 'arrow-left', Check: 'check', ChevronBottom: 'chevron-bottom' },
     Tooltip: ({ children }: { children?: React.ReactNode }) =>
       React.createElement('div', null, children),

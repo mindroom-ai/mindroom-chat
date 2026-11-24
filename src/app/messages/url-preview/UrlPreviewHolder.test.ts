@@ -8,11 +8,16 @@ import { UrlPreviewCard, UrlPreviewHolder } from './UrlPreviewCard';
 const { mx } = vi.hoisted(() => ({ mx: { getUrlPreview: vi.fn() } }));
 
 vi.mock('folds', () => {
-  const tag = (name: string, extra = {}) =>
-    React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, style }, ref) =>
-        React.createElement(name, { ref, style, ...extra }, children as React.ReactNode)
-    );
+  const tag =
+    (name: string, extra = {}) =>
+    ({
+      children,
+      style,
+      ref,
+    }: Record<string, unknown> & { children?: React.ReactNode } & {
+      ref?: React.Ref<HTMLElement>;
+    }) =>
+      React.createElement(name, { ref, style, ...extra }, children as React.ReactNode);
   return {
     Box: tag('div'),
     Scroll: tag('div', { 'data-scroll': true }),
@@ -22,17 +27,23 @@ vi.mock('folds', () => {
     Icons: { ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight' },
     Spinner: tag('span'),
     Text: tag('span'),
-    as: (render: React.ForwardRefRenderFunction<HTMLElement, object>) => React.forwardRef(render),
+    as:
+      (render: (props: object, ref: React.Ref<HTMLElement>) => React.ReactNode) =>
+      ({ ref, ...props }: { ref?: React.Ref<HTMLElement> } & Record<string, unknown>) =>
+        render(props, ref ?? null),
     color: { Success: { Main: 'green' } },
     config: { space: { S200: '8px' } },
   };
 });
 vi.mock('./UrlPreview', () => {
-  const tag = (name: string, extra = {}) =>
-    React.forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>(
-      ({ children, ...props }, ref) =>
-        React.createElement(name, { ...props, ...extra, ref }, children)
-    );
+  const tag =
+    (name: string, extra = {}) =>
+    ({
+      children,
+      ref,
+      ...props
+    }: React.HTMLAttributes<HTMLElement> & { ref?: React.Ref<HTMLElement> }) =>
+      React.createElement(name, { ...props, ...extra, ref }, children);
   return {
     UrlPreview: tag('div', { 'data-preview': true }),
     UrlPreviewContent: tag('div'),

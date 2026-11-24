@@ -41,14 +41,11 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
 vi.mock('focus-trap-react', () => ({
   FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../ui/page/Page', async () => {
-  const { forwardRef } = await import('react');
-  return {
-    PageHeader: forwardRef<HTMLElement, React.PropsWithChildren>(({ children }, ref) => (
-      <header ref={ref}>{children}</header>
-    )),
-  };
-});
+vi.mock('../ui/page/Page', () => ({
+  PageHeader: ({ children, ref }: React.PropsWithChildren<{ ref?: React.Ref<HTMLElement> }>) => (
+    <header ref={ref}>{children}</header>
+  ),
+}));
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),

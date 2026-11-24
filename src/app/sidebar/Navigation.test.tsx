@@ -44,12 +44,14 @@ vi.mock('../config/useClientConfig', () => ({
 }));
 
 vi.mock('../ui/sidebar/SidebarItem', () => ({
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & { outlined?: boolean }
-  >(({ children, outlined: _outlined, ...props }, ref) =>
-    React.createElement('button', { ...props, ref }, children)
-  ),
+  SidebarAvatar: ({
+    children,
+    outlined: _outlined,
+    ref,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { outlined?: boolean } & {
+    ref?: React.Ref<HTMLButtonElement>;
+  }) => React.createElement('button', { ...props, ref }, children),
   SidebarItem: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   SidebarItemTooltip: ({

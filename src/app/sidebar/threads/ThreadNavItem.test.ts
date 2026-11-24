@@ -78,16 +78,16 @@ vi.mock('../../ui/nav/NavItem', async () => {
   return {
     NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
-    NavItem: reactModule.forwardRef<
-      HTMLDivElement,
-      React.HTMLAttributes<HTMLDivElement> & {
-        highlight?: boolean;
-        variant?: string;
-        radii?: string;
-      }
-    >(({ children, ...props }, ref) =>
-      reactModule.createElement('div', { ...props, ref }, children)
-    ),
+    NavItem: ({
+      children,
+      ref,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      highlight?: boolean;
+      variant?: string;
+      radii?: string;
+    } & { ref?: React.Ref<HTMLDivElement> }) =>
+      reactModule.createElement('div', { ...props, ref }, children),
     NavItemContent: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     NavItemOptions: ({ children }: { children?: React.ReactNode }) =>

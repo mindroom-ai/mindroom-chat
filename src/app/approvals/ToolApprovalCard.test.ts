@@ -61,20 +61,21 @@ vi.mock('folds', () => ({
     children?: React.ReactNode;
     [key: string]: unknown;
   }) => React.createElement(Tag, props, children),
-  Button: React.forwardRef<
-    HTMLButtonElement,
-    {
-      children?: React.ReactNode;
-      onClick?: () => void;
-      [key: string]: unknown;
-    }
-  >(({ children, onClick, ...props }, ref) =>
+  Button: ({
+    children,
+    onClick,
+    ref,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    onClick?: () => void;
+    [key: string]: unknown;
+  } & { ref?: React.Ref<HTMLButtonElement> }) =>
     React.createElement(
       'button',
       { ...props, onClick, ref, type: props.type ?? 'button' },
       children as React.ReactNode
-    )
-  ),
+    ),
   Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
   Icons: {
     Check: 'Check',
@@ -85,13 +86,15 @@ vi.mock('folds', () => ({
     Cross: 'Cross',
     Warning: 'Warning',
   },
-  Input: React.forwardRef<
-    HTMLInputElement,
-    {
-      onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
-      [key: string]: unknown;
-    }
-  >(({ onChange, ...props }, ref) => React.createElement('input', { ...props, onChange, ref })),
+  Input: ({
+    onChange,
+    ref,
+    ...props
+  }: {
+    onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    [key: string]: unknown;
+  } & { ref?: React.Ref<HTMLInputElement> }) =>
+    React.createElement('input', { ...props, onChange, ref }),
   Spinner: () => React.createElement('span', null, 'spinner'),
   Text: ({ as: Tag = 'span', children, ...props }: any) =>
     React.createElement(Tag, props, children),
