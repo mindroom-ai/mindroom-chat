@@ -369,7 +369,8 @@ const findHeld = (word: string, { text, flags, starts }: PreparedText, name: boo
       let score: number = SCORE.inWord;
       if (atStart) {
         score =
-          (at === starts[0] ? SCORE.fieldStart : SCORE.wordStart) + (atEnd ? SCORE.wholeWord : 0);
+          (name && at === starts[0] ? SCORE.fieldStart : SCORE.wordStart) +
+          (atEnd ? SCORE.wholeWord : 0);
       }
       // The detail only of a place that can still be the best one.
       if (!best || score >= best.score) {
@@ -609,10 +610,12 @@ const findAbbreviation = (
 /**
  * How `word`, a typed word already folded, matches `field`: the best of the field holding it
  * (whole, at its start, at the start of a later word, inside a word), its initials, a typo, and
- * an abbreviation. `name` says the field is what a row is called by: only a name matches by
- * initials, by abbreviation, and by one or two letters inside a word. A word of more than 64
- * letters matches by neither a typo nor an abbreviation. The ranges are of the folded field
- * ({@link originalRanges}). Undefined when the word does not match.
+ * an abbreviation. `name` says the field is what a row is called by: only a name gets the
+ * start-of-field score bonus (non-name fields score every word start equally, while still scoring
+ * earlier words slightly higher in `detail` for ties), or matches by initials, by abbreviation,
+ * and by one or two letters inside a word. A word of more than 64 letters matches by neither a
+ * typo nor an abbreviation. The ranges are of the folded field ({@link originalRanges}). Undefined
+ * when the word does not match.
  */
 export const matchWord = (
   word: string,

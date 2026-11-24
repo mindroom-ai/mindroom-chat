@@ -4,6 +4,7 @@ import {
   RECENT_VISIT_PINS,
   withRecentVisits,
 } from './commandPaletteRecentVisits';
+import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import { matchCommandPaletteSection } from './commandPaletteSearch';
 
 // Rows as the palette builds them: ranked by activity, the open one (`e`) at rank 0.
@@ -40,14 +41,38 @@ describe('withRecentVisits', () => {
     expect(order(visited)).toEqual(['d', 'a', 'b', 'c', 'x', 'e']);
   });
 
-  it('boosts every visited row by 20 for typed text, past an unread row, and leaves others as they are', () => {
+  it('boosts pinned visits by 20 (above unread) and 4th+ visits by 5 (below unread)', () => {
     const visited = withRecentVisits(rows, ['d', 'x', 'c', 'a'], 'e');
 
-    expect(visited.map((row) => row.boost)).toEqual([20, 10, 20, 20, 20, 0]);
+    expect(visited.map((row) => row.boost)).toEqual([5, 10, 20, 20, 20, 0]);
     expect(visited[1]).toBe(rows[1]);
-    // Every row matches "notes" equally well: the visited ones lead, the pinned ones newest visit
-    // first, and the open one keeps no boost.
-    expect(order(visited, 'notes')).toEqual(['d', 'x', 'c', 'a', 'b', 'e']);
+    // Every row matches "notes" equally well: pinned visits (20) lead newest first, then unvisited
+    // unread (10), then the 4th+ read visit (5), then the open row (0).
+    expect(order(visited, 'notes')).toEqual(['d', 'x', 'c', 'b', 'a', 'e']);
+
+    // For rooms (unread boost 15): pinned visits (+20) beat an unvisited unread room (+15), which
+    // beats a 4th+ older visit (+5).
+    const roomRows = rows.map((row) =>
+      row.id === 'b'
+        ? {
+            ...row,
+            ...getCommandPaletteRoomRanking({
+              roomId: row.id,
+              activityRank: row.sortRank,
+              unreadTotal: 1,
+              unreadHighlights: 0,
+            }),
+          }
+        : row
+    );
+    expect(order(withRecentVisits(roomRows, ['d', 'x', 'c', 'a'], 'e'), 'notes')).toEqual([
+      'd',
+      'x',
+      'c',
+      'b',
+      'a',
+      'e',
+    ]);
   });
 
   it('returns the list itself when nothing was visited', () => {
@@ -59,8 +84,9 @@ describe('withRecentVisits', () => {
     const byId = new Map(visited.map((row) => [row.id, row]));
 
     expect(['d', 'x', 'c'].map((id) => byId.get(id)?.recentVisit)).toEqual([true, true, true]);
+    expect(['d', 'x', 'c'].map((id) => byId.get(id)?.boost)).toEqual([20, 20, 20]);
     expect(byId.get('a')?.recentVisit).toBeUndefined();
-    expect(byId.get('a')?.boost).toBe(20);
+    expect(byId.get('a')?.boost).toBe(5);
     expect(byId.get('b')?.recentVisit).toBeUndefined();
     expect(byId.get('e')?.recentVisit).toBeUndefined();
   });
