@@ -1,23 +1,24 @@
 # Two independent upstream fixes (see docs/dev/tanstack-wheel-hold-upstream.md):
-# PR 1: Hold scrollTop writes in _holdOffset while a wheel gesture is live
-#   (150ms re-armed timer when targetWindow is present, deferring 50ms while
-#   scrollTop is still moving) and flush via _flushHoldIfReady so WebKit wheel
-#   replay cannot fight prepend/resize writes.
+# PR 1: Hold scrollTop writes in _holdOffset during live wheel gestures on
+#   anchorTo: 'end' lists (150ms re-armed timer when targetWindow is present,
+#   deferring 50ms while scrollTop moves up to 1s total) and flush via
+#   _flushHoldIfReady so WebKit wheel replay cannot fight prepend/resize writes.
 # PR 2: Reconcile unseen live scrollTop mutations in applyScrollAdjustment.
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..5504509 100644
+index 186f79e..a2ee4ab 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-@@ -217,6 +217,8 @@ class Virtualizer {
+@@ -217,6 +217,9 @@ class Virtualizer {
      this.scrollOffset = null;
      this.scrollDirection = null;
      this._holdOffset = 0;
 +    this._wheelLive = false;
 +    this._wheelTimer = null;
++    this._wheelSince = 0;
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -508,6 +510,11 @@ class Virtualizer {
+@@ -508,6 +511,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -26,10 +27,11 @@ index 186f79e..5504509 100644
 +        this.targetWindow.clearTimeout(this._wheelTimer);
 +      }
 +      this._wheelTimer = null;
++      this._wheelSince = 0;
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -625,9 +632,38 @@ class Virtualizer {
+@@ -625,9 +634,42 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -38,7 +40,7 @@ index 186f79e..5504509 100644
 -            this._iosGesture.listen(this.scrollElement)
 +            this._iosGesture.listen(el)
            );
-+          // PR 1: hold scrollTop writes while a wheel gesture is live.
++          // PR 1: hold scrollTop writes during live wheel gestures on end-anchored lists.
 +          const scheduleWheelFlush = (delay) => {
 +            if (!this.targetWindow) return;
 +            this._wheelLive = true;
@@ -47,7 +49,7 @@ index 186f79e..5504509 100644
 +            }
 +            this._wheelTimer = this.targetWindow.setTimeout(() => {
 +              const live = this._readElementOffset();
-+              if (live !== null && this._lastElementOffset !== null && Math.abs(live - this._lastElementOffset) >= 1) {
++              if (live !== null && this._lastElementOffset !== null && Math.abs(live - this._lastElementOffset) >= 1 && this.now() - this._wheelSince < 1e3) {
 +                this._lastElementOffset = live;
 +                scheduleWheelFlush(50);
 +                return;
@@ -61,7 +63,11 @@ index 186f79e..5504509 100644
 +              this._retryClampedAdjustment();
 +            }, delay);
 +          };
-+          const onWheel = () => scheduleWheelFlush(150);
++          const onWheel = () => {
++            if (this.options.anchorTo !== "end") return;
++            if (!this._wheelLive) this._wheelSince = this.now();
++            scheduleWheelFlush(150);
++          };
 +          el.addEventListener("wheel", onWheel, addEventListenerOptions);
 +          this.unsubs.push(() => {
 +            el.removeEventListener("wheel", onWheel);
@@ -69,16 +75,16 @@ index 186f79e..5504509 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -705,7 +741,7 @@ class Virtualizer {
+@@ -705,7 +747,7 @@ class Virtualizer {
        }
        return null;
      };
 -    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll;
-+    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !this._wheelLive;
++    this._canWriteScroll = () => !(iosGesture.isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.anchorTo === "end");
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
-@@ -1492,14 +1528,16 @@ class Virtualizer {
+@@ -1492,14 +1534,16 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
@@ -98,19 +104,20 @@ index 186f79e..5504509 100644
        }
        return true;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..af047fd 100644
+index ef861e1..598bf58 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-@@ -216,6 +216,8 @@ class Virtualizer {
+@@ -216,6 +216,9 @@ class Virtualizer {
      this.scrollOffset = null;
      this.scrollDirection = null;
      this._holdOffset = 0;
 +    this._wheelLive = false;
 +    this._wheelTimer = null;
++    this._wheelSince = 0;
      this._reportedOverscroll = false;
      this._trailing = 0;
      this._drawnListEnd = Infinity;
-@@ -507,6 +509,11 @@ class Virtualizer {
+@@ -507,6 +510,12 @@ class Virtualizer {
        this.isScrolling = false;
        this.scrollDirection = null;
        this._holdOffset = 0;
@@ -119,10 +126,11 @@ index ef861e1..af047fd 100644
 +        this.targetWindow.clearTimeout(this._wheelTimer);
 +      }
 +      this._wheelTimer = null;
++      this._wheelSince = 0;
        this._reportedOverscroll = false;
        this._trailing = 0;
        this._clampedAdjustment = null;
-@@ -624,9 +631,38 @@ class Virtualizer {
+@@ -624,9 +633,42 @@ class Virtualizer {
            })
          );
          if ("addEventListener" in this.scrollElement) {
@@ -131,7 +139,7 @@ index ef861e1..af047fd 100644
 -            this._iosGesture.listen(this.scrollElement)
 +            this._iosGesture.listen(el)
            );
-+          // PR 1: hold scrollTop writes while a wheel gesture is live.
++          // PR 1: hold scrollTop writes during live wheel gestures on end-anchored lists.
 +          const scheduleWheelFlush = (delay) => {
 +            if (!this.targetWindow) return;
 +            this._wheelLive = true;
@@ -140,7 +148,7 @@ index ef861e1..af047fd 100644
 +            }
 +            this._wheelTimer = this.targetWindow.setTimeout(() => {
 +              const live = this._readElementOffset();
-+              if (live !== null && this._lastElementOffset !== null && Math.abs(live - this._lastElementOffset) >= 1) {
++              if (live !== null && this._lastElementOffset !== null && Math.abs(live - this._lastElementOffset) >= 1 && this.now() - this._wheelSince < 1e3) {
 +                this._lastElementOffset = live;
 +                scheduleWheelFlush(50);
 +                return;
@@ -154,7 +162,11 @@ index ef861e1..af047fd 100644
 +              this._retryClampedAdjustment();
 +            }, delay);
 +          };
-+          const onWheel = () => scheduleWheelFlush(150);
++          const onWheel = () => {
++            if (this.options.anchorTo !== "end") return;
++            if (!this._wheelLive) this._wheelSince = this.now();
++            scheduleWheelFlush(150);
++          };
 +          el.addEventListener("wheel", onWheel, addEventListenerOptions);
 +          this.unsubs.push(() => {
 +            el.removeEventListener("wheel", onWheel);
@@ -162,16 +174,16 @@ index ef861e1..af047fd 100644
          }
          this._scrollToOffset(this.getScrollOffset());
          this._readTrailing(this._elementMaxScrollOffset());
-@@ -704,7 +740,7 @@ class Virtualizer {
+@@ -704,7 +746,7 @@ class Virtualizer {
        }
        return null;
      };
 -    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll;
-+    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !this._wheelLive;
++    this._canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !(this._wheelLive && this.options.anchorTo === "end");
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
-@@ -1491,14 +1527,16 @@ class Virtualizer {
+@@ -1491,14 +1533,16 @@ class Virtualizer {
        if (this.scrollOffset !== null) this.scrollOffset += delta;
        return true;
      } else {
