@@ -422,7 +422,7 @@ describe("a plugin's public/ directory", () => {
       'sub/page.html': ['<p>A page</p>', 'text/html; charset=utf-8'],
       'worker.js': [
         "self.onmessage = () => postMessage('ok');\n",
-        'application/javascript; charset=utf-8',
+        'text/javascript; charset=utf-8',
       ],
       'C#-guide.txt': ['A guide', 'text/plain; charset=utf-8'],
     };
