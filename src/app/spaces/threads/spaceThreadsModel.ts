@@ -52,12 +52,15 @@ export const collectSpaceThreadEntries = (
   indexed: ReadonlyMap<string, CrossRoomThreadIndexEntry>,
   rooms: readonly Room[],
   roomIds: ReadonlySet<string>,
-  userId: string
+  userId: string,
+  ignoredUsers?: ReadonlySet<string>
 ): CrossRoomThreadIndexEntry[] => {
+  const isIgnored = (senderId: string | undefined): boolean =>
+    Boolean(senderId && ignoredUsers?.has(senderId));
   const entries: CrossRoomThreadIndexEntry[] = [];
   const seen = new Set<string>();
   indexed.forEach((entry) => {
-    if (!roomIds.has(entry.roomId)) return;
+    if (!roomIds.has(entry.roomId) || isIgnored(entry.rootSenderId)) return;
     entries.push(entry);
     seen.add(entry.key);
   });
@@ -66,14 +69,20 @@ export const collectSpaceThreadEntries = (
       const eventId = event.getId?.();
       if (!eventId) return;
       const key = getCrossRoomThreadIndexKey(room.roomId, eventId);
-      if (seen.has(key) || !isZeroReplyStandaloneThreadRootEvent(event)) return;
+      if (
+        seen.has(key) ||
+        isIgnored(event.getSender?.()) ||
+        !isZeroReplyStandaloneThreadRootEvent(event)
+      ) {
+        return;
+      }
       const entry = buildCrossRoomThreadIndexEntry({
         room,
         threadRootId: eventId,
         threadRootEvent: event,
         currentUserId: userId,
       });
-      if (entry) {
+      if (entry && !isIgnored(entry.rootSenderId)) {
         seen.add(key);
         entries.push(entry);
       }

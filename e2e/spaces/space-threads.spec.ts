@@ -1,6 +1,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { expect, test, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   CHROMIUM_WITH_SCROLLBARS,
@@ -141,6 +147,9 @@ const configureTheme = async (page: Page, themeId: 'dark-theme' | 'light-theme')
 
 const saveShot = async (page: Page, filename: string) => {
   if (!SHOTS_DIR) return;
+  await expect(page.getByText('Catching up...'))
+    .toBeHidden({ timeout: 10_000 })
+    .catch(() => {});
   await fs.mkdir(SHOTS_DIR, { recursive: true });
   await page.evaluate(() => document.fonts?.ready);
   await page.screenshot({ path: path.join(SHOTS_DIR, filename) });
@@ -246,31 +255,33 @@ test.describe.serial('Space Threads overview', () => {
     }
   });
 
-  test('renders cleanly in light theme and phone layout', async ({ browser }) => {
+  test('renders cleanly in light theme', async ({ browser }) => {
     const light = await openInContext(browser, DESKTOP, 'light-theme', workspace.user);
     try {
       await light.page.goto(`/${encodeURIComponent(workspace.spaceId)}/threads`);
       await expect(light.page.locator('[data-space-threads-page]')).toBeVisible({
         timeout: 20_000,
       });
-      await expect(
-        light.page.getByText('Migrate session cache to Redis cluster')
-      ).toBeVisible({ timeout: 20_000 });
+      await expect(light.page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(light.page.locator('[data-space-thread-room-badge]')).not.toHaveCount(0);
       await saveShot(light.page, 'after-space-threads-light.png');
     } finally {
       await light.context.close();
     }
+  });
 
+  test('renders cleanly in phone layout', async ({ browser }) => {
     const phone = await openInContext(browser, PHONE, 'dark-theme', workspace.user);
     try {
       await phone.page.goto(`/${encodeURIComponent(workspace.spaceId)}/threads`);
       await expect(phone.page.locator('[data-space-threads-page]')).toBeVisible({
         timeout: 20_000,
       });
-      await expect(
-        phone.page.getByText('Migrate session cache to Redis cluster')
-      ).toBeVisible({ timeout: 20_000 });
+      await expect(phone.page.getByText('Migrate session cache to Redis cluster')).toBeVisible({
+        timeout: 20_000,
+      });
       await expect(phone.page.locator('[data-space-composer-picker="true"]')).toBeVisible();
       await saveShot(phone.page, 'after-space-threads-phone.png');
     } finally {

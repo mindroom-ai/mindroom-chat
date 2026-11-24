@@ -160,8 +160,7 @@ export function SpaceThreadComposer({
     ? baseDestinations
     : [targetRoom, ...baseDestinations];
   const draftPinnedOutsideFilter = targetHasDraft && !activeSet.has(targetRoom.room.roomId);
-  const useDropdown =
-    screenSize === ScreenSize.Mobile || eligibleRooms.length > MAX_INLINE_PILLS;
+  const useDropdown = screenSize === ScreenSize.Mobile || eligibleRooms.length > MAX_INLINE_PILLS;
 
   return (
     <div

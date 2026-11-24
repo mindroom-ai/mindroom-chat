@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useStore } from 'jotai';
 import {
   MatrixEventEvent,
   RelationType,
@@ -7,33 +8,62 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
+import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { hasActiveMindroomAgent } from '../../matrix/protocol/agentIdentity';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { useSpaceNavigationRooms } from '../../matrix/state/useSpaceSearchRooms';
+import {
+  crossRoomThreadIndexAtom,
+  getCrossRoomThreadIndexKey,
+  type CrossRoomThreadIndexEntry,
+} from '../../threads/cross-room/crossRoomThreadIndex';
 import { useJoinedRoomThreadLists } from '../../threads/page/useJoinedRoomThreadLists';
 import { revealDirectionControls } from '../../ui/directional';
 import { getRoomAccentColor } from './spaceThreadsModel';
 
 const ZERO_REPLY_RESCAN_DEBOUNCE_MS = 150;
 
-const isThreadReplyOrEdit = (event: MatrixEvent | undefined): boolean => {
-  if (!event) return false;
+const shouldTriggerStandaloneRescan = (
+  event: MatrixEvent | undefined,
+  room: Room,
+  indexedEntries: ReadonlyMap<string, CrossRoomThreadIndexEntry>
+): boolean => {
+  if (!event) return true;
   const relation = event.getRelation?.();
-  if (relation?.rel_type === RelationType.Replace) return true;
+  if (relation?.rel_type === RelationType.Replace) {
+    const content = event.getContent?.();
+    if (content && isAiRunStreaming(content)) return false;
+    const targetId = relation.event_id;
+    if (!targetId || indexedEntries.has(getCrossRoomThreadIndexKey(room.roomId, targetId))) {
+      return false;
+    }
+    const target =
+      room.findEventById?.(targetId) ??
+      room
+        .getLiveTimeline?.()
+        ?.getEvents?.()
+        .find((candidate) => candidate.getId?.() === targetId);
+    return Boolean(target && isZeroReplyStandaloneThreadRootEvent(target));
+  }
   const eventId = event.getId?.();
-  if (event.threadRootId && event.threadRootId !== eventId) return true;
-  return Boolean(
-    relation?.rel_type === RelationType.Thread && relation.event_id && relation.event_id !== eventId
+  if (event.threadRootId && event.threadRootId !== eventId) return false;
+  return !(
+    relation?.rel_type === RelationType.Thread &&
+    relation.event_id &&
+    relation.event_id !== eventId
   );
 };
 
 /**
  * Resolves visible joined rooms in a Space, paginates their thread lists, tracks live room
- * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption).
+ * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption
+ * and non-streaming edits on standalone roots).
  */
 export const useSpaceThreadsRooms = (spaceId: string) => {
   const mx = useMatrixClient();
+  const store = useStore();
   const visibleSpaceRoomIds = useVisibleRooms(useSpaceNavigationRooms(spaceId));
   const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds);
   const spaceRooms = useMemo(
@@ -83,32 +113,39 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   useEffect(() => {
     if (spaceRooms.length === 0) return undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const scheduleRescan = (event?: MatrixEvent) => {
-      if (isThreadReplyOrEdit(event)) return;
+    const scheduleRescan = (event: MatrixEvent | undefined, room: Room) => {
+      if (
+        !shouldTriggerStandaloneRescan(event, room, store.get(crossRoomThreadIndexAtom).entries)
+      ) {
+        return;
+      }
       if (timer !== undefined) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = undefined;
         setTimelineTick((tick) => tick + 1);
       }, ZERO_REPLY_RESCAN_DEBOUNCE_MS);
     };
+    const bindings = spaceRooms.map((room) => {
+      const onRoomEvent = (event?: MatrixEvent) => scheduleRescan(event, room);
+      room.on?.(RoomEvent.Timeline, onRoomEvent);
+      room.on?.(RoomEvent.LocalEchoUpdated, onRoomEvent);
+      return { room, onRoomEvent };
+    });
     const onDecrypted = (event: MatrixEvent) => {
       const roomId = event.getRoomId?.();
-      if (roomId && roomMeta.ids.has(roomId)) scheduleRescan(event);
+      const room = roomId ? roomMeta.byId.get(roomId) : undefined;
+      if (room) scheduleRescan(event, room);
     };
-    spaceRooms.forEach((room) => {
-      room.on?.(RoomEvent.Timeline, scheduleRescan);
-      room.on?.(RoomEvent.LocalEchoUpdated, scheduleRescan);
-    });
     mx.on?.(MatrixEventEvent.Decrypted, onDecrypted);
     return () => {
       if (timer !== undefined) clearTimeout(timer);
-      spaceRooms.forEach((room) => {
-        room.removeListener?.(RoomEvent.Timeline, scheduleRescan);
-        room.removeListener?.(RoomEvent.LocalEchoUpdated, scheduleRescan);
+      bindings.forEach(({ room, onRoomEvent }) => {
+        room.removeListener?.(RoomEvent.Timeline, onRoomEvent);
+        room.removeListener?.(RoomEvent.LocalEchoUpdated, onRoomEvent);
       });
       mx.removeListener?.(MatrixEventEvent.Decrypted, onDecrypted);
     };
-  }, [mx, roomMeta.ids, spaceRooms]);
+  }, [mx, roomMeta.byId, spaceRooms, store]);
 
   const hasMindroomAgents = useMemo(() => {
     void metaVersion;

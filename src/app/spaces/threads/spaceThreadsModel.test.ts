@@ -295,10 +295,12 @@ describe('spaceThreadsModel', () => {
     expect(resolveActiveSpaceRoomIds(rooms, undefined)).toEqual(rooms);
 
     // Pruning drops departed rooms and normalizes empty or full sets back to All (undefined).
-    expect(pruneSpaceRoomSelection(new Set([ROOM_B, '!gone:example.org']), [ROOM_A, ROOM_B])).toEqual(
-      new Set([ROOM_B])
-    );
-    expect(pruneSpaceRoomSelection(new Set(['!gone:example.org']), [ROOM_A, ROOM_B])).toBeUndefined();
+    expect(
+      pruneSpaceRoomSelection(new Set([ROOM_B, '!gone:example.org']), [ROOM_A, ROOM_B])
+    ).toEqual(new Set([ROOM_B]));
+    expect(
+      pruneSpaceRoomSelection(new Set(['!gone:example.org']), [ROOM_A, ROOM_B])
+    ).toBeUndefined();
     expect(pruneSpaceRoomSelection(new Set([ROOM_A, ROOM_B]), [ROOM_A, ROOM_B])).toBeUndefined();
 
     // From All, toggling Room A excludes Room A.
@@ -422,5 +424,56 @@ describe('spaceThreadsModel', () => {
       '@alice:example.org'
     );
     expect(merged.map((e) => e.threadRootId)).toEqual(['$existing', '$fresh']);
+  });
+
+  it('filters out ignored users from indexed entries and standalone live roots', () => {
+    const allowedIndexed = makeEntry({
+      roomId: ROOM_A,
+      threadRootId: '$ok-indexed',
+      rootSenderId: '@alice:example.org',
+    });
+    const blockedIndexed = makeEntry({
+      roomId: ROOM_A,
+      threadRootId: '$blocked-indexed',
+      rootSenderId: '@spam:example.org',
+    });
+    const makeEvent = (id: string, sender: string, body: string) => ({
+      getId: () => id,
+      getType: () => 'm.room.message',
+      getContent: () => ({ msgtype: 'm.text', body }),
+      getSender: () => sender,
+      getTs: () => NOW,
+      getRelation: () => undefined,
+      getUnsigned: () => ({}),
+      replacingEvent: () => null,
+      isRedacted: () => false,
+    });
+    const fakeRoom = {
+      roomId: ROOM_A,
+      name: 'Engineering',
+      getLiveTimeline: () => ({
+        getEvents: () => [
+          makeEvent('$ok-root', '@alice:example.org', 'Visible root'),
+          makeEvent('$blocked-root', '@spam:example.org', 'Blocked root'),
+        ],
+        getState: () => undefined,
+      }),
+      getThread: () => undefined,
+      findEventById: () => undefined,
+      getUnfilteredTimelineSet: () => undefined,
+      currentState: { getStateEvents: () => [] },
+    } as unknown as Room;
+
+    const merged = collectSpaceThreadEntries(
+      new Map([
+        [allowedIndexed.key, allowedIndexed],
+        [blockedIndexed.key, blockedIndexed],
+      ]),
+      [fakeRoom],
+      new Set([ROOM_A]),
+      '@alice:example.org',
+      new Set(['@spam:example.org'])
+    );
+    expect(merged.map((e) => e.threadRootId)).toEqual(['$ok-indexed', '$ok-root']);
   });
 });

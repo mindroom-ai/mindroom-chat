@@ -20,7 +20,9 @@ import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
 } from '../../event-store/threads/threadFilterDsl';
+import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
+import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
@@ -57,6 +59,8 @@ import * as css from './SpaceThreads.css';
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
+  const ignoredUsers = useIgnoredUsers();
+  const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -89,8 +93,14 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 
   const allSpaceEntries = useMemo(() => {
     void timelineTick;
-    return collectSpaceThreadEntries(indexSnapshot.entries, spaceRooms, roomMeta.ids, myUserId);
-  }, [indexSnapshot.entries, myUserId, roomMeta.ids, spaceRooms, timelineTick]);
+    return collectSpaceThreadEntries(
+      indexSnapshot.entries,
+      spaceRooms,
+      roomMeta.ids,
+      myUserId,
+      ignoredUsersSet
+    );
+  }, [ignoredUsersSet, indexSnapshot.entries, myUserId, roomMeta.ids, spaceRooms, timelineTick]);
   const snoozeNow = useSnoozeNow(
     useMemo(() => allSpaceEntries.map((entry) => entry.snoozedUntilTs), [allSpaceEntries])
   );
@@ -155,10 +165,14 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     [navigateRoomThread]
   );
   const handleThreadCreated = useCallback(
-    (roomId: string, eventId: string) =>
-      getRoomThreadMode(mx.getRoom(roomId)) === 'room'
-        ? navigateRoom(roomId, eventId)
-        : navigateRoomThread(roomId, eventId),
+    (roomId: string, eventId: string) => {
+      if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') {
+        if (isConfirmedMatrixEventId(eventId)) navigateRoom(roomId, eventId);
+        else navigateRoom(roomId);
+        return;
+      }
+      navigateRoomThread(roomId, eventId);
+    },
     [mx, navigateRoom, navigateRoomThread]
   );
 
@@ -166,7 +180,8 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     !simpleMode && result.effectiveFilterState.tab && result.effectiveFilterState.tab !== 'all'
       ? result.effectiveFilterState.tab
       : undefined;
-  const showLoading = !indexSnapshot.bootstrapped && result.entries.length === 0;
+  const showLoading =
+    (!indexSnapshot.bootstrapped || !threadListsSettled) && allSpaceEntries.length === 0;
   const overviewShowsFilteredEmpty =
     result.scopedTotalCount > 0 &&
     displayEntries.length === 0 &&
@@ -225,13 +240,14 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
             state={result.effectiveFilterState}
             availableTags={result.availableTags}
             isThreadSortFrozen={Boolean(effectiveFrozenKeys)}
-            onSortDirectionChange={() =>
+            onSortDirectionChange={() => {
+              setFrozenKeys(null);
               updateFilter((prev) => ({
                 ...prev,
                 sortBy: 'lastReply',
                 sortDirection: prev.sortDirection === 'desc' ? 'asc' : 'desc',
-              }))
-            }
+              }));
+            }}
             onToggleThreadSortFreeze={() =>
               setFrozenKeys((cur) => (cur ? null : result.entries.map((entry) => entry.key)))
             }

@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter } from 'react-router-dom';
 import {
+  ClientEvent,
   MatrixEventEvent,
   RelationType,
   RoomEvent,
@@ -25,6 +26,7 @@ import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { AccountDataEvent } from '../../matrix/types/accountData';
 import { settingsAtom } from '../../preferences/settings';
 import {
   crossRoomThreadIndexAtom,
@@ -37,6 +39,7 @@ import { SpaceThreadsPage } from './SpaceThreadsPage';
 const mocks = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
+  threadListsSettled: true,
   threadListCalls: [] as Array<{ allPages: boolean; roomIds?: readonly string[] }>,
 }));
 
@@ -54,7 +57,7 @@ vi.mock('../../navigation/useRoomNavigate', () => ({
 vi.mock('../../threads/page/useJoinedRoomThreadLists', () => ({
   useJoinedRoomThreadLists: (allPages = false, roomIds?: readonly string[]) => {
     mocks.threadListCalls.push({ allPages, roomIds });
-    return true;
+    return mocks.threadListsSettled;
   },
 }));
 
@@ -68,6 +71,13 @@ vi.mock('../../composer/RoomInput', () => ({
       >
         Send
       </button>
+      <button
+        type="button"
+        data-testid="mock-send-local-echo"
+        onClick={() => props.onRoomMessageSent?.('~local-root')}
+      >
+        Send local echo
+      </button>
     </div>
   ),
 }));
@@ -77,6 +87,7 @@ vi.mock('../../threads/overview/ThreadCardBadges', () => ({
 }));
 
 const ME = '@me:example.org';
+const BLOCKED_USER = '@blocked:example.org';
 const SPACE_ID = '!space:example.org';
 const ROOM_ENG = '!eng:example.org';
 const ROOM_DES = '!des:example.org';
@@ -87,15 +98,17 @@ type Listener = (...args: unknown[]) => void;
 
 const createEmitter = () => {
   const map = new Map<string, Set<Listener>>();
+  const remove = vi.fn((event: string, fn: Listener) => {
+    map.get(event)?.delete(fn);
+  });
   return {
     on: vi.fn((event: string, fn: Listener) => {
       const set = map.get(event) ?? new Set<Listener>();
       set.add(fn);
       map.set(event, set);
     }),
-    removeListener: vi.fn((event: string, fn: Listener) => {
-      map.get(event)?.delete(fn);
-    }),
+    off: remove,
+    removeListener: remove,
     emit: (event: string, ...args: unknown[]) => {
       map.get(event)?.forEach((fn) => fn(...args));
     },
@@ -150,7 +163,8 @@ const makeRoom = (
     getMembers: () => members,
     getMember: () => null,
     getThread: () => undefined,
-    findEventById: () => undefined,
+    findEventById: (eventId: string) =>
+      (timelineEvents as Array<{ getId?: () => string }>).find((e) => e.getId?.() === eventId),
     getOldestThreadedReceiptTs: () => 0,
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     currentState: {
@@ -164,6 +178,7 @@ const makeRoom = (
       getState: () => state,
     }),
     on: emitter.on,
+    off: emitter.off,
     removeListener: emitter.removeListener,
     emit: emitter.emit,
     setName: (next: string) => {
@@ -187,7 +202,8 @@ const makeEntry = (
   roomName: string,
   threadRootId: string,
   summaryText: string,
-  lastActivityTs: number
+  lastActivityTs: number,
+  rootSenderId = ME
 ): CrossRoomThreadIndexEntry => ({
   key: getCrossRoomThreadIndexKey(roomId, threadRootId),
   roomId,
@@ -206,12 +222,12 @@ const makeEntry = (
       recentThreadSummaryText: summaryText,
       rootPreviewText: `Root: ${summaryText}`,
       latestReplyPreviewText: `Reply: ${summaryText}`,
-      lastSenderId: ME,
+      lastSenderId: rootSenderId,
       lastSenderDisplayName: 'Me',
       messageCount: 1,
-      participantIds: [ME],
-      replyParticipantIds: [ME],
-      peopleIds: [ME],
+      participantIds: [rootSenderId],
+      replyParticipantIds: [rootSenderId],
+      peopleIds: [rootSenderId],
     },
     status: {
       isKnownThreadRoot: true,
@@ -225,7 +241,7 @@ const makeEntry = (
     },
     cache: { eventCount: 2, relationSnapshotComplete: true, tailLoaded: true },
   },
-  rootSenderId: ME,
+  rootSenderId,
   lastActivityTs,
   isUnread: false,
   isResolved: false,
@@ -239,31 +255,48 @@ const makeEntry = (
   generation: 1,
 });
 
+const makeIgnoredAccountDataEvent = (userIds: string[]) => ({
+  getType: () => AccountDataEvent.IgnoredUserList,
+  getContent: () => ({
+    ignored_users: Object.fromEntries(userIds.map((id) => [id, {}])),
+  }),
+});
+
 const renderSpaceThreads = ({
   rooms,
   entries,
   bootstrapped = true,
+  threadListsSettled = true,
+  ignoredUsers = [],
   screenSize = ScreenSize.Desktop,
   store = createStore(),
 }: {
   rooms: FakeRoom[];
   entries: CrossRoomThreadIndexEntry[];
   bootstrapped?: boolean;
+  threadListsSettled?: boolean;
+  ignoredUsers?: string[];
   screenSize?: ScreenSize;
   store?: ReturnType<typeof createStore>;
 }) => {
+  mocks.threadListsSettled = threadListsSettled;
   const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
   const roomMap = new Map<string, FakeRoom>([
     [SPACE_ID, space],
     ...rooms.map((r) => [r.roomId, r] as const),
   ]);
   const clientEmitter = createEmitter();
+  let ignoredEvent =
+    ignoredUsers.length > 0 ? makeIgnoredAccountDataEvent(ignoredUsers) : undefined;
   const client = {
     getSafeUserId: () => ME,
     getUserId: () => ME,
     getRoom: (id: string) => roomMap.get(id) ?? null,
     getRooms: () => [...roomMap.values()],
+    getAccountData: (type: string) =>
+      type === (AccountDataEvent.IgnoredUserList as string) ? ignoredEvent : undefined,
     on: clientEmitter.on,
+    off: clientEmitter.off,
     removeListener: clientEmitter.removeListener,
     mxcUrlToHttp: () => null,
   } as unknown as MatrixClient;
@@ -294,7 +327,11 @@ const renderSpaceThreads = ({
       </ScreenSizeProvider>
     </Provider>
   );
-  return { ...view, store, emitClient: clientEmitter.emit };
+  const setIgnoredUsers = (nextUserIds: string[]) => {
+    ignoredEvent = makeIgnoredAccountDataEvent(nextUserIds);
+    clientEmitter.emit(ClientEvent.AccountData, ignoredEvent);
+  };
+  return { ...view, store, emitClient: clientEmitter.emit, setIgnoredUsers };
 };
 
 afterEach(() => {
@@ -302,6 +339,7 @@ afterEach(() => {
   vi.useRealTimers();
   mocks.navigateRoom.mockReset();
   mocks.navigateRoomThread.mockReset();
+  mocks.threadListsSettled = true;
   mocks.threadListCalls.length = 0;
   localStorage.clear();
 });
@@ -345,13 +383,51 @@ describe('SpaceThreadsPage', () => {
     expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng');
   });
 
-  it('navigates with navigateRoom when sending into a room-mode target room', () => {
-    const rooms = [makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true, threadMode: 'room' })];
-    renderSpaceThreads({ rooms, entries: [] });
+  it('navigates room-mode sends with confirmed IDs and omits local-echo IDs, while thread mode keeps local echoes', () => {
+    const rooms = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true, threadMode: 'room' }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true, threadMode: 'thread' }),
+    ];
+    const { container } = renderSpaceThreads({ rooms, entries: [] });
 
+    // Room mode with local-echo ~... ID opens the room without putting ~... in the URL.
+    fireEvent.click(screen.getByTestId('mock-send-local-echo'));
+    expect(mocks.navigateRoom).toHaveBeenCalledWith(ROOM_ENG);
+    expect(mocks.navigateRoomThread).not.toHaveBeenCalled();
+
+    // Room mode with confirmed $... ID passes eventId to navigateRoom.
     fireEvent.click(screen.getByTestId('mock-send-message'));
     expect(mocks.navigateRoom).toHaveBeenCalledWith(ROOM_ENG, '$sent-root');
-    expect(mocks.navigateRoomThread).not.toHaveBeenCalled();
+
+    // Thread mode still preserves local-echo navigation via navigateRoomThread.
+    fireEvent.click(container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!);
+    fireEvent.click(screen.getByTestId('mock-send-local-echo'));
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '~local-root');
+  });
+
+  it('hides blocked/ignored users threads and updates live when ignored users change', () => {
+    const rooms = [makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true })];
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$t-ok', 'Allowed thread', NOW, ME),
+      makeEntry(ROOM_ENG, 'Engineering', '$t-blocked', 'Spam thread', NOW - 500, BLOCKED_USER),
+    ];
+
+    const { container, setIgnoredUsers } = renderSpaceThreads({
+      rooms,
+      entries,
+      ignoredUsers: [BLOCKED_USER],
+    });
+    expect(screen.getByText('Allowed thread')).toBeTruthy();
+    expect(screen.queryByText('Spam thread')).toBeNull();
+    expect(container.querySelector('[data-space-room-filter-all="true"]')?.textContent).toContain(
+      '1'
+    );
+
+    // Unblocking brings it back; blocking again removes it immediately.
+    act(() => setIgnoredUsers([]));
+    expect(screen.getByText('Spam thread')).toBeTruthy();
+    act(() => setIgnoredUsers([BLOCKED_USER]));
+    expect(screen.queryByText('Spam thread')).toBeNull();
   });
 
   it('holds the composer target room for text or staged uploads and shows Draft for #room', () => {
@@ -376,7 +452,6 @@ describe('SpaceThreadsPage', () => {
     const note = container.querySelector(`[data-space-composer-draft-pinned="${ROOM_ENG}"]`);
     expect(note?.textContent).toContain('Engineering');
 
-    // Also verifies shared room upload state pins the room without any view-key split.
     cleanup();
     const uploadStore = createStore();
     uploadStore.set(composerUploadItemsAtom(ROOM_ENG, undefined), {
@@ -398,7 +473,6 @@ describe('SpaceThreadsPage', () => {
     const trigger = container.querySelector<HTMLButtonElement>(
       '[data-space-composer-picker="true"] button'
     )!;
-    // Open, close, and reopen the menu without throwing (regression for null e.currentTarget).
     fireEvent.click(trigger);
     expect(screen.getByRole('menu')).toBeTruthy();
     fireEvent.click(trigger);
@@ -406,13 +480,11 @@ describe('SpaceThreadsPage', () => {
     fireEvent.click(trigger);
     expect(screen.getByRole('menu')).toBeTruthy();
 
-    // Selecting Room 3 switches the composer target cleanly.
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Room 3' }));
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(
       '!room3:example.org'
     );
 
-    // Excluding Room 0 removes it from the dropdown options so the picker never offers refused rooms.
     fireEvent.click(container.querySelector('[data-space-room-chip="!room0:example.org"]')!);
     fireEvent.click(
       container.querySelector<HTMLButtonElement>('[data-space-composer-picker="true"] button')!
@@ -421,7 +493,7 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByRole('menuitemradio', { name: 'Room 1' })).toBeTruthy();
   });
 
-  it('disables a hidden sort lock when switching into Simple mode', () => {
+  it('disables a hidden sort lock in Simple mode and clears freeze on explicit sort direction toggle', () => {
     const rooms = [makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true })];
     const entries = [
       makeEntry(ROOM_ENG, 'Engineering', '$first', 'First thread', NOW),
@@ -440,7 +512,18 @@ describe('SpaceThreadsPage', () => {
     // Freeze sort order in Advanced mode.
     fireEvent.click(container.querySelector('[data-thread-sort-freeze="true"]')!);
 
-    // New activity makes $second newer, but frozen order holds [$first, $second].
+    // Explicit sort-direction toggle while frozen immediately reverses order and clears freeze.
+    fireEvent.click(container.querySelector('[data-sort-direction]')!);
+    expect(cardOrder()).toEqual(['$second', '$first']);
+    expect(
+      container.querySelector('[data-thread-sort-freeze="true"]')?.getAttribute('aria-pressed')
+    ).toBe('false');
+
+    // Toggle back to newest-first, re-freeze, then make $second newer.
+    fireEvent.click(container.querySelector('[data-sort-direction]')!);
+    expect(cardOrder()).toEqual(['$first', '$second']);
+    fireEvent.click(container.querySelector('[data-thread-sort-freeze="true"]')!);
+
     act(() => {
       store.set(crossRoomThreadIndexAtom, {
         entries: new Map([
@@ -467,15 +550,15 @@ describe('SpaceThreadsPage', () => {
     expect(cardOrder()).toEqual(['$second', '$first']);
   });
 
-  it('refreshes decrypted zero-reply standalone roots (debounced) and ignores streaming edits', () => {
+  it('refreshes decrypted and edited standalone roots (debounced) while ignoring streaming edits', () => {
     vi.useFakeTimers();
     let decrypted = false;
-    const encryptedEvent = {
+    let body = 'Decrypted standalone root';
+    const standaloneEvent = {
       getId: () => '$enc-root',
       getRoomId: () => ROOM_ENG,
       getType: () => (decrypted ? 'm.room.message' : 'm.room.encrypted'),
-      getContent: () =>
-        decrypted ? { msgtype: 'm.text', body: 'Decrypted standalone root' } : {},
+      getContent: () => (decrypted ? { msgtype: 'm.text', body } : {}),
       getSender: () => ME,
       getTs: () => NOW,
       getRelation: () => undefined,
@@ -485,7 +568,7 @@ describe('SpaceThreadsPage', () => {
     };
     const eng = makeRoom(ROOM_ENG, 'Engineering', {
       hasAgent: true,
-      timelineEvents: [encryptedEvent],
+      timelineEvents: [standaloneEvent],
     });
     const { emitClient } = renderSpaceThreads({ rooms: [eng], entries: [] });
     expect(screen.queryByText('Decrypted standalone root')).toBeNull();
@@ -493,8 +576,17 @@ describe('SpaceThreadsPage', () => {
     // Streaming m.replace edits do not trigger a fallback rescan.
     decrypted = true;
     const streamingEdit = {
-      getId: () => '$edit-1',
+      getId: () => '$stream-edit-1',
       getRoomId: () => ROOM_ENG,
+      getContent: () => ({
+        msgtype: 'm.text',
+        body: '* streaming',
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'streaming',
+          'io.mindroom.stream_status': 'streaming',
+        },
+      }),
       getRelation: () => ({ rel_type: RelationType.Replace, event_id: '$enc-root' }),
     };
     act(() => {
@@ -505,7 +597,7 @@ describe('SpaceThreadsPage', () => {
 
     // Decryption of the standalone root schedules a debounced rescan and reveals its decrypted body.
     act(() => {
-      emitClient(MatrixEventEvent.Decrypted, encryptedEvent);
+      emitClient(MatrixEventEvent.Decrypted, standaloneEvent);
       vi.advanceTimersByTime(100);
     });
     expect(screen.queryByText('Decrypted standalone root')).toBeNull();
@@ -513,6 +605,24 @@ describe('SpaceThreadsPage', () => {
       vi.advanceTimersByTime(100);
     });
     expect(screen.getByText('Decrypted standalone root')).toBeTruthy();
+
+    // A non-streaming m.replace edit targeting the standalone zero-reply root updates the card text.
+    body = 'Edited standalone root';
+    const userEdit = {
+      getId: () => '$user-edit-1',
+      getRoomId: () => ROOM_ENG,
+      getContent: () => ({
+        msgtype: 'm.text',
+        body: '* Edited standalone root',
+        'm.new_content': { msgtype: 'm.text', body: 'Edited standalone root' },
+      }),
+      getRelation: () => ({ rel_type: RelationType.Replace, event_id: '$enc-root' }),
+    };
+    act(() => {
+      eng.emit(RoomEvent.Timeline, userEdit);
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByText('Edited standalone root')).toBeTruthy();
   });
 
   it('prunes room selection when a room leaves, hides archived rooms, and updates on renames/members', () => {
@@ -526,14 +636,12 @@ describe('SpaceThreadsPage', () => {
     const store = createStore();
     const { container } = renderSpaceThreads({ rooms: [eng, des, ops], entries, store });
 
-    // Archive Ops: hidden immediately from the Space room filter and counts.
     act(() => {
       store.set(archivedRoomsAtom, new Set([ROOM_OPS]));
     });
     expect(container.querySelector(`[data-space-room-chip="${ROOM_OPS}"]`)).toBeNull();
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('2 rooms');
 
-    // Select Only Design, then remove Design from the Space -> selection prunes back to All.
     fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
     expect(screen.queryByText('Build failure')).toBeNull();
     act(() => {
@@ -542,7 +650,6 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByText('Build failure')).toBeTruthy();
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 room');
 
-    // Live rename and agent member arrival refresh header/chips and enable agent filter controls.
     expect(container.querySelector('[data-thread-count="true"]')).toBeNull();
     act(() => {
       eng.setName('Platform');
@@ -556,15 +663,25 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelector('[data-thread-count="true"]')).toBeTruthy();
   });
 
-  it('shows empty states for filtered-out threads, loading before bootstrap, and read-only spaces', () => {
+  it('shows empty states for filtered-out threads, loading while unsettled, and read-only spaces', () => {
     const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
     const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
     const entries = [makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW)];
 
     const { container } = renderSpaceThreads({ rooms: [eng, des], entries });
-    // Downselecting to an empty room while the space has threads shows filtered-empty, not "no threads yet".
     fireEvent.click(container.querySelector(`[data-space-room-only="${ROOM_DES}"]`)!);
     expect(container.querySelector('[data-space-threads-empty="no-matching"]')).toBeTruthy();
+
+    // Unsettled thread lists keep loading visible instead of flashing "No threads in this space yet."
+    cleanup();
+    const { container: cUnsettled } = renderSpaceThreads({
+      rooms: [eng],
+      entries: [],
+      bootstrapped: true,
+      threadListsSettled: false,
+    });
+    expect(cUnsettled.querySelector('[data-space-threads-loading="true"]')).toBeTruthy();
+    expect(cUnsettled.querySelector('[data-space-threads-empty]')).toBeNull();
 
     cleanup();
     const { container: cLoading } = renderSpaceThreads({
