@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { ClientEvent, MatrixClient, Room, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { signedModelDevices } from '../matrix/runtimeDeviceTrust';
 import contractFixture from './__fixtures__/providerUsageContract.json';
 import {
   disposeProviderUsageController,
@@ -174,16 +175,15 @@ describe('ProviderUsageController', () => {
     const controller = getProviderUsageController(mx);
     const release = controller.retain();
 
-    controller.ensureLoaded('!b:example.org');
+    controller.ensureLoaded();
     await flushMicrotasks();
 
     expect(trustMocks.sentRequests).toHaveLength(2);
-    // Preferred room is probed first.
-    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!b:example.org');
-    expect(trustMocks.sentRequests[1]!.content.room_id).toBe('!a:example.org');
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!a:example.org');
+    expect(trustMocks.sentRequests[1]!.content.room_id).toBe('!b:example.org');
 
-    const reqB = trustMocks.sentRequests[0]!.content.request_id as string;
-    const reqA = trustMocks.sentRequests[1]!.content.request_id as string;
+    const reqA = trustMocks.sentRequests[0]!.content.request_id as string;
+    const reqB = trustMocks.sentRequests[1]!.content.request_id as string;
 
     const snapB = cloneSnapshot(reqB, {
       accounts: [cloneSnapshot(reqB).accounts[0]!],
@@ -384,6 +384,190 @@ describe('ProviderUsageController', () => {
     expect(snapshotForRuntime(controller.getSnapshot(), devD)?.accounts.map((a) => a.id)).toEqual([
       'openrouter:1',
     ]);
+
+    release();
+  });
+
+  it('sends room-addressed requests to all room candidates for per-room responder election while deduplicating device lookups', async () => {
+    const router = device('@mindroom_router:example.org', 'RT1', 'curve-router');
+    const dev = device('@mindroom_dev:example.org', 'DV1', 'curve-dev');
+    const writer = device('@mindroom_writer:example.org', 'WR1', 'curve-writer');
+    trustMocks.signedDevices.set(router.userId, [router]);
+    trustMocks.signedDevices.set(dev.userId, [dev]);
+    trustMocks.signedDevices.set(writer.userId, [writer]);
+
+    // Lobby has {router, dev} (router replies); Project has {dev, writer} (dev is elected responder).
+    const lobby = makeRoom('!lobby:example.org', [
+      '@viewer:example.org',
+      router.userId,
+      dev.userId,
+    ]);
+    const project = makeRoom('!project:example.org', [
+      '@viewer:example.org',
+      dev.userId,
+      writer.userId,
+    ]);
+    const mx = makeClient([lobby, project], null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    controller.ensureLoaded();
+    await flushMicrotasks();
+
+    // Device-key lookup is deduplicated per unique user across rooms.
+    expect(vi.mocked(signedModelDevices)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(signedModelDevices).mock.calls[0]![1]).toEqual([
+      router.userId,
+      dev.userId,
+      writer.userId,
+    ]);
+
+    // Each room request is sent to every eligible device in that room, including `dev` in Project.
+    expect(trustMocks.sentRequests).toHaveLength(2);
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!lobby:example.org');
+    expect(trustMocks.sentRequests[0]!.devices.map((d) => d.userId)).toEqual([
+      router.userId,
+      dev.userId,
+    ]);
+    expect(trustMocks.sentRequests[1]!.content.room_id).toBe('!project:example.org');
+    expect(trustMocks.sentRequests[1]!.devices.map((d) => d.userId)).toEqual([
+      dev.userId,
+      writer.userId,
+    ]);
+
+    const lobbyReq = trustMocks.sentRequests[0]!.content.request_id as string;
+    const projectReq = trustMocks.sentRequests[1]!.content.request_id as string;
+
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: router.userId,
+        content: cloneSnapshot(lobbyReq, { accounts: [cloneSnapshot(lobbyReq).accounts[0]!] }),
+      },
+      encryptionInfo: { sender: router.userId, senderCurve25519KeyBase64: router.curveKey },
+    });
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: dev.userId,
+        content: cloneSnapshot(projectReq, { accounts: [cloneSnapshot(projectReq).accounts[1]!] }),
+      },
+      encryptionInfo: { sender: dev.userId, senderCurve25519KeyBase64: dev.curveKey },
+    });
+    await flushMicrotasks();
+
+    const state = controller.getSnapshot();
+    expect(state.runtimes.map((r) => r.id)).toEqual([
+      '@mindroom_router:example.org:RT1',
+      '@mindroom_dev:example.org:DV1',
+    ]);
+    expect(snapshotForRuntime(state, router)?.accounts.map((a) => a.id)).toEqual([
+      'claude_code:default',
+    ]);
+    expect(snapshotForRuntime(state, dev)?.accounts.map((a) => a.id)).toEqual(['codex:default']);
+
+    release();
+  });
+
+  it('completes lazy-member full discovery on first /usage/ ensureLoaded() after quiet startup cached runtime A', async () => {
+    const devA = device('@mindroom_alpha:example.org', 'DA', 'curve-a');
+    const devB = device('@mindroom_beta:example.org', 'DB', 'curve-b');
+    trustMocks.signedDevices.set(devA.userId, [devA]);
+    trustMocks.signedDevices.set(devB.userId, [devB]);
+
+    const roomA = makeRoom('!roomA:example.org', ['@viewer:example.org', devA.userId]);
+    const roomB = makeRoom('!roomB:example.org', ['@viewer:example.org'], {
+      lazyMembers: [devB.userId],
+    });
+    const mx = makeClient([roomA, roomB], SyncState.Syncing);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    // Quiet startup probe discovers Runtime A without hydrating lazy Room B.
+    await flushMicrotasks();
+    expect(roomB.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(trustMocks.sentRequests).toHaveLength(1);
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!roomA:example.org');
+
+    const reqA = trustMocks.sentRequests[0]!.content.request_id as string;
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: devA.userId,
+        content: cloneSnapshot(reqA, { accounts: [cloneSnapshot(reqA).accounts[0]!] }),
+      },
+      encryptionInfo: { sender: devA.userId, senderCurve25519KeyBase64: devA.curveKey },
+    });
+    await flushMicrotasks();
+    expect(controller.getSnapshot().available).toBe(true);
+    expect(controller.getSnapshot().runtimes.map((r) => r.id)).toEqual([
+      '@mindroom_alpha:example.org:DA',
+    ]);
+
+    // First explicit /usage/ visit hydrates Room B and discovers Runtime B while keeping A visible.
+    controller.ensureLoaded();
+    expect(controller.getSnapshot().available).toBe(true);
+    expect(snapshotForRuntime(controller.getSnapshot(), devA)?.accounts.map((a) => a.id)).toEqual([
+      'claude_code:default',
+    ]);
+    await flushMicrotasks();
+
+    expect(roomB.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(trustMocks.sentRequests).toHaveLength(2);
+    expect(trustMocks.sentRequests[1]!.content.room_id).toBe('!roomB:example.org');
+
+    const reqB = trustMocks.sentRequests[1]!.content.request_id as string;
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: {
+        type: USAGE_RESPONSE,
+        sender: devB.userId,
+        content: cloneSnapshot(reqB, { accounts: [cloneSnapshot(reqB).accounts[1]!] }),
+      },
+      encryptionInfo: { sender: devB.userId, senderCurve25519KeyBase64: devB.curveKey },
+    });
+    await flushMicrotasks();
+
+    const state = controller.getSnapshot();
+    expect(state.runtimes.map((r) => r.id)).toEqual([
+      '@mindroom_alpha:example.org:DA',
+      '@mindroom_beta:example.org:DB',
+    ]);
+    expect(snapshotForRuntime(state, devA)?.accounts.map((a) => a.id)).toEqual([
+      'claude_code:default',
+    ]);
+    expect(snapshotForRuntime(state, devB)?.accounts.map((a) => a.id)).toEqual(['codex:default']);
+
+    // Subsequent /usage/ visits do not re-probe once full discovery completed.
+    controller.ensureLoaded();
+    await flushMicrotasks();
+    expect(trustMocks.sentRequests).toHaveLength(2);
+
+    release();
+  });
+
+  it('probes only the requested room on ensureLoaded(roomId) without hydrating unrelated rooms', async () => {
+    const devA = device('@mindroom_alpha:example.org', 'DA', 'curve-a');
+    const devB = device('@mindroom_beta:example.org', 'DB', 'curve-b');
+    trustMocks.signedDevices.set(devA.userId, [devA]);
+    trustMocks.signedDevices.set(devB.userId, [devB]);
+
+    const unrelatedLazy = makeRoom('!unrelated:example.org', ['@viewer:example.org'], {
+      lazyMembers: [devA.userId],
+    });
+    const targetRoom = makeRoom('!target:example.org', ['@viewer:example.org'], {
+      lazyMembers: [devB.userId],
+    });
+    const mx = makeClient([unrelatedLazy, targetRoom], null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    controller.ensureLoaded('!target:example.org');
+    await flushMicrotasks();
+
+    expect(targetRoom.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(unrelatedLazy.loadMembersIfNeeded).not.toHaveBeenCalled();
+    expect(trustMocks.sentRequests).toHaveLength(1);
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!target:example.org');
 
     release();
   });

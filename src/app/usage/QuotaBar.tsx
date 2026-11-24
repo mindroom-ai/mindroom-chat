@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import { color } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { toSupportedLanguageCode } from '../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { dateTimeFormat } from '../lib/time';
 import type { ProviderAccountUsage, ProviderUsageWindow } from './providerUsageProtocol';
@@ -18,7 +19,16 @@ const PROVIDER_ACCENTS: Readonly<Record<string, string>> = {
   gemini: '#4285f4',
 };
 
-const FALLBACK_PALETTE = ['#3b82f6', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+const FALLBACK_PALETTE = [
+  '#3b82f6',
+  '#f59e0b',
+  '#ec4899',
+  '#14b8a6',
+  '#8b5cf6',
+  '#06b6d4',
+  '#84cc16',
+  '#f97316',
+];
 
 const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
 
@@ -36,16 +46,24 @@ export const providerAccentColor = (provider?: string): string => {
 export const accountChartColor = (
   account: Pick<ProviderAccountUsage, 'provider'>,
   index: number,
-  seenProviders: Set<string>
+  usedColors: Set<string>
 ): string => {
-  const key = account.provider.toLowerCase();
-  const base = PROVIDER_ACCENTS[key];
-  if (base && !seenProviders.has(key)) {
-    seenProviders.add(key);
+  const base = PROVIDER_ACCENTS[account.provider.toLowerCase()];
+  if (base && !usedColors.has(base)) {
+    usedColors.add(base);
     return base;
   }
-  return FALLBACK_PALETTE[index % FALLBACK_PALETTE.length] ?? color.Primary.Main;
+  const unused = FALLBACK_PALETTE.find((candidate) => !usedColors.has(candidate));
+  const chosen = unused ?? FALLBACK_PALETTE[index % FALLBACK_PALETTE.length] ?? color.Primary.Main;
+  usedColors.add(chosen);
+  return chosen;
 };
+
+export const formatWholePercent = (percent: number, language: string): string =>
+  new Intl.NumberFormat(language, {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  }).format(Math.round(percent) / 100);
 
 export const computePacePercent = (
   resetsAt: string | undefined,
@@ -112,12 +130,12 @@ export const formatResetCountdown = (
   return t('mindroomUi.usage.resetsAt', { time });
 };
 
-const shortWindowTag = (window: ProviderUsageWindow): string => {
+const shortWindowTag = (window: ProviderUsageWindow, language: string): string => {
   const mins = window.window_duration_mins;
   if (typeof mins === 'number' && mins > 0) {
-    if (mins >= 1440 && mins % 1440 === 0) return `${mins / 1440}d`;
-    if (mins >= 60 && mins % 60 === 0) return `${mins / 60}h`;
-    return `${mins}m`;
+    if (mins >= 1440 && mins % 1440 === 0) return formatCompactUnit(mins / 1440, 'day', language);
+    if (mins >= 60 && mins % 60 === 0) return formatCompactUnit(mins / 60, 'hour', language);
+    return formatCompactUnit(mins, 'minute', language);
   }
   return window.label;
 };
@@ -242,7 +260,8 @@ export function InlineQuotaSummary({
   account: ProviderAccountUsage;
   id?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = toSupportedLanguageCode(i18n?.resolvedLanguage ?? i18n?.language);
   if (account.windows.length === 0) return null;
 
   const shown = account.windows.slice(0, 2);
@@ -312,7 +331,7 @@ export function InlineQuotaSummary({
               </span>
             )}
             <span className={css.InlineItem} data-tone={quotaTone(remaining)} aria-hidden="true">
-              {shortWindowTag(window)} {Math.round(remaining)}%
+              {shortWindowTag(window, language)} {formatWholePercent(remaining, language)}
             </span>
           </Fragment>
         );

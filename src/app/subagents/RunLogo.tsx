@@ -4,7 +4,7 @@ import { Icon, Icons } from 'folds';
 import type { AiRunModelInfo } from '../matrix/protocol/aiRun';
 import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import { isRestartInterrupted } from '../matrix/protocol/subagentFrame';
-import { ProviderModelIcon } from '../models/ProviderModelIcon';
+import { ProviderModelIcon } from '../ui/ProviderModelIcon';
 import { AgentAvatar, type AgentProfile } from './AgentAvatar';
 import * as css from './RunLogo.css';
 

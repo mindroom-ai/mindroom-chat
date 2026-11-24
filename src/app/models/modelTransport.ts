@@ -1,6 +1,6 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { sendEncryptedToDeviceRequest } from '../matrix/runtimeToDeviceTransport';
-import { ModelRuntime } from './modelDeviceTrust';
+import { ModelRuntime } from '../matrix/runtimeDeviceTrust';
 import { MODEL_REQUEST } from './modelProtocol';
 
 export const sendModelRequest = (

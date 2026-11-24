@@ -1,4 +1,4 @@
-# Provider Usage Limits & Per-Account Token Usage — Design Spec (MindRoom Chat: Hybrid A + B)
+# Provider Usage Limits & Per-Account Token Usage - Design Spec (MindRoom Chat: Hybrid A + B)
 
 **Date:** 2026-11-23
 **Status:** Approved by Bas (Hybrid A + B: inline in Model Picker + Left Rail Usage page)
@@ -6,8 +6,8 @@
 ## Goal
 
 Display per-account provider usage limits (remaining % bars with T3-style pace ticks and reset countdowns) and 7-day token/cost usage across linked providers (Claude Code, Codex, OpenRouter, pay-as-you-go API keys) in MindRoom Chat:
-1. **Option A — Inline in Model Picker:** Compact remaining-capacity meter on each provider group header when all visible models in that provider group map to a single billing account, plus a footer button `"All usage & limits →"` that closes the picker and opens `/usage/`.
-2. **Option B — Left Rail "Usage" tab & `/usage/` page:** Dedicated rail button (progressive reveal once the backend responds with usage data, matching `CanvasesTab`; subtle amber dot only when any linked window has `<15%` remaining; toggleable in Sidebar settings via `railButtons.ts`) opening a responsive T3-style **Usage & Limits** page (`Limits` | `Tokens & Cost` tabs, pace-tick bars, reset countdowns via `Intl`, 7-day stacked daily chart, per-account token/spend table, and Refresh button).
+1. **Option A - Inline in Model Picker:** Compact remaining-capacity meter on each provider group header when all visible models in that provider group map to a single billing account, plus a footer button `"All usage & limits →"` that closes the picker and opens `/usage/`.
+2. **Option B - Left Rail "Usage" tab & `/usage/` page:** Dedicated rail button (progressive reveal once the backend responds with usage data, matching `CanvasesTab`; subtle amber dot only when any linked window has `<15%` remaining; toggleable in Sidebar settings via `railButtons.ts`) opening a responsive T3-style **Usage & Limits** page (`Limits` | `Tokens & Cost` tabs, pace-tick bars, reset countdowns via `Intl`, 7-day stacked daily chart, per-account token/spend table, and Refresh button).
 
 ## Constraints & Rules
 
@@ -26,7 +26,7 @@ Display per-account provider usage limits (remaining % bars with T3-style pace t
    - Shared contract fixture at `src/app/usage/__fixtures__/providerUsageContract.json`.
 2. **`src/app/usage/providerUsageController.ts`** + **`src/app/usage/useProviderUsage.ts`**:
    - Per-`MatrixClient` singleton owner (retained at app root alongside `useModelControllerLifetime`).
-   - Sends encrypted `io.mindroom.usage.request` to discovered signed `mindroom_*` runtime devices (reusing `signedModelDevices` from `src/app/models/modelDeviceTrust.ts`).
+   - Sends encrypted `io.mindroom.usage.request` to discovered signed `mindroom_*` runtime devices (reusing `signedModelDevices` from `src/app/matrix/runtimeDeviceTrust.ts`).
    - Exposes snapshot (`status`, `runtimes`, `selectedRuntimeId`, `snapshot`, `loading`, `refreshing`, `hasLowQuota` (`<15%` left on any window), `available`) via `useSyncExternalStore`.
    - `ensureLoaded(roomId?)` triggers lazy discovery once per session (and refreshes on explicit `refresh(true)`).
 3. **`src/app/usage/QuotaBar.tsx`** + **`QuotaBar.css.ts`** (shared primitive):

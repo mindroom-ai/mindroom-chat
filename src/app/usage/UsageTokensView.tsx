@@ -3,7 +3,7 @@ import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { dateTimeFormat } from '../lib/time';
 import type { ProviderUsageSnapshot } from './providerUsageProtocol';
-import { accountChartColor, accountDisplayTitle } from './QuotaBar';
+import { accountChartColor, accountDisplayTitle, formatWholePercent } from './QuotaBar';
 import * as css from './UsagePage.css';
 
 const UNATTRIBUTED_COLOR = '#94a3b8';
@@ -36,11 +36,11 @@ export function UsageTokensView({
 }) {
   const { t } = useTranslation();
   const colors = useMemo(() => {
-    const seen = new Set<string>();
+    const usedColors = new Set<string>();
     return new Map(
       snapshot.accounts.map((account, index) => [
         account.id,
-        accountChartColor(account, index, seen),
+        accountChartColor(account, index, usedColors),
       ])
     );
   }, [snapshot.accounts]);
@@ -61,7 +61,7 @@ export function UsageTokensView({
   const maxDayTotal = Math.max(1, ...dayTotals);
   const showUnattributed = snapshot.unattributed_tokens_7d > 0;
   const formatShare = (tokens: number): string =>
-    totalTokens > 0 ? `${Math.round((tokens / totalTokens) * 100)}%` : '0%';
+    formatWholePercent(totalTokens > 0 ? (tokens / totalTokens) * 100 : 0, language);
 
   return (
     <div data-testid="usage-tokens-view">

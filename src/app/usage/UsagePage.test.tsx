@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import contractFixture from './__fixtures__/providerUsageContract.json';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { ProviderUsageSnapshot } from './providerUsageProtocol';
-import { singleAccountForModels } from './QuotaBar';
+import { accountChartColor, formatWholePercent, singleAccountForModels } from './QuotaBar';
 import type { UseProviderUsageResult } from './useProviderUsage';
 import { UsagePage } from './UsagePage';
 
@@ -295,5 +295,64 @@ describe('UsagePage & QuotaBar', () => {
     const tableText = container.querySelector('table')?.textContent ?? '';
     expect(tableText).toContain('OpenRouter · #1');
     expect(tableText).toContain('OpenRouter · #2');
+  });
+
+  it('updates reset countdowns and pace ticks past reset on a 2-hour-old snapshot using an independent minute clock', () => {
+    // Snapshot was checked 2 hours ago (when useRelativeTime no longer ticks every minute).
+    vi.setSystemTime(new Date('2026-11-23T22:00:00Z'));
+    const snapshot = cloneFixture();
+    snapshot.checked_at = '2026-11-23T20:00:00Z';
+    snapshot.accounts[0]!.windows[0]!.resets_at = '2026-11-23T22:05:00Z';
+    renderPage(makeUsageState({ snapshot }));
+
+    const claudeCard = () => container.querySelector('[data-account-card="claude_code:default"]')!;
+    expect(claudeCard().textContent).toContain('Resets in 5m');
+
+    act(() => {
+      vi.advanceTimersByTime(2 * 60_000);
+    });
+    expect(claudeCard().textContent).toContain('Resets in 3m');
+
+    act(() => {
+      vi.advanceTimersByTime(4 * 60_000);
+    });
+    expect(claudeCard().textContent).toContain('Resets soon');
+    const firstTick = claudeCard().querySelector('[data-pace-tick]') as HTMLElement;
+    expect(firstTick.style.insetInlineStart).toBe('0%');
+
+    // Unmounting clears the countdown interval.
+    act(() => root.unmount());
+    expect(vi.getTimerCount()).toBe(0);
+    root = createRoot(container);
+  });
+
+  it('assigns distinct chart and legend colors to every account in providerUsageContract.json', () => {
+    const snapshot = cloneFixture();
+    const used = new Set<string>();
+    const allocated = snapshot.accounts.map((account, index) =>
+      accountChartColor(account, index, used)
+    );
+    expect(new Set(allocated).size).toBe(snapshot.accounts.length);
+
+    renderPage(makeUsageState({ snapshot }));
+    const tokensTab = [...container.querySelectorAll('[role="tab"]')].find((el) =>
+      el.textContent?.includes('Tokens & Cost')
+    ) as HTMLButtonElement;
+    act(() => tokensTab.click());
+
+    const legendColors = snapshot.accounts.map((account) => {
+      const dot = container.querySelector<HTMLElement>(
+        `[data-legend-account="${account.id}"] span[aria-hidden="true"]`
+      );
+      return dot?.style.backgroundColor ?? '';
+    });
+    expect(legendColors.every(Boolean)).toBe(true);
+    expect(new Set(legendColors).size).toBe(snapshot.accounts.length);
+  });
+
+  it('formats inline percentages using locale-aware Intl.NumberFormat', () => {
+    expect(formatWholePercent(62, 'en')).toBe('62%');
+    expect(formatWholePercent(62, 'tr')).toBe('%62');
+    expect(formatWholePercent(62, 'fr')).toBe('62\u00a0%');
   });
 });

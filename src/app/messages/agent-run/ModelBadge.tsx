@@ -5,7 +5,7 @@ import {
   getAiRunCompactModelLabel,
   getAiRunModelLabel,
 } from '../../matrix/protocol/aiRunModelLabel';
-import { ProviderModelIcon } from '../../models/ProviderModelIcon';
+import { ProviderModelIcon } from '../../ui/ProviderModelIcon';
 import { TipButton } from '../../ui/TipButton';
 import * as css from './ModelBadge.css';
 

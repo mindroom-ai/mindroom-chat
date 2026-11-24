@@ -25,12 +25,7 @@ import {
   USAGE_TIMEOUT,
 } from './providerUsageProtocol';
 
-export type ProviderUsageRuntime = {
-  id: string;
-  userId: string;
-  deviceId: string;
-  curveKey: string;
-};
+export type ProviderUsageRuntime = ModelRuntime;
 export type ProviderUsageStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 export type ProviderUsageState = {
   status: ProviderUsageStatus;
@@ -47,41 +42,57 @@ export type RuntimeIdentity =
   | { id?: string; userId: string; deviceId: string; curveKey: string }
   | string;
 
-type RuntimeEntry = { runtime: ProviderUsageRuntime; snapshot: ProviderUsageSnapshot };
-type ActiveQuery = { generation: number; roomId: string; devices: ModelRuntime[] };
-type DiscoveryOptions = {
-  preferredRoomId?: string;
-  forceRefresh: boolean;
-  background: boolean;
-  roomOnly: boolean;
+type ProbeRun = {
+  kind: 'startup' | 'full' | 'room';
+  roomId?: string;
+  refreshing: boolean;
+  abort: AbortController;
+  timer?: ReturnType<typeof setTimeout>;
 };
+type ActiveQuery = { run: ProbeRun; roomId: string; devices: ModelRuntime[]; answered: boolean };
 
 const MAX_PROBE_PLANS = 16;
 const MAX_ROOMS_TO_SCAN = 200;
 const HYDRATE_CONCURRENCY = 4;
 const BATCH_SIZE = 64;
-const EMPTY_RUNTIMES: readonly ProviderUsageRuntime[] = Object.freeze([]);
-const EMPTY_SNAPSHOTS: Readonly<Record<string, ProviderUsageSnapshot>> = Object.freeze({});
-
-const initialState = (): ProviderUsageState => ({
+const INITIAL_STATE: ProviderUsageState = Object.freeze({
   status: 'idle',
   available: false,
   hasLowQuota: false,
   loading: false,
   refreshing: false,
-  runtimes: EMPTY_RUNTIMES,
+  runtimes: Object.freeze([]),
   selectedRuntimeId: undefined,
   snapshot: undefined,
-  snapshotsByRuntime: EMPTY_SNAPSHOTS,
+  snapshotsByRuntime: Object.freeze({}),
 });
 
 const runtimeKeyOf = (d: Pick<ModelRuntime, 'userId' | 'deviceId'>): string =>
   `${d.userId}:${d.deviceId}`;
-const modelRuntimeKeyOf = (
-  d: Pick<ProviderUsageRuntime, 'userId' | 'deviceId' | 'curveKey'>
-): string => JSON.stringify([d.userId, d.deviceId, d.curveKey]);
 const isSyncReady = (s: SyncState | null | undefined): boolean =>
   s === SyncState.Prepared || s === SyncState.Syncing;
+const hasLoadedMembers = (room: Room): boolean =>
+  typeof room.membersLoaded !== 'function' || room.membersLoaded();
+const cohortKey = (users: readonly string[]): string => [...users].sort().join('\0');
+
+const signedDevicesByUser = async (
+  mx: MatrixClient,
+  uniqueUsers: readonly string[]
+): Promise<Map<string, ModelRuntime[]>> => {
+  const byUser = new Map<string, ModelRuntime[]>();
+  try {
+    for (let i = 0; i < uniqueUsers.length; i += BATCH_SIZE) {
+      for (const d of await signedModelDevices(mx, uniqueUsers.slice(i, i + BATCH_SIZE))) {
+        const list = byUser.get(d.userId);
+        if (list) list.push(d);
+        else byUser.set(d.userId, [d]);
+      }
+    }
+  } catch {
+    byUser.clear();
+  }
+  return byUser;
+};
 
 /** Strictly look up the snapshot for a specific authenticated runtime identity; never falls back. */
 export const snapshotForRuntime = (
@@ -89,19 +100,17 @@ export const snapshotForRuntime = (
   runtime: RuntimeIdentity | undefined
 ): ProviderUsageSnapshot | undefined => {
   if (!runtime) return undefined;
-  if (typeof runtime === 'string') {
-    const direct = state.snapshotsByRuntime[runtime];
-    if (direct) return direct;
-    const matched = state.runtimes.find((r) => modelRuntimeKeyOf(r) === runtime);
-    return matched ? state.snapshotsByRuntime[matched.id] : undefined;
+  if (typeof runtime === 'string' && state.snapshotsByRuntime[runtime]) {
+    return state.snapshotsByRuntime[runtime];
   }
-  const matched = state.runtimes.find(
-    (r) =>
-      r.userId === runtime.userId &&
-      r.deviceId === runtime.deviceId &&
-      r.curveKey === runtime.curveKey
+  const hit = state.runtimes.find((r) =>
+    typeof runtime === 'string'
+      ? JSON.stringify([r.userId, r.deviceId, r.curveKey]) === runtime
+      : r.userId === runtime.userId &&
+        r.deviceId === runtime.deviceId &&
+        r.curveKey === runtime.curveKey
   );
-  return matched ? state.snapshotsByRuntime[matched.id] : undefined;
+  return hit ? state.snapshotsByRuntime[hit.id] : undefined;
 };
 
 const controllers = new WeakMap<MatrixClient, ProviderUsageController>();
@@ -109,26 +118,21 @@ const controllers = new WeakMap<MatrixClient, ProviderUsageController>();
 export class ProviderUsageController {
   private readonly userId: string | null;
   private owners = 0;
-  private started = false;
-  private disposed = false;
-  private backgroundScheduled = false;
+  private phase: 'idle' | 'active' | 'disposed' = 'idle';
+  private startupScheduled = false;
   private hasProbedWithDevices = false;
-  private hasExplicitFullProbe = false;
+  private fullDiscoveryDone = false;
   private lastAnsweringRoomId?: string;
-  private generation = 0;
-  private inFlightAbort?: AbortController;
-  private inFlightTimer?: ReturnType<typeof setTimeout>;
-  private inFlightBackground = false;
-  private inFlightTotalDevices = 0;
-  private readonly inFlightAnswered = new Set<string>();
-  private loading = false;
-  private refreshing = false;
   private selectedRuntimeId?: string;
-  private readonly probedRoomIds = new Set<string>();
-  private readonly runtimes = new Map<string, RuntimeEntry>();
+  private readonly probedRooms = new Set<string>();
+  private readonly runtimes = new Map<
+    string,
+    { runtime: ProviderUsageRuntime; snapshot: ProviderUsageSnapshot }
+  >();
+  private readonly runs = new Set<ProbeRun>();
   private readonly queries = new Map<string, ActiveQuery>();
   private readonly listeners = new Set<() => void>();
-  private state: ProviderUsageState = initialState();
+  private state: ProviderUsageState = INITIAL_STATE;
 
   constructor(private readonly mx: MatrixClient) {
     this.userId = typeof mx.getUserId === 'function' ? mx.getUserId() : null;
@@ -148,7 +152,7 @@ export class ProviderUsageController {
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
-    if (!this.started && !this.disposed) this.start();
+    if (this.phase === 'idle') this.start();
     return () => {
       this.listeners.delete(listener);
     };
@@ -162,132 +166,109 @@ export class ProviderUsageController {
     this.publish();
   };
 
+  /** With `roomId`, runs a room-scoped probe; without it, completes one hydrated full discovery. */
   ensureLoaded = (roomId?: string): void => {
     if (!this.active()) return;
-    if (this.runtimes.size > 0) {
-      if (!roomId || this.probedRoomIds.has(roomId)) return;
-      if (this.inFlightAbort && !this.inFlightBackground) return;
-      this.startDiscovery({
-        preferredRoomId: roomId,
-        forceRefresh: false,
-        background: false,
-        roomOnly: true,
-      });
+    if (roomId) {
+      if (
+        this.probedRooms.has(roomId) ||
+        [...this.runs].some((r) => r.roomId === roomId) ||
+        [...this.queries.values()].some((q) => q.roomId === roomId)
+      )
+        return;
+      const room = typeof this.mx.getRoom === 'function' ? this.mx.getRoom(roomId) : null;
+      if (room && this.isJoinedRoom(room)) this.runProbe('room', [room], false, false, roomId);
       return;
     }
-    if (this.inFlightAbort) {
-      if (this.inFlightBackground) {
-        // Promote quiet startup probe to explicit discovery so lazy room members hydrate.
-        this.startDiscovery({
-          preferredRoomId: roomId,
-          forceRefresh: false,
-          background: false,
-          roomOnly: false,
-        });
-      }
-      return;
-    }
-    if (roomId ? this.probedRoomIds.has(roomId) : this.hasExplicitFullProbe) return;
-    this.startDiscovery({
-      preferredRoomId: roomId,
-      forceRefresh: false,
-      background: false,
-      roomOnly: false,
-    });
+    if (this.fullDiscoveryDone || [...this.runs].some((r) => r.kind === 'full')) return;
+    for (const run of [...this.runs]) if (run.kind === 'startup') this.cancelRun(run);
+    this.runProbe('full', this.orderedJoinedRooms(), false, false);
   };
 
   refresh = (force = false): void => {
     if (!this.active()) return;
-    this.probedRoomIds.clear();
-    this.startDiscovery({
-      preferredRoomId: this.lastAnsweringRoomId,
-      forceRefresh: force,
-      background: false,
-      roomOnly: false,
-    });
+    for (const run of [...this.runs]) this.cancelRun(run);
+    this.probedRooms.clear();
+    this.fullDiscoveryDone = false;
+    this.runProbe(
+      'full',
+      this.orderedJoinedRooms(this.lastAnsweringRoomId),
+      force,
+      this.runtimes.size > 0
+    );
   };
 
   private start(): void {
     if (
-      (this.started && !this.disposed) ||
+      this.phase === 'active' ||
       typeof this.mx.on !== 'function' ||
       this.mx.getSyncState?.() === SyncState.Stopped ||
       (typeof this.mx.getUserId === 'function' && this.mx.getUserId() !== this.userId)
     )
       return;
-    this.started = true;
-    this.disposed = false;
+    this.phase = 'active';
     this.mx.on(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     this.mx.on(ClientEvent.Sync, this.onSync);
     this.mx.on(CryptoEvent.DevicesUpdated, this.onDevices);
     this.mx.on(RoomMemberEvent.Membership, this.onMembership);
-    if (isSyncReady(this.mx.getSyncState?.())) this.scheduleBackgroundProbe();
+    if (isSyncReady(this.mx.getSyncState?.())) this.scheduleStartupProbe();
   }
 
   private active(): boolean {
-    if (!this.started || this.disposed) return false;
-    return typeof this.mx.getUserId !== 'function' || this.mx.getUserId() === this.userId;
+    return (
+      this.phase === 'active' &&
+      (typeof this.mx.getUserId !== 'function' || this.mx.getUserId() === this.userId)
+    );
   }
 
-  private isCurrent(gen: number): boolean {
-    return this.active() && this.generation === gen && this.inFlightAbort !== undefined;
+  private canAutoProbe(): boolean {
+    return (
+      this.active() &&
+      !this.hasProbedWithDevices &&
+      !this.fullDiscoveryDone &&
+      this.runs.size === 0 &&
+      this.runtimes.size === 0
+    );
   }
 
-  private scheduleBackgroundProbe(): void {
-    if (this.backgroundScheduled || !this.active()) return;
-    this.backgroundScheduled = true;
+  private scheduleStartupProbe(): void {
+    if (this.startupScheduled || !this.active()) return;
+    this.startupScheduled = true;
     void Promise.resolve().then(() => {
-      if (this.canAutoProbe()) {
-        this.startDiscovery({ forceRefresh: false, background: true, roomOnly: false });
-      }
+      if (this.canAutoProbe()) this.runProbe('startup', this.orderedJoinedRooms(), false, false);
     });
   }
 
-  private cancelInFlight(): void {
-    this.generation += 1;
-    clearTimeout(this.inFlightTimer);
-    this.inFlightTimer = undefined;
-    this.inFlightAbort?.abort();
-    this.inFlightAbort = undefined;
-    this.inFlightBackground = false;
-    this.inFlightTotalDevices = 0;
-    this.inFlightAnswered.clear();
-    this.queries.clear();
+  private cancelRun(run: ProbeRun): void {
+    clearTimeout(run.timer);
+    run.abort.abort();
+    this.runs.delete(run);
+    for (const [id, q] of this.queries) if (q.run === run) this.queries.delete(id);
   }
 
-  private startDiscovery(options: DiscoveryOptions): void {
-    this.cancelInFlight();
-    const gen = this.generation;
-    const abort = new AbortController();
-    this.inFlightAbort = abort;
-    this.inFlightBackground = options.background;
-    this.loading = !options.background && this.runtimes.size === 0;
-    this.refreshing = !options.background && !options.roomOnly && this.runtimes.size > 0;
+  private finishRun(run: ProbeRun): void {
+    if (!this.active() || !this.runs.has(run)) return;
+    this.cancelRun(run);
     this.publish();
-    void this.executeDiscovery(gen, abort.signal, options);
   }
 
-  private orderedJoinedRooms(preferredRoomId?: string, roomOnly = false): Room[] {
+  private isJoinedRoom(room: Room): boolean {
+    return typeof room.getMyMembership === 'function'
+      ? room.getMyMembership() === 'join'
+      : !this.userId || room.getMember(this.userId)?.membership === 'join';
+  }
+
+  private orderedJoinedRooms(preferredRoomId?: string): Room[] {
     const rooms = typeof this.mx.getRooms === 'function' ? this.mx.getRooms() : [];
-    const joined = rooms.filter((room) =>
-      typeof room.getMyMembership === 'function'
-        ? room.getMyMembership() === 'join'
-        : !this.userId || room.getMember(this.userId)?.membership === 'join'
-    );
-    const byId = new Map(joined.map((room) => [room.roomId, room]));
-    if (roomOnly) {
-      const target = preferredRoomId ? byId.get(preferredRoomId) : undefined;
-      return target ? [target] : [];
-    }
+    const byId = new Map(rooms.filter((r) => this.isJoinedRoom(r)).map((r) => [r.roomId, r]));
     const ordered: Room[] = [];
-    const take = (id?: string) => {
+    for (const id of [preferredRoomId, this.lastAnsweringRoomId]) {
       const room = id ? byId.get(id) : undefined;
-      if (!room || !id) return;
-      byId.delete(id);
-      ordered.push(room);
-    };
-    take(preferredRoomId);
-    take(this.lastAnsweringRoomId);
+      if (room && id) {
+        byId.delete(id);
+        ordered.push(room);
+      }
+    }
     for (const room of byId.values()) {
       if (ordered.length >= MAX_ROOMS_TO_SCAN) break;
       ordered.push(room);
@@ -295,108 +276,96 @@ export class ProviderUsageController {
     return ordered;
   }
 
-  private async executeDiscovery(
-    gen: number,
-    signal: AbortSignal,
-    { preferredRoomId, forceRefresh, background, roomOnly }: DiscoveryOptions
+  private runProbe(
+    kind: ProbeRun['kind'],
+    rooms: readonly Room[],
+    forceRefresh: boolean,
+    refreshing: boolean,
+    roomId?: string
+  ): void {
+    const run: ProbeRun = { kind, roomId, refreshing, abort: new AbortController() };
+    this.runs.add(run);
+    this.publish();
+    void this.probeRooms(run, rooms, forceRefresh);
+  }
+
+  private async probeRooms(
+    run: ProbeRun,
+    rooms: readonly Room[],
+    forceRefresh: boolean
   ): Promise<void> {
-    const rooms = this.orderedJoinedRooms(preferredRoomId, roomOnly);
-    const seenUsers = new Set<string>();
-    const candidatePlans: Array<{ roomId: string; users: string[] }> = [];
+    const hydrate = run.kind !== 'startup';
+    const seenCohorts = new Set<string>();
+    const candidates: Array<{ roomId: string; users: string[]; loaded: boolean }> = [];
+    let sawUnloaded = false;
 
     for (
       let i = 0;
-      i < rooms.length && candidatePlans.length < MAX_PROBE_PLANS;
+      i < rooms.length && candidates.length < MAX_PROBE_PLANS;
       i += HYDRATE_CONCURRENCY
     ) {
       const batch = rooms.slice(i, i + HYDRATE_CONCURRENCY);
-      if (!background) {
-        const toHydrate = batch.filter(
-          (room) =>
-            typeof room.membersLoaded === 'function' &&
-            !room.membersLoaded() &&
-            typeof room.loadMembersIfNeeded === 'function'
+      if (hydrate) {
+        const unloaded = batch.filter(
+          (r) => !hasLoadedMembers(r) && typeof r.loadMembersIfNeeded === 'function'
         );
-        if (toHydrate.length > 0) {
-          await Promise.allSettled(toHydrate.map((room) => room.loadMembersIfNeeded()));
-          if (!this.isCurrent(gen)) return;
+        if (unloaded.length > 0) {
+          await Promise.allSettled(unloaded.map((r) => r.loadMembersIfNeeded()));
+          if (!this.active() || !this.runs.has(run)) return;
         }
       }
       for (const room of batch) {
+        const loaded = hasLoadedMembers(room);
+        if (!loaded) sawUnloaded = true;
         const users = joinedModelCandidates(this.mx, room);
-        const newUsers = users.filter((u) => !seenUsers.has(u));
-        if (newUsers.length === 0) {
-          if (!background) this.probedRoomIds.add(room.roomId);
+        if (users.length === 0) {
+          if (loaded) this.probedRooms.add(room.roomId);
           continue;
         }
-        users.forEach((u) => seenUsers.add(u));
-        candidatePlans.push({ roomId: room.roomId, users: newUsers });
-        if (candidatePlans.length >= MAX_PROBE_PLANS) break;
+        const cohort = cohortKey(users);
+        if (seenCohorts.has(cohort)) continue;
+        seenCohorts.add(cohort);
+        candidates.push({ roomId: room.roomId, users, loaded });
+        if (candidates.length >= MAX_PROBE_PLANS) break;
       }
     }
 
-    const uniqueUsers = [...seenUsers];
-    if (!background && !roomOnly) this.hasExplicitFullProbe = true;
-    if (uniqueUsers.length === 0) return this.finishInFlight(gen);
+    if (run.kind === 'full') this.fullDiscoveryDone = true;
+    const uniqueUsers = [...new Set(candidates.flatMap((c) => c.users))];
+    if (uniqueUsers.length === 0) return this.finishRun(run);
 
-    const signed: ModelRuntime[] = [];
-    try {
-      for (let i = 0; i < uniqueUsers.length; i += BATCH_SIZE) {
-        signed.push(...(await signedModelDevices(this.mx, uniqueUsers.slice(i, i + BATCH_SIZE))));
-      }
-    } catch {
-      signed.length = 0;
-    }
-    if (!this.isCurrent(gen)) return;
+    const byUser = await signedDevicesByUser(this.mx, uniqueUsers);
+    if (!this.active() || !this.runs.has(run)) return;
 
-    const byUser = new Map<string, ModelRuntime[]>();
-    for (const d of signed) {
-      const list = byUser.get(d.userId) ?? [];
-      list.push(d);
-      byUser.set(d.userId, list);
-    }
-
-    const targeted = new Set<string>();
     const plans: Array<{ roomId: string; devices: ModelRuntime[] }> = [];
-    for (const { roomId, users } of candidatePlans) {
-      const devices: ModelRuntime[] = [];
-      for (const userId of users) {
-        for (const d of byUser.get(userId) ?? []) {
-          if (targeted.has(d.id)) continue;
-          if (roomOnly && this.runtimes.has(runtimeKeyOf(d))) continue;
-          targeted.add(d.id);
-          devices.push(d);
-        }
-      }
-      this.probedRoomIds.add(roomId);
-      if (devices.length > 0) plans.push({ roomId, devices });
+    for (const { roomId, users, loaded } of candidates) {
+      const devices = users.flatMap((u) => byUser.get(u) ?? []);
+      if (devices.length === 0) continue;
+      const covered =
+        !run.refreshing &&
+        !forceRefresh &&
+        devices.every((d) => this.runtimes.has(runtimeKeyOf(d)));
+      if (loaded) this.probedRooms.add(roomId);
+      if (!covered) plans.push({ roomId, devices });
     }
-    if (plans.length === 0) return this.finishInFlight(gen);
+    if (plans.length === 0) return this.finishRun(run);
 
+    if (run.kind !== 'room' && !sawUnloaded) this.fullDiscoveryDone = true;
     this.hasProbedWithDevices = true;
-    this.inFlightTotalDevices = targeted.size;
-    this.inFlightTimer = setTimeout(() => this.finishInFlight(gen), USAGE_TIMEOUT);
-
-    for (const plan of plans) {
+    run.timer = setTimeout(() => this.finishRun(run), USAGE_TIMEOUT);
+    for (const { roomId, devices } of plans) {
       const requestId = randomUuid();
-      this.queries.set(requestId, { generation: gen, roomId: plan.roomId, devices: plan.devices });
+      const query: ActiveQuery = { run, roomId, devices, answered: false };
+      this.queries.set(requestId, query);
       void sendEncryptedToDeviceRequest(
         this.mx,
         USAGE_REQUEST,
-        plan.devices,
-        { version: 1, request_id: requestId, room_id: plan.roomId, force_refresh: forceRefresh },
-        signal,
-        (deviceId) => this.inFlightAnswered.has(deviceId)
+        devices,
+        { version: 1, request_id: requestId, room_id: roomId, force_refresh: forceRefresh },
+        run.abort.signal,
+        () => query.answered
       );
     }
-  }
-
-  private finishInFlight(gen: number): void {
-    if (!this.isCurrent(gen)) return;
-    this.cancelInFlight();
-    this.loading = false;
-    this.refreshing = false;
-    this.publish();
   }
 
   private onResponse = (payload: ReceivedToDeviceMessage): void => {
@@ -415,111 +384,89 @@ export class ProviderUsageController {
     )
       return;
     const snapshot = parseProviderUsageResponse(message.content);
-    if (!snapshot) return;
-    const query = this.queries.get(snapshot.request_id);
-    if (!query || !this.isCurrent(query.generation)) return;
-    const device = query.devices.find(
+    const query = snapshot ? this.queries.get(snapshot.request_id) : undefined;
+    const device = query?.devices.find(
       (d) => d.userId === message.sender && d.curveKey === encryptionInfo.senderCurve25519KeyBase64
     );
     if (
+      !snapshot ||
+      !query ||
       !device ||
       !(await isCurrentModelRuntime(this.mx, device)) ||
-      !this.isCurrent(query.generation)
+      !this.active() ||
+      !this.runs.has(query.run)
     )
       return;
 
     const runtimeId = runtimeKeyOf(device);
-    this.inFlightAnswered.add(device.id);
+    query.answered = true;
     this.lastAnsweringRoomId = query.roomId;
-    this.runtimes.set(runtimeId, {
-      runtime: {
-        id: runtimeId,
-        userId: device.userId,
-        deviceId: device.deviceId,
-        curveKey: device.curveKey,
-      },
-      snapshot,
-    });
+    this.runtimes.set(runtimeId, { runtime: { ...device, id: runtimeId }, snapshot });
     if (!this.selectedRuntimeId || !this.runtimes.has(this.selectedRuntimeId))
       this.selectedRuntimeId = runtimeId;
-
-    this.loading = false;
-    if (this.refreshing && this.selectedRuntimeId === runtimeId) this.refreshing = false;
-    if (this.inFlightAnswered.size >= this.inFlightTotalDevices)
-      return this.finishInFlight(query.generation);
+    if (query.run.refreshing && this.selectedRuntimeId === runtimeId) query.run.refreshing = false;
     this.publish();
-  }
-
-  private canAutoProbe(): boolean {
-    return (
-      this.active() && !this.hasProbedWithDevices && !this.inFlightAbort && this.runtimes.size === 0
-    );
   }
 
   private onSync = (state: SyncState): void => {
     if (state === SyncState.Stopped) this.dispose();
-    else if (isSyncReady(state)) this.scheduleBackgroundProbe();
+    else if (isSyncReady(state)) this.scheduleStartupProbe();
   };
 
   private onDevices = (users: string[]): void => {
     if (!this.canAutoProbe()) return;
-    const candidates = new Set(
-      this.orderedJoinedRooms().flatMap((room) => joinedModelCandidates(this.mx, room))
-    );
-    if (users.some((id) => candidates.has(id))) {
-      this.startDiscovery({ forceRefresh: false, background: true, roomOnly: false });
-    }
+    const rooms = this.orderedJoinedRooms();
+    const candidates = new Set(rooms.flatMap((r) => joinedModelCandidates(this.mx, r)));
+    if (users.some((id) => candidates.has(id))) this.runProbe('startup', rooms, false, false);
   };
 
   private onMembership = (_event: unknown, member: RoomMember): void => {
-    if (!this.canAutoProbe() || member.membership !== 'join') return;
+    if (member.membership !== 'join') return;
     const room = typeof this.mx.getRoom === 'function' ? this.mx.getRoom(member.roomId) : null;
-    if (room && joinedModelCandidates(this.mx, room).includes(member.userId)) {
-      this.startDiscovery({
-        preferredRoomId: room.roomId,
-        forceRefresh: false,
-        background: true,
-        roomOnly: false,
-      });
-    }
+    if (!room || !joinedModelCandidates(this.mx, room).includes(member.userId)) return;
+    this.probedRooms.delete(room.roomId);
+    this.fullDiscoveryDone = false;
+    if (this.canAutoProbe())
+      this.runProbe('startup', this.orderedJoinedRooms(room.roomId), false, false);
   };
 
   private publish(): void {
     const entries = [...this.runtimes.values()];
     const available = entries.length > 0;
+    const loading = !available && [...this.runs].some((r) => r.kind !== 'startup');
+    const refreshing = available && [...this.runs].some((r) => r.refreshing);
     const selected =
       (this.selectedRuntimeId ? this.runtimes.get(this.selectedRuntimeId) : undefined) ??
       entries[0];
     this.selectedRuntimeId = selected?.runtime.id;
     const status: ProviderUsageStatus = available
       ? 'ready'
-      : this.loading
+      : loading
       ? 'loading'
       : this.hasProbedWithDevices
       ? 'unavailable'
       : 'idle';
-    const snapshotsByRuntime: Record<string, ProviderUsageSnapshot> = {};
-    for (const [id, entry] of this.runtimes) snapshotsByRuntime[id] = entry.snapshot;
     this.state = {
       status,
       available,
-      hasLowQuota: entries.some((entry) => hasLowQuotaInSnapshot(entry.snapshot)),
-      loading: this.loading,
-      refreshing: this.refreshing,
-      runtimes: available ? entries.map((entry) => entry.runtime) : EMPTY_RUNTIMES,
+      hasLowQuota: entries.some((e) => hasLowQuotaInSnapshot(e.snapshot)),
+      loading,
+      refreshing,
+      runtimes: available ? entries.map((e) => e.runtime) : INITIAL_STATE.runtimes,
       selectedRuntimeId: this.selectedRuntimeId,
       snapshot: selected?.snapshot,
-      snapshotsByRuntime: available ? snapshotsByRuntime : EMPTY_SNAPSHOTS,
+      snapshotsByRuntime: available
+        ? Object.fromEntries(entries.map((e) => [e.runtime.id, e.snapshot]))
+        : INITIAL_STATE.snapshotsByRuntime,
     };
     this.listeners.forEach((listener) => listener());
   }
 
   dispose = (): void => {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.cancelInFlight();
-    this.loading = false;
-    this.refreshing = false;
+    if (this.phase === 'disposed') return;
+    this.phase = 'disposed';
+    this.startupScheduled = false;
+    for (const run of [...this.runs]) this.cancelRun(run);
     if (typeof this.mx.removeListener === 'function') {
       this.mx.removeListener(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
       this.mx.removeListener(ClientEvent.Sync, this.onSync);
@@ -530,11 +477,10 @@ export class ProviderUsageController {
 }
 
 export const getProviderUsageController = (mx: MatrixClient): ProviderUsageController => {
-  let controller = controllers.get(mx);
-  if (!controller) {
-    controller = new ProviderUsageController(mx);
-    controllers.set(mx, controller);
-  }
+  const existing = controllers.get(mx);
+  if (existing) return existing;
+  const controller = new ProviderUsageController(mx);
+  controllers.set(mx, controller);
   return controller;
 };
 

@@ -16,6 +16,19 @@ import * as css from './UsagePage.css';
 
 type UsageTabId = 'limits' | 'tokens';
 
+const COUNTDOWN_TICK_MS = 60_000;
+
+const useMinuteClock = (active: boolean, resetKey?: string): number => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    setNow(Date.now());
+    if (!active) return undefined;
+    const id = window.setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [active, resetKey]);
+  return now;
+};
+
 const isPayAsYouGo = (account: ProviderAccountUsage): boolean => {
   const label = `${account.plan ?? ''} ${account.account_label ?? ''}`.toLowerCase();
   return (
@@ -120,7 +133,10 @@ export function UsagePage() {
 
   const checkedAtMs = usage.snapshot ? Date.parse(usage.snapshot.checked_at) : Number.NaN;
   const relativeUpdated = useRelativeTime(Number.isFinite(checkedAtMs) ? checkedAtMs : undefined);
-  const now = Date.now();
+  const now = useMinuteClock(
+    Boolean(usage.snapshot) && activeTab === 'limits',
+    usage.snapshot?.checked_at
+  );
 
   return (
     <Page data-testid="usage-view">

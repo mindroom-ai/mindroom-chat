@@ -32,7 +32,7 @@ import {
   isCurrentModelRuntime,
   joinedModelCandidates,
   signedModelDevices,
-} from './modelDeviceTrust';
+} from '../matrix/runtimeDeviceTrust';
 import { sendModelRequest } from './modelTransport';
 import { loadRoomCatalogs, ROOM_CATALOG_LIMIT, type RoomCatalog } from './modelCatalogStorage';
 import { randomUuid } from '../lib/randomUuid';
