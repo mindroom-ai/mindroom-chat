@@ -276,13 +276,13 @@ test('a thread opened for the first time paints its replies once, its long reply
   });
   await page.getByRole('link', { name: roomName }).first().click();
   // Backfill loads Room note 1..15 and can push this older thread into the trailing compact block
-  // ("N more threads"). Wait for Room note 2 (from backfill) and expand the spacer before clicking.
+  // ("N more threads"). Wait for backfill to land (Room note 2), then scroll the compact list to
+  // the bottom so the trailing block mounts and stays attached before clicking.
   await expect(page.getByText('Room note 2', { exact: true })).toBeVisible({ timeout: 60_000 });
+  await page.locator('[data-compact-room-view]').evaluate((view) => {
+    view.scrollTop = view.scrollHeight;
+  });
   const card = page.locator(`[data-thread-root-id="${rootId}"]`);
-  const spacer = page.locator('[data-compact-spacer]').last();
-  if (await spacer.isVisible().catch(() => false)) {
-    await spacer.click();
-  }
   await expect(card).toBeVisible({ timeout: 60_000 });
 
   const stopScreencast = SHOTS ? await recordScreencast(page, `${SHOTS}/first-open`) : undefined;
