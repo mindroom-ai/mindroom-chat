@@ -828,11 +828,13 @@ it('sends typing, paste, and Escape inside the beside thread column to Reply, wh
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(message);
 
-  (document.activeElement as HTMLElement).blur();
+  fireEvent.blur(message);
+  message.blur();
   fireEvent.keyDown(document.body, { key: 'v', code: 'KeyV', metaKey: true });
   expect(document.activeElement).toBe(message);
 
-  (document.activeElement as HTMLElement).blur();
+  fireEvent.blur(message);
+  message.blur();
   expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
   expect(document.activeElement).toBe(message);
 });
