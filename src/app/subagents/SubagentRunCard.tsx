@@ -1,4 +1,3 @@
-import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -292,12 +291,7 @@ type CardProps = {
  * time. Without the usage details (`showUsageDetails`) it shows nothing it used; its model stays.
  * Pressing it opens the sub-agent.
  */
-export const SubagentRunCard = memo(function SubagentRunCard({
-  room,
-  node,
-  now,
-  onOpen,
-}: CardProps) {
+export function SubagentRunCard({ room, node, now, onOpen }: CardProps) {
   const { t } = useTranslation();
   const run = latestTurn(node);
   const { meta } = run;
@@ -350,4 +344,4 @@ export const SubagentRunCard = memo(function SubagentRunCard({
       <RunStats node={node} now={now} />
     </button>
   );
-});
+}

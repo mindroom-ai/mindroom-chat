@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { FocusTrap } from 'focus-trap-react';
@@ -125,12 +125,9 @@ export function CommandPaletteRenderer() {
   const [openTab, setOpenTab] = useAtom(commandPaletteOpenAtom);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const close = useCallback(() => setOpenTab(undefined), [setOpenTab]);
-  const setOpen = useCallback(
-    (nextOpen: boolean) => setOpenTab(nextOpen ? 'all' : undefined),
-    [setOpenTab]
-  );
-  const closeLogout = useCallback(() => setLogoutOpen(false), []);
+  const close = () => setOpenTab(undefined);
+  const setOpen = (nextOpen: boolean) => setOpenTab(nextOpen ? 'all' : undefined);
+  const closeLogout = () => setLogoutOpen(false);
 
   useCommandPaletteHotkey(openTab !== undefined, setOpen, matchesPaletteShortcut);
 

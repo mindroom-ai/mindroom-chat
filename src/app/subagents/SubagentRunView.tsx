@@ -11,6 +11,8 @@ import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatWorkDuration } from '../lib/time';
+import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
+import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import {
   isActiveSubagentStatus,
@@ -89,12 +91,6 @@ function RunMessage({
   );
 }
 
-/** The documents as a reply's content, for `RenderMessageContent`: Markdown once its renderer is in. */
-const useDocsContent = (docs: LiveDocs, markdownReady: boolean) => {
-  const content = useMemo(() => liveDocsContent(docs, markdownReady), [docs, markdownReady]);
-  return useCallback(() => content, [content]) as <T>() => T;
-};
-
 type TurnProps = {
   room: Room;
   turn: SubagentTurn;
@@ -115,6 +111,7 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   const { meta } = run;
   const agent = useAgentProfile(room, meta.agent);
   const caller = useAgentProfile(room, meta.caller);
+  const markdownReady = useLiveMarkdownReady();
   // Only the newest turn, running, shows the typing dots: one waiting for approval still has
   // `streaming` documents and a paused or ended one `pending`, and both would read as a reply about
   // to stream. A run that wrote nothing answers with its result, unless that says why it failed.
@@ -124,35 +121,31 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
     meta.status === 'failed' || meta.status === 'cancelled' || meta.status === 'denied';
   const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
   const interrupted = isRestartInterrupted(meta);
-  const docs = useMemo((): LiveDocs => {
-    const status = working ? run.docs.status : 'completed';
-    // An ended turn (or an older turn whose end frame was missed) cannot still run a tool call;
-    // settle any lingering started entries so the transcript and cog stop spinning.
-    const tools =
-      ended && run.docs.tools.some((tool) => tool.type === 'tool_call_started')
-        ? run.docs.tools.map((tool) =>
-            tool.type === 'tool_call_started'
-              ? {
-                  ...tool,
-                  type: 'tool_call_completed',
-                  ...(didNotComplete ? { is_error: true } : {}),
-                }
-              : tool
-          )
-        : run.docs.tools;
-    const quiet = run.docs.md === '' && tools.length === 0;
-    return quiet && meta.result && !failed
+  const status = working ? run.docs.status : 'completed';
+  // An ended turn (or an older turn whose end frame was missed) cannot still run a tool call;
+  // settle any lingering started entries so the transcript and cog stop spinning.
+  const tools =
+    ended && run.docs.tools.some((tool) => tool.type === 'tool_call_started')
+      ? run.docs.tools.map((tool) =>
+          tool.type === 'tool_call_started'
+            ? {
+                ...tool,
+                type: 'tool_call_completed',
+                ...(didNotComplete ? { is_error: true } : {}),
+              }
+            : tool
+        )
+      : run.docs.tools;
+  const quiet = run.docs.md === '' && tools.length === 0;
+  const docs: LiveDocs =
+    quiet && meta.result && !failed
       ? { ...run.docs, md: meta.result, status, tools }
       : { ...run.docs, status, tools };
-  }, [didNotComplete, ended, failed, meta.result, run.docs, working]);
-  const markdownReady = useLiveMarkdownReady();
   const { task } = meta;
-  const taskHtml = useMemo(
-    () => (task && markdownReady ? renderLiveMarkdown(task) : undefined),
-    [markdownReady, task]
-  );
-  const taskDirection = useMemo(() => (task ? textDirection(task) : undefined), [task]);
-  const getContent = useDocsContent(docs, markdownReady);
+  const taskHtml = task && markdownReady ? renderLiveMarkdown(task) : undefined;
+  const taskDirection = task ? textDirection(task) : undefined;
+  const content = liveDocsContent(docs, markdownReady);
+  const getContent = (() => content) as <T>() => T;
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
   const wrote = docs.md !== '' || docs.tools.length > 0 || working;
 
@@ -373,6 +366,9 @@ export function SubagentRunView({
   preview = false,
 }: ViewProps) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  // Re-render when lazy room members arrive, since compiled SubagentsPanel caches this element.
+  useLoadedRoomMembers(mx, [room.roomId]);
   const language = useAppLanguageCode();
   const { navigateRoomThread } = useRoomNavigate();
   const newest = latestTurn(node);

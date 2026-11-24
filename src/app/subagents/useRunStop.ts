@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -44,12 +44,12 @@ export const useRunStop = (
   const job = jobOfRun(jobs, runs, run);
   const [failedJob, setFailedJob] = useState<string>();
   const stopping = !!job && (job.status === 'cancel_requested' || sent.has(job.jobId));
-  const send = useCallback(async () => {
+  const send = async () => {
     if (!job) return;
     setFailedJob(undefined);
     const { jobId, threadId } = job;
     if (!(await stopBackgroundJobs(mx, room, threadId, { jobId }, [jobId]))) setFailedJob(jobId);
-  }, [job, mx, room]);
+  };
   return {
     ...(job && canCancel && !stopping ? { stop: () => void send() } : {}),
     stopping,

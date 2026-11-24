@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -134,7 +126,9 @@ export function SubagentsPanel({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const roomRuns = useRoomSubagentRuns(room.roomId);
-  const runs = useMemo(() => runsStartedIn(roomRuns, threadId), [roomRuns, threadId]);
+  const runs = runsStartedIn(roomRuns, threadId);
+  // Keep useMemo on nodes and byId: byId is an effect dep and both cross hook calls below;
+  // without these freeze boundaries the compiler prunes memoization for runs, totals and list JSX.
   const nodes = useMemo(() => nestSubagents(runs), [runs]);
   const byId = useMemo(() => subagentsById(nodes), [nodes]);
   const active = countActiveSubagents(runs);
@@ -161,10 +155,10 @@ export function SubagentsPanel({
   }, [open, openId]);
   // Back gives focus to the card of the sub-agent it closed, as the reader left it.
   const [returnTo, setReturnTo] = useState<string | null>(null);
-  const back = useCallback(() => {
+  const back = () => {
     setReturnTo(open?.id ?? null);
     setOpenId(open?.parent ?? null);
-  }, [open]);
+  };
   const [peekingBack, setPeekingBack] = useState(false);
   const underLayerRef = useRef<HTMLDivElement>(null);
   const detailLayerRef = useRef<HTMLDivElement>(null);
@@ -174,89 +168,90 @@ export function SubagentsPanel({
   }, [open, peekingBack]);
   const openRef = useLatestRef(open);
   const backRef = useLatestRef(back);
-  const beginDetailBack = useCallback(
-    ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
-      const currentOpen = openRef.current;
-      const rootEl = section.current;
-      const detailEl = detailLayerRef.current;
-      if (!currentOpen || !rootEl || !detailEl) return null;
-      const extent = rootEl.getBoundingClientRect().width;
-      if (extent <= 0) return null;
+  const beginDetailBack = ({
+    dirSign,
+  }: {
+    axisSign: 1 | -1;
+    dirSign: 1 | -1;
+  }): InteractiveSwipeScene | null => {
+    const currentOpen = openRef.current;
+    const rootEl = section.current;
+    const detailEl = detailLayerRef.current;
+    if (!currentOpen || !rootEl || !detailEl) return null;
+    const extent = rootEl.getBoundingClientRect().width;
+    if (extent <= 0) return null;
 
-      const startOpenId = currentOpen.id;
-      flushSync(() => setPeekingBack(true));
-      const underEl = underLayerRef.current;
-      if (!underEl) {
-        flushSync(() => setPeekingBack(false));
-        return null;
-      }
+    const startOpenId = currentOpen.id;
+    flushSync(() => setPeekingBack(true));
+    const underEl = underLayerRef.current;
+    if (!underEl) {
+      flushSync(() => setPeekingBack(false));
+      return null;
+    }
 
-      detailEl.dataset.swiping = '';
-      detailEl.dataset.swipeShadow = '';
-      underEl.dataset.swiping = '';
+    detailEl.dataset.swiping = '';
+    detailEl.dataset.swipeShadow = '';
+    underEl.dataset.swiping = '';
 
-      const applyPositions = (offsetPx: number, progress: number) => {
-        detailEl.style.translate = `${offsetPx * dirSign}px 0`;
-        underEl.style.translate = `${-0.3 * extent * (1 - progress) * dirSign}px 0`;
-      };
-      applyPositions(0, 0);
+    const applyPositions = (offsetPx: number, progress: number) => {
+      detailEl.style.translate = `${offsetPx * dirSign}px 0`;
+      underEl.style.translate = `${-0.3 * extent * (1 - progress) * dirSign}px 0`;
+    };
+    applyPositions(0, 0);
 
-      const clearStyles = () => {
-        delete detailEl.dataset.swiping;
-        delete detailEl.dataset.swipeShadow;
-        detailEl.style.translate = '';
-        delete underEl.dataset.swiping;
-        underEl.style.translate = '';
-      };
+    const clearStyles = () => {
+      delete detailEl.dataset.swiping;
+      delete detailEl.dataset.swipeShadow;
+      detailEl.style.translate = '';
+      delete underEl.dataset.swiping;
+      underEl.style.translate = '';
+    };
 
-      return {
-        extent,
-        update(offsetPx, progress) {
-          applyPositions(offsetPx, progress);
-        },
-        settle(commit, durationMs, currentOffsetPx) {
-          const currentProgress =
-            extent > 0 ? Math.min(1, Math.max(0, currentOffsetPx / extent)) : 0;
-          const startDetailX = currentOffsetPx * dirSign;
-          const targetDetailX = (commit ? extent : 0) * dirSign;
-          const startUnderX = -0.3 * extent * (1 - currentProgress) * dirSign;
-          const targetUnderX = (commit ? 0 : -0.3 * extent) * dirSign;
-          return animateSwipeElements(
-            [
-              {
-                element: detailEl,
-                keyframes: [
-                  { translate: `${startDetailX}px 0` },
-                  { translate: `${targetDetailX}px 0` },
-                ],
-              },
-              {
-                element: underEl,
-                keyframes: [
-                  { translate: `${startUnderX}px 0` },
-                  { translate: `${targetUnderX}px 0` },
-                ],
-              },
-            ],
-            durationMs
-          );
-        },
-        commit() {
-          if (openRef.current?.id !== startOpenId) return;
-          flushSync(() => {
-            setPeekingBack(false);
-            backRef.current();
-          });
-          clearStyles();
-        },
-        cleanup() {
-          clearStyles();
+    return {
+      extent,
+      update(offsetPx, progress) {
+        applyPositions(offsetPx, progress);
+      },
+      settle(commit, durationMs, currentOffsetPx) {
+        const currentProgress = extent > 0 ? Math.min(1, Math.max(0, currentOffsetPx / extent)) : 0;
+        const startDetailX = currentOffsetPx * dirSign;
+        const targetDetailX = (commit ? extent : 0) * dirSign;
+        const startUnderX = -0.3 * extent * (1 - currentProgress) * dirSign;
+        const targetUnderX = (commit ? 0 : -0.3 * extent) * dirSign;
+        return animateSwipeElements(
+          [
+            {
+              element: detailEl,
+              keyframes: [
+                { translate: `${startDetailX}px 0` },
+                { translate: `${targetDetailX}px 0` },
+              ],
+            },
+            {
+              element: underEl,
+              keyframes: [
+                { translate: `${startUnderX}px 0` },
+                { translate: `${targetUnderX}px 0` },
+              ],
+            },
+          ],
+          durationMs
+        );
+      },
+      commit() {
+        if (openRef.current?.id !== startOpenId) return;
+        flushSync(() => {
           setPeekingBack(false);
-        },
-      };
-    },
-    [backRef, openRef]
-  );
+          backRef.current();
+        });
+        clearStyles();
+      },
+      cleanup() {
+        clearStyles();
+        setPeekingBack(false);
+      },
+    };
+  };
   // On a phone the panel covers the conversation, whose thread then leaves its back swipe: inside a
   // Room, Room owns closing from the list while a detail run outranks it to go back interactively.
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
@@ -279,21 +274,17 @@ export function SubagentsPanel({
 
   const useAuthentication = useMediaAuthentication();
   const openMention = useMentionClickHandler(room.roomId);
-  const parserOptions = useMemo(
-    () =>
-      getReactCustomHtmlParser(mx, room.roomId, {
-        linkifyOpts: LINKIFY_OPTS,
-        useAuthentication,
-        handleMentionClick: openMention,
-      }),
-    [mx, openMention, room.roomId, useAuthentication]
-  );
+  const parserOptions = getReactCustomHtmlParser(mx, room.roomId, {
+    linkifyOpts: LINKIFY_OPTS,
+    useAuthentication,
+    handleMentionClick: openMention,
+  });
   const title = t('mindroomUi.subagents.title');
   // Under the title: how many are at it, then what every run of the conversation used, which only
   // the usage details show.
   const language = useAppLanguageCode();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
-  const totals = useMemo(() => runTotals(runs.map(({ meta }) => meta.usage)), [runs]);
+  const totals = runTotals(runs.map(({ meta }) => meta.usage));
   const { calls, tokens, cost } = usageTexts(details ? totals : {}, t, language);
   const subtitle = [
     active > 0 && t('mindroomUi.subagents.count', { count: active }),

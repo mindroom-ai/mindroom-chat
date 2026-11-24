@@ -120,6 +120,9 @@ export const hasEncryptedRooms = (
  * hits of an older one; the query it replaces aborts its request.
  */
 export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabled) => {
+  // React Compiler drops the `void membersLoaded` invalidation dependency from `items`, which
+  // reads mutable matrix-js-sdk Room member state via client.getRoom(roomId).
+  'use no memo';
   const client = useMatrixClient();
   const { t } = useTranslation();
   const navigate = useNavigate();

@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -52,14 +51,11 @@ export const useStartDirectChat = (): ((userId: string) => Promise<void>) => {
   const navigate = useNavigate();
   // Create Chat sets its power levels for the server's default room version too.
   const version = useCapabilities()['m.room_versions']?.default;
-  return useCallback(
-    async (userId: string) => {
-      const roomId =
-        findDirectRoom(client, userId) ?? (await createDirectRoom(client, userId, { version }));
-      void navigate(getDirectRoomPath(roomId));
-    },
-    [client, navigate, version]
-  );
+  return async (userId: string) => {
+    const roomId =
+      findDirectRoom(client, userId) ?? (await createDirectRoom(client, userId, { version }));
+    void navigate(getDirectRoomPath(roomId));
+  };
 };
 
 /** The HTTP URL of a person's avatar for a palette row, if they have one. */
@@ -116,40 +112,37 @@ export const useCommandPalettePeople: UseCommandPalettePeople = (text, enabled) 
   const found = status === 'done' ? directory.data : undefined;
   const offerTyped = (status === 'done' || status === 'error') && typedId !== undefined;
   const typedInfo = offerTyped ? profile.data : undefined;
-  const items = useMemo(() => {
-    const toItem = (user: ServerUserDirectoryUser, typed: boolean) => {
-      const localpart = getMxIdLocalPart(user.userId) ?? user.userId;
-      const item: ExecutableCommandPaletteUserItem = {
-        id: `user:${user.userId}`,
-        kind: 'user',
-        userId: user.userId,
-        displayName: user.displayName ?? localpart,
-        localpart,
-        avatarUrl: getCommandPaletteAvatarUrl(client, user.avatarMxcUrl, useAuthentication),
-        typedId: typed || undefined,
-        startChat: () => startChat(user.userId),
-      };
-      return item;
+  const toItem = (user: ServerUserDirectoryUser, typed: boolean) => {
+    const localpart = getMxIdLocalPart(user.userId) ?? user.userId;
+    const item: ExecutableCommandPaletteUserItem = {
+      id: `user:${user.userId}`,
+      kind: 'user',
+      userId: user.userId,
+      displayName: user.displayName ?? localpart,
+      localpart,
+      avatarUrl: getCommandPaletteAvatarUrl(client, user.avatarMxcUrl, useAuthentication),
+      typedId: typed || undefined,
+      startChat: () => startChat(user.userId),
     };
-    const users = normalizeUserDirectoryUsers(found?.results ?? []).filter(
-      (user) => user.userId !== myUserId
+    return item;
+  };
+  const users = normalizeUserDirectoryUsers(found?.results ?? []).filter(
+    (user) => user.userId !== myUserId
+  );
+  const items = users.map((user) => toItem(user, false));
+  if (offerTyped && typedId && !users.some((user) => user.userId === typedId)) {
+    // A failed lookup still offers the row, with the ID alone.
+    items.push(
+      toItem(
+        {
+          userId: typedId,
+          displayName: typedInfo?.displayname || undefined,
+          avatarMxcUrl: typedInfo?.avatar_url || undefined,
+        },
+        true
+      )
     );
-    const rows = users.map((user) => toItem(user, false));
-    if (offerTyped && typedId && !users.some((user) => user.userId === typedId)) {
-      // A failed lookup still offers the row, with the ID alone.
-      rows.push(
-        toItem(
-          {
-            userId: typedId,
-            displayName: typedInfo?.displayname || undefined,
-            avatarMxcUrl: typedInfo?.avatar_url || undefined,
-          },
-          true
-        )
-      );
-    }
-    return rows;
-  }, [client, found, myUserId, offerTyped, startChat, typedId, typedInfo, useAuthentication]);
+  }
 
-  return useMemo(() => ({ status, items }), [items, status]);
+  return { status, items };
 };

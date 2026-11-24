@@ -18,6 +18,9 @@ export type AgentProfile = { name: string; colorId: string; avatarSrc?: string }
  * (`mindroom_<agent>`, or `mindroom_<agent>_<namespace>`), or the name itself.
  */
 export const useAgentProfile = (room: Room, agent: string): AgentProfile => {
+  // matrix-js-sdk mutates Room's member table in place when loadMembersIfNeeded resolves;
+  // memoizing on room reference freezes pre-load fallback names and avatars.
+  'use no memo';
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const userId = agentMember(room, agent)?.userId;

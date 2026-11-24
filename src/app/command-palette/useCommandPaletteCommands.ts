@@ -97,6 +97,8 @@ export const useCommandPaletteCommands = ({
   const searchValues = useSettingsSearchValues();
   // The context is a new object on every render; the settings it shows keep their list until
   // one of them comes or goes, so the rows and the search built on them stay too.
+  // Keep useMemo here: shownSettings crosses the hooks below, and without this freeze boundary
+  // React Compiler prunes memoization for the downstream rows, pages and return object.
   const shownIds = getShownSettings(useSettingsContext())
     .map((setting) => setting.id)
     .join('\n');
@@ -117,183 +119,163 @@ export const useCommandPaletteCommands = ({
   // The steps to an unread room have nowhere to go while no room is unread.
   const someUnread = useAtomValue(roomToUnreadAtom).size > 0;
 
-  const settingRows = useMemo(
-    () =>
-      getCommandPaletteSettingRows(
-        shownSettings,
-        settings,
-        // defaultValue only selects the TypeScript overload; keys exist in English (not a fallback).
-        (key, values) => t(key, { ...values, defaultValue: key }),
-        searchValues
-      ).map(({ item, setting, switch: settingSwitch }): Executable<CommandPaletteActionItem> => ({
-        ...item,
-        onSelect: settingSwitch
-          ? () => {
-              const current = store.get(settingsAtom);
-              store.set(settingsAtom, {
-                ...current,
-                [settingSwitch.key]: !current[settingSwitch.key],
-              });
-            }
-          : () =>
-              store.set(settingsModalAtom, {
-                initialPage: setting.page,
-                initialSetting: setting.id,
-                requestId: `palette:${setting.id}`,
-              }),
-      })),
-    [searchValues, settings, shownSettings, store, t]
-  );
+  const settingRows = getCommandPaletteSettingRows(
+    shownSettings,
+    settings,
+    // defaultValue only selects the TypeScript overload; keys exist in English (not a fallback).
+    (key, values) => t(key, { ...values, defaultValue: key }),
+    searchValues
+  ).map(({ item, setting, switch: settingSwitch }): Executable<CommandPaletteActionItem> => ({
+    ...item,
+    onSelect: settingSwitch
+      ? () => {
+          const current = store.get(settingsAtom);
+          store.set(settingsAtom, {
+            ...current,
+            [settingSwitch.key]: !current[settingSwitch.key],
+          });
+        }
+      : () =>
+          store.set(settingsModalAtom, {
+            initialPage: setting.page,
+            initialSetting: setting.id,
+            requestId: `palette:${setting.id}`,
+          }),
+  }));
 
-  const themePage = useMemo<CommandPalettePage>(() => {
-    const choices = THEMES.map((theme): Choice => ({
-      value: theme.id,
-      title: t(`options.themeName.${theme.name}`),
-      current: theme.id === themeId,
-      // As the fixed pick in Settings: the chosen theme, and the system theme off.
-      choose: () =>
-        store.set(settingsAtom, {
-          ...store.get(settingsAtom),
-          themeId: theme.id,
-          useSystemTheme: false,
-        }),
-      // The whole app shows the highlighted theme; nothing is stored until it is chosen.
-      preview: () => {
-        store.set(themePreviewAtom, theme.id);
-        return () => store.set(themePreviewAtom, undefined);
-      },
-    }));
-    const systemTheme: Executable<CommandPaletteActionItem> = {
-      id: 'theme:system',
-      kind: 'action',
-      title: t('settings.general.appearance.systemTheme'),
-      icon: COMMAND_PALETTE_PAGE_ICONS.theme,
-      state: useSystemTheme ? 'on' : 'off',
-      keepOpen: true,
-      sortRank: choices.length + 1,
-      onSelect: () =>
-        store.set(
-          settingsAtom,
-          withSystemTheme(
-            store.get(settingsAtom),
-            store.get(deploymentThemeAtom),
-            !store.get(themeSettingsAtom).useSystemTheme
-          )
-        ),
-    };
-    return {
-      title: t('settings.general.appearance.theme'),
-      items: [systemTheme, ...choiceRows('theme', choices)],
-    };
-  }, [store, t, themeId, useSystemTheme]);
+  const themeChoices = THEMES.map((theme): Choice => ({
+    value: theme.id,
+    title: t(`options.themeName.${theme.name}`),
+    current: theme.id === themeId,
+    // As the fixed pick in Settings: the chosen theme, and the system theme off.
+    choose: () =>
+      store.set(settingsAtom, {
+        ...store.get(settingsAtom),
+        themeId: theme.id,
+        useSystemTheme: false,
+      }),
+    // The whole app shows the highlighted theme; nothing is stored until it is chosen.
+    preview: () => {
+      store.set(themePreviewAtom, theme.id);
+      return () => store.set(themePreviewAtom, undefined);
+    },
+  }));
+  const systemTheme: Executable<CommandPaletteActionItem> = {
+    id: 'theme:system',
+    kind: 'action',
+    title: t('settings.general.appearance.systemTheme'),
+    icon: COMMAND_PALETTE_PAGE_ICONS.theme,
+    state: useSystemTheme ? 'on' : 'off',
+    keepOpen: true,
+    sortRank: themeChoices.length + 1,
+    onSelect: () =>
+      store.set(
+        settingsAtom,
+        withSystemTheme(
+          store.get(settingsAtom),
+          store.get(deploymentThemeAtom),
+          !store.get(themeSettingsAtom).useSystemTheme
+        )
+      ),
+  };
+  const themePage: CommandPalettePage = {
+    title: t('settings.general.appearance.theme'),
+    items: [systemTheme, ...choiceRows('theme', themeChoices)],
+  };
 
   const { messageLayout } = settings;
-  const messageLayoutPage = useMemo<CommandPalettePage>(
-    () => ({
-      title: t('settings.general.messages.messageLayout'),
-      items: choiceRows(
-        'message-layout',
-        LAYOUT_CHOICES.map(([layout, key]) => ({
-          value: String(layout),
-          title: t(key),
-          current: layout === messageLayout,
-          choose: () =>
-            store.set(settingsAtom, { ...store.get(settingsAtom), messageLayout: layout }),
-        }))
-      ),
-    }),
-    [messageLayout, store, t]
-  );
+  const messageLayoutPage: CommandPalettePage = {
+    title: t('settings.general.messages.messageLayout'),
+    items: choiceRows(
+      'message-layout',
+      LAYOUT_CHOICES.map(([layout, key]) => ({
+        value: String(layout),
+        title: t(key),
+        current: layout === messageLayout,
+        choose: () =>
+          store.set(settingsAtom, { ...store.get(settingsAtom), messageLayout: layout }),
+      }))
+    ),
+  };
 
-  const languagePage = useMemo<CommandPalettePage>(
-    () => ({
-      title: t('settings.general.language.appLanguage'),
-      items: choiceRows(
-        'language',
-        APP_LANGUAGES.map(({ code, nativeName }) => ({
-          value: code,
-          title: nativeName,
-          lang: code,
-          current: code === languageCode,
-          choose: () => {
-            void i18n.changeLanguage(code);
-          },
-        }))
-      ),
-    }),
-    [i18n, languageCode, t]
-  );
+  const languagePage: CommandPalettePage = {
+    title: t('settings.general.language.appLanguage'),
+    items: choiceRows(
+      'language',
+      APP_LANGUAGES.map(({ code, nativeName }) => ({
+        value: code,
+        title: nativeName,
+        lang: code,
+        current: code === languageCode,
+        choose: () => {
+          void i18n.changeLanguage(code);
+        },
+      }))
+    ),
+  };
 
-  const pages = useMemo(
-    () => ({ theme: themePage, 'message-layout': messageLayoutPage, language: languagePage }),
-    [languagePage, messageLayoutPage, themePage]
-  );
+  const pages = { theme: themePage, 'message-layout': messageLayoutPage, language: languagePage };
 
   // The settings, then the pages' choices as typed text finds them, each tagged with its page's
   // title.
-  const commands = useMemo(
-    () => [
-      ...settingRows,
-      ...[themePage, messageLayoutPage, languagePage].flatMap((page) =>
-        tagCommandPalettePageRows(page.title, page.items)
-      ),
-    ],
-    [languagePage, messageLayoutPage, settingRows, themePage]
-  );
+  const commands = [
+    ...settingRows,
+    ...[themePage, messageLayoutPage, languagePage].flatMap((page) =>
+      tagCommandPalettePageRows(page.title, page.items)
+    ),
+  ];
 
-  const actions = useMemo(() => {
-    // A call is about a conversation.
-    const callRows = inRoom
-      ? candidates.map(({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
-          id: `call-agent:${userId}`,
-          kind: 'action',
-          title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
-          description: room.name,
-          icon: Icons.Phone,
-          sortRank: 75,
-          keywords: ['voice', 'agent'],
-          // A call that does not start is reported by the account's call notices.
-          onSelect: () => {
-            void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
-          },
-        }))
-      : [];
-    // The open room's header commands, so none without a room open. A room command closes the
-    // palette: it was read once, so the palette could not show what the command changed. It runs
-    // what the header offers under its name at that moment, and nothing once the header is gone:
-    // what was read as the palette opened may belong to a room that is no longer the open one.
-    const roomCommandRows = inRoom
-      ? roomCommands.map(
-          ({ id, label, icon, shortcut, pressed }): Executable<CommandPaletteActionItem> => ({
-            id: `room-command:${id}`,
-            kind: 'action',
-            title: label,
-            description: room.name,
-            icon,
-            shortcut,
-            state: pressed === undefined ? undefined : pressed ? 'on' : 'off',
-            sortRank: 45,
-            onSelect: () =>
-              getRoomCommands()
-                .find((command) => command.id === id)
-                ?.run(),
-          })
-        )
-      : [];
-    const shortcutRows = shortcutCommands
-      .filter(([id]) => someUnread || (id !== 'nextUnread' && id !== 'previousUnread'))
-      .map(([id, sortRank]): Executable<CommandPaletteActionItem> => ({
-        id: `shortcut:${id}`,
+  // A call is about a conversation.
+  const callRows = inRoom
+    ? candidates.map(({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
+        id: `call-agent:${userId}`,
         kind: 'action',
-        title: t(SHORTCUTS[id].labelKey),
-        shortcut: id,
-        sortRank,
+        title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
+        description: room.name,
+        icon: Icons.Phone,
+        sortRank: 75,
+        keywords: ['voice', 'agent'],
+        // A call that does not start is reported by the account's call notices.
         onSelect: () => {
-          runShortcut(id, new KeyboardEvent('keydown'));
+          void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
         },
-      }));
-    return [...callRows, ...roomCommandRows, ...shortcutRows];
-  }, [call, candidates, inRoom, room, roomCommands, shortcutCommands, someUnread, t, threadId]);
+      }))
+    : [];
+  // The open room's header commands, so none without a room open. A room command closes the
+  // palette: it was read once, so the palette could not show what the command changed. It runs
+  // what the header offers under its name at that moment, and nothing once the header is gone:
+  // what was read as the palette opened may belong to a room that is no longer the open one.
+  const roomCommandRows = inRoom
+    ? roomCommands.map(
+        ({ id, label, icon, shortcut, pressed }): Executable<CommandPaletteActionItem> => ({
+          id: `room-command:${id}`,
+          kind: 'action',
+          title: label,
+          description: room.name,
+          icon,
+          shortcut,
+          state: pressed === undefined ? undefined : pressed ? 'on' : 'off',
+          sortRank: 45,
+          onSelect: () =>
+            getRoomCommands()
+              .find((command) => command.id === id)
+              ?.run(),
+        })
+      )
+    : [];
+  const shortcutRows = shortcutCommands
+    .filter(([id]) => someUnread || (id !== 'nextUnread' && id !== 'previousUnread'))
+    .map(([id, sortRank]): Executable<CommandPaletteActionItem> => ({
+      id: `shortcut:${id}`,
+      kind: 'action',
+      title: t(SHORTCUTS[id].labelKey),
+      shortcut: id,
+      sortRank,
+      onSelect: () => {
+        runShortcut(id, new KeyboardEvent('keydown'));
+      },
+    }));
+  const actions = [...callRows, ...roomCommandRows, ...shortcutRows];
 
-  return useMemo(() => ({ actions, commands, pages }), [actions, commands, pages]);
+  return { actions, commands, pages };
 };
