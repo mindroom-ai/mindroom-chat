@@ -665,10 +665,10 @@ describe('packages the app shares with plugins', () => {
 
   it("gives the packages a plugin installed, as the dev server pre-bundles them, the module the app's pre-bundle has", async () => {
     const dir = realpathSync(pluginDir(declaring(), { entry: false }));
-    importing(dir, ['jotai', 'helper', 'required']);
-    installStandIn(dir, 'jotai', 'export const pluginsOwnJotai = true;\n');
-    installStandIn(dir, 'helper', "export * from 'jotai';\n");
-    installStandIn(dir, 'required', "module.exports = require('jotai');\n");
+    importing(dir, ['@tanstack/react-query', 'helper', 'required']);
+    installStandIn(dir, '@tanstack/react-query', 'export const pluginsOwnReactQuery = true;\n');
+    installStandIn(dir, 'helper', "export * from '@tanstack/react-query';\n");
+    installStandIn(dir, 'required', "module.exports = require('@tanstack/react-query');\n");
     const config = await resolveConfig(
       {
         configFile: false,
@@ -681,18 +681,18 @@ describe('packages the app shares with plugins', () => {
       'serve'
     );
     expect(Object.keys((await optimizeDeps(config, true)).optimized).sort()).toEqual([
+      '@tanstack/react-query',
       'helper',
-      'jotai',
       'required',
     ]);
     const deps = path.join(config.cacheDir, 'deps');
     const code = readdirSync(deps)
       .filter((name) => name.endsWith('.js'))
       .map((name) => readFileSync(path.join(deps, name), 'utf8'));
-    // One jotai for the three, the app's ES module: its CommonJS build in `required` would be a
-    // second one, and the plugin's own copy a third.
-    expect(code.filter((text) => text.includes('keyCount'))).toHaveLength(1);
-    expect(code.filter((text) => text.includes('pluginsOwnJotai'))).toEqual([]);
+    // One @tanstack/react-query for the three, the app's ES module: its CommonJS build in
+    // `required` would be a second one, and the plugin's own copy a third.
+    expect(code.filter((text) => text.includes('No QueryClient set'))).toHaveLength(1);
+    expect(code.filter((text) => text.includes('pluginsOwnReactQuery'))).toEqual([]);
   });
 
   it('leaves the imports of files outside the plugins as they were in the dev server', async () => {
