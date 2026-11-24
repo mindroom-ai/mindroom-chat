@@ -92,6 +92,7 @@ const longAgentAnswer = (turn: number) => {
       `<p>Follow-up notes for turn #${turn}.</p>`,
     ].join('\n'),
     'io.mindroom.stream_status': 'completed',
+    'io.mindroom.ai_run': { version: 1, status: 'completed' },
     'io.mindroom.tool_trace': {
       version: 2,
       events: [
