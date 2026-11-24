@@ -5,6 +5,7 @@ import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
+import { workflowRunPanelAtom } from '../navigation/workflowPanel';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
@@ -1196,7 +1197,18 @@ it('renders a workflow run job row with title, counts, usage cells, and Stop', (
   expect(container.textContent).toContain('mindroomUi.workflowRun.counts');
   expect(container.querySelector('[data-job-stat="calls"]')?.textContent).toBe('5');
   expect(container.querySelector('[data-cancel-job]')).not.toBeNull();
+  const openBtn = container.querySelector<HTMLButtonElement>('[data-job-open]');
+  expect(openBtn).not.toBeNull();
   act(() => {
+    openBtn?.click();
+  });
+  expect(getDefaultStore().get(workflowRunPanelAtom)).toEqual({
+    roomId: '!room:example.org',
+    run: runId,
+    threadId: '$thread',
+  });
+  act(() => {
+    getDefaultStore().set(workflowRunPanelAtom, undefined);
     workflowStore.clear();
   });
 });

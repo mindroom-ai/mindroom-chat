@@ -2,7 +2,9 @@
 import { EventEmitter } from 'node:events';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MatrixEvent, type IContent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { createStore, Provider as JotaiProvider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { workflowRunPanelAtom } from '../../navigation/workflowPanel';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../matrix/protocol/backgroundJobsContract';
@@ -310,5 +312,51 @@ describe('WorkflowRunCard', () => {
 
     expect(screen.getByText('Plain fallback text from a person')).toBeTruthy();
     expect(screen.queryByText('Spoofed workflow')).toBeNull();
+  });
+
+  it('shows Graph on the card only when there is a graph to show and opens the panel', () => {
+    const { mx } = makeClient();
+    const jotaiStore = createStore();
+    const { rerender } = render(
+      <JotaiProvider store={jotaiStore}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowRunCard card={makeCard({ graph: undefined })} roomId={ROOM_ID} threadId={THREAD_ID} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    expect(screen.queryByRole('button', { name: 'Graph' })).toBeNull();
+
+    const cardWithGraph = makeCard({
+      status: 'completed',
+      endedAt: 1795389800,
+      graph: {
+        phases: ['Audit'],
+        groups: [],
+        nodes: [],
+        edges: [],
+        log: [],
+        omitted: { queued: 0, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 0, phases: 0, log: 0 },
+      },
+    });
+    rerender(
+      <JotaiProvider store={jotaiStore}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowRunCard
+            card={cardWithGraph}
+            roomId={ROOM_ID}
+            threadId={THREAD_ID}
+            sender={AGENT}
+          />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Graph' }));
+    expect(getWorkflowRunStore(mx).get(ROOM_ID, RUN)).toBeDefined();
+    expect(jotaiStore.get(workflowRunPanelAtom)).toEqual({
+      roomId: ROOM_ID,
+      run: RUN,
+      threadId: THREAD_ID,
+    });
   });
 });

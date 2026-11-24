@@ -1379,6 +1379,66 @@
         "answered": "Ответ: {{answer}}",
         "cancelled": "Отменено",
         "onlyRequester": "Ответить может только {{name}}."
+      },
+      "graph": "Граф",
+      "panel": {
+        "close": "Закрыть",
+        "resize": "Изменить размер панели рабочего процесса",
+        "hide": "Скрыть рабочий процесс",
+        "waitingForUpdate": "Ожидание следующего обновления запуска…",
+        "stale": "Нет обновлений. Последнее обновление {{time}}.",
+        "log": "Журнал",
+        "showMore": "Показать ещё {{count}}",
+        "omitted": {
+          "queued_one": "и ещё {{count}} в очереди",
+          "queued_few": "и ещё {{count}} в очереди",
+          "queued_many": "и ещё {{count}} в очереди",
+          "queued_other": "и ещё {{count}} в очереди",
+          "running_one": "и ещё {{count}} выполняется",
+          "running_few": "и ещё {{count}} выполняются",
+          "running_many": "и ещё {{count}} выполняются",
+          "running_other": "и ещё {{count}} выполняются",
+          "waiting_one": "и ещё {{count}} ждёт",
+          "waiting_few": "и ещё {{count}} ждут",
+          "waiting_many": "и ещё {{count}} ждут",
+          "waiting_other": "и ещё {{count}} ждут",
+          "failed_one": "и ещё {{count}} с ошибкой",
+          "failed_few": "и ещё {{count}} с ошибкой",
+          "failed_many": "и ещё {{count}} с ошибкой",
+          "failed_other": "и ещё {{count}} с ошибкой",
+          "done_one": "и ещё {{count}} готово",
+          "done_few": "и ещё {{count}} готово",
+          "done_many": "и ещё {{count}} готово",
+          "done_other": "и ещё {{count}} готово"
+        },
+        "askAgent": "Спросите {{agent}} об остальном."
+      },
+      "group": {
+        "foreach": "Для каждого",
+        "parallel": "Параллельно",
+        "run": "Сохранённый процесс",
+        "progress": "{{done}} из {{total}}",
+        "failed": "С ошибкой: {{count}}"
+      },
+      "node": {
+        "reused": "Использовано из прошлого запуска",
+        "queued": "В очереди",
+        "mayHaveRun": "Возможно, выполнено",
+        "waitingOn": {
+          "user": "Ждёт вашего ответа",
+          "approval": "Ждёт одобрения",
+          "peer": "Ждёт сообщения"
+        },
+        "sessionTurns_one": "{{count}} шаг",
+        "sessionTurns_few": "{{count}} шагов",
+        "sessionTurns_many": "{{count}} шагов",
+        "sessionTurns_other": "{{count}} шагов",
+        "result": "Результат",
+        "error": "Ошибка",
+        "messages": "Сообщения",
+        "messagesTo": "Сообщения для {{name}}: {{count}}",
+        "open": "Открыть",
+        "stop": "Остановить агента"
       }
     },
     "subagents": {

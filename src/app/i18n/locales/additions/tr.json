@@ -1297,6 +1297,54 @@
         "answered": "Yanıtlandı: {{answer}}",
         "cancelled": "İptal edildi",
         "onlyRequester": "Yalnızca {{name}} yanıtlayabilir."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Kapat",
+        "resize": "İş akışı panelini yeniden boyutlandır",
+        "hide": "İş akışını gizle",
+        "waitingForUpdate": "Çalıştırmanın sonraki güncellemesi bekleniyor…",
+        "stale": "Güncellenmiyor. Son güncelleme {{time}}.",
+        "log": "Günlük",
+        "showMore": "{{count}} tane daha göster",
+        "omitted": {
+          "queued_one": "ve sırada {{count}} tane daha",
+          "queued_other": "ve sırada {{count}} tane daha",
+          "running_one": "ve çalışan {{count}} tane daha",
+          "running_other": "ve çalışan {{count}} tane daha",
+          "waiting_one": "ve bekleyen {{count}} tane daha",
+          "waiting_other": "ve bekleyen {{count}} tane daha",
+          "failed_one": "ve başarısız {{count}} tane daha",
+          "failed_other": "ve başarısız {{count}} tane daha",
+          "done_one": "ve tamamlanan {{count}} tane daha",
+          "done_other": "ve tamamlanan {{count}} tane daha"
+        },
+        "askAgent": "Kalanı için {{agent}} ajanına sorun."
+      },
+      "group": {
+        "foreach": "Her biri için",
+        "parallel": "Paralel",
+        "run": "Kayıtlı iş akışı",
+        "progress": "{{done}} / {{total}}",
+        "failed": "Başarısız: {{count}}"
+      },
+      "node": {
+        "reused": "Son çalıştırmadan yeniden kullanıldı",
+        "queued": "Sırada",
+        "mayHaveRun": "Çalışmış olabilir",
+        "waitingOn": {
+          "user": "Yanıtınız bekleniyor",
+          "approval": "Onay bekleniyor",
+          "peer": "Mesaj bekleniyor"
+        },
+        "sessionTurns_one": "{{count}} tur",
+        "sessionTurns_other": "{{count}} tur",
+        "result": "Sonuç",
+        "error": "Hata",
+        "messages": "Mesajlar",
+        "messagesTo": "{{name}} için mesajlar: {{count}}",
+        "open": "Aç",
+        "stop": "Ajanı durdur"
       }
     },
     "subagents": {

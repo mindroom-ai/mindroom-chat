@@ -74,6 +74,7 @@ export type WorkflowRunMeta = {
   threadId: string | null;
   title: string | null;
   name?: string | null;
+  requester?: string | null;
   status: WorkflowRunStatus;
   attempt: number;
   startedAt: number;
@@ -468,6 +469,7 @@ const parseMeta = (value: unknown): WorkflowRunMeta | null => {
     thread_id: threadId = null,
     title = null,
     name,
+    requester,
     status,
     attempt,
     started_at: startedAt,
@@ -500,6 +502,9 @@ const parseMeta = (value: unknown): WorkflowRunMeta | null => {
     threadId,
     title,
     ...(typeof name === 'string' && name.length > 0 ? { name } : {}),
+    ...(requester === null || (typeof requester === 'string' && requester.length > 0)
+      ? { requester }
+      : {}),
     status,
     attempt,
     startedAt,

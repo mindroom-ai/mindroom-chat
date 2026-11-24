@@ -1297,6 +1297,54 @@
         "answered": "উত্তর দেওয়া হয়েছে: {{answer}}",
         "cancelled": "বাতিল",
         "onlyRequester": "শুধু {{name}} উত্তর দিতে পারবেন।"
+      },
+      "graph": "গ্রাফ",
+      "panel": {
+        "close": "বন্ধ করুন",
+        "resize": "ওয়ার্কফ্লো প্যানেলের আকার পরিবর্তন করুন",
+        "hide": "ওয়ার্কফ্লো লুকান",
+        "waitingForUpdate": "রানের পরবর্তী আপডেটের অপেক্ষায়…",
+        "stale": "আপডেট হচ্ছে না। শেষ আপডেট {{time}}।",
+        "log": "লগ",
+        "showMore": "আরও {{count}}টি দেখান",
+        "omitted": {
+          "queued_one": "এবং আরও {{count}}টি সারিতে",
+          "queued_other": "এবং আরও {{count}}টি সারিতে",
+          "running_one": "এবং আরও {{count}}টি চলছে",
+          "running_other": "এবং আরও {{count}}টি চলছে",
+          "waiting_one": "এবং আরও {{count}}টি অপেক্ষায়",
+          "waiting_other": "এবং আরও {{count}}টি অপেক্ষায়",
+          "failed_one": "এবং আরও {{count}}টি ব্যর্থ",
+          "failed_other": "এবং আরও {{count}}টি ব্যর্থ",
+          "done_one": "এবং আরও {{count}}টি সম্পন্ন",
+          "done_other": "এবং আরও {{count}}টি সম্পন্ন"
+        },
+        "askAgent": "বাকিগুলোর জন্য {{agent}}-কে জিজ্ঞাসা করুন।"
+      },
+      "group": {
+        "foreach": "প্রতিটির জন্য",
+        "parallel": "সমান্তরাল",
+        "run": "সংরক্ষিত ওয়ার্কফ্লো",
+        "progress": "{{total}}-এর মধ্যে {{done}}",
+        "failed": "ব্যর্থ: {{count}}"
+      },
+      "node": {
+        "reused": "শেষ রান থেকে পুনরায় ব্যবহৃত",
+        "queued": "সারিতে",
+        "mayHaveRun": "চালানো হয়ে থাকতে পারে",
+        "waitingOn": {
+          "user": "আপনার উত্তরের অপেক্ষায়",
+          "approval": "অনুমোদনের অপেক্ষায়",
+          "peer": "একটি বার্তার অপেক্ষায়"
+        },
+        "sessionTurns_one": "{{count}}টি পালা",
+        "sessionTurns_other": "{{count}}টি পালা",
+        "result": "ফলাফল",
+        "error": "ত্রুটি",
+        "messages": "বার্তা",
+        "messagesTo": "{{name}}-এর কাছে বার্তা: {{count}}",
+        "open": "খুলুন",
+        "stop": "এজেন্ট থামান"
       }
     },
     "subagents": {

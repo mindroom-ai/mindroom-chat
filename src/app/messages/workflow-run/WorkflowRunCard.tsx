@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { Button, Text } from 'folds';
@@ -17,7 +18,12 @@ import {
 } from '../../matrix/protocol/workflowRunContent';
 import { cancelBackgroundJob } from '../../matrix/send/cancelBackgroundJob';
 import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
-import { useWorkflowRun, type WorkflowRunEntry } from '../live/workflowRunStore';
+import { openWorkflowRunPanel } from '../../navigation/workflowPanel';
+import {
+  getWorkflowRunStore,
+  useWorkflowRun,
+  type WorkflowRunEntry,
+} from '../live/workflowRunStore';
 import {
   workflowRunCostLine,
   workflowRunCountsLine,
@@ -90,11 +96,13 @@ export function WorkflowRunCard({
   card,
   roomId,
   threadId = null,
+  sender,
   readOnly = false,
 }: WorkflowRunCardProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const mx = useMatrixClient();
+  const jotaiStore = useStore();
   const room = mx.getRoom(roomId);
   const viewerId = mx.getUserId();
   const live = useWorkflowRun(roomId, card.run);
@@ -147,12 +155,18 @@ export function WorkflowRunCard({
     }
   }
 
+  const showGraph = !!live || !!card.graph;
   const showStop = isLiveStatus && !readOnly && !!room && !!card.jobId;
   const isRequester = !readOnly && !!room && card.requester !== null && viewerId === card.requester;
   const showResume =
     isRequester &&
     (status === 'failed' || status === 'cancelled' || status === 'interrupted');
   const showRunAgain = isRequester && status === 'completed';
+
+  const handleOpenGraph = () => {
+    getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
+    openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
+  };
 
   const handleStop = async (targetRoom: Room, jobId: string, targetThreadId: string | null) => {
     if (stopping) return;
@@ -247,8 +261,19 @@ export function WorkflowRunCard({
         </Text>
       )}
 
-      {(showStop || showResume || showRunAgain) && (
+      {(showGraph || showStop || showResume || showRunAgain) && (
         <div className={css.Actions}>
+          {showGraph && (
+            <Button
+              type="button"
+              size="300"
+              variant="Secondary"
+              fill="Soft"
+              onClick={handleOpenGraph}
+            >
+              <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
+            </Button>
+          )}
           {showStop && room && card.jobId && (
             <StopWorkflowButton
               room={room}

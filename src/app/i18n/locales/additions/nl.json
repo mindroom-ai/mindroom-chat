@@ -1297,6 +1297,54 @@
         "answered": "Beantwoord: {{answer}}",
         "cancelled": "Geannuleerd",
         "onlyRequester": "Alleen {{name}} kan antwoorden."
+      },
+      "graph": "Grafiek",
+      "panel": {
+        "close": "Sluiten",
+        "resize": "Workflowpaneel vergroten of verkleinen",
+        "hide": "Workflow verbergen",
+        "waitingForUpdate": "Wachten op de volgende update van de run…",
+        "stale": "Wordt niet bijgewerkt. Laatste update {{time}}.",
+        "log": "Logboek",
+        "showMore": "Toon nog {{count}}",
+        "omitted": {
+          "queued_one": "en nog {{count}} in wachtrij",
+          "queued_other": "en nog {{count}} in wachtrij",
+          "running_one": "en nog {{count}} actief",
+          "running_other": "en nog {{count}} actief",
+          "waiting_one": "en nog {{count}} wachtend",
+          "waiting_other": "en nog {{count}} wachtend",
+          "failed_one": "en nog {{count}} mislukt",
+          "failed_other": "en nog {{count}} mislukt",
+          "done_one": "en nog {{count}} klaar",
+          "done_other": "en nog {{count}} klaar"
+        },
+        "askAgent": "Vraag {{agent}} om de rest."
+      },
+      "group": {
+        "foreach": "Voor elk",
+        "parallel": "Parallel",
+        "run": "Opgeslagen workflow",
+        "progress": "{{done}} van {{total}}",
+        "failed": "Mislukt: {{count}}"
+      },
+      "node": {
+        "reused": "Hergebruikt van de vorige run",
+        "queued": "In wachtrij",
+        "mayHaveRun": "Mogelijk uitgevoerd",
+        "waitingOn": {
+          "user": "Wacht op jouw antwoord",
+          "approval": "Wacht op goedkeuring",
+          "peer": "Wacht op een bericht"
+        },
+        "sessionTurns_one": "{{count}} beurt",
+        "sessionTurns_other": "{{count}} beurten",
+        "result": "Resultaat",
+        "error": "Fout",
+        "messages": "Berichten",
+        "messagesTo": "Berichten naar {{name}}: {{count}}",
+        "open": "Openen",
+        "stop": "Agent stoppen"
       }
     },
     "subagents": {

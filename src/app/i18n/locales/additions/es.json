@@ -1338,6 +1338,60 @@
         "answered": "Respondido: {{answer}}",
         "cancelled": "Cancelado",
         "onlyRequester": "Solo {{name}} puede responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Cerrar",
+        "resize": "Cambiar tamaño del panel de flujo de trabajo",
+        "hide": "Ocultar flujo de trabajo",
+        "waitingForUpdate": "Esperando la próxima actualización de la ejecución…",
+        "stale": "Sin actualizarse. Última actualización {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar {{count}} más",
+        "omitted": {
+          "queued_one": "y {{count}} más en cola",
+          "queued_many": "y {{count}} más en cola",
+          "queued_other": "y {{count}} más en cola",
+          "running_one": "y {{count}} más en curso",
+          "running_many": "y {{count}} más en curso",
+          "running_other": "y {{count}} más en curso",
+          "waiting_one": "y {{count}} más en espera",
+          "waiting_many": "y {{count}} más en espera",
+          "waiting_other": "y {{count}} más en espera",
+          "failed_one": "y {{count}} más fallidos",
+          "failed_many": "y {{count}} más fallidos",
+          "failed_other": "y {{count}} más fallidos",
+          "done_one": "y {{count}} más completados",
+          "done_many": "y {{count}} más completados",
+          "done_other": "y {{count}} más completados"
+        },
+        "askAgent": "Pregunta a {{agent}} por el resto."
+      },
+      "group": {
+        "foreach": "Para cada uno",
+        "parallel": "Paralelo",
+        "run": "Flujo guardado",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Fallidos: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado de la última ejecución",
+        "queued": "En cola",
+        "mayHaveRun": "Pudo haberse ejecutado",
+        "waitingOn": {
+          "user": "Esperando tu respuesta",
+          "approval": "Esperando aprobación",
+          "peer": "Esperando un mensaje"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Error",
+        "messages": "Mensajes",
+        "messagesTo": "Mensajes a {{name}}: {{count}}",
+        "open": "Abrir",
+        "stop": "Detener agente"
       }
     },
     "subagents": {

@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { openSubagentsPanel } from '../navigation/subagentsPanel';
+import { openWorkflowRunPanel } from '../navigation/workflowPanel';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
@@ -243,8 +244,15 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   };
   const [single] = model.items;
   const finished = model.items.every((item) => item.finished);
-  // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
+  // A workflow job opens the Workflow graph panel; a sub-agent job opens the Sub-agents panel.
   const openRun = (item: BackgroundJobsBarItem) => {
+    if (item.workflow) {
+      const workflowRunId = item.workflowRun?.run ?? item.workflowId;
+      return (
+        workflowRunId &&
+        (() => openWorkflowRunPanel(store, room.roomId, workflowRunId, item.threadId))
+      );
+    }
     const run = item.run?.run;
     return run && (() => openSubagentsPanel(store, room.roomId, item.threadId, run));
   };

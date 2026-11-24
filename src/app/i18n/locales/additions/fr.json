@@ -1338,6 +1338,60 @@
         "answered": "Répondu : {{answer}}",
         "cancelled": "Annulé",
         "onlyRequester": "Seul {{name}} peut répondre."
+      },
+      "graph": "Graphe",
+      "panel": {
+        "close": "Fermer",
+        "resize": "Redimensionner le panneau de flux de travail",
+        "hide": "Masquer le flux de travail",
+        "waitingForUpdate": "En attente de la prochaine mise à jour…",
+        "stale": "Pas de mise à jour. Dernière mise à jour {{time}}.",
+        "log": "Journal",
+        "showMore": "Afficher {{count}} de plus",
+        "omitted": {
+          "queued_one": "et {{count}} de plus en file",
+          "queued_many": "et {{count}} de plus en file",
+          "queued_other": "et {{count}} de plus en file",
+          "running_one": "et {{count}} de plus en cours",
+          "running_many": "et {{count}} de plus en cours",
+          "running_other": "et {{count}} de plus en cours",
+          "waiting_one": "et {{count}} de plus en attente",
+          "waiting_many": "et {{count}} de plus en attente",
+          "waiting_other": "et {{count}} de plus en attente",
+          "failed_one": "et {{count}} de plus échoués",
+          "failed_many": "et {{count}} de plus échoués",
+          "failed_other": "et {{count}} de plus échoués",
+          "done_one": "et {{count}} de plus terminés",
+          "done_many": "et {{count}} de plus terminés",
+          "done_other": "et {{count}} de plus terminés"
+        },
+        "askAgent": "Demandez le reste à {{agent}}."
+      },
+      "group": {
+        "foreach": "Pour chaque",
+        "parallel": "Parallèle",
+        "run": "Flux enregistré",
+        "progress": "{{done}} sur {{total}}",
+        "failed": "Échoués : {{count}}"
+      },
+      "node": {
+        "reused": "Réutilisé depuis la dernière exécution",
+        "queued": "En file d'attente",
+        "mayHaveRun": "A peut-être été exécuté",
+        "waitingOn": {
+          "user": "En attente de votre réponse",
+          "approval": "En attente d'approbation",
+          "peer": "En attente d'un message"
+        },
+        "sessionTurns_one": "{{count}} tour",
+        "sessionTurns_many": "{{count}} tours",
+        "sessionTurns_other": "{{count}} tours",
+        "result": "Résultat",
+        "error": "Erreur",
+        "messages": "Messages",
+        "messagesTo": "Messages vers {{name}} : {{count}}",
+        "open": "Ouvrir",
+        "stop": "Arrêter l'agent"
       }
     },
     "subagents": {

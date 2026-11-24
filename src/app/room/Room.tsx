@@ -99,6 +99,8 @@ import {
   useSubagentsPanel,
 } from '../navigation/subagentsPanel';
 import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
+import { useWorkflowRunPanel, workflowRunPanelAtom } from '../navigation/workflowPanel';
+import { WorkflowPanelPart } from '../subagents/workflow/WorkflowPanelPart';
 import { subagentConversation } from '../messages/live/subagentRunStore';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
@@ -114,6 +116,7 @@ import {
   pluginPanelWidthStorageKey,
   secondThreadWidthStorageKey,
   subagentsWidthStorageKey,
+  workflowRunWidthStorageKey,
 } from '../preferences/accountStorageKeys';
 import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { SecondThreadPanel } from './SecondThreadPanel';
@@ -316,6 +319,7 @@ function RoomContent() {
   const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
   const subagents = useSubagentsPanel(roomId);
+  const workflowPanel = useWorkflowRunPanel(roomId);
 
   const pluginClientConfig = usePluginClientConfig();
   const pluginPanels = usePluginSidePanels(registeredPlugins, pluginClientConfig);
@@ -332,7 +336,12 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callInSidePanel || transcript.open || subagents.open,
+    computerOpen ||
+      !!canvas ||
+      callInSidePanel ||
+      transcript.open ||
+      subagents.open ||
+      workflowPanel.open,
     { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
 
@@ -492,6 +501,39 @@ function RoomContent() {
         </ResizablePanel>
       ),
     },
+    {
+      id: 'workflow',
+      open: workflowPanel.open,
+      close: workflowPanel.close,
+      label: t('mindroomUi.workflowRun.title'),
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={workflowRunWidthStorageKey(ownUserId)}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('mindroomUi.workflowRun.panel.resize')}
+          collapseLabel={t('mindroomUi.workflowRun.panel.hide')}
+          onCollapse={workflowPanel.close}
+          testId="resizable-workflow-panel"
+        >
+          <Suspense fallback={null}>
+            {workflowPanel.run && (
+              <WorkflowPanelPart
+                room={room}
+                run={workflowPanel.run}
+                threadId={workflowPanel.threadId ?? threadId ?? null}
+                onClose={workflowPanel.close}
+                readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
+              />
+            )}
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
@@ -616,6 +658,19 @@ function RoomContent() {
         const opened = store.get(subagentsPanelAtom);
         if (opened?.roomId !== roomId) return;
         request('subagents', () => undefined);
+        const shown = subagentsShown.current;
+        const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
+        if (target === null) navigateRoom(roomId);
+        else if (target !== undefined) navigateRoomThread(roomId, target);
+      }),
+    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
+  );
+  useEffect(
+    () =>
+      store.sub(workflowRunPanelAtom, () => {
+        const opened = store.get(workflowRunPanelAtom);
+        if (opened?.roomId !== roomId) return;
+        request('workflow', () => undefined);
         const shown = subagentsShown.current;
         const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
         if (target === null) navigateRoom(roomId);

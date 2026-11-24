@@ -1256,6 +1256,48 @@
         "answered": "답변함: {{answer}}",
         "cancelled": "취소됨",
         "onlyRequester": "{{name}}님만 답변할 수 있습니다."
+      },
+      "graph": "그래프",
+      "panel": {
+        "close": "닫기",
+        "resize": "워크플로 패널 크기 조절",
+        "hide": "워크플로 숨기기",
+        "waitingForUpdate": "다음 업데이트를 기다리는 중…",
+        "stale": "업데이트되지 않음. 마지막 업데이트 {{time}}.",
+        "log": "로그",
+        "showMore": "{{count}}개 더 보기",
+        "omitted": {
+          "queued_other": "대기열에 {{count}}개 더 있음",
+          "running_other": "실행 중 {{count}}개 더 있음",
+          "waiting_other": "대기 중 {{count}}개 더 있음",
+          "failed_other": "실패 {{count}}개 더 있음",
+          "done_other": "완료 {{count}}개 더 있음"
+        },
+        "askAgent": "나머지는 {{agent}}에게 물어보세요."
+      },
+      "group": {
+        "foreach": "각 항목별",
+        "parallel": "병렬",
+        "run": "저장된 워크플로",
+        "progress": "{{total}} 중 {{done}}",
+        "failed": "실패: {{count}}"
+      },
+      "node": {
+        "reused": "이전 실행에서 재사용됨",
+        "queued": "대기열에 있음",
+        "mayHaveRun": "실행되었을 수 있음",
+        "waitingOn": {
+          "user": "답변 대기 중",
+          "approval": "승인 대기 중",
+          "peer": "메시지 대기 중"
+        },
+        "sessionTurns_other": "{{count}}턴",
+        "result": "결과",
+        "error": "오류",
+        "messages": "메시지",
+        "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
+        "open": "열기",
+        "stop": "에이전트 중지"
       }
     },
     "subagents": {

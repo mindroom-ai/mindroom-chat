@@ -1256,6 +1256,48 @@
         "answered": "已回答：{{answer}}",
         "cancelled": "已取消",
         "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "圖譜",
+      "panel": {
+        "close": "關閉",
+        "resize": "調整工作流程面板大小",
+        "hide": "隱藏工作流程",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新於 {{time}}。",
+        "log": "日誌",
+        "showMore": "再顯示 {{count}} 項",
+        "omitted": {
+          "queued_other": "另有 {{count}} 項排隊中",
+          "running_other": "另有 {{count}} 項執行中",
+          "waiting_other": "另有 {{count}} 項等待中",
+          "failed_other": "另有 {{count}} 項失敗",
+          "done_other": "另有 {{count}} 項已完成"
+        },
+        "askAgent": "其餘詳情可詢問 {{agent}}。"
+      },
+      "group": {
+        "foreach": "逐一執行",
+        "parallel": "平行",
+        "run": "已儲存的工作流程",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗：{{count}}"
+      },
+      "node": {
+        "reused": "重複使用了上次執行結果",
+        "queued": "排隊中",
+        "mayHaveRun": "可能已執行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待核准",
+          "peer": "等待訊息"
+        },
+        "sessionTurns_other": "{{count}} 輪",
+        "result": "結果",
+        "error": "錯誤",
+        "messages": "訊息",
+        "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
+        "open": "開啟",
+        "stop": "停止代理"
       }
     },
     "subagents": {

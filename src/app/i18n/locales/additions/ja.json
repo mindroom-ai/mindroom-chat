@@ -1256,6 +1256,48 @@
         "answered": "回答済み: {{answer}}",
         "cancelled": "キャンセル",
         "onlyRequester": "{{name}} のみ回答できます。"
+      },
+      "graph": "グラフ",
+      "panel": {
+        "close": "閉じる",
+        "resize": "ワークフローパネルのサイズを変更",
+        "hide": "ワークフローを隠す",
+        "waitingForUpdate": "次の更新を待っています…",
+        "stale": "更新されていません。最終更新: {{time}}。",
+        "log": "ログ",
+        "showMore": "さらに {{count}} 件表示",
+        "omitted": {
+          "queued_other": "他に待機中 {{count}} 件",
+          "running_other": "他に実行中 {{count}} 件",
+          "waiting_other": "他に待ち {{count}} 件",
+          "failed_other": "他に失敗 {{count}} 件",
+          "done_other": "他に完了 {{count}} 件"
+        },
+        "askAgent": "残りは {{agent}} に確認してください。"
+      },
+      "group": {
+        "foreach": "繰り返し",
+        "parallel": "並列",
+        "run": "保存済みワークフロー",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗: {{count}}"
+      },
+      "node": {
+        "reused": "前回の実行から再利用",
+        "queued": "キュー待機中",
+        "mayHaveRun": "実行済みの可能性",
+        "waitingOn": {
+          "user": "あなたの回答待ち",
+          "approval": "承認待ち",
+          "peer": "メッセージ待ち"
+        },
+        "sessionTurns_other": "{{count}} ターン",
+        "result": "結果",
+        "error": "エラー",
+        "messages": "メッセージ",
+        "messagesTo": "{{name}} へのメッセージ: {{count}}",
+        "open": "開く",
+        "stop": "エージェントを停止"
       }
     },
     "subagents": {

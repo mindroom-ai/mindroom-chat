@@ -1297,6 +1297,54 @@
         "answered": "Answered: {{answer}}",
         "cancelled": "Cancelled",
         "onlyRequester": "Only {{name}} can answer."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Close",
+        "resize": "Resize workflow panel",
+        "hide": "Hide workflow",
+        "waitingForUpdate": "Waiting for the run's next update…",
+        "stale": "Not updating. Last update {{time}}.",
+        "log": "Log",
+        "showMore": "Show {{count}} more",
+        "omitted": {
+          "queued_one": "and {{count}} more queued",
+          "queued_other": "and {{count}} more queued",
+          "running_one": "and {{count}} more running",
+          "running_other": "and {{count}} more running",
+          "waiting_one": "and {{count}} more waiting",
+          "waiting_other": "and {{count}} more waiting",
+          "failed_one": "and {{count}} more failed",
+          "failed_other": "and {{count}} more failed",
+          "done_one": "and {{count}} more done",
+          "done_other": "and {{count}} more done"
+        },
+        "askAgent": "Ask {{agent}} for the rest."
+      },
+      "group": {
+        "foreach": "For each",
+        "parallel": "Parallel",
+        "run": "Saved workflow",
+        "progress": "{{done}} of {{total}}",
+        "failed": "Failed: {{count}}"
+      },
+      "node": {
+        "reused": "Reused from the last run",
+        "queued": "Queued",
+        "mayHaveRun": "May have run",
+        "waitingOn": {
+          "user": "Waiting for your answer",
+          "approval": "Waiting for approval",
+          "peer": "Waiting for a message"
+        },
+        "sessionTurns_one": "{{count}} turn",
+        "sessionTurns_other": "{{count}} turns",
+        "result": "Result",
+        "error": "Error",
+        "messages": "Messages",
+        "messagesTo": "Messages to {{name}}: {{count}}",
+        "open": "Open",
+        "stop": "Stop agent"
       }
     },
     "subagents": {

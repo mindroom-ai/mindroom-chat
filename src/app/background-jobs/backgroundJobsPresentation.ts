@@ -22,6 +22,8 @@ export type BackgroundJobsBarItem = {
   subagent: boolean;
   // A workflow run job (`kind: 'workflow'`), listed in its own top group.
   workflow?: boolean;
+  // The workflow run ID on a workflow job (`job.workflow`), even before the first frame arrives.
+  workflowId?: string;
   // Live state of a workflow run job, joined by `job.workflow`.
   workflowRun?: WorkflowRunEntry;
   // The thread it runs for (its root's ID), or null for the room's own timeline.
@@ -191,7 +193,7 @@ export const presentBackgroundJobs = (
       finished,
       state,
       subagent: job.kind === 'subagent',
-      ...(isWorkflow ? { workflow: true } : {}),
+      ...(isWorkflow ? { workflow: true, ...(job.workflow ? { workflowId: job.workflow } : {}) } : {}),
       threadId: job.threadId,
       startedAt: Date.parse(job.startedAt),
       depth: 0,

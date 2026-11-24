@@ -1297,6 +1297,54 @@
         "answered": "Beantwortet: {{answer}}",
         "cancelled": "Abgebrochen",
         "onlyRequester": "Nur {{name}} kann antworten."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Schließen",
+        "resize": "Workflow-Panel skalieren",
+        "hide": "Workflow ausblenden",
+        "waitingForUpdate": "Wartet auf das nächste Update des Laufs…",
+        "stale": "Wird nicht aktualisiert. Letztes Update {{time}}.",
+        "log": "Protokoll",
+        "showMore": "{{count}} weitere anzeigen",
+        "omitted": {
+          "queued_one": "und {{count}} weitere in der Warteschlange",
+          "queued_other": "und {{count}} weitere in der Warteschlange",
+          "running_one": "und {{count}} weitere aktiv",
+          "running_other": "und {{count}} weitere aktiv",
+          "waiting_one": "und {{count}} weitere wartend",
+          "waiting_other": "und {{count}} weitere wartend",
+          "failed_one": "und {{count}} weitere fehlgeschlagen",
+          "failed_other": "und {{count}} weitere fehlgeschlagen",
+          "done_one": "und {{count}} weitere fertig",
+          "done_other": "und {{count}} weitere fertig"
+        },
+        "askAgent": "Frag {{agent}} nach dem Rest."
+      },
+      "group": {
+        "foreach": "Für jedes",
+        "parallel": "Parallel",
+        "run": "Gespeicherter Workflow",
+        "progress": "{{done}} von {{total}}",
+        "failed": "Fehlgeschlagen: {{count}}"
+      },
+      "node": {
+        "reused": "Aus dem letzten Lauf wiederverwendet",
+        "queued": "In Warteschlange",
+        "mayHaveRun": "Möglicherweise ausgeführt",
+        "waitingOn": {
+          "user": "Wartet auf deine Antwort",
+          "approval": "Wartet auf Genehmigung",
+          "peer": "Wartet auf eine Nachricht"
+        },
+        "sessionTurns_one": "{{count}} Runde",
+        "sessionTurns_other": "{{count}} Runden",
+        "result": "Ergebnis",
+        "error": "Fehler",
+        "messages": "Nachrichten",
+        "messagesTo": "Nachrichten an {{name}}: {{count}}",
+        "open": "Öffnen",
+        "stop": "Agent stoppen"
       }
     },
     "subagents": {

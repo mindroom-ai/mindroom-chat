@@ -1256,6 +1256,48 @@
         "answered": "已回答：{{answer}}",
         "cancelled": "已取消",
         "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "图谱",
+      "panel": {
+        "close": "关闭",
+        "resize": "调整工作流面板大小",
+        "hide": "隐藏工作流",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新于 {{time}}。",
+        "log": "日志",
+        "showMore": "再显示 {{count}} 项",
+        "omitted": {
+          "queued_other": "另有 {{count}} 项排队中",
+          "running_other": "另有 {{count}} 项运行中",
+          "waiting_other": "另有 {{count}} 项等待中",
+          "failed_other": "另有 {{count}} 项失败",
+          "done_other": "另有 {{count}} 项已完成"
+        },
+        "askAgent": "其余详情可询问 {{agent}}。"
+      },
+      "group": {
+        "foreach": "遍历",
+        "parallel": "并行",
+        "run": "已保存的工作流",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失败：{{count}}"
+      },
+      "node": {
+        "reused": "复用了上次运行结果",
+        "queued": "排队中",
+        "mayHaveRun": "可能已运行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待批准",
+          "peer": "等待消息"
+        },
+        "sessionTurns_other": "{{count}} 轮",
+        "result": "结果",
+        "error": "错误",
+        "messages": "消息",
+        "messagesTo": "发送给 {{name}} 的消息：{{count}}",
+        "open": "打开",
+        "stop": "停止智能体"
       }
     },
     "subagents": {

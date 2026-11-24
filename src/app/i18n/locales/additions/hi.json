@@ -1297,6 +1297,54 @@
         "answered": "उत्तर दिया गया: {{answer}}",
         "cancelled": "रद्द",
         "onlyRequester": "केवल {{name}} उत्तर दे सकते हैं।"
+      },
+      "graph": "ग्राफ़",
+      "panel": {
+        "close": "बंद करें",
+        "resize": "वर्कफ़्लो पैनल का आकार बदलें",
+        "hide": "वर्कफ़्लो छुपाएं",
+        "waitingForUpdate": "रन के अगले अपडेट की प्रतीक्षा में…",
+        "stale": "अपडेट नहीं हो रहा। अंतिम अपडेट {{time}}।",
+        "log": "लॉग",
+        "showMore": "{{count}} और दिखाएं",
+        "omitted": {
+          "queued_one": "और {{count}} कतार में",
+          "queued_other": "और {{count}} कतार में",
+          "running_one": "और {{count}} चल रहे",
+          "running_other": "और {{count}} चल रहे",
+          "waiting_one": "और {{count}} प्रतीक्षारत",
+          "waiting_other": "और {{count}} प्रतीक्षारत",
+          "failed_one": "और {{count}} विफल",
+          "failed_other": "और {{count}} विफल",
+          "done_one": "और {{count}} पूर्ण",
+          "done_other": "और {{count}} पूर्ण"
+        },
+        "askAgent": "बाकी के लिए {{agent}} से पूछें।"
+      },
+      "group": {
+        "foreach": "प्रत्येक के लिए",
+        "parallel": "समानांतर",
+        "run": "सहेजा गया वर्कफ़्लो",
+        "progress": "{{total}} में से {{done}}",
+        "failed": "विफल: {{count}}"
+      },
+      "node": {
+        "reused": "पिछले रन से पुनः प्रयुक्त",
+        "queued": "कतार में",
+        "mayHaveRun": "संभवतः चला हो",
+        "waitingOn": {
+          "user": "आपके उत्तर की प्रतीक्षा में",
+          "approval": "अनुमोदन की प्रतीक्षा में",
+          "peer": "संदेश की प्रतीक्षा में"
+        },
+        "sessionTurns_one": "{{count}} मोड़",
+        "sessionTurns_other": "{{count}} मोड़",
+        "result": "परिणाम",
+        "error": "त्रुटि",
+        "messages": "संदेश",
+        "messagesTo": "{{name}} को संदेश: {{count}}",
+        "open": "खोलें",
+        "stop": "एजेंट रोकें"
       }
     },
     "subagents": {

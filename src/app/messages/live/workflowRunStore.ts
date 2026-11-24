@@ -27,6 +27,8 @@ export type WorkflowRunEntry = {
   graph: WorkflowRunGraph;
   lastFrameAt: number;
   stale: boolean;
+  /** Known requester MXID (or null when anonymous/unresumable), when supplied by card or meta. */
+  requester?: string | null;
   /** True when populated from a durable card message rather than live ephemeral frames. */
   fromCard?: boolean;
 };
@@ -60,6 +62,8 @@ export class WorkflowRunStore {
     }
 
     if ('snapshot' in frame) {
+      const requester =
+        frame.meta.requester !== undefined ? frame.meta.requester : held?.requester;
       const entry: WorkflowRunEntry = {
         roomId,
         sender,
@@ -70,6 +74,7 @@ export class WorkflowRunStore {
         graph: frame.snapshot,
         lastFrameAt: receivedAt,
         stale: false,
+        ...(requester !== undefined ? { requester } : {}),
       };
       runs.set(frame.run, entry);
       this.rooms.set(roomId, runs);
@@ -91,6 +96,8 @@ export class WorkflowRunStore {
       return;
     }
 
+    const requester =
+      frame.meta.requester !== undefined ? frame.meta.requester : held.requester;
     const entry: WorkflowRunEntry = {
       roomId,
       sender,
@@ -101,6 +108,7 @@ export class WorkflowRunStore {
       graph: applyWorkflowRunDelta(held.graph, frame.delta),
       lastFrameAt: receivedAt,
       stale: false,
+      ...(requester !== undefined ? { requester } : {}),
     };
     runs.set(frame.run, entry);
     this.rooms.set(roomId, runs);
@@ -119,19 +127,28 @@ export class WorkflowRunStore {
     receivedAt: number,
     threadId: string | null = null
   ): void {
-    if (!card.graph) return;
     const runs = this.rooms.get(roomId) ?? new Map<string, WorkflowRunEntry>();
     const held = runs.get(card.run);
+    if (!card.graph) {
+      if (held && held.requester === undefined) {
+        runs.set(card.run, { ...held, requester: card.requester });
+        this.rooms.set(roomId, runs);
+        this.changed(roomId);
+      }
+      return;
+    }
     if (held) {
-      if (!held.fromCard) {
-        if (held.meta.attempt > card.attempt) return;
-        if (
-          held.meta.attempt === card.attempt &&
-          (!isLiveWorkflowRunStatus(held.meta.status) || isLiveWorkflowRunStatus(card.status))
-        ) {
-          return;
+      const keepHeld = !held.fromCard
+        ? held.meta.attempt > card.attempt ||
+          (held.meta.attempt === card.attempt &&
+            (!isLiveWorkflowRunStatus(held.meta.status) || isLiveWorkflowRunStatus(card.status)))
+        : held.meta.attempt > card.attempt;
+      if (keepHeld) {
+        if (held.requester === undefined) {
+          runs.set(card.run, { ...held, requester: card.requester });
+          this.rooms.set(roomId, runs);
+          this.changed(roomId);
         }
-      } else if (held.meta.attempt > card.attempt) {
         return;
       }
     }
@@ -159,6 +176,7 @@ export class WorkflowRunStore {
       graph: card.graph,
       lastFrameAt: receivedAt,
       stale: false,
+      requester: card.requester,
       fromCard: true,
     };
     runs.set(card.run, entry);

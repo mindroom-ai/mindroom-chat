@@ -1256,6 +1256,48 @@
         "answered": "Dijawab: {{answer}}",
         "cancelled": "Dibatalkan",
         "onlyRequester": "Hanya {{name}} yang dapat menjawab."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Tutup",
+        "resize": "Ubah ukuran panel alur kerja",
+        "hide": "Sembunyikan alur kerja",
+        "waitingForUpdate": "Menunggu pembaruan berikutnya dari eksekusi…",
+        "stale": "Tidak diperbarui. Pembaruan terakhir {{time}}.",
+        "log": "Log",
+        "showMore": "Tampilkan {{count}} lagi",
+        "omitted": {
+          "queued_other": "dan {{count}} lagi dalam antrean",
+          "running_other": "dan {{count}} lagi berjalan",
+          "waiting_other": "dan {{count}} lagi menunggu",
+          "failed_other": "dan {{count}} lagi gagal",
+          "done_other": "dan {{count}} lagi selesai"
+        },
+        "askAgent": "Tanyakan sisanya kepada {{agent}}."
+      },
+      "group": {
+        "foreach": "Untuk setiap",
+        "parallel": "Paralel",
+        "run": "Alur kerja tersimpan",
+        "progress": "{{done}} dari {{total}}",
+        "failed": "Gagal: {{count}}"
+      },
+      "node": {
+        "reused": "Digunakan kembali dari eksekusi terakhir",
+        "queued": "Dalam antrean",
+        "mayHaveRun": "Mungkin sudah berjalan",
+        "waitingOn": {
+          "user": "Menunggu jawaban Anda",
+          "approval": "Menunggu persetujuan",
+          "peer": "Menunggu pesan"
+        },
+        "sessionTurns_other": "{{count}} giliran",
+        "result": "Hasil",
+        "error": "Kesalahan",
+        "messages": "Pesan",
+        "messagesTo": "Pesan ke {{name}}: {{count}}",
+        "open": "Buka",
+        "stop": "Hentikan agen"
       }
     },
     "subagents": {

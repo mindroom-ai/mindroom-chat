@@ -1338,6 +1338,60 @@
         "answered": "Respondido: {{answer}}",
         "cancelled": "Cancelado",
         "onlyRequester": "Somente {{name}} pode responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Fechar",
+        "resize": "Redimensionar painel do fluxo de trabalho",
+        "hide": "Ocultar fluxo de trabalho",
+        "waitingForUpdate": "Aguardando a próxima atualização da execução…",
+        "stale": "Sem atualizar. Última atualização {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar mais {{count}}",
+        "omitted": {
+          "queued_one": "e mais {{count}} na fila",
+          "queued_many": "e mais {{count}} na fila",
+          "queued_other": "e mais {{count}} na fila",
+          "running_one": "e mais {{count}} em execução",
+          "running_many": "e mais {{count}} em execução",
+          "running_other": "e mais {{count}} em execução",
+          "waiting_one": "e mais {{count}} aguardando",
+          "waiting_many": "e mais {{count}} aguardando",
+          "waiting_other": "e mais {{count}} aguardando",
+          "failed_one": "e mais {{count}} com falha",
+          "failed_many": "e mais {{count}} com falha",
+          "failed_other": "e mais {{count}} com falha",
+          "done_one": "e mais {{count}} concluídos",
+          "done_many": "e mais {{count}} concluídos",
+          "done_other": "e mais {{count}} concluídos"
+        },
+        "askAgent": "Peça o restante a {{agent}}."
+      },
+      "group": {
+        "foreach": "Para cada",
+        "parallel": "Paralelo",
+        "run": "Fluxo salvo",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Falharam: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado da última execução",
+        "queued": "Na fila",
+        "mayHaveRun": "Pode ter sido executado",
+        "waitingOn": {
+          "user": "Aguardando sua resposta",
+          "approval": "Aguardando aprovação",
+          "peer": "Aguardando uma mensagem"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Erro",
+        "messages": "Mensagens",
+        "messagesTo": "Mensagens para {{name}}: {{count}}",
+        "open": "Abrir",
+        "stop": "Parar agente"
       }
     },
     "subagents": {
