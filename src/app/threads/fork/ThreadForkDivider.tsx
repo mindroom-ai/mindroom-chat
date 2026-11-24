@@ -41,8 +41,8 @@ export const useForkParentRoom = (
       mx.removeListener(ClientEvent.Room, onMembership);
     };
   }, [isCrossRoom, mx, parentRoomId, refresh]);
-  if (!isCrossRoom) return fallbackRoom;
-  const candidate = mx?.getRoom(parentRoomId!);
+  if (!isCrossRoom || !parentRoomId) return fallbackRoom;
+  const candidate = mx?.getRoom(parentRoomId);
   return isJoinedRoom(candidate) ? candidate ?? undefined : undefined;
 };
 
