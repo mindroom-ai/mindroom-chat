@@ -117,6 +117,7 @@ export class ProviderUsageController {
   private owners = 0;
   private phase: 'idle' | 'active' | 'disposed' = 'idle';
   private discovery: 'idle' | 'partial' | 'full' = 'idle';
+  private probedDevices = false;
   private startupScheduled = false;
   private lastAnsweringRoomId?: string;
   private selectedRuntimeId?: string;
@@ -187,7 +188,7 @@ export class ProviderUsageController {
   private active = () => this.phase === 'active' && this.sameUser();
   private isLive = (run: ProbeRun) => this.active() && this.runs.has(run);
   private canAutoProbe = () =>
-    this.active() && this.discovery === 'idle' && !this.runs.size && !this.runtimes.size;
+    this.active() && !this.probedDevices && !this.runs.size && !this.runtimes.size;
 
   private bindEvents(bind: boolean): void {
     const fn = (bind ? this.mx.on : this.mx.removeListener)?.bind(this.mx) as
@@ -284,6 +285,7 @@ export class ProviderUsageController {
       if (!run.refreshing && devices.every((d) => this.runtimes.has(runtimeKeyOf(d)))) continue;
       if (!dispatched) {
         dispatched = true;
+        this.probedDevices = true;
         if (this.discovery === 'idle') this.discovery = 'partial';
         run.timer = setTimeout(finish, USAGE_TIMEOUT);
       }
@@ -320,9 +322,7 @@ export class ProviderUsageController {
       .then((ok) => {
         if (!ok || !this.isLive(query.run)) return;
         const runtimeId = runtimeKeyOf(device);
-        for (const q of this.queries.values()) {
-          if (q.devices.some((d) => d.id === device.id)) q.answered = true;
-        }
+        query.answered = true;
         this.lastAnsweringRoomId = query.roomId;
         this.runtimes.set(runtimeId, { runtime: { ...device, id: runtimeId }, snapshot });
         this.selectedRuntimeId ??= runtimeId;
@@ -364,7 +364,7 @@ export class ProviderUsageController {
     const room = this.mx.getRoom?.(member.roomId);
     if (!room || !isJoinedRoom(room, this.userId)) return;
     this.probedRooms.delete(room.roomId);
-    if (this.discovery === 'full') this.discovery = 'partial';
+    if (this.discovery === 'full') this.discovery = this.probedDevices ? 'partial' : 'idle';
     if (this.canAutoProbe()) void this.probe('startup', this.orderedJoinedRooms(room.roomId));
   };
 

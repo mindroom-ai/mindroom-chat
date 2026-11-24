@@ -359,34 +359,59 @@ describe('ProviderUsageController', () => {
     expect(accountsFor(dev)).toEqual(['codex:default']);
   });
 
-  it('marks overlapping pending queries answered when a shared candidate device replies', async () => {
-    const [router, dev, writer, gamma] = [
-      agent('router', 'RT1'),
-      agent('dev', 'DV1'),
-      agent('writer', 'WR1'),
-      agent('gamma', 'GM1'),
-    ];
-    const { accountsFor, load, reply } = mountController([
+  it('keeps other rooms retrying when a shared candidate device answers a different room', async () => {
+    const [router, dev] = [agent('router', 'RT1'), agent('dev', 'DV1')];
+    const { runtimeIds, load, reply } = mountController([
       makeRoom('!lobby:example.org', [router.userId, dev.userId]),
-      makeRoom('!ops:example.org', [router.userId, writer.userId]),
-      makeRoom('!other:example.org', [gamma.userId]),
+      makeRoom('!project:example.org', [dev.userId]),
     ]);
 
     await load();
-    const [lobbyReq, opsReq, otherReq] = trustMocks.sentRequests;
+    const [lobbyReq, projectReq] = trustMocks.sentRequests;
     expect(lobbyReq!.answered(router.id)).toBe(false);
-    expect(opsReq!.answered(router.id)).toBe(false);
-    expect(otherReq!.answered(gamma.id)).toBe(false);
+    expect(projectReq!.answered(dev.id)).toBe(false);
 
-    // When router answers Lobby, Ops (sharing router) stops retrying while disjoint Other still retries.
+    // Dev answering Project must not mark Lobby answered (Router is Lobby's elected responder).
+    await reply(dev, 1, { accountIndex: 1 });
+    expect(projectReq!.answered(dev.id)).toBe(true);
+    expect(lobbyReq!.answered(router.id)).toBe(false);
+
     await reply(router, 0, { accountIndex: 0 });
     expect(lobbyReq!.answered(router.id)).toBe(true);
-    expect(opsReq!.answered(writer.id)).toBe(true);
-    expect(otherReq!.answered(gamma.id)).toBe(false);
+    expect(runtimeIds()).toEqual([
+      '@mindroom_dev:example.org:DV1',
+      '@mindroom_router:example.org:RT1',
+    ]);
+  });
 
-    // In-flight responses for still-open queries remain accepted until timeout.
-    await reply(writer, 1, { accountIndex: 1 });
-    expect(accountsFor(writer)).toEqual(['codex:default']);
+  it('auto-probes when the first agent joins after an empty /usage/ scan', async () => {
+    const dev = agent('dev', 'DV1');
+    const members = ['@alice:example.org'];
+    const room = {
+      roomId: '!empty:example.org',
+      getMyMembership: () => 'join',
+      hasMembersFetchFailed: false,
+      getJoinedMembers: () => members.map((userId) => ({ userId, membership: 'join' })),
+      loadMembersIfNeeded: vi.fn(async () => true),
+    } as unknown as Room;
+    const { mx, load } = mountController([room]);
+
+    await load();
+    expect(trustMocks.sentRequests).toHaveLength(0);
+
+    members.push(dev.userId);
+    mx.emit(
+      RoomMemberEvent.Membership,
+      {},
+      {
+        roomId: room.roomId,
+        userId: dev.userId,
+        membership: 'join',
+      }
+    );
+    await flushMicrotasks();
+
+    expect(sentRoomIds()).toEqual(['!empty:example.org']);
   });
 
   it('completes lazy-member full discovery on first /usage/ ensureLoaded() after quiet startup cached runtime A', async () => {
