@@ -1444,7 +1444,20 @@
       "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
-      "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다."
+      "failedSummary_other": "{{count}}개 구간을 받아쓰지 못했습니다.",
+      "discardDictation": "받아쓰기 삭제",
+      "discardConfirmTitle": "받아쓰기를 삭제할까요?",
+      "discardConfirmBody": "이 받아쓰기는 아직 입력하거나 전송하지 않았습니다. 영구적으로 삭제할까요?",
+      "errorTitle": "받아쓰기 오류",
+      "statusRecovered": "복구된 받아쓰기",
+      "recoveredDuration": "복구됨 · {{time}}",
+      "indicator": {
+        "recording": "받아쓰기 중 {{time}}",
+        "paused": "받아쓰기 일시 정지 {{time}}",
+        "recovered": "복구된 받아쓰기 {{time}}",
+        "finishing": "받아쓰기 마무리 중...",
+        "failed": "받아쓰기 확인 필요"
+      }
     }
   },
   "commandPalette": {

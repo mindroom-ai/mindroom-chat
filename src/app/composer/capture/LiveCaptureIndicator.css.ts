@@ -25,7 +25,7 @@ export const Pill = style([
   },
 ]);
 
-// The status region that says the recording's state; read out, not shown.
+// The status region that says the capture's state; read out, not shown.
 export const Announcement = style({
   position: 'absolute',
   inlineSize: 1,
@@ -38,7 +38,7 @@ export const Announcement = style({
   border: 0,
 });
 
-// Red while the microphone records, dimmed while it is paused.
+// Red while the microphone records, dimmed while paused, finishing or failed.
 export const Dot = recipe({
   base: {
     flex: 'none',

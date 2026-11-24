@@ -1538,7 +1538,20 @@
       "micInterrupted": "Microfono disconnesso. Riprendi o termina.",
       "failedSummary_one": "Impossibile trascrivere {{count}} segmento.",
       "failedSummary_many": "Impossibile trascrivere {{count}} segmenti.",
-      "failedSummary_other": "Impossibile trascrivere {{count}} segmenti."
+      "failedSummary_other": "Impossibile trascrivere {{count}} segmenti.",
+      "discardDictation": "Elimina dettatura",
+      "discardConfirmTitle": "Eliminare la dettatura?",
+      "discardConfirmBody": "Questa dettatura non è stata inserita né inviata. Eliminarla definitivamente?",
+      "errorTitle": "Errore di dettatura",
+      "statusRecovered": "Dettatura recuperata",
+      "recoveredDuration": "Recuperata · {{time}}",
+      "indicator": {
+        "recording": "Dettatura {{time}}",
+        "paused": "Dettatura in pausa {{time}}",
+        "recovered": "Dettatura recuperata {{time}}",
+        "finishing": "Completamento dettatura...",
+        "failed": "La dettatura richiede attenzione"
+      }
     }
   },
   "commandPalette": {

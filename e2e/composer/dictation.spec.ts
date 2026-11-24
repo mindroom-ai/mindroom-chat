@@ -341,3 +341,191 @@ test('Finish and send survives immediate switch to another room while transcript
     await context.close();
   }
 });
+
+test('shows live dictation indicator in Settings, cancels Discard, and finishes into another room', async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+
+  const user = await registerDisposableUser(`dict_nav_${RUN}`, PASSWORD);
+  const roomAName = `Room Alpha ${RUN}`;
+  const roomBName = `Room Beta ${RUN}`;
+  const roomAId = await createRoom(HOMESERVER, user.accessToken, { name: roomAName });
+  const roomBId = await createRoom(HOMESERVER, user.accessToken, { name: roomBName });
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    serviceWorkers: 'block',
+  });
+  await context.grantPermissions(['microphone']);
+  await context.addInitScript(installSpokenMicrophone, SPEECH_BASE64);
+
+  const transcribeCalls: TranscribeRecord[] = [];
+  const transcript = 'Cross room dictation works.';
+
+  try {
+    await serveDictationApi(
+      context,
+      user,
+      (record) => transcribeCalls.push(record),
+      async () => transcript
+    );
+    const page = await context.newPage();
+
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: user.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(roomAId)}`);
+
+    const composer = page.locator('[data-editable-name="RoomInput"]');
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+
+    const dictateButton = page.getByRole('button', { name: 'Dictate' });
+    await expect(dictateButton).toBeVisible({ timeout: 30_000 });
+    await dictateButton.click();
+
+    const finishButton = page.getByRole('button', { name: 'Finish into composer' });
+    await expect(finishButton).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => transcribeCalls.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+    await expect(page.getByTestId('dictation-preview')).toContainText(transcript);
+
+    // Open Settings: live capture indicator appears inside Settings with dictation status + timer.
+    await page.keyboard.press('ControlOrMeta+,');
+    const settings = page.getByRole('dialog', { name: 'Settings' });
+    await expect(settings).toBeVisible({ timeout: 30_000 });
+    const indicator = settings.getByTestId('live-dictation-indicator');
+    await expect(indicator).toBeVisible();
+    await expect(indicator).toContainText(/Dictating \d+:\d{2}/);
+
+    // Discard asks for confirmation; cancelling keeps dictation live.
+    await indicator.getByRole('button', { name: 'Discard dictation' }).click();
+    const confirmDialog = page.getByRole('dialog', { name: 'Discard dictation?' });
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(confirmDialog).toHaveCount(0);
+    await expect(indicator).toBeVisible();
+
+    // Close Settings, switch to Room B, and finish dictation into Room B's composer.
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveCount(0);
+    await expect(page.getByTestId('live-dictation-indicator')).toHaveCount(0);
+
+    await page.getByRole('link', { name: new RegExp(roomBName) }).click();
+    await expect.poll(() => decodeURIComponent(page.url())).toContain(roomBId);
+    await expect(finishButton).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('dictation-preview')).toContainText(transcript);
+
+    await finishButton.click();
+    await expect(finishButton).toHaveCount(0, { timeout: 15_000 });
+    await expect(composer).toContainText(transcript);
+  } finally {
+    await context.close();
+  }
+});
+
+test('recovers paused dictation with preview text after browser reload and inserts on Finish', async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+
+  const user = await registerDisposableUser(`dict_reload_${RUN}`, PASSWORD);
+  const roomId = await createRoom(HOMESERVER, user.accessToken, { name: `Room Reload ${RUN}` });
+
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    serviceWorkers: 'block',
+  });
+  await context.grantPermissions(['microphone']);
+  await context.addInitScript(installSpokenMicrophone, SPEECH_BASE64);
+
+  const transcribeCalls: TranscribeRecord[] = [];
+  const transcript = 'Survived browser reload.';
+
+  try {
+    await serveDictationApi(
+      context,
+      user,
+      (record) => transcribeCalls.push(record),
+      async () => transcript
+    );
+    const page = await context.newPage();
+
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: user.username,
+      password: PASSWORD,
+    });
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+
+    const composer = page.locator('[data-editable-name="RoomInput"]');
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+
+    const dictateButton = page.getByRole('button', { name: 'Dictate' });
+    await expect(dictateButton).toBeVisible({ timeout: 30_000 });
+    await dictateButton.click();
+
+    const finishButton = page.getByRole('button', { name: 'Finish into composer' });
+    await expect(finishButton).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => transcribeCalls.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
+    await expect(page.getByTestId('dictation-preview')).toContainText(transcript);
+
+    // Wait for the completed transcript checkpoint to flush to IndexedDB before reloading.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              new Promise<boolean>((resolve) => {
+                const req = indexedDB.open('mindroom-voice-journal', 1);
+                req.onerror = () => resolve(false);
+                req.onsuccess = () => {
+                  const db = req.result;
+                  if (!db.objectStoreNames.contains('recordings')) {
+                    db.close();
+                    resolve(false);
+                    return;
+                  }
+                  const tx = db.transaction('recordings', 'readonly');
+                  const all = tx.objectStore('recordings').getAll();
+                  all.onerror = () => {
+                    db.close();
+                    resolve(false);
+                  };
+                  all.onsuccess = () => {
+                    const rows = all.result as Array<{
+                      kind?: string;
+                      segments?: Array<{ status?: string }>;
+                    }>;
+                    db.close();
+                    resolve(
+                      rows.some(
+                        (row) =>
+                          row.kind === 'dictation' &&
+                          row.segments?.some((seg) => seg.status === 'completed')
+                      )
+                    );
+                  };
+                };
+              })
+          ),
+        { timeout: 15_000 }
+      )
+      .toBe(true);
+
+    await page.reload();
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+
+    // Dictation recovers paused with "Recovered · ..." and preserves the transcribed preview.
+    await expect(page.getByText(/Recovered · \d+:\d{2}/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Resume dictation' })).toBeVisible();
+    await expect(page.getByTestId('dictation-preview')).toContainText(transcript);
+
+    await finishButton.click();
+    await expect(finishButton).toHaveCount(0, { timeout: 15_000 });
+    await expect(composer).toContainText(transcript);
+  } finally {
+    await context.close();
+  }
+});

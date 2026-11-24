@@ -74,6 +74,7 @@ type SendSession = RoomInputSendSessionState & {
   onUploadSent?: (file: TUploadContent) => void;
   beforeSend?: StartRoomInputSendSessionOptions['beforeSend'];
   onLocalEchoCreated?: StartRoomInputSendSessionOptions['onLocalEchoCreated'];
+  onTextConsumed?: () => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
@@ -226,6 +227,11 @@ export type StartRoomInputSendSessionOptions = {
    * also after the composer has gone, or shows another room.
    */
   onLocalEchoCreated?: (eventId: string, room: Room) => void;
+  /**
+   * Invoked once when this send's text is handed off to Matrix (local echo / send completed) OR
+   * restored via `composerFallback`, OR when `textContent` is undefined and the send finishes.
+   */
+  onTextConsumed?: () => void;
 };
 
 export type RoomInputReplyDraftContext = Pick<RoomInputSendContext, 'roomId' | 'replyDraft'>;
@@ -313,6 +319,7 @@ const createSendSession = (
     | 'onUploadSent'
     | 'beforeSend'
     | 'onLocalEchoCreated'
+    | 'onTextConsumed'
     | 'composer'
   >
 ): SendSession => ({
@@ -424,6 +431,12 @@ const clearReplyDraftForSession = (session: SendSession) => {
   });
 };
 
+const consumeSessionText = (session: SendSession) => {
+  const callback = session.onTextConsumed;
+  session.onTextConsumed = undefined;
+  callback?.();
+};
+
 const restoreComposerFallback = (session: SendSession) => {
   // A caption that failed before it had a row of its own (its long-text file did not
   // upload, or an earlier upload of a lifecycle-complete send failed) goes back into the
@@ -433,6 +446,7 @@ const restoreComposerFallback = (session: SendSession) => {
   const fragment = session.composerFallback;
   session.composerFallback = undefined;
   if (fragment) session.composer.restoreText(session.composerContext, fragment);
+  consumeSessionText(session);
 };
 
 const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] => {
@@ -569,7 +583,7 @@ export const useRoomInputSendSessionController = ({
       }
       if (!relation) session.rootModel = undefined;
       const txnId = mx.makeTxnId();
-      const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
+      const sendPromise = mx.sendMessage(session.roomId, eventContent as never, txnId);
       sendPromise.then(
         (response) => settleFork?.(response.event_id),
         () => settleFork?.()
@@ -610,6 +624,7 @@ export const useRoomInputSendSessionController = ({
       }
 
       session.textPending = false;
+      consumeSessionText(session);
       clearReplyDraftForSession(session);
     },
     [mx]
@@ -654,7 +669,7 @@ export const useRoomInputSendSessionController = ({
       const response = await mx
         .sendMessage(
           session.roomId,
-          withSubmissionMarker(session, contentWithRelation, file) as any,
+          withSubmissionMarker(session, contentWithRelation, file) as never,
           txnId
         )
         .catch((error: unknown) => {
@@ -699,6 +714,7 @@ export const useRoomInputSendSessionController = ({
       sendSlot.adopted = false;
       if (sendSlot.queued.length === 0) sendSlot.unpark?.();
       session?.composer.attachments.clearEnrollment(session.orderedFiles);
+      if (session && !session.textPending) consumeSessionText(session);
       notifySlot(sendSlot);
     },
     [mx]
@@ -820,6 +836,7 @@ export const useRoomInputSendSessionController = ({
         onUploadSent,
         beforeSend,
         onLocalEchoCreated,
+        onTextConsumed,
       }: StartRoomInputSendSessionOptions = {},
       sendSlot: SendSlot = slotRef.current
     ) => {
@@ -882,8 +899,15 @@ export const useRoomInputSendSessionController = ({
           return;
         }
         // Repeated sends while uploads are still resolving should not create duplicate events.
-        if (!textContent && !batch?.fileItems.length) return;
+        if (!textContent && !batch?.fileItems.length) {
+          onTextConsumed?.();
+          return;
+        }
         if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
+          if (composerAlreadyReset && composerFallback) {
+            restoreText(targetComposerContext, composerFallback);
+            onTextConsumed?.();
+          }
           return;
         }
         // The composer takes the message now, as it does any message; the reply draft the earlier
@@ -919,6 +943,7 @@ export const useRoomInputSendSessionController = ({
             failFast: false,
             beforeSend,
             onLocalEchoCreated,
+            onTextConsumed,
             composer,
           });
           const sending = activeSlot.textsBeside.then(() =>
@@ -945,6 +970,7 @@ export const useRoomInputSendSessionController = ({
                 onUploadSent,
                 beforeSend,
                 onLocalEchoCreated,
+                onTextConsumed,
               },
               activeSlot
             )
@@ -967,8 +993,17 @@ export const useRoomInputSendSessionController = ({
         (fileItem) => !fileItem.prepError && !heldFiles.has(fileItem.file)
       );
       const sendFiles = sendItems.map((item) => item.file);
-      if (sendFiles.length === 0 && !textContent) return;
-      if (hasFailedPasteMarkerInText(textContent, staged)) return;
+      if (sendFiles.length === 0 && !textContent) {
+        onTextConsumed?.();
+        return;
+      }
+      if (hasFailedPasteMarkerInText(textContent, staged)) {
+        if (composerAlreadyReset && composerFallback) {
+          restoreText(targetComposerContext, composerFallback);
+          onTextConsumed?.();
+        }
+        return;
+      }
       attachments.enroll(sendItems);
 
       const sendContext = withForkStart(
@@ -993,6 +1028,7 @@ export const useRoomInputSendSessionController = ({
         onUploadSent,
         beforeSend,
         onLocalEchoCreated,
+        onTextConsumed,
         composer,
       });
       session.originThreadView = threadView;

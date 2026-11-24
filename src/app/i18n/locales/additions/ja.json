@@ -1444,7 +1444,20 @@
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
-      "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。"
+      "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。",
+      "discardDictation": "音声入力を破棄",
+      "discardConfirmTitle": "音声入力を破棄しますか？",
+      "discardConfirmBody": "この音声入力はまだ挿入または送信されていません。完全に破棄しますか？",
+      "errorTitle": "音声入力エラー",
+      "statusRecovered": "復元された音声入力",
+      "recoveredDuration": "復元済み · {{time}}",
+      "indicator": {
+        "recording": "音声入力中 {{time}}",
+        "paused": "音声入力を一時停止中 {{time}}",
+        "recovered": "復元された音声入力 {{time}}",
+        "finishing": "音声入力を完了処理中...",
+        "failed": "音声入力を確認してください"
+      }
     }
   },
   "commandPalette": {

@@ -1491,7 +1491,20 @@
       "capReached": "5:00 সীমা পূর্ণ হয়েছে",
       "micInterrupted": "মাইক্রোফোন বিচ্ছিন্ন হয়েছে। আবার শুরু করুন বা শেষ করুন।",
       "failedSummary_one": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।",
-      "failedSummary_other": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।"
+      "failedSummary_other": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।",
+      "discardDictation": "ডিকটেশন বাতিল করুন",
+      "discardConfirmTitle": "ডিকটেশন বাতিল করবেন?",
+      "discardConfirmBody": "এই ডিকটেশনটি যোগ করা বা পাঠানো হয়নি। স্থায়ীভাবে বাতিল করবেন?",
+      "errorTitle": "ডিকটেশন ত্রুটি",
+      "statusRecovered": "পুনরুদ্ধার করা ডিকটেশন",
+      "recoveredDuration": "পুনরুদ্ধার করা · {{time}}",
+      "indicator": {
+        "recording": "ডিকটেট হচ্ছে {{time}}",
+        "paused": "ডিকটেশন বিরত {{time}}",
+        "recovered": "পুনরুদ্ধার করা ডিকটেশন {{time}}",
+        "finishing": "ডিকটেশন সম্পন্ন হচ্ছে...",
+        "failed": "ডিকটেশনে মনোযোগ প্রয়োজন"
+      }
     }
   },
   "commandPalette": {

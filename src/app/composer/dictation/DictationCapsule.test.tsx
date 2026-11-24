@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { createStore, Provider } from 'jotai';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
+import { liveCaptureCapsulesShownAtom } from '../capture/liveCapture';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import { DictationCapsule } from './DictationCapsule';
 import type { DictationSnapshot } from './dictationSession';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, params?: Record<string, unknown>) =>
-      params?.count !== undefined ? `${key}:${String(params.count)}` : key,
+    t: (key: string, params?: Record<string, unknown>) => {
+      if (params?.count !== undefined) return `${key}:${String(params.count)}`;
+      if (params?.time !== undefined) return `${key}:${String(params.time)}`;
+      return key;
+    },
   }),
 }));
 
@@ -40,6 +46,8 @@ const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnap
   previewText: '',
   capReached: false,
   interrupted: false,
+  recovered: false,
+  hasClient: true,
   errorMessage: undefined,
   ...overrides,
 });
@@ -262,5 +270,84 @@ describe('DictationCapsule', () => {
     fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
     expect(h.onRetry).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('composer.dictation.retry')).toBeNull();
+  });
+
+  it('tracks liveCaptureCapsulesShownAtom only when showingLive is true (including HOME_ASK_VIEW)', () => {
+    const h = handlers();
+    const store = createStore();
+
+    const detached = render(
+      <Provider store={store}>
+        <DictationCapsule
+          snapshot={baseSnapshot({ phase: 'finishing' })}
+          sending
+          showingLive={false}
+          {...h}
+        />
+      </Provider>
+    );
+    expect(store.get(liveCaptureCapsulesShownAtom)).toBe(0);
+    detached.unmount();
+
+    const homeLive = render(
+      <Provider store={store}>
+        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+          <DictationCapsule snapshot={baseSnapshot({ phase: 'recording' })} showingLive {...h} />
+        </ConversationViewContext.Provider>
+      </Provider>
+    );
+    expect(store.get(liveCaptureCapsulesShownAtom)).toBe(1);
+    homeLive.unmount();
+    expect(store.get(liveCaptureCapsulesShownAtom)).toBe(0);
+  });
+
+  it('shows recovered duration timer, disables Resume without a client, and notes untranscribed segments', () => {
+    const h = handlers();
+    const { rerender } = render(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'paused',
+          elapsedMs: 65_000,
+          recovered: true,
+          hasClient: false,
+          pendingUploads: 2,
+          failedSegments: 1,
+          previewText: 'Already transcribed.',
+        })}
+        showingLive
+        {...h}
+      />
+    );
+
+    expect(screen.getByText('composer.dictation.recoveredDuration:1:05')).toBeTruthy();
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.resume').disabled).toBe(
+      true
+    );
+    expect(screen.getAllByText('composer.dictation.statusPendingRetry:3').length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.finish').disabled).toBe(
+      false
+    );
+
+    rerender(
+      <DictationCapsule
+        snapshot={baseSnapshot({
+          phase: 'paused',
+          elapsedMs: 65_000,
+          recovered: true,
+          hasClient: true,
+          pendingUploads: 0,
+          failedSegments: 0,
+          previewText: 'Already transcribed.',
+        })}
+        showingLive
+        {...h}
+      />
+    );
+    expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.resume').disabled).toBe(
+      false
+    );
+    expect(screen.getByRole('status').textContent).toBe('composer.dictation.statusRecovered');
   });
 });

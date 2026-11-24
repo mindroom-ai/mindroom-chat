@@ -1444,7 +1444,20 @@
       "statusPendingRetry_other": "{{count}} segmen menunggu percobaan ulang",
       "capReached": "Batas 5:00 tercapai",
       "micInterrupted": "Mikrofon terputus. Lanjutkan atau selesaikan.",
-      "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen."
+      "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen.",
+      "discardDictation": "Buang dikte",
+      "discardConfirmTitle": "Buang dikte?",
+      "discardConfirmBody": "Dikte ini belum dimasukkan atau dikirim. Buang secara permanen?",
+      "errorTitle": "Kesalahan Dikte",
+      "statusRecovered": "Dikte dipulihkan",
+      "recoveredDuration": "Dipulihkan · {{time}}",
+      "indicator": {
+        "recording": "Mendikte {{time}}",
+        "paused": "Dikte dijeda {{time}}",
+        "recovered": "Dikte dipulihkan {{time}}",
+        "finishing": "Menyelesaikan dikte...",
+        "failed": "Dikte perlu perhatian"
+      }
     }
   },
   "commandPalette": {
