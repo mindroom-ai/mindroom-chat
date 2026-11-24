@@ -1644,6 +1644,7 @@
       "needsYou": "Te necesita",
       "working": "En curso",
       "later": "Más tarde",
+      "quiet": "En calma",
       "done": "Hecho",
       "all": "Todos",
       "description": {
@@ -2005,6 +2006,7 @@
       "working": "En curso",
       "later": "Más tarde",
       "idle": "Inactivos",
+      "quiet": "En calma",
       "resolved": "Resueltos"
     },
     "live": {

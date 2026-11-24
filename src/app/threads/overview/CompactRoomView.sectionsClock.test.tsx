@@ -138,9 +138,9 @@ describe('Compact sections and the snooze clock of the list', () => {
     vi.setSystemTime(WAKE + 1);
     rerender(view(WAKE + 1));
     act(() => {
-      vi.runOnlyPendingTimers();
+      vi.advanceTimersByTime(100);
     });
 
-    expect(rows()).toEqual(['#needsYou', '$read', '$snoozed']);
+    expect(rows()).toEqual(['#needsYou', '$snoozed', '$read']);
   });
 });

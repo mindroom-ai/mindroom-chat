@@ -1597,6 +1597,7 @@
       "needsYou": "Needs you",
       "working": "Working",
       "later": "Later",
+      "quiet": "Quiet",
       "done": "Done",
       "all": "All",
       "description": {
@@ -1948,6 +1949,7 @@
       "working": "Working",
       "later": "Later",
       "idle": "Idle",
+      "quiet": "Quiet",
       "resolved": "Resolved"
     },
     "live": {

@@ -62,3 +62,92 @@ export const threadReturnTs = (
 ): number =>
   (isSnoozedAt(status.snoozedUntilTs, now) ? status.snoozedUntilTs : status.nextScheduledTs) ??
   Infinity;
+
+/** How long a read, inactive Needs you thread waits before folding into Quiet. */
+export const QUIET_AFTER_MS = 5 * 24 * 60 * 60 * 1000;
+
+export type ThreadQuietActivityInput = {
+  lastActivityTs?: number;
+  snoozedUntilTs?: number;
+  outcomeTs?: number;
+  newsTs?: number;
+  isStreaming?: boolean;
+  now: number;
+};
+
+/** Latest activity timestamp of a Needs you thread (streamed edits ignored; expired snooze wakes it). */
+export const threadQuietActivityTs = ({
+  lastActivityTs,
+  snoozedUntilTs,
+  outcomeTs,
+  newsTs,
+  isStreaming,
+  now,
+}: ThreadQuietActivityInput): number => {
+  const news = isStreaming ? 0 : newsTs ?? 0;
+  const expiredSnooze = snoozedUntilTs !== undefined && snoozedUntilTs <= now ? snoozedUntilTs : 0;
+  return Math.max(outcomeTs ?? 0, news, lastActivityTs ?? 0, expiredSnooze);
+};
+
+export type ThreadQuietInput = Omit<ThreadQuietActivityInput, 'now' | 'outcomeTs' | 'newsTs'> & {
+  isPinned?: boolean;
+  isUnread?: boolean;
+  replyCount?: number;
+  hasPendingSend?: boolean;
+  hasFailedSend?: boolean;
+  hasBackgroundApproval?: boolean;
+  signals?: {
+    pendingApproval?: unknown;
+    pendingQuestion?: unknown;
+    newCount?: number;
+    mentionedMe?: boolean;
+    newsTs?: number;
+    outcome?: { ts: number };
+    waitsUntil?: number;
+  };
+};
+
+const quietEligibleActivityTs = (input: ThreadQuietInput, now: number): number | undefined => {
+  const { signals } = input;
+  if (
+    input.isPinned ||
+    input.isUnread ||
+    input.hasPendingSend ||
+    input.hasFailedSend ||
+    input.hasBackgroundApproval ||
+    (signals === undefined
+      ? (input.replyCount ?? 0) > 0
+      : (signals.newCount ?? 0) > 0 || signals.mentionedMe)
+  ) {
+    return undefined;
+  }
+  const activityTs = threadQuietActivityTs({
+    ...input,
+    outcomeTs: signals?.outcome?.ts,
+    newsTs: signals?.newsTs,
+    now,
+  });
+  return activityTs > 0 ? activityTs : undefined;
+};
+
+/** Whether a Needs you thread is read and inactive for QUIET_AFTER_MS and folds into Quiet. */
+export const isQuietThread = (input: ThreadQuietInput, now: number): boolean => {
+  if (input.signals?.pendingApproval || input.signals?.pendingQuestion) return false;
+  const activityTs = quietEligibleActivityTs(input, now);
+  return activityTs !== undefined && now - activityTs >= QUIET_AFTER_MS;
+};
+
+/** When a non-quiet Needs you thread will become quiet from the clock alone, if ever. */
+export const nextThreadQuietTs = (input: ThreadQuietInput, now: number): number | undefined => {
+  const activityTs = quietEligibleActivityTs(input, now);
+  if (activityTs === undefined) return undefined;
+  const waiting = !!(input.signals?.pendingApproval || input.signals?.pendingQuestion);
+  const candidate = waiting
+    ? input.signals?.waitsUntil !== undefined
+      ? Math.max(activityTs + QUIET_AFTER_MS, input.signals.waitsUntil)
+      : undefined
+    : activityTs + QUIET_AFTER_MS;
+  return candidate !== undefined && Number.isFinite(candidate) && candidate > now
+    ? candidate
+    : undefined;
+};

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import { QUIET_AFTER_MS } from '../../event-store/threads/threadWorkflow';
 import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
 import {
   buildSidebarThreadEntries,
@@ -7,6 +8,7 @@ import {
   matchesSidebarThreadInvolvement,
   MAX_SIDEBAR_RESOLVED_THREADS,
   MAX_SIDEBAR_LATER_THREADS,
+  MAX_SIDEBAR_QUIET_THREADS,
   MAX_SIDEBAR_THREADS,
   type SidebarThreadSection,
 } from './threadNavCategoryUtils';
@@ -140,6 +142,8 @@ type SectionEntryOptions = {
   lastActivityTs?: number;
   rootTs?: number;
   oldestTs?: number;
+  isUnread?: boolean;
+  replyCount?: number;
   isStreaming?: boolean;
   hasPendingSend?: boolean;
   isResolved?: boolean;
@@ -155,6 +159,8 @@ const makeSectionEntry = ({
   lastActivityTs = 0,
   rootTs,
   oldestTs,
+  isUnread = false,
+  replyCount = 0,
   isStreaming = false,
   hasPendingSend = false,
   isResolved = false,
@@ -166,11 +172,12 @@ const makeSectionEntry = ({
 }: SectionEntryOptions): CrossRoomThreadIndexEntry =>
   ({
     ...makeEntry({ key, lastActivityTs, isResolved, roomId }),
+    isUnread,
     ...(rootTs !== undefined ? { rootTs } : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     ...(snoozedUntilTs !== undefined ? { snoozedUntilTs } : {}),
     threadRecord: {
-      status: { isStreaming, hasPendingSend, scheduledTaskCount, nextScheduledTs },
+      status: { isStreaming, hasPendingSend, scheduledTaskCount, nextScheduledTs, replyCount },
       cache: oldestTs !== undefined ? { oldestTs } : {},
     },
   } as CrossRoomThreadIndexEntry);
@@ -446,6 +453,47 @@ describe('buildSidebarThreadSections', () => {
       ['idle', MAX_SIDEBAR_THREADS, 60],
       ['resolved', MAX_SIDEBAR_RESOLVED_THREADS, 25],
     ]);
+  });
+
+  it('splits read 5-day idle threads into Quiet with its own cap and keeps Recent unchanged', () => {
+    const now = 10 * QUIET_AFTER_MS;
+    const stale = now - QUIET_AFTER_MS;
+    const quietEntries = Array.from({ length: 25 }, (_, i) =>
+      makeSectionEntry({ key: `quiet-${i}`, lastActivityTs: stale - 100 + i })
+    );
+    const all = [
+      ...quietEntries,
+      makeSectionEntry({ key: 'active', lastActivityTs: stale + 10 }),
+      makeSectionEntry({ key: 'pinned-old', lastActivityTs: stale - 500 }),
+      makeSectionEntry({ key: 'unread-old', lastActivityTs: stale - 500, isUnread: true }),
+      makeSectionEntry({ key: 'waiting-old', lastActivityTs: stale - 500, replyCount: 1 }),
+      makeSectionEntry({ key: 'unloaded-replies', lastActivityTs: stale - 500, replyCount: 2 }),
+      makeSectionEntry({ key: 'working', isStreaming: true }),
+      makeSectionEntry({ key: 'later', snoozedUntilTs: now + 100 }),
+      makeSectionEntry({ key: 'done', isResolved: true }),
+    ];
+    const sections = buildSidebarThreadSections(all, ['pinned-old'], new Set(), now, (entry) =>
+      entry.key === 'waiting-old'
+        ? ({ pendingApproval: {}, newCount: 0, mentionedMe: false } as ThreadSignals)
+        : undefined
+    );
+
+    expect(sections.map(({ id, entries, total }) => [id, entries.length, total])).toEqual([
+      ['idle', 5, 5],
+      ['working', 1, 1],
+      ['later', 1, 1],
+      ['quiet', MAX_SIDEBAR_QUIET_THREADS, 25],
+      ['resolved', 1, 1],
+    ]);
+    expect(
+      sections
+        .find(({ id }) => id === 'quiet')
+        ?.entries.slice(0, 2)
+        .map((e) => e.key)
+    ).toEqual(['quiet-24', 'quiet-23']);
+    expect(
+      buildSidebarThreadEntries([quietEntries[0]!], [], new Set(), 50, now).map((e) => e.key)
+    ).toEqual(['quiet-0']);
   });
 
   it('leaves out threads of direct-message rooms', () => {

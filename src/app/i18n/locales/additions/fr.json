@@ -1644,6 +1644,7 @@
       "needsYou": "À vous de jouer",
       "working": "En cours",
       "later": "Plus tard",
+      "quiet": "Calme",
       "done": "Terminé",
       "all": "Tous",
       "description": {
@@ -2005,6 +2006,7 @@
       "working": "En cours",
       "later": "Plus tard",
       "idle": "Inactifs",
+      "quiet": "Calme",
       "resolved": "Résolus"
     },
     "live": {

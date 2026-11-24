@@ -1550,6 +1550,7 @@
       "needsYou": "需要你处理",
       "working": "处理中",
       "later": "稍后",
+      "quiet": "安静",
       "done": "已完成",
       "all": "全部",
       "description": {
@@ -1891,6 +1892,7 @@
       "working": "进行中",
       "later": "稍后",
       "idle": "空闲",
+      "quiet": "安静",
       "resolved": "已解决"
     },
     "live": {

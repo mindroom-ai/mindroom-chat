@@ -1,63 +1,101 @@
 import type { ThreadRecord } from '../../event-store/threads/types';
 import {
   classifyThreadWorkflow,
+  isQuietThread,
+  nextThreadQuietTs,
+  threadQuietActivityTs,
   threadReturnTs,
   type ThreadWorkflowBucket,
 } from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 
-/** The sections in workflow-tab order, with Needs you first. */
-export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
+export type CompactThreadSectionId = ThreadWorkflowBucket | 'quiet';
+
+/** The sections in workflow-tab order, with Quiet folded before Done. */
+export const COMPACT_THREAD_SECTION_ORDER: readonly CompactThreadSectionId[] = [
   'needsYou',
   'working',
   'later',
+  'quiet',
   'done',
 ];
 
 /** One section of a Compact room's cards, in its order. */
-export type CompactThreadSection = { id: ThreadWorkflowBucket; rootIds: string[] };
+export type CompactThreadSection = { id: CompactThreadSectionId; rootIds: string[] };
 
-type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
-
-/**
- * The Compact room's listed threads (`threadRootIds`, filtered and in the list's order) in the
- * workflow buckets the tabs count (`classifyThreadWorkflow`), empty ones left out, so a tab that
- * shows one bucket shows one section. Working goes by when each thread started, Needs you by when
- * its last run finished or its newest message came (`signalsOf`, read once per such thread; a
- * streaming reply's edits count only once it ends), Later by when it comes back
- * (`threadReturnTs`), soonest first, and Done by when it was resolved. The index entry of the
- * thread (`entryOf`), when the index has it, gives when it started and was resolved; the record
- * stands in for what it lacks. Ties keep the list's order, and the room's pinned threads
- * (`pinnedRootIds`, in the list's order) lead their section.
- */
-export const buildCompactThreadSections = ({
-  threadRootIds,
-  recordMap,
-  entryOf,
-  signalsOf,
-  pinnedRootIds,
-  now,
-}: {
+type BuildCompactThreadSectionsInput = {
   threadRootIds: readonly string[];
   recordMap: ReadonlyMap<string, ThreadRecord>;
   entryOf: (rootId: string) => CrossRoomThreadIndexEntry | undefined;
   signalsOf: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
   pinnedRootIds: readonly string[];
   now: number;
-}): CompactThreadSection[] => {
-  const grouped: Record<ThreadWorkflowBucket, ThreadRecord[]> = {
+  quietNow?: number;
+};
+
+type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
+
+/**
+ * The Compact room's listed threads in workflow buckets (`classifyThreadWorkflow` at `now`),
+ * splitting read, inactive Needs you threads into Quiet (`isQuietThread` at `quietNow`), empty
+ * sections omitted. Needs you and Quiet sort by `threadQuietActivityTs` (reading `signalsOf` once
+ * per Needs you candidate); pinned threads lead their section.
+ */
+export const buildCompactThreadSectionsResult = ({
+  threadRootIds,
+  recordMap,
+  entryOf,
+  signalsOf,
+  pinnedRootIds,
+  now,
+  quietNow = now,
+}: BuildCompactThreadSectionsInput): {
+  sections: CompactThreadSection[];
+  nextQuietWakeTs?: number;
+} => {
+  const grouped: Record<CompactThreadSectionId, ThreadRecord[]> = {
     working: [],
     needsYou: [],
     later: [],
+    quiet: [],
     done: [],
   };
   const places = new Map<ThreadRecord, number>();
+  const pinRanks = new Map(pinnedRootIds.map((rootId, index) => [rootId, index] as const));
+  const finishedTs = new Map<ThreadRecord, number>();
+  let nextQuietWakeTs: number | undefined;
+
   threadRootIds.forEach((rootId) => {
     const item = recordMap.get(rootId);
     if (!item) return;
     places.set(item, places.size);
-    grouped[classifyThreadWorkflow(item.status, now)].push(item);
+    const bucket = classifyThreadWorkflow(item.status, now);
+    if (bucket !== 'needsYou') {
+      grouped[bucket].push(item);
+      return;
+    }
+    const entry = entryOf(item.threadRootId);
+    const signals = entry && signalsOf(entry);
+    const quietInput = { ...item.status, isPinned: pinRanks.has(item.threadRootId), signals };
+    finishedTs.set(
+      item,
+      threadQuietActivityTs({
+        ...item.status,
+        outcomeTs: signals?.outcome?.ts,
+        newsTs: signals?.newsTs,
+        now: quietNow,
+      })
+    );
+    if (isQuietThread(quietInput, quietNow)) {
+      grouped.quiet.push(item);
+    } else {
+      grouped.needsYou.push(item);
+      const wakeTs = nextThreadQuietTs(quietInput, quietNow);
+      if (wakeTs !== undefined && (nextQuietWakeTs === undefined || wakeTs < nextQuietWakeTs)) {
+        nextQuietWakeTs = wakeTs;
+      }
+    }
   });
 
   const listOrder: Compare = (left, right) => (places.get(left) ?? 0) - (places.get(right) ?? 0);
@@ -66,29 +104,19 @@ export const buildCompactThreadSections = ({
     (left, right) =>
       tsOf(right) - tsOf(left) || listOrder(left, right);
   const activityOf = (item: ThreadRecord) => item.status.lastActivityTs ?? 0;
-  const finishedTs = new Map(
-    grouped.needsYou.map((item) => {
-      const entry = entryOf(item.threadRootId);
-      const signals = entry && signalsOf(entry);
-      // A reply that still streams counts from when it was sent (`activityOf`), not by its
-      // newest edit (`newsTs`), so a thread that needs you keeps its place at every chunk.
-      const newsTs = item.status.isStreaming ? 0 : signals?.newsTs ?? 0;
-      const ts = Math.max(signals?.outcome?.ts ?? 0, newsTs, activityOf(item));
-      return [item, ts] as const;
-    })
-  );
-  const compares: Record<ThreadWorkflowBucket, Compare> = {
+  const byFinished = newestFirst((item) => finishedTs.get(item) ?? 0);
+  const compares: Record<CompactThreadSectionId, Compare> = {
     working: newestFirst(
       (item) => entryOf(item.threadRootId)?.rootTs ?? item.cache.oldestTs ?? activityOf(item)
     ),
-    needsYou: newestFirst((item) => finishedTs.get(item) ?? 0),
+    needsYou: byFinished,
     later: (left, right) =>
       threadReturnTs(left.status, now) - threadReturnTs(right.status, now) ||
       listOrder(left, right),
+    quiet: byFinished,
     done: newestFirst((item) => entryOf(item.threadRootId)?.resolvedTs ?? activityOf(item)),
   };
 
-  const pinRanks = new Map(pinnedRootIds.map((rootId, index) => [rootId, index] as const));
   const pinnedFirst =
     (compare: Compare): Compare =>
     (left, right) => {
@@ -100,7 +128,7 @@ export const buildCompactThreadSections = ({
       return compare(left, right);
     };
 
-  return COMPACT_THREAD_SECTION_ORDER.flatMap((id) =>
+  const sections = COMPACT_THREAD_SECTION_ORDER.flatMap((id) =>
     grouped[id].length > 0
       ? [
           {
@@ -110,4 +138,9 @@ export const buildCompactThreadSections = ({
         ]
       : []
   );
+  return nextQuietWakeTs !== undefined ? { sections, nextQuietWakeTs } : { sections };
 };
+
+export const buildCompactThreadSections = (
+  input: BuildCompactThreadSectionsInput
+): CompactThreadSection[] => buildCompactThreadSectionsResult(input).sections;

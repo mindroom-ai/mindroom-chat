@@ -1,23 +1,35 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { atom, useAtomValue, type Atom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Room } from 'matrix-js-sdk';
 import type { ThreadRecord } from '../../event-store/threads/types';
+import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
+import type { Unread } from '../../matrix/types/room';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
 } from '../cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
-import { buildCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
+import {
+  buildCompactThreadSectionsResult,
+  type CompactThreadSection,
+} from './compactThreadSections';
+
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
 type RoomEntries = ReadonlyMap<string, CrossRoomThreadIndexEntry>;
 
 const NO_ENTRIES: RoomEntries = new Map();
 // Read-only, so it holds nothing an account could leave behind.
 const noEntriesAtom = atom(() => NO_ENTRIES);
+const noUnreadAtom = atom<Unread | undefined>(() => undefined);
 
 const sameEntries = (left: RoomEntries, right: RoomEntries): boolean =>
   left.size === right.size && [...left].every(([rootId, entry]) => right.get(rootId) === entry);
+
+const sameUnread = (left: Unread | undefined, right: Unread | undefined): boolean =>
+  left === right ||
+  (!!left && !!right && left.total === right.total && left.highlight === right.highlight);
 
 const roomEntriesAtoms = new Map<string, Atom<RoomEntries>>();
 
@@ -42,11 +54,10 @@ const roomEntriesAtom = (roomId: string): Atom<RoomEntries> => {
 };
 
 /**
- * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `now` is set,
- * else undefined. `now` is the snooze clock the list was filtered at (`useThreadIndex`), so a
- * thread the selected tab admits when its snooze ends is classified as the tab did. The records
- * carry what classifies them, background jobs included; it reads the threads' index entries and
- * signals for when they started, finished and were resolved, and while off it reads none of them.
+ * The Compact room's listed cards in sections (`buildCompactThreadSectionsResult`) while `now` is
+ * set, else undefined. `now` is the snooze clock the list was filtered at (`useThreadIndex`), so a
+ * thread the selected tab admits when its snooze ends is classified as the tab did; Quiet uses a
+ * separate timer clock so read, inactive threads fold automatically without shifting snooze parity.
  */
 export const useCompactThreadSections = ({
   room,
@@ -65,17 +76,46 @@ export const useCompactThreadSections = ({
   const entries = useAtomValue(
     useMemo(() => (enabled ? roomEntriesAtom(room.roomId) : noEntriesAtom), [enabled, room.roomId])
   );
-  return useMemo(() => {
-    if (now === undefined) return undefined;
+  // Unread counts can change with no index change (e.g. read on another device clearing a mention).
+  const roomUnread = useAtomValue(
+    useMemo(
+      () =>
+        enabled
+          ? selectAtom(roomToUnreadAtom, (unreads) => unreads.get(room.roomId), sameUnread)
+          : noUnreadAtom,
+      [enabled, room.roomId]
+    )
+  );
+  const [quietTick, setQuietTick] = useState(0);
+  const quietNow = now !== undefined ? Math.max(now, quietTick) : undefined;
+
+  const result = useMemo(() => {
+    if (now === undefined || quietNow === undefined) return undefined;
     // The client's shared signals cache, which Activity and the sidebar keep filled.
     const reader = getThreadSignalsReader(room.client);
-    return buildCompactThreadSections({
+    return buildCompactThreadSectionsResult({
       threadRootIds,
       recordMap: threadRecordMap,
       entryOf: (rootId) => entries.get(rootId),
-      signalsOf: (entry) => reader.read(room, entry, room.myUserId, now),
+      signalsOf: (entry) => reader.read(room, entry, room.myUserId, quietNow),
       pinnedRootIds,
       now,
+      quietNow,
     });
-  }, [entries, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
+    // roomUnread only triggers the rebuild; the signals read the counts themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, now, pinnedRootIds, quietNow, room, roomUnread, threadRecordMap, threadRootIds]);
+
+  const nextQuietWakeTs = result?.nextQuietWakeTs;
+  useEffect(() => {
+    if (!enabled || quietNow === undefined || nextQuietWakeTs === undefined) return undefined;
+    const timer = setTimeout(
+      () => setQuietTick(Date.now()),
+      Math.max(0, Math.min(nextQuietWakeTs - quietNow, MAX_TIMEOUT_MS))
+    );
+    return () => clearTimeout(timer);
+    // quietNow is a dependency so a capped timer re-arms for the rest of a long wait.
+  }, [enabled, nextQuietWakeTs, quietNow]);
+
+  return result?.sections;
 };
