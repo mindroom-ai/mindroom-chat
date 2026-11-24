@@ -2024,6 +2024,46 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    },
+    "help": {
+      "button": "Aide et guides",
+      "buttonWithTip": "Aide et guides (1 conseil)",
+      "title": "Aide et guides",
+      "subtitle": "Guides rapides",
+      "oneTip": "1 conseil",
+      "suggested": "Suggéré pour vous",
+      "showHow": "Voir comment",
+      "dismissTip": "Ignorer le conseil",
+      "guidesHeading": "Guides d’interface",
+      "guides": {
+        "conversation": "Comment fonctionnent les fils",
+        "resolve": "Résoudre ce qui est terminé",
+        "filters": "Retrouver les fils résolus",
+        "snooze": "Reporter à plus tard",
+        "pinAndTag": "Épingler et étiqueter",
+        "views": "Vue Compact ou Fils",
+        "activity": "Activité et approbations"
+      },
+      "fullTour": "Visite complète",
+      "shortcuts": "Raccourcis"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Résolvez les fils terminés",
+        "cardTitle": "Résolvez les fils terminés",
+        "roomSummary_one": "{{count}} fil ouvert ici, aucun résolu pour l’instant",
+        "roomSummary_many": "{{count}} fils ouverts ici, aucun résolu pour l’instant",
+        "roomSummary_other": "{{count}} fils ouverts ici, aucun résolu pour l’instant",
+        "allSummary_one": "{{count}} fil ouvert, aucun résolu pour l’instant",
+        "allSummary_many": "{{count}} fils ouverts, aucun résolu pour l’instant",
+        "allSummary_other": "{{count}} fils ouverts, aucun résolu pour l’instant",
+        "cardTextRoom_one": "{{count}} fil ouvert ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextRoom_many": "{{count}} fils ouverts ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextRoom_other": "{{count}} fils ouverts ici, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_one": "{{count}} fil ouvert, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_many": "{{count}} fils ouverts, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire.",
+        "cardTextAll_other": "{{count}} fils ouverts, aucun résolu pour l’instant. Résolvez ceux qui sont terminés pour garder la liste claire."
+      }
     }
   },
   "threadNav": {

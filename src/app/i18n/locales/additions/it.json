@@ -2024,6 +2024,46 @@
       "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
+    },
+    "help": {
+      "button": "Aiuto e guide",
+      "buttonWithTip": "Aiuto e guide (1 suggerimento)",
+      "title": "Aiuto e guide",
+      "subtitle": "Guide rapide",
+      "oneTip": "1 suggerimento",
+      "suggested": "Suggerito per te",
+      "showHow": "Mostra come",
+      "dismissTip": "Ignora suggerimento",
+      "guidesHeading": "Guide dell’interfaccia",
+      "guides": {
+        "conversation": "Come funzionano i thread",
+        "resolve": "Risolvi ciò che è concluso",
+        "filters": "Trova i thread risolti",
+        "snooze": "Posticipa per dopo",
+        "pinAndTag": "Fissa e aggiungi tag",
+        "views": "Vista Compatto vs Thread",
+        "activity": "Attività e approvazioni"
+      },
+      "fullTour": "Tour completo",
+      "shortcuts": "Scorciatoie"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Risolvi i thread conclusi",
+        "cardTitle": "Risolvi i thread conclusi",
+        "roomSummary_one": "{{count}} thread aperto qui, nessuno risolto finora",
+        "roomSummary_many": "{{count}} thread aperti qui, nessuno risolto finora",
+        "roomSummary_other": "{{count}} thread aperti qui, nessuno risolto finora",
+        "allSummary_one": "{{count}} thread aperto, nessuno risolto finora",
+        "allSummary_many": "{{count}} thread aperti, nessuno risolto finora",
+        "allSummary_other": "{{count}} thread aperti, nessuno risolto finora",
+        "cardTextRoom_one": "{{count}} thread aperto qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_many": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextRoom_other": "{{count}} thread aperti qui, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_one": "{{count}} thread aperto, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_many": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco.",
+        "cardTextAll_other": "{{count}} thread aperti, nessuno risolto finora. Risolvi quelli conclusi per tenere ordinato l’elenco."
+      }
     }
   },
   "threadNav": {

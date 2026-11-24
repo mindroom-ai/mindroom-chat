@@ -7,6 +7,7 @@ import {
   nextStep,
   previousStep,
   stepAt,
+  stepIndexOf,
   stepsOf,
 } from './tourSteps';
 
@@ -84,6 +85,14 @@ describe('tourSteps', () => {
     expect(stepAt('quick', 99).id).toBe('filters');
     expect(stepAt('full', 99).id).toBe('activity');
     expect(stepAt('full', -1).id).toBe('conversation');
+  });
+
+  it('resolves an initial step to its index within the level, falling back to 0', () => {
+    expect(stepIndexOf('full')).toBe(0);
+    expect(stepIndexOf('full', 'resolve')).toBe(6);
+    expect(stepIndexOf('quick', 'resolve')).toBe(6);
+    expect(stepIndexOf('full', 'activity')).toBe(11);
+    expect(stepIndexOf('quick', 'activity')).toBe(0);
   });
 
   it('says in Keep going how many steps the Full tour adds', () => {

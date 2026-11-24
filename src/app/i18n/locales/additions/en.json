@@ -1968,6 +1968,42 @@
       "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
+    },
+    "help": {
+      "button": "Help & guides",
+      "buttonWithTip": "Help & guides (1 tip)",
+      "title": "Help & guides",
+      "subtitle": "Quick guides",
+      "oneTip": "1 tip",
+      "suggested": "Suggested for you",
+      "showHow": "Show how",
+      "dismissTip": "Dismiss tip",
+      "guidesHeading": "UI guides",
+      "guides": {
+        "conversation": "How threads work",
+        "resolve": "Resolve what is done",
+        "filters": "Find resolved threads",
+        "snooze": "Snooze for later",
+        "pinAndTag": "Pin & tag threads",
+        "views": "Compact vs Threads view",
+        "activity": "Activity & approvals"
+      },
+      "fullTour": "Full tour",
+      "shortcuts": "Shortcuts"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolve finished threads",
+        "cardTitle": "Resolve finished threads",
+        "roomSummary_one": "{{count}} open thread here, none resolved yet",
+        "roomSummary_other": "{{count}} open threads here, none resolved yet",
+        "allSummary_one": "{{count}} open thread, none resolved yet",
+        "allSummary_other": "{{count}} open threads, none resolved yet",
+        "cardTextRoom_one": "{{count}} open thread here, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextRoom_other": "{{count}} open threads here, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextAll_one": "{{count}} open thread, none resolved yet. Resolve finished ones to tidy the list.",
+        "cardTextAll_other": "{{count}} open threads, none resolved yet. Resolve finished ones to tidy the list."
+      }
     }
   },
   "threadNav": {

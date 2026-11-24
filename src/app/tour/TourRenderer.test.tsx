@@ -5,7 +5,7 @@ import type { FocusTrap } from 'focus-trap-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
-import { tourAtom } from '../navigation/tourState';
+import { tourAtom, type TourStepId } from '../navigation/tourState';
 import { TourRenderer } from './TourRenderer';
 import { QUICK_STEP_COUNT } from './tourSteps';
 
@@ -29,7 +29,8 @@ const press = (name: string) => {
   if (!button) throw new Error(`no ${name} button`);
   fireEvent.click(button);
 };
-const open = (level: 'quick' | 'full') => act(() => store.set(tourAtom, { level }));
+const open = (level: 'quick' | 'full', initialStep?: TourStepId) =>
+  act(() => store.set(tourAtom, initialStep ? { level, initialStep } : { level }));
 const tick = () =>
   act(() => {
     vi.advanceTimersByTime(0);
@@ -200,5 +201,16 @@ describe('TourRenderer', () => {
     press('next');
     open('full');
     expect(dialog()?.getAttribute('data-tour-step')).toBe('conversation');
+  });
+  it('opens at the requested initialStep and resets to it on a fresh opening', () => {
+    render(<TourRenderer />);
+    open('full', 'resolve');
+    expect(dialog()?.getAttribute('data-tour-level')).toBe('full');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('resolve');
+    press('next');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('filters');
+
+    open('full', 'snooze');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('snooze');
   });
 });

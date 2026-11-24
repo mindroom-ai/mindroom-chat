@@ -1912,6 +1912,38 @@
       "settingsKeywords": "ツアー, チュートリアル, ガイド, ヘルプ, 使い方, 入門, スレッド",
       "howThreadsWork": "スレッドのしくみ",
       "noThreadsHint": "下の入力欄からメッセージを送ると、スレッドが始まります。"
+    },
+    "help": {
+      "button": "ヘルプとガイド",
+      "buttonWithTip": "ヘルプとガイド（ヒント1件）",
+      "title": "ヘルプとガイド",
+      "subtitle": "クイックガイド",
+      "oneTip": "ヒント1件",
+      "suggested": "おすすめのヒント",
+      "showHow": "方法を見る",
+      "dismissTip": "ヒントを閉じる",
+      "guidesHeading": "UIガイド",
+      "guides": {
+        "conversation": "スレッドのしくみ",
+        "resolve": "終わったものは解決する",
+        "filters": "解決済みのスレッドを探す",
+        "snooze": "あとで対応するようスヌーズ",
+        "pinAndTag": "ピン留めとタグ付け",
+        "views": "コンパクト表示とスレッド表示",
+        "activity": "アクティビティと承認"
+      },
+      "fullTour": "フルツアー",
+      "shortcuts": "ショートカット"
+    },
+    "tips": {
+      "resolve": {
+        "title": "終わったスレッドを解決する",
+        "cardTitle": "終わったスレッドを解決する",
+        "roomSummary_other": "このルームに未解決スレッドが{{count}}件、解決済みはまだありません",
+        "allSummary_other": "未解決スレッドが{{count}}件、解決済みはまだありません",
+        "cardTextRoom_other": "このルームに未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。",
+        "cardTextAll_other": "未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。"
+      }
     }
   },
   "threadNav": {
