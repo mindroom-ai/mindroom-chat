@@ -86,6 +86,9 @@ export const inspectCryptoStoreContinuity = async (
   return inspectDatabaseExistence(cryptoStoreName);
 };
 
+// Device identity queries wait at most this long for the homeserver's answer.
+export const IDENTITY_CHECK_TIMEOUT_MS = 10_000;
+
 type DeviceKeysQueryResponse = {
   device_keys?: Record<
     string,
@@ -112,7 +115,8 @@ export const serverHasDeviceIdentity = async (
         device_keys: {
           [session.userId]: [session.deviceId],
         },
-      }
+      },
+      { localTimeoutMs: IDENTITY_CHECK_TIMEOUT_MS }
     );
   } catch {
     throw new DeviceIdentityVerificationError(session.userId);
