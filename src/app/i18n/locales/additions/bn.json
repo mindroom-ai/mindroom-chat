@@ -1793,8 +1793,7 @@
       "replyAndOthers_one": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "replyAndOthers_other": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
       "finished": "{{name}} কাজ শেষ করেছে",
-      "stopped": "{{name}} থেমে গেছে",
-      "youReplied": "আপনি উত্তর দিয়েছেন"
+      "stopped": "{{name}} থেমে গেছে"
     },
     "newCount_one": "{{count}}টি নতুন",
     "newCount_other": "{{count}}টি নতুন",
@@ -2204,5 +2203,35 @@
   },
   "nav": {
     "usage": "ব্যবহার"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}}টি রুম",
+      "roomsCount_other": "{{count}}টি রুম",
+      "roomsFiltered": "{{total}}টির মধ্যে {{active}}টি রুম"
+    },
+    "roomFilter": {
+      "label": "রুম",
+      "ariaLabel": "রুম অনুযায়ী থ্রেড ফিল্টার করুন",
+      "ariaLabelActive": "রুম অনুযায়ী থ্রেড ফিল্টার করুন (নির্বাচিত: {{number}})",
+      "ariaLabelOne": "রুম: {{room}}",
+      "search": "রুম খুঁজুন",
+      "noMatch": "কোনো মিল থাকা রুম নেই"
+    },
+    "composer": {
+      "postTo": "পোস্ট করুন:",
+      "postToRoom": "#{{room}}-এ পোস্ট করুন",
+      "chooseRoomAria": "পোস্ট করার জন্য রুম নির্বাচন করুন",
+      "draftPinned": "#{{room}}-এর খসড়া",
+      "readOnly": "এই স্পেসের কোনো রুমে পোস্ট করার অনুমতি নেই।"
+    },
+    "loading": "থ্রেড লোড হচ্ছে...",
+    "empty": {
+      "noRooms": "এখানে থ্রেড দেখতে এই স্পেসের একটি রুমে যোগ দিন।",
+      "noThreads": "এই স্পেসে এখনো কোনো থ্রেড নেই।"
+    },
+    "error": {
+      "title": "স্পেসের থ্রেড লোড করা যায়নি"
+    }
   }
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LobbyHeader } from './LobbyHeader';
 
@@ -32,6 +33,7 @@ vi.mock('folds', async () => {
       ArrowGoLeft: 'ArrowGoLeft',
       ArrowLeft: 'ArrowLeft',
       Setting: 'Setting',
+      Thread: 'Thread',
       User: 'User',
       UserPlus: 'UserPlus',
       VerticalDots: 'VerticalDots',
@@ -120,6 +122,7 @@ vi.mock('../../lib/hooks/useScreenSize', () => ({
 }));
 
 vi.mock('../../matrix/matrix', () => ({
+  getCanonicalAliasOrRoomId: (_client: unknown, roomId: string) => roomId,
   mxcUrlToHttp: () => undefined,
 }));
 
@@ -149,7 +152,11 @@ vi.mock('../../members/invite/InviteUserPrompt', () => ({
 const renderHeader = (joinRequestCount: number): ReactTestRenderer => {
   let renderer: ReactTestRenderer | undefined;
   act(() => {
-    renderer = create(<LobbyHeader powerLevels={{}} joinRequestCount={joinRequestCount} />);
+    renderer = create(
+      <MemoryRouter>
+        <LobbyHeader powerLevels={{}} joinRequestCount={joinRequestCount} />
+      </MemoryRouter>
+    );
   });
   if (!renderer) throw new Error('Lobby header did not render.');
   return renderer;

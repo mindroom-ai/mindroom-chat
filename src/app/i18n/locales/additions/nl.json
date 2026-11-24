@@ -1793,8 +1793,7 @@
       "replyAndOthers_one": "{{name}} en {{count}} ander hebben geantwoord",
       "replyAndOthers_other": "{{name}} en {{count}} anderen hebben geantwoord",
       "finished": "{{name}} is klaar",
-      "stopped": "{{name}} is gestopt",
-      "youReplied": "Je hebt gereageerd"
+      "stopped": "{{name}} is gestopt"
     },
     "newCount_one": "{{count}} nieuw",
     "newCount_other": "{{count}} nieuw",
@@ -2204,5 +2203,35 @@
   },
   "nav": {
     "usage": "Verbruik"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} kamer",
+      "roomsCount_other": "{{count}} kamers",
+      "roomsFiltered": "{{active}} van {{total}} kamers"
+    },
+    "roomFilter": {
+      "label": "Kamers",
+      "ariaLabel": "Threads filteren op kamer",
+      "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "ariaLabelOne": "Kamers: {{room}}",
+      "search": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers"
+    },
+    "composer": {
+      "postTo": "Plaatsen in:",
+      "postToRoom": "Plaatsen in #{{room}}",
+      "chooseRoomAria": "Kies een kamer om in te plaatsen",
+      "draftPinned": "Concept voor #{{room}}",
+      "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
+    },
+    "loading": "Threads laden...",
+    "empty": {
+      "noRooms": "Neem deel aan een kamer in deze ruimte om hier threads te zien.",
+      "noThreads": "Nog geen threads in deze ruimte."
+    },
+    "error": {
+      "title": "Kon threads van de ruimte niet laden"
+    }
   }
 }

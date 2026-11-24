@@ -34,10 +34,10 @@ const quiet: ThreadSignals = {
   automation: false,
 };
 const approvalRecord = { eventId: '$ask', sender: '@mindroom_code:x' } as ThreadApprovalRecord;
-const reply = (senderId: string) => ({
+const reply = (senderId: string, ts = NOW - 3600_000) => ({
   eventId: '$reply',
   senderId,
-  ts: NOW - 3600_000,
+  ts,
   preview: { kind: 'text' as const, text: 'Done' },
   event: { sender: senderId, content: {} },
 });
@@ -48,7 +48,10 @@ const build = (
 ) => {
   // Signals as a thread with a counted reply has them, unless the case says otherwise.
   const byKey = new Map(
-    items.map(([e, s]) => [e.key, { ...quiet, lastReply: reply('@tom:x'), ...s }])
+    items.map(([e, s]) => [
+      e.key,
+      { ...quiet, lastOtherReply: reply('@tom:x', e.lastActivityTs), ...s },
+    ])
   );
   return buildActivityRows({
     entries: items.map(([e]) => e),
@@ -72,7 +75,12 @@ describe('buildActivityRows', () => {
         entry('d'),
         {
           newCount: 1,
-          outcome: { kind: 'stopped', senderId: '@mindroom_code:x', ts: NOW, durationMs: 1 },
+          outcome: {
+            kind: 'stopped',
+            senderId: '@mindroom_code:x',
+            ts: NOW - 3600_000,
+            durationMs: 1,
+          },
         },
       ],
     ]);
@@ -121,9 +129,9 @@ describe('buildActivityRows', () => {
   it('hides a snoozed thread until a person writes after the snooze', () => {
     const snoozed = { snoozedUntilTs: NOW + 3600_000, snoozedAtTs: 100 };
     const keys = (overrides: Partial<CrossRoomThreadIndexEntry>, newsTs: number) =>
-      build([[entry('t', overrides), { newCount: 1, newsTs, personNewsTs: newsTs }]]).rows.map(
-        (row) => row.key
-      );
+      build([
+        [entry('t', overrides), { newCount: 1, newsTs, otherNewsTs: newsTs, personNewsTs: newsTs }],
+      ]).rows.map((row) => row.key);
 
     expect(keys(snoozed, 90)).toEqual([]);
     expect(keys(snoozed, 110)).toEqual(['t']);
@@ -132,7 +140,10 @@ describe('buildActivityRows', () => {
     // when an older mention or approval still waits in the thread.
     const agentNews = (signals: Partial<ThreadSignals>) =>
       build([
-        [entry('t', snoozed), { newCount: 1, newsTs: 110, personNewsTs: 50, ...signals }],
+        [
+          entry('t', snoozed),
+          { newCount: 1, newsTs: 110, otherNewsTs: 110, personNewsTs: 50, ...signals },
+        ],
       ]).rows.map((row) => row.key);
     expect(agentNews({})).toEqual([]);
     expect(agentNews({ mentionedMe: true })).toEqual([]);
@@ -141,7 +152,7 @@ describe('buildActivityRows', () => {
       build([
         [
           entry('bot', { ...snoozed, isInvolved: false }),
-          { automation: true, newCount: 1, newsTs: 90 },
+          { automation: true, newCount: 1, newsTs: 90, otherNewsTs: 90 },
         ],
       ]).hiddenAutomations
     ).toBe(0);
@@ -151,7 +162,7 @@ describe('buildActivityRows', () => {
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
     const resolved = { isResolved: true, resolvedTs: NOW - 60_000 };
     // Its news came before the resolve, though its last activity (a title notice) came after.
-    const before = { newsTs: NOW - 120_000 };
+    const before = { newsTs: NOW - 120_000, otherNewsTs: NOW - 120_000 };
     const { rows, hiddenAutomations } = build([
       [
         entry('asks', { ...resolved, lastActivityTs: NOW }),
@@ -173,9 +184,10 @@ describe('buildActivityRows', () => {
 
   it('lists a resolved thread again once news comes in it after', () => {
     const resolved = { isResolved: true, resolvedTs: NOW - 2 * 3600_000 };
+    const after = { newsTs: NOW - 3600_000, otherNewsTs: NOW - 3600_000 };
     const { rows } = build([
-      [entry('named', resolved), { newsTs: NOW - 3600_000, mentionedMe: true, newCount: 1 }],
-      [entry('approval', resolved), { newsTs: NOW - 3600_000, pendingApproval: approvalRecord }],
+      [entry('named', resolved), { ...after, mentionedMe: true, newCount: 1 }],
+      [entry('approval', resolved), { ...after, pendingApproval: approvalRecord }],
     ]);
     expect(kinds(rows)).toEqual(['approval:approval', 'named:mention']);
   });
@@ -183,7 +195,12 @@ describe('buildActivityRows', () => {
   it('lists a resolved thread with a background approval for its news, not as waiting', () => {
     const job = entry('job', { isResolved: true, resolvedTs: NOW - 2 * 3600_000 });
     job.threadRecord.status.hasBackgroundApproval = true;
-    const news = { newsTs: NOW - 3600_000, newCount: 1, newSenderIds: ['@tom:x'] };
+    const news = {
+      newsTs: NOW - 3600_000,
+      otherNewsTs: NOW - 3600_000,
+      newCount: 1,
+      newSenderIds: ['@tom:x'],
+    };
     expect(kinds(build([[job, news]]).rows)).toEqual(['job:reply']);
   });
 
@@ -195,7 +212,9 @@ describe('buildActivityRows', () => {
       text: 'Which deck should I polish?',
       options: [],
     };
-    const { rows } = build([[thread, { newsTs: NOW - 3600_000, pendingQuestion }]]);
+    const { rows } = build([
+      [thread, { newsTs: NOW - 3600_000, otherNewsTs: NOW - 3600_000, pendingQuestion }],
+    ]);
     expect(kinds(rows)).toEqual(['asks:reply']);
   });
 
@@ -206,7 +225,7 @@ describe('buildActivityRows', () => {
 
   it('leaves out a thread with nothing to tell: no reply counted, nobody to name', () => {
     // An agent still on its thinking placeholder, or only notices since the root.
-    const { rows } = build([[entry('quiet'), { lastReply: undefined }]]);
+    const { rows } = build([[entry('quiet'), { lastOtherReply: undefined }]]);
     expect(rows).toEqual([]);
   });
 
@@ -290,6 +309,140 @@ describe('buildActivityRows', () => {
       ],
     ]);
     expect(rows[0]).toMatchObject({ actorIds: ['@maya:x', '@tom:x'] });
+  });
+
+  it("omits threads where only the user's reply is present, recent, or post-resolve", () => {
+    const staleTs = NOW - ACTIVITY_READ_WINDOW_MS - DAY;
+    const resolved = { isResolved: true, resolvedTs: NOW - 60_000, lastActivityTs: NOW };
+    const ownAfterResolve = {
+      newsTs: NOW,
+      otherNewsTs: NOW - 120_000,
+      lastReply: reply('@alice:x', NOW),
+      lastOtherReply: reply('@tom:x', NOW - 120_000),
+    };
+    const { rows } = build([
+      [
+        entry('own', { lastActivityTs: NOW }),
+        { newsTs: NOW, lastReply: reply('@alice:x', NOW), lastOtherReply: undefined },
+      ],
+      [
+        entry('stale', { lastActivityTs: NOW }),
+        {
+          newsTs: NOW,
+          otherNewsTs: staleTs,
+          lastReply: reply('@alice:x', NOW),
+          lastOtherReply: reply('@tom:x', staleTs),
+        },
+      ],
+      [entry('res-reply', resolved), ownAfterResolve],
+      [entry('res-named', resolved), { ...ownAfterResolve, mentionedMe: true, newCount: 1 }],
+      [entry('res-approval', resolved), { ...ownAfterResolve, pendingApproval: approvalRecord }],
+    ]);
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps the other sender's actor, reply and timestamp when the user replies after", () => {
+    const otherTs = NOW - 2 * 3600_000;
+    const tomReply = reply('@tom:x', otherTs);
+    const { rows } = build([
+      [
+        entry('chat', { lastActivityTs: NOW }),
+        {
+          newsTs: NOW,
+          otherNewsTs: otherTs,
+          lastReply: reply('@alice:x', NOW),
+          lastOtherReply: tomReply,
+        },
+      ],
+    ]);
+    expect(rows).toMatchObject([
+      {
+        key: 'chat',
+        kind: 'reply',
+        unread: false,
+        actorIds: ['@tom:x'],
+        ts: otherTs,
+        signals: { lastOtherReply: tomReply },
+      },
+    ]);
+  });
+
+  it('keeps an agent outcome after the user replies until another sender replies', () => {
+    const outcomeTs = NOW - 3600_000;
+    const now = { lastActivityTs: NOW };
+    const base = { senderId: '@mindroom_code:x', ts: outcomeTs, durationMs: 90_000 };
+    const afterOwn = {
+      newsTs: NOW,
+      otherNewsTs: outcomeTs,
+      lastReply: reply('@alice:x', NOW),
+      lastOtherReply: reply('@mindroom_code:x', outcomeTs),
+    };
+    const { rows } = build([
+      [entry('fin', now), { ...afterOwn, outcome: { ...base, kind: 'finished' } }],
+      [entry('stop', now), { ...afterOwn, outcome: { ...base, kind: 'stopped' } }],
+      [
+        entry('after', now),
+        {
+          newsTs: NOW,
+          otherNewsTs: NOW,
+          lastReply: reply('@tom:x', NOW),
+          lastOtherReply: reply('@tom:x', NOW),
+          outcome: { ...base, kind: 'finished' },
+        },
+      ],
+    ]);
+    expect(kinds(rows)).toEqual(['after:reply', 'fin:finished', 'stop:stopped']);
+  });
+
+  it('timestamps mentions with no other reply by root, index activity, or 0 for own-only', () => {
+    const rootTs = NOW - 5 * 3600_000;
+    const loaded = { rootTs, lastActivityTs: NOW };
+    const ownOnly = { lastReply: reply('@alice:x', NOW), lastOtherReply: undefined };
+    const { rows } = build([
+      [entry('root-own', loaded), { mentionedMe: true, mentionedBy: '@maya:x', ...ownOnly }],
+      [
+        entry('root-unloaded', loaded),
+        { mentionedMe: true, mentionedBy: '@maya:x', lastOtherReply: undefined },
+      ],
+      [entry('hl-unloaded', loaded), { mentionedMe: true, lastOtherReply: undefined }],
+      [entry('hl-own', loaded), { mentionedMe: true, ...ownOnly }],
+    ]);
+    expect(rows.map((row) => [row.key, row.kind, row.ts])).toEqual([
+      ['root-unloaded', 'mention', NOW],
+      ['hl-unloaded', 'mention', NOW],
+      ['root-own', 'mention', rootTs],
+      ['hl-own', 'mention', 0],
+    ]);
+  });
+
+  it('keeps an unfinished streamed reply at send time and moves it up when its finishing edit lands', () => {
+    const sendTs = NOW - 120_000;
+    const otherTs = NOW - 60_000;
+    const streaming = build([
+      [
+        entry('stream', { lastActivityTs: sendTs }),
+        {
+          newCount: 1,
+          lastOtherReply: reply('@mindroom_code:x', sendTs),
+          otherNewsTs: sendTs,
+        },
+      ],
+      [entry('newer', { lastActivityTs: otherTs }), { newCount: 1 }],
+    ]);
+    expect(streaming.rows.map((row) => row.key)).toEqual(['newer', 'stream']);
+
+    const finished = build([
+      [
+        entry('stream', { lastActivityTs: NOW }),
+        {
+          newCount: 1,
+          lastOtherReply: reply('@mindroom_code:x', sendTs),
+          otherNewsTs: NOW,
+        },
+      ],
+      [entry('newer', { lastActivityTs: otherTs }), { newCount: 1 }],
+    ]);
+    expect(finished.rows.map((row) => row.key)).toEqual(['stream', 'newer']);
   });
 });
 

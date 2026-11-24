@@ -1905,8 +1905,7 @@
       "replyAndOthers_many": "{{name}} и ещё {{count}} участников ответили",
       "replyAndOthers_other": "{{name}} и ещё {{count}} участника ответили",
       "finished": "{{name}}: работа завершена",
-      "stopped": "{{name}}: работа остановлена",
-      "youReplied": "Вы ответили"
+      "stopped": "{{name}}: работа остановлена"
     },
     "newCount_one": "{{count}} новое",
     "newCount_few": "{{count}} новых",
@@ -2348,5 +2347,37 @@
   },
   "nav": {
     "usage": "Использование"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} комната",
+      "roomsCount_few": "{{count}} комнаты",
+      "roomsCount_many": "{{count}} комнат",
+      "roomsCount_other": "{{count}} комнат",
+      "roomsFiltered": "{{active}} из {{total}} комнат"
+    },
+    "roomFilter": {
+      "label": "Комнаты",
+      "ariaLabel": "Фильтровать ветки по комнатам",
+      "ariaLabelActive": "Фильтровать ветки по комнатам (выбрано: {{number}})",
+      "ariaLabelOne": "Комнаты: {{room}}",
+      "search": "Поиск комнат",
+      "noMatch": "Подходящих комнат нет"
+    },
+    "composer": {
+      "postTo": "Отправить в:",
+      "postToRoom": "Отправить в #{{room}}",
+      "chooseRoomAria": "Выберите комнату для отправки",
+      "draftPinned": "Черновик для #{{room}}",
+      "readOnly": "В этом пространстве нет комнат с правом отправки сообщений."
+    },
+    "loading": "Загрузка тредов...",
+    "empty": {
+      "noRooms": "Присоединитесь к комнате в этом пространстве, чтобы видеть треды здесь.",
+      "noThreads": "В этом пространстве пока нет тредов."
+    },
+    "error": {
+      "title": "Не удалось загрузить треды пространства"
+    }
   }
 }

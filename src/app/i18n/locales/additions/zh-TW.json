@@ -1737,8 +1737,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回覆了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回覆了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回覆"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 則新訊息",
     "runMinutes_other": "{{count}} 分鐘",
@@ -2132,5 +2131,34 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 個房間",
+      "roomsFiltered": "{{active}}/{{total}} 個房間"
+    },
+    "roomFilter": {
+      "label": "房間",
+      "ariaLabel": "依房間篩選討論串",
+      "ariaLabelActive": "依房間篩選討論串（已選 {{number}} 個）",
+      "ariaLabelOne": "房間：{{room}}",
+      "search": "搜尋房間",
+      "noMatch": "沒有相符的房間"
+    },
+    "composer": {
+      "postTo": "傳送到：",
+      "postToRoom": "傳送到 #{{room}}",
+      "chooseRoomAria": "選擇要傳送到的房間",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空間中沒有允許傳送訊息的房間。"
+    },
+    "loading": "正在載入討論串...",
+    "empty": {
+      "noRooms": "加入此空間中的房間即可在此檢視討論串。",
+      "noThreads": "此空間中還沒有討論串。"
+    },
+    "error": {
+      "title": "無法載入空間討論串"
+    }
   }
 }

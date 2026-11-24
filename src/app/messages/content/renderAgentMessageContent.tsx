@@ -747,7 +747,7 @@ export const renderAgentMessageContent = ({
     if (mEvent && uiAction && (!edited || editableUiAction)) {
       // The body of a canvas request tells other Matrix clients to open MindRoom Chat; Chat names the canvas.
       const canvasTitle = fromMindroomAgent ? readCanvasNoticeTitle(content) : undefined;
-      return (
+      const notice = (
         <MNotice
           content={content}
           renderBody={
@@ -762,13 +762,13 @@ export const renderAgentMessageContent = ({
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
           // An inline page still shows there, display-only.
-          renderAfterBody={
-            <>
-              {canvasTitle && <InlineCanvasFrame event={mEvent} readOnly={readOnly} />}
-              {!readOnly && <ChatUiActionButton event={mEvent} />}
-            </>
-          }
+          renderAfterBody={!readOnly && <ChatUiActionButton event={mEvent} />}
         />
+      );
+      return canvasTitle ? (
+        <InlineCanvasFrame event={mEvent} readOnly={readOnly} fallback={notice} />
+      ) : (
+        notice
       );
     }
     const isStreaming = isAiRunStreaming(content);

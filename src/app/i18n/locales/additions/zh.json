@@ -1737,8 +1737,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回复了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回复了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回复"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 条新消息",
     "runMinutes_other": "{{count}} 分钟",
@@ -2132,5 +2131,34 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 个房间",
+      "roomsFiltered": "{{active}}/{{total}} 个房间"
+    },
+    "roomFilter": {
+      "label": "房间",
+      "ariaLabel": "按房间过滤讨论串",
+      "ariaLabelActive": "按房间过滤讨论串（已选 {{number}} 个）",
+      "ariaLabelOne": "房间：{{room}}",
+      "search": "搜索房间",
+      "noMatch": "没有匹配的房间"
+    },
+    "composer": {
+      "postTo": "发送到：",
+      "postToRoom": "发送到 #{{room}}",
+      "chooseRoomAria": "选择要发送到的房间",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空间中没有允许发送消息的房间。"
+    },
+    "loading": "正在加载话题...",
+    "empty": {
+      "noRooms": "加入此空间中的房间即可在此查看话题。",
+      "noThreads": "此空间中还没有话题。"
+    },
+    "error": {
+      "title": "无法加载空间话题"
+    }
   }
 }

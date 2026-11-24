@@ -1849,8 +1849,7 @@
       "replyAndOthers_many": "{{name}} et {{count}} autres ont répondu",
       "replyAndOthers_other": "{{name}} et {{count}} autres ont répondu",
       "finished": "{{name}} a terminé",
-      "stopped": "{{name}} s’est arrêté",
-      "youReplied": "Vous avez répondu"
+      "stopped": "{{name}} s’est arrêté"
     },
     "newCount_one": "{{count}} nouveau",
     "newCount_many": "{{count}} nouveaux",
@@ -2276,5 +2275,36 @@
   },
   "nav": {
     "usage": "Utilisation"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} salon",
+      "roomsCount_many": "{{count}} salons",
+      "roomsCount_other": "{{count}} salons",
+      "roomsFiltered": "{{active}} sur {{total}} salons"
+    },
+    "roomFilter": {
+      "label": "Salons",
+      "ariaLabel": "Filtrer les fils par salon",
+      "ariaLabelActive": "Filtrer les fils par salon (sélection : {{number}})",
+      "ariaLabelOne": "Salons : {{room}}",
+      "search": "Rechercher des salons",
+      "noMatch": "Aucun salon correspondant"
+    },
+    "composer": {
+      "postTo": "Publier dans :",
+      "postToRoom": "Publier dans #{{room}}",
+      "chooseRoomAria": "Choisir le salon de publication",
+      "draftPinned": "Brouillon pour #{{room}}",
+      "readOnly": "Aucun salon de cet espace ne permet de publier."
+    },
+    "loading": "Chargement des fils...",
+    "empty": {
+      "noRooms": "Rejoignez un salon dans cet espace pour voir les fils ici.",
+      "noThreads": "Aucun fil dans cet espace pour le moment."
+    },
+    "error": {
+      "title": "Impossible de charger les fils de l’espace"
+    }
   }
 }
