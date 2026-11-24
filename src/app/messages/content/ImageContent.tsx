@@ -55,6 +55,7 @@ const getImageThumbnail = (info: IImageInfo | undefined): ImageThumbnail | undef
   const mxcUri = encryptedFile?.url ?? info?.thumbnail_url;
   if (typeof mxcUri !== 'string' || !mxcUri) return undefined;
   const declared = info?.thumbnail_info?.mimetype;
+  if (typeof declared === 'string' && isHeicMimeType(declared)) return undefined;
   return {
     mxcUri,
     encryptedFile,

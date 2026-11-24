@@ -36,7 +36,9 @@ import {
   getBlobSafeMimeType,
   getFileNameExt,
   getMimeTypeBase,
+  isHeicMimeType,
 } from '../../lib/mimeTypes';
+import { MAX_HEIC_BYTES } from './imageOriginal';
 import { isRecord } from '../../lib/isRecord';
 import { isVoiceMessageContent } from './voiceMessageContent';
 
@@ -228,8 +230,8 @@ type MImageProps = {
 };
 
 /**
- * What an `m.image` event's content shows: the image, `'file'` for an image type a browser should
- * not render (SVG), shown as a file row, or nothing without a file.
+ * What an `m.image` event's content shows: the image, `'file'` for an image shown as a file row
+ * (SVG or oversized HEIC), or nothing without a file.
  */
 export const readImageAttachment = (
   content: MessageContent
@@ -240,7 +242,8 @@ export const readImageAttachment = (
   const mimeType = readMimeType(info);
   if (
     !getMimeTypeBase(mimeType).startsWith('image/') ||
-    getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE
+    getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE ||
+    (isHeicMimeType(mimeType) && typeof info.size === 'number' && info.size > MAX_HEIC_BYTES)
   ) {
     return 'file';
   }

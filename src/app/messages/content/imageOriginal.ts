@@ -19,7 +19,7 @@ export type LoadedImageOriginal = {
   downloadBlob?: Blob;
 };
 
-/** Max HEIC byte size decoded in JS; larger files fall back to the file row to download. */
+/** Max HEIC byte size rendered inline; larger files render as a file row to download. */
 export const MAX_HEIC_BYTES = 30 * 1024 * 1024;
 
 /** A HEIC/HEIF picture could not be decoded or exceeded the decode size budget. */
@@ -30,14 +30,43 @@ export class HeicDecodeError extends Error {
   }
 }
 
-// Bounded LRU of in-flight and completed converted HEIC blobs; rejected entries are evicted.
+// Bounded LRU of completed converted HEIC blobs.
 const MAX_CONVERTED_CACHE = 16;
-const convertedCache = new Map<string, Promise<Blob>>();
+const convertedCache = new Map<string, Blob>();
 let nativeHeicSupported: boolean | undefined;
+
+const HEIF_BRANDS = new Set([
+  'heic',
+  'heix',
+  'hevc',
+  'heim',
+  'heis',
+  'hevm',
+  'hevs',
+  'mif1',
+  'msf1',
+]);
 
 export const resetHeicDecodeStateForTests = (): void => {
   nativeHeicSupported = undefined;
   convertedCache.clear();
+};
+
+const isHeifContainer = async (blob: Blob): Promise<boolean> => {
+  const head = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
+  if (head.length < 12) return false;
+  const ascii = String.fromCharCode(...head);
+  if (ascii.slice(4, 8) !== 'ftyp') return false;
+  const boxSize = new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(0);
+  const end = boxSize === 0 ? head.length : Math.min(boxSize, head.length);
+  if (end < 12) return false;
+  const brands = [ascii.slice(8, 12)];
+  for (let i = 16; i + 4 <= end; i += 4) brands.push(ascii.slice(i, i + 4));
+  return (
+    !brands.includes('avif') &&
+    !brands.includes('avis') &&
+    brands.some((brand) => HEIF_BRANDS.has(brand))
+  );
 };
 
 const canDecodeNatively = async (blob: Blob): Promise<boolean> => {
@@ -45,33 +74,36 @@ const canDecodeNatively = async (blob: Blob): Promise<boolean> => {
   if (typeof createImageBitmap !== 'function') return false;
   try {
     (await createImageBitmap(blob)).close();
-    nativeHeicSupported = true;
+    if (await isHeifContainer(blob)) nativeHeicSupported = true;
     return true;
   } catch {
     return false;
   }
 };
 
-const convertHeicForDisplay = (blob: Blob, key: string, signal?: AbortSignal): Promise<Blob> => {
+const convertHeicForDisplay = async (
+  blob: Blob,
+  key: string,
+  signal?: AbortSignal
+): Promise<Blob> => {
   const existing = convertedCache.get(key);
   if (existing) {
     convertedCache.delete(key);
     convertedCache.set(key, existing);
     return existing;
   }
-  const work = import('./heicDecode')
-    .then(({ decodeHeicBlob }) => decodeHeicBlob(blob, signal))
-    .then((converted) => {
-      nativeHeicSupported = false;
-      return converted;
-    });
-  convertedCache.set(key, work);
+  const { decodeHeicBlob } = await import('./heicDecode');
+  const converted = await decodeHeicBlob(blob, signal);
+  if (nativeHeicSupported === undefined && (await isHeifContainer(blob))) {
+    nativeHeicSupported = false;
+  }
+  convertedCache.delete(key);
+  convertedCache.set(key, converted);
   if (convertedCache.size > MAX_CONVERTED_CACHE) {
     const oldest = convertedCache.keys().next().value;
     if (oldest !== undefined) convertedCache.delete(oldest);
   }
-  work.catch(() => convertedCache.get(key) === work && convertedCache.delete(key));
-  return work;
+  return converted;
 };
 
 /**
@@ -91,7 +123,7 @@ export const loadImageOriginal = async (
     encryptedFile: encInfo ? { ...encInfo, url } : undefined,
     mimeType: safeMimeType,
   };
-  const blob = await (heic && nativeHeicSupported !== true
+  const blob = await (heic
     ? downloadCachedAttachment(mx, source, { signal, maxBytes: MAX_HEIC_BYTES }).catch((error) => {
         if (error instanceof Error && /exceeds the [0-9]+ byte limit/.test(error.message)) {
           throw new HeicDecodeError(error.message, undefined, error);
@@ -100,7 +132,7 @@ export const loadImageOriginal = async (
       })
     : downloadCachedAttachment(mx, source));
   if (!heic && !isHeicMimeType(blob.type)) return { src: URL.createObjectURL(blob) };
-  if (nativeHeicSupported !== true && blob.size > MAX_HEIC_BYTES) {
+  if (blob.size > MAX_HEIC_BYTES) {
     throw new HeicDecodeError(`HEIC image exceeds ${MAX_HEIC_BYTES} byte decode limit`, blob);
   }
   if (await canDecodeNatively(blob)) return { src: URL.createObjectURL(blob) };
