@@ -1,11 +1,11 @@
 # Adds the iOS ReplayKit Broadcast Upload Extension to ios/App/App.xcodeproj: the app extension
-# target MindRoomBroadcast, the pinned LiveKit Swift SDK remote package (linked to
-# MindRoomBroadcast and the iOS slice of App only — never Mac Catalyst or AppStoreMac),
-# MindRoomScreenSharePlugin.swift on the iOS slice of App, and an "Embed Foundation Extensions"
-# entry in App. Run once with the xcodeproj gem; the result is committed. The extension reads its
-# sources from the synchronized folder ios/BroadcastExtension/MindRoomBroadcast. Re-running on a
-# project that already has the target exits 0 (ensuring the embed phase stays right after
-# resources).
+# target MindRoomBroadcast, the pinned LiveKit Swift SDK remote package (linked to both
+# MindRoomBroadcast and the iOS slice of App), MindRoomScreenSharePlugin.swift on the iOS slice of
+# App, and an "Embed Foundation Extensions" entry in App. Run once with the xcodeproj gem; the
+# result is committed. The extension reads its sources from the synchronized folder
+# ios/BroadcastExtension/MindRoomBroadcast. Re-running on a project that already has the target
+# exits 0 (ensuring the embed phase stays before post-build script phases to avoid an Xcode build
+# cycle).
 require 'xcodeproj'
 
 repo = File.expand_path('../..', __dir__)
@@ -52,7 +52,7 @@ LIVEKIT_VERSION = '2.19.0'
 project.root_object.compatibility_version = 'Xcode 16.0'
 project.instance_variable_set(:@object_version, '77')
 
-# Add MindRoomScreenSharePlugin.swift to the iOS build of App (skipped on Mac Catalyst).
+# Add MindRoomScreenSharePlugin.swift to the iOS build of App.
 plugin_ref = app_group.files.find { |file| file.path == 'MindRoomScreenSharePlugin.swift' } ||
              app_group.new_file('MindRoomScreenSharePlugin.swift')
 unless app.source_build_phase.files_references.include?(plugin_ref)
@@ -138,7 +138,7 @@ link_package(
   platform_filter: 'ios'
 )
 
-# iOS only: Mac Catalyst and AppStoreMac do not embed the iOS Broadcast Upload Extension.
+# Embed the iOS Broadcast Upload Extension in the iOS app.
 app.add_dependency(broadcast)
 app.dependencies.find { |dependency| dependency.target == broadcast }.platform_filter = 'ios'
 
@@ -149,7 +149,7 @@ embedded = embed_extensions.add_file_reference(broadcast.product_reference)
 embedded.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 embedded.platform_filter = 'ios'
 
-# Place before post-build script phases (e.g. "Add the updater's Info.plist keys") to prevent an Xcode cycle.
+# Place before post-build script phases to prevent an Xcode cycle.
 position_embed_phase_after_resources(app, embed_extensions)
 
 project.save

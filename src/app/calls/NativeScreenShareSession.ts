@@ -27,7 +27,6 @@ const RENEWAL_INTERVAL_MS = 60_000;
 const LEAVE_WITHDRAW_TIMEOUT_MS = 5_000;
 const JOIN_GRACE_MS = 10_000;
 const USE_KEY_DELAY_MS = 1_000;
-const KEY_SEND_RETRY_MS = [1_000, 3_000];
 
 const randomKey = () => crypto.getRandomValues(new Uint8Array(32));
 const sentMarker = (identity: string, createdTs: number, keyIndex: number) =>
@@ -78,6 +77,7 @@ export class NativeScreenShareSession {
   private broadcasting = false;
   private closed = false;
   private broadcastStartedAt = 0;
+  private lastRenewalAt = 0;
   private currentKey?: Uint8Array;
   private keyIndex = 0;
   private keyCreatedAt = 0;
@@ -87,8 +87,6 @@ export class NativeScreenShareSession {
   private rolloutPending = false;
   private listenerHandle?: { remove: () => void | Promise<void> };
   private heartbeatTimer?: ReturnType<typeof setInterval>;
-  private renewalTimer?: ReturnType<typeof setInterval>;
-  private readonly retryTimers = new Set<ReturnType<typeof setTimeout>>();
   private wakeDelay?: () => void;
   private cleanupPromise?: Promise<void>;
 
@@ -120,11 +118,12 @@ export class NativeScreenShareSession {
         this.keyIndex = 0;
         this.keyCreatedAt = Date.now();
       }
-      this.listenerHandle = await this.plugin.addListener('stateChange', this.onNativeStateChange);
+      const handle = await this.plugin.addListener('stateChange', this.onNativeStateChange);
       if (this.closed) {
-        await this.cleanup({ stopNative: false });
+        await Promise.resolve(handle.remove()).catch(() => undefined);
         return;
       }
+      this.listenerHandle = handle;
       const { generation } = await this.plugin.start({
         url: grant.url,
         token: grant.jwt,
@@ -150,19 +149,17 @@ export class NativeScreenShareSession {
 
   onMembershipsChanged(): void {
     if (this.closed || this.generation === undefined) return;
-    if (this.broadcasting) this.sendHeartbeat();
     void this.plugin
       .updateAllowedParticipants({
         generation: this.generation,
         identities: this.readAllowedIdentities(),
       })
       .catch(() => undefined);
-    if (!this.opts.encrypted || !this.broadcasting || !this.currentKey) return;
-    if (this.rolloutInFlight) {
-      this.rolloutPending = true;
-      return;
+    if (this.opts.encrypted && this.broadcasting && this.currentKey) {
+      if (this.rolloutInFlight) this.rolloutPending = true;
+      else void this.runMembershipSync();
     }
-    void this.runMembershipSync();
+    if (this.broadcasting) this.sendHeartbeat();
   }
 
   onPeerConnected(identity: string): void {
@@ -184,7 +181,7 @@ export class NativeScreenShareSession {
     if (this.closed) return;
     if (this.generation !== undefined && event.generation !== this.generation) return;
     if (event.state === 'broadcasting') this.onBroadcastStarted(event.generation);
-    else if (event.state === 'stopped') {
+    else if (event.state === 'stopped' && this.generation !== undefined) {
       void this.cleanup({ stopNative: false, reason: event.reason, detail: event.detail });
     }
   };
@@ -194,14 +191,11 @@ export class NativeScreenShareSession {
     this.generation ??= generation;
     this.broadcasting = true;
     this.broadcastStartedAt = Date.now();
+    this.lastRenewalAt = this.broadcastStartedAt;
     if (this.opts.encrypted) this.keyCreatedAt = this.broadcastStartedAt;
     this.opts.onStateChange?.('broadcasting');
     void this.publishCompanionMembership(false);
     this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), HEARTBEAT_INTERVAL_MS);
-    this.renewalTimer = setInterval(
-      () => void this.publishCompanionMembership(true),
-      RENEWAL_INTERVAL_MS
-    );
     this.knownPeers = this.readRealPeers();
     if (this.opts.encrypted && this.currentKey) {
       this.opts.onScreenKey?.(this.currentKey, this.keyIndex, this.screenIdentity);
@@ -223,6 +217,8 @@ export class NativeScreenShareSession {
 
   private async publishCompanionMembership(renewal: boolean): Promise<void> {
     if (this.closed) return;
+    const now = Date.now();
+    if (renewal) this.lastRenewalAt = now;
     const createdTs = renewal ? this.existingCompanionCreatedTs() : this.broadcastStartedAt;
     const content = {
       application: 'm.call',
@@ -231,7 +227,7 @@ export class NativeScreenShareSession {
       device_id: this.screenDeviceId,
       membershipID: this.screenIdentity,
       expires: renewal
-        ? COMPANION_EXPIRES_MS + Math.max(1, Date.now() - createdTs)
+        ? COMPANION_EXPIRES_MS + Math.max(1, now - createdTs, now - this.broadcastStartedAt)
         : COMPANION_EXPIRES_MS,
       'm.call.intent': 'video',
       focus_active: { type: 'livekit', focus_selection: 'multi_sfu' },
@@ -269,11 +265,26 @@ export class NativeScreenShareSession {
     if (this.closed || !this.broadcasting || this.generation === undefined) return;
     const syncState = this.opts.mx.getSyncState();
     if (
-      syncState === SyncState.Syncing ||
-      syncState === SyncState.Prepared ||
-      syncState === SyncState.Catchup
+      syncState !== SyncState.Syncing &&
+      syncState !== SyncState.Prepared &&
+      syncState !== SyncState.Catchup
     ) {
-      void this.plugin.heartbeat({ generation: this.generation }).catch(() => undefined);
+      return;
+    }
+    void this.plugin.heartbeat({ generation: this.generation }).catch(() => undefined);
+    const key = this.currentKey;
+    if (this.opts.encrypted && key) {
+      for (const [id, member] of this.readRealPeers()) {
+        if (
+          this.knownPeers.get(id)?.createdTs === member.createdTs &&
+          !this.keysSent.has(sentMarker(id, member.createdTs, this.keyIndex))
+        ) {
+          void this.deliverKey(member, key, this.keyIndex);
+        }
+      }
+    }
+    if (Date.now() - this.lastRenewalAt >= RENEWAL_INTERVAL_MS) {
+      void this.publishCompanionMembership(true);
     }
   }
 
@@ -337,29 +348,16 @@ export class NativeScreenShareSession {
     const marker = sentMarker(membershipIdentity(member), member.createdTs, keyIndex);
     if (this.keysSent.has(marker)) return;
     this.keysSent.add(marker);
-    const attempt = (retryIdx: number): Promise<void> =>
-      sendCallKey(this.opts.mx, {
-        roomId: this.opts.room.roomId,
-        key,
-        keyIndex,
-        memberId: this.screenIdentity,
-        claimedDeviceId: this.screenDeviceId,
-        to: member,
-      }).catch(() => {
-        const wait = KEY_SEND_RETRY_MS[retryIdx];
-        if (wait === undefined) {
-          this.keysSent.delete(marker);
-          return;
-        }
-        if (this.closed || !this.broadcasting || this.keyIndex !== keyIndex) return;
-        const timer = setTimeout(() => {
-          this.retryTimers.delete(timer);
-          if (this.closed || !this.broadcasting || this.keyIndex !== keyIndex) return;
-          void attempt(retryIdx + 1);
-        }, wait);
-        this.retryTimers.add(timer);
-      });
-    await attempt(0);
+    await sendCallKey(this.opts.mx, {
+      roomId: this.opts.room.roomId,
+      key,
+      keyIndex,
+      memberId: this.screenIdentity,
+      claimedDeviceId: this.screenDeviceId,
+      to: member,
+    }).catch(() => {
+      this.keysSent.delete(marker);
+    });
   }
 
   private readAllowedIdentities(): string[] {
@@ -397,11 +395,7 @@ export class NativeScreenShareSession {
     const shouldWithdraw = this.broadcasting;
     this.broadcasting = false;
     clearInterval(this.heartbeatTimer);
-    clearInterval(this.renewalTimer);
     this.heartbeatTimer = undefined;
-    this.renewalTimer = undefined;
-    this.retryTimers.forEach((timer) => clearTimeout(timer));
-    this.retryTimers.clear();
     this.wakeDelay?.();
     const handle = this.listenerHandle;
     this.listenerHandle = undefined;

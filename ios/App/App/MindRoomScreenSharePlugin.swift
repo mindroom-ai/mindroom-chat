@@ -171,7 +171,6 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
             provider.setKey(keyData: decoded.data, participantId: active.identity, index: decoded.index)
             provider.setCurrentKeyIndex(decoded.index)
             active.keyIndex = decoded.index
-            active.lastHeartbeatAt = Date()
             self.session = active
             call.resolve()
         }
@@ -187,7 +186,6 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                 return call.reject("No matching screen share session", "INVALID_STATE")
             }
             active.allowedIdentities = Set(identities)
-            active.lastHeartbeatAt = Date()
             self.session = active
             do {
                 try await self.applyPermissions()
@@ -332,11 +330,15 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
         notifyListeners("stateChange", data: payload)
     }
 
-    private func refreshPermissions(for room: Room) {
+    private func refreshPermissions(for room: Room, failClosed: Bool = false) {
         Task { @MainActor [weak self] in
-            guard let self, self.session?.room === room else { return }
+            guard let self, let active = self.session, active.room === room else { return }
+            let gen = active.generation
             do { try await self.applyPermissions() } catch {
                 self.log.error("Failed to refresh screen share permissions: \(error.localizedDescription, privacy: .public)")
+                if failClosed {
+                    await self.teardown(expectedGeneration: gen, reason: "permissions_failed", detail: error.localizedDescription)
+                }
             }
         }
     }
@@ -467,7 +469,7 @@ private final class BroadcastPickerSheetController: UIViewController, UIAdaptive
 extension MindRoomScreenSharePlugin: RoomDelegate {
     @objc public func room(_ room: Room, participantDidConnect participant: RemoteParticipant) { refreshPermissions(for: room) }
     @objc public func room(_ room: Room, participantDidDisconnect participant: RemoteParticipant) { refreshPermissions(for: room) }
-    @objc public func roomDidReconnect(_ room: Room) { refreshPermissions(for: room) }
+    @objc public func roomDidReconnect(_ room: Room) { refreshPermissions(for: room, failClosed: true) }
     @objc public func room(_ room: Room, didDisconnectWithError error: LiveKitError?) {
         let detail = error?.localizedDescription
         Task { @MainActor [weak self] in

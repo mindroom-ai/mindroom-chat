@@ -258,6 +258,15 @@ describe('broadcastExtensionUploadProblems', () => {
       "App Info.plist RTCScreenSharingExtension must be chat.mindroom.app.broadcast, got '(missing)'.",
     ]);
   });
+
+  it('updates MindRoomBroadcast versions in ci_pre_xcodebuild.sh', () => {
+    const ciPreXcodebuild = readFileSync(
+      join(repoRoot, 'ios/App/ci_scripts/ci_pre_xcodebuild.sh'),
+      'utf8'
+    );
+    const targetsMatch = ciPreXcodebuild.match(/const targets = \[([^\]]+)\];/);
+    expect(targetsMatch?.[1]).toContain("'MindRoomBroadcast'");
+  });
 });
 
 describe('appstore-preflight.mjs', () => {

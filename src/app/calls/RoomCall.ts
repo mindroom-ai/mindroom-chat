@@ -969,6 +969,7 @@ export class RoomCall {
           callIntent: this.state.camera ? 'video' : 'audio',
           notificationType: rejoin ? undefined : this.options.notify,
           notificationLifetimeMs: RING_LIFETIME_MS,
+          // Gives iOS WebView JS breathing room while backgrounded during whole-screen sharing (`matrix-js-sdk` clamps to server `max_delay_ms`).
           ...(isNativeScreenShareAvailable()
             ? { delayedLeaveEventDelayMs: IOS_DELAYED_LEAVE_DELAY_MS }
             : {}),
