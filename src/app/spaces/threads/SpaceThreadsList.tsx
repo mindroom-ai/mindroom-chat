@@ -196,28 +196,30 @@ export function SpaceThreadsList({
 
   return (
     <div className={css.ThreadListScroll} data-space-threads-list="true">
-      {showLoading && <SpaceThreadsNotice message={t('spaceThreads.loading')} loading />}
-      {emptyKey && (
-        <SpaceThreadsNotice message={t(EMPTY_MESSAGE_KEYS[emptyKey])} emptyKey={emptyKey} />
-      )}
-      {sections
-        ? sections.map((section) => {
-            const fixedOpen = section.id === singleBucketTab;
-            const closed = !fixedOpen && foldedSections.includes(section.id);
-            return (
-              <Box key={section.id} direction="Column" gap="200">
-                <CompactSectionHeader
-                  id={section.id}
-                  count={section.rootIds.length}
-                  closed={closed}
-                  fixedOpen={fixedOpen}
-                  onToggle={onToggleSectionFold}
-                />
-                {!closed && section.rootIds.map(renderCard)}
-              </Box>
-            );
-          })
-        : entryKeys.map(renderCard)}
+      <div className={css.ThreadListContent}>
+        {showLoading && <SpaceThreadsNotice message={t('spaceThreads.loading')} loading />}
+        {emptyKey && (
+          <SpaceThreadsNotice message={t(EMPTY_MESSAGE_KEYS[emptyKey])} emptyKey={emptyKey} />
+        )}
+        {sections
+          ? sections.map((section) => {
+              const fixedOpen = section.id === singleBucketTab;
+              const closed = !fixedOpen && foldedSections.includes(section.id);
+              return (
+                <Box key={section.id} direction="Column" gap="200" shrink="No">
+                  <CompactSectionHeader
+                    id={section.id}
+                    count={section.rootIds.length}
+                    closed={closed}
+                    fixedOpen={fixedOpen}
+                    onToggle={onToggleSectionFold}
+                  />
+                  {!closed && section.rootIds.map(renderCard)}
+                </Box>
+              );
+            })
+          : entryKeys.map(renderCard)}
+      </div>
     </div>
   );
 }
