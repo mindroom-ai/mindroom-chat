@@ -46,19 +46,37 @@ type MessageExtrasProps = {
   toolRows: boolean;
 };
 
-// Desktop app only: a link there opens through the preload, so a misleading one is asked about
-// first. Everywhere else the anchor stays as it is.
-const extraHtmlParserOptions: HTMLReactParserOptions = {
-  replace(node) {
-    if (!(node instanceof HtmlElement) || node.name !== 'a' || !node.attribs.href) return undefined;
-    stripLinkTextBidi(node.children);
-    return (
-      <CheckedMessageLink {...attributesToProps(node.attribs)}>
-        {domToReact(node.children as DOMNode[], extraHtmlParserOptions)}
-      </CheckedMessageLink>
-    );
-  },
+const isInsideSvg = (node: HtmlElement): boolean => {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent instanceof HtmlElement && parent.name.toLowerCase() === 'svg') return true;
+  }
+  return false;
 };
+
+// React 19 hoists HTML <title> rendered outside <svg> into document.head, overwriting the tab
+// title; drop non-SVG <title> on both web and desktop. On desktop, also confirm misleading links
+// before they open through the preload.
+const createExtraHtmlParserOptions = (checkLinks: boolean): HTMLReactParserOptions => {
+  const options: HTMLReactParserOptions = {
+    replace(node) {
+      if (!(node instanceof HtmlElement)) return undefined;
+      if (node.name.toLowerCase() === 'title' && !isInsideSvg(node)) return <></>;
+      if (checkLinks && node.name === 'a' && node.attribs.href) {
+        stripLinkTextBidi(node.children);
+        return (
+          <CheckedMessageLink {...attributesToProps(node.attribs)}>
+            {domToReact(node.children as DOMNode[], options)}
+          </CheckedMessageLink>
+        );
+      }
+      return undefined;
+    },
+  };
+  return options;
+};
+
+const webExtraHtmlParserOptions = createExtraHtmlParserOptions(false);
+const desktopExtraHtmlParserOptions = createExtraHtmlParserOptions(true);
 
 const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParserOptionsSource) => {
   const markdownHtml = parseBlockMD(sanitizeText(content), parseInlineMD);
@@ -86,7 +104,10 @@ const renderSectionContent = (
       const sanitizedHtml = sanitizeMessageExtraHtml(content);
       return (
         <div className={css.Html}>
-          {parse(sanitizedHtml, isDesktopApp() ? extraHtmlParserOptions : undefined)}
+          {parse(
+            sanitizedHtml,
+            isDesktopApp() ? desktopExtraHtmlParserOptions : webExtraHtmlParserOptions
+          )}
         </div>
       );
     }

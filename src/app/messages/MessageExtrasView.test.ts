@@ -683,4 +683,42 @@ describe('MessageExtras', () => {
       Reflect.deleteProperty(window, 'mindroomDesktop');
     }
   });
+
+  it('drops non-SVG <title> in text/html extras so document.title stays intact while keeping <svg><title>', () => {
+    const previousTitle = document.title;
+    document.title = 'MindRoom';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          React.createElement(MessageExtras, {
+            extras: createExtras(
+              [
+                section({
+                  contentType: 'text/html',
+                  collapsed: true,
+                  content:
+                    '<title>Weekly report</title><div><title>Nested</title><svg><title>Chart</title><rect width="10" height="10" /></svg></div>',
+                }),
+              ],
+              2
+            ),
+            htmlReactParserOptions: {},
+            markerContent: {},
+            toolRows: false,
+          })
+        );
+      });
+      expect(document.title).toBe('MindRoom');
+      expect(document.head.querySelectorAll('title')).toHaveLength(1);
+      expect(container.querySelector('svg title')?.textContent).toBe('Chart');
+      expect(container.querySelectorAll('title')).toHaveLength(1);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+      document.title = previousTitle;
+    }
+  });
 });
