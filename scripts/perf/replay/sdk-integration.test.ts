@@ -347,7 +347,7 @@ describe('replay server integration with patched matrix-js-sdk', () => {
     const beforeCount = liveTimeline.getEvents().length;
     const paginated = await client.paginateEventTimeline(liveTimeline, {
       backwards: true,
-      limit: 1,
+      limit: 8,
     });
     expect(paginated).toBe(true);
     expect(liveTimeline.getEvents().length).toBeGreaterThan(beforeCount);
