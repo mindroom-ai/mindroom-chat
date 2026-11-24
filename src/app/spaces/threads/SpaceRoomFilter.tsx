@@ -40,19 +40,21 @@ export function SpaceRoomFilter({
   const soleRoomName = soleRoomId
     ? rooms.find((room) => room.roomId === soleRoomId)?.name
     : undefined;
+  const label = t('spaceThreads.roomFilter.label');
   const ariaLabel = t('spaceThreads.roomFilter.ariaLabel');
+  const triggerAriaLabel = soleRoomName
+    ? `${label}: ${soleRoomName}`
+    : selectedCount > 0
+    ? t('spaceThreads.roomFilter.ariaLabelActive', { number: selectedCount })
+    : ariaLabel;
 
   return (
     <ThreadFilterDropdown
       name="room"
-      label={t('spaceThreads.roomFilter.label')}
+      label={label}
       value={soleRoomName}
       count={selectedCount}
-      ariaLabel={
-        selectedCount > 0
-          ? t('spaceThreads.roomFilter.ariaLabelActive', { number: selectedCount })
-          : ariaLabel
-      }
+      ariaLabel={triggerAriaLabel}
     >
       <ThreadFilterPanel
         name="room"

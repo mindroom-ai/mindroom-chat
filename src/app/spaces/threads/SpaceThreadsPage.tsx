@@ -257,7 +257,10 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
                 }))
               }
               onToggleForMe={() => updateFilter((prev) => ({ ...prev, forMe: !prev.forMe }))}
-              onReset={() => setFilterState(resetThreadFilterState())}
+              onReset={() => {
+                setFilterState(resetThreadFilterState());
+                setSelectedRoomIds(undefined);
+              }}
               onAddTag={(tag) => updateFilter((prev) => addTagFilter(prev, tag))}
               onRemoveTag={(tag) => updateFilter((prev) => removeTagFilter(prev, tag))}
               onClearTags={() => updateFilter((prev) => ({ ...prev, tags: new Map() }))}

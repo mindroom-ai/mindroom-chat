@@ -403,6 +403,7 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(0);
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('1 of 3 rooms');
     expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Design');
+    expect(screen.getByRole('button', { name: 'Rooms: Design' })).toBeTruthy();
     expect(
       container.querySelector('[data-room-filter-button]')?.getAttribute('data-room-filter-count')
     ).toBe('1');
