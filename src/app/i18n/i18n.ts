@@ -86,6 +86,7 @@ const namespaceLoaders = new Map<string, NamespaceLoader>();
  */
 const httpBackend: BackendModule = {
   type: 'backend',
+  callbackApi: true,
   init: () => undefined,
   read: (language: string, namespace: string, callback: ReadCallback) => {
     const fail = (error: unknown): void =>
