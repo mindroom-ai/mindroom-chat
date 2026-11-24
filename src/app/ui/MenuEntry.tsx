@@ -1,6 +1,13 @@
-import { type ComponentProps, type MouseEventHandler, type ReactNode, useId } from 'react';
+import {
+  type ComponentProps,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type MouseEventHandler,
+  type ReactNode,
+  useId,
+} from 'react';
 import classNames from 'classnames';
-import { Box, Icon, Text, config, type IconSrc } from 'folds';
+import { Box, Icon, Switch, Text, config, type IconSrc } from 'folds';
 import { MenuItem } from './glass/GlassPrimitives';
 import * as css from './MenuEntry.css';
 import { ShortcutHint, shortcutAttributes } from '../shortcuts/ShortcutKeys';
@@ -110,10 +117,81 @@ export function MenuEntry({
   );
 }
 
-/** A run of menu rows; a menu with several groups puts a line between them. */
-export function MenuGroup({ children }: { children: ReactNode }) {
+type MenuSwitchEntryProps = Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'role' | 'aria-checked' | 'tabIndex' | 'onClick' | 'children'
+> & {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+};
+
+/** One toggle switch row of a menu: toggles in place without closing the menu. */
+export function MenuSwitchEntry({
+  label,
+  checked,
+  onToggle,
+  onKeyDown,
+  ...props
+}: MenuSwitchEntryProps) {
   return (
-    <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+    <MenuItem
+      {...props}
+      as="div"
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      tabIndex={0}
+      size="300"
+      radii="300"
+      variant="Surface"
+      fill="None"
+      after={
+        <Switch
+          value={checked}
+          variant="Primary"
+          tabIndex={-1}
+          aria-hidden="true"
+          style={{ pointerEvents: 'none' }}
+        />
+      }
+      onClick={onToggle}
+      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        onKeyDown?.(event);
+        if (!event.defaultPrevented && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <Text as="span" size="T300" truncate style={labelStyle}>
+        {label}
+      </Text>
+    </MenuItem>
+  );
+}
+
+/** A run of menu rows; a menu with several groups puts a line between them. */
+export function MenuGroup({ label, children }: { label?: string; children: ReactNode }) {
+  const headingId = useId();
+  return (
+    <Box
+      direction="Column"
+      gap="100"
+      style={{ padding: config.space.S100 }}
+      role={label ? 'group' : undefined}
+      aria-labelledby={label ? headingId : undefined}
+    >
+      {label && (
+        <Text
+          id={headingId}
+          as="span"
+          size="O400"
+          priority="300"
+          style={{ paddingBlock: config.space.S100, paddingInline: config.space.S200 }}
+        >
+          {label}
+        </Text>
+      )}
       {children}
     </Box>
   );

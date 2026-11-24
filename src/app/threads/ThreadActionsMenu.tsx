@@ -11,18 +11,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Box,
-  Button,
-  Icon,
-  Icons,
-  Line,
-  Text,
-  config,
-  toRem,
-  type IconSrc,
-  type RectCords,
-} from 'folds';
+import { Box, Button, Icons, Line, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import {
   getThreadSummaryActionError,
@@ -44,7 +33,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
 import { Menu } from '../ui/glass/GlassPrimitives';
-import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup, MenuSwitchEntry } from '../ui/MenuEntry';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
@@ -625,10 +614,7 @@ export function ThreadActionsMenu({
       label: t('mindroomUi.messages.showToolCalls'),
       icon: Icons.Terminal,
       checked: toolCallsShown,
-      onSelect: () => {
-        setToolCallsShown(!toolCallsShown);
-        onClose();
-      },
+      onSelect: () => setToolCallsShown(!toolCallsShown),
     });
   }
   if (onShowBeside) {
@@ -729,21 +715,29 @@ export function ThreadActionsMenu({
                 </div>
               )}
               <MenuGroup>
-                {items.map((item) => (
-                  <MenuEntry
-                    key={item.action}
-                    role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                    aria-checked={item.checked}
-                    label={item.label}
-                    icon={item.icon}
-                    after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
-                    shortcut={item.shortcut}
-                    data-thread-action={item.action}
-                    disabled={item.mutates && saving}
-                    aria-busy={item.mutates && saving ? true : undefined}
-                    onSelect={() => item.onSelect()}
-                  />
-                ))}
+                {items.map((item) =>
+                  item.checked !== undefined ? (
+                    <MenuSwitchEntry
+                      key={item.action}
+                      label={item.label}
+                      checked={item.checked}
+                      data-thread-action={item.action}
+                      onToggle={() => item.onSelect()}
+                    />
+                  ) : (
+                    <MenuEntry
+                      key={item.action}
+                      role="menuitem"
+                      label={item.label}
+                      icon={item.icon}
+                      shortcut={item.shortcut}
+                      data-thread-action={item.action}
+                      disabled={item.mutates && saving}
+                      aria-busy={item.mutates && saving ? true : undefined}
+                      onSelect={() => item.onSelect()}
+                    />
+                  )
+                )}
               </MenuGroup>
             </div>
           </Menu>

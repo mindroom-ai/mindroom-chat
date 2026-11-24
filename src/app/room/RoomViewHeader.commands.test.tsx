@@ -171,6 +171,7 @@ describe("the room header's commands", () => {
     const ids = getRoomCommands().map(({ id }) => id);
     expect(ids).toEqual(expect.arrayContaining(['filterBar', 'toolCalls', 'members']));
     expect(commandById('filterBar')?.pressed).toBe(true);
+    expect(commandById('toolCalls')?.label).toBe('Show Tool Calls');
     expect(commandById('toolCalls')?.pressed).toBe(true);
     expect(commandById('members')?.shortcut).toBe('members');
     for (const id of ['pins', 'schedules', 'canvas', 'call']) {
@@ -184,6 +185,20 @@ describe("the room header's commands", () => {
     act(() => commandById('filterBar')?.run());
     expect(store.get(settingsAtom).hideThreadFilterBar).toBe(true);
     expect(commandById('filterBar')?.pressed).toBe(false);
+  });
+
+  it('omits toolCalls without agents and omits placement none plugin panels', () => {
+    renderHeader({
+      hasMindroomAgents: false,
+      pluginPanels: [
+        { id: 'pr/panel', label: 'Pull Requests', placement: 'none' },
+        { id: 'notes/panel', label: 'Notes', placement: 'menu' },
+      ],
+    });
+    const ids = getRoomCommands().map(({ id }) => id);
+    expect(ids).not.toContain('toolCalls');
+    expect(ids).not.toContain('panel:pr/panel');
+    expect(ids).toContain('panel:notes/panel');
   });
 
   it('are none once the header unmounts', () => {

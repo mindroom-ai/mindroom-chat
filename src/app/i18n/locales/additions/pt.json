@@ -739,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",
-      "searchEncrypted": "Indisponível em salas encriptadas"
+      "searchEncrypted": "Indisponível em salas encriptadas",
+      "viewSection": "Vista",
+      "roomSection": "Sala",
+      "preferencesSection": "Preferências",
+      "notificationModeAll": "Todas",
+      "notificationModeMentions": "Menções"
     },
     "phoneNav": {
       "navigation": "Navegação"

@@ -722,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Davet etme izniniz yok",
-      "searchEncrypted": "Şifreli odalarda kullanılamaz"
+      "searchEncrypted": "Şifreli odalarda kullanılamaz",
+      "viewSection": "Görünüm",
+      "roomSection": "Oda",
+      "preferencesSection": "Tercihler",
+      "notificationModeAll": "Tümü",
+      "notificationModeMentions": "Bahsetmeler"
     },
     "phoneNav": {
       "navigation": "Gezinme"

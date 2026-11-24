@@ -415,19 +415,28 @@ describe("ThreadActionsMenu's tool calls switch", () => {
   });
   afterEach(() => clearToolCallOverrides(SESSION));
 
-  it('shows or hides the tool calls of this thread only, then closes the menu', () => {
+  it('shows or hides the tool calls of this thread only in place without closing the menu', () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'join' }];
     const onClose = vi.fn();
     renderMenu({ onClose });
     expect(entry()?.getAttribute('role')).toBe('menuitemcheckbox');
     expect(entry()?.getAttribute('aria-checked')).toBe('false');
-    expect(entry()?.textContent).toBe('Show tool calls');
+    expect(entry()?.textContent).toBe('Show Tool Calls');
 
     act(() => entry()?.click());
     expect(JSON.parse(stored() ?? 'null')).toEqual({ '!room:test': { threads: { $root: true } } });
     expect(getDefaultStore().get(settingsAtom).showToolCalls).toBe(false);
-    expect(onClose).toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
     expect(entry()?.getAttribute('aria-checked')).toBe('true');
+
+    act(() => {
+      entry()?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      );
+    });
+    expect(stored()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(entry()?.getAttribute('aria-checked')).toBe('false');
   });
 
   it('is left out of rooms without agents, which have no tool calls', () => {
@@ -438,7 +447,7 @@ describe("ThreadActionsMenu's tool calls switch", () => {
   it('is there while an agent is still invited, as in the room menu', () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'invite' }];
     renderMenu();
-    expect(entry()?.textContent).toBe('Show tool calls');
+    expect(entry()?.textContent).toBe('Show Tool Calls');
   });
 });
 

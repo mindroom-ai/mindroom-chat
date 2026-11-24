@@ -705,7 +705,12 @@
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
-      "searchEncrypted": "暗号化されたルームでは使用できません"
+      "searchEncrypted": "暗号化されたルームでは使用できません",
+      "viewSection": "表示",
+      "roomSection": "ルーム",
+      "preferencesSection": "環境設定",
+      "notificationModeAll": "すべて",
+      "notificationModeMentions": "メンション"
     },
     "phoneNav": {
       "navigation": "ナビゲーション"

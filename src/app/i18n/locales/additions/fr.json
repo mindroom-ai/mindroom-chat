@@ -739,7 +739,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Vous n’avez pas l’autorisation d’inviter",
-      "searchEncrypted": "Indisponible dans les salles chiffrées"
+      "searchEncrypted": "Indisponible dans les salles chiffrées",
+      "viewSection": "Affichage",
+      "roomSection": "Salon",
+      "preferencesSection": "Préférences",
+      "notificationModeAll": "Tous",
+      "notificationModeMentions": "Mentions"
     },
     "phoneNav": {
       "navigation": "Navigation"

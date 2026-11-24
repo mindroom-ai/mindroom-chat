@@ -7,6 +7,8 @@ import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { mDirectAtom } from '../matrix/state/mDirectList';
+import { clearToolCallOverrides } from '../messages/toolCallVisibility';
+import { getSettings, settingsAtom } from '../preferences/settings';
 import { MenuEntry } from '../ui/MenuEntry';
 import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
@@ -16,10 +18,15 @@ import type { PluginRoomAction } from '../plugins/roomActions';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
+const SESSION = 'me-session';
+
 const state = vi.hoisted(() => ({
   canInvite: true,
   canListRooms: true,
   encrypted: false,
+  notificationMode: 'unset',
+  notificationChanging: false,
+  members: [] as Array<{ userId: string; membership: string }>,
   navigate: vi.fn(),
   openSettings: vi.fn(),
   sendStateEvent: vi.fn(() => Promise.resolve({})),
@@ -46,6 +53,11 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
+vi.mock('../matrix/session/useSessionStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/session/useSessionStore')>()),
+  useActiveSession: () => ({ sessionId: SESSION }),
+}));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: () => state.canInvite,
@@ -56,7 +68,8 @@ vi.mock('../matrix/hooks/useRoomPermissions', () => ({
 vi.mock('../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => (state.encrypted ? {} : undefined),
 }));
-vi.mock('../matrix/matrix', () => ({
+vi.mock('../matrix/matrix', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/matrix')>()),
   getCanonicalAliasOrRoomId: (_client: unknown, roomId: string) => roomId,
   isRoomAlias: () => false,
 }));
@@ -64,7 +77,7 @@ vi.mock('../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => state.openSettings,
 }));
 vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
-  getRoomNotificationMode: () => 'unset',
+  getRoomNotificationMode: () => state.notificationMode,
   getRoomNotificationModeIcon: () => Icons.Bell,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
@@ -92,7 +105,7 @@ vi.mock('../notifications/RoomNotificationSwitcher', () => ({
     children,
   }: {
     children: (open: () => void, opened: boolean, changing: boolean) => React.ReactNode;
-  }) => children(vi.fn(), false, false),
+  }) => children(vi.fn(), false, state.notificationChanging),
 }));
 vi.mock('../members/invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => <div role="dialog" aria-label="Invite" />,
@@ -172,18 +185,11 @@ const rows = () =>
     return `${name} (${document.getElementById(reasonId)?.textContent ?? 'no reason'})`;
   });
 
-const SHARED = [
-  'Mark as Read',
-  'Notifications',
-  'Invite',
-  'New Sub-room',
-  'Copy Link',
-  'Room Settings',
-  'Message Search',
-  'Jump to Time',
-  'Archive Room',
-  'Leave Room',
-];
+const READING = ['Mark as Read', 'Message Search', 'Jump to Time'];
+const ROOM_GROUP = ['Invite', 'New Sub-room', 'Copy Link', 'Room Settings'];
+const PREFERENCES = ['Notifications'];
+const EXIT = ['Archive Room', 'Leave Room'];
+const SHARED = [...READING, ...ROOM_GROUP, ...PREFERENCES, ...EXIT];
 
 /** What the open room's header adds before the room actions. */
 const showMembers = <MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />;
@@ -193,30 +199,110 @@ afterEach(() => {
   state.canInvite = true;
   state.canListRooms = true;
   state.encrypted = false;
+  state.notificationMode = 'unset';
+  state.notificationChanging = false;
+  state.members = [];
   state.rooms = {};
   state.plugins.length = 0;
+  clearToolCallOverrides(SESSION);
+  getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
   getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
   vi.clearAllMocks();
 });
 
 describe('the shared room actions', () => {
-  it('lists every room action in one order, in two groups', () => {
-    expect(ROOM_ACTIONS.map((group) => group.map(({ id }) => id))).toEqual([
-      [
-        'markRead',
-        'notifications',
-        'invite',
-        'newSubRoom',
-        'copyLink',
-        'settings',
-        'search',
-        'jumpToTime',
-      ],
-      ['takeOff', 'archive', 'leave'],
+  it('lists every room action in one order, in four structured groups with section headings', () => {
+    expect(
+      ROOM_ACTIONS.map((group) => ({
+        id: group.id,
+        labelKey: group.labelKey,
+        actions: group.actions.map(({ id }) => id),
+      }))
+    ).toEqual([
+      { id: 'reading', labelKey: undefined, actions: ['markRead', 'search', 'jumpToTime'] },
+      {
+        id: 'room',
+        labelKey: 'featureUi.roomActions.roomSection',
+        actions: ['invite', 'newSubRoom', 'copyLink', 'settings'],
+      },
+      {
+        id: 'preferences',
+        labelKey: 'featureUi.roomActions.preferencesSection',
+        actions: ['notifications', 'toolCalls'],
+      },
+      { id: 'exit', labelKey: undefined, actions: ['takeOff', 'archive', 'leave'] },
     ]);
     render(<Harness />);
     expect(rows()).toEqual(SHARED);
+    expect(screen.getByRole('group', { name: 'Room' })).toBeTruthy();
+    expect(screen.getByRole('group', { name: 'Preferences' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'View' })).toBeNull();
+  });
+
+  it.each([
+    ['unset', 'Default'],
+    ['all_messages', 'All'],
+    ['special_messages', 'Mentions'],
+    ['mute', 'Mute'],
+  ] as const)(
+    'shows the current notification mode (%s -> %s) beside the bell while keeping accessible name Notifications',
+    (mode, expectedLabel) => {
+      state.notificationMode = mode;
+      render(<Harness />);
+      const notifications = screen.getByRole('menuitem', { name: 'Notifications' });
+      const modeId = notifications.getAttribute('aria-describedby');
+      expect(modeId).toBeTruthy();
+      const modeText = document.getElementById(modeId!);
+      expect(modeText?.textContent).toBe(expectedLabel);
+      expect(modeText?.getAttribute('aria-hidden')).toBe('true');
+      expect(rows()).toEqual(SHARED);
+    }
+  );
+
+  it('replaces the notification mode label with a spinner while changing', () => {
+    state.notificationChanging = true;
+    render(<Harness />);
+    const notifications = screen.getByRole('menuitem', { name: 'Notifications' });
+    expect(notifications.getAttribute('aria-describedby')).toBeNull();
+    expect(notifications.textContent).toBe('Notifications');
+  });
+
+  it('shows Show Tool Calls switch in Preferences for agent rooms and toggles in place via click and keyboard', () => {
+    state.members = [{ userId: '@mindroom_agent:example.org', membership: 'join' }];
+    const close = vi.fn();
+    render(<Harness close={close} />);
+
+    const preferences = screen.getByRole('group', { name: 'Preferences' });
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Show Tool Calls' });
+    expect(preferences.contains(toggle)).toBe(true);
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(toggle);
+    expect(close).not.toHaveBeenCalled();
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect(JSON.parse(localStorage.getItem(`toolCallsShown:${SESSION}`) ?? 'null')).toEqual({
+      '!room:example.org': { room: true },
+    });
+
+    fireEvent.keyDown(toggle, { key: 'Enter' });
+    expect(close).not.toHaveBeenCalled();
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect(localStorage.getItem(`toolCallsShown:${SESSION}`)).toBeNull();
+
+    fireEvent.keyDown(toggle, { key: ' ' });
+    expect(close).not.toHaveBeenCalled();
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('omits Show Tool Calls in non-agent rooms and includes it for invited agents', () => {
+    render(<Harness />);
+    expect(screen.queryByRole('menuitemcheckbox', { name: 'Show Tool Calls' })).toBeNull();
+    cleanup();
+
+    state.members = [{ userId: '@mindroom_agent:example.org', membership: 'invite' }];
+    render(<Harness />);
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Show Tool Calls' })).toBeTruthy();
   });
 
   it('keeps Invite in its place, disabled with the reason, for someone who may not invite', async () => {
@@ -247,9 +333,10 @@ describe('the shared room actions', () => {
     expect(state.navigate).not.toHaveBeenCalled();
   });
 
-  it('puts what only the open room offers in a section before the room actions', () => {
+  it('puts what only the open room offers in a View section before the room actions', () => {
     render(<Harness roomEntries={showMembers} />);
     expect(rows()).toEqual(['Show Members', ...SHARED]);
+    expect(screen.getByRole('group', { name: 'View' })).toBeTruthy();
   });
 
   it('closes the menu, then searches the room within the space it is listed in, or opens its settings', () => {
@@ -514,8 +601,14 @@ describe("plugins' entries", () => {
   const layout = () => {
     const first = screen.getByRole('menuitem', { name: 'Mark as Read' }).parentElement;
     return Array.from(first?.parentElement?.children ?? []).map((part) => {
-      const rows = Array.from(part.querySelectorAll('[role^="menuitem"]'));
-      return rows.length > 0 ? rows.map((row) => row.textContent?.trim() ?? '') : 'line';
+      const items = Array.from(part.querySelectorAll('[role^="menuitem"]'));
+      return items.length > 0
+        ? items.map((row) => {
+            const copy = row.cloneNode(true) as Element;
+            copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+            return copy.textContent?.trim() ?? '';
+          })
+        : 'line';
     });
   };
 
@@ -556,22 +649,24 @@ describe("plugins' entries", () => {
     </div>
   );
 
-  it('lists them in a group of their own, after the first group and before Remove from, Archive and Leave, in a row menu and in the room header menu', () => {
+  const coreBeforeExit = [READING, 'line', ROOM_GROUP, 'line', PREFERENCES];
+
+  it('lists them in a group of their own, after Preferences and before Remove from, Archive and Leave, in a row menu and in the room header menu', () => {
     buildWith(entry(), entry({ id: 'other', label: 'other' }));
     const plugins = ['About this room', 'Other entry'];
     render(<Harness />);
-    expect(layout()).toEqual([SHARED.slice(0, -2), 'line', plugins, 'line', SHARED.slice(-2)]);
+    expect(layout()).toEqual([...coreBeforeExit, 'line', plugins, 'line', EXIT]);
     cleanup();
 
     render(<Harness roomEntries={showMembers} />);
     expect(layout()).toEqual([
       ['Show Members'],
       'line',
-      SHARED.slice(0, -2),
+      ...coreBeforeExit,
       'line',
       plugins,
       'line',
-      SHARED.slice(-2),
+      EXIT,
     ]);
   });
 
@@ -581,10 +676,10 @@ describe("plugins' entries", () => {
       entry(),
       entry({ id: 'other', label: 'other' })
     );
-    const last = [...SHARED.slice(-2), 'Remove example data'];
+    const last = [...EXIT, 'Remove example data'];
     render(<Harness />);
     expect(layout()).toEqual([
-      SHARED.slice(0, -2),
+      ...coreBeforeExit,
       'line',
       ['About this room', 'Other entry'],
       'line',
@@ -603,17 +698,13 @@ describe("plugins' entries", () => {
   it('draws no group of their own when every entry is critical', () => {
     buildWith(entry({ critical: true }));
     render(<Harness />);
-    expect(layout()).toEqual([
-      SHARED.slice(0, -2),
-      'line',
-      [...SHARED.slice(-2), 'About this room'],
-    ]);
+    expect(layout()).toEqual([...coreBeforeExit, 'line', [...EXIT, 'About this room']]);
   });
 
   it('draws no group for plugins when no entry shows for the room', () => {
     buildWith(entry({ shows: (shown) => shown.isSpaceRoom() }));
     render(<Harness />);
-    expect(layout()).toEqual([SHARED.slice(0, -2), 'line', SHARED.slice(-2)]);
+    expect(layout()).toEqual([...coreBeforeExit, 'line', EXIT]);
   });
 
   it("closes the menu, then runs the entry on the menu's room; its dialog stays after the menu has gone, until it closes", async () => {

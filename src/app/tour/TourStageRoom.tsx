@@ -30,7 +30,7 @@ import * as overviewCss from '../threads/overview/RoomThreadOverview.css';
 import * as bannerCss from '../threads/ThreadContextBanner.css';
 import { ThreadStreamingDot } from '../threads/ThreadStreamingDot';
 import { IconButton as GlassIconButton, Menu } from '../ui/glass/GlassPrimitives';
-import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup, MenuSwitchEntry } from '../ui/MenuEntry';
 import {
   Sidebar,
   SidebarAvatar,
@@ -208,10 +208,10 @@ function RoomMenu({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
             onSelect={nothing}
             {...mark(live, 'filterButton')}
           />
-          <MenuEntry
+          <MenuSwitchEntry
             label={t('mindroomUi.messages.showToolCalls')}
-            icon={Icons.Terminal}
-            onSelect={nothing}
+            checked={false}
+            onToggle={nothing}
           />
         </MenuGroup>
       </Menu>

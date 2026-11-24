@@ -722,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Du hast keine Berechtigung zum Einladen",
-      "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar"
+      "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar",
+      "viewSection": "Ansicht",
+      "roomSection": "Raum",
+      "preferencesSection": "Voreinstellungen",
+      "notificationModeAll": "Alle",
+      "notificationModeMentions": "Erwähnungen"
     },
     "phoneNav": {
       "navigation": "Navigation"

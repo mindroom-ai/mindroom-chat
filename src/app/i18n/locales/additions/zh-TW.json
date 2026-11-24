@@ -705,7 +705,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
-      "searchEncrypted": "在加密房間中無法使用"
+      "searchEncrypted": "在加密房間中無法使用",
+      "viewSection": "檢視",
+      "roomSection": "房間",
+      "preferencesSection": "偏好設定",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "導覽"

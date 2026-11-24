@@ -705,7 +705,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",
-      "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
+      "searchEncrypted": "Tidak tersedia di ruang terenkripsi",
+      "viewSection": "Tampilan",
+      "roomSection": "Ruang",
+      "preferencesSection": "Preferensi",
+      "notificationModeAll": "Semua",
+      "notificationModeMentions": "Sebutan"
     },
     "phoneNav": {
       "navigation": "Navigasi"

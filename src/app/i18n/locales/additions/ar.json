@@ -790,7 +790,12 @@
     },
     "roomActions": {
       "noInvitePermission": "ليس لديك إذن بالدعوة",
-      "searchEncrypted": "غير متاح في الغرف المشفرة"
+      "searchEncrypted": "غير متاح في الغرف المشفرة",
+      "viewSection": "العرض",
+      "roomSection": "الغرفة",
+      "preferencesSection": "التفضيلات",
+      "notificationModeAll": "الكل",
+      "notificationModeMentions": "الإشارات"
     },
     "phoneNav": {
       "navigation": "التنقل"

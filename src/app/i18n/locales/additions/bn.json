@@ -722,7 +722,12 @@
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
-      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়",
+      "viewSection": "প্রদর্শন",
+      "roomSection": "রুম",
+      "preferencesSection": "পছন্দসমূহ",
+      "notificationModeAll": "সব",
+      "notificationModeMentions": "উল্লেখ"
     },
     "phoneNav": {
       "navigation": "নেভিগেশন"
