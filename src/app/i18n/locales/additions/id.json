@@ -1902,6 +1902,38 @@
       "settingsKeywords": "tur, tutorial, panduan, bantuan, pengenalan, perkenalan, utas",
       "howThreadsWork": "Cara kerja utas",
       "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
+    },
+    "help": {
+      "button": "Bantuan & panduan",
+      "buttonWithTip": "Bantuan & panduan (1 kiat)",
+      "title": "Bantuan & panduan",
+      "subtitle": "Panduan singkat",
+      "oneTip": "1 kiat",
+      "suggested": "Disarankan untuk Anda",
+      "showHow": "Lihat caranya",
+      "dismissTip": "Tutup kiat",
+      "guidesHeading": "Panduan antarmuka",
+      "guides": {
+        "conversation": "Cara kerja utas",
+        "resolve": "Selesaikan yang sudah tuntas",
+        "filters": "Temukan utas yang selesai",
+        "snooze": "Tunda untuk nanti",
+        "pinAndTag": "Sematkan & beri tag utas",
+        "views": "Tampilan Ringkas vs Utas",
+        "activity": "Aktivitas & persetujuan"
+      },
+      "fullTour": "Tur lengkap",
+      "shortcuts": "Pintasan"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Selesaikan utas yang tuntas",
+        "cardTitle": "Selesaikan utas yang tuntas",
+        "roomSummary_other": "{{count}} utas terbuka di sini, belum ada yang selesai",
+        "allSummary_other": "{{count}} utas terbuka, belum ada yang selesai",
+        "cardTextRoom_other": "{{count}} utas terbuka di sini, belum ada yang selesai. Tandai yang sudah tuntas agar daftar tetap rapi.",
+        "cardTextAll_other": "{{count}} utas terbuka, belum ada yang selesai. Tandai yang sudah tuntas agar daftar tetap rapi."
+      }
     }
   },
   "threadNav": {

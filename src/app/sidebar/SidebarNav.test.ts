@@ -54,6 +54,9 @@ vi.mock('./rail/ActivityTab', () => ({
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),
 }));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: () => React.createElement('div', { 'data-tab': 'help' }),
+}));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: () => React.createElement('div', { 'data-tab': 'settings' }),
 }));

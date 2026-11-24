@@ -1,19 +1,6 @@
-import type { TourLevel } from '../navigation/tourState';
+import type { TourLevel, TourStepId } from '../navigation/tourState';
 
-/** Names a step of the tour; its title and text are `tour.steps.<id>` in the catalogs. */
-export type TourStepId =
-  | 'conversation'
-  | 'start'
-  | 'reply'
-  | 'title'
-  | 'order'
-  | 'states'
-  | 'resolve'
-  | 'filters'
-  | 'snooze'
-  | 'pinAndTag'
-  | 'views'
-  | 'activity';
+export type { TourStepId } from '../navigation/tourState';
 
 /** The chapter a step belongs to; its name is `tour.chapters.<chapter>`. */
 export type TourChapter = 'basics' | 'tidy' | 'finding';
@@ -80,3 +67,10 @@ export const nextStep = (level: TourLevel, index: number): number =>
 
 /** The index of the step before `index`; the first step stays where it is. */
 export const previousStep = (index: number): number => Math.max(index - 1, 0);
+
+/** The index of `stepId` in a level, or 0 when omitted or outside that level. */
+export const stepIndexOf = (level: TourLevel, stepId?: TourStepId): number => {
+  if (!stepId) return 0;
+  const index = stepsOf(level).findIndex((step) => step.id === stepId);
+  return index >= 0 ? index : 0;
+};

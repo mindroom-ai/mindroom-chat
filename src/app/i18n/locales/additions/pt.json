@@ -2014,6 +2014,46 @@
       "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
+    },
+    "help": {
+      "button": "Ajuda e guias",
+      "buttonWithTip": "Ajuda e guias (1 dica)",
+      "title": "Ajuda e guias",
+      "subtitle": "Guias rápidos",
+      "oneTip": "1 dica",
+      "suggested": "Sugerido para si",
+      "showHow": "Ver como",
+      "dismissTip": "Ignorar dica",
+      "guidesHeading": "Guias da interface",
+      "guides": {
+        "conversation": "Como funcionam os tópicos",
+        "resolve": "Resolver o que está concluído",
+        "filters": "Encontrar tópicos resolvidos",
+        "snooze": "Adiar para mais tarde",
+        "pinAndTag": "Fixar e etiquetar tópicos",
+        "views": "Vista Compacto vs. Tópicos",
+        "activity": "Atividade e aprovações"
+      },
+      "fullTour": "Visita completa",
+      "shortcuts": "Atalhos"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resolva tópicos concluídos",
+        "cardTitle": "Resolva tópicos concluídos",
+        "roomSummary_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda",
+        "roomSummary_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "roomSummary_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda",
+        "allSummary_one": "{{count}} tópico aberto, nenhum resolvido ainda",
+        "allSummary_many": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "allSummary_other": "{{count}} tópicos abertos, nenhum resolvido ainda",
+        "cardTextRoom_one": "{{count}} tópico aberto aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_many": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextRoom_other": "{{count}} tópicos abertos aqui, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_one": "{{count}} tópico aberto, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_many": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada.",
+        "cardTextAll_other": "{{count}} tópicos abertos, nenhum resolvido ainda. Resolva os concluídos para manter a lista organizada."
+      }
     }
   },
   "threadNav": {

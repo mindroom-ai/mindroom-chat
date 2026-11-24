@@ -61,6 +61,9 @@ vi.mock('./rail/ActivityTab', () => ({
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: tab('search'),
 }));
+vi.mock('./rail/HelpTab', () => ({
+  HelpTab: tab('help'),
+}));
 vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: tab('settings'),
 }));
@@ -135,6 +138,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'activity',
       'spaces',
       'unverified',
+      'help',
       'settings',
     ]);
     // Only the rule between the scrolling and pinned parts.
@@ -156,6 +160,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'search',
       'unverified',
       'localMindroom',
+      'help',
       'settings',
     ]);
   });
@@ -164,14 +169,14 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_ON, [setting]: false };
     const { tabs } = renderedTabs();
     expect(tabs).not.toContain(button);
-    expect(tabs).toHaveLength(12);
+    expect(tabs).toHaveLength(13);
   });
 
   it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {
     state.settings = { [setting]: true };
     const { tabs } = renderedTabs();
     expect(tabs).toContain(button);
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(8);
   });
 
   it('keeps the rule above Explore and Create Space while one of them shows', () => {
