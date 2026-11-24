@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useEffect, useEffectEvent, useMemo, useState } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { trimReplyFromBody } from '../../matrix/room';
@@ -178,13 +179,6 @@ export function LongTextText({
   const mx = useMatrixClient();
   const { encryptedFile, isV2ContentJson, mxcUri, owner } = longTextSource;
   const hydrationIdentity = getLongTextHydrationIdentity(content, longTextSource);
-  const hydrationInputRef = useRef({
-    content,
-    encryptedFile,
-    isV2ContentJson,
-    mxcUri,
-    owner,
-  });
   const [loading, setLoading] = useState(
     () => hydrate && !getCachedLongTextContent(longTextSource, mx)
   );
@@ -199,80 +193,71 @@ export function LongTextText({
     () => (hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined) ?? content
   );
 
-  hydrationInputRef.current = {
-    content,
-    encryptedFile,
-    isV2ContentJson,
-    mxcUri,
-    owner,
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const hydrateContent = async () => {
-      const {
-        content: currentContent,
-        encryptedFile: currentEncryptedFile,
-        isV2ContentJson: currentIsV2ContentJson,
-        mxcUri: currentMxcUri,
-        owner: currentOwner,
-      } = hydrationInputRef.current;
-
-      if (hydrate) {
-        // Warm cache: resolve synchronously — no preview reset, no async
-        // round-trip, no loading state.
+  const hydrateContent = useEffectEvent(
+    async (
+      client: MatrixClient,
+      shouldHydrate: boolean,
+      identity: string,
+      isCancelled: () => boolean
+    ) => {
+      if (shouldHydrate) {
+        // Warm cache: resolve synchronously, with no preview reset, no async
+        // round-trip, and no loading state.
         const cachedContent = getCachedLongTextContent(
           {
-            previewContent: currentContent,
-            encryptedFile: currentEncryptedFile,
-            isV2ContentJson: currentIsV2ContentJson,
-            mxcUri: currentMxcUri,
+            previewContent: content,
+            encryptedFile,
+            isV2ContentJson,
+            mxcUri,
           },
-          mx
+          client
         );
         if (cachedContent) {
           setResolvedContent(cachedContent);
           setLoading(false);
-          if (currentOwner)
-            await hydrateCachedLongText(mx, {
-              previewContent: currentContent,
-              encryptedFile: currentEncryptedFile,
-              isV2ContentJson: currentIsV2ContentJson,
-              mxcUri: currentMxcUri,
-              owner: currentOwner,
+          if (owner)
+            await hydrateCachedLongText(client, {
+              previewContent: content,
+              encryptedFile,
+              isV2ContentJson,
+              mxcUri,
+              owner,
             });
           return;
         }
       }
 
       setResolvedContent((currentResolvedContent) =>
-        !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
-          ? withToolTraceFallback(currentContent, currentResolvedContent)
+        !shouldHydrate || shouldResetResolvedContentToPreview(content, currentResolvedContent)
+          ? withToolTraceFallback(content, currentResolvedContent)
           : currentResolvedContent
       );
 
-      if (!hydrate) {
+      if (!shouldHydrate) {
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      const nextContent = await hydrateCachedLongText(mx, {
-        previewContent: currentContent,
-        encryptedFile: currentEncryptedFile,
-        isV2ContentJson: currentIsV2ContentJson,
-        mxcUri: currentMxcUri,
-        owner: currentOwner,
+      const nextContent = await hydrateCachedLongText(client, {
+        previewContent: content,
+        encryptedFile,
+        isV2ContentJson,
+        mxcUri,
+        owner,
       });
 
-      if (!cancelled) {
+      if (!isCancelled()) {
         setResolvedContent(nextContent);
-        setSettledHydrationIdentity(hydrationIdentity);
+        setSettledHydrationIdentity(identity);
         setLoading(false);
       }
-    };
+    }
+  );
 
-    void hydrateContent();
+  useEffect(() => {
+    let cancelled = false;
+    void hydrateContent(mx, hydrate, hydrationIdentity, () => cancelled);
 
     return () => {
       cancelled = true;

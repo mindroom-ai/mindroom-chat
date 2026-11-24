@@ -1,4 +1,4 @@
-import React, { ComponentProps, useEffect, useRef } from 'react';
+import React, { ComponentProps, useEffect, useEffectEvent, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import { FocusTrap } from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
@@ -12,7 +12,6 @@ import {
   isInteractiveSwipeActive,
   wasInteractiveSwipeAbortedEvent,
 } from '../../navigation/interactiveSwipe';
-import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 
 /** Marks the history entry pushed while an image viewer is open, so Back closes the viewer. */
@@ -39,7 +38,7 @@ const withoutViewerMarker = (state: HistoryState): Record<string, unknown> => {
  * not come back to a stale viewer entry. A new `close` each render keeps the same entry.
  */
 const useViewerHistoryEntry = (open: boolean, close: () => void) => {
-  const closeRef = useLatestRef(close);
+  const onClose = useEffectEvent(close);
   useEffect(() => {
     if (!open) return undefined;
     const { history } = window;
@@ -51,7 +50,7 @@ const useViewerHistoryEntry = (open: boolean, close: () => void) => {
 
     const handlePopState = () => {
       consumed = true;
-      closeRef.current();
+      onClose();
     };
     const handlePageHide = () => {
       if (consumed) return;
@@ -68,7 +67,7 @@ const useViewerHistoryEntry = (open: boolean, close: () => void) => {
       window.removeEventListener('pagehide', handlePageHide);
       if (!consumed && hasViewerMarker(history.state as HistoryState)) history.back();
     };
-  }, [open, closeRef]);
+  }, [open]);
 };
 
 /** While `open`, the edge swipes leave the page alone (navigation/useEdgeSwipe.ts). */

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { KnownMembership, RoomMemberEvent, RoomStateEvent } from 'matrix-js-sdk';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { KnownMembership, RoomMemberEvent, RoomStateEvent, type MatrixClient } from 'matrix-js-sdk';
 import { App as NativeApp } from '@capacitor/app';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useClientConfig } from '../../config/useClientConfig';
-import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
@@ -101,13 +100,29 @@ export function NativeIOSPushFeature() {
   // Counts the times the app became active while the account was not shared although it should
   // be, as after the app could not store it: each is another try.
   const [foregroundTick, setForegroundTick] = useState(0);
-  const latest = useLatestRef({
-    enabled,
-    signInRequired,
-    pushAllowed,
-    richPushEligible,
-    sharedAccountTag,
+  const onAppForeground = useEffectEvent((activeSessionId: string | undefined) => {
+    if (richPushEligible && sharedAccountTag !== getStoredIOSPushProfileTag(activeSessionId)) {
+      setForegroundTick((tick) => tick + 1);
+    }
   });
+  const onPushRegistration = useEffectEvent(
+    (
+      client: MatrixClient,
+      config: NonNullable<typeof stableConfig>,
+      activeSessionId: string | undefined,
+      value: string
+    ) => {
+      if (!pushAllowed) {
+        disableIOSPushPusher(client, config, activeSessionId).catch(() => undefined);
+        return;
+      }
+      if (!enabled || signInRequired) return;
+      upsertIOSPushPusher(client, config, value, activeSessionId).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[ios-push] could not register the pusher', error);
+      });
+    }
+  );
 
   // iOS grants and withdraws the permission outside the app's own state: in its prompt, and in
   // Settings while the app is in the background. Either way the app becomes active again after,
@@ -130,27 +145,13 @@ export function NativeIOSPushFeature() {
     const handle = NativeApp.addListener('appStateChange', ({ isActive }) => {
       if (!isActive) return;
       refreshPermission();
-      const state = latest.current;
-      if (
-        state.richPushEligible &&
-        state.sharedAccountTag !== getStoredIOSPushProfileTag(sessionId)
-      ) {
-        setForegroundTick((tick) => tick + 1);
-      }
+      onAppForeground(sessionId);
     });
     return () => {
       latestCheck += 1;
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [
-    enabled,
-    latest,
-    nativeNotificationsAvailable,
-    pushAllowed,
-    sessionId,
-    signInRequired,
-    stableConfig,
-  ]);
+  }, [enabled, nativeNotificationsAvailable, pushAllowed, sessionId, signInRequired, stableConfig]);
 
   // Share the account with the Notification Service Extension while rich notifications can
   // show, and take away what may no longer be shared once they cannot.
@@ -281,21 +282,12 @@ export function NativeIOSPushFeature() {
   useEffect(() => {
     if (!native || !stableConfig) return undefined;
     const handle = PushNotifications.addListener('registration', ({ value }) => {
-      const state = latest.current;
-      if (!state.pushAllowed) {
-        disableIOSPushPusher(mx, stableConfig, sessionId).catch(() => undefined);
-        return;
-      }
-      if (!state.enabled || state.signInRequired) return;
-      upsertIOSPushPusher(mx, stableConfig, value, sessionId).catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn('[ios-push] could not register the pusher', error);
-      });
+      onPushRegistration(mx, stableConfig, sessionId, value);
     });
     return () => {
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [latest, mx, native, sessionId, stableConfig]);
+  }, [mx, native, sessionId, stableConfig]);
 
   useEffect(() => {
     if (!native || !stableConfig) return;
@@ -372,27 +364,29 @@ export function NativeIOSPushOpenFeature() {
   const { navigateRoom } = useRoomNavigate();
   const { hasCompletedInitialSync } = useClientStartupContext();
   const [target, setTarget] = useState<PushTarget>();
-  const latest = useLatestRef({ navigate, sessionId });
   const native = isNativeIOSPlatform();
+  const onPushAction = useEffectEvent((data: unknown) => {
+    const next = readPushTarget(data);
+    if (!next) return;
+    const owner = switchToPushAccount(next, sessionId);
+    if (!owner) {
+      setTarget(next);
+      return;
+    }
+    // The switch mounts the account's pages anew, which open the push after its first sync.
+    switchedPush = { sessionId: owner.sessionId, target: next };
+    void navigate(resolveSessionRestorePath(owner.lastKnownPath));
+  });
 
   useEffect(() => {
     if (!native) return undefined;
     const handle = PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      const next = readPushTarget(action.notification.data);
-      if (!next) return;
-      const owner = switchToPushAccount(next, latest.current.sessionId);
-      if (!owner) {
-        setTarget(next);
-        return;
-      }
-      // The switch mounts the account's pages anew, which open the push after its first sync.
-      switchedPush = { sessionId: owner.sessionId, target: next };
-      void latest.current.navigate(resolveSessionRestorePath(owner.lastKnownPath));
+      onPushAction(action.notification.data);
     });
     return () => {
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [latest, native]);
+  }, [native]);
 
   useEffect(() => {
     if (!sessionId || switchedPush?.sessionId !== sessionId) return;

@@ -1,7 +1,7 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useEffectEvent, useState } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { revokeBlobUrl } from '../../lib/hooks/useBlobUrlCleanup';
-import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ImageOverlay } from './ImageOverlay';
 import { ImageSlidesContext, type ImageSlide } from './imageSlides';
 import { HeicDecodeError, loadImageOriginal } from './imageOriginal';
@@ -45,21 +45,24 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
   const index = slides.findIndex((slide) => slide.eventId === currentId);
   const current = slides[index];
 
-  const requestCloseRef = useLatestRef(requestClose);
+  const onRequestClose = useEffectEvent(requestClose);
   const gone = !current;
   useEffect(() => {
-    if (gone) requestCloseRef.current();
-  }, [gone, requestCloseRef]);
+    if (gone) onRequestClose();
+  }, [gone]);
 
   const key = current ? slideKey(current) : '';
-  const currentRef = useLatestRef(current);
+  const loadCurrentOriginal = useEffectEvent((client: MatrixClient, signal: AbortSignal) =>
+    current ? loadImageOriginal(client, { ...current, signal }) : undefined
+  );
   useEffect(() => {
-    const target = currentRef.current;
-    if (!target) return undefined;
+    if (!key) return undefined;
     const controller = new AbortController();
+    const request = loadCurrentOriginal(mx, controller.signal);
+    if (!request) return undefined;
     let live = true;
     let objectUrl: string | undefined;
-    loadImageOriginal(mx, { ...target, signal: controller.signal }).then(
+    request.then(
       ({ src, downloadBlob }) => {
         if (!live) {
           revokeBlobUrl(src);
@@ -81,7 +84,7 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
       // Coming back to this picture loads it again rather than show the revoked URL.
       setOriginal(undefined);
     };
-  }, [mx, key, attempt, currentRef]);
+  }, [mx, key, attempt]);
 
   if (!current) return null;
   const shown = original?.key === key ? original : undefined;

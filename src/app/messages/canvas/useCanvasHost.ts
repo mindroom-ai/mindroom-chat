@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import {
@@ -151,15 +159,11 @@ export function useCanvasHost({
   const stagedNow = useRef(staged);
   stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
-  const currentFrameKey = useRef(frameKey);
-  currentFrameKey.current = frameKey;
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
   // Whether the user has worked in this page since it loaded; what the page saves before that is not theirs.
   const used = useRef(false);
   const lastStageAt = useRef(0);
-  const latest = useRef({ canvas, colorScheme, theme, onSaveState });
-  latest.current = { canvas, colorScheme, theme, onSaveState };
   // Pages can be megabytes, so revisions compare by a hash of their HTML.
   const incomingHtmlKey = useMemo(() => canvasDocumentKey(canvas.html), [canvas.html]);
   const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
@@ -202,6 +206,24 @@ export function useCanvasHost({
   const displayedRevision = revisionKey(displayed, displayedHtmlKey);
   const displayedRevisionId = displayed.revisionEventId;
   const displayedPending = !!displayed.status;
+  const applyIncomingRevision = useEffectEvent((revisionId: string, pending: boolean) => {
+    // A page that finished downloading belongs to the revision already shown.
+    const sameRevisionLoaded = canvas.revisionEventId === revisionId && pending;
+    if (sameRevisionLoaded || (!touched.current && document.activeElement !== frameRef.current)) {
+      setDisplayed({
+        ...canvas,
+        colorScheme,
+        theme,
+      });
+    } else if (heldRevisionId.current !== canvas.revisionEventId) {
+      heldRevisionId.current = canvas.revisionEventId;
+      // An answer the user is already sending stays until it is sent or its upload fails.
+      setStaged((current) =>
+        current && current.submission === uploadingSubmission.current ? current : undefined
+      );
+      setUpdateAvailable(true);
+    }
+  });
   useEffect(() => {
     if (incomingRevision === displayedRevision) {
       handledRevision.current = incomingRevision;
@@ -212,25 +234,15 @@ export function useCanvasHost({
     // Each revision is decided once, so a later re-render cannot drop a newer staged answer.
     if (handledRevision.current === incomingRevision) return;
     handledRevision.current = incomingRevision;
-    // A page that finished downloading belongs to the revision already shown.
-    const sameRevisionLoaded =
-      latest.current.canvas.revisionEventId === displayedRevisionId && displayedPending;
-    if (sameRevisionLoaded || (!touched.current && document.activeElement !== frameRef.current)) {
-      setDisplayed({
-        ...latest.current.canvas,
-        colorScheme: latest.current.colorScheme,
-        theme: latest.current.theme,
-      });
-    } else if (heldRevisionId.current !== latest.current.canvas.revisionEventId) {
-      heldRevisionId.current = latest.current.canvas.revisionEventId;
-      // An answer the user is already sending stays until it is sent or its upload fails.
-      setStaged((current) =>
-        current && current.submission === uploadingSubmission.current ? current : undefined
-      );
-      setUpdateAvailable(true);
-    }
+    applyIncomingRevision(displayedRevisionId, displayedPending);
   }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
 
+  const onFrameEscape = useEffectEvent(() => {
+    setEscapedFrame(frameKey);
+  });
+  const saveCanvasState = useEffectEvent((change: CanvasSaved, byUser: boolean) => {
+    onSaveState?.(change, byUser);
+  });
   useEffect(() => {
     const handleBlur = () => {
       if (document.activeElement !== frameRef.current) return;
@@ -246,7 +258,7 @@ export function useCanvasHost({
         event.data?.type === CANVAS_ESCAPE_MESSAGE
       ) {
         // The wrapper reports that the canvas frame tried to load something else.
-        setEscapedFrame(currentFrameKey.current);
+        onFrameEscape();
         return;
       }
       const frame = canvasFrameWindow(frameRef.current);
@@ -255,7 +267,7 @@ export function useCanvasHost({
       if (saved !== undefined) {
         // The page's own focus() cannot fake user activation; focus is the fallback where it is unknown.
         const byUser = saved.user ?? (used.current || document.activeElement === frameRef.current);
-        latest.current.onSaveState?.(saved.change, byUser);
+        saveCanvasState(saved.change, byUser);
         return;
       }
       const error = readCanvasError(event, frame);

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -224,22 +225,20 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const paging = !!position && position.count > 1;
     const canStep = (delta: StepDelta) =>
       !!position && position.index + delta >= 0 && position.index + delta < position.count;
-    const stepRef = useRef(onStep);
-    stepRef.current = onStep;
     const stageRef = useRef<HTMLDivElement>(null);
+    const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      if (keyIsElsewhere(event.target, stageRef.current)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      onStep?.(arrowStep(event.key === 'ArrowRight'));
+    });
 
     // On the window, before anything under the viewer sees them: focus may still sit on the
     // timeline's picture, and the arrows must not scroll it.
     useEffect(() => {
       if (!paging) return undefined;
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-        if (keyIsElsewhere(event.target, stageRef.current)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        stepRef.current?.(arrowStep(event.key === 'ArrowRight'));
-      };
       window.addEventListener('keydown', handleKeyDown, true);
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [paging]);
@@ -330,7 +329,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       begin: beginEdgeClose,
     });
     const swipe = useSwipe(paging && atFit, edgeCloses, (leftward) =>
-      stepRef.current?.(arrowStep(leftward))
+      onStep?.(arrowStep(leftward))
     );
 
     let downloadIcon = <Icon size="50" src={Icons.Download} />;

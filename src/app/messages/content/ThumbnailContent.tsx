@@ -1,4 +1,5 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useEffectEvent, useState } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
 import type { IThumbnailContent } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
@@ -25,23 +26,22 @@ export function ThumbnailContent({ info, owner, renderImage }: ThumbnailContentP
   const mimeType = declaredType ? getBlobSafeMimeType(declaredType) : FALLBACK_MIMETYPE;
   // Callers rebuild the owner and file objects on each render; the load follows what they
   // identify (the event revision and the file), not their identity.
-  const ownerRef = useRef(owner);
-  ownerRef.current = owner;
-  const fileRef = useRef(encryptedFile);
-  fileRef.current = encryptedFile;
   const ownerKey = owner ? `${owner.roomId}|${owner.eventId}|${owner.revisionTs}` : '';
   const fileKey = encryptedFile ? `${encryptedFile.iv}|${encryptedFile.hashes?.sha256 ?? ''}` : '';
+  const downloadThumbnail = useEffectEvent((client: MatrixClient, uri: string, type: string) =>
+    downloadCachedAttachment(client, {
+      owner,
+      mxcUri: uri,
+      mimeType: type,
+      encryptedFile,
+    })
+  );
 
   useEffect(() => {
     if (!mxcUri) return undefined;
     let active = true;
     let objectUrl: string | undefined;
-    downloadCachedAttachment(mx, {
-      owner: ownerRef.current,
-      mxcUri,
-      mimeType,
-      encryptedFile: fileRef.current,
-    }).then(
+    downloadThumbnail(mx, mxcUri, mimeType).then(
       (blob) => {
         objectUrl = URL.createObjectURL(blob);
         if (active) setSrc(objectUrl);

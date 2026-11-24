@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -36,8 +36,9 @@ export function InviteNotifications() {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
+  const openInvites = useEffectEvent(() => {
+    void navigate(getActivityInvitesPath());
+  });
   const invites = useAtomValue(allInvitesAtom);
   const setInvites = useSetAtom(allInvitesAtom);
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
@@ -93,7 +94,7 @@ export function InviteNotifications() {
               ?.catch(() => undefined);
             window.focus();
             note.close();
-            void navigateRef.current(getActivityInvitesPath());
+            openInvites();
           };
         }
       },
