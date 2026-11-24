@@ -125,6 +125,7 @@ const LAYERS = [
   ['canvas', 'composer', 'notifications', 'schedules', 'search', 'subagents'],
   ['rooms', 'threads'],
   ['account', 'activity', 'background-jobs', 'quick-capture', 'spaces', 'timeline'],
+  ['desktop-access'],
   ['invites', 'local-mindroom', 'room'],
   ['settings', 'tour'],
   ['command-palette'],
