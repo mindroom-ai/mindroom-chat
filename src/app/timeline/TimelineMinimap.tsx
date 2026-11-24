@@ -100,18 +100,24 @@ export const useTimelineMinimapInView = (
 type TimelineMinimapProps = {
   items: readonly TimelineMinimapItem[];
   stripMap: Map<string, HTMLSpanElement>;
+  scrollRef?: RefObject<HTMLElement | null>;
   onSelect: (item: TimelineMinimapItem) => void;
   onScrub?: (item: TimelineMinimapItem) => void;
 };
 
-export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: TimelineMinimapProps) {
+export function TimelineMinimap({
+  items,
+  stripMap,
+  scrollRef,
+  onSelect,
+  onScrub,
+}: TimelineMinimapProps) {
   const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const railRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<{ pointerId: number; lastItemId: string; unblock: () => void } | null>(
     null
   );
-  const suppressClickRef = useRef(false);
-  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const endDrag = useCallback((rail: HTMLButtonElement | null, nextActiveIndex?: number | null) => {
     const drag = dragRef.current;
@@ -128,11 +134,6 @@ export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: Timeline
     if (nextActiveIndex !== undefined) {
       setActiveIndex(nextActiveIndex);
     }
-    clearTimeout(suppressClickTimerRef.current);
-    suppressClickTimerRef.current = setTimeout(() => {
-      suppressClickRef.current = false;
-      suppressClickTimerRef.current = undefined;
-    }, 0);
   }, []);
 
   const shouldHide = items.length < TIMELINE_MINIMAP_MIN_ITEMS;
@@ -145,10 +146,41 @@ export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: Timeline
     () => () => {
       dragRef.current?.unblock();
       dragRef.current = null;
-      clearTimeout(suppressClickTimerRef.current);
     },
     []
   );
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (shouldHide || !rail || !scrollRef) return undefined;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (
+        event.ctrlKey ||
+        event.metaKey ||
+        event.deltaY === 0 ||
+        Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      ) {
+        return;
+      }
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) return;
+      let { deltaY } = event;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        deltaY *= 16;
+      } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        deltaY *= scrollElement.clientHeight;
+      }
+      if (deltaY === 0) return;
+      event.preventDefault();
+      scrollElement.scrollTop += deltaY;
+    };
+
+    rail.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      rail.removeEventListener('wheel', handleWheel);
+    };
+  }, [scrollRef, shouldHide]);
 
   const resolvedActiveIndex =
     activeIndex !== null && activeIndex < items.length ? activeIndex : null;
@@ -201,6 +233,7 @@ export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: Timeline
     <div className={css.MinimapContainer} data-testid="timeline-minimap">
       <div className={css.MinimapBody}>
         <button
+          ref={railRef}
           type="button"
           className={css.MinimapRail}
           style={{ height: resolveTimelineMinimapHeightStyle(items.length) }}
@@ -228,11 +261,11 @@ export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: Timeline
             try {
               rail.setPointerCapture?.(event.pointerId);
             } catch {
-              // Synthetic pointer events may not have an active pointer to capture.
+              // Synthetic pointer events with an invalid pointerId cannot be captured;
+              // select once without entering a drag that could never release.
+              onSelect(nextItem);
+              return;
             }
-            clearTimeout(suppressClickTimerRef.current);
-            suppressClickTimerRef.current = undefined;
-            suppressClickRef.current = true;
             const unblock = blockSelection(() => endDrag(rail, null));
             dragRef.current = {
               pointerId: event.pointerId,
@@ -277,12 +310,7 @@ export function TimelineMinimap({ items, stripMap, onSelect, onScrub }: Timeline
             event.preventDefault();
           }}
           onClick={(event) => {
-            if (suppressClickRef.current) {
-              clearTimeout(suppressClickTimerRef.current);
-              suppressClickTimerRef.current = undefined;
-              suppressClickRef.current = false;
-              return;
-            }
+            if (event.detail > 0) return;
             const nextIndex = resolveActiveIndexFromPointer(event);
             const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
             if (nextItem) {
