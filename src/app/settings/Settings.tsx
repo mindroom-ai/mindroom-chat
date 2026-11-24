@@ -253,6 +253,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
   const results = searchSettings(
     query,
     getShownSettings(context),
+    // defaultValue only selects the TypeScript overload; keys exist in English (not a fallback).
     (key, values) => t(key, { ...values, defaultValue: key }),
     searchValues,
     offeredPlugins

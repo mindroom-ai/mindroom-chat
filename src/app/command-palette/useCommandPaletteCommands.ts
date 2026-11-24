@@ -122,6 +122,7 @@ export const useCommandPaletteCommands = ({
       getCommandPaletteSettingRows(
         shownSettings,
         settings,
+        // defaultValue only selects the TypeScript overload; keys exist in English (not a fallback).
         (key, values) => t(key, { ...values, defaultValue: key }),
         searchValues
       ).map(
