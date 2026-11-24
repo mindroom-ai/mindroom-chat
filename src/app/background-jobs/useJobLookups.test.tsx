@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import {
@@ -14,7 +14,7 @@ import { getLiveReplyStore, LiveReplyStore } from '../messages/live/liveReplySto
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { indexJobToolCalls, useJobLookups } from './useJobLookups';
 
-const mx = vi.hoisted(() => ({}));
+const mx = vi.hoisted(() => ({ getUserId: () => '@me:example.org' }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 const hydrateCachedLongText = vi.hoisted(() =>
   vi.fn(async (_mx: object, source: LongTextSource) => source.previewContent)
@@ -90,11 +90,23 @@ const roomOf = (threads: Record<string, MatrixEvent[]>) => {
     getLiveTimeline: () => ({ getEvents: () => [] }),
   } as unknown as Room;
 };
-const toolJob = (jobId: string, threadId: string, toolCallId = 'call_1') => ({
+const toolJob = (jobId: string, threadId: string, toolCallId = 'call_1', agentId = AGENT) => ({
   jobId,
-  agentId: AGENT,
+  agentId,
   threadId,
   toolCallId,
+});
+const runningToolJob = (
+  jobId: string,
+  threadId: string,
+  toolCallId = 'call_1',
+  agentId = AGENT
+): BackgroundJob => ({
+  ...toolJob(jobId, threadId, toolCallId, agentId),
+  kind: 'tool',
+  tool: 'run_shell_command',
+  status: 'running',
+  startedAt: '',
 });
 const longText = (mxcUri: string, extra: Record<string, unknown> = {}) => ({
   msgtype: 'm.file',
@@ -103,13 +115,23 @@ const longText = (mxcUri: string, extra: Record<string, unknown> = {}) => ({
   'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
   ...extra,
 });
+const hydrateSidecar = (
+  reply: MatrixEvent,
+  payload: Record<string, unknown>,
+  client: Pick<MatrixClient, 'getUserId'> = mx
+) =>
+  hydrateLongTextSource(
+    getLongTextSource(reply.getContent())!,
+    async () => JSON.stringify({ msgtype: 'm.text', body: 'full', ...payload }),
+    client
+  );
 const calls = (
   room: Room,
   jobs: ReturnType<typeof toolJob>[],
   store = new LiveReplyStore(),
-  cacheOwner?: object
+  client?: Pick<MatrixClient, 'getUserId'>
 ) => {
-  const index = indexJobToolCalls(room, jobs, store, Date.now(), cacheOwner);
+  const index = indexJobToolCalls(room, jobs, store, Date.now(), client);
   return Object.fromEntries(
     jobs.flatMap((job) => {
       const call = index.get([job.agentId, job.threadId, job.toolCallId].join('\0'));
@@ -440,47 +462,65 @@ it('follows nothing while the list holds no tool job with a linked call', () => 
   subscribeRoom.mockRestore();
 });
 
-it('resolves args_preview from a hydrated long_text sidecar, superseding any stale borrowed trace', async () => {
-  const owner = {};
+function ToolCallProbe({ room, jobs }: { room: Room; jobs: BackgroundJob[] }) {
+  const { toolCallFor } = useJobLookups(room, jobs, true);
+  return <span>{toolCallFor(jobs[0]!)?.preview}</span>;
+}
+
+it('resolves args_preview from hydrated sidecars, replaces stale borrowed traces, and ignores untrusted senders', async () => {
+  const client = { getUserId: () => '@me:example.org' };
   const cmd = 'uv run pytest tests/export/test_retry.py -x';
+  const foreignAgent = '@mindroom_code:foreign.org';
   const bareReply = message('$a', AGENT, longText('mxc://server/trace-bare'));
   const staleReply = message(
     '$b',
     AGENT,
     longText('mxc://server/trace-stale', {
-      'io.mindroom.tool_trace': trace('call_old', 'older command'),
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          ...trace('call_old', 'older command').events,
+          ...trace('call_1', 'args=old').events,
+        ],
+      },
     })
   );
-  const room = roomOf({ $a: [bareReply], $b: [staleReply] });
+  const clearedReply = message(
+    '$c',
+    AGENT,
+    longText('mxc://server/trace-cleared', {
+      'io.mindroom.tool_trace': trace('call_1', 'args=stale'),
+    })
+  );
+  const foreignReply = message('$d', foreignAgent, longText('mxc://server/trace-foreign'));
+  const room = roomOf({
+    $a: [bareReply],
+    $b: [staleReply],
+    $c: [clearedReply],
+    $d: [foreignReply],
+  });
+  const jobs = [
+    toolJob('job_a', '$a'),
+    toolJob('job_b_current', '$b', 'call_1'),
+    toolJob('job_b_old', '$b', 'call_old'),
+    toolJob('job_c', '$c'),
+    toolJob('job_d', '$d', 'call_1', foreignAgent),
+  ];
   const store = new LiveReplyStore();
-  expect(calls(room, [toolJob('job_a', '$a'), toolJob('job_b', '$b')], store, owner)).toEqual({});
+  expect(calls(room, jobs, store, client)).toEqual({
+    job_b_current: { tool: 'run_shell_command', preview: 'args=old' },
+    job_b_old: { tool: 'run_shell_command', preview: 'older command' },
+    job_c: { tool: 'run_shell_command', preview: 'args=stale' },
+  });
 
-  await hydrateLongTextSource(
-    getLongTextSource(bareReply.getContent())!,
-    async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: 'full',
-        'io.mindroom.tool_trace': trace('call_1', cmd),
-      }),
-    owner
-  );
-  await hydrateLongTextSource(
-    getLongTextSource(staleReply.getContent())!,
-    async () =>
-      JSON.stringify({
-        msgtype: 'm.text',
-        body: 'full',
-        'io.mindroom.tool_trace': {
-          version: 2,
-          events: [...trace('call_old', 'older command').events, ...trace('call_1', cmd).events],
-        },
-      }),
-    owner
-  );
-  expect(calls(room, [toolJob('job_a', '$a'), toolJob('job_b', '$b')], store, owner)).toEqual({
+  await hydrateSidecar(bareReply, { 'io.mindroom.tool_trace': trace('call_1', cmd) }, client);
+  await hydrateSidecar(staleReply, { 'io.mindroom.tool_trace': trace('call_1', cmd) }, client);
+  await hydrateSidecar(clearedReply, {}, client);
+  await hydrateSidecar(foreignReply, { 'io.mindroom.tool_trace': trace('call_1', cmd) }, client);
+
+  expect(calls(room, jobs, store, client)).toEqual({
     job_a: { tool: 'run_shell_command', preview: cmd },
-    job_b: { tool: 'run_shell_command', preview: cmd },
+    job_b_current: { tool: 'run_shell_command', preview: cmd },
   });
 });
 
@@ -488,50 +528,27 @@ it('updates when an uncached long_text sidecar hydrates externally', async () =>
   const cmd = 'uv run pytest tests/export/test_retry.py -x';
   const reply = message('$a', AGENT, longText('mxc://server/external-hydrate'));
   const room = roomOf({ $a: [reply] });
-  const jobs: BackgroundJob[] = [
-    {
-      ...toolJob('job_1', '$a'),
-      kind: 'tool',
-      tool: 'run_shell_command',
-      status: 'running',
-      startedAt: '',
-    },
-  ];
+  const jobs = [runningToolJob('job_1', '$a')];
   hydrateCachedLongText.mockImplementation(() => new Promise(() => undefined));
-  function Probe() {
-    const { toolCallFor } = useJobLookups(room, jobs, true);
-    return <span>{toolCallFor(jobs[0]!)?.preview}</span>;
-  }
-  act(() => root.render(<Probe />));
+
+  act(() => root.render(<ToolCallProbe room={room} jobs={jobs} />));
   expect(container.textContent).toBe('');
 
   await act(async () => {
-    await hydrateLongTextSource(
-      getLongTextSource(reply.getContent())!,
-      async () =>
-        JSON.stringify({
-          msgtype: 'm.text',
-          body: 'full',
-          'io.mindroom.tool_trace': trace('call_1', cmd),
-        }),
-      mx
-    );
+    await hydrateSidecar(reply, { 'io.mindroom.tool_trace': trace('call_1', cmd) });
   });
   expect(container.textContent).toBe(cmd);
 });
 
-it('proactively hydrates an uncached sidecar for an unmatched tool job once without retry-looping', async () => {
+it('proactively hydrates an uncached sidecar for an unmatched trusted tool job when its message is not mounted', async () => {
   const cmd = 'uv run pytest tests/export/test_retry.py -x';
+  const foreignAgent = '@mindroom_code:foreign.org';
   const reply = message('$a', AGENT, longText('mxc://server/proactive-ok'));
-  const room = roomOf({ $a: [reply] });
-  const jobs: BackgroundJob[] = [
-    {
-      ...toolJob('job_1', '$a'),
-      kind: 'tool',
-      tool: 'run_shell_command',
-      status: 'running',
-      startedAt: '',
-    },
+  const foreignReply = message('$b', foreignAgent, longText('mxc://server/proactive-foreign'));
+  const room = roomOf({ $a: [reply], $b: [foreignReply] });
+  const jobs = [
+    runningToolJob('job_1', '$a'),
+    runningToolJob('job_2', '$b', 'call_1', foreignAgent),
   ];
   hydrateCachedLongText.mockImplementationOnce(async (client, source) =>
     hydrateLongTextSource(
@@ -545,12 +562,9 @@ it('proactively hydrates an uncached sidecar for an unmatched tool job once with
       client
     )
   );
-  function Probe({ targetRoom, targetJobs }: { targetRoom: Room; targetJobs: BackgroundJob[] }) {
-    const { toolCallFor } = useJobLookups(targetRoom, targetJobs, true);
-    return <span>{toolCallFor(targetJobs[0]!)?.preview}</span>;
-  }
+
   await act(async () => {
-    root.render(<Probe targetRoom={room} targetJobs={jobs} />);
+    root.render(<ToolCallProbe room={room} jobs={jobs} />);
   });
   expect(hydrateCachedLongText).toHaveBeenCalledTimes(1);
   expect(hydrateCachedLongText).toHaveBeenCalledWith(
@@ -561,23 +575,16 @@ it('proactively hydrates an uncached sidecar for an unmatched tool job once with
     })
   );
   expect(container.textContent).toBe(cmd);
+});
 
-  // A failing sidecar is attempted once per identity and never retry-loops on subsequent refreshes.
-  const failingReply = message('$b', AGENT, longText('mxc://server/proactive-fail'));
-  const failingRoom = roomOf({ $b: [failingReply] });
-  const failingJobs: BackgroundJob[] = [
-    {
-      ...toolJob('job_2', '$b'),
-      kind: 'tool',
-      tool: 'run_shell_command',
-      status: 'running',
-      startedAt: '',
-    },
-  ];
-  hydrateCachedLongText.mockClear();
+it('does not retry-loop when proactive sidecar hydration fails', async () => {
+  const reply = message('$a', AGENT, longText('mxc://server/proactive-fail'));
+  const room = roomOf({ $a: [reply] });
+  const jobs = [runningToolJob('job_1', '$a')];
   hydrateCachedLongText.mockRejectedValue(new Error('network error'));
+
   await act(async () => {
-    root.render(<Probe targetRoom={failingRoom} targetJobs={failingJobs} />);
+    root.render(<ToolCallProbe room={room} jobs={jobs} />);
   });
   await act(async () => {
     signals.listeners.forEach((notify) => notify());

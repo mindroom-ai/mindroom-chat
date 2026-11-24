@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
 import {
   isThinkingPlaceholderBody,
@@ -85,20 +86,18 @@ export const getShownToolCalls = (
   reply: MatrixEvent,
   store: ReturnType<typeof getLiveReplyStore>,
   now: number,
-  cacheOwner?: object
+  mx?: Pick<MatrixClient, 'getUserId'>
 ): ToolTraceEvent[] => {
   if (reply.isRedacted()) return [];
   const replyId = reply.getId() ?? '';
   const content = getLatestReplyContent(room, reply);
   const live = store.get(room.roomId, replyId);
   if (live && getLiveVerdict(reply, content, live, now) === 'show') return live.docs.tools;
-  const source = cacheOwner ? getLongTextSource(content) : undefined;
-  const hydrated = source && cacheOwner ? getCachedLongTextContent(source, cacheOwner) : undefined;
-  return (
-    (hydrated ? getContentToolTraceEvents(hydrated) : undefined) ??
-    getContentToolTraceEvents(content) ??
-    []
-  );
+  const trustedSidecar =
+    !!mx && isMindroomAgentUserIdForViewer(reply.getSender(), mx.getUserId() ?? undefined);
+  const source = trustedSidecar ? getLongTextSource(content) : undefined;
+  const hydrated = source && mx ? getCachedLongTextContent(source, mx) : undefined;
+  return getContentToolTraceEvents(hydrated ?? content) ?? [];
 };
 
 const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boolean): IContent => {

@@ -3,6 +3,7 @@ import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { hydrateCachedLongText } from '../event-store/cache/attachmentRepository';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { getEventAttachmentOwner } from '../matrix/protocol/eventAttachments';
 import {
@@ -44,7 +45,7 @@ export const indexJobToolCalls = (
   jobs: readonly ToolJob[],
   store: LiveReplyStore,
   now: number,
-  cacheOwner?: object
+  mx?: Pick<MatrixClient, 'getUserId'>
 ): Map<string, JobActivity | null> => {
   const index = new Map<string, JobActivity | null>();
   const conversations = new Map(jobs.map((job) => [callKey({ ...job, toolCallId: '' }), job]));
@@ -52,7 +53,7 @@ export const indexJobToolCalls = (
     loadedMessages(room, threadId)
       .filter((event) => event.getSender() === agentId)
       .forEach((reply) =>
-        getShownToolCalls(room, reply, store, now, cacheOwner).forEach((event) => {
+        getShownToolCalls(room, reply, store, now, mx).forEach((event) => {
           const toolCallId = toolTraceCallId(event);
           const activity = toolCallId && toolActivity(event);
           if (!activity) return;
@@ -107,8 +108,10 @@ const hydrateUnmatchedJobLongTexts = (
   unmatched: readonly ToolJob[],
   attempted: Set<string>
 ) => {
+  const viewerUserId = mx.getUserId() ?? undefined;
   const conversations = new Map(unmatched.map((job) => [callKey({ ...job, toolCallId: '' }), job]));
-  conversations.forEach(({ agentId, threadId }) =>
+  conversations.forEach(({ agentId, threadId }) => {
+    if (!isMindroomAgentUserIdForViewer(agentId, viewerUserId)) return;
     loadedMessages(room, threadId).forEach((reply) => {
       if (reply.isRedacted() || reply.getSender() !== agentId) return;
       const source = getLongTextSource(getLatestReplyContent(room, reply));
@@ -119,8 +122,8 @@ const hydrateUnmatchedJobLongTexts = (
       void hydrateCachedLongText(mx, { ...source, owner: getEventAttachmentOwner(reply) }).catch(
         () => undefined
       );
-    })
-  );
+    });
+  });
 };
 
 /**
