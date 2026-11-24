@@ -1195,6 +1195,8 @@ vi.stubGlobal('window', {
   addEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
   removeEventListener: vi.fn(),
+  setTimeout: (...args: Parameters<typeof setTimeout>) => globalThis.setTimeout(...args),
+  clearTimeout: (...args: Parameters<typeof clearTimeout>) => globalThis.clearTimeout(...args),
   matchMedia: vi.fn(() => ({
     matches: false,
     addEventListener: vi.fn(),

@@ -250,7 +250,9 @@ describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
 
   afterEach(() => {
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
     renderer = undefined;
     currentSession = undefined;
     // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
@@ -581,6 +583,9 @@ describe('ClientRoot', () => {
       getSafeUserId: vi.fn(() => '@alice:example.com'),
       getSyncState: vi.fn(() => null),
       getRooms: vi.fn(() => []),
+      store: {
+        getSyncToken: vi.fn(() => null),
+      },
     };
 
     currentSession = {

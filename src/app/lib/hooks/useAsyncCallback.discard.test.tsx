@@ -126,9 +126,7 @@ describe('useAsyncCallback discarded result ownership', () => {
         });
       });
     });
-    await act(async () => {
-      await resolvedRequest;
-    });
+    await resolvedRequest;
 
     await expect(resolvedRequest).resolves.toBe('blob:async-discard-0');
     expect(outstandingUrls).toHaveLength(0);

@@ -215,11 +215,18 @@ function Composer(
     clearReplyDraft: noop,
     sendTypingStatus: noop,
     attachments,
-    buildUploadMessageContent: async (fileItem, url) => ({
-      msgtype: 'm.file',
-      body: fileItem.file.name,
-      url,
-    }),
+    buildUploadMessageContent: async (fileItem, url) => {
+      // Yield one task before building the second file from the room composer so the
+      // concurrent thread navigation from the first file commits and hands off the session.
+      if (fileItem.file === second && mounts < 2) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      return {
+        msgtype: 'm.file',
+        body: fileItem.file.name,
+        url,
+      };
+    },
     onRoomMessageSent,
   });
   useEffect(() => {
@@ -270,6 +277,7 @@ it('continues the pending second upload and caption when the first upload opens 
     // A submission's files wait until every upload settles, so nothing leaves yet.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual([]);
     await act(async () => completeUpload());
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     // The first file opens the thread, whose composer takes the send over with its own board.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual(['first.png']);
     await act(async () => completeUpload());
