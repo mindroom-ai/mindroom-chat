@@ -208,7 +208,7 @@ const ownCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') =>
   ({
     kind: 'room',
     call: { room: { roomId }, subscribe: () => () => undefined, getState: () => ({ phase }) },
-  } as unknown as ActiveCall);
+  }) as unknown as ActiveCall;
 
 /** This device is in a call, in `roomId`, transcribed. */
 const inCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') => {

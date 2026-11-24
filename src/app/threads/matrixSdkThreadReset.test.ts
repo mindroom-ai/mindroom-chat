@@ -14,7 +14,7 @@ const makeClient = (createMessagesRequest: ReturnType<typeof vi.fn>): MatrixClie
     createMessagesRequest,
     getUserId: () => '@alice:example.org',
     supportsThreads: () => true,
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const makeRoomThreads = (roomId: string, client: MatrixClient, count = 3) => {
   const room = new Room(roomId, client, '@alice:example.org');

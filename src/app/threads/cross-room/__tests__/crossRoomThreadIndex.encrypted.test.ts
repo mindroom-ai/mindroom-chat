@@ -28,7 +28,7 @@ const undecryptableRoot = (): MatrixEvent =>
     isRedacted: () => false,
     isRedaction: () => false,
     replacingEvent: () => undefined,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const timelineSet = (events: MatrixEvent[]) => ({
   relations: { getChildEventsForEvent: () => undefined },

@@ -13,7 +13,7 @@ import {
 } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Dialog, Menu, MenuItem } from '../ui/glass/GlassPrimitives';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Navigate } from 'react-router-dom';
 import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';

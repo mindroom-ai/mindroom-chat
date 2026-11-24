@@ -103,9 +103,8 @@ describe('voiceMessageSettings', () => {
   });
 
   it('cycles rates in order', async () => {
-    const { cycleVoicePlaybackRate, formatVoicePlaybackRate, VOICE_PLAYBACK_RATES } = await import(
-      './voiceMessageSettings'
-    );
+    const { cycleVoicePlaybackRate, formatVoicePlaybackRate, VOICE_PLAYBACK_RATES } =
+      await import('./voiceMessageSettings');
 
     expect(VOICE_PLAYBACK_RATES.map(formatVoicePlaybackRate)).toEqual(['1×', '1.5×', '2×']);
     expect(cycleVoicePlaybackRate(1)).toBe(1.5);

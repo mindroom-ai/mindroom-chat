@@ -236,7 +236,7 @@ const scaleOf = (button: Locator) =>
     const properties = style.transitionProperty.split(',').map((name) => name.trim());
     const durations = style.transitionDuration.split(',').map((value) => parseFloat(value));
     const index = properties.indexOf('scale');
-    return { scale: style.scale, seconds: index < 0 ? 0 : durations[index] ?? 0 };
+    return { scale: style.scale, seconds: index < 0 ? 0 : (durations[index] ?? 0) };
   });
 
 /** Waits for the slide and the indicator's transitions (160 and 200 ms) to land. */

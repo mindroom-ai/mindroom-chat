@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Icon, Text, config, type RectCords } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import type { Room } from 'matrix-js-sdk';

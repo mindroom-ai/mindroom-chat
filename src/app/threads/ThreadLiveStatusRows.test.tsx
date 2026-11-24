@@ -12,6 +12,11 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import {
+  clearLongTextHydrationCache,
+  getLongTextSource,
+  hydrateLongTextSource,
+} from '../matrix/protocol/longText';
 import { keepSyncedEdits } from '../matrix/client/syncedEdits';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
@@ -119,7 +124,7 @@ const entryFor = (streaming: boolean) =>
     generation: 0,
     isInvolved: true,
     threadRecord: { status: { isStreaming: streaming } },
-  } as unknown as CrossRoomThreadIndexEntry);
+  }) as unknown as CrossRoomThreadIndexEntry;
 
 const textOf = (renderer: ReactTestRenderer): string[] =>
   renderer.root
@@ -140,6 +145,7 @@ describe('ThreadLiveStatusRows', () => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
     signals.read = undefined;
+    clearLongTextHydrationCache();
     vi.useRealTimers();
     Thread.hasServerSideSupport = previousThreadSupport;
     vi.restoreAllMocks();
@@ -432,5 +438,113 @@ describe('ThreadLiveStatusRows', () => {
     });
 
     expect(textOf(rows)).toEqual(['Cost', '≥ $0.75']);
+  });
+
+  it('shows running tools once a streaming sidecar checkpoint hydrates', async () => {
+    const sidecarReply = reply('$sidecar', 3000, {
+      msgtype: 'm.file',
+      body: 'preview',
+      url: 'mxc://server/checkpoint-1',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const { mx, room } = await setup([sidecarReply]);
+    const rows = render(mx, room, true);
+    expect(textOf(rows)).toEqual(['Status', 'Streaming']);
+
+    await act(async () => {
+      await hydrateLongTextSource(
+        getLongTextSource(sidecarReply.getContent())!,
+        async () =>
+          JSON.stringify({
+            msgtype: 'm.text',
+            body: 'full',
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.tool_trace': { version: 2, events: [started('shell')] },
+          }),
+        mx
+      );
+    });
+    expect(textOf(rows)).toEqual(['Status', 'Streaming', 'Tools', '1 running: shell']);
+  });
+
+  it('ignores hydrated sidecar tool traces from untrusted or foreign-homeserver senders', async () => {
+    const spoofed = (id: string, sender: string, mxcUri: string) =>
+      reply(
+        id,
+        3000,
+        {
+          msgtype: 'm.file',
+          body: 'preview',
+          url: mxcUri,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+        sender
+      );
+    const nonAgentReply = spoofed('$non-agent', '@mallory:example.org', 'mxc://server/spoof-1');
+    const foreignReply = spoofed('$foreign', '@mindroom_spoof:foreign.org', 'mxc://server/spoof-2');
+    const trustedReply = reply('$trusted', 3100, {
+      msgtype: 'm.file',
+      body: 'preview',
+      url: 'mxc://server/trusted-checkpoint',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const { mx, room } = await setup([nonAgentReply, foreignReply, trustedReply]);
+    const { timelineSet } = room.getThread(ROOT)!;
+    // Stop reactions place even non-agent replies into getThreadStreamingReplies.
+    for (const target of [nonAgentReply, foreignReply]) {
+      timelineSet.relations.aggregateChildEvent(
+        new MatrixEvent({
+          type: 'm.reaction',
+          room_id: ROOM_ID,
+          event_id: `$stop-${target.getId()}`,
+          sender: target.getSender(),
+          content: {
+            'm.relates_to': {
+              rel_type: RelationType.Annotation,
+              event_id: target.getId(),
+              key: '🛑',
+            },
+          },
+        }),
+        timelineSet
+      );
+    }
+
+    const rows = render(mx, room, true);
+    await act(async () => {
+      for (const [target, toolName] of [
+        [nonAgentReply, 'spoof_human'],
+        [foreignReply, 'spoof_foreign'],
+      ] as const) {
+        await hydrateLongTextSource(
+          getLongTextSource(target.getContent())!,
+          async () =>
+            JSON.stringify({
+              msgtype: 'm.text',
+              body: 'full',
+              'io.mindroom.tool_trace': { version: 2, events: [started(toolName)] },
+            }),
+          mx
+        );
+      }
+    });
+    expect(textOf(rows)).toEqual(['Status', 'Streaming']);
+
+    await act(async () => {
+      await hydrateLongTextSource(
+        getLongTextSource(trustedReply.getContent())!,
+        async () =>
+          JSON.stringify({
+            msgtype: 'm.text',
+            body: 'full',
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.tool_trace': { version: 2, events: [started('shell')] },
+          }),
+        mx
+      );
+    });
+    expect(textOf(rows)).toEqual(['Status', 'Streaming', 'Tools', '1 running: shell']);
   });
 });

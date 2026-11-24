@@ -28,7 +28,7 @@ const uploadHeic = async (token: string, filename: string, bytes: Buffer): Promi
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/heic' },
-      body: bytes,
+      body: new Uint8Array(bytes),
     }
   );
   expect(response.ok, `media upload answered ${response.status}`).toBe(true);

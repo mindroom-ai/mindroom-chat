@@ -120,9 +120,9 @@ describe('feature ownership architecture', () => {
     expect(dependencyViolations(THREAD_SESSION, forbiddenSessionDependencies)).toEqual([]);
     expect(dependencyViolations(THREAD_PAGINATION, forbiddenSessionDependencies)).toEqual([]);
 
-    const engineDependencies = walkProductionSources(appFile('event-store/engine')).flatMap((file) => [
-      ...resolvedDependencies(file),
-    ]);
+    const engineDependencies = walkProductionSources(appFile('event-store/engine')).flatMap(
+      (file) => [...resolvedDependencies(file)]
+    );
     expect(engineDependencies).not.toContain(THREAD_SESSION);
     expect(engineDependencies).not.toContain(THREAD_PAGINATION);
   });
@@ -147,9 +147,7 @@ describe('feature ownership architecture', () => {
     ]);
 
     const appSources = walkProductionSources(APP_ROOT);
-    expect(
-      memberOwnership(appSources, new Set(['initialEventsFetched', 'replayEvents']))
-    ).toEqual([
+    expect(memberOwnership(appSources, new Set(['initialEventsFetched', 'replayEvents']))).toEqual([
       {
         file: 'event-store/sdk/threadBootstrapSdk.ts',
         accesses: [

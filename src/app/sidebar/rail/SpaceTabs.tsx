@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -31,26 +31,26 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useSelectedSpace } from '../../navigation/useSelectedSpace';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
-import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
-import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
-import { copyToClipboard } from '../../lib/dom';
 import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { moveStep } from '../../shortcuts/shortcuts';
-import { getSpacePath, joinPathComponent } from '../../routes/pathUtils';
+import { getHomePath, getSpacePath, joinPathComponent } from '../../routes/pathUtils';
 import { useSpaceRailRooms } from './spaceRailRooms';
 import { revealRailEntry } from './RailScrollArea';
-import { getSpaceShareLink } from '../space/spaceLink';
 import { SidebarContextMenu, useSidebarContextMenu } from './SidebarContextMenu';
+import {
+  SpaceMenuGroups,
+  type SpaceQuickDialogHandlers,
+  useSpaceQuickDialogs,
+  useSpaceQuickPermissions,
+} from '../../spaces/SpaceActions';
 import {
   type SidebarDragItem,
   type SidebarFolder,
@@ -60,19 +60,11 @@ import {
 } from '../../spaces/sidebarReorder';
 import {
   getShownSidebarItems,
-  unpinSpaceFromSidebar,
   useSavedSidebarItems,
   useTopLevelSpaceIds,
 } from '../../spaces/sidebarSpaces';
 import * as css from './SpaceTabs.css';
-import { MenuEntry } from '../../ui/MenuEntry';
 import { revealDirectionControls } from '../../ui/directional';
-
-const InviteUserPrompt = lazy(() =>
-  import('../../members/invite/InviteUserPrompt').then((module) => ({
-    default: module.InviteUserPrompt,
-  }))
-);
 
 type DropAt = 'above' | 'below' | 'child';
 const DROP_AT: Record<SidebarInstructionType, DropAt> = {
@@ -106,14 +98,26 @@ const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
 /** Folders open in the rail in this session, by folder ID. */
 export const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
 
-/** "Invite" in a space's rail menu, for members allowed to invite. */
-function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => void }) {
-  const { t } = useTranslation();
-  const client = useMatrixClient();
-  const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
-  if (!permissions.action('invite', client.getUserId() ?? '')) return null;
+/** Right-click menu body for a space rail button; mounts only while open. */
+function SpaceTabMenu(props: {
+  space: Room;
+  spaceRooms: string[];
+  pinned: boolean;
+  dialogs: SpaceQuickDialogHandlers;
+  onClose: () => void;
+}) {
+  const { space, spaceRooms, pinned, dialogs, onClose } = props;
+  const permissions = useSpaceQuickPermissions(space);
   return (
-    <MenuEntry label={t('sharedUi.spaceTabs.invite')} icon={Icons.UserPlus} onSelect={onSelect} />
+    <SpaceMenuGroups
+      space={space}
+      permissions={permissions}
+      dialogs={dialogs}
+      onClose={onClose}
+      showOverview
+      pinMode={pinned ? 'unpin' : undefined}
+      beforeMain={<MarkRoomsReadMenuItem roomIds={spaceRooms} onClose={onClose} />}
+    />
   );
 }
 
@@ -179,9 +183,12 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const activePaths = useAtomValue(useNavToActivePathAtom());
   const { unread, rooms: spaceRooms } = useSpaceRailRooms(roomId);
   const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
-  const openSpaceSettings = useOpenRoomSettings();
   const { anchor: menuAnchor, close: closeMenu, buttonProps } = useSidebarContextMenu();
-  const [inviting, setInviting] = useState(false);
+  const dialogs = useSpaceQuickDialogs(space, {
+    onLeft: () => {
+      if (selected) void navigate(getHomePath());
+    },
+  });
   const sortable = useRailSortable(drag, hint);
 
   // A finger that moves on after the long press that opened the menu drags the space instead.
@@ -189,10 +196,6 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   useEffect(() => {
     if (dragging) closeMenu();
   }, [dragging, closeMenu]);
-  const closeThen = (action: () => void) => () => {
-    closeMenu();
-    action();
-  };
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     // A click another handler already claimed (such as the end of a drag) changes nothing here.
@@ -221,54 +224,42 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
     </SidebarItemBadge>
   ) : null;
 
+  // The menu and dialogs sit outside the sortable wrapper so pointer/touch interactions inside
+  // their portals never bubble into dnd-kit's rail drag listeners.
   return (
-    <div {...sortable.props}>
-      <SidebarItem active={selected}>
-        <SidebarItemTooltip tooltip={shownName}>
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              ref={triggerRef}
-              size="400"
-              data-id={roomId}
-              onClick={handleClick}
-              onKeyDown={moveKeyHandler(onMove)}
-              {...buttonProps}
-            >
-              <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
-              <span className={css.HiddenName}>{label}</span>
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
-        {unreadBadge}
-        <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-          <MarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
-          <InviteToSpaceItem space={space} onSelect={closeThen(() => setInviting(true))} />
-          <MenuEntry
-            label={t('sharedUi.spaceTabs.copyLink')}
-            icon={Icons.Link}
-            onSelect={closeThen(() => void copyToClipboard(getSpaceShareLink(client, space)))}
-          />
-          <MenuEntry
-            label={t('sharedUi.spaceTabs.spaceSettings')}
-            icon={Icons.Setting}
-            onSelect={closeThen(() => openSpaceSettings(roomId))}
-          />
-          {pinned && (
-            <MenuEntry
-              label={t('sharedUi.spaceTabs.unpin')}
-              icon={Icons.Pin}
-              onSelect={closeThen(() => void unpinSpaceFromSidebar(client, roomId))}
-            />
-          )}
-        </SidebarContextMenu>
-        {inviting && (
-          <Suspense fallback={null}>
-            <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />
-          </Suspense>
-        )}
-      </SidebarItem>
-    </div>
+    <>
+      <div {...sortable.props}>
+        <SidebarItem active={selected}>
+          <SidebarItemTooltip tooltip={shownName}>
+            {(triggerRef) => (
+              <SidebarAvatar
+                as="button"
+                ref={triggerRef}
+                size="400"
+                data-id={roomId}
+                onClick={handleClick}
+                onKeyDown={moveKeyHandler(onMove)}
+                {...buttonProps}
+              >
+                <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
+                <span className={css.HiddenName}>{label}</span>
+              </SidebarAvatar>
+            )}
+          </SidebarItemTooltip>
+          {unreadBadge}
+        </SidebarItem>
+      </div>
+      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu} width={220}>
+        <SpaceTabMenu
+          space={space}
+          spaceRooms={spaceRooms}
+          pinned={pinned}
+          dialogs={dialogs}
+          onClose={closeMenu}
+        />
+      </SidebarContextMenu>
+      {dialogs.dialog}
+    </>
   );
 }
 

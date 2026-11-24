@@ -411,9 +411,9 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                  'room-virtual-inner'
-                ? innerElement
-                : null,
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork();
@@ -488,9 +488,9 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                  'room-virtual-inner'
-                ? innerElement
-                : null,
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork();
@@ -583,9 +583,9 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                  'room-virtual-inner'
-                ? innerElement
-                : null,
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork();
@@ -813,9 +813,9 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                  'room-virtual-inner'
-                ? innerElement
-                : null,
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork();
@@ -912,9 +912,9 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-testid'] ===
-                  'room-virtual-inner'
-                ? innerElement
-                : null,
+                    'room-virtual-inner'
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork();
@@ -1102,8 +1102,8 @@ describe('RoomTimeline ledger lifecycle', () => {
             element.type === scrollType
               ? scrollElement
               : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
+                ? innerElement
+                : null,
         });
         await flushAsyncWork(5);
       });
@@ -1183,8 +1183,8 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                ? innerElement
-                : null,
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork(10);
@@ -1269,8 +1269,8 @@ describe('RoomTimeline ledger lifecycle', () => {
               element.type === scrollType
                 ? scrollElement
                 : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                ? innerElement
-                : null,
+                  ? innerElement
+                  : null,
           }
         );
         await flushAsyncWork(5);

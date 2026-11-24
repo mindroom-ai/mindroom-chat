@@ -1,6 +1,6 @@
 import { FormEvent, MouseEvent, useState } from 'react';
 import dayjs from 'dayjs';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import {
   Box,
   Button,

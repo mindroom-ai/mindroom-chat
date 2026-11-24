@@ -155,7 +155,7 @@ describe('pluginDirectoryServer', () => {
       const html = await page.text();
       expect(html).toContain('/@vite/client');
 
-      const inline = /src="([^"]*html-proxy[^"]*)"/.exec(html)?.[1];
+      const inline = /src="([^"]*html-proxy[^"]*)"/.exec(html)?.[1]?.replaceAll('&amp;', '&');
       expect(inline).toBeDefined();
       expect(await (await fetch(`${origin}${inline ?? ''}`)).text()).toContain(
         'inline-page-marker'

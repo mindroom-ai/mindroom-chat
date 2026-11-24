@@ -508,7 +508,10 @@ export class ModelController {
       );
       rooms.delete(roomId);
       if (cached.length) rooms.set(roomId, cached);
-      if (rooms.size > ROOM_CATALOG_LIMIT) rooms.delete(rooms.keys().next().value);
+      if (rooms.size > ROOM_CATALOG_LIMIT) {
+        const oldest = rooms.keys().next().value;
+        if (oldest !== undefined) rooms.delete(oldest);
+      }
       save();
     }
     scope.needsRefresh = !!scope.send;
@@ -658,8 +661,8 @@ export class ModelController {
     this.publish(scope, {
       runtime,
       models: catalog ? catalog.response.models : [],
-      override: scope.threadId ? selection?.override ?? null : scope.draft?.key ?? null,
-      reasoning: scope.threadId ? selection?.reasoning ?? null : scope.draft?.level ?? null,
+      override: scope.threadId ? (selection?.override ?? null) : (scope.draft?.key ?? null),
+      reasoning: scope.threadId ? (selection?.reasoning ?? null) : (scope.draft?.level ?? null),
       inherited: catalog ? catalog.response.selection.inherited : [],
     });
   }
@@ -1060,7 +1063,7 @@ export class ModelController {
     });
     if (rooms.size !== size) save();
     this.scopes.forEach((scope) => {
-      const catalogs = scope.catalogs.size ? scope.catalogs.values() : scope.kept ?? [];
+      const catalogs = scope.catalogs.size ? scope.catalogs.values() : (scope.kept ?? []);
       const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);

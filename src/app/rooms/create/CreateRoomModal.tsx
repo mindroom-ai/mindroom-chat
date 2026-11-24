@@ -25,7 +25,7 @@ export function CreateRoomModalRenderer() {
   const close = useCloseCreateRoomModal();
   if (!requested) return null;
 
-  const space = requested.spaceId ? client.getRoom(requested.spaceId) ?? undefined : undefined;
+  const space = requested.spaceId ? (client.getRoom(requested.spaceId) ?? undefined) : undefined;
 
   const openCreated = (roomId: string) => {
     if (space) {

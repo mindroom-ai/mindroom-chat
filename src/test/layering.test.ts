@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   APP_ROOT,
   REPO_ROOT,
@@ -11,7 +11,7 @@ import {
   walkProductionSources,
 } from './architecture';
 
-// The domain layers of .eslintrc.cjs, checked by linting probe text under made-up paths (as
+// The domain layers of eslint.config.mjs, checked by linting probe text under made-up paths (as
 // surfaceImports.test.ts does). import/no-restricted-paths skips every import it cannot resolve,
 // so without these probes a broken resolver setting or a missing zone would pass in silence.
 const RULE = 'import/no-restricted-paths';
@@ -55,6 +55,12 @@ async function layeringOptions(path: string): Promise<LayeringOptions | undefine
 }
 
 describe('domain layering lint', () => {
+  // Loading the flat config (parser, TypeScript, plugins) takes several seconds on the first call,
+  // which can pass Vitest's 5 s default under a full-suite run.
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(probeIn('lib'));
+  }, 30_000);
+
   it.each<[string, string, Extension]>([
     ['lib', 'shell', '.tsx'],
     ['lib', 'shell', '.ts'],

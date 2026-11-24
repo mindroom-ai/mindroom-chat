@@ -109,7 +109,9 @@ describe('shouldFetchThreadEditBackfill', () => {
     });
     const normalEvent = makeMessageEvent('$normal');
 
-    expect(shouldFetchThreadEditBackfill(placeholderEvent, attemptedEvents, true, false)).toBe(true);
+    expect(shouldFetchThreadEditBackfill(placeholderEvent, attemptedEvents, true, false)).toBe(
+      true
+    );
     expect(shouldFetchThreadEditBackfill(normalEvent, attemptedEvents, true, false)).toBe(false);
   });
 });

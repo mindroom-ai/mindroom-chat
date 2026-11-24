@@ -7,7 +7,7 @@ import { Trigger } from './CanvasHeaderButton.css';
 import type { CanvasListEntry } from './canvasIndexStore';
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('folds', async (importOriginal) => ({

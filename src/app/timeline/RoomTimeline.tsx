@@ -499,7 +499,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = threadId
-    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
     : undefined;
   const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);

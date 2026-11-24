@@ -46,7 +46,10 @@ describe('cachedSpecVersions', () => {
   });
 
   it('returns undefined for corrupt JSON', () => {
-    storageState.set('mindroom_client_spec_versions::https://matrix.example::@alice:example', '{not-json');
+    storageState.set(
+      'mindroom_client_spec_versions::https://matrix.example::@alice:example',
+      '{not-json'
+    );
 
     expect(readCachedSpecVersions('https://matrix.example', '@alice:example')).toBeUndefined();
     expect(storageState.size).toBe(0);
@@ -63,7 +66,10 @@ describe('cachedSpecVersions', () => {
       '{"versions":["v1.11"],"unstable_features":{"org.matrix.msc4151":"false"}}',
     ],
   ])('removes JSON-valid cache entries with %s', (_label, stored) => {
-    storageState.set('mindroom_client_spec_versions::https://matrix.example::@alice:example', stored);
+    storageState.set(
+      'mindroom_client_spec_versions::https://matrix.example::@alice:example',
+      stored
+    );
 
     expect(readCachedSpecVersions('https://matrix.example', '@alice:example')).toBeUndefined();
     expect(storageState.size).toBe(0);

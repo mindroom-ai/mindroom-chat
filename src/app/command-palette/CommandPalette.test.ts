@@ -16,9 +16,8 @@ vi.mock('../lib/user-agent', () => ({
 }));
 
 vi.mock('./commandPaletteSearch', async () => {
-  const actual = await vi.importActual<typeof import('./commandPaletteSearch')>(
-    './commandPaletteSearch'
-  );
+  const actual =
+    await vi.importActual<typeof import('./commandPaletteSearch')>('./commandPaletteSearch');
 
   return {
     ...actual,

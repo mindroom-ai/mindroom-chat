@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom } from 'jotai';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Box,

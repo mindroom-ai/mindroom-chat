@@ -87,7 +87,7 @@ const setAvatar = async (account: Account, rgb: [number, number, number]) => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${account.accessToken}`, 'Content-Type': 'image/png' },
-    body: solidPng(64, rgb),
+    body: new Uint8Array(solidPng(64, rgb)),
   });
   expect(response.ok).toBe(true);
   const { content_uri: avatarUrl } = (await response.json()) as { content_uri: string };

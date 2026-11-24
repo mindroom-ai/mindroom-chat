@@ -662,7 +662,12 @@ describe('useEventTimelineLoader', () => {
     // The reader opens another room while the page around the event is out.
     const next = makeRoom(false).room;
     const nextOnLoad = vi.fn();
-    rerender({ room: next, onLoad: nextOnLoad, onError: vi.fn(), filterOpts: fullViewFilters(next) });
+    rerender({
+      room: next,
+      onLoad: nextOnLoad,
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(next),
+    });
 
     await act(async () => {
       page.resolve();

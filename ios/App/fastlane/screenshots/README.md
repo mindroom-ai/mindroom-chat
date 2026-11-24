@@ -11,13 +11,13 @@ Sam Rivera talks to Hearth, Pantry, and Atlas using bundled avatars in `scripts/
 No external profile download or demo checkout is required.
 The fixture and avatars are pinned to demo commit `fc39fb8a9e4af01c3c848e191f32c25b7da694a2`.
 
-| Order | Theme | Content |
-| ----- | ----- | ------- |
-| 0 | Light | Family workspace overview |
-| 1 | Dark | Vegetarian meal plan and grocery list |
-| 2 | Light | Home automation with expanded tool calls |
-| 3 | Dark | Lisbon weekend trip options |
-| 4 | Light | Reminder to call Rosa tomorrow at four |
+| Order | Theme | Content                                  |
+| ----- | ----- | ---------------------------------------- |
+| 0     | Light | Family workspace overview                |
+| 1     | Dark  | Vegetarian meal plan and grocery list    |
+| 2     | Light | Home automation with expanded tool calls |
+| 3     | Dark  | Lisbon weekend trip options              |
+| 4     | Light | Reminder to call Rosa tomorrow at four   |
 
 Capture uses UTC so the reminder text agrees with its 4:00 PM schedule on any host.
 The local test server enables legacy media downloads so this client can load avatars.
@@ -27,8 +27,8 @@ Scene IDs and filenames retain their original names for compatibility with the r
 
 | Device class | Portrait size |
 | ------------ | ------------- |
-| iPhone 6.9" | 1320 x 2868 |
-| iPad Pro 13" | 2064 x 2752 |
+| iPhone 6.9"  | 1320 x 2868   |
+| iPad Pro 13" | 2064 x 2752   |
 
 Screenshots are written into `en-US/` and remain gitignored.
 Fastlane maps images to device classes by their exact dimensions and sorts filenames alphabetically within each class.

@@ -71,7 +71,7 @@ const uploadPng = async (token: string, width: number, height: number, hue: numb
   const res = await fetch(`${DISPOSABLE_HOMESERVER}/_matrix/media/v3/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'image/png' },
-    body: png(width, height, hue),
+    body: new Uint8Array(png(width, height, hue)),
   });
   return ((await res.json()) as { content_uri: string }).content_uri;
 };

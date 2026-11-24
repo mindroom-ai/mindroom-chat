@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Box, Icon, Icons, Text, config } from 'folds';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { stopPropagation } from '../lib/keyboard';

@@ -397,7 +397,7 @@ export const useLatestRowPin = ({
     // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
     // will end is at the newest row: the end the list has now would show a blank band above the
     // composer for a frame. Any other reader is brought to the end the list has.
-    const heldPx = listHeightHeld ? pendingListShrinkPx?.() ?? 0 : 0;
+    const heldPx = listHeightHeld ? (pendingListShrinkPx?.() ?? 0) : 0;
     if (
       heldPx >= 1 &&
       scrollElement &&

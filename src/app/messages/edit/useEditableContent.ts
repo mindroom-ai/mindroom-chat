@@ -12,10 +12,7 @@ export type EditableContent = {
 };
 
 /** The content the editor starts from: the latest edit or the message, with a long text whole. */
-export const useEditableContent = (
-  room: Room,
-  mEvent: MatrixEvent
-): EditableContent => {
+export const useEditableContent = (room: Room, mEvent: MatrixEvent): EditableContent => {
   const mx = useMatrixClient();
   const [editable, setEditable] = useState<EditableContent>({ failed: false });
 

@@ -1,9 +1,5 @@
 /* eslint-disable no-console */
-import {
-  getDeepTraceRuntimeStatus,
-  recordDeepTraceEvent,
-  type DeepTraceData,
-} from './deepTrace';
+import { getDeepTraceRuntimeStatus, recordDeepTraceEvent, type DeepTraceData } from './deepTrace';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import { sampleMemory } from './memorySampler';
 

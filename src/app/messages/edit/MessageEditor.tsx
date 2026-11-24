@@ -207,7 +207,8 @@ function LoadedMessageEditor({
 
   const handleKeyDown = useCallback(
     (evt: KeyboardEvent<HTMLDivElement>) => {
-      if (composing(evt.nativeEvent)) return;
+      // slate-react 0.138.3+ forwards onKeyDown even in readOnly mode; ignore keys while saving.
+      if (saving || composing(evt.nativeEvent)) return;
       if (isEscape(evt.nativeEvent)) {
         // Escape leaves the edit only; the thread or dialog around it stays open.
         evt.preventDefault();
@@ -226,7 +227,7 @@ function LoadedMessageEditor({
         void save();
       }
     },
-    [composing, emoticonMenuOpen, enterForNewline, onDone, save]
+    [composing, emoticonMenuOpen, enterForNewline, onDone, save, saving]
   );
 
   return (

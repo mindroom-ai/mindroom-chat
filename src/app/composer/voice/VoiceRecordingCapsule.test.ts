@@ -93,7 +93,7 @@ describe('VoiceRecordingCapsule', () => {
     await language.init({
       lng: 'en',
       fallbackLng: 'en',
-      initImmediate: false,
+      initAsync: false,
       resources: {
         en: {
           translation: {

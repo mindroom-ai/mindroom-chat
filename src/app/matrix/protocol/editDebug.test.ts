@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  isEditDebugEnabled,
-  logEditDebug,
-  MINDROOM_EDIT_DEBUG_STORAGE_KEY,
-} from './editDebug';
+import { isEditDebugEnabled, logEditDebug, MINDROOM_EDIT_DEBUG_STORAGE_KEY } from './editDebug';
 
 describe('editDebug', () => {
   afterEach(() => {

@@ -257,7 +257,7 @@ const merge = (base: Locale, extra: Locale): Locale =>
   Object.fromEntries(
     [...new Set([...Object.keys(base), ...Object.keys(extra)])].map((key) => {
       const [a, b] = [base[key], extra[key]];
-      return [key, typeof a === 'object' && typeof b === 'object' ? merge(a, b) : b ?? a!];
+      return [key, typeof a === 'object' && typeof b === 'object' ? merge(a, b) : (b ?? a!)];
     })
   );
 /** The interface's strings, as the app merges them: the locale, then its additions. */
@@ -593,11 +593,14 @@ const checkAddExisting = async (run: Run) => {
     await setLook(page, scheme, direction);
     await expect(page.getByText(ARABIC_ROOM).last()).toBeVisible({ timeout: 60_000 });
     await page
-      .getByRole('button', { name: tr(direction, 'featureUi.lobby.spaceItem.addRoom') })
+      .getByRole('button', { name: tr(direction, 'featureUi.spaceNav.add'), exact: true })
       .first()
       .click();
     await page
-      .getByRole('menuitem', { name: tr(direction, 'featureUi.lobby.spaceItem.existingRoom') })
+      .getByRole('menuitem', {
+        name: tr(direction, 'featureUi.spaceNav.addExistingRoom'),
+        exact: true,
+      })
       .click();
     const dialog = page.getByRole('dialog', {
       name: tr(direction, 'featureUi.addExisting.addExisting'),

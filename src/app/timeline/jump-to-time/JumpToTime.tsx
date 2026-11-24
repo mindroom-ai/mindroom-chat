@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import classNames from 'classnames';
 import { EventType, type Room } from 'matrix-js-sdk';
 import {
@@ -168,7 +168,7 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
     if (looking) return;
     setLookup({ kind: 'looking' });
     // The beginning is the room's first event, even when the creation time has seconds.
-    const at = preset === 'beginning' ? createdAt ?? 0 : timestampOf(moment);
+    const at = preset === 'beginning' ? (createdAt ?? 0) : timestampOf(moment);
     try {
       if (threadId && isConfirmedMatrixEventId(threadId)) {
         const thread = room.getThread(threadId);

@@ -131,7 +131,10 @@ type ControllerOptions = Parameters<typeof useTimelineReadReceiptController>[0];
 
 /** An observer double that also keeps the options it was built with. */
 class RecordingObserver extends FakeObserver {
-  constructor(report: IntersectionObserverCallback, readonly options?: IntersectionObserverInit) {
+  constructor(
+    report: IntersectionObserverCallback,
+    readonly options?: IntersectionObserverInit
+  ) {
     super(report);
   }
 }
@@ -145,7 +148,7 @@ const marginSides = (margin = '') => {
 /** A timeline double whose forward neighbour is `next`. */
 const timelineDouble = (next?: object) => ({
   getNeighbouringTimeline: (direction: Direction) =>
-    direction === Direction.Forward ? next ?? null : null,
+    direction === Direction.Forward ? (next ?? null) : null,
 });
 
 const liveTimeline = timelineDouble();

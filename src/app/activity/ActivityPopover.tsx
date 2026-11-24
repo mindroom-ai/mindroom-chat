@@ -1,4 +1,4 @@
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Scroll, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { stopPropagation } from '../lib/keyboard';

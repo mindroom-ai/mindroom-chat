@@ -7,7 +7,7 @@
 type SessionMessage = { type: 'setSession'; accessToken: string; baseUrl: string };
 
 const getServiceWorker = (): ServiceWorkerContainer | undefined =>
-  typeof navigator === 'undefined' ? undefined : navigator.serviceWorker ?? undefined;
+  typeof navigator === 'undefined' ? undefined : (navigator.serviceWorker ?? undefined);
 
 /** Tells the controlling service worker this tab's session; a no-op without a controller. */
 export const pushSessionToSW = (baseUrl?: string, accessToken?: string): void => {

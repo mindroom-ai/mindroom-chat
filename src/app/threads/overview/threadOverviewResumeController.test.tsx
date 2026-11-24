@@ -13,8 +13,7 @@ import { useThreadOverviewResumeController } from './threadOverviewResumeControl
 
 const resumeState = vi.hoisted(() => ({
   callback: undefined as
-    | ((reason: 'focus' | 'online' | 'pageshow' | 'visibility') => void)
-    | undefined,
+    ((reason: 'focus' | 'online' | 'pageshow' | 'visibility') => void) | undefined,
 }));
 
 vi.mock('../../lib/hooks/usePageResume', () => ({
@@ -24,7 +23,8 @@ vi.mock('../../lib/hooks/usePageResume', () => ({
 }));
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
+  const original =
+    await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
   return {
     ...original,
     loadRoomThreads: vi.fn(),

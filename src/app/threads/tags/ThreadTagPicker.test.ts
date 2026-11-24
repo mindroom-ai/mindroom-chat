@@ -20,13 +20,8 @@ vi.mock('folds', () => ({
     ...props
   }: React.PropsWithChildren<Record<string, unknown> & { onClick?: () => void }>) =>
     React.createElement('button', { ...props, type: 'button', onClick }, children),
-  PopOut: ({
-    anchor,
-    content,
-  }: {
-    anchor?: unknown;
-    content: React.ReactNode;
-  }) => (anchor ? React.createElement(React.Fragment, null, content) : null),
+  PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+    anchor ? React.createElement(React.Fragment, null, content) : null,
   Text: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
     React.createElement('span', props, children),
   config: {
@@ -44,7 +39,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: React.PropsWithChildren) =>
+  FocusTrap: ({ children }: React.PropsWithChildren) =>
     React.createElement(React.Fragment, null, children),
 }));
 

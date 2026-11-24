@@ -63,10 +63,7 @@ export function ThinkingPlaceholder({ startedAt }: ThinkingPlaceholderProps) {
   const { t } = useTranslation();
   const clientConfig = useClientConfig();
   const messages = React.useMemo(
-    () =>
-      resolveThinkingPlaceholderMessages(
-        clientConfig.mindroom?.thinkingPlaceholderMessages
-      ),
+    () => resolveThinkingPlaceholderMessages(clientConfig.mindroom?.thinkingPlaceholderMessages),
     [clientConfig.mindroom?.thinkingPlaceholderMessages]
   );
   const [messageIndex, setMessageIndex] = React.useState(0);

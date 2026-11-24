@@ -88,7 +88,7 @@ const afterDroppedCorrection = (roomId: string, nextRoomId = roomId) => {
     const { marginTop } = inner.style;
 
     // The newest row ends where the list ends.
-    const box = (bottom: number, height: number) => () => ({ bottom, height } as DOMRect);
+    const box = (bottom: number, height: number) => () => ({ bottom, height }) as DOMRect;
     inner.getBoundingClientRect = box(800, 400);
     inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile, index) => {
       Object.defineProperty(tile, 'offsetHeight', { value: 200 });

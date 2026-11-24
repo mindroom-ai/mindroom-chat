@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { type ComponentProps, useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { TourLevel } from '../navigation/tourState';
@@ -12,9 +12,9 @@ import { typingInterval } from './useScenePhase';
 
 // jsdom lays nothing out, so every element counts as shown for the dialog's focus trap.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

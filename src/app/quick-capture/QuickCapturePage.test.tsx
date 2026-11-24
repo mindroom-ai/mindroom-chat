@@ -447,7 +447,7 @@ describe('QuickCapturePage with a room', () => {
       HTMLElement,
       HTMLElement,
       HTMLElement,
-      HTMLElement
+      HTMLElement,
     ];
     expect(within(working).getByRole('img', { name: 'Working' })).toBeTruthy();
     expect(within(waiting).getByText('Needs you')).toBeTruthy();

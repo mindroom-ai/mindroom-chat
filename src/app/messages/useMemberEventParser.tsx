@@ -161,7 +161,7 @@ export const getMemberEventKindForEvent = (event: MatrixEvent): MemberEventKind 
 };
 
 const nameOf = (userId: string | undefined, displayName: string | undefined): string =>
-  displayName ?? (userId ? getMxIdLocalPart(userId) ?? userId : '');
+  displayName ?? (userId ? (getMxIdLocalPart(userId) ?? userId) : '');
 
 /**
  * The name `userId` had before `event`, from the member events the client has loaded, newest
@@ -234,14 +234,7 @@ export function useMemberEventParser(): MemberEventParser {
       return {
         icon: ICONS[kind],
         body: (
-          <Trans
-            t={translate}
-            i18nKey={KEYS[kind]}
-            values={values}
-            components={{ b: <b /> }}
-            tOptions={{ interpolation: { escapeValue: true } }}
-            shouldUnescape
-          />
+          <Trans t={translate} i18nKey={KEYS[kind]} values={values} components={{ b: <b /> }} />
         ),
       };
     },

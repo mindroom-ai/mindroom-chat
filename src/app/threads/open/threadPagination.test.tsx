@@ -6,7 +6,10 @@ import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { useThreadPagination } from './useThreadPagination';
 import { useThreadPrependViewport } from '../../timeline/useThreadPrependViewport';
 import { useThreadBackPaginationController } from '../../timeline/threadBackPaginationController';
-import { loadThreadCachedPaginationSnapshot, loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
+import {
+  loadThreadCachedPaginationSnapshot,
+  loadThreadCachedSnapshot,
+} from '../../event-store/cache/eventRepository';
 import { useThreadSession } from './useThreadSession';
 import { waitForScrollQuiescence } from '../../timeline/scrollQuiescence';
 import type {
@@ -21,7 +24,9 @@ vi.mock('../../event-store/cache/eventRepository', async (original) => ({
   loadThreadCachedPaginationSnapshot: vi.fn(),
   loadThreadCachedSnapshot: vi.fn(() => new Promise(() => {})),
 }));
-vi.mock('../../timeline/scrollQuiescence', () => ({ waitForScrollQuiescence: vi.fn(async () => {}) }));
+vi.mock('../../timeline/scrollQuiescence', () => ({
+  waitForScrollQuiescence: vi.fn(async () => {}),
+}));
 
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;

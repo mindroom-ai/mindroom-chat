@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Box, Chip, Icon, Icons, Input, Text, config, toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { RectCords } from 'folds';

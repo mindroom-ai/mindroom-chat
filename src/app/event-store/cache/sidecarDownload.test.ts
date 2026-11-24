@@ -18,8 +18,8 @@ describe('sidecar download boundary', () => {
           new Response(JSON.stringify({ errcode: 'M_FORBIDDEN' }), { status: 403 })
         )
     );
-    await expect(
-      downloadSidecarBlob(mx, { mxcUri: 'mxc://example.org/args' })
-    ).rejects.toThrow('403');
+    await expect(downloadSidecarBlob(mx, { mxcUri: 'mxc://example.org/args' })).rejects.toThrow(
+      '403'
+    );
   });
 });

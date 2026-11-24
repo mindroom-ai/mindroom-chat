@@ -150,10 +150,13 @@ const check = async (page: Page, world: World, label: string, canRead: boolean) 
     viewMode: 'threaded',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.evaluate((route) => {
-    window.history.pushState(null, '', route);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(world.roomId)}/`);
+  await page.evaluate(
+    (route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    },
+    `/home/${encodeURIComponent(world.roomId)}/`
+  );
   await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
     timeout: 60_000,
   });

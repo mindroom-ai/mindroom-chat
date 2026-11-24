@@ -74,7 +74,7 @@ describe('dropRoomsForgottenElsewhere', () => {
     const [, , query] = client.authedRequest.mock.calls[0] as unknown as [
       unknown,
       unknown,
-      { filter: string }
+      { filter: string },
     ];
     expect(JSON.parse(query.filter)).toMatchObject({ room: { rooms: ['!forgotten:example.org'] } });
     expect(client.deleted).toEqual(['!forgotten:example.org']);

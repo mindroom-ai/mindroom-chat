@@ -4,7 +4,7 @@ import { getActiveBlockFormat, toggleBlockFormat } from './blockFormat';
 import { BlockType } from './types';
 
 const line = (text: string, type: string = BlockType.Paragraph) =>
-  ({ type, children: [{ text }] } as Descendant);
+  ({ type, children: [{ text }] }) as Descendant;
 
 // An editor holding `children`, with the selection from the start of block `from` to the end of
 // block `to` (top-level indexes; nested lines are selected through their container).
@@ -76,5 +76,22 @@ describe('toggleBlockFormat', () => {
         children: [line('Title', BlockType.ListItem), line('Body', BlockType.ListItem)],
       },
     ]);
+  });
+
+  it('unhangs a selection ending at the start of the next block so toolbar state and toggle agree', () => {
+    const editor = createEditor();
+    editor.children = [
+      { type: BlockType.BlockQuote, children: [line('one', BlockType.QuoteLine)] } as Descendant,
+      line('two'),
+    ];
+    // Triple-click on line 0 in Chromium/Safari hangs onto offset 0 of line 1.
+    Transforms.select(editor, {
+      anchor: Editor.start(editor, [0]),
+      focus: Editor.start(editor, [1]),
+    });
+    expect(getActiveBlockFormat(editor)).toBe(BlockType.BlockQuote);
+
+    toggleBlockFormat(editor, BlockType.BlockQuote);
+    expect(editor.children).toEqual([line('one'), line('two')]);
   });
 });

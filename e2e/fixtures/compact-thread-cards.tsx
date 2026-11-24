@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import i18n from '../../src/app/i18n/i18n';
 import { LightTheme, THEMES } from '../../src/app/theme/useTheme';
@@ -240,8 +240,8 @@ const toViewModel = (sample: Sample, index: number): CompactThreadCardViewModel 
     attentionState: sample.isResolved
       ? 'resolved'
       : sample.isStreaming
-      ? 'streaming'
-      : 'needs-attention',
+        ? 'streaming'
+        : 'needs-attention',
     attentionStatusText: '',
     participants: sample.participants ?? [mind],
     tags: sample.tags ?? [],

@@ -103,7 +103,7 @@ const openThread = async (
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const room = makeRoom({ liveEvents: [rootEvent] });
   room.getThread = () =>
-    ({ rootEvent, events: events.slice(1), getUnfilteredTimelineSet: () => timelineSet } as never);
+    ({ rootEvent, events: events.slice(1), getUnfilteredTimelineSet: () => timelineSet }) as never;
   threadRenderStateMock.threadEvents = events;
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])

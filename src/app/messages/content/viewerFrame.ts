@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrapProps } from 'focus-trap-react';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { stopPropagation } from '../../lib/keyboard';
 import { PhoneModal, PhoneOverlayCenter } from '../../ui/Modal500.css';
@@ -30,7 +30,7 @@ export const useViewerFrame = (): ViewerFrame =>
     ? { centerClassName: PhoneOverlayCenter, modalClassName: PhoneModal }
     : { modalStyle: WINDOW_BOX };
 
-type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
 // Escape closes the viewer and goes no further; so does a click outside it.
 const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };

@@ -827,7 +827,7 @@ describe('useTimelineRowJumps', () => {
       },
     };
     const element = (index: number) =>
-      ({ getBoundingClientRect: () => box(state.rowTop.get(index) ?? 0) } as HTMLElement);
+      ({ getBoundingClientRect: () => box(state.rowTop.get(index) ?? 0) }) as HTMLElement;
     // The scroll it still reconciles, cleared via virtual-core's public `cancelScroll()`.
     const virtualList: {
       scrollState: unknown;
@@ -989,7 +989,7 @@ describe('useTimelineRowJumps', () => {
 
 describe('useRowsGeneration', () => {
   it('counts the times the rows on screen are replaced, not the times the chain grows', () => {
-    const part = (name: string) => ({ name } as unknown as EventTimeline);
+    const part = (name: string) => ({ name }) as unknown as EventTimeline;
     const [live, older, context] = [part('live'), part('older'), part('context')];
     const counts: number[] = [];
     function Rows({ chain }: { chain: EventTimeline[] }) {

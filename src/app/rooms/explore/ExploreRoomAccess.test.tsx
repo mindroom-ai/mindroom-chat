@@ -85,9 +85,8 @@ vi.mock('../../ui/page/PageScroll', () => {
 });
 
 vi.mock('../RoomCard', async () => {
-  const { RoomAccessControl } = await vi.importActual<typeof import('../RoomAccessControl')>(
-    '../RoomAccessControl'
-  );
+  const { RoomAccessControl } =
+    await vi.importActual<typeof import('../RoomAccessControl')>('../RoomAccessControl');
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,
@@ -187,7 +186,7 @@ vi.mock('./style.css', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
 describe('Explore room access wiring', () => {

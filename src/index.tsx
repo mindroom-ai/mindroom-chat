@@ -3,7 +3,7 @@ import './app/diagnostics/sdkDebugLogging';
 import { createRoot } from 'react-dom/client';
 import { App as NativeApp } from '@capacitor/app';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import './index.css';
 import './app/theme/Typography.css';
 import './app/i18n/i18n';

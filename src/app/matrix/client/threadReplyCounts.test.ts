@@ -303,7 +303,7 @@ describe('thread reply counts', () => {
           origin_server_ts: 0,
           content,
           ...extra,
-        } as IEvent);
+        }) as IEvent;
       const leave = state(
         'm.room.member',
         moderator,

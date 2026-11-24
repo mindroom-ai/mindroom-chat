@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { EventType, JoinRule, MatrixEvent, Room, RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import {
   Box,
@@ -333,7 +333,7 @@ function RoomAccessRequestDialog({
 
   const knownError = describeKnownError(t, error);
   const shownError =
-    error === undefined ? undefined : knownError ?? errorMessage(error) ?? fallbackErrorMessage;
+    error === undefined ? undefined : (knownError ?? errorMessage(error) ?? fallbackErrorMessage);
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>

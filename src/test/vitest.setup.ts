@@ -187,7 +187,7 @@ vi.mock('../app/ui/DialogChrome.css', () => ({
 void i18next.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  initImmediate: false,
+  initAsync: false,
   resources: { en: { translation: en } },
   interpolation: { escapeValue: false },
   react: { useSuspense: false },
@@ -227,5 +227,15 @@ if (typeof window !== 'undefined' && typeof window.localStorage?.clear !== 'func
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
     value: createStorageMock(),
+  });
+}
+
+// jsdom 31 exposes WebkitAnimation in CSSStyleDeclaration without window.AnimationEvent,
+// making React listen for webkitAnimationEnd instead of standard animationend.
+if (typeof window !== 'undefined' && typeof window.AnimationEvent !== 'function') {
+  Object.defineProperty(window, 'AnimationEvent', {
+    configurable: true,
+    writable: true,
+    value: window.Event,
   });
 }

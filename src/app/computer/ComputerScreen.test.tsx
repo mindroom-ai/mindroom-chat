@@ -107,7 +107,7 @@ const createNoVncLikeRfb = () => {
   const createRfb = vi.fn((target: HTMLElement): RfbClient => {
     const element = document.createElement('canvas');
     element.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+      ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 }) as DOMRect;
     for (const type of ['mousedown', 'mousemove', 'mouseup']) {
       element.addEventListener(type, (event) => {
         event.stopPropagation();
@@ -403,7 +403,7 @@ describe('ComputerScreen', () => {
     const createRfb = vi.fn((target: HTMLElement): RfbClient => {
       const canvas = document.createElement('canvas');
       canvas.getBoundingClientRect = () =>
-        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 }) as DOMRect;
       for (const type of ['mousedown', 'mousemove', 'mouseup']) {
         canvas.addEventListener(type, (event) => mouse(event as MouseEvent));
       }
@@ -549,7 +549,7 @@ describe('ComputerScreen', () => {
     const createRfb = vi.fn((target: HTMLElement): RfbClient => {
       const element = document.createElement('canvas');
       element.getBoundingClientRect = () =>
-        ({ left: 0, top: 0, ...size, right: size.width, bottom: size.height } as DOMRect);
+        ({ left: 0, top: 0, ...size, right: size.width, bottom: size.height }) as DOMRect;
       // With noVNC's view-only flag at that moment: a view-only noVNC sends nothing.
       element.addEventListener('mousemove', (event) =>
         moves({
@@ -672,7 +672,7 @@ describe('ComputerScreen', () => {
       const canvas = document.createElement('canvas');
       canvas.tabIndex = -1;
       canvas.getBoundingClientRect = () =>
-        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 } as DOMRect);
+        ({ left: 0, top: 0, width: 400, height: 250, right: 400, bottom: 250 }) as DOMRect;
       canvas.addEventListener('mousedown', () => {
         if (client.focusOnClick) client.focus({ preventScroll: true });
       });

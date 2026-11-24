@@ -20,7 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
-import { invalidateEvictionVerdict } from './cacheEviction';
+import { invalidateEvictionVerdict, noteEvictionBytesFreed } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -63,8 +63,7 @@ export const loadCachedAttachment = async (
     if (!db) return undefined;
     const transaction = db.transaction(ATTACHMENTS_STORE, 'readonly');
     return (await requestResult(transaction.objectStore(ATTACHMENTS_STORE).get(mxcUri))) as
-      | CachedAttachmentRecord
-      | undefined;
+      CachedAttachmentRecord | undefined;
   } catch {
     return undefined;
   }
@@ -117,24 +116,22 @@ const putAttachmentTransaction = async (
         lastAccessedAt: now,
         essential: previous?.essential === true || options.essential === true,
       };
-      const updated = references.map(
-        (row): CachedAttachmentReferenceRecord => ({
-          ...row,
-          byteLength: record.byteLength,
-          updatedAt: now,
-          status:
-            record.byteLength <= (row.maxBytes ?? Infinity) &&
-            (!row.essential ||
-              row.status === 'cached' ||
-              (options.essential &&
-                row.roomId === options.roomId &&
-                row.eventId === options.eventId &&
-                row.revisionTs === options.revisionTs &&
-                (row.revisionId ?? '') === (options.revisionId ?? '')))
-              ? 'cached'
-              : 'missing',
-        })
-      );
+      const updated = references.map((row): CachedAttachmentReferenceRecord => ({
+        ...row,
+        byteLength: record.byteLength,
+        updatedAt: now,
+        status:
+          record.byteLength <= (row.maxBytes ?? Infinity) &&
+          (!row.essential ||
+            row.status === 'cached' ||
+            (options.essential &&
+              row.roomId === options.roomId &&
+              row.eventId === options.eventId &&
+              row.revisionTs === options.revisionTs &&
+              (row.revisionId ?? '') === (options.revisionId ?? '')))
+            ? 'cached'
+            : 'missing',
+      }));
       updated.forEach((row) => refs.put(row));
       if (references.length)
         record.essential = updated.some((row) => row.essential && row.status === 'cached');
@@ -234,6 +231,8 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
+  let freedBytes = 0;
+  let becameOptional = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -243,14 +242,22 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     if (!remaining.length) unowned.push(mxcUri);
     if (!cached) continue;
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
-    if (!remaining.length) blobs.delete(mxcUri);
-    else if (cached.essential !== essential) blobs.put({ ...cached, essential });
+    if (!remaining.length) {
+      blobs.delete(mxcUri);
+      freedBytes += cached.byteLength;
+    } else if (cached.essential !== essential) {
+      blobs.put({ ...cached, essential });
+      if (!essential) becameOptional = true;
+    }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
-  await deleteScaledPictures(blobs, unowned);
-  if (unowned.length) {
-    // Pruning is rare, so dropping every session's verdict avoids threading sessionId here.
+  freedBytes += await deleteScaledPictures(blobs, unowned);
+  if (becameOptional) {
     transaction.addEventListener('complete', () => invalidateEvictionVerdict(), { once: true });
+  } else if (freedBytes > 0) {
+    transaction.addEventListener('complete', () => noteEvictionBytesFreed(freedBytes), {
+      once: true,
+    });
   }
 };
 
@@ -320,8 +327,7 @@ export const replaceCachedAttachmentReferences = async (
   removed.forEach((row) => refs.delete(row.referenceKey));
   for (const input of entries) {
     const cached = (await requestResult(blobs.get(input.mxcUri))) as
-      | CachedAttachmentRecord
-      | undefined;
+      CachedAttachmentRecord | undefined;
     const validated = owned.some(
       (row) =>
         row.mxcUri === input.mxcUri &&

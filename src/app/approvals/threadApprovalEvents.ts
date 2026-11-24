@@ -1,8 +1,14 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { applyCachedRedactions, hydrateCachedEvents } from '../event-store/cache/eventCacheEditUtils';
+import {
+  applyCachedRedactions,
+  hydrateCachedEvents,
+} from '../event-store/cache/eventCacheEditUtils';
 import { mergeSameIdEventRevision, withoutRawReplacement } from '../matrix/eventRevision';
 import { getSerializedReplacementEvent } from '../matrix/editEvent';
-import { isUndecryptedApprovalCandidate, MINDROOM_TOOL_APPROVAL_EVENT } from '../matrix/protocol/toolApproval';
+import {
+  isUndecryptedApprovalCandidate,
+  MINDROOM_TOOL_APPROVAL_EVENT,
+} from '../matrix/protocol/toolApproval';
 
 export type ThreadApprovalEvents = {
   events: ReadonlyMap<string, MatrixEvent>;

@@ -2,7 +2,10 @@ import { MatrixError, RelationType } from 'matrix-js-sdk';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { ErrorCode } from '../../matrix/cs-errorcode';
 import { getCompactThreadRootBodyPreviewText } from '../../event-store/threads/compactThreadRootData';
-import { isVisibleThreadRootEvent, type TimelineEventEntry } from '../../event-store/timeline/roomTimelineEvents';
+import {
+  isVisibleThreadRootEvent,
+  type TimelineEventEntry,
+} from '../../event-store/timeline/roomTimelineEvents';
 import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,

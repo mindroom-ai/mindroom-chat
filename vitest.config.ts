@@ -71,7 +71,7 @@ export default defineConfig({
     conditions: withPlugins ? PLUGIN_CONDITIONS : undefined,
   },
   ssr: withPlugins ? { resolve: { conditions: PLUGIN_CONDITIONS } } : undefined,
-  esbuild: withPlugins ? { jsx: 'automatic' } : undefined,
+  oxc: withPlugins ? { jsx: { runtime: 'automatic' } } : undefined,
   server: withPlugins
     ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } }
     : undefined,

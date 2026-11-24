@@ -99,7 +99,7 @@ const stubLocks = () => {
   const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
         if (held.has(name)) return callback(null);
         held.add(name);
         try {
@@ -174,9 +174,8 @@ it.each(['send', 'discard'])(
       expect(offerContext).toHaveBeenCalledOnce();
       expect(await recovered?.file.text()).toBe('journal audio');
 
-      const { createVoiceSendDraftController: createController } = await import(
-        './voiceSendDraftController'
-      );
+      const { createVoiceSendDraftController: createController } =
+        await import('./voiceSendDraftController');
       const controller = createController({
         read: () => store.get(atom),
         write: (draft) => store.set(atom, draft),

@@ -4,7 +4,7 @@ import { useLiquidGlass } from '../../src/app/ui/glass/liquid/useLiquidGlass';
 import { LightTheme, DarkTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.get('theme') === 'dark';
@@ -49,7 +49,7 @@ function Showcase() {
         overflow: 'hidden',
         background: dark ? '#171a23' : '#eaece8',
         color: dark ? '#e6e8f1' : '#202636',
-        fontFamily: 'InterVariable, sans-serif',
+        fontFamily: "'Inter Variable', sans-serif",
       }}
     >
       <div
