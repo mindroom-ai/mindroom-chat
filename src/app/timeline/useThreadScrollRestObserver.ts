@@ -1,4 +1,5 @@
 import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { SCROLL_SESSION_STALE_MS, hasActiveWindowTouches } from './scrollQuiescence';
 import {
@@ -268,7 +269,13 @@ export const useThreadScrollRestObserver = ({
           scrollElement.dataset.scrollbarDragging !== 'true'
         ) {
           owner.pendingFacts.push({ kind: 'pin-bottom', behavior: 'instant' });
-          owner.bumpCommitTick();
+          if (typeof queueMicrotask === 'function') {
+            queueMicrotask(() => {
+              if (scrollElement.isConnected) flushSync(() => owner.bumpCommitTick());
+            });
+          } else {
+            owner.bumpCommitTick();
+          }
         }
       });
       resizeObserver.observe(scrollElement);

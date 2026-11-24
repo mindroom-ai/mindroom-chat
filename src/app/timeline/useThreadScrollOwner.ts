@@ -304,6 +304,7 @@ export const useThreadScrollOwnerCommit = (options: UseThreadScrollOwnerCommitOp
       ),
       avgRowHeight,
       scrollTop: scrollElement.scrollTop,
+      contentHeight: Math.max(0, scrollElement.scrollHeight - owner.committedHeadroomPx),
       viewHeight: viewH,
       viewWidth: viewW,
     });

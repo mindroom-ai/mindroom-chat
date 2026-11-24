@@ -284,7 +284,7 @@ export const computeTrimPlan = ({
     };
   }
   // Entire reserve strictly above viewport (`scrollTop >= headroomPx`): pair headroom and scrollTop.
-  const perUnmeasured = viewWidth < 600 ? 20 : 0;
+  const perUnmeasured = viewWidth < 600 ? 20 : 8;
   const keepCushion = Math.min(
     headroomPx,
     Math.max(0, unmeasuredAbove) * perUnmeasured,

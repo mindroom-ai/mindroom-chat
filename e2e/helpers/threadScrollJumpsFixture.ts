@@ -195,11 +195,11 @@ export const routeQuietly = (
 export const delayMediaAndRelations = async (page: Page, mediaMs: number, relationsMs: number) => {
   await routeQuietly(page, '**/_matrix/client/v1/media/**', async (route) => {
     await wait(mediaMs);
-    await route.continue();
+    await route.fallback();
   });
   await routeQuietly(page, '**/relations/**', async (route) => {
     if (route.request().url().includes('from=')) await wait(relationsMs);
-    await route.continue();
+    await route.fallback();
   });
 };
 
@@ -361,7 +361,13 @@ export const installUnderReportedCountRoute = async (page: Page) => {
       await route.continue();
       return;
     }
-    const response = await route.fetch();
+    let fetchUrl = url;
+    if (url.includes('/relations/')) {
+      const parsed = new URL(url);
+      parsed.searchParams.set('limit', '20');
+      fetchUrl = parsed.toString();
+    }
+    const response = await route.fetch({ url: fetchUrl });
     if (!(response.headers()['content-type'] ?? '').includes('application/json')) {
       await route.fulfill({ response });
       return;

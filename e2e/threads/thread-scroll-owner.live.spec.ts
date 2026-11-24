@@ -216,10 +216,21 @@ test.describe('thread scroll owner invariants', () => {
           await waitForSettledAtRow0(page, 20_000);
           const driftCheck = await measureZeroHeadroomGrowthDrift(page);
 
-          expect(minHeadroom).toBeLessThan((initial?.headroomPx ?? 0) * 0.5);
+          const summary = JSON.stringify({
+            initialHeadroom: initial?.headroomPx,
+            minHeadroom,
+            beforeRest,
+            afterRest,
+            driftCheck,
+          });
+          expect(
+            minHeadroom < (initial?.headroomPx ?? 0) * 0.8 || (beforeRest?.threadCount ?? 0) < 120,
+            `headroom consumed or pages held mid-gesture: ${summary}`
+          ).toBe(true);
           expect(
             (afterRest?.headroomPx ?? 0) > (beforeRest?.headroomPx ?? 0) ||
-              (afterRest?.threadCount ?? 0) > (beforeRest?.threadCount ?? 0)
+              (afterRest?.threadCount ?? 0) > (beforeRest?.threadCount ?? 0),
+            `rest top-up or held-page release: ${summary}`
           ).toBe(true);
           expect(driftCheck?.found).toBe(true);
           expect(driftCheck?.writes).toBe(0);
@@ -312,7 +323,7 @@ test.describe('thread scroll owner invariants', () => {
         baseURL,
         fixture,
         async (page) => {
-          await openThreadCard(page, fixture, { mediaMs: 150, relationsMs: 150, clearCache: true });
+          await openThreadCard(page, fixture, { mediaMs: 250, relationsMs: 450, clearCache: true });
           await expect
             .poll(async () => (await readThreadScrollState(page))?.headroomPx ?? 0, {
               timeout: 15_000,

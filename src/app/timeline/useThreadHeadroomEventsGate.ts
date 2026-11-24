@@ -105,6 +105,7 @@ export const planOpeningHeadroomTransition = ({
   unmeasuredVisible,
   avgRowHeight,
   scrollTop,
+  contentHeight,
   viewHeight,
   viewWidth,
 }: {
@@ -117,6 +118,7 @@ export const planOpeningHeadroomTransition = ({
   unmeasuredVisible: number;
   avgRowHeight: number;
   scrollTop: number;
+  contentHeight: number;
   viewHeight: number;
   viewWidth: number;
 }):
@@ -149,17 +151,35 @@ export const planOpeningHeadroomTransition = ({
     }
     return undefined;
   }
-  if (owner.committedHeadroomPx > 0 && owner.heldRawEvents === undefined) {
-    const keepCushion =
-      viewWidth < 600
-        ? Math.min(owner.committedHeadroomPx, unmeasuredVisible * 12, Math.round(viewHeight * 2))
+  if (owner.heldRawEvents === undefined) {
+    const perUnmeasured = viewWidth < 600 ? 12 : 8;
+    const desiredCushion =
+      contentHeight > viewHeight * 1.25
+        ? Math.min(unmeasuredVisible * perUnmeasured, Math.round(viewHeight * 2))
         : 0;
-    const trim = owner.committedHeadroomPx - keepCushion;
-    if (trim > 1) {
+    if (owner.committedHeadroomPx > 0) {
+      const keepCushion = Math.min(owner.committedHeadroomPx, desiredCushion);
+      const trim = owner.committedHeadroomPx - keepCushion;
+      if (trim > 1) {
+        return {
+          nextHeadroom: keepCushion,
+          scrollKind: threadOpenedAtLatest ? 'bottom' : 'offset',
+          targetScrollTop: Math.max(0, scrollTop - trim),
+        };
+      }
+    } else if (
+      !owner.headroomInitialized &&
+      threadOpenedAtLatest &&
+      contentHeight > viewHeight * 1.5 &&
+      unmeasuredVisible > 15 &&
+      desiredCushion > 1
+    ) {
+      // Cache-hit open with unmeasured rows above: reserve a wrap/estimate cushion before first scroll.
+      owner.headroomInitialized = true;
       return {
-        nextHeadroom: keepCushion,
-        scrollKind: threadOpenedAtLatest ? 'bottom' : 'offset',
-        targetScrollTop: Math.max(0, scrollTop - trim),
+        nextHeadroom: desiredCushion,
+        scrollKind: 'bottom',
+        targetScrollTop: Math.max(0, scrollTop + desiredCushion),
       };
     }
   }
