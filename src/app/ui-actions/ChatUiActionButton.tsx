@@ -74,13 +74,20 @@ function AskForText({ action, request }: { action: CanvasAction; request: TextRe
  * shown only to the user the request is for, a canvas's to every joined member, and says why when
  * the action cannot run now.
  */
-export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
+export function ChatUiActionButton({
+  event,
+  compact = false,
+}: {
+  event: MatrixEvent;
+  /** Header placement: renders just the button without outer margin or an inline reason note. */
+  compact?: boolean;
+}) {
   const { t } = useTranslation();
   const actions = useContext(ChatUiActionContext);
   const action = actions?.read(event);
   if (!actions || !action) return null;
   if (action.action === 'show_canvas' && actions.textRequest) {
-    return <AskForText action={action} request={actions.textRequest} />;
+    return compact ? null : <AskForText action={action} request={actions.textRequest} />;
   }
 
   let label: string;
@@ -98,20 +105,24 @@ export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
       label = t('mindroomUi.uiActions.openMembers', { defaultValue: 'Open Members' });
   }
   const reason = actions.unavailable(action);
+  const button = (
+    <Button
+      size="300"
+      variant="Secondary"
+      fill="Soft"
+      radii="300"
+      disabled={!!reason}
+      before={<Icon size="100" src={actionIcon(action)} />}
+      onClick={() => actions.activate(event)}
+    >
+      <Text size="B300">{label}</Text>
+    </Button>
+  );
+  if (compact) return button;
 
   return (
     <Box direction="Column" alignItems="Start" gap="100" style={{ marginTop: '0.5rem' }}>
-      <Button
-        size="300"
-        variant="Secondary"
-        fill="Soft"
-        radii="300"
-        disabled={!!reason}
-        before={<Icon size="100" src={actionIcon(action)} />}
-        onClick={() => actions.activate(event)}
-      >
-        <Text size="B300">{label}</Text>
-      </Button>
+      {button}
       {reason && (
         <Text size="T200" priority="300" role="note">
           {reason}
