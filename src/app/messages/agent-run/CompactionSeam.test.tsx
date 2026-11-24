@@ -620,40 +620,49 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(0);
   });
 
-  it('follows the row once a frame while open, however it moved, and stops once closed', async () => {
+  it('follows the row on layout events while open, and stops once closed', async () => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
-    const renderer = render(<CompactionSeam compaction={compaction()} />);
-    await open(renderer);
-    const top = () =>
-      renderer.root.findAll((node) => node.props['data-popout'] === true)[0]!.props['data-top'];
-    // No render of the seam and no scroll: text above it wrapped, or an image loaded.
-    triggerRect.y = 60;
-    act(() => {
-      vi.advanceTimersToNextFrame();
-    });
-    expect(top()).toBe(60);
-    triggerRect.y = 20;
-    act(() => {
-      vi.advanceTimersToNextFrame();
-    });
-    expect(top()).toBe(20);
+    const img = document.createElement('img');
+    document.body.append(img);
+    try {
+      const renderer = render(<CompactionSeam compaction={compaction()} />);
+      await open(renderer);
+      const top = () =>
+        renderer.root.findAll((node) => node.props['data-popout'] === true)[0]!.props['data-top'];
+      // No render of the seam and no scroll/resize: an image above it finished loading.
+      triggerRect.y = 60;
+      act(() => {
+        img.dispatchEvent(new Event('load'));
+        vi.advanceTimersToNextFrame();
+      });
+      expect(top()).toBe(60);
+      triggerRect.y = 20;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+        vi.advanceTimersToNextFrame();
+      });
+      expect(top()).toBe(20);
 
-    // A row not displayed (its reply folded away) measures all zeros: the card stays put.
-    Object.assign(triggerRect, { x: 0, y: 0, width: 0, height: 0 });
-    act(() => {
-      vi.advanceTimersToNextFrame();
-    });
-    expect(top()).toBe(20);
-    Object.assign(triggerRect, { x: 10, y: 20, width: 100, height: 16 });
+      // A row not displayed (its reply folded away) measures all zeros: the card stays put.
+      Object.assign(triggerRect, { x: 0, y: 0, width: 0, height: 0 });
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+        vi.advanceTimersToNextFrame();
+      });
+      expect(top()).toBe(20);
 
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    });
-    expect(card(renderer)).toHaveLength(0);
-    expect(vi.getTimerCount()).toBe(0);
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+      expect(card(renderer)).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      Object.assign(triggerRect, { x: 10, y: 20, width: 100, height: 16 });
+      img.remove();
+    }
   });
 
-  it('places an open card again once a frame after it changed size', async () => {
+  it('places an open card again after it changed size', async () => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     await open(renderer);
@@ -667,7 +676,10 @@ describe('CompactionSeam card', () => {
     expect(anchors.size).toBe(placed);
     // A progress frame names a longer model: the card grows, its row stays.
     cardRect.height = 260;
-    frame();
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersToNextFrame();
+    });
     expect(anchors.size).toBe(placed + 1);
     frame();
     expect(anchors.size).toBe(placed + 1);

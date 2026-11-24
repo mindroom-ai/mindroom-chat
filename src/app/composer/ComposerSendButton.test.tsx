@@ -154,7 +154,7 @@ describe('the Send button', () => {
     const { onSend, button } = setup(true);
     hold(button);
     screen.getByRole('menuitem', { name: 'Steer' }).focus();
-    // The trap reads the key's code, as is-hotkey does.
+    // The trap advances focus on ArrowDown.
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', keyCode: 40, which: 40 });
     const row = document.activeElement as HTMLElement;
     expect(row).toBe(screen.getByRole('menuitem', { name: 'Queue' }));

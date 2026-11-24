@@ -14,27 +14,160 @@ import { tabFromCardToOpener } from '../lib/overlayFocus';
 /** How a card came up: a mouse resting on its trigger, keyboard focus, or a click or tap. */
 type CardMode = 'hover' | 'focus' | 'pinned';
 
-/** Follow a popup through layout changes. A getter is read each frame to follow remounted triggers. */
+const isTriggerGone = (trigger: HTMLElement | null | undefined): boolean =>
+  !trigger?.isConnected || trigger.getClientRects().length === 0;
+
+const getMutationRoot = (trigger: HTMLElement | null | undefined): Node | null => {
+  if (trigger instanceof Node) {
+    const root = trigger.getRootNode();
+    if (root instanceof Document) return root.body ?? root.documentElement;
+    if (root instanceof ShadowRoot) return root;
+  }
+  return typeof document !== 'undefined' ? (document.body ?? document.documentElement) : null;
+};
+
+const isPopupOwnMutation = (
+  record: MutationRecord,
+  root: Node | null,
+  content: HTMLElement | null | undefined,
+  trigger: HTMLElement | null | undefined
+): boolean => {
+  if (record.type !== 'attributes') return false;
+  const { target } = record;
+  if (target === root) return false;
+  if (trigger instanceof Node && (target === trigger || target.contains(trigger))) return false;
+  if (content instanceof Node && (content.contains(target) || target.contains(content))) {
+    return true;
+  }
+  return target instanceof Element && target.closest('[data-popout]') !== null;
+};
+
+/**
+ * Follow a popup through layout changes without polling while idle. A getter is re-read on
+ * scroll, viewport resize, element resize, resource load, and DOM mutations so remounted triggers
+ * stay tracked.
+ */
 export function useLiveAnchor(
   opener: HTMLElement | (() => HTMLElement | null) | undefined,
   onGone?: () => void,
   contentRef?: RefObject<HTMLElement | null>
 ): RectCords | undefined {
   const [anchor, setAnchor] = useState<RectCords>();
+  const syncObservedRef = useRef<(() => void) | undefined>(undefined);
+
   useLayoutEffect(() => {
     if (!opener) {
+      syncObservedRef.current = undefined;
       setAnchor(undefined);
       return undefined;
     }
+
+    const getTrigger = () => (typeof opener === 'function' ? opener() : opener);
+
+    let disposed = false;
     let frame = 0;
     let rect: RectCords | undefined;
     let contentSize: string | undefined;
-    const follow = () => {
-      const trigger = typeof opener === 'function' ? opener() : opener;
-      if (onGone && (!trigger?.isConnected || trigger.getClientRects().length === 0)) {
+    let trackedTrigger: HTMLElement | null | undefined;
+    let trackedContent: HTMLElement | null | undefined;
+    let mutationRoot: Node | null = null;
+
+    const cancelFrame = () => {
+      if (frame !== 0) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => schedule());
+    if (resizeObserver && document.documentElement instanceof Element) {
+      resizeObserver.observe(document.documentElement);
+    }
+
+    const mutationObserver =
+      typeof MutationObserver === 'undefined'
+        ? undefined
+        : new MutationObserver((records) => {
+            const trigger = getTrigger();
+            const content = contentRef?.current;
+            if (
+              records.some((record) => !isPopupOwnMutation(record, mutationRoot, content, trigger))
+            ) {
+              schedule();
+            }
+          });
+
+    const swapObserved = (
+      prev: HTMLElement | null | undefined,
+      next: HTMLElement | null | undefined,
+      other: HTMLElement | null | undefined
+    ) => {
+      if (!resizeObserver || prev === next) return;
+      if (
+        prev instanceof Element &&
+        prev !== other &&
+        prev !== document.documentElement &&
+        typeof resizeObserver.unobserve === 'function'
+      ) {
+        resizeObserver.unobserve(prev);
+      }
+      if (next instanceof Element) {
+        resizeObserver.observe(next);
+      }
+    };
+
+    const syncObserved = (scheduleOnTriggerChange: boolean) => {
+      const trigger = getTrigger();
+      const content = contentRef?.current;
+      const triggerChanged = trigger !== trackedTrigger;
+      const contentChanged = content !== trackedContent;
+
+      if (contentSize === undefined && content) {
+        const box = content.getBoundingClientRect();
+        contentSize = `${box.width}x${box.height}`;
+      }
+
+      if (mutationObserver && (!mutationRoot || triggerChanged)) {
+        const nextRoot = getMutationRoot(trigger);
+        if (nextRoot !== mutationRoot) {
+          mutationObserver.disconnect();
+          mutationRoot = nextRoot;
+          if (mutationRoot) {
+            mutationObserver.observe(mutationRoot, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class', 'hidden'],
+              characterData: true,
+            });
+          }
+        }
+      }
+
+      if (triggerChanged) {
+        swapObserved(trackedTrigger, trigger, trackedContent);
+        trackedTrigger = trigger;
+      }
+      if (contentChanged) {
+        swapObserved(trackedContent, content, trackedTrigger);
+        trackedContent = content;
+      }
+
+      if (scheduleOnTriggerChange && triggerChanged) {
+        schedule();
+      }
+    };
+
+    const measure = () => {
+      if (disposed) return;
+      const trigger = getTrigger();
+      if (onGone && isTriggerGone(trigger)) {
+        cancelFrame();
         onGone();
         return;
       }
+      syncObserved(false);
       const next = trigger?.getBoundingClientRect();
       const box = contentRef?.current?.getBoundingClientRect();
       const size = box && `${box.width}x${box.height}`;
@@ -56,11 +189,46 @@ export function useLiveAnchor(
           setAnchor(next);
         }
       }
-      frame = requestAnimationFrame(follow);
     };
-    follow();
-    return () => cancelAnimationFrame(frame);
+
+    const schedule = () => {
+      if (disposed || frame !== 0) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+
+    document.addEventListener('load', schedule, { capture: true, passive: true });
+    window.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', schedule, { passive: true });
+    viewport?.addEventListener('scroll', schedule, { passive: true });
+
+    syncObservedRef.current = () => syncObserved(true);
+    measure();
+
+    return () => {
+      disposed = true;
+      syncObservedRef.current = undefined;
+      cancelFrame();
+      document.removeEventListener('load', schedule, { capture: true });
+      window.removeEventListener('scroll', schedule, { capture: true });
+      window.removeEventListener('resize', schedule);
+      viewport?.removeEventListener('resize', schedule);
+      viewport?.removeEventListener('scroll', schedule);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
   }, [opener, onGone, contentRef]);
+
+  // Attach ResizeObserver once a newly opened card mounts under `contentRef`, or when a trigger
+  // remounts during a render while the popup stays open.
+  useLayoutEffect(() => {
+    if (opener) syncObservedRef.current?.();
+  });
+
   return opener ? anchor : undefined;
 }
 

@@ -199,6 +199,7 @@ describe('ThreadSummaryMarker', () => {
     expect(popout(renderer)[0]!.props['data-top']).toBe(20);
     triggerRect.y = 140;
     act(() => {
+      window.dispatchEvent(new Event('scroll'));
       vi.advanceTimersToNextFrame();
     });
 
