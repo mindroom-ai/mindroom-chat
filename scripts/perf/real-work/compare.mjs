@@ -128,7 +128,7 @@ function loadDir(dir) {
       try {
         return JSON.parse(fs.readFileSync(file, 'utf8'));
       } catch (error) {
-        throw new Error(`${file}: ${error.message}`);
+        throw new Error(`${file}: ${error.message}`, { cause: error });
       }
     })
     .filter((r) => r && typeof r.label === 'string');

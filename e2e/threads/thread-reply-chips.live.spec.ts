@@ -125,7 +125,7 @@ test.describe('thread reply chips', () => {
       },
     });
     await redactEvent(homeserver, session.accessToken, roomId, redactedId);
-    prevId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+    await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Message after the deleted one',
       'm.relates_to': {
@@ -137,7 +137,7 @@ test.describe('thread reply chips', () => {
     });
 
     // Fallback reply to an unfetchable target — must render no chip at all.
-    prevId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+    await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Fallback reply to an unfetchable event',
       'm.relates_to': {
@@ -150,7 +150,7 @@ test.describe('thread reply chips', () => {
 
     // Explicit reply to an unfetchable target — must surface as an explicit
     // failure, not an eternal placeholder.
-    prevId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+    await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Explicit reply to an unfetchable event',
       'm.relates_to': {

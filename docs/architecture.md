@@ -187,7 +187,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 15 | `shell` |
 | 16 | `src/index.tsx`, `src/client-sdk` |
 
-`just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
+`just lint` enforces it: `eslint.config.mjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
 
 Limits:
 

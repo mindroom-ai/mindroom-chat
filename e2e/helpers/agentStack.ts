@@ -299,19 +299,19 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     },
     { scope: 'worker', timeout: 8 * 60_000 },
   ],
-  storageState: async ({ testerStorageState }, use) => {
-    await use(testerStorageState);
+  storageState: async ({ testerStorageState }, provide) => {
+    await provide(testerStorageState);
   },
-  stack: async ({ agentStackOrSkip }, use, testInfo) => {
+  stack: async ({ agentStackOrSkip }, provide, testInfo) => {
     testInfo.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));
-    await use(agentStackOrSkip as AgentStack);
+    await provide(agentStackOrSkip as AgentStack);
   },
-  page: async ({ page, agentStackOrSkip, clientApiUrl, clientConfig }, use) => {
+  page: async ({ page, agentStackOrSkip, clientApiUrl, clientConfig }, provide) => {
     if (typeof agentStackOrSkip !== 'string') {
       const mindroom = clientApiUrl ? { computers: { apiUrl: agentStackOrSkip.apiUrl } } : {};
       await routeClientConfig(page, agentStackOrSkip, mindroom, clientConfig);
     }
-    await use(page);
+    await provide(page);
   },
 });
 
