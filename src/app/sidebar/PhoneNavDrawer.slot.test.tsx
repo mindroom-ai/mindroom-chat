@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { useLayoutEffect, useRef } from 'react';
+import { act, useLayoutEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { Provider, createStore } from 'jotai';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';

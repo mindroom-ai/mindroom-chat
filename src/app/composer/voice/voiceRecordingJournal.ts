@@ -1,9 +1,4 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import {
-  cancelNativeVoiceRecording,
-  listNativeVoiceLeftovers,
-  readNativeVoiceFile,
-} from '../../native/nativeVoiceRecorder';
 import { getAudioFileExtension } from './voiceRecorderMime';
 
 type Recording = { id: string; userId: string; startedAt: number; mimeType: string };
@@ -76,7 +71,6 @@ const deleteRows = (tx: WriteTx, id: string) =>
     tx.objectStore('chunks').delete(chunksOf(id)),
   ]);
 const starts = new Map<string, Promise<boolean>>();
-const cleanupGenerations = new Map<string, number>();
 
 export const deleteVoiceRecording = async (id?: string): Promise<void> => {
   if (!id) return;
@@ -125,49 +119,6 @@ export const beginVoiceRecording = (userId: string, startedAt: number, mimeType:
   };
 };
 
-const cancelNativeCopy = (id: string) =>
-  cancelNativeVoiceRecording(id)
-    .then(() => true)
-    .catch(() => false);
-
-/** Transfers reload leftovers; the offer gate also verifies unlisted UUIDs by idempotent cancel. */
-export const importNativeVoiceRecordings = async (userId: string) => {
-  if (!globalThis.navigator?.locks) return undefined;
-  const generation = cleanupGenerations.get(userId);
-  const { recordings } = await listNativeVoiceLeftovers().catch(() => ({ recordings: [] }));
-  const confirmed = new Map<string, boolean>(recordings.map(({ id }) => [id, false]));
-  /* eslint-disable no-await-in-loop, no-continue */
-  for (const { id, path, startedAt, duration, userId: owner } of recordings) {
-    if (owner !== userId || !(await holdVoiceRecording(id))) continue;
-    try {
-      const committed = await withDb(async (db) => {
-        if (await db.getKey('recordings', id)) return id;
-        const data = await readNativeVoiceFile(path);
-        if (!data) return undefined;
-        const bytes = await data.arrayBuffer();
-        const mimeType = 'audio/mp4';
-        const chunk = { id, seq: 0, bytes, elapsedMs: duration, type: mimeType };
-        // Cleanup can finish while the native file is being read.
-        if (generation !== cleanupGenerations.get(userId)) return undefined;
-        return change(db, async (tx) => {
-          await tx.objectStore('chunks').add(chunk);
-          try {
-            return await tx.objectStore('recordings').add({ id, userId, startedAt, mimeType });
-          } catch (error) {
-            tx.abort();
-            throw error;
-          }
-        });
-      });
-      if (committed) confirmed.set(id, await cancelNativeCopy(id));
-    } finally {
-      unlock(id);
-    }
-  }
-  /* eslint-enable no-await-in-loop, no-continue */
-  return (id: string) => confirmed.get(id) ?? cancelNativeCopy(id);
-};
-
 type Recovered = { recordingId: string; file: File; duration: number };
 export const recoverVoiceRecording = async (
   userId: string,
@@ -209,7 +160,6 @@ export const recoverVoiceRecording = async (
 };
 
 export const clearVoiceRecordings = async (userId: string): Promise<void> => {
-  cleanupGenerations.set(userId, (cleanupGenerations.get(userId) ?? 0) + 1);
   await Promise.all(starts.values());
   const deleted = await withDb((db) =>
     change(db, async (tx) => {

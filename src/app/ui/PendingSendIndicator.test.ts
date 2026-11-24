@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { EventStatus } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { FailedSendIndicator, PendingSendIndicator } from './PendingSendIndicator';
@@ -45,7 +45,10 @@ describe('pending send indicator', () => {
   });
 
   it('renders an accessible muted clock indicator', () => {
-    const renderer = create(React.createElement(PendingSendIndicator));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(PendingSendIndicator));
+    });
     const rendered = JSON.stringify(renderer.toJSON());
 
     expect(rendered).toContain('Message sending');
@@ -56,7 +59,10 @@ describe('pending send indicator', () => {
   });
 
   it('renders an accessible terminal failure indicator', () => {
-    const renderer = create(React.createElement(FailedSendIndicator));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(FailedSendIndicator));
+    });
     const rendered = JSON.stringify(renderer.toJSON());
 
     expect(rendered).toContain('Message failed to send');

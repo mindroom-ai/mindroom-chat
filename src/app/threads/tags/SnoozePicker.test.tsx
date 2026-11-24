@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
@@ -19,7 +18,7 @@ type TrapOptions = {
 };
 const trap = vi.hoisted(() => ({ options: undefined as TrapOptions | undefined }));
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

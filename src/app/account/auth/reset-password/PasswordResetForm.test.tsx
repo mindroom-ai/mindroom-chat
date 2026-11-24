@@ -28,7 +28,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 const resetError = vi.hoisted(() => ({ errcode: 'M_UNKNOWN' }));
 const requestEmail = vi.hoisted(() => ({ fn: (): Promise<unknown> => Promise.resolve() }));
@@ -222,7 +222,9 @@ describe('PasswordResetForm with names from the server', () => {
 
     const strong = renderer.root.findAll((node) => node.type === 'strong');
     expect(strong).toHaveLength(1);
-    expect(Object.keys(strong[0]?.props ?? {})).toEqual(['children']);
+    expect(Object.keys(strong[0]?.props ?? {}).filter((key) => key !== 'ref')).toEqual([
+      'children',
+    ]);
     expect(strong[0]?.children).toEqual([authServer.name]);
     expect(strong[0]?.parent && textOf(strong[0].parent)).toBe(
       `Homeserver ${authServer.name} will send you an email to let you reset your password.`
@@ -248,7 +250,11 @@ describe('PasswordResetForm with names from the server', () => {
       const alert = renderer.root.findByProps({ role: 'alert' });
       const inside = elementsIn(alert).filter((node) => node.props.role !== 'alert');
       expect(inside.map((node) => node.type)).toEqual(elements);
-      expect(Object.keys(inside[0]?.props ?? {}).sort()).toEqual(authLinkProps);
+      expect(
+        Object.keys(inside[0]?.props ?? {})
+          .filter((key) => key !== 'ref')
+          .sort()
+      ).toEqual(authLinkProps);
       expect(inside[0] && textOf(inside[0])).toBe(`sign in with ${name}`);
       expect(textOf(alert)).toBe(
         `This server can't reset passwords by email. If you signed up with ${name}, sign in with ${name} instead.`

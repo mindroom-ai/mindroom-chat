@@ -11,7 +11,7 @@ type PageScrollProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
   /** Stays at the top while the content scrolls beneath it. */
   header?: ReactNode;
   children?: ReactNode;
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   /** Composite widgets inside (listboxes) keep the arrow keys, so their scrollbar is skipped. */
   scrollbarTabIndex?: 0 | -1;
   scrollbarLabel?: string;
@@ -26,8 +26,8 @@ type PageScrollProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
  * scrollbar track and the viewport's scroll padding read it.
  */
 export const useStickyHeaderInset = (
-  frameRef: RefObject<HTMLElement>,
-  headerRef: RefObject<HTMLElement>,
+  frameRef: RefObject<HTMLElement | null>,
+  headerRef: RefObject<HTMLElement | null>,
   hasHeader: boolean
 ) => {
   useLayoutEffect(() => {

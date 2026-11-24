@@ -11,7 +11,11 @@ import {
 import type { ReceivedToDeviceMessage } from 'matrix-js-sdk/lib/sync-accumulator';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api';
-import { threadModelContent, type ThreadModelContent } from '../matrix/protocol/threadModel';
+import {
+  THREAD_MODEL_KEY,
+  threadModelContent,
+  type ThreadModelContent,
+} from '../matrix/protocol/threadModel';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
   ModelCatalogEntry,
@@ -25,6 +29,7 @@ import {
   parseModelCatalogResponse,
   parseModelSelectionResult,
   ReasoningLevel,
+  splitModelReference,
 } from './modelProtocol';
 import {
   ModelRuntime,
@@ -32,7 +37,7 @@ import {
   isCurrentModelRuntime,
   joinedModelCandidates,
   signedModelDevices,
-} from './modelDeviceTrust';
+} from '../matrix/runtimeDeviceTrust';
 import { sendModelRequest } from './modelTransport';
 import { loadRoomCatalogs, ROOM_CATALOG_LIMIT, type RoomCatalog } from './modelCatalogStorage';
 import { randomUuid } from '../lib/randomUuid';
@@ -503,7 +508,10 @@ export class ModelController {
       );
       rooms.delete(roomId);
       if (cached.length) rooms.set(roomId, cached);
-      if (rooms.size > ROOM_CATALOG_LIMIT) rooms.delete(rooms.keys().next().value);
+      if (rooms.size > ROOM_CATALOG_LIMIT) {
+        const oldest = rooms.keys().next().value;
+        if (oldest !== undefined) rooms.delete(oldest);
+      }
       save();
     }
     scope.needsRefresh = !!scope.send;
@@ -653,8 +661,8 @@ export class ModelController {
     this.publish(scope, {
       runtime,
       models: catalog ? catalog.response.models : [],
-      override: scope.threadId ? selection?.override ?? null : scope.draft?.key ?? null,
-      reasoning: scope.threadId ? selection?.reasoning ?? null : scope.draft?.level ?? null,
+      override: scope.threadId ? (selection?.override ?? null) : (scope.draft?.key ?? null),
+      reasoning: scope.threadId ? (selection?.reasoning ?? null) : (scope.draft?.level ?? null),
       inherited: catalog ? catalog.response.selection.inherited : [],
     });
   }
@@ -674,6 +682,37 @@ export class ModelController {
       return undefined;
     const model = draft.level ? `${draft.key}@${draft.level}` : draft.key;
     return threadModelContent(catalog.runtime.userId, catalog.runtime.deviceId, model);
+  };
+
+  /** Restores a consumed next-thread draft if none was picked since and it still fits. */
+  restoreRootModelDraft = (room: Room, content: ThreadModelContent): void => {
+    const scope = this.scopes.get(scopeKey(room));
+    if (!scope || scope.draft || !this.active()) return;
+    const {
+      runtime_user_id: userId,
+      runtime_device_id: deviceId,
+      model,
+    } = content[THREAD_MODEL_KEY];
+    const catalog = [...scope.catalogs.values()].find(
+      ({ runtime }) => runtime.userId === userId && runtime.deviceId === deviceId
+    );
+    if (
+      !catalog ||
+      !hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.response.agent_user_ids)
+    )
+      return;
+    const { key, level } = splitModelReference(model);
+    const entry = catalog.response.models.find((m) => m.key === key);
+    const validLevel =
+      level !== undefined && entry?.reasoning_levels?.includes(level as ReasoningLevel)
+        ? (level as ReasoningLevel)
+        : undefined;
+    if (!entry || (level !== undefined && validLevel === undefined)) return;
+    const draft: RootModelDraft = { catalog, key, ...(validLevel ? { level: validLevel } : {}) };
+    if (!draftMatches(catalog, draft)) return;
+    scope.draft = draft;
+    scope.chosenRuntimeId = catalog.runtime.id;
+    this.showRuntime(scope, catalog.runtime);
   };
 
   /** Runs the thread on `model`, at `level` when given (as `model@level`), else on the plain key. */
@@ -1024,7 +1063,7 @@ export class ModelController {
     });
     if (rooms.size !== size) save();
     this.scopes.forEach((scope) => {
-      const catalogs = scope.catalogs.size ? scope.catalogs.values() : scope.kept ?? [];
+      const catalogs = scope.catalogs.size ? scope.catalogs.values() : (scope.kept ?? []);
       const known = [...catalogs]
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);

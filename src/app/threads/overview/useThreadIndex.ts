@@ -298,8 +298,8 @@ export const resolveThreadIndexSnapshot = ({
   const overviewThreadRootIds = showCompactRoomView
     ? compactOverviewOrdering.displayOrderedIds
     : roomThreadFilterActive
-    ? normalOverviewOrdering.displayOrderedIds
-    : [];
+      ? normalOverviewOrdering.displayOrderedIds
+      : [];
   const countThreadRootIds = showCompactRoomView ? compactThreadRootIds : visibleThreadRootIds;
 
   return {
@@ -601,7 +601,7 @@ export const useThreadIndex = ({
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
   const { threads: activeRunThreads } = useRoomActiveRuns(room);
   // Keep base records only: background-job overlays never become reuse inputs.
-  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
+  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>(undefined);
   const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;

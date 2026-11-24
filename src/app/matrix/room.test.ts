@@ -519,7 +519,7 @@ const makeUndecryptableEdit = async (eventId: string, ts: number, targetEventId:
 const relationsOf = (...edits: MatrixEvent[]) =>
   ({
     relations: { getChildEventsForEvent: vi.fn().mockReturnValue({ getRelations: () => edits }) },
-  } as any);
+  }) as any;
 
 describe('undecryptable edits', () => {
   it('keeps the last readable edit shown when a newer edit cannot be decrypted', async () => {

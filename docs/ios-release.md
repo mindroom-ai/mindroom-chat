@@ -14,12 +14,12 @@ A release tag is `vYYYY.M.N`: the year and month (UTC) it was cut in, and `N`, w
 
 `scripts/calver.mjs` is the only code that reads these tags:
 
-| Command | What it does |
-|---|---|
-| `node scripts/calver.mjs next` | prints the tag the next release gets, from the tags of the checkout (fetch them first: `git fetch --tags https://github.com/mindroom-ai/mindroom-chat.git`) |
-| `node scripts/calver.mjs latest` | prints the newest release tag of the checkout; the Image workflow points the container image's `latest` only at that release ([`deployment.md`](deployment.md#container-image)) |
-| `just release [<commit>] [--dry-run] [--yes]` | `scripts/calver.mjs release`: cuts a release by hand (below) |
-| `node scripts/calver.mjs auto <commit> --main <ref>` | what the Release workflow runs (below) |
+| Command                                              | What it does                                                                                                                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/calver.mjs next`                       | prints the tag the next release gets, from the tags of the checkout (fetch them first: `git fetch --tags https://github.com/mindroom-ai/mindroom-chat.git`)                     |
+| `node scripts/calver.mjs latest`                     | prints the newest release tag of the checkout; the Image workflow points the container image's `latest` only at that release ([`deployment.md`](deployment.md#container-image)) |
+| `just release [<commit>] [--dry-run] [--yes]`        | `scripts/calver.mjs release`: cuts a release by hand (below)                                                                                                                    |
+| `node scripts/calver.mjs auto <commit> --main <ref>` | what the Release workflow runs (below)                                                                                                                                          |
 
 The next version is `N + 1` in the month of the newest release tag, or `N = 0` of the current month once that month is later. A clock that is behind the newest tag still gives a higher version. Tags of any other form (`v0.1.0`, `v4.12.6-mindroom.180`, `nightly`) do not count.
 
@@ -69,12 +69,12 @@ Xcode Cloud runs the scripts in `ios/App/ci_scripts/`, beside `ios/App/App.xcwor
 1. `ci_post_clone.sh` installs Node and CocoaPods with Homebrew when they are missing, then `npm ci`.
 2. `ci_pre_xcodebuild.sh` fetches the tags, asks `scripts/ios-ci-version.mjs` for the versions, writes them into the App target (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`), builds the web app with `MINDROOM_RELEASE_VERSION=v<marketing version>` (`npm run build:ios`), runs `npx cap sync ios` (which runs `pod install`) and the App Store preflight.
 
-| Build | `MARKETING_VERSION` | `CURRENT_PROJECT_VERSION` |
-|---|---|---|
-| started by a release tag (`CI_TAG=v2026.11.3`) | `2026.11.3` | `CI_BUILD_NUMBER` |
-| of a commit that carries a release tag | that tag's version | `CI_BUILD_NUMBER` |
-| of any other commit, such as a push to `main` | the next release's version, `2026.11.4` after `v2026.11.3` | `CI_BUILD_NUMBER` |
-| started by a tag that is not `vYYYY.M.N` | the build fails | |
+| Build                                          | `MARKETING_VERSION`                                        | `CURRENT_PROJECT_VERSION` |
+| ---------------------------------------------- | ---------------------------------------------------------- | ------------------------- |
+| started by a release tag (`CI_TAG=v2026.11.3`) | `2026.11.3`                                                | `CI_BUILD_NUMBER`         |
+| of a commit that carries a release tag         | that tag's version                                         | `CI_BUILD_NUMBER`         |
+| of any other commit, such as a push to `main`  | the next release's version, `2026.11.4` after `v2026.11.3` | `CI_BUILD_NUMBER`         |
+| started by a tag that is not `vYYYY.M.N`       | the build fails                                            |                           |
 
 With automatic releases on, a push to `main` starts its Xcode Cloud build before the Release workflow tags it; both arrive at the same version unless another release lands in between. `IOS_MARKETING_VERSION` (or `APP_STORE_MARKETING_VERSION`) and `IOS_BUILD_NUMBER`, set as workflow environment variables, override both. The build log names the source of each value, for example `Resolved iOS marketing version from next-after:v2026.11.3`. Untagged builds of one commit range share a version and differ in build number, which App Store Connect allows; Xcode Cloud's counter only grows.
 
@@ -86,7 +86,7 @@ Checked on macbook-m5 (Xcode 27.2, iOS 27.2 SDK, Node 26) on 2026-11-05, without
 
 It runs `scripts/build-desktop-app.sh --sign` on a `macos-26` runner with `MARKETING_VERSION` set to `YYYY.M.N`. Packaging is configured in `electron/builder.config.cjs`: the bundled web app and Electron main/preload bundles live inside `app.asar`, Electron fuses are flipped before signing, hardened runtime is enabled with `electron/entitlements.mac.plist` and `electron/entitlements.helper.plist` (JIT, microphone, camera; no restricted entitlements and no provisioning profile), no URL scheme (`CFBundleURLTypes`) is registered, and the universal DMG uses the background from `scripts/macos-dmg/background.png`. `electron-builder` signs, notarizes, and staples the universal, `arm64`, and `x64` apps before packing `MindRoom-Chat.dmg`, `MindRoom-Chat-arm64-mac.zip`, and `MindRoom-Chat-x64-mac.zip` (with ZIP `.blockmap` files). `scripts/build-desktop-app.sh --sign` then signs, notarizes, and staples `MindRoom-Chat.dmg`, runs fail-closed checks on the DMG and on the `MindRoom Chat.app` unpacked from each ZIP (`codesign --verify --deep --strict`, Developer ID Application authority for team `DNA6966LGZ`, hardened runtime on each app, `xcrun stapler validate`, `spctl --assess --type open --context context:primary-signature` on the DMG, and `spctl --assess --type execute` on each unpacked `.app`), and generates `latest-mac.yml` via `scripts/desktop-latest-yml.mjs` with absolute `download/v<version>/` URLs. Any missing credential or verification failure stops the job before anything is uploaded.
 
-The job attaches `MindRoom-Chat.dmg`, `MindRoom-Chat-arm64-mac.zip`, `MindRoom-Chat-x64-mac.zip`, their `.blockmap` files, and `latest-mac.yml` to the release without `--clobber`, so published release assets are never replaced. It refuses drafts, prereleases, and any release that already carries Mac app artifacts. After `release` succeeds, the `feed` job (`ubuntu-24.04`, concurrency group `mac-desktop-feed` with `queue: max`) runs `scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"` to update the `mac-feed` prerelease's `latest-mac.yml` and, when the feed published and that release is still the newest, sends `mindroom-chat-release` to `mindroom-ai/homebrew-tap` pointing the cask `mindroom-ai/tap/mindroom-chat` at `MindRoom-Chat.dmg`. Pull requests run the offline Electron e2e suite in `desktop.yml` and publish nothing; `.github/workflows/macos.yml` no longer signs or publishes Catalyst Mac DMGs or Sparkle appcasts and runs unsigned pull-request validation only.
+The job attaches `MindRoom-Chat.dmg`, `MindRoom-Chat-arm64-mac.zip`, `MindRoom-Chat-x64-mac.zip`, their `.blockmap` files, and `latest-mac.yml` to the release without `--clobber`, so published release assets are never replaced. It refuses drafts, prereleases, and any release that already carries Mac app artifacts. After `release` succeeds, the `feed` job (`ubuntu-24.04`, concurrency group `mac-desktop-feed` with `queue: max`) runs `scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"` to update the `mac-feed` prerelease's `latest-mac.yml` and, when the feed published and that release is still the newest, sends `mindroom-chat-release` to `mindroom-ai/homebrew-tap` pointing the cask `mindroom-ai/tap/mindroom-chat` at `MindRoom-Chat.dmg`. Pull requests run the offline Electron e2e suite in `desktop.yml` and publish nothing.
 
 The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and `MACOS_CODESIGN_CERTIFICATE_PASSWORD` (the Developer ID Application certificate of team `DNA6966LGZ` as a base64 `.p12`), `MACOS_KEYCHAIN_PASSWORD` (for the runner's temporary keychain), `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` (for `notarytool`), and `RELEASE_BOT_PRIVATE_KEY` with the variable `RELEASE_BOT_APP_ID` (for dispatching to the Homebrew tap). No provisioning profile is required.
 
@@ -96,81 +96,16 @@ The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and 
 
 **Electron update feed (`mac-feed`).** `.github/workflows/desktop.yml` runs a serialized `feed` job (`needs: release`, `concurrency: { group: mac-desktop-feed, queue: max }`) that runs `scripts/macos-publish-appcast.sh --desktop "$RELEASE_TAG"`. It verifies the release is published with all six desktop assets (`MindRoom-Chat.dmg`, both ZIPs, both `.blockmap` files, and a valid `latest-mac.yml` whose `version` and ZIP URLs match `v<version>`), checks that `mac-feed` is not paused, and only advances `mac-feed/latest-mac.yml` when the release is newer than what `mac-feed` currently serves (re-running a failed `feed` job repairs publication without rebuilding). Release assets themselves are immutable and `desktop.yml` never uses `--clobber` on release tags: if `release` fails partway through uploading assets, keep completed assets and cut a new tag rather than replacing published files; if `feed` uploaded `latest-mac.yml` and only the Homebrew tap dispatch failed (or a re-run saw unchanged feed bytes and skipped dispatch), run the tap's **Update MindRoom Chat cask** workflow manually.
 
-**Stopping a rollout.** If a bad release has already shipped to `mac-feed` (for Electron, or also `mac-appcast` for legacy Catalyst if rolling back both feeds until Catalyst cleanup removes Sparkle), stop further updates in this order:
+**Stopping a rollout.** If a bad release has already shipped to `mac-feed`, stop further updates in this order:
 
-1. Upload a `PAUSED` marker asset to `mac-feed` (and to `mac-appcast` as well if rolling back both) so no queued or new publisher job advances the feed or dispatches the Homebrew tap:
+1. Upload a `PAUSED` marker asset to `mac-feed` so no queued or new publisher job advances the feed or dispatches the Homebrew tap:
    `printf 'paused\n' > PAUSED && gh release upload mac-feed PAUSED --clobber --repo mindroom-ai/mindroom-chat`
-   If also rolling back legacy Catalyst:
-   `gh release upload mac-appcast PAUSED --clobber --repo mindroom-ai/mindroom-chat`
-2. Wait until no publisher job is running (including any `desktop.yml` `feed` job under `mac-desktop-feed`), then download the last known-good release's `latest-mac.yml` and upload it to `mac-feed` with `--clobber` (and restore the last good `appcast.xml` on `mac-appcast` with `--clobber` if rolling back both):
+2. Wait until no publisher job is running (including any `desktop.yml` `feed` job under `mac-desktop-feed`), then download the last known-good release's `latest-mac.yml` and upload it to `mac-feed` with `--clobber`:
    `gh release download <last-good-tag> --pattern latest-mac.yml --repo mindroom-ai/mindroom-chat`
    `gh release upload mac-feed latest-mac.yml --clobber --repo mindroom-ai/mindroom-chat`
-   If also rolling back legacy Catalyst:
-   `gh release download <last-good-tag> --pattern appcast.xml --repo mindroom-ai/mindroom-chat`
-   `gh release upload mac-appcast appcast.xml --clobber --repo mindroom-ai/mindroom-chat`
 3. Revert the Homebrew tap cask commit in `mindroom-ai/homebrew-tap` so `brew install/upgrade --cask mindroom-chat` serves the last good DMG.
 4. Mark the bad GitHub release as a prerelease (`gh release edit <bad-tag> --prerelease --repo mindroom-ai/mindroom-chat`) so `src/app/native/macApp.ts` stops offering its DMG on the download page.
-5. Once a fixed release is ready, delete the `PAUSED` asset from `mac-feed` (`gh release delete-asset mac-feed PAUSED --yes --repo mindroom-ai/mindroom-chat`, and from `mac-appcast` if it was paused too) so normal rollouts resume, then re-run the `feed` job for any release whose feed publication was skipped while paused.
-
-**Legacy Catalyst Sparkle updater and feed (retired).** Previously, the legacy Mac Catalyst Developer ID app updated itself with [Sparkle](https://sparkle-project.org) 2.10.1 (`scripts/fetch-sparkle.sh`, pinned by checksum) in `MindRoomMacUpdater.bundle` (Mac Catalyst only; the Store app and iOS have none of it). The Catalyst `macos.yml` `dmg` and `feed` publishing jobs have been retired; the Sparkle-only scripts (`scripts/macos-appcast.sh`, `scripts/macos-updater-info-plist.sh`) and the default Sparkle mode of `scripts/macos-publish-appcast.sh` stay in the repository only until Catalyst cleanup removes them.
-
-**The keys.** The build phase `scripts/macos-updater-info-plist.sh` writes six keys into the built Mac app only, when the build setting `MINDROOM_UPDATE_FEED_URL` is set, which only `App`'s Release configuration does: `SUFeedURL` (the feed), `SUPublicEDKey` (`MINDROOM_UPDATE_PUBLIC_KEY`), `SUEnableAutomaticChecks`, `SUAutomaticallyUpdate`, `SUScheduledCheckInterval` 3600 and `SUVerifyUpdateBeforeExtraction`. Builds without the setting, every Debug build among them, carry the bundle but never start it, so a local build never replaces itself with the release. `MINDROOM_UPDATE_PUBLIC_KEY` in the project is the public half of the secret `SPARKLE_ED_PRIVATE_KEY`; a key that starts with `PLACEHOLDER` gives no build the keys, so the updater never starts and a signed release fails at its `appcast.xml`.
-
-**Making the key** (once, by Bas, on his Mac), from a clean checkout of the commit that adds the updater (its pull request's head before it merges, `main` after): `generate_keys` comes from the pinned, checksummed Sparkle, the public key it prints goes into `MINDROOM_UPDATE_PUBLIC_KEY`, and the private key leaves the login keychain only into a private folder that goes even if a step fails:
-
-```bash
-( set -euo pipefail; umask 077
-  scripts/fetch-sparkle.sh
-  dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT   # not trash: the key must not linger in ~/.Trash
-  ios/MacUpdater/Sparkle/bin/generate_keys --account mindroom-chat   # stores the key, prints the public key
-  ios/MacUpdater/Sparkle/bin/generate_keys --account mindroom-chat -x "$dir/sparkle.key"
-  gh secret set SPARKLE_ED_PRIVATE_KEY --repo mindroom-ai/mindroom-chat < "$dir/sparkle.key" )
-```
-
-The current key (2026-11-18) was made over ssh, where `generate_keys` cannot write the locked login keychain (`-25308`): `openssl genpkey -algorithm ed25519`, the last 32 bytes of its DER private key and of its DER public key, each base64, are the secret and `MINDROOM_UPDATE_PUBLIC_KEY`; `sign_update` with that file signs byte-for-byte as `openssl pkeyutl` does. Only the secret holds the private key.
-
-**A lost key** is replaced by a release whose app carries the new public key and whose enclosure is signed with the new private key: Sparkle accepts it because the DMG is signed with Developer ID by the installed app's team, and then checks the enclosure against the new app's key.
-
-**Fail closed.** A release from the updater on stops without the secret before it builds. `scripts/macos-appcast.sh` passes an `appcast.xml` on only if it has exactly one item, of this version, with one enclosure of this DMG's URL and length and a signature: an app without `SUPublicEDKey`, a private key that is not its pair or another build's DMG all end without one, before anything is uploaded. Only that step gets the secret, on standard input. `scripts/build-macos-app.sh` checks, before notarizing, that the export verifies and that the updater's executable, Sparkle and its four helpers are signed by team `DNA6966LGZ` with the hardened runtime.
-
-**Before a change merges** to signing, the updater bundle or Sparkle's version: one signed build, which ships nothing (a throwaway branch whose workflow builds, signs, notarizes, makes the `appcast.xml` with the real key and opens the notarized app until it records `SULastCheckTime`, writing to no release), or the same by hand on Bas's Mac.
-
-**Once:** apps installed before the updater shipped need one DMG that carries it installed by hand (or `brew upgrade --cask mindroom-chat`). Follow-up in `mindroom-ai/homebrew-tap`: `auto_updates true` in the cask, so `brew upgrade` leaves a self-updated app alone. A later rise of `LSMinimumSystemVersion` leaves Macs below it without updates unless the feed keeps a second item for the last release they can run.
-
-## Mac App Store
-
-`AppStoreMac` is a separate shared Catalyst scheme and application target for the Mac App Store, under the existing `chat.mindroom.app` identifier and team `DNA6966LGZ`. It reuses the client, plugins and scenes with separate sandbox entitlements and Mac category/copyright metadata. The Developer ID DMG route above now builds the Electron Mac app via `.github/workflows/desktop.yml` and `scripts/build-desktop-app.sh --sign`. The Store target has no Watch dependency or Watch embed phase.
-
-Quick Capture keeps its global Control+Option+Space shortcut and floating window. A native macOS `MindRoomMacSupport.bundle` performs the AppKit, Carbon and window-ordering operations using typed public APIs. The Store executable resolves each scene once using a unique, hidden title, caches its window weakly, restores the visible title, and clears the binding on disconnect. Ambiguous titles are rejected. Missing native support, shortcut failures and window errors are retained and shown in the main window; unsuccessful plugin operations reject. Links received by a restored widget wait for the main bridge. The Store sources contain no private `uiWindows` lookup. **Apple DTS calls the Catalyst/AppKit-bundle configuration unsupported** ([761049](https://developer.apple.com/forums/thread/761049), [769279](https://developer.apple.com/forums/thread/769279)). An unsigned build does not establish Store acceptance. Signed upload validation, a sandboxed TestFlight run and App Review are required before treating this route as accepted. Do not silently drop Quick Capture features or replace the Mac shell if validation fails.
-
-For local structural verification, commit source changes first, then set `version` and `build` explicitly to the values being checked. The wrapper requires a clean checkout so it cannot stamp uncommitted code as HEAD; the generated, untracked Podfile.lock is excluded from that check.
-
-```bash
-scripts/test-macos-support.sh
-MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" scripts/build-macos-store.sh --unsigned
-```
-
-The unsigned command stamps the bundled web assets with HEAD and the chosen marketing version, archives `AppStoreMac` into `build/mac-app-store/MindRoomChat.xcarchive`, then checks bundle IDs, versions, commit, Mac metadata, every architecture, the native support bundle and the absence of Watch products. Its binary scan rejects a literal `uiWindows` string, but Swift short-string encoding means this is only a supplementary check; source isolation and runtime/Apple validation remain necessary. The command never signs, notarizes, uploads or starts a cloud build. A new sandboxed Store installation may require a new sign-in and Matrix verification; it does not migrate or modify the DMG's existing data.
-
-Configure a **separate Xcode Cloud workflow**, keeping the existing iOS workflow unchanged:
-
-1. Source repository `mindroom-ai/mindroom-chat`, branch changes on `main`, shared scheme `AppStoreMac`, workspace `ios/App/App.xcworkspace`.
-2. Archive action `Archive - macOS`, platform macOS, destination Mac Catalyst, distribution preparation **App Store Connect** / **TestFlight and App Store**.
-3. Internal TestFlight post-action for the Mac archive and the existing `MindRoom Testers` group. Add no external testing.
-
-The pre-build script recognizes `CI_XCODE_SCHEME=AppStoreMac` and rejects an unexpected `CI_PRODUCT_PLATFORM` instead of entering the iOS path. It versions only AppStoreMac and its native support bundle using the product's positive, increasing `CI_BUILD_NUMBER`, and stamps web content with the actual checkout commit. iOS actions continue versioning App and the Watch targets. The post-build hook requires both `CI_ARCHIVE_PATH` and `CI_APP_STORE_SIGNED_APP_PATH`, checks the archive structure, and fully checks the signed export before distribution. Expected version/build values are resolved independently from the source and CI environment. Missing, ambiguous or invalid exports fail the build. Other schemes keep their existing path. Confirm the first Cloud run supplies the documented export variable and blocks distribution on any hook failure. PRs exercise the native contract and both unsigned Mac archive paths and publish neither.
-
-The same check can inspect a downloaded export directory, `.app` or flat `.pkg` without installing it:
-
-```bash
-node scripts/macos-store-preflight.mjs "$app" "$version" "$build" "$commit"
-```
-
-Without `--structure-only`, this also verifies signatures, team `DNA6966LGZ`, Mac App Store distribution identities and signed sandbox/media/user-selected-file/network entitlements, production APNs and associated domains. Installer packages additionally require the team's Mac App Store installer signature; temporary extraction is removed after inspecting the enclosed app. Confirm Apple's processed build is App Store eligible; do not substitute Developer ID or development signing. Reuse Xcode Cloud signing instead of adding notarization credentials to this workflow.
-
-Before review, exercise login/logout and encrypted history after restart, SSO/custom/universal links, notifications, voice messages, calls with microphone/camera permission denial and recovery, file selection/export/drag-drop, and Quick Capture from another app and full-screen Spaces, both screenshot targets and keyboard return. Screenshots require macOS 15.2 or later, as the existing ScreenCaptureKit guard specifies. Decide whether incoming-network access is needed from real WebRTC tests and sandbox evidence; do not grant broad filesystem access. Keep test accounts and captures separate from existing user data.
-
-Add the macOS platform and safe Mac screenshots/review instructions to the existing App Store record only after reviewed fixes and validation. Mac versions have their own submission; preserve any pending iOS/Watch submission. Use the actual processed version/build and its release-tag source commit, show the concrete submission before final approval, and retain automatic release after approval. Stop on an Apple error, unanswered questionnaire, required agreement/tax/bank acceptance, or sign-in/2FA prompt. The iOS fastlane screenshot/submission lane is not the Mac release path.
+5. Once a fixed release is ready, delete the `PAUSED` asset from `mac-feed` (`gh release delete-asset mac-feed PAUSED --yes --repo mindroom-ai/mindroom-chat`) so normal rollouts resume, then re-run the `feed` job for any release whose feed publication was skipped while paused.
 
 ## Moving the App Store app to this repository
 

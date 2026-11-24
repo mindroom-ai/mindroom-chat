@@ -66,22 +66,27 @@ const capabilities: Capabilities = {
 
 const matrixClient = {} as any;
 
-const renderForm = (clientConfig: ClientConfig): ReactTestRenderer =>
-  create(
-    React.createElement(
-      ClientConfigProvider,
-      { value: clientConfig },
+const renderForm = (clientConfig: ClientConfig): ReactTestRenderer => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
       React.createElement(
-        CapabilitiesProvider,
-        { value: capabilities },
+        ClientConfigProvider,
+        { value: clientConfig },
         React.createElement(
-          MatrixClientProvider,
-          { value: matrixClient },
-          React.createElement(CreateRoomForm)
+          CapabilitiesProvider,
+          { value: capabilities },
+          React.createElement(
+            MatrixClientProvider,
+            { value: matrixClient },
+            React.createElement(CreateRoomForm)
+          )
         )
       )
-    )
-  );
+    );
+  });
+  return renderer;
+};
 
 const textContent = (renderer: ReactTestRenderer): string => JSON.stringify(renderer.toJSON());
 
@@ -130,30 +135,33 @@ describe('CreateRoomForm room policy config', () => {
   });
 
   it('keeps public room creation unencrypted even when the configured default enables encryption', async () => {
-    const renderer = create(
-      React.createElement(
-        ClientConfigProvider,
-        {
-          value: {
-            createRoom: {
-              showEncryptionOption: false,
-              defaultEncryption: true,
-              showFederationOption: false,
-              defaultFederation: false,
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          {
+            value: {
+              createRoom: {
+                showEncryptionOption: false,
+                defaultEncryption: true,
+                showFederationOption: false,
+                defaultFederation: false,
+              },
             },
           },
-        },
-        React.createElement(
-          CapabilitiesProvider,
-          { value: capabilities },
           React.createElement(
-            MatrixClientProvider,
-            { value: matrixClient },
-            React.createElement(CreateRoomForm, { defaultAccess: CreateRoomAccess.Public })
+            CapabilitiesProvider,
+            { value: capabilities },
+            React.createElement(
+              MatrixClientProvider,
+              { value: matrixClient },
+              React.createElement(CreateRoomForm, { defaultAccess: CreateRoomAccess.Public })
+            )
           )
         )
-      )
-    );
+      );
+    });
 
     await submitForm(renderer);
 

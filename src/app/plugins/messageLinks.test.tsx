@@ -23,6 +23,7 @@ const plugin = (
   id,
   tag: `${id}@1.0.0`,
   displayName: id,
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],

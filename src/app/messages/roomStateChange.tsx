@@ -62,8 +62,6 @@ export function RoomStateSentence({ change, sender }: { change: RoomStateChange;
       i18nKey={change.key as never}
       values={{ sender, value: revealDirectionControls(change.value ?? '') }}
       components={{ sender: <b dir="auto" />, value: <bdi /> }}
-      tOptions={{ interpolation: { escapeValue: true } }}
-      shouldUnescape
     />
   );
 }

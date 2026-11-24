@@ -392,7 +392,7 @@ describe('EventSourceViewer', () => {
     };
     const r = renderViewer(i18n, ev, {
       options: {
-        createNodeMock: (el) =>
+        createNodeMock: (el: React.ReactElement<any>) =>
           el.type === 'button' && el.props.role === 'tab'
             ? { focus: focusSpies[String(el.props.children ?? '')] ?? vi.fn() }
             : null,
@@ -452,7 +452,7 @@ describe('EventSourceViewer', () => {
     const focused: string[] = [];
     const rFocus = renderViewer(i18n, rich, {
       options: {
-        createNodeMock: (el) =>
+        createNodeMock: (el: React.ReactElement<any>) =>
           el.props.className === 'FoldButton'
             ? { focus: () => focused.push(String(el.props['aria-label'])) }
             : null,

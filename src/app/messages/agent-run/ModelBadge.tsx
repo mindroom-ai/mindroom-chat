@@ -5,7 +5,7 @@ import {
   getAiRunCompactModelLabel,
   getAiRunModelLabel,
 } from '../../matrix/protocol/aiRunModelLabel';
-import { ProviderModelIcon } from '../../models/ProviderModelIcon';
+import { ProviderModelIcon } from '../../ui/ProviderModelIcon';
 import { TipButton } from '../../ui/TipButton';
 import * as css from './ModelBadge.css';
 
@@ -33,7 +33,7 @@ export function ModelBadge({ info }: { info: AiRunInfo }) {
   const fullModelLabel =
     info.modelDisplayName && modelDetails && modelDetails !== label
       ? `${label} · ${modelDetails}`
-      : modelDetails ?? label;
+      : (modelDetails ?? label);
 
   return (
     <TipButton

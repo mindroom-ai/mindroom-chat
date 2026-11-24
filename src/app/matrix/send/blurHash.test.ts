@@ -45,7 +45,7 @@ describe('encodeBlurHash', () => {
       drawImage: vi.fn(),
       getImageData: vi.fn(
         (_x: number, _y: number, width: number, height: number) =>
-          ({ data: solidPixels(width, height, [200, 40, 40]) } as ImageData)
+          ({ data: solidPixels(width, height, [200, 40, 40]) }) as ImageData
       ),
     });
 

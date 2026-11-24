@@ -49,7 +49,7 @@ type Shown = Pick<CompactThreadCardViewModel, 'lastActivityTs' | 'isStreaming' |
  * Activity that only loads (older than a minute) plays nothing, and neither does each part of an
  * answer still being written: the card would glow for as long as the agent writes.
  */
-const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
+const useShowChange = (cardRef: RefObject<HTMLElement | null>, now: Shown): void => {
   const { lastActivityTs, isStreaming, messageCount } = now;
   const shownRef = useRef<Shown>(now);
   useEffect(() => {
@@ -142,7 +142,7 @@ function CompactThreadCardBase({
     previewText,
     hasReplies ? messageCountLabel : undefined,
     isResolved
-      ? resolvedByLabel ?? t('thread.aria.resolvedThread')
+      ? (resolvedByLabel ?? t('thread.aria.resolvedThread'))
       : t('thread.aria.unresolvedThread'),
     isUnread ? t('thread.aria.unreadMessages') : undefined,
     isStreaming ? t('thread.aria.agentStreaming') : undefined,

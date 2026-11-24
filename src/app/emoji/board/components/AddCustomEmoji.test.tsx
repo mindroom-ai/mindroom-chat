@@ -100,7 +100,7 @@ const serverRoomWith = (packs: Record<string, PackImages>) =>
           ),
       }),
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const serverRoom = serverRoomWith({ '': {} });
 const personalDescription = 'It is saved to your Personal Pack, so you can use it in every room.';

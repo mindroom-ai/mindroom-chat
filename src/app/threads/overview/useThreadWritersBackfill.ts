@@ -79,7 +79,7 @@ export const useThreadWritersBackfill = (options: UseThreadWritersBackfillOption
   const engine = useSyncEngine();
   const latestRef = useRef({ ...options, engine });
   latestRef.current = { ...options, engine };
-  const stateRef = useRef<BackfillState>();
+  const stateRef = useRef<BackfillState>(undefined);
   if (stateRef.current?.room !== room) {
     stateRef.current = {
       room,

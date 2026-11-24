@@ -361,10 +361,10 @@ test.describe('live issue073 persistent thread navigation', () => {
         viewport.label === 'mobile-narrow'
           ? 10
           : viewport.label === 'desktop'
-          ? 8
-          : viewport.label === 'desktop-short'
-          ? 1
-          : 2;
+            ? 8
+            : viewport.label === 'desktop-short'
+              ? 1
+              : 2;
       const { fixtures, homeserver, password, roomNames, session, spaceId, username } =
         await prepareThreadFixtures(threadCount);
       await setAccountData(
@@ -443,7 +443,7 @@ test.describe('live issue073 persistent thread navigation', () => {
         'Resize Recently Opened'
       );
       if (viewport.label === 'desktop') {
-        expectedExpandedHeight = await dragRecentlyOpenedPanel(page, -80, viewport.height);
+        await dragRecentlyOpenedPanel(page, -80, viewport.height);
         expectedExpandedHeight = await dragRecentlyOpenedPanel(page, 40, viewport.height);
         await page.reload();
         await waitForLoggedInShell(page);

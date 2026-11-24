@@ -232,8 +232,8 @@ describe('SubagentsPanel interactive inner detail swipes', () => {
     expect(underLayer.getAttribute('aria-hidden')).toBe('true');
     expect(detailLayer.hasAttribute('data-swiping')).toBe(true);
     expect(detailLayer.hasAttribute('data-swipe-shadow')).toBe(true);
-    expect(detailLayer.style.translate).toBe('72px 0');
-    expect(underLayer.style.translate).toBe('-86.4px 0');
+    expect(detailLayer.style.translate).toBe('72px');
+    expect(underLayer.style.translate).toBe('-86.4px');
 
     act(() => {
       dispatchEdgeTouch('touchend', [], 400);

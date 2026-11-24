@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -87,17 +87,20 @@ it.each([
     )} …${PDI} (${LRI}@mallory:evil.example${PDI})`,
   ],
 ])('shows an inviter with %s next to the real ID', (_case, inviterId, displayname, expected) => {
-  const renderer = create(
-    <MatrixClientProvider value={mx}>
-      <InviteCard
-        invite={makeInviteData(mx, inviteRoom(inviterId, displayname), false)}
-        hour24Clock={false}
-        dateFormatString="D MMM YYYY"
-        onNavigate={vi.fn()}
-        hideAvatar={false}
-      />
-    </MatrixClientProvider>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <InviteCard
+          invite={makeInviteData(mx, inviteRoom(inviterId, displayname), false)}
+          hour24Clock={false}
+          dateFormatString="D MMM YYYY"
+          onNavigate={vi.fn()}
+          hideAvatar={false}
+        />
+      </MatrixClientProvider>
+    );
+  });
 
   const sender = renderer.root.find((node) => node.type === 'b' && node.props.title !== undefined);
   expect(sender.children).toEqual([expected]);
@@ -113,43 +116,49 @@ it('checks the whole display name for bad words, not the shortened label', () =>
 });
 
 it('shows a name holding the label placeholder with the real ID close after it', () => {
-  // i18next used to insert this escaped name up to 1000 times (patches/i18next+23.12.2.patch);
-  // Trans still interpolates the label's text once more, so it shows twice.
+  // i18next 26.5 stopped repeating escaped self-placeholders up to 1000 times, and react-i18next
+  // 18.0.3 stopped Trans from interpolating placeholders inside a value a second time.
   const label = `${FSI}Maya (@maya:matrix.localhost)////////{{sender}}${PDI} (${LRI}@mallory:evil.example${PDI})`;
-  const renderer = create(
-    <MatrixClientProvider value={mx}>
-      <InviteCard
-        invite={makeInviteData(
-          mx,
-          inviteRoom('@mallory:evil.example', 'Maya (@maya:matrix.localhost)////////{{sender}}'),
-          false
-        )}
-        hour24Clock={false}
-        dateFormatString="D MMM YYYY"
-        onNavigate={vi.fn()}
-        hideAvatar={false}
-      />
-    </MatrixClientProvider>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <InviteCard
+          invite={makeInviteData(
+            mx,
+            inviteRoom('@mallory:evil.example', 'Maya (@maya:matrix.localhost)////////{{sender}}'),
+            false
+          )}
+          hour24Clock={false}
+          dateFormatString="D MMM YYYY"
+          onNavigate={vi.fn()}
+          hideAvatar={false}
+        />
+      </MatrixClientProvider>
+    );
+  });
 
   const sender = renderer.root.find((node) => node.type === 'b' && node.props.title !== undefined);
-  expect(sender.children).toEqual([label.replace('{{sender}}', label)]);
+  expect(sender.children).toEqual([label]);
 });
 
 it('shows an inviter name that holds markup as text, in one bold name with no added props', () => {
   // A name that would add an inline handler to the bold inviter it fills, read as markup.
   const displayname = '<b is onclick="alert(1)">Maya</b>';
-  const renderer = create(
-    <MatrixClientProvider value={mx}>
-      <InviteCard
-        invite={makeInviteData(mx, inviteRoom('@mallory:evil.example', displayname), false)}
-        hour24Clock={false}
-        dateFormatString="D MMM YYYY"
-        onNavigate={vi.fn()}
-        hideAvatar={false}
-      />
-    </MatrixClientProvider>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <InviteCard
+          invite={makeInviteData(mx, inviteRoom('@mallory:evil.example', displayname), false)}
+          hour24Clock={false}
+          dateFormatString="D MMM YYYY"
+          onNavigate={vi.fn()}
+          hideAvatar={false}
+        />
+      </MatrixClientProvider>
+    );
+  });
 
   const bold = renderer.root.findAll((node) => node.type === 'b');
   expect(bold).toHaveLength(1);

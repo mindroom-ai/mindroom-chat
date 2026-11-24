@@ -55,7 +55,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
 vi.mock('./ImageViewer.css', () => ({
@@ -163,13 +163,16 @@ describe('attachment viewer downloads', () => {
   it('shows a retry action when saving from the image viewer fails', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
     const { ImageViewer } = await import('./ImageViewer');
-    const renderer = create(
-      React.createElement(ImageViewer, {
-        alt: 'photo.png',
-        src: 'https://example.test/photo.png',
-        requestClose: vi.fn(),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ImageViewer, {
+          alt: 'photo.png',
+          src: 'https://example.test/photo.png',
+          requestClose: vi.fn(),
+        })
+      );
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Download')?.props.onClick();
@@ -193,13 +196,16 @@ describe('attachment viewer downloads', () => {
   it('shows a retry action when saving from the PDF viewer fails', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
     const { PdfViewer } = await import('./PdfViewer');
-    const renderer = create(
-      React.createElement(PdfViewer, {
-        name: 'report.pdf',
-        src: 'blob:report',
-        requestClose: vi.fn(),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(PdfViewer, {
+          name: 'report.pdf',
+          src: 'blob:report',
+          requestClose: vi.fn(),
+        })
+      );
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Download')?.props.onClick();
@@ -227,7 +233,10 @@ describe('attachment viewer downloads', () => {
         url,
         info: { size: 5 },
       });
-    const renderer = create(renderDownloadFile('agent-output.txt', 'mxc://example.test/file'));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(renderDownloadFile('agent-output.txt', 'mxc://example.test/file'));
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Download (0.0 KB)')?.props.onClick();
@@ -271,13 +280,16 @@ describe('attachment viewer downloads', () => {
   it('retries a failed file-header save without downloading the file again', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
     const { FileDownloadButton } = await import('../content/FileHeader');
-    const renderer = create(
-      React.createElement(FileDownloadButton, {
-        filename: 'recording.m4a',
-        mimeType: 'audio/mp4',
-        url: 'mxc://example.test/audio',
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(FileDownloadButton, {
+          filename: 'recording.m4a',
+          mimeType: 'audio/mp4',
+          url: 'mxc://example.test/audio',
+        })
+      );
+    });
 
     const getDownloadButton = () =>
       renderer.root
@@ -302,20 +314,21 @@ describe('attachment viewer downloads', () => {
 
   it('retries a failed long-response save without downloading the sidecar again', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
-    const { DownloadOriginalMenuItem } = await import(
-      '../MessageControls'
-    );
+    const { DownloadOriginalMenuItem } = await import('../MessageControls');
     const onClose = vi.fn();
-    const renderer = create(
-      React.createElement(DownloadOriginalMenuItem, {
-        source: {
-          previewContent: {},
-          mxcUri: 'mxc://example.test/response',
-          isV2ContentJson: true,
-        },
-        onClose,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(DownloadOriginalMenuItem, {
+          source: {
+            previewContent: {},
+            mxcUri: 'mxc://example.test/response',
+            isV2ContentJson: true,
+          },
+          onClose,
+        })
+      );
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Download Original')?.props.onClick();
@@ -336,20 +349,21 @@ describe('attachment viewer downloads', () => {
 
   it('keeps the long-response menu open when the native save picker is cancelled', async () => {
     saveFileMock.mockResolvedValueOnce(false);
-    const { DownloadOriginalMenuItem } = await import(
-      '../MessageControls'
-    );
+    const { DownloadOriginalMenuItem } = await import('../MessageControls');
     const onClose = vi.fn();
-    const renderer = create(
-      React.createElement(DownloadOriginalMenuItem, {
-        source: {
-          previewContent: {},
-          mxcUri: 'mxc://example.test/response',
-          isV2ContentJson: true,
-        },
-        onClose,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(DownloadOriginalMenuItem, {
+          source: {
+            previewContent: {},
+            mxcUri: 'mxc://example.test/response',
+            isV2ContentJson: true,
+          },
+          onClose,
+        })
+      );
+    });
 
     await act(async () => {
       findButtonByText(renderer, 'Download Original')?.props.onClick();
@@ -367,18 +381,19 @@ describe('attachment viewer downloads', () => {
         finishSave = resolve;
       })
     );
-    const { DownloadOriginalMenuItem } = await import(
-      '../MessageControls'
-    );
-    const renderer = create(
-      React.createElement(DownloadOriginalMenuItem, {
-        source: {
-          previewContent: {},
-          mxcUri: 'mxc://example.test/response',
-          isV2ContentJson: true,
-        },
-      })
-    );
+    const { DownloadOriginalMenuItem } = await import('../MessageControls');
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(DownloadOriginalMenuItem, {
+          source: {
+            previewContent: {},
+            mxcUri: 'mxc://example.test/response',
+            isV2ContentJson: true,
+          },
+        })
+      );
+    });
     const downloadButton = findButtonByText(renderer, 'Download Original');
 
     await act(async () => {

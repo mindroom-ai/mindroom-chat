@@ -118,7 +118,7 @@ const renderCollapsibleMessage = (
 
   act(() => {
     renderer = create(tree, {
-      createNodeMock: (element) => {
+      createNodeMock: (element: React.ReactElement<any>) => {
         if (
           element.type === 'div' &&
           typeof element.props.className === 'string' &&
@@ -838,7 +838,7 @@ describe('CollapsibleMessage', () => {
 
     act(() => {
       renderer = create(renderWithBaseline(false), {
-        createNodeMock: (element) => {
+        createNodeMock: (element: React.ReactElement<any>) => {
           if (
             element.type === 'div' &&
             typeof element.props.className === 'string' &&

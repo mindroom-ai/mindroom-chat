@@ -144,10 +144,11 @@ describe('readClientPlugins', () => {
       description: '  Helpful description  ',
     });
     const blank = pluginDir({
-      ...declaring({ id: 'blank-meta', name: '   ' }),
+      ...declaring({ id: 'blank-meta', name: '   ', defaultEnabled: true }),
       description: '   ',
     });
-    expect(readClientPlugins(` ${EXAMPLE} ,${other},${blank},`)).toEqual([
+    const optIn = pluginDir(declaring({ id: 'opt-in', defaultEnabled: false }));
+    expect(readClientPlugins(` ${EXAMPLE} ,${other},${blank},${optIn},`)).toEqual([
       {
         id: 'example',
         version: '1.0.0',
@@ -169,6 +170,13 @@ describe('readClientPlugins', () => {
         version: '2.0.0',
         dir: blank,
         entry: path.join(blank, 'index.js'),
+      },
+      {
+        id: 'opt-in',
+        version: '2.0.0',
+        defaultEnabled: false,
+        dir: optIn,
+        entry: path.join(optIn, 'index.js'),
       },
     ]);
   });
@@ -219,6 +227,11 @@ describe('readClientPlugins', () => {
       /build "\.\/build\.mjs" does not exist/,
     ],
     [
+      'a defaultEnabled that is not a boolean',
+      () => pluginDir(declaring({ defaultEnabled: 'false' })),
+      /defaultEnabled "false" is not a boolean/,
+    ],
+    [
       'a build module outside its directory',
       () => {
         const elsewhere = path.join(emptyDir(), 'build.mjs');
@@ -255,18 +268,20 @@ describe('readClientPlugins', () => {
 describe('clientPlugins', () => {
   it('builds each listed plugin into the entries module', async () => {
     const named = pluginDir({
-      ...declaring({ id: 'named-plugin', name: 'Named Plugin' }),
+      ...declaring({ id: 'named-plugin', name: 'Named Plugin', defaultEnabled: true }),
       description: 'Adds a custom view',
     });
+    const optIn = pluginDir(declaring({ id: 'opt-in', defaultEnabled: false }));
     const code = await buildCode(
-      { MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${named}` },
+      { MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${named},${optIn}` },
       { external: packages }
     );
     expect(code).toContain('com.example.greeting');
     expect(code).toMatch(/id: "example",\s*version: "1\.0\.0"/);
     expect(code).toMatch(
-      /id: "named-plugin",\s*version: "2\.0\.0",\s*name: "Named Plugin",\s*description: "Adds a custom view"/
+      /id: "named-plugin",\s*version: "2\.0\.0",\s*name: "Named Plugin",\s*description: "Adds a custom view",\s*plugin:/
     );
+    expect(code).toMatch(/id: "opt-in",\s*version: "2\.0\.0",\s*defaultEnabled: false,/);
     // Its build module (build.mjs) writes its banner's words in place of their marker.
     expect(code).toContain('Example banner in');
     expect(code).not.toContain('EXAMPLE_BANNER');
@@ -313,7 +328,7 @@ describe('clientPlugins', () => {
     );
     const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules));
     // The SDK's exports are the app's own modules, not copies or stand-ins.
-    expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
+    expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginDeploymentConfig.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/matrix/hooks/useRoomMembers.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/ui/MenuEntry.tsx'));
   });
@@ -407,7 +422,7 @@ describe("a plugin's public/ directory", () => {
       'sub/page.html': ['<p>A page</p>', 'text/html; charset=utf-8'],
       'worker.js': [
         "self.onmessage = () => postMessage('ok');\n",
-        'application/javascript; charset=utf-8',
+        'text/javascript; charset=utf-8',
       ],
       'C#-guide.txt': ['A guide', 'text/plain; charset=utf-8'],
     };
@@ -650,10 +665,10 @@ describe('packages the app shares with plugins', () => {
 
   it("gives the packages a plugin installed, as the dev server pre-bundles them, the module the app's pre-bundle has", async () => {
     const dir = realpathSync(pluginDir(declaring(), { entry: false }));
-    importing(dir, ['jotai', 'helper', 'required']);
-    installStandIn(dir, 'jotai', 'export const pluginsOwnJotai = true;\n');
-    installStandIn(dir, 'helper', "export * from 'jotai';\n");
-    installStandIn(dir, 'required', "module.exports = require('jotai');\n");
+    importing(dir, ['@tanstack/react-query', 'helper', 'required']);
+    installStandIn(dir, '@tanstack/react-query', 'export const pluginsOwnReactQuery = true;\n');
+    installStandIn(dir, 'helper', "export * from '@tanstack/react-query';\n");
+    installStandIn(dir, 'required', "module.exports = require('@tanstack/react-query');\n");
     const config = await resolveConfig(
       {
         configFile: false,
@@ -666,18 +681,18 @@ describe('packages the app shares with plugins', () => {
       'serve'
     );
     expect(Object.keys((await optimizeDeps(config, true)).optimized).sort()).toEqual([
+      '@tanstack/react-query',
       'helper',
-      'jotai',
       'required',
     ]);
     const deps = path.join(config.cacheDir, 'deps');
     const code = readdirSync(deps)
       .filter((name) => name.endsWith('.js'))
       .map((name) => readFileSync(path.join(deps, name), 'utf8'));
-    // One jotai for the three, the app's ES module: its CommonJS build in `required` would be a
-    // second one, and the plugin's own copy a third.
-    expect(code.filter((text) => text.includes('keyCount'))).toHaveLength(1);
-    expect(code.filter((text) => text.includes('pluginsOwnJotai'))).toEqual([]);
+    // One @tanstack/react-query for the three, the app's ES module: its CommonJS build in
+    // `required` would be a second one, and the plugin's own copy a third.
+    expect(code.filter((text) => text.includes('No QueryClient set'))).toHaveLength(1);
+    expect(code.filter((text) => text.includes('pluginsOwnReactQuery'))).toEqual([]);
   });
 
   it('leaves the imports of files outside the plugins as they were in the dev server', async () => {

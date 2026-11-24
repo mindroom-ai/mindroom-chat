@@ -13,7 +13,7 @@ It adds `files`, one entry per file a review changed, in change order:
 
 ```json
 {
-  "changes": {"developing-mindroom-chat": "updated"},
+  "changes": { "developing-mindroom-chat": "updated" },
   "files": [
     {
       "skill": "developing-mindroom-chat",

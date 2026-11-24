@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap, type FocusTrapProps } from 'focus-trap-react';
 import classNames from 'classnames';
 import { config, type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
@@ -33,7 +33,7 @@ type InviteAutocompleteMenuProps = {
   children: ReactNode;
 };
 
-type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
 /** Where the anchor box sat on screen, and the viewport height it was read against. */
 type Measurement = { anchor: RectCords; viewportHeight: number };
@@ -82,7 +82,7 @@ const isMoving = (box: Element): boolean =>
  */
 const useOpenMeasurement = (
   open: boolean,
-  anchorBoxRef: RefObject<HTMLElement>
+  anchorBoxRef: RefObject<HTMLElement | null>
 ): Measurement | undefined => {
   const [measurement, setMeasurement] = useState<Measurement>();
 
@@ -130,13 +130,13 @@ const useOpenMeasurement = (
 const useDismissTrapOptions = (
   open: boolean,
   requestClose: () => void,
-  listRef: RefObject<HTMLElement>
+  listRef: RefObject<HTMLElement | null>
 ): TrapOptions => {
   const alive = useAlive();
   const newestRequestClose = useRef(requestClose);
   // Numbers each opening; `shown` is the opening on screen, undefined while the list is closed.
   const openings = useRef(0);
-  const shown = useRef<number>();
+  const shown = useRef<number>(undefined);
   // For each deactivation still to be reported, oldest first: the opening it ended.
   const unreported = useRef<Array<number | undefined>>([]);
 

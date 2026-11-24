@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, ReactNode } from 'react';
 import {
   Box,
   Button,
@@ -25,8 +25,10 @@ import { CheckIcon, CopyIcon } from '../../rich-text/code/CodeBlockIcons';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
+import type { DesktopUpdateCheckOutcome } from '../../lib/desktopBridge';
 import { isDesktopApp } from '../../lib/nativeShell';
 import { isNativeIOS } from '../../native/nativeSso';
+import { checkNativeUpdate, isNativeUpdateAvailable } from '../../native/nativeUpdate';
 import { MacAppIcon } from '../../native/MacAppIcon';
 import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
@@ -40,6 +42,11 @@ import {
 } from '../../diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../diagnostics/diagnosticsExport';
 import { getDebugModeEnabled, setDebugModeEnabled } from '../../diagnostics/debugMode';
+import {
+  getReadyVersion,
+  reloadForNewVersion,
+  subscribeToNewVersion,
+} from '../../config/appUpdate';
 import { APP_RELEASE_VERSION } from '../../config/appVersion';
 import { parseDsn } from '../../bug-reports/error-reporting/errorReporting';
 import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
@@ -59,8 +66,8 @@ function DiagnosticsExport() {
     status === 'unexpected'
       ? t('featureUi.settings.about.diagnosticsUnexpected')
       : status === 'unavailable'
-      ? t('featureUi.settings.about.diagnosticsUnavailable')
-      : t('featureUi.settings.about.diagnosticsNone');
+        ? t('featureUi.settings.about.diagnosticsUnavailable')
+        : t('featureUi.settings.about.diagnosticsNone');
 
   const handleExport = async () => {
     if (exportingRef.current) return;
@@ -121,7 +128,7 @@ function DeepTraceSetting() {
     pendingRef.current = true;
     setPending(true);
     setNotice(undefined);
-    let saved = false;
+    let saved: boolean;
     try {
       saved = await setDeepTraceEnabled(next);
     } catch {
@@ -301,6 +308,100 @@ function TourSetting({ onStart }: { onStart: () => void }) {
   );
 }
 
+/** In-app update check and install control for the packaged Electron desktop app. */
+function AppUpdateSetting() {
+  const { t } = useTranslation();
+  const readyVersion = useSyncExternalStore(subscribeToNewVersion, getReadyVersion);
+  const [trackedVersion, setTrackedVersion] = useState(readyVersion);
+  const [checking, setChecking] = useState(false);
+  const [checkOutcome, setCheckOutcome] = useState<DesktopUpdateCheckOutcome>();
+  const [installState, setInstallState] = useState<'idle' | 'restarting' | 'failed'>('idle');
+
+  if (trackedVersion !== readyVersion) {
+    setTrackedVersion(readyVersion);
+    setCheckOutcome(undefined);
+    setInstallState('idle');
+  }
+
+  const handleCheck = async () => {
+    setChecking(true);
+    setCheckOutcome(undefined);
+    try {
+      const result = await checkNativeUpdate();
+      setCheckOutcome(result.version ? undefined : result.outcome);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleRestart = () => {
+    setInstallState('restarting');
+    void reloadForNewVersion().catch(() => setInstallState('failed'));
+  };
+
+  const restarting = installState === 'restarting';
+  const description =
+    readyVersion !== undefined
+      ? installState === 'failed'
+        ? t('featureUi.settings.about.updateInstallFailed')
+        : t('featureUi.settings.about.updateReady', { version: readyVersion })
+      : checking
+        ? t('featureUi.settings.about.checkingForUpdates')
+        : checkOutcome === 'none'
+          ? t('featureUi.settings.about.upToDate')
+          : checkOutcome === 'found'
+            ? t('featureUi.settings.about.updateAvailable')
+            : checkOutcome === 'error'
+              ? t('featureUi.settings.about.updateCheckFailed')
+              : t('featureUi.settings.about.updatesDescription');
+
+  return (
+    <SettingTile
+      focusId="appUpdates"
+      title={t('featureUi.settings.about.updatesTitle')}
+      description={<span role="status">{description}</span>}
+      after={
+        readyVersion !== undefined ? (
+          <Button
+            variant="Primary"
+            fill="Solid"
+            size="300"
+            radii="300"
+            before={
+              restarting ? (
+                <Spinner variant="Primary" fill="Solid" size="100" />
+              ) : (
+                <Icon src={Icons.Reload} size="100" />
+              )
+            }
+            disabled={restarting}
+            onClick={handleRestart}
+          >
+            <Text size="B300">
+              {restarting
+                ? t('sharedUi.appUpdate.updating')
+                : t('featureUi.settings.about.restartToUpdate')}
+            </Text>
+          </Button>
+        ) : (
+          <Button
+            variant="Secondary"
+            fill="Soft"
+            size="300"
+            radii="300"
+            outlined
+            before={checking ? <Spinner size="100" /> : undefined}
+            disabled={checking}
+            onClick={() => void handleCheck()}
+          >
+            <Text size="B300">{t('featureUi.settings.about.checkForUpdates')}</Text>
+          </Button>
+        )
+      }
+    />
+  );
+}
+
 /**
  * The Mac app, in a browser on a Mac: its disk image, and the Homebrew command that installs it,
  * with a button that copies it. A phone's tile has no room beside its text for the download, which
@@ -316,8 +417,8 @@ function MacAppSetting() {
     copied === undefined
       ? ''
       : copied
-      ? t('messageCodeBlock.copied')
-      : t('featureUi.macApp.copyFailed');
+        ? t('messageCodeBlock.copied')
+        : t('featureUi.macApp.copyFailed');
   const copy = () => {
     // Emptied first, so the live region announces a second copy's outcome again.
     setCopied(undefined);
@@ -586,12 +687,14 @@ export function About({ requestClose, closeDialog }: AboutProps) {
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
+  const nativeUpdate = isNativeUpdateAvailable();
   const macApp = useOffersMacApp();
 
   return (
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
+        {nativeUpdate && <AppUpdateSetting />}
         {macApp && <MacAppSetting />}
         <DebugModeSetting
           enabled={debugMode}

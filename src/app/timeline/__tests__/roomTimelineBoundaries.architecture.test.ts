@@ -43,9 +43,7 @@ describe('RoomTimeline dependency boundary', () => {
     const dependencies = resolvedDependencies(TIMELINE_FILE, { includeTypeOnly: false });
 
     for (const dependency of FORBIDDEN_LOW_LEVEL_DEPENDENCIES) {
-      expect(pathExists(appFile(dependency)), `missing guarded owner ${dependency}`).toBe(
-        true
-      );
+      expect(pathExists(appFile(dependency)), `missing guarded owner ${dependency}`).toBe(true);
       expect(dependencies, `timeline bypasses its adapter via ${dependency}`).not.toContain(
         appFile(dependency)
       );

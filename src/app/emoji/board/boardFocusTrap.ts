@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { stopPropagation } from '../../lib/keyboard';
 
 type TrapOptions = NonNullable<ComponentProps<typeof FocusTrap>['focusTrapOptions']>;

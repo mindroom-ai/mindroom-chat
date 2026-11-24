@@ -735,9 +735,9 @@ test('custom thread popups receive shared material and retain keyboard actions',
 
   await overview.locator('[data-tag-filter-button]').click();
   const tags = overview.locator('[data-tag-filter-panel]');
-  expect(
-    await tags.evaluate((element) => getComputedStyle(element).backdropFilter)
-  ).not.toBe('none');
+  expect(await tags.evaluate((element) => getComputedStyle(element).backdropFilter)).not.toBe(
+    'none'
+  );
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(overview.locator('output')).toHaveText('Tag: priority');

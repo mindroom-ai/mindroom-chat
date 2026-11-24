@@ -40,7 +40,7 @@ export const useZoom = (
   min = ZOOM_MIN,
   max = ZOOM_MAX,
   onZoomAround?: ZoomAround,
-  touchTarget?: HTMLElement | RefObject<HTMLElement> | null
+  touchTarget?: HTMLElement | RefObject<HTMLElement | null> | null
 ) => {
   const [zoom, setZoomState] = useState(1);
   const [isZooming, setIsZooming] = useState(false);

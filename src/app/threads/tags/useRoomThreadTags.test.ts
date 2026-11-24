@@ -9,7 +9,10 @@ import {
   resetPendingThreadTagsForTests,
   setPendingThreadTag,
 } from './threadTagPending';
-import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
+import {
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+} from '../../event-store/threads/threadTags';
 import { useRoomThreadResolutionMap, useThreadResolution } from './useRoomThreadTags';
 
 vi.mock('../../matrix/hooks/useStateEvents', () => ({
@@ -142,15 +145,18 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
     });
 
     let snapshot: ReturnType<typeof useThreadResolution> | undefined;
-    const renderer = create(
-      React.createElement(ResolutionHarness, {
-        room,
-        threadRootId: '$root',
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ResolutionHarness, {
+          room,
+          threadRootId: '$root',
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot?.isResolved).toBe(true);
     expect(snapshot?.tags).toEqual({
@@ -185,14 +191,17 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
     });
 
     let snapshot: ReturnType<typeof useRoomThreadResolutionMap> | undefined;
-    const renderer = create(
-      React.createElement(MapHarness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MapHarness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot?.get('$root')).toMatchObject({
       isResolved: false,
@@ -222,15 +231,18 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
     });
 
     let snapshot: ReturnType<typeof useThreadResolution> | undefined;
-    const renderer = create(
-      React.createElement(ResolutionHarness, {
-        room,
-        threadRootId: '$root',
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ResolutionHarness, {
+          room,
+          threadRootId: '$root',
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot).toMatchObject({
       isResolved: true,

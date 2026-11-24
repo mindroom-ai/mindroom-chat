@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../../event-store/cache/__tests__/attachmentFixtures';
 import { CHAT_UI_ACTION_KEY } from '../../matrix/protocol/chatUiProtocol';
@@ -196,23 +196,27 @@ const renderNode = async (
   >
 ) => {
   const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
-  return create(
-    React.createElement(
-      React.Fragment,
-      null,
-      renderAgentMessageContent({
-        displayName: 'MindRoom',
-        msgType: 'm.text',
-        content: {
-          msgtype: 'm.text',
-          body: 'Hello',
-        },
-        htmlReactParserOptions: {},
-        linkifyOpts: {},
-        ...options,
-      })
-    )
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        React.Fragment,
+        null,
+        renderAgentMessageContent({
+          displayName: 'MindRoom',
+          msgType: 'm.text',
+          content: {
+            msgtype: 'm.text',
+            body: 'Hello',
+          },
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
+          ...options,
+        })
+      )
+    );
+  });
+  return renderer;
 };
 
 importBeforeTests(() => import('./renderAgentMessageContent'));
@@ -850,13 +854,16 @@ describe('renderAgentMessageContent', () => {
       content: longTextWithExtras,
     });
     const { renderAfterBody } = renderer.root.findByType(LongTextText).props;
-    const extras = create(
-      React.createElement(
-        React.Fragment,
-        null,
-        renderAfterBody({ body: 'Long text preview' }, { body: 'Downloaded text' })
-      )
-    );
+    let extras!: ReturnType<typeof create>;
+    act(() => {
+      extras = create(
+        React.createElement(
+          React.Fragment,
+          null,
+          renderAfterBody({ body: 'Long text preview' }, { body: 'Downloaded text' })
+        )
+      );
+    });
 
     const rendered = JSON.stringify(extras.toJSON());
     expect(rendered).toContain('Evidence');
@@ -911,8 +918,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent).toEqual(
       expect.objectContaining({
@@ -953,8 +959,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent?.formatted_body).toContain('<strong data-md="**">now</strong>');
 
@@ -988,8 +993,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent?.formatted_body).toContain('Intro paragraph');
     expect(previewContent?.formatted_body).toContain('Quoted detail https://example.org');
@@ -1024,9 +1028,8 @@ describe('renderAgentMessageContent', () => {
 
   describe('a canvas answer sent as a long-text sidecar', () => {
     const sidecarAnswer = async () => {
-      const { buildCanvasResponseContent, buildCanvasResponsePreview } = await import(
-        '../canvas/canvasMessages'
-      );
+      const { buildCanvasResponseContent, buildCanvasResponsePreview } =
+        await import('../canvas/canvasMessages');
       const content = buildCanvasResponseContent(
         {
           eventId: '$canvas',

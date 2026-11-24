@@ -13,7 +13,7 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
 
 /**
  * Vite plugin: fails the build when the modules it keeps after tree-shaking come from two
- * directories of one package name and version. It checks at the end of the build phase: the
+ * directories of one package name and version. It checks in generateBundle: the
  * service worker build that runs once the app's bundle closes would hide a later error behind its
  * own. The packages a client plugin installed in its own directory (`pluginDirs`, from
  * MINDROOM_CLIENT_PLUGINS) are left out, as the plugin's, except a copy of a package the app shares
@@ -25,16 +25,18 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
 export const onePackageCopyPerVersion = (pluginDirs = []) => ({
   name: 'mindroom-one-package-copy-per-version',
   apply: 'build',
-  buildEnd(error) {
-    if (error) return;
+  generateBundle(_options, bundle) {
     const ownerOf = pluginOwner(pluginDirs.map((dir) => ({ dir })));
     /** @type {Set<string>} */
     const dirs = new Set();
-    for (const id of this.getModuleIds()) {
-      // Virtual modules (`\0` ids) are not files of a package.
-      if (id.startsWith('\0') || !this.getModuleInfo(id)?.isIncluded) continue;
-      const dir = PACKAGE_DIR.exec(id)?.[1];
-      if (dir) dirs.add(dir);
+    for (const entry of Object.values(bundle)) {
+      if (entry.type !== 'chunk') continue;
+      for (const id of entry.moduleIds) {
+        // Virtual modules (`\0` ids) are not files of a package.
+        if (id.startsWith('\0')) continue;
+        const dir = PACKAGE_DIR.exec(id)?.[1];
+        if (dir) dirs.add(dir);
+      }
     }
     /** @type {Map<string, string[]>} name@version and the directories it is bundled from */
     const copies = new Map();

@@ -71,7 +71,7 @@ vi.mock('react-aria', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('jotai', async (importOriginal) => {
@@ -212,15 +212,18 @@ const room = {
 const renderRoomNavItem = (
   props: { direct?: boolean; showAvatar?: boolean; subRoom?: boolean } = {}
 ) => {
-  const renderer = create(
-    <RoomNavItem
-      room={room}
-      selected={false}
-      linkPath="/room"
-      notificationMode={RoomNotificationMode.Unset}
-      {...props}
-    />
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <RoomNavItem
+        room={room}
+        selected={false}
+        linkPath="/room"
+        notificationMode={RoomNotificationMode.Unset}
+        {...props}
+      />
+    );
+  });
   renders.push(renderer);
   return renderer;
 };

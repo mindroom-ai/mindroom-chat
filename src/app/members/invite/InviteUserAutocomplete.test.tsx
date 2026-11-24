@@ -25,7 +25,7 @@ vi.mock('../../ui/page/PageScroll', () => ({
     React.createElement('div', null, header, children),
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     active,
     children,
     focusTrapOptions,
@@ -185,7 +185,7 @@ const menuContainerNode = {
   contains: (node: unknown) => node === menuContainerNode || node === insideMenuNode,
 };
 
-const createNodeMock = (element: React.ReactElement) => {
+const createNodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
   const className = typeof element.props.className === 'string' ? element.props.className : '';
   if (className.includes('InviteAutocompleteMenuRoot')) {
     return { getBoundingClientRect: () => anchorRect };

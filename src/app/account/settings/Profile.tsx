@@ -70,7 +70,7 @@ function AvatarTile() {
 
   const shownName = displayName ?? getMxIdLocalPart(userId) ?? userId;
   const picture = avatarUrl
-    ? mxcUrlToHttp(client, avatarUrl, authenticated, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, avatarUrl, authenticated, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined)
     : undefined;
 
   const run = (kind: Exclude<Busy, undefined>, change: () => Promise<string>) => {

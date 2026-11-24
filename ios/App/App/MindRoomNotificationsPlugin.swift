@@ -1,4 +1,3 @@
-#if !targetEnvironment(macCatalyst)
 import Capacitor
 import Foundation
 import Intents
@@ -127,4 +126,3 @@ public class MindRoomNotificationsPlugin: CAPPlugin, CAPBridgedPlugin {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
-#endif

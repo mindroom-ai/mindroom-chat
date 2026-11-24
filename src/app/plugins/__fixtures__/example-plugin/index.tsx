@@ -96,7 +96,7 @@ import {
   type MouseEvent,
   type RefObject,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import {
   Avatar,
   Box,
@@ -260,7 +260,7 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
-function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement> }) {
+function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement | null> }) {
   const thread = useShownThread();
   const [dropped, setDropped] = useState<string>();
   // The header's element is set by the time effects run; a drag of its item may drop anywhere on it.
@@ -352,7 +352,7 @@ function ServerGreeting({ roomId }: { roomId: string }) {
   const [squareFailed, setSquareFailed] = useState<number>();
   const [sent, setSent] = useState<{ loaded: number; total: number }>();
   const [uploaded, setUploaded] = useState<string>();
-  const socket = useRef<WebSocket>();
+  const socket = useRef<WebSocket>(undefined);
   useEffect(
     () => () => {
       if (square) URL.revokeObjectURL(square);
@@ -493,7 +493,7 @@ function RoomComputers({ roomId }: { roomId: string }) {
   const [line, setLine] = useState<string>();
   const shown = useRef<{ session?: ComputerSessionClient; stream?: WebSocket }>({});
   // Aborted as the panel goes, so a session still opening then never arrives.
-  const leaving = useRef<AbortSignal>();
+  const leaving = useRef<AbortSignal>(undefined);
   useEffect(() => {
     const gone = new AbortController();
     leaving.current = gone.signal;
@@ -691,7 +691,7 @@ function PinchBoard() {
   const [box, setBox] = useState({ scale: 1, x: 0, y: 0 });
   const [pinching, setPinching] = useState(false);
   const boxNow = useRef(box);
-  const pinchStart = useRef<{ box: typeof box; x: number; y: number }>();
+  const pinchStart = useRef<{ box: typeof box; x: number; y: number }>(undefined);
   usePinchSurface(board, {
     onPinch: ({ phase, scale, centre }: SurfacePinch) => {
       // In the board's padding box, where its box is laid out: inside its border.
@@ -977,12 +977,12 @@ const CARD_CSS = `[data-example-card-box] { display: flex; flex: none; width: ${
  * Moves the card's box in and out, when `moves`, as the room moves its panels: it registers with the
  * room's panel place, which then keeps the closing card until it calls `done`.
  */
-function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
+function useCardMotion(box: RefObject<HTMLElement | null>, moves: boolean) {
   const presence = usePanelPresence();
   const register = presence?.register;
   const lastWidth = presence?.lastWidth;
   const moving = useRef(moves);
-  const registration = useRef<PanelRegistration>();
+  const registration = useRef<PanelRegistration>(undefined);
   useLayoutEffect(() => {
     const own = register?.();
     registration.current = own;
@@ -997,7 +997,7 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
   }, [box, lastWidth, register]);
   const phase = presence?.phase ?? 'shown';
   const phaseSeen = useRef<PanelPhase>('shown');
-  const motion = useRef<Animation>();
+  const motion = useRef<Animation>(undefined);
   useLayoutEffect(() => {
     moving.current = moves;
     if (phase === phaseSeen.current) return;
@@ -1011,7 +1011,7 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
       const width = element.offsetWidth;
       const size = (pixels: number) => ({ width: pixels, gap: 0 });
       // In from nothing, or from the width of the panel whose place it takes; out to nothing.
-      const from = phase === 'swap' ? lastWidth?.current ?? width : 0;
+      const from = phase === 'swap' ? (lastWidth?.current ?? width) : 0;
       motion.current =
         phase === 'exit'
           ? animatePanel(element, size(now ?? width), size(0), true)

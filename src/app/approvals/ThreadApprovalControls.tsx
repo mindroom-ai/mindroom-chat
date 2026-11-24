@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import classNames from 'classnames';
 import {
   Box,
@@ -21,7 +21,10 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
-import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from '../matrix/protocol/toolApproval';
+import {
+  getToolApprovalOperationLabel,
+  parseToolApprovalExpiryTimestamp,
+} from '../matrix/protocol/toolApproval';
 import { mergeArgumentFields, summarizeArguments } from './argumentFields';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
@@ -61,7 +64,7 @@ export function ApprovalDialog({
   leading?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-  returnFocus: React.RefObject<HTMLButtonElement>;
+  returnFocus: React.RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
@@ -443,13 +446,13 @@ export function ThreadApprovalQueue() {
         ? t('mindroomUi.messages.threadApprovalControls.awaitingConfirmation', {
             count: pendingCount,
           })
-        : waitingText ??
+        : (waitingText ??
           t('mindroomUi.messages.threadApprovalControls.pausedForApproval', {
             count: pendingCount,
-          })
+          }))
       : context.error
-      ? t(HISTORY_ERROR_KEYS[context.error])
-      : '';
+        ? t(HISTORY_ERROR_KEYS[context.error])
+        : '';
   if (context.loading && pendingCount > 0) {
     statusText = t('mindroomUi.messages.threadApprovalControls.statusCheckingHistory', {
       status: statusText,
@@ -475,11 +478,11 @@ export function ThreadApprovalQueue() {
           count: review.count,
         })
       : review.agents.length > 1
-      ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
-          agents: review.agents.length,
-          count: review.count,
-        })
-      : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
+        ? t('mindroomUi.messages.threadApprovalControls.reviewAgentsWant', {
+            agents: review.agents.length,
+            count: review.count,
+          })
+        : t('mindroomUi.messages.threadApprovalControls.reviewToolCalls');
   const reviewSubtitle = [
     review.requester &&
       t('mindroomUi.messages.threadApprovalControls.reviewRequestedBy', {
@@ -711,15 +714,15 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
             single?.status === 'approved'
               ? Icons.Check
               : single?.status === 'denied'
-              ? Icons.Cross
-              : Icons.Terminal
+                ? Icons.Cross
+                : Icons.Terminal
           }
           tone={
             single?.status === 'approved'
               ? 'success'
               : single?.status === 'denied'
-              ? 'critical'
-              : 'neutral'
+                ? 'critical'
+                : 'neutral'
           }
         />
       }

@@ -25,11 +25,14 @@ const mountAtom = (): ClosedNavCategoriesAtom => {
     provided = useClosedNavCategoriesAtom();
     return null;
   }
-  const renderer = create(
-    <ClientInitStorageAtom>
-      <Probe />
-    </ClientInitStorageAtom>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <ClientInitStorageAtom>
+        <Probe />
+      </ClientInitStorageAtom>
+    );
+  });
   act(() => renderer.unmount());
   if (!provided) throw new Error('ClientInitStorageAtom provided no atom');
   return provided;

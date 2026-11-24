@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import { useState } from 'react';
+import { act, useState } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DndContext,
@@ -51,7 +50,7 @@ const room = (roomId: string, name: string): Room =>
   ({
     roomId,
     name,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 function Harness({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
   const parentSpaceId = '!space:example.org';

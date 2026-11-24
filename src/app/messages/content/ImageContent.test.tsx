@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
+import type { IImageInfo } from '../../matrix/types/common';
 import { ImageContent } from './ImageContent';
 import { ImageGallery } from './ImageGallery';
 
@@ -79,7 +80,7 @@ vi.mock('./style.css', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -136,16 +137,25 @@ const FILE = {
 describe('ImageContent', () => {
   let renderer: ReactTestRenderer | undefined;
 
-  const renderImageContent = ({ mimeType }: { mimeType?: string }) => {
+  const renderImageContent = ({
+    mimeType,
+    info = { w: 4, h: 3 },
+    onFallbackToFile,
+  }: {
+    mimeType?: string;
+    info?: IImageInfo;
+    onFallbackToFile?: () => void;
+  }) => {
     act(() => {
       renderer = create(
         React.createElement(ImageContent, {
           body: 'Test image',
           mimeType,
           url: 'mxc://mindroom/image',
-          info: { w: 4, h: 3 },
+          info,
           encInfo: FILE,
           owner: OWNER,
+          onFallbackToFile,
           renderImage: ({ onClick, ...props }) =>
             React.createElement('button', { ...props, 'data-role': 'image', onClick }),
         })
@@ -222,5 +232,34 @@ describe('ImageContent', () => {
     });
     expect(preventDefault).toHaveBeenCalled();
     expect(tree.root.findAllByType(ImageGallery)).toHaveLength(1);
+  });
+
+  it('ignores HEIC thumbnails, falls back on budget/decode failure, and keeps Retry on network errors', async () => {
+    const onFallbackToFile = vi.fn();
+    renderImageContent({
+      mimeType: 'image/heic',
+      info: {
+        w: 4,
+        h: 3,
+        thumbnail_url: 'mxc://mindroom/heic-thumb',
+        thumbnail_info: { mimetype: 'image/heic' },
+      },
+      onFallbackToFile,
+    });
+
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('offline'));
+    await expect(mocks.loadSrcCallback?.()).rejects.toThrow('offline');
+    expect(mocks.downloadCachedAttachment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ mxcUri: 'mxc://mindroom/image' }),
+      expect.objectContaining({ maxBytes: expect.any(Number), signal: expect.any(AbortSignal) })
+    );
+    expect(onFallbackToFile).not.toHaveBeenCalled();
+
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(
+      new Error('Attachment exceeds the 31457280 byte limit')
+    );
+    await expect(mocks.loadSrcCallback?.()).rejects.toThrow(/exceeds/);
+    expect(onFallbackToFile).toHaveBeenCalledOnce();
   });
 });

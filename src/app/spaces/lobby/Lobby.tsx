@@ -62,8 +62,8 @@ const SCROLL_TOP_PLACE = { top: `calc(${toRem(54)} + ${config.space.S300})` };
  * above the title's bottom edge), following scrolling and resizing.
  */
 const useScrolledPast = (
-  scrollRef: RefObject<HTMLDivElement>,
-  targetRef: RefObject<HTMLElement>
+  scrollRef: RefObject<HTMLDivElement | null>,
+  targetRef: RefObject<HTMLElement | null>
 ): boolean => {
   const [past, setPast] = useState(false);
   useEffect(() => {
@@ -94,7 +94,7 @@ const useScrolledPast = (
  * The space's picture, name and topic at the top of its lobby. The name is the lobby's section
  * heading (h2); the topic under it is not part of the heading.
  */
-function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement> }) {
+function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement | null> }) {
   const lobbySpace = useSpace();
   // Direction controls in the name and topic show as code points, so they cannot reorder them.
   const topic = useRoomTopic(lobbySpace);
@@ -135,10 +135,6 @@ const getHiddenEntries = (
   });
   return hidden;
 };
-
-/** Nested entries step in from the lobby's edge, one step per level below the first. */
-const nestingInset = (depth = 1) =>
-  depth > 1 ? { marginInlineStart: `calc(${config.space.S400} * ${depth - 1})` } : undefined;
 
 /** The top space's own heading: its rooms' title and, for those allowed, ways to add more. */
 function LobbyRootHeading({ canEdit }: { canEdit: boolean }) {
@@ -278,10 +274,13 @@ function LobbyContent() {
 
   const renderSpace = (item: HierarchyItem) => {
     const joinedSpace = joinedCopy(item.roomId);
+    const nestedParentId = (item.depth ?? 1) >= 2 ? item.parentId : undefined;
     return (
       <SpaceItemCard
         key={`${item.parentId}/${item.roomId}`}
         item={item}
+        parentSpace={nestedParentId ? joinedCopy(nestedParentId) : undefined}
+        parentSummaryName={nestedParentId ? summaries.get(nestedParentId)?.name : undefined}
         summary={summaries.get(item.roomId)}
         loading={!joinedSpace && loading}
         joined={!!joinedSpace}
@@ -324,7 +323,6 @@ function LobbyContent() {
                   key={`${item.parentId}/${item.roomId}`}
                   className={styleCss.LobbyEntry}
                   direction="Column"
-                  style={nestingInset(item.depth)}
                   data-lobby-entry={item.roomId}
                 >
                   {item.space ? renderSpace(item) : renderRoom(item)}

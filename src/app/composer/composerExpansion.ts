@@ -61,8 +61,8 @@ export const useComposerFocus = (
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const [focused, setFocused] = useState(false);
   const [pressing, setPressing] = useState(false);
-  const pressTimer = useRef<ReturnType<typeof setTimeout>>();
-  const pressEnd = useRef<() => void>();
+  const pressTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pressEnd = useRef<() => void>(undefined);
 
   useEffect(() => {
     if (!root || !watch) {

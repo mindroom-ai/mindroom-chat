@@ -6,12 +6,7 @@ import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 /** The icon rail buttons each person can hide in Settings. */
 export type RailButton =
-  | 'threads'
-  | 'canvases'
-  | 'explore'
-  | 'createSpace'
-  | 'search'
-  | 'localMindroom';
+  'threads' | 'canvases' | 'usage' | 'explore' | 'createSpace' | 'search' | 'localMindroom';
 
 export type RailButtons = Record<RailButton, boolean>;
 
@@ -19,6 +14,7 @@ export type RailButtons = Record<RailButton, boolean>;
 export const RAIL_BUTTON_SETTING: Record<RailButton, BooleanAccountSetting> = {
   threads: 'showThreadsInSidebar',
   canvases: 'showCanvasesInSidebar',
+  usage: 'showUsageInSidebar',
   explore: 'showExploreInSidebar',
   createSpace: 'showCreateSpaceInSidebar',
   search: 'showSearchInSidebar',
@@ -37,6 +33,7 @@ export function useOfferedRailButtons(): RailButtons {
   return {
     threads: sidebar?.showThreads ?? true,
     canvases: canvasesEnabled(config),
+    usage: true,
     explore: communities,
     createSpace: communities,
     search: true,
@@ -52,6 +49,7 @@ export function useRailButtons(): RailButtons {
   return {
     threads: shown('threads'),
     canvases: shown('canvases'),
+    usage: shown('usage'),
     explore: shown('explore'),
     createSpace: shown('createSpace'),
     search: shown('search'),

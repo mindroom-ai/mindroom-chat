@@ -66,7 +66,7 @@ const fakeRoomScroller = (reader: 'bottom' | 'top' = 'bottom') => {
 };
 
 const makeRows = (count: number) =>
-  Array.from({ length: count }, (_, index) => ({ getId: () => `$row${index}` } as MatrixEvent));
+  Array.from({ length: count }, (_, index) => ({ getId: () => `$row${index}` }) as MatrixEvent);
 
 type Committed = [start: number, end: number, count: number];
 
@@ -102,9 +102,9 @@ function RoomWindow({
   const activeTimelineRange = getVisibleTimelineRange(timeline.range, rows.length, windowLimit);
   const roomRowsRef = useLatestRef(rows);
   const activeRangeRef = useLatestRef(activeTimelineRange);
-  const threadIdRef = useRef<string>();
-  const firstRoomTimelineRef = useRef<EventTimeline>();
-  const lastRoomTimelineRef = useRef<EventTimeline>();
+  const threadIdRef = useRef<string>(undefined);
+  const firstRoomTimelineRef = useRef<EventTimeline>(undefined);
+  const lastRoomTimelineRef = useRef<EventTimeline>(undefined);
   const scrollRef = useRef<HTMLElement | null>(scroller.element);
   const suppressFocusPaginationRef = useRef(false);
   useLayoutEffect(() => {
@@ -306,7 +306,7 @@ const roomScrollerWithBackSentinel = () =>
       selector.includes('data-paginator-anchor="B"')
         ? { getBoundingClientRect: () => rectAt(VIEW_PX - 100, 1) }
         : null,
-  } as unknown as HTMLElement);
+  }) as unknown as HTMLElement;
 
 type ChainProps = {
   chain: EventTimeline[];
@@ -325,7 +325,7 @@ function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
   const activeTimelineRange = getVisibleTimelineRange(timeline.range, rows.length, 200);
   const roomRowsRef = useLatestRef(rows);
   const activeRangeRef = useLatestRef(activeTimelineRange);
-  const threadIdRef = useRef<string>();
+  const threadIdRef = useRef<string>(undefined);
   const firstRoomTimelineRef = useLatestRef(chain[0]);
   const lastRoomTimelineRef = useLatestRef(chain.at(-1));
   const scrollRef = useRef<HTMLElement | null>(scroller);

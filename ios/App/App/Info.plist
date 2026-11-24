@@ -5,11 +5,10 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>$(MINDROOM_DISPLAY_NAME)</string>
+	<string>MindRoom</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>chat.mindroom.open-thread</string>
-		<string>chat.mindroom.quick-capture</string>
 		<string>INSendMessageIntent</string>
 	</array>
 	<key>CFBundleURLTypes</key>
@@ -32,7 +31,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(MINDROOM_BUNDLE_NAME)</string>
+	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -46,7 +45,7 @@
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
-		<string>$(MINDROOM_SUPPORTS_MULTIPLE_SCENES)</string>
+		<false/>
 		<key>UISceneConfigurations</key>
 		<dict>
 			<key>UIWindowSceneSessionRoleApplication</key>
@@ -56,12 +55,6 @@
 					<string>Default Configuration</string>
 					<key>UISceneDelegateClassName</key>
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-				</dict>
-				<dict>
-					<key>UISceneConfigurationName</key>
-					<string>Quick Capture</string>
-					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).QuickCaptureSceneDelegate</string>
 				</dict>
 			</array>
 		</dict>
@@ -115,5 +108,10 @@
 	<!-- Photo Library add access for saving media generated in chat flows -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>MindRoom needs permission to save images and videos from chats to your photo library.</string>
+	<!-- App Group & Broadcast Upload Extension for LiveKit ReplayKit whole-phone screen sharing -->
+	<key>RTCAppGroupIdentifier</key>
+	<string>group.chat.mindroom.app</string>
+	<key>RTCScreenSharingExtension</key>
+	<string>chat.mindroom.app.broadcast</string>
 </dict>
 </plist>

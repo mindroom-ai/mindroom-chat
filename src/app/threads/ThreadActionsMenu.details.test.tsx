@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React, { lazy, useState, type ComponentType } from 'react';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { RectCords } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -42,7 +42,7 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 }));
 // The real folds PopOut positions the menu; only the focus trap is left out.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const observers = new Set<SurfaceResizeObserver>();
@@ -88,6 +88,7 @@ const pluginWith = (Component: ComponentType<ThreadDetailProps>): RegisteredPlug
   id: 'test',
   tag: 'test@1.0.0',
   displayName: 'Test',
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
@@ -121,14 +122,15 @@ const deferredDetail = (Loaded: ComponentType<ThreadDetailProps>) => {
 // A trigger whose bottom edge is at y350, its end edge at x724.
 const renderMenu = (
   Component: ComponentType<ThreadDetailProps>,
-  anchor: RectCords = { x: 700, y: 326, width: 24, height: 24 }
+  anchor: RectCords = { x: 700, y: 326, width: 24, height: 24 },
+  onClose: () => void = () => undefined
 ) =>
   render(
     <ThreadActionsMenu
       room={room}
       rootId="$root"
       anchor={anchor}
-      onClose={() => undefined}
+      onClose={onClose}
       plugins={[pluginWith(Component)]}
     />
   );
@@ -290,5 +292,35 @@ describe("ThreadActionsMenu's thread details", () => {
     const group = document.querySelector('[data-thread-details]');
     expect(group?.textContent).toBe('Branch main');
     expect(menu().getAttribute('aria-describedby')).toBe(group?.id);
+  });
+
+  it('passes a stable onClose callback to details that closes the menu', () => {
+    vi.stubGlobal('ResizeObserver', SurfaceResizeObserver);
+    const seen: Array<(() => void) | undefined> = [];
+    function Interactive({ onClose }: ThreadDetailProps) {
+      seen.push(onClose);
+      return (
+        <button type="button" onClick={onClose}>
+          Open pull request
+        </button>
+      );
+    }
+    const firstClose = vi.fn();
+    const secondClose = vi.fn();
+    const { rerender } = renderMenu(Interactive, undefined, firstClose);
+    rerender(
+      <ThreadActionsMenu
+        room={room}
+        rootId="$root"
+        anchor={{ x: 700, y: 326, width: 24, height: 24 }}
+        onClose={secondClose}
+        plugins={[pluginWith(Interactive)]}
+      />
+    );
+    expect(seen[0]).toBeTypeOf('function');
+    expect(seen[seen.length - 1]).toBe(seen[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Open pull request' }));
+    expect(firstClose).not.toHaveBeenCalled();
+    expect(secondClose).toHaveBeenCalledTimes(1);
   });
 });

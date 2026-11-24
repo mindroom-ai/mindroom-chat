@@ -6,9 +6,8 @@ import { saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSe
 import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
 
 vi.mock('../../event-store/cache/eventCacheEditUtils', async (importOriginal) => {
-  const original = await importOriginal<
-    typeof import('../../event-store/cache/eventCacheEditUtils')
-  >();
+  const original =
+    await importOriginal<typeof import('../../event-store/cache/eventCacheEditUtils')>();
   return { ...original, hydrateCachedEvents: vi.fn(original.hydrateCachedEvents) };
 });
 

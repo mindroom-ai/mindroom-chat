@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import { useLayoutEffect } from 'react';
+import { act, useLayoutEffect } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { ClientEvent, MatrixClient, SyncState, SyncStateData } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useInitialClientCatchup } from './useInitialClientCatchup';

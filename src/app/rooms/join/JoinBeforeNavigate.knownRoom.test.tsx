@@ -39,7 +39,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -150,7 +150,10 @@ describe('JoinBeforeNavigate names the room it knows', () => {
   } as unknown as MatrixClient;
 
   const renderPage = (roomIdOrAlias: string, client: MatrixClient) => {
-    const renderer = create(<></>);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<></>);
+    });
     act(() => {
       renderer.update(
         <MatrixClientProvider value={client}>

@@ -115,7 +115,7 @@ function ScheduleAccordionItem({
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
   const confirmBarRef = useRef<HTMLDivElement>(null);
-  const copyTimerRef = useRef<number>();
+  const copyTimerRef = useRef<number>(undefined);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -133,8 +133,8 @@ function ScheduleAccordionItem({
   const commandSafe = sched.isCommandSafeTaskId(task.taskId);
   const canCancel = Boolean(
     ctx.canManageCancel &&
-      commandSafe &&
-      (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId))
+    commandSafe &&
+    (task.newThread || !task.threadId || isConfirmedMatrixEventId(task.threadId))
   );
   const cancelStatus = ctx.cancel.statusByTaskId.get(task.taskId);
   const isCancelling = cancelStatus === 'pending';
@@ -163,29 +163,29 @@ function ScheduleAccordionItem({
     task.newThread
       ? 'roomSchedules.newThread'
       : task.threadId
-      ? 'roomSchedules.thread'
-      : 'roomSchedules.roomTimeline'
+        ? 'roomSchedules.thread'
+        : 'roomSchedules.roomTimeline'
   );
   const historyChip =
     task.historyLimit === 0
       ? t('roomSchedules.noHistory')
       : typeof task.historyLimit === 'number' && task.historyLimit > 0
-      ? t('roomSchedules.recentMessages', { total: task.historyLimit })
-      : undefined;
+        ? t('roomSchedules.recentMessages', { total: task.historyLimit })
+        : undefined;
   const statusLabel = awaiting
     ? t('roomSchedules.awaitingShort')
     : recurring
-    ? sched.formatShortCadence(task, t)
-    : executionTime !== undefined
-    ? sched.formatRelativeCountdown(executionTime, now, t, locale)
-    : undefined;
+      ? sched.formatShortCadence(task, t)
+      : executionTime !== undefined
+        ? sched.formatRelativeCountdown(executionTime, now, t, locale)
+        : undefined;
 
   const formatTime = (ts: number) => timeEl(ts, formatter.format(ts));
   const timingNode = recurring ? (
     task.cronDescription ? (
       <span dir="auto">{task.cronDescription}</span>
     ) : (
-      utcCron ?? t('roomSchedules.unknownTime')
+      (utcCron ?? t('roomSchedules.unknownTime'))
     )
   ) : executionTime === undefined ? (
     t('roomSchedules.unknownTime')
@@ -516,7 +516,7 @@ function ScheduleAccordionItem({
                       )}
                     </Box>
                   ) : (
-                    utcCron ?? t('roomSchedules.unknownTime')
+                    (utcCron ?? t('roomSchedules.unknownTime'))
                   )
                 ) : executionTime === undefined ? (
                   t('roomSchedules.unknownTime')

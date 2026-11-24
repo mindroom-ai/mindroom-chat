@@ -59,6 +59,8 @@ import {
 import { WorkflowQuestionCard } from '../workflow-run/WorkflowQuestionCard';
 import { WorkflowRunCard } from '../workflow-run/WorkflowRunCard';
 import { readAgentNoticeMarker } from '../agentNoticeMarker';
+import { readTriggerWake, TRIGGER_WAKE_METADATA_KEYS } from '../../matrix/protocol/triggerWake';
+import { TriggerWakeMarker } from '../TriggerWakeMarker';
 import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
@@ -81,9 +83,12 @@ const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 /** The live keys a streaming reply's frames add to its outer content (useLiveReplyContent). */
 const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
 
+/** Wrapper keys carried onto a hydrated sidecar when the sidecar leaves them out. */
+const FALLBACK_WRAPPER_KEYS = [COMPACTIONS_CONTENT_KEY, ...TRIGGER_WAKE_METADATA_KEYS];
+
 /**
  * The live reasoning and compactions of `outer`, moved onto the content a long text resolved, and
- * its own compactions when the download leaves them out.
+ * its own compactions or trigger metadata when the download leaves them out.
  */
 const withLiveWrapperContent = (
   resolved: Record<string, unknown>,
@@ -91,7 +96,7 @@ const withLiveWrapperContent = (
 ): Record<string, unknown> => {
   const carried = [
     ...LIVE_WRAPPER_KEYS,
-    ...(resolved[COMPACTIONS_CONTENT_KEY] === undefined ? [COMPACTIONS_CONTENT_KEY] : []),
+    ...FALLBACK_WRAPPER_KEYS.filter((key) => resolved[key] === undefined),
   ].filter((key) => outer[key] !== undefined);
   if (carried.length === 0) return resolved;
   return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
@@ -118,6 +123,7 @@ export type RenderAgentMessageContentOptions = {
   eventId?: string;
   threadId?: string;
   msgType: string;
+  ts?: number;
   edited?: boolean;
   content: Record<string, unknown>;
   pendingSend?: boolean;
@@ -228,6 +234,7 @@ export const renderAgentMessageContent = ({
   eventId,
   threadId,
   msgType,
+  ts,
   edited,
   content,
   pendingSend,
@@ -433,12 +440,24 @@ export const renderAgentMessageContent = ({
     // MText/MNotice/MEmote compute props; running it again here is idempotent and guards direct
     // or mocked callers.
     const resolvedContent = transformLongTextContent(downloadedContent);
+    const mergedContent = withLiveWrapperContent(resolvedContent, content);
+    const triggerWake =
+      !highlightRegex && fromMindroomAgent ? readTriggerWake(mergedContent) : null;
+    if (triggerWake) {
+      return (
+        <TriggerWakeMarker
+          wake={triggerWake}
+          ts={ts ?? mEvent?.getTs()}
+          roomId={roomId ?? mEvent?.getRoomId()}
+        />
+      );
+    }
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
         // The live reasoning and compactions ride on the outer content, not on the preview or the
         // sidecar.
-        withLiveWrapperContent(resolvedContent, content),
+        mergedContent,
         props.customBody,
         (html) => (
           <AgentRenderBody
@@ -515,7 +534,11 @@ export const renderAgentMessageContent = ({
 
   // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
   // views, such as threads shown in the room, keep the message row with the marker as its body.
-  const notice = fromMindroomAgent ? readAgentNoticeMarker(content, mEvent?.getTs()) : null;
+  // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
+  const notice =
+    fromMindroomAgent && !highlightRegex
+      ? readAgentNoticeMarker(content, ts ?? mEvent?.getTs(), roomId ?? mEvent?.getRoomId())
+      : null;
   if (notice) return notice;
 
   // Workflow run and question notices render as cards only when sent by a MindRoom agent.
@@ -608,6 +631,8 @@ export const renderAgentMessageContent = ({
     }
 
     if (longTextSource) {
+      const suppressLongTriggerUrls =
+        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
       const longText = (
         <LongTextText
           kind={LongTextKind.Text}
@@ -623,7 +648,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
-          renderUrlsPreview={renderUrlsPreview}
+          renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );
       // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
@@ -749,6 +774,8 @@ export const renderAgentMessageContent = ({
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
+      const suppressLongTriggerUrls =
+        !highlightRegex && fromMindroomAgent && readTriggerWake(content) !== null;
       return (
         <LongTextText
           kind={LongTextKind.Notice}
@@ -764,7 +791,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
-          renderUrlsPreview={renderUrlsPreview}
+          renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );
     }

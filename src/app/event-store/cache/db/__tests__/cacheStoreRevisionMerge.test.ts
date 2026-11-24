@@ -134,8 +134,7 @@ const expectRedacted = (event: Partial<IEvent> | undefined): void => {
 
 const expectNewestEditWithMonotonicAggregations = (event: Partial<IEvent> | undefined): void => {
   const relations = event?.unsigned?.['m.relations'] as
-    | Record<string, Partial<IEvent> & { count?: number }>
-    | undefined;
+    Record<string, Partial<IEvent> & { count?: number }> | undefined;
   expect(relations?.['m.replace']?.event_id).toBe('$edit-v3');
   expect(relations?.['m.thread']?.count).toBe(7);
 };
@@ -299,8 +298,7 @@ describe('cache storage same-ID revision merge', () => {
     expect(
       (
         threadPage.rootEvent?.unsigned?.['m.relations']?.['m.thread'] as
-          | { count?: number; latest_event?: Partial<IEvent> }
-          | undefined
+          { count?: number; latest_event?: Partial<IEvent> } | undefined
       )?.count
     ).toBe(1);
 
@@ -469,8 +467,7 @@ describe('cache storage same-ID revision merge', () => {
 
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     const relations = page.events[0]?.unsigned?.['m.relations'] as
-      | Record<string, { event_id?: string; count?: number }>
-      | undefined;
+      Record<string, { event_id?: string; count?: number }> | undefined;
     expect(relations?.['m.replace']?.event_id).toBe('$edit-v3');
     expect(relations?.['m.thread']?.count).toBe(7);
   });
@@ -490,8 +487,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     const thread = (
       page.events[0]?.unsigned?.['m.relations'] as
-        | Record<string, { count?: number; latest_event?: Partial<IEvent> }>
-        | undefined
+        Record<string, { count?: number; latest_event?: Partial<IEvent> }> | undefined
     )?.['m.thread'];
     expect(thread?.count).toBe(3);
     expect(thread?.latest_event?.event_id).toBe('$latest-new');
@@ -511,8 +507,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     const thread = (
       page.events[0]?.unsigned?.['m.relations'] as
-        | Record<string, { count?: number; latest_event?: Partial<IEvent> }>
-        | undefined
+        Record<string, { count?: number; latest_event?: Partial<IEvent> }> | undefined
     )?.['m.thread'];
     expect(thread?.count).toBe(5);
     expect(thread?.latest_event?.event_id).toBe('$latest-new');
@@ -526,8 +521,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     const annotation = (
       page.events[0]?.unsigned?.['m.relations'] as
-        | Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }>
-        | undefined
+        Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }> | undefined
     )?.['m.annotation'];
     expect(annotation?.chunk).toEqual([expect.objectContaining({ count: 5 })]);
   });
@@ -539,8 +533,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     const annotation = (
       page.events[0]?.unsigned?.['m.relations'] as
-        | Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }>
-        | undefined
+        Record<string, { chunk?: Array<{ count?: number; event_id?: string }> }> | undefined
     )?.['m.annotation'];
     expect(annotation?.chunk).toEqual([expect.objectContaining({ count: 5 })]);
   });
@@ -652,8 +645,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
     expectRedacted(page.rootEvent);
     const relations = page.rootEvent?.unsigned?.['m.relations'] as
-      | Record<string, { count?: number }>
-      | undefined;
+      Record<string, { count?: number }> | undefined;
     expect(relations?.['m.thread']?.count).toBe(7);
     expect(JSON.stringify(page.rootEvent)).not.toContain('$stale-secret-edit');
   });
@@ -691,8 +683,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
     const thread = (
       page.rootEvent?.unsigned?.['m.relations'] as
-        | Record<string, { count?: number; current_user_participated?: boolean }>
-        | undefined
+        Record<string, { count?: number; current_user_participated?: boolean }> | undefined
     )?.['m.thread'];
     expect(thread).toEqual({ count: 3, current_user_participated: false });
   });
@@ -710,8 +701,7 @@ describe('cache storage same-ID revision merge', () => {
     const page = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, THREAD_ID, 10);
     expectRedacted(page.rootEvent);
     const relations = page.rootEvent?.unsigned?.['m.relations'] as
-      | Record<string, { count?: number }>
-      | undefined;
+      Record<string, { count?: number }> | undefined;
     expect(relations?.['m.thread']?.count).toBe(3);
   });
 

@@ -12,7 +12,7 @@ const makeMatrixClient = (sidebar: unknown): MatrixClient =>
       }),
     })),
     setAccountData: vi.fn(),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('SpaceTabs sidebar reorder persistence', () => {
   it('keeps plain top-level space reorder local without writing io.mindroom.spaces account-data', () => {

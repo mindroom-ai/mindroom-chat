@@ -1,6 +1,9 @@
 import { type ReactNode } from 'react';
 import { MessageEditedContent } from './FallbackContent';
-import { renderFailedSendIndicator, renderPendingSendIndicator } from '../../ui/PendingSendIndicator';
+import {
+  renderFailedSendIndicator,
+  renderPendingSendIndicator,
+} from '../../ui/PendingSendIndicator';
 
 export type MessageStateSuffixOptions = {
   edited?: boolean;

@@ -31,15 +31,15 @@ Measured on the `mindroom` LXC event journal over 30 days (5,272 messages, 15 ro
 
 `threads/cross-room/threadSignals.ts` reads one thread's recent events (the SDK thread's timeline, its last 40 events) and returns:
 
-| Signal | Rule |
-|---|---|
-| `pendingApproval` | the newest `io.mindroom.tool_approval` record of the thread (`collectThreadApprovals`) from an agent that `canSubmitApprovalDecision` allows the user to answer |
+| Signal            | Rule                                                                                                                                                                                                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pendingApproval` | the newest `io.mindroom.tool_approval` record of the thread (`collectThreadApprovals`) from an agent that `canSubmitApprovalDecision` allows the user to answer                                                                                             |
 | `pendingQuestion` | the thread is unresolved, the newest counted agent reply carries `io.mindroom.interactive` with emoji option keys, no one has answered with an option, and no counted message was sent after the question was asked (at the last edit for a streamed reply) |
-| `mentionedMe` | an unread counted reply names the user in `m.mentions.user_ids`, or the SDK's highlight count for the thread is above 0 |
-| `newCount` | counted replies from others the user has not read (`room.hasUserReadEvent`) |
-| `lastReply` | the newest counted reply: sender, preview text, time |
-| `outcome` | the newest agent reply's terminal status: `stopped` for cancelled, error or interrupted; `finished` when its last edit came 60 s or more after it; with its tool count |
-| `automation` | the root's sender is an agent and no person sent a counted reply |
+| `mentionedMe`     | an unread counted reply names the user in `m.mentions.user_ids`, or the SDK's highlight count for the thread is above 0                                                                                                                                     |
+| `newCount`        | counted replies from others the user has not read (`room.hasUserReadEvent`)                                                                                                                                                                                 |
+| `lastReply`       | the newest counted reply: sender, preview text, time                                                                                                                                                                                                        |
+| `outcome`         | the newest agent reply's terminal status: `stopped` for cancelled, error or interrupted; `finished` when its last edit came 60 s or more after it; with its tool count                                                                                      |
+| `automation`      | the root's sender is an agent and no person sent a counted reply                                                                                                                                                                                            |
 
 `activity/activityRows.ts` turns the cross-room thread index (`threads/cross-room/crossRoomThreadIndex.ts`), these signals and the invites into rows:
 

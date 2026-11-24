@@ -418,7 +418,9 @@
         "search": "사이드바에 검색 표시",
         "searchDescription": "명령 팔레트를 여는 버튼입니다. 숨기면 \"무엇이든 찾기\" 입력란이나 {{shortcut}}로 열 수 있습니다.",
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
-        "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다."
+        "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다.",
+        "usage": "사이드바에 사용량 표시",
+        "usageDescription": "런타임이 보고하면 공급자 사용 한도와 7일 토큰 사용량을 표시합니다. 숨겨진 경우 홈의 ⋮ 메뉴나 모델 선택기에서 열 수 있습니다."
       },
       "plugins": {
         "title": "플러그인",
@@ -495,7 +497,8 @@
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
-        "plugins": "플러그인, 확장 기능, 애드온, 연동"
+        "plugins": "플러그인, 확장 기능, 애드온, 연동",
+        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -506,7 +509,17 @@
         "thirdPartyNotices": "타사 고지 사항",
         "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다.",
         "debugMode": "디버그 모드",
-        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요."
+        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요.",
+        "updatesTitle": "앱 업데이트",
+        "updatesDescription": "업데이트는 백그라운드에서 자동으로 다운로드됩니다.",
+        "checkForUpdates": "업데이트 확인",
+        "checkingForUpdates": "업데이트를 확인하는 중…",
+        "upToDate": "MindRoom이 최신 버전입니다.",
+        "updateAvailable": "업데이트가 있습니다. 준비되면 여기에서 다시 시작할 수 있습니다.",
+        "updateCheckFailed": "지금은 업데이트를 확인할 수 없습니다. 다시 시도하세요.",
+        "updateReady": "버전 {{version}}을(를) 설치할 준비가 되었습니다.",
+        "restartToUpdate": "다시 시작하여 업데이트",
+        "updateInstallFailed": "업데이트를 설치하기 위해 다시 시작하지 못했습니다. 다시 시도하세요."
       }
     },
     "createChat": {
@@ -520,9 +533,15 @@
     },
     "spaceNav": {
       "options": "스페이스 옵션",
-      "subspaces": "하위 스페이스",
       "subspaceUnread": "{{name}}, 읽지 않은 메시지",
-      "backToParent": "{{name}}(으)로 돌아가기"
+      "backToParent": "{{name}}(으)로 돌아가기",
+      "add": "추가",
+      "newRoom": "새 방",
+      "addExistingRoom": "기존 방 추가",
+      "newSubspace": "새 하위 스페이스",
+      "addExistingSubspace": "기존 하위 스페이스 추가",
+      "addToSpace": "{{name}}에 추가",
+      "subspaceOptions": "{{name}} 옵션"
     },
     "calls": {
       "panel": {
@@ -549,7 +568,13 @@
         "shareAgain": "다시 공유",
         "microphoneStopped": "마이크가 중지되었습니다.",
         "cameraStopped": "카메라가 중지되었습니다.",
-        "turnBackOn": "다시 켜기"
+        "turnBackOn": "다시 켜기",
+        "nativeScreenShareConnecting": "화면 공유 연결 중…",
+        "nativeScreenShareFailed": "전체 화면을 공유할 수 없습니다.",
+        "nativeScreenSharePickerTimedOut": "화면 공유가 제시간에 시작되지 않았습니다.",
+        "nativeScreenShareStopped": "화면 공유가 중지되었습니다.",
+        "nativeScreenShareSheetBody": "알림과 다른 앱을 포함해 화면의 모든 내용이 통화에 표시됩니다.",
+        "nativeScreenShareSheetCaption": "위 버튼을 탭한 다음 방송 시작을 탭하세요."
       },
       "problems": {
         "service": "통화 서비스에 연결할 수 없습니다. 나중에 다시 시도하세요.",
@@ -850,7 +875,9 @@
     "call": {
       "controls": {
         "startAppShare": "이 앱 공유",
-        "stopAppShare": "이 앱 공유 중지"
+        "stopAppShare": "이 앱 공유 중지",
+        "startEntireScreenShare": "전체 화면 공유",
+        "stopEntireScreenShare": "전체 화면 공유 중지"
       }
     }
   },
@@ -987,6 +1014,14 @@
         "changedBy": "변경한 사람: {{name}}",
         "scopeOwn": "이 스레드에서 내가 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다.",
         "scopeOther": "이 스레드에서 {{name}} 님이 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다."
+      },
+      "triggerWakeMarker": {
+        "triggered": "트리거됨",
+        "webhook": "웹훅",
+        "triggerLabel": "트리거 {{id}}",
+        "sourceLabel": "소스 {{source}}",
+        "triageLabel": "트리아지: {{reason}}",
+        "payloadLabel": "이벤트 페이로드 JSON"
       },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
@@ -1397,6 +1432,46 @@
         "kept": "작성 중인 초안은 그대로 두었습니다. 요청을 복사해 직접 추가하세요.",
         "copied": "요청을 복사했습니다. 초안에 붙여 넣으세요."
       }
+    },
+    "usage": {
+      "title": "사용량 및 한도",
+      "navLowQuota": "사용량 (한도 부족)",
+      "tabsLimits": "한도",
+      "tabsTokens": "토큰 및 비용",
+      "refresh": "새로고침",
+      "updatedAgo": "{{time}} 업데이트됨",
+      "runtimeLabel": "런타임",
+      "loading": "공급자 사용량 확인 중…",
+      "unavailableTitle": "사용량 데이터를 사용할 수 없음",
+      "unavailableBody": "이 계정의 공급자 사용 한도를 보고한 연결된 런타임이 없습니다.",
+      "retry": "다시 시도",
+      "partialData": "일부 데이터 — 일부 공급자 또는 사용 기록을 불러오지 못했습니다.",
+      "stale": "오래됨",
+      "percentLeft": "{{percent}}% 남음",
+      "resetsIn": "{{duration}} 후 초기화",
+      "resetsAt": "{{time}}에 초기화",
+      "resetsSoon": "곧 초기화됨",
+      "quotaAria": "{{label}}: {{percent}}% 남음",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% 남음, {{reset}}",
+      "noSubscriptionLimit": "구독 한도 없음",
+      "payAsYouGo": "종량제",
+      "limitsUnavailable": "사용 한도를 사용할 수 없음",
+      "notSignedIn": "로그인되지 않음",
+      "tokens7d": "{{tokens}} 토큰 (7일)",
+      "estimatedCost": "약 {{cost}}",
+      "totalTokens7d": "7일 총 토큰",
+      "totalCost7d": "7일 예상 비용",
+      "dailyChartTitle": "일별 토큰 (최근 7일)",
+      "dailyBarAria": "{{day}}: {{tokens}} 토큰",
+      "breakdownTitle": "계정별 내역",
+      "colAccount": "계정",
+      "colTokens": "7일 토큰",
+      "colShare": "비율",
+      "colSpend": "7일 비용",
+      "unattributed": "미분류",
+      "allUsageAndLimits": "전체 사용량 및 한도 →",
+      "noAccounts": "보고된 공급자 계정이 아직 없습니다.",
+      "noDailyData": "최근 7일간 기록된 일별 사용량이 없습니다."
     }
   },
   "composer": {
@@ -1434,8 +1509,10 @@
       "cancel": "받아쓰기 취소",
       "pause": "받아쓰기 일시정지",
       "resume": "받아쓰기 재개",
-      "finish": "받아쓰기 완료",
+      "finish": "입력창에 삽입하고 완료",
+      "finishAndSend": "완료하고 전송",
       "retry": "다시 시도",
+      "retryAndSend": "다시 시도하고 전송",
       "insertPartial": "일부 텍스트 삽입",
       "discard": "폐기",
       "dismissError": "받아쓰기 오류 닫기",
@@ -1444,6 +1521,10 @@
       "statusListening": "받아쓰기 중",
       "statusPaused": "받아쓰기 일시정지됨",
       "statusFinishing": "마무리 중...",
+      "statusSending": "마무리하고 전송 중...",
+      "noSpeech": "음성이 감지되지 않았습니다.",
+      "noSpeechOffThread": "{{room}}에서 음성이 감지되지 않았습니다.",
+      "sendFailedOffThread": "{{room}}의 받아쓰기 메시지를 완료할 수 없습니다. 열어서 다시 시도하세요.",
       "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
@@ -1980,5 +2061,8 @@
       "action": "이 기기 인증",
       "text": "그때까지는 암호화된 대화를 읽을 수 없습니다."
     }
+  },
+  "nav": {
+    "usage": "사용량"
   }
 }

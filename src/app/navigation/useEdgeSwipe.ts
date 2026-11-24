@@ -31,7 +31,7 @@ export const useEdgeSwipe = ({
    * a touch that starts inside it. Without one the swipe belongs to the page. Either way a menu or
    * dialog open over its layer, or opening before the finger lifts, takes the touch.
    */
-  within?: RefObject<Element>;
+  within?: RefObject<Element | null>;
   priority?: number;
   begin?: InteractiveSwipeBegin;
 }): void => {

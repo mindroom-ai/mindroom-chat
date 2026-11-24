@@ -30,9 +30,12 @@ export const XCODE_PROJECT_PATH = 'ios/App/App.xcodeproj/project.pbxproj';
 export const WATCH_INFO_PLIST_PATH = 'ios/Watch/MindRoomWatch/Info.plist';
 export const NOTIFICATION_SERVICE_INFO_PLIST_PATH =
   'ios/NotificationService/MindRoomNotificationService/Info.plist';
+export const BROADCAST_EXTENSION_INFO_PLIST_PATH =
+  'ios/BroadcastExtension/MindRoomBroadcast/Info.plist';
 
 const WATCH_TARGETS = ['MindRoomWatch', 'MindRoomWatchWidgets'];
 const NOTIFICATION_SERVICE_TARGET = 'MindRoomNotificationService';
+const BROADCAST_EXTENSION_TARGET = 'MindRoomBroadcast';
 
 const APPLE_VERSION = /^\d+\.\d+\.\d+$/;
 const BUILD_NUMBER = /^[1-9]\d*$/;
@@ -189,7 +192,10 @@ export const notificationServiceUploadProblems = ({
     }
   });
 
-  const extensionPoint = plistString(notificationServiceInfoPlistText, 'NSExtensionPointIdentifier');
+  const extensionPoint = plistString(
+    notificationServiceInfoPlistText,
+    'NSExtensionPointIdentifier'
+  );
   if (extensionPoint !== 'com.apple.usernotifications.service') {
     problems.push(
       `${NOTIFICATION_SERVICE_TARGET} Info.plist NSExtensionPointIdentifier must be com.apple.usernotifications.service, got '${extensionPoint ?? '(missing)'}'.`
@@ -200,6 +206,104 @@ export const notificationServiceUploadProblems = ({
   if (!strippedAppInfoPlist.includes('<string>INSendMessageIntent</string>')) {
     problems.push(
       'App Info.plist NSUserActivityTypes must include INSendMessageIntent for Communication Notifications.'
+    );
+  }
+
+  return problems;
+};
+
+/**
+ * Every reason App Store Connect or ReplayKit refuses the Broadcast Upload Extension; empty when
+ * valid.
+ * @param {{ projectText: string; infoPlistText: string; broadcastExtensionInfoPlistText: string }} input
+ * @returns {string[]}
+ */
+export const broadcastExtensionUploadProblems = ({
+  projectText,
+  infoPlistText,
+  broadcastExtensionInfoPlistText,
+}) => {
+  /** @type {string[]} */
+  const problems = [];
+
+  const appMarketingVersion = readSetting(projectText, 'MARKETING_VERSION', problems);
+  const extMarketingVersion = readSetting(
+    projectText,
+    'MARKETING_VERSION',
+    problems,
+    BROADCAST_EXTENSION_TARGET
+  );
+  if (
+    appMarketingVersion !== undefined &&
+    extMarketingVersion !== undefined &&
+    extMarketingVersion !== appMarketingVersion
+  ) {
+    problems.push(
+      `Target ${BROADCAST_EXTENSION_TARGET} MARKETING_VERSION (${extMarketingVersion}) must match App (${appMarketingVersion}).`
+    );
+  }
+
+  const appBuildNumber = readSetting(projectText, 'CURRENT_PROJECT_VERSION', problems);
+  const extBuildNumber = readSetting(
+    projectText,
+    'CURRENT_PROJECT_VERSION',
+    problems,
+    BROADCAST_EXTENSION_TARGET
+  );
+  if (
+    appBuildNumber !== undefined &&
+    extBuildNumber !== undefined &&
+    extBuildNumber !== appBuildNumber
+  ) {
+    problems.push(
+      `Target ${BROADCAST_EXTENSION_TARGET} CURRENT_PROJECT_VERSION (${extBuildNumber}) must match App (${appBuildNumber}).`
+    );
+  }
+
+  Object.entries({
+    CFBundleShortVersionString: 'MARKETING_VERSION',
+    CFBundleVersion: 'CURRENT_PROJECT_VERSION',
+  }).forEach(([key, setting]) => {
+    const value = plistString(broadcastExtensionInfoPlistText, key);
+    if (value !== `$(${setting})`) {
+      problems.push(
+        `${BROADCAST_EXTENSION_TARGET} Info.plist ${key} must be $(${setting}), got '${value ?? '(missing)'}'.`
+      );
+    }
+  });
+
+  const extensionPoint = plistString(broadcastExtensionInfoPlistText, 'NSExtensionPointIdentifier');
+  if (extensionPoint !== 'com.apple.broadcast-services-upload') {
+    problems.push(
+      `${BROADCAST_EXTENSION_TARGET} Info.plist NSExtensionPointIdentifier must be com.apple.broadcast-services-upload, got '${extensionPoint ?? '(missing)'}'.`
+    );
+  }
+
+  const processMode = plistString(broadcastExtensionInfoPlistText, 'RPBroadcastProcessMode');
+  if (processMode !== 'RPBroadcastProcessModeSampleBuffer') {
+    problems.push(
+      `${BROADCAST_EXTENSION_TARGET} Info.plist RPBroadcastProcessMode must be RPBroadcastProcessModeSampleBuffer, got '${processMode ?? '(missing)'}'.`
+    );
+  }
+
+  const extAppGroup = plistString(broadcastExtensionInfoPlistText, 'RTCAppGroupIdentifier');
+  if (extAppGroup !== 'group.chat.mindroom.app') {
+    problems.push(
+      `${BROADCAST_EXTENSION_TARGET} Info.plist RTCAppGroupIdentifier must be group.chat.mindroom.app, got '${extAppGroup ?? '(missing)'}'.`
+    );
+  }
+
+  const appAppGroup = plistString(infoPlistText, 'RTCAppGroupIdentifier');
+  if (appAppGroup !== 'group.chat.mindroom.app') {
+    problems.push(
+      `App Info.plist RTCAppGroupIdentifier must be group.chat.mindroom.app, got '${appAppGroup ?? '(missing)'}'.`
+    );
+  }
+
+  const appExtension = plistString(infoPlistText, 'RTCScreenSharingExtension');
+  if (appExtension !== 'chat.mindroom.app.broadcast') {
+    problems.push(
+      `App Info.plist RTCScreenSharingExtension must be chat.mindroom.app.broadcast, got '${appExtension ?? '(missing)'}'.`
     );
   }
 
@@ -223,6 +327,11 @@ if (isMain) {
       projectText,
       infoPlistText,
       notificationServiceInfoPlistText: read(NOTIFICATION_SERVICE_INFO_PLIST_PATH),
+    }),
+    ...broadcastExtensionUploadProblems({
+      projectText,
+      infoPlistText,
+      broadcastExtensionInfoPlistText: read(BROADCAST_EXTENSION_INFO_PLIST_PATH),
     }),
   ];
   if (problems.length > 0) {

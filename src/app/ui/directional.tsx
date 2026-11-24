@@ -28,7 +28,7 @@ export const mirrorPlacement = (
   if (!rightToLeft) return { position, align };
   const side = (position && otherSide[position]) ?? position;
   const beside = side === 'Left' || side === 'Right';
-  return { position: side, align: !beside && align ? otherEnd[align] ?? align : align };
+  return { position: side, align: !beside && align ? (otherEnd[align] ?? align) : align };
 };
 
 /**
@@ -116,7 +116,8 @@ export const documentIsRightToLeft = (): boolean =>
 
 /** folds' PopOut, placed in reading order: `position="Right"` opens toward the line's end. */
 export const PopOut = forwardRef<HTMLElement, Placement & Record<string, unknown>>(
-  function DirectionalPopOut({ position, align, ...props }, ref) {
+  function DirectionalPopOut(rawProps, ref) {
+    const { position, align, ...props } = rawProps as Placement & Record<string, unknown>;
     const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
     const Base = FoldsPopOut as React.ElementType;
     return <Base {...props} {...placement} ref={ref} />;
@@ -195,7 +196,10 @@ type TooltipChildren = (triggerRef: TriggerRef) => ReactNode;
 export const TooltipProvider = forwardRef<
   HTMLElement,
   Placement & { children: TooltipChildren } & Record<string, unknown>
->(function DirectionalTooltipProvider({ position, align, children, ...props }, ref) {
+>(function DirectionalTooltipProvider(rawProps, ref) {
+  const { position, align, children, ...props } = rawProps as Placement & {
+    children: TooltipChildren;
+  } & Record<string, unknown>;
   watchPresses();
   const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
   const Base = FoldsTooltipProvider as React.ElementType;

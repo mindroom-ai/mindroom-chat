@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import { lightTheme } from '../../src/app/theme/colors.css';
 import { CustomEditor, useEditor } from '../../src/app/editor/Editor';

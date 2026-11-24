@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -208,7 +208,7 @@ const ownCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') =>
   ({
     kind: 'room',
     call: { room: { roomId }, subscribe: () => () => undefined, getState: () => ({ phase }) },
-  } as unknown as ActiveCall);
+  }) as unknown as ActiveCall;
 
 /** This device is in a call, in `roomId`, transcribed. */
 const inCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') => {

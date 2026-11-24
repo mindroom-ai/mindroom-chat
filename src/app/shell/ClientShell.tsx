@@ -24,6 +24,7 @@ import { TourRenderer } from '../tour/TourRenderer';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 import { ModeratorGrantErrorNotice } from '../members/invite/ModeratorGrantErrorNotice';
+import { DictationSendErrorNotice } from '../composer/dictation/DictationSendErrorNotice';
 import { MacAppOffer } from './MacAppOffer';
 import { SkipToContent } from './SkipToContent';
 
@@ -77,6 +78,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <EncryptionRecoveryPrompt />
           <TourOffer />
           <ModeratorGrantErrorNotice />
+          <DictationSendErrorNotice />
           <MacAppOffer />
           <TourRenderer />
           <CallFeatures />

@@ -431,7 +431,9 @@
         "search": "Aramayı kenar çubuğunda göster",
         "searchDescription": "Komut paletini açan düğme. Gizlendiğinde, paleti \"Her şeyi bul\" alanından veya {{shortcut}} ile açın.",
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
-        "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
+        "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır.",
+        "usage": "Kullanımı kenar çubuğunda göster",
+        "usageDescription": "Bir çalışma zamanı bildirdiğinde sağlayıcı kullanım sınırlarını ve 7 günlük belirteç harcamasını gösterir. Gizliyken Kullanım’ı Ana Sayfa’daki ⋮ menüsünden veya model seçiciden açın."
       },
       "plugins": {
         "title": "Eklentiler",
@@ -508,7 +510,8 @@
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
-        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar"
+        "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
+        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -519,7 +522,17 @@
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
         "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
         "debugMode": "Hata ayıklama modu",
-        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın."
+        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın.",
+        "updatesTitle": "Uygulama güncellemeleri",
+        "updatesDescription": "Güncellemeler arka planda otomatik olarak indirilir.",
+        "checkForUpdates": "Güncellemeleri denetle",
+        "checkingForUpdates": "Güncellemeler denetleniyor…",
+        "upToDate": "MindRoom güncel.",
+        "updateAvailable": "Bir güncelleme mevcut. Hazır olduğunda buradan yeniden başlatabilirsiniz.",
+        "updateCheckFailed": "Şu anda güncellemeler denetlenemedi. Tekrar deneyin.",
+        "updateReady": "{{version}} sürümü yüklenmeye hazır.",
+        "restartToUpdate": "Güncellemek için yeniden başlat",
+        "updateInstallFailed": "Güncellemeyi yüklemek için yeniden başlatılamadı. Tekrar deneyin."
       }
     },
     "createChat": {
@@ -533,9 +546,15 @@
     },
     "spaceNav": {
       "options": "Alan seçenekleri",
-      "subspaces": "Alt alanlar",
       "subspaceUnread": "{{name}}, okunmamış mesajlar",
-      "backToParent": "{{name}} alanına dön"
+      "backToParent": "{{name}} alanına dön",
+      "add": "Ekle",
+      "newRoom": "Yeni oda",
+      "addExistingRoom": "Mevcut odayı ekle",
+      "newSubspace": "Yeni alt alan",
+      "addExistingSubspace": "Mevcut alt alanı ekle",
+      "addToSpace": "{{name}} içine ekle",
+      "subspaceOptions": "{{name}} seçenekleri"
     },
     "calls": {
       "panel": {
@@ -563,7 +582,13 @@
         "shareAgain": "Tekrar paylaş",
         "microphoneStopped": "Mikrofonunuz durdu.",
         "cameraStopped": "Kameranız durdu.",
-        "turnBackOn": "Tekrar aç"
+        "turnBackOn": "Tekrar aç",
+        "nativeScreenShareConnecting": "Ekran paylaşımı bağlanıyor…",
+        "nativeScreenShareFailed": "Tüm ekranınız paylaşılamadı.",
+        "nativeScreenSharePickerTimedOut": "Ekran paylaşımı zamanında başlamadı.",
+        "nativeScreenShareStopped": "Ekran paylaşımı durdu.",
+        "nativeScreenShareSheetBody": "Bildirimler ve diğer uygulamalar dahil ekranınızdaki her şey aramada görünür olacak.",
+        "nativeScreenShareSheetCaption": "Yukarıdaki düğmeye dokunun, ardından Yayını Başlat’a dokunun."
       },
       "problems": {
         "service": "Arama hizmetine ulaşılamadı. Daha sonra tekrar deneyin.",
@@ -867,7 +892,9 @@
     "call": {
       "controls": {
         "startAppShare": "Bu uygulamayı paylaş",
-        "stopAppShare": "Bu uygulamayı paylaşmayı durdur"
+        "stopAppShare": "Bu uygulamayı paylaşmayı durdur",
+        "startEntireScreenShare": "Tüm ekranı paylaş",
+        "stopEntireScreenShare": "Tüm ekranı paylaşmayı durdur"
       }
     }
   },
@@ -1006,6 +1033,14 @@
         "changedBy": "Değiştiren: {{name}}",
         "scopeOwn": "Bu ileti dizisinde, hitap edebileceğiniz ajan ve ekiplerin gelecekteki yanıtları için geçerlidir.",
         "scopeOther": "Bu ileti dizisinde, {{name}} adlı kişinin hitap edebileceği ajan ve ekiplerin gelecekteki yanıtları için geçerlidir."
+      },
+      "triggerWakeMarker": {
+        "triggered": "Tetiklendi",
+        "webhook": "Webhook",
+        "triggerLabel": "Tetikleyici {{id}}",
+        "sourceLabel": "Kaynak {{source}}",
+        "triageLabel": "Triyaj: {{reason}}",
+        "payloadLabel": "Olay yükü JSON"
       },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
@@ -1449,6 +1484,46 @@
         "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
         "copied": "İstek kopyalandı. Taslağına yapıştır."
       }
+    },
+    "usage": {
+      "title": "Kullanım ve Sınırlar",
+      "navLowQuota": "Kullanım (düşük kota)",
+      "tabsLimits": "Sınırlar",
+      "tabsTokens": "Belirteçler ve Maliyet",
+      "refresh": "Yenile",
+      "updatedAgo": "{{time}} güncellendi",
+      "runtimeLabel": "Çalışma zamanı",
+      "loading": "Sağlayıcı kullanımı denetleniyor…",
+      "unavailableTitle": "Kullanım verisi yok",
+      "unavailableBody": "Bağlı hiçbir çalışma zamanı bu hesap için sağlayıcı kullanım sınırı bildirmedi.",
+      "retry": "Yeniden dene",
+      "partialData": "Kısmi veri — bazı sağlayıcılar veya kullanım kayıtları yüklenemedi.",
+      "stale": "Eski",
+      "percentLeft": "%{{percent}} kaldı",
+      "resetsIn": "{{duration}} içinde sıfırlanır",
+      "resetsAt": "{{time}} tarihinde sıfırlanır",
+      "resetsSoon": "Yakında sıfırlanır",
+      "quotaAria": "{{label}}: %{{percent}} kaldı",
+      "quotaAriaWithReset": "{{label}}: %{{percent}} kaldı, {{reset}}",
+      "noSubscriptionLimit": "Abonelik sınırı yok",
+      "payAsYouGo": "Kullandığın kadar öde",
+      "limitsUnavailable": "Kullanım sınırları kullanılamıyor",
+      "notSignedIn": "Oturum açılmadı",
+      "tokens7d": "{{tokens}} belirteç (7g)",
+      "estimatedCost": "~{{cost}} tah.",
+      "totalTokens7d": "7 günlük toplam belirteç",
+      "totalCost7d": "7 günlük tahmini harcama",
+      "dailyChartTitle": "Günlük belirteçler (son 7 gün)",
+      "dailyBarAria": "{{day}}: {{tokens}} belirteç",
+      "breakdownTitle": "Hesap bazında döküm",
+      "colAccount": "Hesap",
+      "colTokens": "7g belirteç",
+      "colShare": "Pay",
+      "colSpend": "7g harcama",
+      "unattributed": "Atanmamış",
+      "allUsageAndLimits": "Tüm kullanım ve sınırlar →",
+      "noAccounts": "Henüz bildirilen sağlayıcı hesabı yok.",
+      "noDailyData": "Son 7 günde kaydedilen günlük kullanım yok."
     }
   },
   "composer": {
@@ -1486,8 +1561,10 @@
       "cancel": "Dikteyi iptal et",
       "pause": "Dikteyi duraklat",
       "resume": "Dikteyi sürdür",
-      "finish": "Dikteyi bitir",
+      "finish": "Metin alanına aktararak bitir",
+      "finishAndSend": "Bitir ve gönder",
       "retry": "Yeniden dene",
+      "retryAndSend": "Yeniden dene ve gönder",
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
@@ -1496,6 +1573,10 @@
       "statusListening": "Dikte ediliyor",
       "statusPaused": "Dikte duraklatıldı",
       "statusFinishing": "Tamamlanıyor...",
+      "statusSending": "Tamamlanıyor ve gönderiliyor...",
+      "noSpeech": "Konuşma algılanmadı.",
+      "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
+      "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
       "capReached": "5:00 sınırına ulaşıldı",
@@ -2048,5 +2129,8 @@
       "action": "Bu cihazı doğrulayın",
       "text": "O zamana kadar şifreli sohbetlerinizi okuyamaz."
     }
+  },
+  "nav": {
+    "usage": "Kullanım"
   }
 }

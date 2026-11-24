@@ -173,15 +173,14 @@ describe('mounted thread gap recovery', () => {
         releasePage(new Response(JSON.stringify({ chunk: [message('$second', 'Second')] })));
         await vi.waitFor(async () =>
           expect(
-            (
-              await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
-            ).events
+            (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
           ).toHaveLength(2)
         );
         releaseRead();
       });
-      await act(async () => {
-        await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Second'));
+      await vi.waitFor(async () => {
+        await act(async () => {});
+        expect(JSON.stringify(renderer.toJSON())).toContain('Second');
       });
     }
   );
@@ -208,14 +207,13 @@ describe('mounted thread gap recovery', () => {
       recover();
       await vi.waitFor(async () =>
         expect(
-          (
-            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
-          ).events
+          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
         ).toHaveLength(1)
       );
     });
-    await act(async () => {
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Sent'));
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Sent');
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Other thread');
   });
@@ -227,9 +225,7 @@ describe('mounted thread gap recovery', () => {
       renderer.update(<Harness engine={engine} room={room} threadId="$elsewhere" />);
       await vi.waitFor(async () =>
         expect(
-          (
-            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
-          ).events
+          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
         ).toHaveLength(1)
       );
     });
@@ -267,21 +263,21 @@ describe('mounted thread gap recovery', () => {
     const older = { ...message('$older', 'Older history'), origin_server_ts: 5 };
     const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
     const { engine, renderer, recover } = setup([[missed, older]], [loaded]);
-    await act(async () => {
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Loaded'));
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Loaded');
     });
     await act(async () => {
       recover();
       await vi.waitFor(async () =>
         expect(
-          (
-            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
-          ).events
+          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events
         ).toHaveLength(2)
       );
     });
-    await act(async () => {
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply');
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Older history');
   });
@@ -297,12 +293,16 @@ describe('mounted thread gap recovery', () => {
     await saveRoomEventsToCacheCommitted(engine.sessionId, ROOM_ID, [message('$cached', 'Cached')]);
     // Over its byte budget, the cache refuses gap pages for every room.
     __setCacheStoreByteBudgetForTests(1);
-    await act(async () => {
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Loaded'));
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Loaded');
     });
     await act(async () => {
       recover();
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply');
     });
     expect(fetchFn.mock.calls.some(([input]) => String(input).includes('/messages'))).toBe(false);
   });
@@ -356,7 +356,10 @@ describe('mounted thread gap recovery', () => {
     await act(async () => {
       finishOpenPass!();
       await openPass;
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply');
     });
   });
 
@@ -413,16 +416,17 @@ describe('mounted thread gap recovery', () => {
         <Harness engine={engine} room={room} threadId="$elsewhere" loaded={[elsewhere]} />
       )
     );
-    await act(async () => {
-      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Elsewhere'));
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(JSON.stringify(renderer.toJSON())).toContain('Elsewhere');
     });
     await act(async () => {
       relations.release();
       await vi.waitFor(async () =>
         expect(
-          (
-            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
-          ).events.map((event) => event.event_id)
+          (await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)).events.map(
+            (event) => event.event_id
+          )
         ).toContain('$missed')
       );
     });

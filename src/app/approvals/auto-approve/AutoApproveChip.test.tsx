@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
@@ -49,8 +48,8 @@ const NOW = Date.parse('2026-10-22T15:00:00Z');
 const room = {
   myUserId: ME,
   getMember: (userId: string) =>
-    ({ '@bob:example.org': { name: 'Bob' }, '@carol:example.org': { name: 'Carol' } }[userId] ??
-    null),
+    ({ '@bob:example.org': { name: 'Bob' }, '@carol:example.org': { name: 'Carol' } })[userId] ??
+    null,
 } as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;

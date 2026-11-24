@@ -1,4 +1,5 @@
-import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
+import { Element, Text as DOMText } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { ChildNode } from 'domhandler';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
@@ -255,7 +256,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
       0
     );
 
-  const nodes = htmlToDOM(html) as ChildNode[];
+  const nodes = parseHtmlToDom(html) as ChildNode[];
   nodes.forEach(visit);
   return {
     toolBlocks,

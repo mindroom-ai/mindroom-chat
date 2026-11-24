@@ -42,8 +42,8 @@ const allowedTags = [
   'a',
 ];
 
-// sanitize-html does not track SVG parent context. title/desc are kept as inert
-// text labels for accessible inline SVG, and remain inert if they appear outside SVG.
+// sanitize-html does not track SVG parent context. title/desc are kept for accessible inline SVG;
+// MessageExtras.tsx drops <title> outside <svg> so React 19 does not hoist it into document.head.
 const svgTags = [
   'svg',
   'g',

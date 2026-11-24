@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { fireEvent } from '@testing-library/react';
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { act as actInDom, lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
-import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import {
   Badge,
@@ -136,9 +135,11 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 const store = () => getSubagentRunStore(mx as unknown as MatrixClient);
 
 let renderer: ReactTestRenderer | undefined;
+const mountedLayouts: HTMLElement[] = [];
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  while (mountedLayouts.length > 0) mountedLayouts.pop()?.remove();
   store().clear();
   screen.size = 'Desktop';
   view.mode = 'compact';
@@ -175,6 +176,10 @@ const phoneLayout = (viewportWidth = 390, initialCalls = 1, rowPlugins = 0) => {
   const more = document.createElement('button');
   more.dataset.roomMoreOptions = '';
   tail.append(more);
+  header.append(tail);
+  // CSSOM getComputedStyle only resolves layout styles for connected elements.
+  document.body.append(header);
+  mountedLayouts.push(header);
   const calls = document.createElement('div');
   let count = initialCalls;
   const box = (width: number) => new DOMRect(0, 0, width, 40);
@@ -812,8 +817,11 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     run('running');
     schedules.events = [schedule('orchard', THREAD)];
     const layout = phoneLayout(430, 0, 1);
-    const calls = Promise.withResolvers<{ default: () => React.ReactElement }>();
-    const CallButtons = lazy(() => calls.promise);
+    let resolveCalls!: (value: { default: () => React.ReactElement }) => void;
+    const callsPromise = new Promise<{ default: () => React.ReactElement }>((resolve) => {
+      resolveCalls = resolve;
+    });
+    const CallButtons = lazy(() => callsPromise);
     renderHeader(
       {
         hasMindroomAgents: true,
@@ -834,7 +842,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       'More Options',
     ]);
     await act(async () => {
-      calls.resolve({
+      resolveCalls({
         default: () => (
           <>
             <IconButton aria-label="Room call" />
@@ -1237,8 +1245,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         const target = movedFocus
           ? members
           : remaining === 1
-          ? opener
-          : host.querySelector('[data-room-more-options]');
+            ? opener
+            : host.querySelector('[data-room-more-options]');
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         expect(document.activeElement).toBe(target);
         props.canvases = canvases;

@@ -104,7 +104,7 @@ describe('useMembershipFolds', () => {
       const entriesRef = useRef<{
         events: MatrixEvent[];
         entries: { event: MatrixEvent; absoluteIndex: number }[];
-      }>();
+      }>(undefined);
       if (entriesRef.current?.events !== events) {
         entriesRef.current = {
           events,
@@ -480,7 +480,7 @@ describe('the heights a fold takes over from the rows it holds', () => {
   });
 
   it("reads where the reader's view starts from the list as it is painted", () => {
-    const rect = (top: number) => () => ({ top } as DOMRect);
+    const rect = (top: number) => () => ({ top }) as DOMRect;
     const scroller = document.createElement('div');
     const inner = document.createElement('div');
     scroller.append(inner);

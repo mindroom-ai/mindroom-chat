@@ -118,8 +118,7 @@ const expectSingleRingAfterMembership = async (
 
   const rings = chunk.slice(membershipIndex + 1).filter((event) => {
     const rel = event.content['m.relates_to'] as
-      | { rel_type?: unknown; event_id?: unknown }
-      | undefined;
+      { rel_type?: unknown; event_id?: unknown } | undefined;
     if (rel?.rel_type !== 'm.reference' || rel.event_id !== membershipEvent.event_id) return false;
     return event.sender === caller.userId;
   });
@@ -136,8 +135,7 @@ const expectSingleRingAfterMembership = async (
 
   expect(ringEvent.type).toBe('m.room.encrypted');
   const hint = ringEvent.content['io.mindroom.rtc.notification'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   expect(hint, 'encrypted ring must carry cleartext hint').toBeDefined();
   expect(Object.keys(hint!).sort()).toEqual([
     'lifetime',

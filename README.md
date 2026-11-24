@@ -13,9 +13,9 @@
 
 [Website](https://mindroom.chat) · [Docs](https://docs.mindroom.chat/) · [MindRoom backend](https://github.com/mindroom-ai/mindroom) · [Run it](#quick-start) · [Self-host](#self-host)
 
-<img src="docs/screenshots/desktop-threads.png" alt="The Launch War Room in the Compact view: thread cards titled by agents, with tags, an approval request and a resolved thread, beside the room's members" width="900">
-
 </div>
+
+https://github.com/user-attachments/assets/7d36fe22-5a47-4a01-bf4e-82b7b05dcca5
 
 ## What it is
 
@@ -39,6 +39,15 @@ It is also a complete Matrix client, with rooms, direct messages, spaces, end-to
 - 🔓 **Open source.** Apache-2.0, with any Matrix homeserver.
 
 ## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/desktop-threads.png" alt="The Launch War Room in the Compact view: thread cards titled by agents, with tags, an approval request and a resolved thread, beside the room's members"></td>
+  </tr>
+  <tr>
+    <td align="center">Compact view: titled thread cards, tags, pending approvals and room members</td>
+  </tr>
+</table>
 
 <table>
   <tr>
@@ -72,7 +81,7 @@ just install   # npm ci
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 24 or newer and run `npm ci` and `npm run dev`.
+Without Nix, use Node 24.15+ or 26+ (`package.json` `engines`) and run `npm ci` and `npm run dev`.
 
 The sign-in page offers `mindroom.chat` and `matrix.org`, and takes any other homeserver too. To talk to agents, sign in to the homeserver your MindRoom backend uses; its agents are ordinary Matrix accounts there, and chat needs nothing else. New to MindRoom? Start with its [Getting Started guide](https://docs.mindroom.chat/getting-started/), or [try hosted MindRoom](https://mindroom.chat/#hosted).
 
@@ -91,7 +100,7 @@ cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: f
 
 ## Native apps
 
-The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store.
+The iOS, iPadOS and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`), and the macOS app wraps it with [Electron](https://www.electronjs.org) (`electron/`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store and Mac DMG.
 
 On the Apple Watch, MindRoom records a voice message into a room you pick with one tap, from the app, a complication or Siri, shows that room's threads with their answers, and lets you approve an agent's tool call or answer its question from your wrist, in end-to-end encrypted rooms too. Connect it from the iPhone app: Settings, Apple Watch. It needs watchOS 27 or newer.
 
@@ -99,28 +108,28 @@ On the Mac, Control+Option+Space opens Quick Capture over any app: a small windo
 
 ## Development
 
-| Command | What it does |
-|---|---|
-| `just dev` | Vite dev server on `http://127.0.0.1:4200` |
-| `just check` | The full local check: types, strict types, lint, unit tests, script tests and licenses |
-| `just test [files]` | Vitest unit tests, next to the code as `*.test.ts(x)` |
-| `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs |
-| `just e2e [specs]` | Playwright end-to-end specs |
+| Command                       | What it does                                                                           |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| `just dev`                    | Vite dev server on `http://127.0.0.1:4200`                                             |
+| `just check`                  | The full local check: types, strict types, lint, unit tests, script tests and licenses |
+| `just test [files]`           | Vitest unit tests, next to the code as `*.test.ts(x)`                                  |
+| `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs               |
+| `just e2e [specs]`            | Playwright end-to-end specs                                                            |
 
 [`docs/development.md`](docs/development.md) covers setup, the checks, the end-to-end specs and their parallel slots, and a real MindRoom backend with a stub model for the agent specs. Read [`AGENTS.md`](AGENTS.md) before you change code: it holds the rules and describes the `just` recipes.
 
 ## Documentation
 
-| Page | Covers |
-|---|---|
-| [`docs/development.md`](docs/development.md) | setup, checks, end-to-end specs, native shells |
-| [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
-| [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
-| [`docs/architecture.md`](docs/architecture.md) | folders, layers, and the MindRoom event formats |
+| Page                                               | Covers                                                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| [`docs/development.md`](docs/development.md)       | setup, checks, end-to-end specs, native shells                                           |
+| [`docs/deployment.md`](docs/deployment.md)         | the build, serving it, homeserver and MindRoom backend                                   |
+| [`docs/configuration.md`](docs/configuration.md)   | `config.json`, `runtime-config.js` and build variables                                   |
+| [`docs/architecture.md`](docs/architecture.md)     | folders, layers, and the MindRoom event formats                                          |
 | [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
-| [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
-| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |
-| [`AGENTS.md`](AGENTS.md) | rules for changing code, and the `just` recipes |
+| [`docs/ios-release.md`](docs/ios-release.md)       | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app         |
+| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with                                                 |
+| [`AGENTS.md`](AGENTS.md)                           | rules for changing code, and the `just` recipes                                          |
 
 ## License
 

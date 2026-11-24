@@ -46,7 +46,7 @@ vi.mock('../rooms/RoomCard.css', () => ({
   RoomCardTopic: 'RoomCardTopic',
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 vi.mock('folds', async () => {
@@ -379,6 +379,8 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
           </JotaiProvider>
         </QueryClientProvider>
       );
+    });
+    await act(async () => {
       await flush();
     });
     return { renderer, queryClient, store };
@@ -555,9 +557,11 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
       // The space is joined elsewhere (another device, or the first sync brings it): the same
       // mounted route goes on to the room's join page.
       mockClientState.getRoomSummary.mockClear();
-      await act(async () => {
+      act(() => {
         mockClientState.rooms = [defaultRoom, joinedSpace];
         store.set(allRoomsAtom, { type: 'PUT', roomId: SPACE_ID });
+      });
+      await act(async () => {
         await flush();
       });
 
@@ -680,7 +684,7 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
 
         const link = renderer.root.findByType('a');
         const attributes = link.props as Record<string, string | undefined>;
-        await act(async () => {
+        act(() => {
           (link.props.onClick as (event: unknown) => void)({
             currentTarget: {
               getAttribute: (name: string) => attributes[name] ?? null,
@@ -688,6 +692,8 @@ describe('ClientLayout + RoomRoute + JoinBeforeNavigate alias handoff', () => {
             },
             preventDefault: () => undefined,
           });
+        });
+        await act(async () => {
           await flush();
         });
 

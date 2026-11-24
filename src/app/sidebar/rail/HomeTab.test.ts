@@ -89,7 +89,7 @@ vi.mock('jotai', async (importOriginal) => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -178,7 +178,10 @@ describe('HomeTab', () => {
   });
 
   it('restores the saved home path when the home tab is clicked', async () => {
-    const renderer = create(React.createElement(HomeTab));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(HomeTab));
+    });
 
     await act(async () => {
       renderer.root.findByType('button').props.onClick();
@@ -188,7 +191,10 @@ describe('HomeTab', () => {
   });
 
   it('preserves the current route when the navigation panel handles the click', async () => {
-    const renderer = create(React.createElement(HomeTab, { onSelect: () => true }));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(HomeTab, { onSelect: () => true }));
+    });
     await act(() => renderer.root.findByType('button').props.onClick());
     expect(navigate).not.toHaveBeenCalled();
     act(() => renderer.unmount());
@@ -199,7 +205,10 @@ describe('HomeTab', () => {
     async (selected) => {
       state.mobile = true;
       state.selected = selected;
-      const renderer = create(React.createElement(HomeTab));
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(HomeTab));
+      });
       await act(() => renderer.root.findByType('button').props.onClick());
       expect(navigate).toHaveBeenCalledWith(
         selected ? '/home/%23room%3Amindroom.chat?threadId=%24thread' : '/home/'

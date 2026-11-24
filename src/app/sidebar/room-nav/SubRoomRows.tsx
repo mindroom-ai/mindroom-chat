@@ -14,8 +14,7 @@ import { isRoomId } from '../../matrix/matrix';
 import { StateEvent, type RoomToParents } from '../../matrix/types/room';
 import { withSearchParam } from '../../routes/pathUtils';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { useRoomOrder } from './roomOrder';
-import { useRoomListShortcuts } from '../useRoomListShortcuts';
+import { useRoomOrders, type RoomOrder } from './roomOrder';
 
 /** A section's rooms: the ones it shows on their own, and the sub-rooms under each room. */
 export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[]> };
@@ -74,36 +73,66 @@ const withSubRooms = (roomIds: string[], tree: SubRoomTree): string[] =>
   roomIds.flatMap((roomId) => [roomId, ...withSubRooms(tree.children.get(roomId) ?? [], tree)]);
 
 /**
+ * Computes a section's room tree and rendered lists without hooks: `shownRoomIds` has all rooms
+ * in expanded rendered order (ordered top rooms with their nested sub-rooms after each), and
+ * `listedRoomIds` holds the top-level rows rendered (only the lone selected room while collapsed).
+ */
+export const buildSubRoomList = (
+  topRoomIds: string[],
+  roomIds: string[],
+  roomToParents: RoomToParents,
+  chatRooms: ReadonlySet<string>,
+  orderTop: (top: readonly string[]) => string[],
+  closed: boolean,
+  selectedRoomId: string | undefined
+): { tree: SubRoomTree; shownRoomIds: string[]; listedRoomIds: string[] } => {
+  const tree = nestSubRooms(topRoomIds, roomIds, roomToParents, chatRooms);
+  const orderedTop = orderTop(tree.top);
+  const shownRoomIds = withSubRooms(orderedTop, tree);
+  const listedRoomIds = closed
+    ? shownRoomIds.filter((roomId) => roomId === selectedRoomId)
+    : orderedTop;
+  return { tree, shownRoomIds, listedRoomIds };
+};
+
+/**
  * A section's room list, with `roomIds` and `topRoomIds` as for `nestSubRooms`: its rooms in A to Z
- * order until the person drags one, then in their order on every device (`useRoomOrder`), each
- * with its sub-rooms under it, and the list's keyboard shortcuts through all of them. A collapsed
- * section still lists the selected room, on its own.
+ * order until the person drags one, then in their order on every device (`useRoomOrders`), each
+ * with its sub-rooms under it. A collapsed section still lists the selected room, on its own.
  */
 export const useSubRoomList = (
   listId: string,
   topRoomIds: string[],
   roomIds: string[],
   closed: boolean,
-  selectedRoomId: string | undefined,
-  pathOf: (roomId: string) => string
+  selectedRoomId: string | undefined
 ) => {
   const roomToParents = useAtomValue(roomToParentsAtom);
   const chatRooms = useAtomValue(chatRoomParentsAtom);
-  const tree = useMemo(
-    () => nestSubRooms(topRoomIds, roomIds, roomToParents, chatRooms),
-    [topRoomIds, roomIds, roomToParents, chatRooms]
+  const roomOrders = useRoomOrders();
+  const list = useMemo(
+    () =>
+      buildSubRoomList(
+        topRoomIds,
+        roomIds,
+        roomToParents,
+        chatRooms,
+        (top) => roomOrders.orderOf(listId, top),
+        closed,
+        selectedRoomId
+      ),
+    [topRoomIds, roomIds, roomToParents, chatRooms, roomOrders, listId, closed, selectedRoomId]
   );
-  const roomOrder = useRoomOrder(listId, tree.top);
-  const shownRoomIds = useMemo(
-    () => withSubRooms(roomOrder.roomIds, tree),
-    [roomOrder.roomIds, tree]
+  const roomOrder = useMemo<RoomOrder>(
+    () => ({
+      roomIds: closed ? roomOrders.orderOf(listId, list.tree.top) : list.listedRoomIds,
+      manual: roomOrders.isManual(listId),
+      save: (order: string[]) => roomOrders.save(listId, order),
+      reset: () => roomOrders.reset([listId]),
+    }),
+    [roomOrders, listId, closed, list.tree.top, list.listedRoomIds]
   );
-  const listedRoomIds = useMemo(
-    () => (closed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds),
-    [shownRoomIds, roomOrder.roomIds, closed, selectedRoomId]
-  );
-  useRoomListShortcuts(closed ? listedRoomIds : shownRoomIds, selectedRoomId, pathOf);
-  return { tree, roomOrder, listedRoomIds };
+  return { ...list, roomOrder };
 };
 
 const viaOf = (content: Record<string, unknown>): string[] => {

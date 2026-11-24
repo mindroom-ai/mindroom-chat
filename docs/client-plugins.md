@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 66), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 68), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -259,6 +259,8 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 64 `ui`'s `MarkdownContent`
 - version 65 side panels' `title`
 - version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
+- version 67 the declaration's `defaultEnabled`
+- version 68 thread details' `onClose`
 
 ## Page zoom
 
@@ -288,6 +290,10 @@ One-finger touches, such as a scroll or a tap, are never affected.
 The app shares its React, React DOM, matrix-js-sdk, jotai, TanStack Query, React Router (react-router-dom and react-router), i18next and react-i18next, folds, focus-trap, focus-trap-react, dayjs and react-aria, with the packages some of them are built on (scheduler, @tanstack/query-core), with every plugin (`SHARED_PACKAGES` in `scripts/client-plugins.mjs`): in a build and in the dev server, a plugin's imports of them, and those of the packages it installed, resolve as the app's own imports do, to the app's copies in the app's versions, so the state each keeps is one (the Matrix SDK's classes, query caches, atom stores, the router, translations, focus traps, the date locale, the scroll lock, overlay stack and focus scopes of dialogs and menus);
 a CommonJS package's `require` of one gets the module the app imports too.
 React Router is version 7, which folded `@remix-run/router` into `react-router`: the app no longer shares `@remix-run/router`, so a plugin imports helpers such as `matchPath` from `react-router` (or `react-router-dom`), and gives `generatePath` raw values for named parameters, which it encodes itself (encoding them first encodes them twice); a `*` splat passes through unchanged, so it takes a concrete path with each of its segments already encoded, as `pluginRoutePath` (`src/app/plugins/pluginPages.tsx`) asks.
+React and React DOM are version 19.3 (with `scheduler` 0.28): `react-dom/test-utils` drops all legacy helpers and keeps only a deprecated `act` that logs `console.error`, so tests should import `act` from `react`; `useRef` requires an initial value (`useRef<T | null>(null)` or `useRef<T | undefined>(undefined)`), DOM refs use `RefObject<T | null>`, ref callbacks must not return a non-cleanup value (React 19 treats a returned function as a cleanup), `JSX` is imported from `react` (`import type { JSX } from 'react'`) rather than read from the global namespace, and `ReactElement` defaults its props type parameter to `unknown`.
+i18next is version 27.2 and react-i18next is version 18.0: `Trans` now escapes interpolated values before parsing and decodes HTML entities by default (the deprecated `shouldUnescape` prop warns in development and should be removed), subscribes to `i18n.on`/`off` so minimal test mocks used with `Trans` need those methods, and `initImmediate` and `interpolation.format` are removed (use `initAsync` and a `FormatterModule`); in types, `strictInterpolationChecks` defaults to `true`, `returnEmptyString` defaults to `false`, and `I18nContext` includes `undefined`.
+`focus-trap-react` is version 11.0 (with `focus-trap` 7.8): it adds the named `{ FocusTrap }` export and `type { FocusTrapProps }` alongside the deprecated default export (both reference the same component). Plugins targeting current hosts can use `{ FocusTrap }` and `type { FocusTrapProps }` instead of `FocusTrap.Props`, while plugins that must also run on older hosts (10.0.x, which lack the named export) should keep the default import; do not pass extra HTML attributes such as `className` to `FocusTrap`. The app's TypeScript is 6.0: extend `tsconfig.plugin.json` or omit deprecated `baseUrl` in plugin `tsconfig.json` files.
+jotai is version 3.0 (ESM only, requiring TypeScript >= 5.5 and React >= 18): `atomFamily` moved from `jotai/utils` to `jotai-family` (which is not shared and keeps no global state), `loadable` is removed (use `unwrap`), `setSelf` in atom `read` functions and the `delay` option on `useAtom`/`useAtomValue` are removed, `selectAtom` no longer unwraps promises internally (wrapping an async atom with `unwrap` is not a drop-in replacement: `unwrap` hands the selector `undefined` while the promise is pending), and `useAtomValue` no longer forces an extra re-render right after mount when the value is unchanged (using `useAtomValueRawSync` for synchronous external-store semantics is not a drop-in replacement for async atoms either: it returns the promise instead of suspending).
 A build needs none of them installed in the plugin's directory, wherever it is, and does not use a copy installed there (for the plugin's tests, or for one of its packages); an import the app's copy cannot resolve, such as a file only a newer version has, fails the build.
 A plugin directory inside another one belongs to the inner plugin, and the app's own directory inside a plugin directory to the app.
 The dev server pre-bundles the packages a plugin installed without plugin hooks; there an esbuild plugin in `scripts/client-plugins.mjs` resolves their imports and requires of the shared packages.
@@ -316,7 +322,7 @@ A build module is code the build runs, as an entry is code the browser runs: the
 
 An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution, its strings, and an optional `forgetAccount` (account storage, below).
 `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes.
-A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
+A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginDeploymentConfig.ts`).
 
 ## Message renderers
 
@@ -521,7 +527,7 @@ A badge that throws shows nothing, and the failure is logged and reported with `
 Thread details (`src/app/plugins/threadDetails.ts`) are the eleventh kind: `ClientPlugin.threadDetails`, a list of `{ shows?, Component }`.
 `shows(room, threadId)`, pure and synchronous, says whether the thread has that detail; without it, every thread does, and one that throws counts as false, logged as "[plugin <id>@<version>] its thread details' shows failed".
 The app reads which details show as a surface opens and keeps that list until it closes; only threads whose root the server confirmed (`$` IDs) have details.
-`Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws rows of text, with no control, no link and nothing focusable.
+`Component` gets `{ room, threadId, onClose }`: the thread's room (matrix-js-sdk's `Room`), the ID of its root event, and an optional `onClose?: () => void` (since version 68). `ThreadActionsMenu` passes `onClose` so details may offer interactive controls that dismiss the menu after an action; hover cards omit `onClose`, where details remain non-interactive rows of text with no control, no link and nothing focusable.
 In the Compact card's hover card and the thread menu, it renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context.
 In the sidebar THREADS hover card, it renders outside a room's page: `useRoomSidePanel` and `useShownThread` return undefined, as on the search page.
 `useRoomNavigate` works on every surface.
@@ -551,7 +557,9 @@ A component that loads its code (a `lazy` component) shows nothing until the cod
 
 `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions across the deployment and omits the plugin from Settings, and `?plugins=off` in the address hides every plugin's for one page load.
 
-Each account can also turn individual deployment-enabled plugins on or off in **Settings -> Plugins** (synced across web, Mac, and iOS in `io.mindroom.settings` as `disabledPlugins`). Turning off a plugin hides all of its contributions immediately for that account, while leaving **Settings -> Plugins** visible so the account can turn it back on. A plugin can set an optional `mindroomClientPlugin.name` in `package.json` for its display label in Settings (otherwise the client formats its kebab-case `id` in Title Case) alongside its optional `package.json` `description`.
+A plugin can also declare an optional boolean `mindroomClientPlugin.defaultEnabled` in `package.json` (since version 67; defaults to `true`, and a non-boolean fails the build). When `defaultEnabled` is `false`, the plugin ships in the build and appears in **Settings -> Plugins** as off by default until the account turns it on.
+
+Each account can turn individual deployment-enabled plugins on or off in **Settings -> Plugins** (synced across web, Mac, and iOS in `io.mindroom.settings` as `disabledPlugins` and `enabledPlugins`). Precedence is: deployment `plugins.<id>.enabled: false` > `disabledPlugins` > `enabledPlugins` > `mindroomClientPlugin.defaultEnabled`. Turning off a plugin hides all of its contributions immediately for that account, while leaving **Settings -> Plugins** visible so the account can turn it back on. A plugin can set an optional `mindroomClientPlugin.name` in `package.json` for its display label in Settings (otherwise the client formats its kebab-case `id` in Title Case) alongside its optional `package.json` `description`.
 
 ## Tests
 
@@ -560,7 +568,7 @@ a CommonJS package's `require` of a shared package still resolves in the plugin'
 Its build module's hooks run there too, so the package names its `resolveId` maps resolve in its tests as in the build.
 `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1` runs the listed plugins' tests alone, without the app's own.
 The app inside a plugin's directory, a link or a submodule at its top such as `.mindroom-chat`, lends it none of the app's tests.
-A plugin in a repository of its own typechecks and lints with configs it extends from the app ([development.md](development.md#a-client-plugin-in-its-own-repository)).
+A plugin in a repository of its own typechecks and lints with configs it extends from the app (`tsconfig.plugin.json`, `tsconfig.plugin.strict.json`, and ESLint 10 flat config `eslint.config.plugin.mjs`; see [development.md](development.md#a-client-plugin-in-its-own-repository)).
 A plugin's tests reach the app through the SDK's subpaths only, never its modules: a test that needs another answer from one of the SDK's hooks mocks that subpath (`vi.mock('@mindroom/client-sdk/matrix', ...)` with the original's exports spread in, from `importOriginal`), or gives `renderPluginComponent` its `client`.
 They render a contribution's own component, or call its `run`, directly; how the app shows it in its surfaces, such as the room header, the timeline or the composer's commands, is for the plugin's end-to-end tests.
 

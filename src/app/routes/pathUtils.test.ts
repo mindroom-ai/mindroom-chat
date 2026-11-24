@@ -4,6 +4,7 @@ import {
   getActivityPath,
   getActivityRoomPath,
   getThreadsRoomPath,
+  getUsagePath,
   isQuickCapturePath,
 } from './pathUtils';
 
@@ -11,6 +12,7 @@ describe('Activity and Threads paths', () => {
   it('addresses the sections and their invite list', () => {
     expect(getActivityPath()).toBe('/activity/');
     expect(getActivityInvitesPath()).toBe('/activity/invites/');
+    expect(getUsagePath()).toBe('/usage/');
   });
 
   it('puts a room, and an event of it, inside the section', () => {

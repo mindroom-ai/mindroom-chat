@@ -98,20 +98,18 @@ final class RoomRouteReloadTests: XCTestCase {
 
     private func checkNativePlugins(_ webView: WKWebView) async throws {
         // Invalid arguments return immediately without showing authentication or
-        // file-save UI, while exercising a real JS -> Swift -> JS round trip. Quick
-        // Capture is the Mac's only.
+        // file-save UI, while exercising a real JS -> Swift -> JS round trip.
         let errors = try await webView.callAsyncJavaScript("""
             return await Promise.all([
               ['MindRoomAuth', 'authenticate'],
               ['MindRoomFileSave', 'beginSave'],
-              ['MindRoomQuickCapture', 'hide'],
             ].map(async ([plugin, method]) => {
               try { await window.Capacitor.nativePromise(plugin, method, {}); }
               catch (error) { return error.code; }
               return 'unexpected success';
             }));
             """, arguments: [:], in: nil, contentWorld: .page) as? [String]
-        XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE", "UNSUPPORTED"])
+        XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE"])
     }
 
     private func nativeDiagnostics(_ webView: WKWebView) async throws -> [String: Any] {
@@ -240,13 +238,11 @@ final class RoomRouteReloadTests: XCTestCase {
             let reason = events.first { $0["name"] as? String == "webview.termination_reason" }
             let reasonData = reason?["data"] as? [String: Any]
             XCTAssertEqual(reasonData?["terminationReason"] as? String, "crash")
-#if !targetEnvironment(macCatalyst)
             let availableMemoryBytes = reasonData?["availableMemoryBytes"] as? Int
             XCTAssertNotNil(availableMemoryBytes)
             if let availableMemoryBytes {
                 XCTAssertGreaterThanOrEqual(availableMemoryBytes, 0)
             }
-#endif
             XCTAssertLessThan(reason?["sequence"] as? Int ?? Int.max, terminationSequence)
             XCTAssertTrue(events.contains {
                 $0["name"] as? String == "navigation.finished" && ($0["sequence"] as? Int ?? 0) > terminationSequence

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
@@ -21,7 +21,7 @@ const mx = vi.hoisted(() => ({
   getUserId: () => env.viewer,
   getRoom: () => ({
     getMember: (userId: string) =>
-      ({ '@mindroom_assistant:example.org': { name: 'Ada' } }[userId] ?? null),
+      ({ '@mindroom_assistant:example.org': { name: 'Ada' } })[userId] ?? null,
     getJoinedMembers: () => [],
   }),
 }));

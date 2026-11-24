@@ -444,7 +444,9 @@
         "search": "Afficher Rechercher dans la barre latérale",
         "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, ouvrez-la depuis le champ « Tout rechercher » ou avec {{shortcut}}.",
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
-        "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
+        "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local.",
+        "usage": "Afficher Utilisation dans la barre latérale",
+        "usageDescription": "Limites d’utilisation des fournisseurs et consommation de jetons sur 7 jours, dès qu’un environnement les signale. Lorsqu’il est masqué, ouvrez Utilisation depuis le menu ⋮ dans Accueil ou le sélecteur de modèle."
       },
       "plugins": {
         "title": "Extensions",
@@ -521,7 +523,8 @@
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
         "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan",
-        "plugins": "plugins, extensions, modules, intégrations"
+        "plugins": "plugins, extensions, modules, intégrations",
+        "appUpdates": "mise à jour, mises à jour, version, actualiser, redémarrer"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -532,7 +535,17 @@
         "thirdPartyNotices": "Avis de tiers",
         "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
         "debugMode": "Mode débogage",
-        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée."
+        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée.",
+        "updatesTitle": "Mises à jour de l’application",
+        "updatesDescription": "Les mises à jour se téléchargent automatiquement en arrière-plan.",
+        "checkForUpdates": "Rechercher des mises à jour",
+        "checkingForUpdates": "Recherche de mises à jour…",
+        "upToDate": "MindRoom est à jour.",
+        "updateAvailable": "Une mise à jour est disponible. Vous pourrez redémarrer ici dès qu’elle sera prête.",
+        "updateCheckFailed": "Impossible de rechercher des mises à jour pour le moment. Réessayez.",
+        "updateReady": "La version {{version}} est prête à être installée.",
+        "restartToUpdate": "Redémarrer pour mettre à jour",
+        "updateInstallFailed": "Impossible de redémarrer pour installer la mise à jour. Réessayez."
       }
     },
     "createChat": {
@@ -546,9 +559,15 @@
     },
     "spaceNav": {
       "options": "Options de l’espace",
-      "subspaces": "Sous-espaces",
       "subspaceUnread": "{{name}}, messages non lus",
-      "backToParent": "Retour à {{name}}"
+      "backToParent": "Retour à {{name}}",
+      "add": "Ajouter",
+      "newRoom": "Nouveau salon",
+      "addExistingRoom": "Ajouter un salon existant",
+      "newSubspace": "Nouveau sous-espace",
+      "addExistingSubspace": "Ajouter un sous-espace existant",
+      "addToSpace": "Ajouter à {{name}}",
+      "subspaceOptions": "Options de {{name}}"
     },
     "calls": {
       "panel": {
@@ -577,7 +596,13 @@
         "shareAgain": "Partager à nouveau",
         "microphoneStopped": "Votre microphone s’est arrêté.",
         "cameraStopped": "Votre caméra s’est arrêtée.",
-        "turnBackOn": "Réactiver"
+        "turnBackOn": "Réactiver",
+        "nativeScreenShareConnecting": "Connexion du partage d’écran…",
+        "nativeScreenShareFailed": "Impossible de partager tout votre écran.",
+        "nativeScreenSharePickerTimedOut": "Le partage d’écran n’a pas démarré à temps.",
+        "nativeScreenShareStopped": "Le partage d’écran s’est arrêté.",
+        "nativeScreenShareSheetBody": "Tout ce qui s’affiche sur votre écran, y compris les notifications et les autres applications, sera visible pendant l’appel.",
+        "nativeScreenShareSheetCaption": "Touchez le bouton ci-dessus, puis touchez Lancer la diffusion."
       },
       "problems": {
         "service": "Le service d’appel est injoignable. Réessayez plus tard.",
@@ -884,7 +909,9 @@
     "call": {
       "controls": {
         "startAppShare": "Partager cette application",
-        "stopAppShare": "Arrêter de partager cette application"
+        "stopAppShare": "Arrêter de partager cette application",
+        "startEntireScreenShare": "Partager tout l’écran",
+        "stopEntireScreenShare": "Arrêter de partager tout l’écran"
       }
     }
   },
@@ -1025,6 +1052,14 @@
         "changedBy": "Modifié par {{name}}",
         "scopeOwn": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels vous pouvez vous adresser.",
         "scopeOther": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels {{name}} peut s’adresser."
+      },
+      "triggerWakeMarker": {
+        "triggered": "Déclenché",
+        "webhook": "Webhook",
+        "triggerLabel": "Déclencheur {{id}}",
+        "sourceLabel": "Source {{source}}",
+        "triageLabel": "Triage : {{reason}}",
+        "payloadLabel": "Charge utile de l’événement JSON"
       },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
@@ -1501,6 +1536,46 @@
         "kept": "Votre brouillon reste tel quel. Copiez la demande pour l’ajouter vous-même.",
         "copied": "Demande copiée. Collez-la dans votre brouillon."
       }
+    },
+    "usage": {
+      "title": "Utilisation et limites",
+      "navLowQuota": "Utilisation (quota bas)",
+      "tabsLimits": "Limites",
+      "tabsTokens": "Jetons et coût",
+      "refresh": "Actualiser",
+      "updatedAgo": "Mis à jour {{time}}",
+      "runtimeLabel": "Environnement",
+      "loading": "Vérification de l’utilisation…",
+      "unavailableTitle": "Données d’utilisation indisponibles",
+      "unavailableBody": "Aucun environnement connecté n’a signalé de limites d’utilisation pour ce compte.",
+      "retry": "Réessayer",
+      "partialData": "Données partielles — certains fournisseurs ou relevés n’ont pas pu être chargés.",
+      "stale": "Obsolète",
+      "percentLeft": "{{percent}}% restant",
+      "resetsIn": "Réinitialisation dans {{duration}}",
+      "resetsAt": "Réinitialisation {{time}}",
+      "resetsSoon": "Réinitialisation imminente",
+      "quotaAria": "{{label}} : {{percent}}% restant",
+      "quotaAriaWithReset": "{{label}} : {{percent}}% restant, {{reset}}",
+      "noSubscriptionLimit": "Aucune limite d’abonnement",
+      "payAsYouGo": "Paiement à l’usage",
+      "limitsUnavailable": "Limites d’utilisation indisponibles",
+      "notSignedIn": "Non connecté",
+      "tokens7d": "{{tokens}} jetons (7 j)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Total de jetons (7 jours)",
+      "totalCost7d": "Dépense estimée (7 jours)",
+      "dailyChartTitle": "Jetons quotidiens (7 derniers jours)",
+      "dailyBarAria": "{{day}} : {{tokens}} jetons",
+      "breakdownTitle": "Répartition par compte",
+      "colAccount": "Compte",
+      "colTokens": "Jetons (7 j)",
+      "colShare": "Part",
+      "colSpend": "Dépense (7 j)",
+      "unattributed": "Non attribué",
+      "allUsageAndLimits": "Toute l’utilisation et limites →",
+      "noAccounts": "Aucun compte fournisseur signalé pour le moment.",
+      "noDailyData": "Aucune utilisation quotidienne enregistrée au cours des 7 derniers jours."
     }
   },
   "composer": {
@@ -1538,8 +1613,10 @@
       "cancel": "Annuler la dictée",
       "pause": "Mettre la dictée en pause",
       "resume": "Reprendre la dictée",
-      "finish": "Terminer la dictée",
+      "finish": "Insérer dans la zone de saisie",
+      "finishAndSend": "Terminer et envoyer",
       "retry": "Réessayer",
+      "retryAndSend": "Réessayer et envoyer",
       "insertPartial": "Insérer le texte partiel",
       "discard": "Supprimer",
       "dismissError": "Fermer l’erreur de dictée",
@@ -1548,6 +1625,10 @@
       "statusListening": "Dictée en cours",
       "statusPaused": "Dictée en pause",
       "statusFinishing": "Finalisation...",
+      "statusSending": "Finalisation et envoi...",
+      "noSpeech": "Aucune voix détectée.",
+      "noSpeechOffThread": "Aucune voix détectée dans {{room}}.",
+      "sendFailedOffThread": "Impossible de terminer le message dicté dans {{room}}. Ouvrez-le pour réessayer.",
       "statusPendingRetry_one": "{{count}} segment en attente de nouvel essai",
       "statusPendingRetry_many": "{{count}} segments en attente de nouvel essai",
       "statusPendingRetry_other": "{{count}} segments en attente de nouvel essai",
@@ -2116,5 +2197,8 @@
       "action": "Vérifier cet appareil",
       "text": "D’ici là, il ne peut pas lire vos discussions chiffrées."
     }
+  },
+  "nav": {
+    "usage": "Utilisation"
   }
 }

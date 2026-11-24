@@ -32,7 +32,7 @@ const event = (eventId: string, content: IEvent['content'], type = EventType.Roo
     origin_server_ts: 1,
     type,
     content,
-  } as IEvent);
+  }) as IEvent;
 
 const olderMessage = event('$older', { msgtype: 'm.text', body: 'Original message' });
 const recentMessage = event('$recent', { msgtype: 'm.text', body: 'Recent cached message' });

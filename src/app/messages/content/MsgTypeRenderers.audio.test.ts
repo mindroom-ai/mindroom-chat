@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import {
@@ -68,25 +68,28 @@ vi.mock('../../preferences/settings', () => ({
 
 describe('MAudio voice branch', () => {
   it('renders compact VoiceAudioContent for voice m.audio', () => {
-    const renderer = create(
-      React.createElement(MAudio, {
-        content: {
-          msgtype: MsgType.Audio,
-          body: 'voice.ogg',
-          url: 'mxc://mindroom/voice',
-          info: {
-            mimetype: 'audio/ogg',
-            duration: 5000,
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MAudio, {
+          content: {
+            msgtype: MsgType.Audio,
+            body: 'voice.ogg',
+            url: 'mxc://mindroom/voice',
+            info: {
+              mimetype: 'audio/ogg',
+              duration: 5000,
+            },
+            [MATRIX_VOICE_MESSAGE_PROPERTY_NAME]: {},
+            [MATRIX_AUDIO_DETAILS_PROPERTY_NAME]: {
+              duration: 5000,
+              waveform: [0, 512, 1024],
+            },
           },
-          [MATRIX_VOICE_MESSAGE_PROPERTY_NAME]: {},
-          [MATRIX_AUDIO_DETAILS_PROPERTY_NAME]: {
-            duration: 5000,
-            waveform: [0, 512, 1024],
-          },
-        },
-        renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
-      })
-    );
+          renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('voice-audio');
@@ -96,21 +99,24 @@ describe('MAudio voice branch', () => {
   });
 
   it('renders non-voice m.audio with the canonical voice-style audio UI', () => {
-    const renderer = create(
-      React.createElement(MAudio, {
-        content: {
-          msgtype: MsgType.Audio,
-          body: 'clip.ogg',
-          filename: 'clip.ogg',
-          url: 'mxc://mindroom/audio',
-          info: {
-            mimetype: 'audio/ogg',
-            duration: 5000,
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MAudio, {
+          content: {
+            msgtype: MsgType.Audio,
+            body: 'clip.ogg',
+            filename: 'clip.ogg',
+            url: 'mxc://mindroom/audio',
+            info: {
+              mimetype: 'audio/ogg',
+              duration: 5000,
+            },
           },
-        },
-        renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
-      })
-    );
+          renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
+        })
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('voice-audio');

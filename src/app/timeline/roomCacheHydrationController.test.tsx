@@ -90,9 +90,12 @@ describe('room cache hydration with a restored SDK tail', () => {
       threadId: undefined,
       threadIdRef: { current: undefined },
     };
-    await act(async () => {
+    act(() => {
       renderer = create(<Harness {...props} />);
-      await vi.waitFor(() => expect(hydrated).toBe(true));
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(hydrated).toBe(true);
     });
     return published;
   };

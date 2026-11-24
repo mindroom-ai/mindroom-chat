@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -8,7 +9,7 @@ import React, {
   type FormEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
 import {
   Box,
@@ -142,6 +143,12 @@ export function ThreadActionsMenu({
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Deactivate the focus trap before calling the parent's onClose so it can return focus to the trigger.
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (closing) onCloseRef.current();
+  }, [closing]);
+  const closeFromDetail = useCallback(() => setClosing(true), []);
   const [dialog, setDialog] = useState<OpenDialog>();
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
@@ -667,6 +674,7 @@ export function ThreadActionsMenu({
       position="Bottom"
       content={
         <FocusTrap
+          active={!closing}
           focusTrapOptions={{
             initialFocus: false,
             returnFocusOnDeactivate: false,
@@ -683,7 +691,7 @@ export function ThreadActionsMenu({
             style={menuStyle}
           >
             <div className={css.ThreadMenuRows}>
-              {/* Its buttons are reached with Tab, as the details' links; the arrows keep to the rows. */}
+              {/* The tag buttons are reached with Tab; arrow keys move across the menu items in details and rows. */}
               {tagsInMenu && (
                 <div
                   ref={tagSectionRef}
@@ -710,7 +718,12 @@ export function ThreadActionsMenu({
                     data-thread-details=""
                     style={{ maxWidth: toRem(320), padding: config.space.S300 }}
                   >
-                    <ThreadDetailsList room={room} threadId={rootId} details={details} />
+                    <ThreadDetailsList
+                      room={room}
+                      threadId={rootId}
+                      details={details}
+                      onClose={closeFromDetail}
+                    />
                   </div>
                   <Line variant="Surface" size="300" />
                 </div>

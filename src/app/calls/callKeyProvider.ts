@@ -18,7 +18,7 @@ export class MatrixRtcKeyProvider extends BaseKeyProvider {
   }
 
   async setParticipantKey(key: Uint8Array, keyIndex: number, participantIdentity: string) {
-    const raw = key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength);
+    const raw = new Uint8Array(key).buffer;
     const material = await createKeyMaterialFromBuffer(raw);
     this.onSetEncryptionKey(material, participantIdentity, keyIndex);
   }
@@ -30,6 +30,8 @@ export type CallKeyDelivery = {
   keyIndex: number;
   /** This device's media identity in the call, `<user id>:<device id>`. */
   memberId: string;
+  /** Device ID claimed in `member.claimed_device_id`; defaults to `mx.getDeviceId()`. */
+  claimedDeviceId?: string;
   to: { userId: string; deviceId: string };
 };
 
@@ -47,7 +49,7 @@ export type CallKeyDelivery = {
  */
 export const sendCallKey = async (
   mx: MatrixClient,
-  { roomId, key, keyIndex, memberId, to }: CallKeyDelivery
+  { roomId, key, keyIndex, memberId, claimedDeviceId, to }: CallKeyDelivery
 ): Promise<void> => {
   const cryptoApi = mx.getCrypto();
   if (!cryptoApi) throw new Error('No crypto to encrypt a call key with');
@@ -59,7 +61,7 @@ export const sendCallKey = async (
     member_id: memberId,
     media_key: mediaKey,
     keys: mediaKey,
-    member: { claimed_device_id: mx.getDeviceId() ?? '', id: memberId },
+    member: { claimed_device_id: claimedDeviceId ?? mx.getDeviceId() ?? '', id: memberId },
   };
   const encrypt = async () => {
     const { eventType, batch } = await cryptoApi.encryptToDeviceMessages(

@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { Page, PageRoot } from './Page';
 import { Modal } from '../glass/GlassPrimitives';
@@ -47,7 +47,10 @@ describe('PageRoot', () => {
         </PageRoot>
       </Modal>
     );
-    const layout = create(renderLayout('glass'));
+    let layout!: ReturnType<typeof create>;
+    act(() => {
+      layout = create(renderLayout('glass'));
+    });
     const pageRoot = () => layout.root.findByType(PageRoot).findByType('div');
     const page = () => layout.root.findByType(Page).findByType('div');
     expect(pageRoot().props.className).toContain('color-Background');
@@ -56,7 +59,9 @@ describe('PageRoot', () => {
     expect(page().props.className).toContain('surface-inherit');
 
     for (const appearance of ['plain', 'inherit'] as const) {
-      layout.update(renderLayout(appearance));
+      act(() => {
+        layout.update(renderLayout(appearance));
+      });
       expect(pageRoot().props.className).not.toContain('surface-inherit');
       expect(page().props.className).not.toContain('surface-inherit');
     }
@@ -64,20 +69,26 @@ describe('PageRoot', () => {
   });
 
   it('removes the desktop navigation divider when navigation is absent', () => {
-    const visible = create(
-      <PageRoot nav={<nav data-testid="page-nav" />}>
-        <main data-testid="page-content" />
-      </PageRoot>
-    );
+    let visible!: ReturnType<typeof create>;
+    act(() => {
+      visible = create(
+        <PageRoot nav={<nav data-testid="page-nav" />}>
+          <main data-testid="page-content" />
+        </PageRoot>
+      );
+    });
 
     expect(visible.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(1);
     expect(visible.root.findAllByProps({ 'data-testid': 'page-nav-divider' })).toHaveLength(1);
 
-    const absent = create(
-      <PageRoot nav={null}>
-        <main data-testid="page-content" />
-      </PageRoot>
-    );
+    let absent!: ReturnType<typeof create>;
+    act(() => {
+      absent = create(
+        <PageRoot nav={null}>
+          <main data-testid="page-content" />
+        </PageRoot>
+      );
+    });
 
     expect(absent.root.findAllByProps({ 'data-testid': 'page-nav' })).toHaveLength(0);
     expect(absent.root.findAllByProps({ 'data-testid': 'page-nav-divider' })).toHaveLength(0);

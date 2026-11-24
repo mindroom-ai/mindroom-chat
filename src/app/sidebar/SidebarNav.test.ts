@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { SidebarNav } from './SidebarNav';
@@ -35,6 +35,9 @@ vi.mock('../ui/sidebar/SidebarContent', () => ({
 vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: () => React.createElement('div', { 'data-tab': 'canvases' }),
+}));
+vi.mock('./rail/UsageTab', () => ({
+  UsageTab: () => React.createElement('div', { 'data-tab': 'usage' }),
 }));
 vi.mock('./rail/DirectTab', () => ({
   DirectTab: () => React.createElement('div', { 'data-tab': 'direct' }),
@@ -80,9 +83,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../matrix/hooks/useAccountSettings', async () => {
-  const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import(
-    '../preferences/accountSettings'
-  );
+  const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import('../preferences/accountSettings');
   // An account that turned its rail buttons on; SidebarNav.buttons.test.tsx covers the defaults.
   return {
     useAccountSettings: () => ({
@@ -95,14 +96,19 @@ vi.mock('../matrix/hooks/useAccountSettings', async () => {
   };
 });
 
-const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
-  create(
-    React.createElement(
-      ClientConfigProvider,
-      { value: clientConfig },
-      React.createElement(SidebarNav, { footer })
-    )
-  );
+const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        ClientConfigProvider,
+        { value: clientConfig },
+        React.createElement(SidebarNav, { footer })
+      )
+    );
+  });
+  return renderer;
+};
 
 const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boolean =>
   renderer.root.findAll((node) => node.props['data-tab'] === tab).length > 0;

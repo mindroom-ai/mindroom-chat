@@ -6,7 +6,7 @@ const capacitorConfig: CapacitorConfig = {
   appName: 'MindRoom',
   webDir: 'dist',
   ios: {
-    // iPhone and iPad get the mobile layout; Mac Catalyst asks for the desktop one natively.
+    // iPhone and iPad get the mobile layout.
     preferredContentMode: 'mobile',
   },
   plugins: {

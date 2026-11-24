@@ -13,6 +13,8 @@ export const MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 export type AccountSettings = {
   /** Show the sidebar's Canvases button (once there is a canvas) where the deployment has canvases. */
   showCanvasesInSidebar: boolean;
+  /** Show the sidebar's Usage button (once a runtime reports provider usage). */
+  showUsageInSidebar: boolean;
   /** Show the sidebar's Threads button where the deployment offers it. */
   showThreadsInSidebar: boolean;
   /** Show the sidebar's Explore Community button where the deployment offers it. */
@@ -29,16 +31,21 @@ export type AccountSettings = {
   macAppOffered: boolean;
   /** Bundled client plugin IDs turned off for this account (Settings -> Plugins). */
   disabledPlugins: readonly string[];
+  /** Bundled client plugin IDs turned on for this account (Settings -> Plugins). */
+  enabledPlugins: readonly string[];
 };
+
+export type PluginPreferences = Pick<AccountSettings, 'disabledPlugins' | 'enabledPlugins'>;
 
 export type BooleanAccountSetting = {
   [K in keyof AccountSettings]: AccountSettings[K] extends boolean ? K : never;
 }[keyof AccountSettings];
 
-const EMPTY_DISABLED_PLUGINS: readonly string[] = Object.freeze([]);
+const EMPTY_PLUGIN_IDS: readonly string[] = Object.freeze([]);
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showCanvasesInSidebar: false,
+  showUsageInSidebar: false,
   showThreadsInSidebar: false,
   showExploreInSidebar: false,
   showCreateSpaceInSidebar: false,
@@ -46,7 +53,8 @@ export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showLocalMindroomInSidebar: false,
   tourOffered: false,
   macAppOffered: false,
-  disabledPlugins: EMPTY_DISABLED_PLUGINS,
+  disabledPlugins: EMPTY_PLUGIN_IDS,
+  enabledPlugins: EMPTY_PLUGIN_IDS,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -58,8 +66,8 @@ const storedSwitch = (content: Record<string, unknown>, key: BooleanAccountSetti
   return typeof value === 'boolean' ? value : DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key];
 };
 
-const sanitizeDisabledPlugins = (value: unknown): readonly string[] => {
-  if (!Array.isArray(value)) return EMPTY_DISABLED_PLUGINS;
+const sanitizePluginIds = (value: unknown): readonly string[] => {
+  if (!Array.isArray(value)) return EMPTY_PLUGIN_IDS;
   const seen = new Set<string>();
   const result: string[] = [];
   for (const item of value) {
@@ -69,25 +77,32 @@ const sanitizeDisabledPlugins = (value: unknown): readonly string[] => {
     seen.add(id);
     result.push(id);
   }
-  return result.length === 0 ? EMPTY_DISABLED_PLUGINS : result;
+  return result.length === 0 ? EMPTY_PLUGIN_IDS : result;
 };
 
 /**
- * Returns a sanitized copy of `disabledPlugins` with `pluginId` added (`disabled: true`)
- * or removed (`disabled: false`).
+ * Returns sanitized plugin preferences with `pluginId` added to `enabledPlugins` (`enabled: true`)
+ * or `disabledPlugins` (`enabled: false`), removing it from the opposite list.
  */
-export const setPluginDisabled = (
-  disabledPlugins: readonly string[],
+export const setPluginEnabledPreference = (
+  current: PluginPreferences,
   pluginId: string,
-  disabled: boolean
-): string[] => {
+  enabled: boolean
+): PluginPreferences => {
   const id = pluginId.trim();
-  const current = [...sanitizeDisabledPlugins(disabledPlugins)];
-  if (id === '') return current;
-  if (disabled) {
-    return current.includes(id) ? current : [...current, id];
+  const disabledPlugins = [...sanitizePluginIds(current.disabledPlugins)];
+  const enabledPlugins = [...sanitizePluginIds(current.enabledPlugins)];
+  if (id === '') return { disabledPlugins, enabledPlugins };
+  if (enabled) {
+    return {
+      disabledPlugins: disabledPlugins.filter((item) => item !== id),
+      enabledPlugins: enabledPlugins.includes(id) ? enabledPlugins : [...enabledPlugins, id],
+    };
   }
-  return current.filter((item) => item !== id);
+  return {
+    disabledPlugins: disabledPlugins.includes(id) ? disabledPlugins : [...disabledPlugins, id],
+    enabledPlugins: enabledPlugins.filter((item) => item !== id),
+  };
 };
 
 /**
@@ -102,6 +117,7 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
       typeof content.showCanvasesInSidebar === 'boolean'
         ? content.showCanvasesInSidebar
         : DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar,
+    showUsageInSidebar: storedSwitch(content, 'showUsageInSidebar'),
     showThreadsInSidebar: storedSwitch(content, 'showThreadsInSidebar'),
     showExploreInSidebar: storedSwitch(content, 'showExploreInSidebar'),
     showCreateSpaceInSidebar: storedSwitch(content, 'showCreateSpaceInSidebar'),
@@ -109,7 +125,8 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
     showLocalMindroomInSidebar: storedSwitch(content, 'showLocalMindroomInSidebar'),
     tourOffered: storedSwitch(content, 'tourOffered'),
     macAppOffered: storedSwitch(content, 'macAppOffered'),
-    disabledPlugins: sanitizeDisabledPlugins(content.disabledPlugins),
+    disabledPlugins: sanitizePluginIds(content.disabledPlugins),
+    enabledPlugins: sanitizePluginIds(content.enabledPlugins),
   };
 };
 

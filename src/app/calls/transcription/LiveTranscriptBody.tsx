@@ -161,7 +161,7 @@ export function LiveTranscriptBody({ room, view, className, members = true, labe
   const bodyRef = useRef<HTMLDivElement>(null);
   const atEnd = useRef(true);
   /** Where the box was scrolled to keep the end in view, until the reader scrolls elsewhere. */
-  const pinnedTop = useRef<number>();
+  const pinnedTop = useRef<number>(undefined);
   const keepEnd = useCallback(() => {
     const body = bodyRef.current;
     if (!body || !atEnd.current) return;

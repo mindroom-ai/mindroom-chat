@@ -2,16 +2,16 @@ import { useEffect, useRef } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { millisecondsToMinutesAndSeconds } from '../../lib/common';
-import { VoiceWaveform } from '../../messages/content/voice/VoiceWaveform';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
-import { IconTooltip } from '../../ui/IconTooltip';
+import { CapsuleControlButton, RecordingCapsule } from '../voice/VoiceRecordingCapsule';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import * as css from './DictationCapsule.css';
 import type { DictationSnapshot } from './dictationSession';
 
 export type DictationCapsuleProps = {
   snapshot: DictationSnapshot;
+  sending?: boolean;
   onCancel: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -22,15 +22,20 @@ export type DictationCapsuleProps = {
   onDismissError: () => void;
 };
 
-const getScreenReaderStatusKey = (phase: DictationSnapshot['phase']) => {
+const getScreenReaderStatusKey = (phase: DictationSnapshot['phase'], sending: boolean) => {
   if (phase === 'requesting') return 'composer.dictation.statusStarting' as const;
   if (phase === 'paused') return 'composer.dictation.statusPaused' as const;
-  if (phase === 'finishing') return 'composer.dictation.statusFinishing' as const;
+  if (phase === 'finishing') {
+    return sending
+      ? ('composer.dictation.statusSending' as const)
+      : ('composer.dictation.statusFinishing' as const);
+  }
   return 'composer.dictation.statusListening' as const;
 };
 
 export function DictationCapsule({
   snapshot,
+  sending = false,
   onCancel,
   onPause,
   onResume,
@@ -80,7 +85,7 @@ export function DictationCapsule({
   if (phase === 'idle') {
     if (!errorMessage) return null;
     return (
-      <div className={css.Container}>
+      <div className={voiceCss.Container}>
         <Box ref={glassRef} className={voiceCss.Capsule} role="alert">
           <Icon size="100" src={Icons.Warning} className={voiceCss.Control} />
           <Text size="T300" className={css.ErrorText}>
@@ -107,8 +112,8 @@ export function DictationCapsule({
     const detail =
       errorMessage && errorMessage !== summary ? `${summary} ${errorMessage}` : summary;
     return (
-      <div className={css.Container}>
-        <Box ref={glassRef} className={css.Capsule}>
+      <div className={voiceCss.Container}>
+        <Box ref={glassRef} className={voiceCss.CapsuleStacked}>
           {previewNode}
           <div className={css.RecoveryBar} role="alert">
             <Text size="T300" className={css.ErrorText}>
@@ -116,7 +121,9 @@ export function DictationCapsule({
             </Text>
             <div className={css.RecoveryActions}>
               <Button size="300" radii="300" variant="Primary" onClick={onRetry}>
-                <Text size="B300">{t('composer.dictation.retry')}</Text>
+                <Text size="B300">
+                  {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
+                </Text>
               </Button>
               {hasPartialText && (
                 <Button
@@ -151,12 +158,14 @@ export function DictationCapsule({
   const paused = phase === 'paused';
   const finishing = phase === 'finishing';
   const requesting = phase === 'requesting';
-  const pauseDisabled = requesting || finishing || capReached;
-  const finishDisabled = requesting || finishing;
+  const pauseDisabled = requesting || finishing || capReached || sending;
+  const finishDisabled = requesting || finishing || sending;
 
   let subtleStatus: string | undefined;
   if (finishing) {
-    subtleStatus = t('composer.dictation.statusFinishing');
+    subtleStatus = sending
+      ? t('composer.dictation.statusSending')
+      : t('composer.dictation.statusFinishing');
   } else if (capReached) {
     subtleStatus = t('composer.dictation.capReached');
   } else if (interrupted) {
@@ -168,79 +177,38 @@ export function DictationCapsule({
   }
 
   return (
-    <div className={css.Container}>
-      <Box ref={glassRef} className={css.Capsule}>
-        {previewNode}
-        <div className={css.ControlsRow}>
-          <IconTooltip label={t('composer.dictation.cancel')} position="Top">
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                className={voiceCss.Control}
-                onClick={onCancel}
-                aria-label={t('composer.dictation.cancel')}
-              >
-                <Icon src={Icons.Cross} size="50" />
-              </IconButton>
-            )}
-          </IconTooltip>
-          <VoiceWaveform
-            waveform={waveform}
-            liveSampleCount={recording ? sampleCount : undefined}
-            dimmed={paused || finishing || requesting}
-            compact
-          />
-          <Text className={voiceCss.Timer} size="B300">
-            {millisecondsToMinutesAndSeconds(elapsedMs)}
-          </Text>
-          <IconTooltip
-            label={paused ? t('composer.dictation.resume') : t('composer.dictation.pause')}
-            position="Top"
+    <div className={voiceCss.Container}>
+      <RecordingCapsule
+        top={previewNode}
+        dismissIcon={Icons.Cross}
+        dismissLabel={t('composer.dictation.cancel')}
+        dismissDisabled={sending}
+        onDismiss={onCancel}
+        waveform={waveform}
+        liveSampleCount={recording ? sampleCount : undefined}
+        waveformDimmed={paused || finishing || requesting || sending}
+        timerText={millisecondsToMinutesAndSeconds(elapsedMs)}
+        paused={paused}
+        pauseLabel={paused ? t('composer.dictation.resume') : t('composer.dictation.pause')}
+        pauseDisabled={pauseDisabled}
+        onTogglePause={paused ? onResume : onPause}
+        after={
+          <CapsuleControlButton
+            label={t('composer.dictation.finish')}
+            variant="SurfaceVariant"
+            disabled={finishDisabled}
+            onClick={onFinish}
           >
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                variant="SurfaceVariant"
-                size="300"
-                radii="300"
-                className={voiceCss.Control}
-                onClick={paused ? onResume : onPause}
-                disabled={pauseDisabled}
-                aria-label={paused ? t('composer.dictation.resume') : t('composer.dictation.pause')}
-                aria-pressed={paused}
-              >
-                <Icon src={paused ? Icons.Play : Icons.Pause} size="50" />
-              </IconButton>
+            {finishing ? (
+              <Spinner size="50" variant="Secondary" />
+            ) : (
+              <Icon src={Icons.Check} size="50" />
             )}
-          </IconTooltip>
-          <IconTooltip label={t('composer.dictation.finish')} position="Top">
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                variant="Primary"
-                size="300"
-                radii="300"
-                className={voiceCss.Control}
-                onClick={onFinish}
-                disabled={finishDisabled}
-                aria-label={t('composer.dictation.finish')}
-              >
-                {finishing ? (
-                  <Spinner size="50" variant="Primary" />
-                ) : (
-                  <Icon src={Icons.Check} size="50" />
-                )}
-              </IconButton>
-            )}
-          </IconTooltip>
-        </div>
-        <span className={voiceCss.HiddenStatus} role="status">
-          {subtleStatus ?? t(getScreenReaderStatusKey(phase))}
-        </span>
-      </Box>
+          </CapsuleControlButton>
+        }
+        statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending))}
+        statusRole="status"
+      />
       {subtleStatus && (
         <Text size="T200" className={css.StatusNote}>
           {subtleStatus}

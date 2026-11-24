@@ -18,7 +18,7 @@ type CardMode = 'hover' | 'focus' | 'pinned';
 export function useLiveAnchor(
   opener: HTMLElement | (() => HTMLElement | null) | undefined,
   onGone?: () => void,
-  contentRef?: RefObject<HTMLElement>
+  contentRef?: RefObject<HTMLElement | null>
 ): RectCords | undefined {
   const [anchor, setAnchor] = useState<RectCords>();
   useLayoutEffect(() => {
@@ -75,7 +75,7 @@ export function useAnchoredCard(closeDelayMs = 0) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<CardMode>();
-  const closeTimer = useRef<number>();
+  const closeTimer = useRef<number>(undefined);
 
   const cancelClose = useCallback(() => window.clearTimeout(closeTimer.current), []);
   const close = useCallback(() => {

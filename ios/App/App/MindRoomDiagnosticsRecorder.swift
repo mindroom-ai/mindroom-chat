@@ -56,12 +56,10 @@ final class MindRoomDiagnosticsRecorder {
         let names = ["memory", "cpu", "client", "crash", "shared_process_crash_limit"]
         var data = webViewState(webView)
         data.terminationReason = names.indices.contains(reason) ? names[reason] : "unknown(\(reason))"
-#if !targetEnvironment(macCatalyst)
         data.availableMemoryBytes = min(
             Int(clamping: os_proc_available_memory()),
             MindRoomDiagnosticsStore.maximumSafeInteger
         )
-#endif
         data.msSinceMemoryWarning = lastMemoryWarningUptime.map {
             min(
                 max(0, Int((ProcessInfo.processInfo.systemUptime - $0) * 1_000)),

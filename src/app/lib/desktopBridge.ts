@@ -3,12 +3,16 @@ export type DesktopShellEvent =
   | { type: 'fullscreen'; value: boolean }
   | { type: 'zoom'; action: 'in' | 'out' | 'reset' }
   | { type: 'window-hidden' }
-  | { type: 'window-focus'; focused: boolean };
+  | { type: 'window-focus'; focused: boolean }
+  | { type: 'update-status' };
 export type DesktopResult<T> = { ok: true; value: T } | { ok: false; code: string };
 export type DesktopMediaSession = { baseUrl: string; userId: string; accessToken: string };
 export type DesktopSignInRequest = { homeserver: string; callback: string };
+export type DesktopUpdateCheckOutcome = 'none' | 'found' | 'error';
+export type DesktopUpdateCheckResult = { outcome: DesktopUpdateCheckOutcome; version?: string };
 export type DesktopUpdateBridge = {
   status: () => Promise<{ version?: string }>;
+  check: () => Promise<DesktopUpdateCheckResult>;
   install: () => Promise<void>;
 };
 export type DesktopQuickCaptureBridge = {

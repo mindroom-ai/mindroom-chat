@@ -41,7 +41,7 @@ const readClient = (mx: MatrixClient | undefined): SyncReading => {
 export function useInitialClientCatchup(mx: MatrixClient | undefined): boolean {
   // The newest sync event of the subscribed client, which outranks the client's getters. It ends
   // with its subscription, so a client subscribed again is read afresh.
-  const lastEventRef = useRef<{ client: MatrixClient; reading: SyncReading }>();
+  const lastEventRef = useRef<{ client: MatrixClient; reading: SyncReading }>(undefined);
 
   const subscribe = useCallback(
     (onChange: () => void) => {

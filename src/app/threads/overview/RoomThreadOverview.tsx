@@ -425,7 +425,7 @@ export function RoomThreadOverview({
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
   const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);
-  const pendingSearchCanonicalRef = useRef<string>();
+  const pendingSearchCanonicalRef = useRef<string>(undefined);
 
   useEffect(() => {
     if (pendingSearchCanonicalRef.current === canonicalSearchQuery) {

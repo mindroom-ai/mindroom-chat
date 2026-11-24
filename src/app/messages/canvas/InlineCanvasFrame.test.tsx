@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -535,6 +535,7 @@ describe('InlineCanvasFrame as a host', () => {
     expect(container.textContent).toContain('updated this page.');
     // The staged answer was for the page before the update.
     expect(sendButton()).toBeNull();
+    expect(buttonNamed('Load update')?.hasAttribute('data-canvas-actions')).toBe(true);
     act(() => buttonNamed('Load update')!.click());
     expect(frame()).not.toBe(shown);
     expect(frame().srcdoc).toContain('Latest');

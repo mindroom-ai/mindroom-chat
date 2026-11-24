@@ -1,5 +1,4 @@
 import { createStore } from 'jotai';
-import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from '../../sidebar/threads/recentlyOpenedCategory';
 import { makeClosedNavCategoriesAtom } from './closedNavCategories';
@@ -8,8 +7,6 @@ const USER_ID = '@alice:example.org';
 const STORE_KEY = `closedNavCategories${USER_ID}`;
 const INITIALIZED_STORE_KEY = `initializedNavCategories${USER_ID}`;
 const storage = new Map<string, string>();
-
-enableMapSet();
 
 beforeEach(() => {
   storage.clear();

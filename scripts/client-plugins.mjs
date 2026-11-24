@@ -19,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
-export const CLIENT_PLUGIN_API_VERSION = 66;
+export const CLIENT_PLUGIN_API_VERSION = 68;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -83,7 +83,7 @@ const sharedPackage = (/** @type {string} */ source) => {
   return SHARED_PACKAGES.includes(name) ? name : undefined;
 };
 
-/** @typedef {{ id: string, version: string, name?: string, description?: string, dir: string, entry: string, build?: string }} ClientPluginInfo */
+/** @typedef {{ id: string, version: string, name?: string, description?: string, defaultEnabled?: boolean, dir: string, entry: string, build?: string }} ClientPluginInfo */
 
 /** Trimmed non-empty string, else undefined. */
 const optionalText = (/** @type {unknown} */ value) => {
@@ -116,7 +116,7 @@ const readPlugin = (dir, earlier) => {
   if (typeof declaration !== 'object' || declaration === null) {
     fail('package.json declares no "mindroomClientPlugin" object');
   }
-  const { id, apiVersion, entry, build } = declaration;
+  const { id, apiVersion, entry, build, defaultEnabled } = declaration;
   if (typeof id !== 'string' || !KEBAB_CASE.test(id)) {
     fail(`id ${JSON.stringify(id)} is not kebab-case, such as "my-plugin"`);
   }
@@ -140,6 +140,9 @@ const readPlugin = (dir, earlier) => {
   if (build !== undefined && !existsSync(buildPath)) {
     fail(`build ${JSON.stringify(build)} does not exist`);
   }
+  if (defaultEnabled !== undefined && typeof defaultEnabled !== 'boolean') {
+    fail(`defaultEnabled ${JSON.stringify(defaultEnabled)} is not a boolean`);
+  }
   const other = earlier.find((plugin) => plugin.id === id);
   if (other) fail(`id "${id}" is also the id of ${other.dir}`);
   const shared = SHARED_PACKAGES.find((name) => Object.hasOwn(manifest.dependencies ?? {}, name));
@@ -155,6 +158,7 @@ const readPlugin = (dir, earlier) => {
     version: manifest.version,
     ...(name !== undefined ? { name } : {}),
     ...(description !== undefined ? { description } : {}),
+    ...(defaultEnabled === false ? { defaultEnabled: false } : {}),
     dir,
     entry: normalizePath(entryPath),
     build: buildPath ? normalizePath(buildPath) : undefined,
@@ -240,12 +244,13 @@ export const pluginOwner = (plugins, appRoot = APP_ROOT) => {
  */
 const entriesModule = (plugins) => {
   const imports = plugins.map(({ entry }, i) => `import plugin${i} from ${JSON.stringify(entry)};`);
-  const entries = plugins.map(({ id, version, name, description }, i) => {
+  const entries = plugins.map(({ id, version, name, description, defaultEnabled }, i) => {
     const fields = [
       `id: ${JSON.stringify(id)}`,
       `version: ${JSON.stringify(version)}`,
       ...(name !== undefined ? [`name: ${JSON.stringify(name)}`] : []),
       ...(description !== undefined ? [`description: ${JSON.stringify(description)}`] : []),
+      ...(defaultEnabled === false ? ['defaultEnabled: false'] : []),
       `plugin: plugin${i}`,
     ];
     return `{ ${fields.join(', ')} }`;
@@ -335,24 +340,21 @@ export const clientPlugins = (env = process.env) => {
             ? { ...CLIENT_SDK_ALIAS, ...CLIENT_SDK_FIXTURES_ALIAS }
             : CLIENT_SDK_ALIAS,
       },
-      // The dev server pre-bundles the packages a plugin installed with esbuild, without plugin
-      // hooks: there their imports and requires of the packages the app shares resolve as the app
-      // imports them, to the module the app's own pre-bundle has.
+      // The dev server pre-bundles the packages a plugin installed with Rolldown, without the main
+      // build's plugin hooks: there their imports and requires of the packages the app shares resolve
+      // as the app imports them, to the module the app's own pre-bundle has.
       optimizeDeps: {
-        esbuildOptions: {
+        rolldownOptions: {
           plugins: [
             {
               name: 'mindroom-client-plugins',
-              setup: (build) => {
-                build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
-                  sharedPackage(source) && ownerOf(importer)
-                    ? build.resolve(source, {
-                        kind: 'import-statement',
-                        importer: ENTRIES_MODULE,
-                        resolveDir: path.dirname(ENTRIES_MODULE),
-                      })
-                    : undefined
-                );
+              resolveId(source, importer, options) {
+                if (!importer || !sharedPackage(source) || !ownerOf(importer)) return null;
+                return this.resolve(source, ENTRIES_MODULE, {
+                  ...options,
+                  kind: 'import-statement',
+                  skipSelf: true,
+                });
               },
             },
           ],
@@ -376,10 +378,11 @@ export const clientPlugins = (env = process.env) => {
       if (!name) return null;
       const owner = ownerOf(importer);
       if (!owner) return null;
-      // As an import even for a CommonJS `require` (Vite 6 and later resolve that with the
+      // As an import even for a CommonJS `require` (Vite 6+ / Rolldown resolve that with the
       // `require` condition), so that the plugin gets the build the app imports, not a second one.
       const resolved = await this.resolve(source, ENTRIES_MODULE, {
         ...options,
+        kind: 'import-statement',
         custom: {
           ...options.custom,
           'node-resolve': { ...options.custom?.['node-resolve'], isRequire: false },

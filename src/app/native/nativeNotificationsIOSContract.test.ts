@@ -12,8 +12,6 @@ const KIT_TESTS =
 const pluginSource = read('ios/App/App/MindRoomNotificationsPlugin.swift');
 const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
 const appEntitlements = read('ios/App/App/App.entitlements');
-const macEntitlements = read('ios/App/App/App-macOS.entitlements');
-const macAppStoreEntitlements = read('ios/App/App/App-macOS-AppStore.entitlements');
 const appInfoPlist = read('ios/App/App/Info.plist');
 const serviceSource = read(
   'ios/NotificationService/MindRoomNotificationService/NotificationService.swift'
@@ -62,8 +60,7 @@ const PLUGIN_METHODS = [
 ];
 
 describe('MindRoomNotificationsPlugin and NotificationService native contract', () => {
-  it('registers MindRoomNotifications with its Capacitor methods only on iOS (not Mac Catalyst)', () => {
-    expect(pluginSource).toContain('#if !targetEnvironment(macCatalyst)');
+  it('registers MindRoomNotifications with its Capacitor methods on iOS', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomNotifications"');
     PLUGIN_METHODS.forEach((method) => {
       expect(pluginSource).toContain(
@@ -72,7 +69,6 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
       expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
     });
     expect(pluginSource.match(/CAPPluginMethod\(name:/g)).toHaveLength(PLUGIN_METHODS.length);
-    expect(bridgeSource).toContain('#if !targetEnvironment(macCatalyst)');
     expect(bridgeSource).toContain('registerPluginInstance(MindRoomNotificationsPlugin())');
   });
 
@@ -328,17 +324,9 @@ describe('MindRoomNotificationsPlugin and NotificationService native contract', 
     ]);
     expect(serviceEntitlements).toContain('<string>group.chat.mindroom.app</string>');
 
-    [appEntitlements, serviceEntitlements, macEntitlements, macAppStoreEntitlements].forEach(
-      (entitlements) => expect(entitlements).not.toContain('keychain-access-groups')
+    [appEntitlements, serviceEntitlements].forEach((entitlements) =>
+      expect(entitlements).not.toContain('keychain-access-groups')
     );
-
-    // Mac Catalyst entitlements stay untouched and free of iOS-only notification entitlements
-    expect(macEntitlements).not.toContain('com.apple.developer.usernotifications.communication');
-    expect(macEntitlements).not.toContain('group.chat.mindroom.app');
-    expect(macAppStoreEntitlements).not.toContain(
-      'com.apple.developer.usernotifications.communication'
-    );
-    expect(macAppStoreEntitlements).not.toContain('group.chat.mindroom.app');
   });
 
   it('declares INSendMessageIntent in App Info.plist and the notification service extension point in NSE Info.plist', () => {

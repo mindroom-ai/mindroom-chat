@@ -1,4 +1,4 @@
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Scroll, Spinner, config, toRem } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Room } from 'matrix-js-sdk';
@@ -14,8 +14,11 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useInRouterContext, useNavigate } from 'react-router-dom';
 
+import { formatRelativeTime } from '../lib/time';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { getUsagePath } from '../routes/pathUtils';
 import { mobileOrTablet } from '../lib/user-agent';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
 import { glassExpanded } from '../ui/styles/Glass.css';
@@ -24,6 +27,9 @@ import { EffortGlyph, effortBars } from './EffortGlyph';
 import { ModelEffortColumn, ModelEffortEntry } from './ModelEffortColumn';
 import type { ModelCatalogEntry, ModelInheritedEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
+import type { ProviderUsageSnapshot } from '../usage/providerUsageProtocol';
+import { InlineQuotaSummary, singleAccountForModels } from '../usage/QuotaBar';
+import { useRuntimeProviderUsage } from '../usage/useProviderUsage';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
 
@@ -54,6 +60,9 @@ type ModelPickerPanelProps = {
    * command.
    */
   roomSetting?: { canReset: boolean };
+  usageSnapshot?: ProviderUsageSnapshot;
+  usageAvailable?: boolean;
+  onBeforeOpenUsage?: () => void;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -130,6 +139,36 @@ const currentChoice = (state: ModelPickerState) => {
   return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
+function UsageFooterLink({
+  onBeforeNavigate,
+  requestClose,
+}: {
+  onBeforeNavigate?: () => void;
+  requestClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  return (
+    <button
+      type="button"
+      className={css.UsageLink}
+      onClick={() => {
+        onBeforeNavigate?.();
+        void navigate(getUsagePath());
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        requestClose();
+      }}
+    >
+      {t('mindroomUi.usage.allUsageAndLimits')}
+    </button>
+  );
+}
+
 function ModelPickerPanel({
   state,
   newThread,
@@ -137,11 +176,19 @@ function ModelPickerPanel({
   room,
   ariaLabel,
   roomSetting,
+  usageSnapshot,
+  usageAvailable,
+  onBeforeOpenUsage,
   requestClose,
   onCommand,
 }: ModelPickerPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const inRouter = useInRouterContext();
   const stacked = useScreenSizeContext() === ScreenSize.Mobile;
+  const checkedAtMs = usageSnapshot ? Date.parse(usageSnapshot.checked_at) : Number.NaN;
+  const usageUpdated = Number.isFinite(checkedAtMs)
+    ? formatRelativeTime(checkedAtMs, i18n?.resolvedLanguage ?? i18n?.language ?? 'en')
+    : '';
   const columnRef = useRef<HTMLDivElement>(null);
   /** On a phone the levels show in place of the models, opened from the Effort row under them. */
   const [levelsShown, setLevelsShown] = useState(false);
@@ -149,7 +196,7 @@ function ModelPickerPanel({
   /** Back from the levels, the keys return to the Effort row. */
   const backRef = useRef(false);
   /** The filter field or the list, whichever the keys left for the levels. */
-  const columnOriginRef = useRef<HTMLElement>();
+  const columnOriginRef = useRef<HTMLElement>(undefined);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -206,7 +253,7 @@ function ModelPickerPanel({
 
   // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
-    (mobileOrTablet() ? listRef.current : inputRef.current ?? listRef.current)?.focus();
+    (mobileOrTablet() ? listRef.current : (inputRef.current ?? listRef.current))?.focus();
   }, []);
 
   // A control that goes while it has focus (the filter field, Retry, the runtime chooser) leaves
@@ -482,25 +529,58 @@ function ModelPickerPanel({
         >
           {defaultVisible && option({ kind: 'default' }, 0)}
 
-          {groups.map(([provider, models]) => (
-            <div key={provider} className={css.Group} role="group" aria-label={provider}>
-              <div className={css.GroupTitle} aria-hidden="true">
-                {provider}
-              </div>
-              {models.map((model) =>
-                option(
-                  { kind: 'model', model },
-                  items.findIndex((item) => item.kind === 'model' && item.model.key === model.key)
+          {groups.map(([provider, models]) => {
+            const account = usageSnapshot
+              ? singleAccountForModels(
+                  usageSnapshot.accounts,
+                  models.map((model) => model.key)
                 )
-              )}
-            </div>
-          ))}
+              : undefined;
+            const quotaId =
+              account && account.windows.length > 0
+                ? optionId(listId, `quota:${provider}`)
+                : undefined;
+            return (
+              <div
+                key={provider}
+                className={css.Group}
+                role="group"
+                aria-label={provider}
+                aria-describedby={quotaId}
+              >
+                <div className={css.GroupHeader}>
+                  <span className={css.GroupTitle} aria-hidden="true">
+                    {provider}
+                  </span>
+                  {account && account.windows.length > 0 && (
+                    <InlineQuotaSummary id={quotaId} account={account} />
+                  )}
+                </div>
+                {models.map((model) =>
+                  option(
+                    { kind: 'model', model },
+                    items.findIndex((item) => item.kind === 'model' && item.model.key === model.key)
+                  )
+                )}
+              </div>
+            );
+          })}
 
           {!waitingForCatalog && items.length === 0 && (
             <div className={css.Empty}>{t('mindroomUi.models.modelPicker.noResults')}</div>
           )}
         </div>
       </Scroll>
+      {usageAvailable && inRouter && !roomSetting && (
+        <div className={css.UsageFooter} data-usage-footer="">
+          {usageUpdated && (
+            <span className={css.UsageUpdated}>
+              {t('mindroomUi.usage.updatedAgo', { time: usageUpdated })}
+            </span>
+          )}
+          <UsageFooterLink onBeforeNavigate={onBeforeOpenUsage} requestClose={requestClose} />
+        </div>
+      )}
     </>
   );
 
@@ -613,6 +693,7 @@ export function ModelPicker({
   conversationHidden?: boolean;
 }) {
   const { t } = useTranslation();
+  const usage = useRuntimeProviderUsage(membersRoom?.roomId, state.runtime);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const triggerId = useId();
@@ -633,8 +714,8 @@ export function ModelPicker({
     description: newThread
       ? t('mindroomUi.models.modelPicker.nextThreadOnly')
       : described.roomOverride
-      ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
-      : t('mindroomUi.models.modelPicker.threadOnly'),
+        ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
+        : t('mindroomUi.models.modelPicker.threadOnly'),
   };
   // Without an override the button names what each agent runs, as the default row in the menu does.
   const modelLabel =
@@ -697,6 +778,7 @@ export function ModelPicker({
     sawPendingRef.current = false;
     setOpen(true);
     state.refresh();
+    usage.ensureLoaded();
   };
 
   const anchor = open ? triggerRef.current?.getBoundingClientRect() : undefined;
@@ -721,6 +803,9 @@ export function ModelPicker({
             newThread={newThread}
             defaults={defaults}
             room={room}
+            usageSnapshot={usage.snapshot}
+            usageAvailable={usage.available}
+            onBeforeOpenUsage={() => setOpen(false)}
             requestClose={close}
             onCommand={() => {
               if (newThread) close();

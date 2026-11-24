@@ -72,7 +72,7 @@ type UseRoomInputAttachmentsOptions = {
   draftKey?: string;
   editor: Editor;
   isMarkdown: boolean;
-  fileDropContainerRef: RefObject<HTMLElement>;
+  fileDropContainerRef: RefObject<HTMLElement | null>;
   createUploadItems: CreateRoomInputUploadItems;
 };
 
@@ -211,6 +211,7 @@ export const useRoomInputAttachments = ({
   const watchedRooms = useRef(new Set<string>([roomId]));
   watchedRooms.current.add(roomId);
   const syncUploadWatches = useCallback(() => {
+    if (!mounted.current) return;
     const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
     watchedRooms.current.forEach((watchedRoomId) =>
       store

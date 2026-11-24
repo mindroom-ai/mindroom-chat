@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import { type DOMNode, Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { parseInlineMDWithRules } from '../../rich-text/markdown/inline/parser';
 import {
   BoldRule,
@@ -9,6 +9,7 @@ import {
   StrikeRule,
 } from '../../rich-text/markdown/inline/rules';
 import { InlineMDRule } from '../../rich-text/markdown/inline/type';
+import { parseHtml } from '../../rich-text/parseHtml';
 import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
 import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { toHttpsUrl } from './notices';
@@ -49,7 +50,7 @@ const NOTICE_INLINE_RULES = [
 const noticeHtmlOptions: HTMLReactParserOptions = {
   replace: (node) => {
     if (!(node instanceof Element)) return undefined;
-    const children = domToReact(node.children, noticeHtmlOptions);
+    const children = domToReact(node.children as DOMNode[], noticeHtmlOptions);
     switch (node.name) {
       case 'strong':
         return <strong>{children}</strong>;
@@ -82,7 +83,7 @@ const noticeHtmlOptions: HTMLReactParserOptions = {
  */
 export const renderNoticeText = (text: string): ReactNode => {
   try {
-    return parse(
+    return parseHtml(
       sanitizeCustomHtml(parseInlineMDWithRules(sanitizeText(text), NOTICE_INLINE_RULES)),
       noticeHtmlOptions
     );

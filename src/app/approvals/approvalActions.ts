@@ -1,4 +1,8 @@
-import { approvalGroupKey, isPendingApproval, ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
+import {
+  approvalGroupKey,
+  isPendingApproval,
+  ThreadApprovalRecord,
+} from '../matrix/protocol/threadApprovalModel';
 import {
   buildToolApprovalResponseContent,
   buildToolApprovalRevocationContent,

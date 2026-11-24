@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# The update feed job (desktop.yml "feed" with --desktop, or legacy Sparkle without it): copies a
-# release's feed manifest (latest-mac.yml -> mac-feed, or appcast.xml -> mac-appcast) when that
+# The update feed job (desktop.yml "feed"): copies a release's latest-mac.yml to mac-feed when that
 # release is ready, above what the feed names now, and the feed is not paused (docs/ios-release.md
 # "Updates"). One job runs at a time across every release's run; the rule keeps the feed from going
 # backwards whatever order runs finish in, and consults no listing of releases. A re-run repairs a
@@ -8,8 +7,7 @@
 #   scripts/macos-publish-appcast.sh [--desktop] <tag>      (GH_TOKEN, GITHUB_REPOSITORY)
 set -euo pipefail
 
-mode=sparkle
-if [[ ${1:-} == --desktop ]]; then mode=desktop; shift; fi
+if [[ ${1:-} == --desktop ]]; then shift; fi
 say() {
   echo "$1"
   if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then echo "$1" >> "$GITHUB_STEP_SUMMARY"; fi
@@ -20,13 +18,10 @@ set_published() {
 fail() { echo "::error::$1"; exit 1; }
 [[ $# -eq 1 ]] || fail "Usage: $0 [--desktop] <tag>"
 tag=$1
-if [[ $mode == desktop ]]; then
-  feed=mac-feed; asset=latest-mac.yml; feed_title='Mac desktop update feed'
-  feed_notes='The Electron Mac app reads its updates from latest-mac.yml here (docs/ios-release.md "Updates"). Not a release of its own.'
-else
-  feed=mac-appcast; asset=appcast.xml; feed_title='Mac app update feed'
-  feed_notes='The Mac app reads its updates from appcast.xml here (docs/ios-release.md "Updates"). Not a release of its own.'
-fi
+feed=mac-feed
+asset=latest-mac.yml
+feed_title='Mac desktop update feed'
+feed_notes='The Electron Mac app reads its updates from latest-mac.yml here (docs/ios-release.md "Updates"). Not a release of its own.'
 calver() { [[ $1 =~ ^[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; }
 # Whether the release is published (not a draft or prerelease), then its uploaded assets.
 release() {
@@ -34,11 +29,10 @@ release() {
     --jq '(if .isDraft or .isPrerelease then "unpublished" else "published" end), (.assets[] | select(.state == "uploaded") | .name)'
 }
 download() { gh release download "$1" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --dir "$2"; }
-# Prints the manifest's version; in --desktop mode with an expected version, also verifies both
-# arm64 and x64 ZIP URLs point at v<expected> on GITHUB_REPOSITORY.
+# Prints the manifest's version; with an expected version, also verifies both arm64 and x64 ZIP
+# URLs point at v<expected> on GITHUB_REPOSITORY.
 version() {
-  if [[ $mode == desktop ]]; then
-    python3 - "$1" "${2:-}" "${GITHUB_REPOSITORY:-}" <<'PY'
+  python3 - "$1" "${2:-}" "${GITHUB_REPOSITORY:-}" <<'PY'
 import re, sys
 unq = lambda s: s[1:-1] if len(s) >= 2 and s[0] == s[-1] and s[0] in "'\"" else s
 top, files, cur, in_files = {}, [], None, False
@@ -66,13 +60,6 @@ if expected:
     if ver != expected or len(urls) != len(need) or set(urls) != need: sys.exit(1)
 print(ver)
 PY
-  else
-    python3 - "$1" <<'PY'
-import sys, xml.etree.ElementTree as ET
-(item,) = ET.parse(sys.argv[1]).getroot().findall('channel/item')
-print(item.findtext('{http://www.andymatuschak.org/xml-namespaces/sparkle}version') or '')
-PY
-  fi
 }
 calver "${tag#v}" && [[ $tag == v* ]] || fail "'$tag' is not a release tag vYYYY.M.N"
 folder=$(mktemp -d)
@@ -88,21 +75,14 @@ if [[ $(head -1 <<<"$names") != published ]]; then
   set_published false
   exit 0
 fi
-if [[ $mode == desktop ]]; then
-  for required in MindRoom-Chat.dmg MindRoom-Chat-arm64-mac.zip MindRoom-Chat-x64-mac.zip \
-      MindRoom-Chat-arm64-mac.zip.blockmap MindRoom-Chat-x64-mac.zip.blockmap latest-mac.yml; do
-    if ! grep -Fqx "$required" <<<"$names"; then
-      say "The feed stays: $tag is missing $required."
-      set_published false
-      exit 0
-    fi
-  done
-elif ! grep -Eqx 'MindRoom(-Chat)?\.dmg' <<<"$names" || ! grep -Fqx appcast.xml <<<"$names"; then
-  # MindRoom.dmg: a release from before the rename.
-  say "The feed stays: $tag has no DMG with its appcast."
-  set_published false
-  exit 0
-fi
+for required in MindRoom-Chat.dmg MindRoom-Chat-arm64-mac.zip MindRoom-Chat-x64-mac.zip \
+    MindRoom-Chat-arm64-mac.zip.blockmap MindRoom-Chat-x64-mac.zip.blockmap latest-mac.yml; do
+  if ! grep -Fqx "$required" <<<"$names"; then
+    say "The feed stays: $tag is missing $required."
+    set_published false
+    exit 0
+  fi
+done
 download "$tag" "$folder/new"
 [[ $(version "$new" "${tag#v}" || true) == "${tag#v}" ]] || fail "The $asset of $tag is not that version's feed."
 

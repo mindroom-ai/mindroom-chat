@@ -13,12 +13,15 @@ const mx = vi.hoisted(() => ({
     () => 'https://example.org/_matrix/client/v1/media/download/example.org/parrot'
   ),
   on: vi.fn(),
+  off: vi.fn(),
   removeListener: vi.fn(),
 }));
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../../emoji/useImagePacks', () => imagePacks);
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => true }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => true,
+}));
 vi.mock('../styles.css', () => ({
   MessageQuickReaction: 'quick-reaction',
 }));

@@ -8,7 +8,10 @@ import { isRenderableEvent } from '../event-store/timeline/roomTimelineEvents';
 import { getThreadFilteredEvents } from '../threads/threadRoomFocus';
 import { isThreadOnlyRoomActivity } from '../event-store/threads/threadRenderUtils';
 import type { ThreadRecord } from '../event-store/threads/types';
-import { eventBelongsToThread, isVisibleThreadTextMessageEventType } from '../event-store/threads/threadUtils';
+import {
+  eventBelongsToThread,
+  isVisibleThreadTextMessageEventType,
+} from '../event-store/threads/threadUtils';
 
 const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
   isVisibleThreadTextMessageEventType(mEvent.getType());

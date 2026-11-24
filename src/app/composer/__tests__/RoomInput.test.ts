@@ -4,7 +4,7 @@ import {
   threadModelContent,
   type ThreadModelContent,
 } from '../../matrix/protocol/threadModel';
-import { Provider, createStore } from 'jotai';
+import { type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
@@ -127,7 +127,7 @@ const {
           getMember: () => undefined,
           getMembers: () => [],
           getMyMembership: () => 'join',
-        } as unknown as Room)
+        }) as unknown as Room
     ),
     makeTxnId: vi.fn(() => 'txn-room-input'),
     sendMessage: vi.fn<(roomId: string, content: unknown) => Promise<{ event_id: string }>>(
@@ -305,9 +305,8 @@ vi.mock('../../editor/Editor', () => ({
   },
 }));
 vi.mock('../../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../editor/autocomplete/autocompleteQuery')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../editor/autocomplete/autocompleteQuery')>();
   return {
     ...actual,
     AUTOCOMPLETE_PREFIXES: ['user'],
@@ -365,7 +364,7 @@ vi.mock('../upload/UploadBoard', async () => {
       uploadFamilyObserverAtom,
       onCancel,
     }: {
-      uploadFamilyObserverAtom: Parameters<typeof useAtomValue>[0];
+      uploadFamilyObserverAtom: Atom<Upload[]>;
       onCancel: (uploads: Upload[]) => void;
     }) => {
       const uploads = useAtomValue(uploadFamilyObserverAtom);
@@ -419,12 +418,15 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
   useRoomInputDictation: () => ({
     available: false,
     blocksSubmit: false,
+    canSend: false,
     active: false,
     disabled: true,
     label: 'Dictate',
     button: null,
     capsule: null,
     start: () => false,
+    getLiveStatus: () => 'idle',
+    detachForSend: () => undefined,
   }),
 }));
 
@@ -615,8 +617,7 @@ vi.mock('../RoomInputExtensions', async () => {
       }
     ) => {
       const liveRoom = mxClient.getRoom(context.roomId) as
-        | { getMyMembership?: () => string }
-        | undefined;
+        { getMyMembership?: () => string } | undefined;
       if (!liveRoom || liveRoom.getMyMembership?.() !== 'join') return null;
       return {
         ...context,
@@ -804,7 +805,7 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     getMember: () => undefined,
     getMembers: () => [],
     getMyMembership: () => 'join',
-  } as never);
+  }) as never;
 
 const createEditor = () => {
   const editor = {
@@ -839,10 +840,10 @@ const createTextPasteEvent = (text: string) =>
       getData: (type: string) => (type === 'text/plain' ? text : ''),
     },
     preventDefault: vi.fn(),
-  } as never as {
+  }) as never as {
     clipboardData: DataTransfer;
     preventDefault: Mock<() => void>;
-  });
+  };
 
 const createDeferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -949,7 +950,7 @@ const createRoomInputTree = (
     Provider,
     { store },
     React.createElement(RoomInput, {
-      key: props?.keyedRoomSubtree ? props?.roomId ?? ROOM_ID : undefined,
+      key: props?.keyedRoomSubtree ? (props?.roomId ?? ROOM_ID) : undefined,
       editor: createEditor(),
       fileDropContainerRef: createRef<HTMLElement>(),
       roomId: props?.roomId ?? ROOM_ID,
@@ -1063,7 +1064,7 @@ afterEach(() => {
         getMember: () => undefined,
         getMembers: () => [],
         getMyMembership: () => 'join',
-      } as unknown as Room)
+      }) as unknown as Room
   );
   mxState.makeTxnId.mockReset();
   mxState.makeTxnId.mockReturnValue('txn-room-input');
@@ -3021,7 +3022,9 @@ describe('RoomInput', () => {
       target?.send();
     });
     expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
-    renderer.unmount();
+    act(() => {
+      renderer.unmount();
+    });
     expect(target?.start()).toBe(false);
     expect(resolveVoiceComposer()).toBeUndefined();
   });
@@ -4238,7 +4241,7 @@ describe('RoomInput', () => {
           getMember: () => undefined,
           getMembers: () => [],
           getMyMembership: () => 'join',
-        } as unknown as Room)
+        }) as unknown as Room
     );
     const { renderer } = await renderRoomInput(store, {
       threadId: '$thread-a',
@@ -5270,7 +5273,9 @@ describe("RoomInput as Home's ask field", () => {
     mounted.renderer.unmount();
 
     const unmounted = await sendLongQuestion({ isDirect: true }, OTHER_ROOM_ID);
-    unmounted.renderer.unmount();
+    act(() => {
+      unmounted.renderer.unmount();
+    });
     await unmounted.fail();
     expect(unmounted.store.get(homeDraft())).toEqual(question);
     expect(unmounted.store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
@@ -5297,7 +5302,9 @@ describe("RoomInput as Home's ask field", () => {
       onRoomMessageSent
     );
     expect(onSendingChange.mock.calls).toEqual([[true]]);
-    gone.renderer.unmount();
+    act(() => {
+      gone.renderer.unmount();
+    });
     await gone.finishUpload();
     expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
     expect(onSendingChange.mock.calls).toEqual([[true], [false]]);

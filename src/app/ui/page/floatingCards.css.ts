@@ -14,5 +14,5 @@ export const PageSurface = style({});
 /** The divider between the navigation column and the page, which the gap replaces. */
 export const PageDivider = style({});
 
-/** A floating card's corner radius; a phone's drawer rounds its corner over the page the same. */
+/** A floating card's corner radius. */
 export const cardRadius = config.radii.R500;

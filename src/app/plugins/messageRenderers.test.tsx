@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { cleanup, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
@@ -22,6 +22,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   id,
   tag: `${id}@1.0.0`,
   displayName: id,
+  defaultEnabled: true,
   messageRenderers,
   pages: [],
   roomHeaderSlot: [],
@@ -46,8 +47,9 @@ const message = (sender: string): PluginEvent => ({ sender, content: { body: 'He
 
 const withConfig =
   (config: ClientConfig) =>
-  ({ children }: { children: ReactNode }) =>
-    <ClientConfigProvider value={config}>{children}</ClientConfigProvider>;
+  ({ children }: { children: ReactNode }) => (
+    <ClientConfigProvider value={config}>{children}</ClientConfigProvider>
+  );
 
 /** The renderer the hook picks for `event`, as `viewer` (null: signed out) with `config`. */
 const pick = (
@@ -73,6 +75,7 @@ const hiddenOf = (event: PluginEvent, config: ClientConfig = {}) => {
 };
 
 afterEach(() => {
+  cleanup();
   registry.splice(0);
   vi.restoreAllMocks();
 });

@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSetAtom } from 'jotai';
-import {
-  threadViewVoiceComposersAtom,
-  voiceComposerKey,
-} from '../composer/roomInputDrafts';
+import { threadViewVoiceComposersAtom, voiceComposerKey } from '../composer/roomInputDrafts';
 import { useInConversationView } from '../navigation/conversationView';
 import { act, create } from 'react-test-renderer';
 import { createClient, Room, type IContent, type ISendEventResponse } from 'matrix-js-sdk';
@@ -62,7 +59,9 @@ vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: approvalHistory.load,
   useSyncEngine: () => ({ scheduler }),
 }));
-vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
+vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({
+  useLiveEventArrive: () => undefined,
+}));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../matrix/hooks/usePowerLevels', () => {
   // The thread column's view reads the room's levels itself, the same ones every render.
@@ -215,11 +214,18 @@ function Composer(
     clearReplyDraft: noop,
     sendTypingStatus: noop,
     attachments,
-    buildUploadMessageContent: async (fileItem, url) => ({
-      msgtype: 'm.file',
-      body: fileItem.file.name,
-      url,
-    }),
+    buildUploadMessageContent: async (fileItem, url) => {
+      // Yield one task before building the second file from the room composer so the
+      // concurrent thread navigation from the first file commits and hands off the session.
+      if (fileItem.file === second && mounts < 2) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      }
+      return {
+        msgtype: 'm.file',
+        body: fileItem.file.name,
+        url,
+      };
+    },
     onRoomMessageSent,
   });
   useEffect(() => {
@@ -270,6 +276,7 @@ it('continues the pending second upload and caption when the first upload opens 
     // A submission's files wait until every upload settles, so nothing leaves yet.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual([]);
     await act(async () => completeUpload());
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     // The first file opens the thread, whose composer takes the send over with its own board.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual(['first.png']);
     await act(async () => completeUpload());

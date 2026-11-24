@@ -1,5 +1,5 @@
 /**
- * The flag React 18 reads to know that a test drives its updates through `act()`. Component tests
+ * The flag React reads to know that a test drives its updates through `act()`. Component tests
  * set it on `globalThis` before they render.
  */
 declare global {

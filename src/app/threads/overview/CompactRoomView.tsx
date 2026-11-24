@@ -106,8 +106,8 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
     : undefined;
 
 type GuardProps = {
-  scrollRef: RefObject<HTMLDivElement>;
-  contentRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  contentRef: RefObject<HTMLDivElement | null>;
   liveIds: readonly string[];
 };
 class CompactHeightGuard extends React.Component<GuardProps> {
@@ -141,7 +141,7 @@ type ThreadActionsMenuState = {
 
 type CompactThreadCardRowProps = {
   room: Room;
-  scrollRootRef: RefObject<HTMLDivElement>;
+  scrollRootRef: RefObject<HTMLDivElement | null>;
   viewModel: CompactThreadCardViewModel;
   pinned: boolean;
   showResolveAction: boolean;
@@ -404,7 +404,7 @@ export function CompactRoomView({
     singleBucketTab: ThreadWorkflowBucket | undefined;
     sections: CompactThreadSection[] | undefined;
     rows: string[];
-  }>();
+  }>(undefined);
   const heldSections = useMemo(() => {
     const shown = shownRef.current;
     // Sections start live when entering from flat, from another room, or from another bucket tab.
@@ -455,7 +455,7 @@ export function CompactRoomView({
   const memory = compactRoomScrollStateRef.current;
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
-  const placing = useRef<string>();
+  const placing = useRef<string>(undefined);
   const asked = useRef<[key?: string, top?: number, input?: number]>([]);
   const pushed =
     focusRequest?.pushed &&
@@ -534,7 +534,7 @@ export function CompactRoomView({
     return () => void compactCardNavigation.delete(view);
   }, [ids, intent, pending, address, blocks.targetReady, blocks.progress, keyScope]);
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
-  const menuRef = useRef<ThreadActionsMenuState>();
+  const menuRef = useRef<ThreadActionsMenuState>(undefined);
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
     menuRef.current = nextMenu;
     setMenu(nextMenu);
@@ -552,8 +552,9 @@ export function CompactRoomView({
   };
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
   const menuModel =
-    menu?.roomId === room.roomId ? modelByRootId.get(menu.rootId) ?? menu.viewModel : undefined;
+    menu?.roomId === room.roomId ? (modelByRootId.get(menu.rootId) ?? menu.viewModel) : undefined;
   useLayoutEffect(() => {
+    if (menuRef.current === undefined) return;
     menuRef.current = undefined;
     setMenu(undefined);
   }, [room.roomId]);
@@ -646,8 +647,7 @@ export function CompactRoomView({
     if (address && asked.current[0] !== requestKey) asked.current = [requestKey, ...now];
     if (!focusRequest || !focusShown) return;
     // A newer address retires a Back that still waits; a reader whose input scrolled it stays.
-    if (address && !blocks.progress.placed) blocks.progress.wake?.();
-    if (address) blocks.progress.placed = blocks.progress.left = true;
+    if (address) blocks.retireBack();
     const stayed = now.some((value, i) => value === asked.current[i + 1]);
     const place = pushed && view && stayed && compactFocusPlace(focusRequest, view);
     if (place && placing.current !== requestKey) {

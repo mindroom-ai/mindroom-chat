@@ -4,7 +4,7 @@ import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled } from './pluginDeploymentConfig';
 import { getPluginTranslation, pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 

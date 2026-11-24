@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeRetryViewTrapOptions, makeTrapOptions } from './boardFocusTrap';
 
 const escape = (init: { defaultPrevented?: boolean } = {}) =>
-  ({ defaultPrevented: false, ...init, stopPropagation: vi.fn() } as unknown as KeyboardEvent);
+  ({ defaultPrevented: false, ...init, stopPropagation: vi.fn() }) as unknown as KeyboardEvent;
 
 describe('board focus traps', () => {
   it('closes the board whenever its trap deactivates', () => {

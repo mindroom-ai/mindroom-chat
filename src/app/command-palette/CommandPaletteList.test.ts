@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandPaletteList, type CommandPaletteListSection } from './CommandPaletteList';
 
@@ -83,17 +83,22 @@ const ROOM_SECTION: CommandPaletteListSection = {
   title: 'Rooms',
   items: [{ id: '!general:example.org', kind: 'room', name: 'General', topic: 'Team chat' }],
 };
-const renderList = (props: Partial<React.ComponentProps<typeof CommandPaletteList>> = {}) =>
-  create(
-    React.createElement(CommandPaletteList, {
-      id: 'results',
-      label: 'Search results',
-      sections: [ROOM_SECTION],
-      onSelect: vi.fn(),
-      onHighlight: vi.fn(),
-      ...props,
-    })
-  );
+const renderList = (props: Partial<React.ComponentProps<typeof CommandPaletteList>> = {}) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(CommandPaletteList, {
+        id: 'results',
+        label: 'Search results',
+        sections: [ROOM_SECTION],
+        onSelect: vi.fn(),
+        onHighlight: vi.fn(),
+        ...props,
+      })
+    );
+  });
+  return renderer;
+};
 
 describe('CommandPaletteList', () => {
   it('gives each result group a visible accessible category label', () => {
@@ -172,6 +177,40 @@ describe('CommandPaletteList', () => {
     expect(tags[0]?.children).toEqual(['Space']);
     const space = renderer.root.findByProps({ 'data-kind': 'space' });
     expect(space.findByProps({ className: 'Tag' })).toBe(tags[0]);
+  });
+
+  it('marks resolved threads with data-resolved, a check icon and a Resolved tag', () => {
+    const thread = (threadId: string, summaryText: string, isResolved: boolean) => ({
+      id: `thread:!a:example.org:${threadId}`,
+      kind: 'thread' as const,
+      roomId: '!a:example.org',
+      threadId,
+      summaryText,
+      roomName: 'Product',
+      isResolved,
+    });
+    const renderer = renderList({
+      sections: [
+        {
+          id: 'threads',
+          title: 'Threads',
+          items: [
+            thread('$open', 'Mobile widget rollout', false),
+            thread('$done', 'Widget layout glitch', true),
+          ],
+        },
+      ],
+    });
+
+    const rowById = (itemId: string) => renderer.root.findByProps({ 'data-item-id': itemId });
+    const openRow = rowById('thread:!a:example.org:$open');
+    const resolvedRow = rowById('thread:!a:example.org:$done');
+    expect(openRow.props['data-resolved']).toBeUndefined();
+    expect(openRow.findByType('row-icon' as never).props.src).toBe('message');
+    expect(openRow.findAllByProps({ className: 'Tag' })).toHaveLength(0);
+    expect(resolvedRow.props['data-resolved']).toBe('true');
+    expect(resolvedRow.findByType('row-icon' as never).props.src).toBe('check');
+    expect(resolvedRow.findByProps({ className: 'Tag' }).children).toEqual(['Resolved']);
   });
 
   it('shows a message hit with its sender, room, thread, marked match and time', () => {

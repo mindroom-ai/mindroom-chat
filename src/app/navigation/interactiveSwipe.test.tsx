@@ -27,7 +27,8 @@ const createTouchEvent = (
     Object.defineProperty(event, 'changedTouches', { value: changedTouches });
   }
   if (timeStamp !== undefined) {
-    Object.defineProperty(event, 'timeStamp', { value: timeStamp });
+    // Keep timestamps strictly positive so getEventTimeMs does not fall back to performance.now().
+    Object.defineProperty(event, 'timeStamp', { value: timeStamp + 1000 });
   }
   return event;
 };
@@ -1054,7 +1055,7 @@ describe('interactiveSwipe', () => {
         easing: 'cubic-bezier(0.2, 0, 0, 1)',
         fill: 'forwards',
       });
-      expect(el.style.translate).toBe('390px 0');
+      expect(el.style.translate).toBe('390px');
       expect(cancel).toHaveBeenCalledOnce();
     });
 

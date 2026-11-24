@@ -38,7 +38,10 @@ vi.mock('folds', () => {
 
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
+  CapsuleStacked: 'CapsuleStacked',
+  Container: 'Container',
   Control: 'Control',
+  ControlsRow: 'ControlsRow',
   HiddenStatus: 'HiddenStatus',
   Timer: 'Timer',
 }));
@@ -68,9 +71,12 @@ describe('VoiceRecordingCapsule', () => {
       onPause: vi.fn(),
       onResume: vi.fn(),
     };
-    const renderer = create(
-      React.createElement(VoiceRecordingCapsule, { ...props, phase: 'recording' })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceRecordingCapsule, { ...props, phase: 'recording' })
+      );
+    });
     const liveCount = () => renderer.root.findByType(VoiceWaveform).props.liveSampleCount;
     expect(liveCount()).toBe(7);
 
@@ -87,7 +93,7 @@ describe('VoiceRecordingCapsule', () => {
     await language.init({
       lng: 'en',
       fallbackLng: 'en',
-      initImmediate: false,
+      initAsync: false,
       resources: {
         en: {
           translation: {
@@ -151,17 +157,20 @@ describe('VoiceRecordingCapsule', () => {
   });
 
   it('renders only discard, waveform, timer, and pause controls', () => {
-    const renderer = create(
-      React.createElement(VoiceRecordingCapsule, {
-        phase: 'recording',
-        elapsedMs: 12000,
-        waveform: createFallbackWaveform(),
-        canPause: true,
-        onDiscard: vi.fn(),
-        onPause: vi.fn(),
-        onResume: vi.fn(),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceRecordingCapsule, {
+          phase: 'recording',
+          elapsedMs: 12000,
+          waveform: createFallbackWaveform(),
+          canPause: true,
+          onDiscard: vi.fn(),
+          onPause: vi.fn(),
+          onResume: vi.fn(),
+        })
+      );
+    });
 
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
@@ -179,17 +188,20 @@ describe('VoiceRecordingCapsule', () => {
     const onDiscard = vi.fn();
     const onPause = vi.fn();
     const onResume = vi.fn();
-    const renderer = create(
-      React.createElement(VoiceRecordingCapsule, {
-        phase: 'paused',
-        elapsedMs: 3000,
-        waveform: createFallbackWaveform(),
-        canPause: true,
-        onDiscard,
-        onPause,
-        onResume,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceRecordingCapsule, {
+          phase: 'paused',
+          elapsedMs: 3000,
+          waveform: createFallbackWaveform(),
+          canPause: true,
+          onDiscard,
+          onPause,
+          onResume,
+        })
+      );
+    });
 
     const buttons = renderer.root.findAllByType('button');
     expect(buttons[1]!.props['aria-label']).toBe('Resume voice recording');
@@ -207,17 +219,20 @@ describe('VoiceRecordingCapsule', () => {
   });
 
   it('disables discard while the recording is being sent', () => {
-    const renderer = create(
-      React.createElement(VoiceRecordingCapsule, {
-        phase: 'sending',
-        elapsedMs: 3000,
-        waveform: createFallbackWaveform(),
-        canPause: true,
-        onDiscard: vi.fn(),
-        onPause: vi.fn(),
-        onResume: vi.fn(),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceRecordingCapsule, {
+          phase: 'sending',
+          elapsedMs: 3000,
+          waveform: createFallbackWaveform(),
+          canPause: true,
+          onDiscard: vi.fn(),
+          onPause: vi.fn(),
+          onResume: vi.fn(),
+        })
+      );
+    });
 
     const discardButton = renderer.root.findByProps({
       'aria-label': 'Discard voice recording',
@@ -230,18 +245,21 @@ describe('VoiceRecordingCapsule', () => {
   it('keeps a pending recording ready for primary composer Send', () => {
     const onDiscard = vi.fn();
     const onPause = vi.fn();
-    const renderer = create(
-      React.createElement(VoiceRecordingCapsule, {
-        phase: 'idle',
-        elapsedMs: 4200,
-        waveform: createFallbackWaveform(),
-        canPause: true,
-        hasPendingSend: true,
-        onDiscard,
-        onPause,
-        onResume: vi.fn(),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(VoiceRecordingCapsule, {
+          phase: 'idle',
+          elapsedMs: 4200,
+          waveform: createFallbackWaveform(),
+          canPause: true,
+          hasPendingSend: true,
+          onDiscard,
+          onPause,
+          onResume: vi.fn(),
+        })
+      );
+    });
 
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([

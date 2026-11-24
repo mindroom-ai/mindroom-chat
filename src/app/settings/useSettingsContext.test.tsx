@@ -54,10 +54,27 @@ describe('useSettingsContext', () => {
   });
 
   it('enables diagnostics in the Electron desktop app while keeping nativeIOS false', () => {
-    expect(read()).toMatchObject({ native: false, nativeIOS: false, diagnostics: false });
+    expect(read()).toMatchObject({
+      native: false,
+      nativeIOS: false,
+      diagnostics: false,
+      nativeUpdate: false,
+    });
     act(() => renderer?.unmount());
 
     Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
-    expect(read()).toMatchObject({ native: true, nativeIOS: false, diagnostics: true });
+    expect(read()).toMatchObject({
+      native: true,
+      nativeIOS: false,
+      diagnostics: true,
+      nativeUpdate: false,
+    });
+    act(() => renderer?.unmount());
+
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { update: { status: vi.fn(), check: vi.fn(), install: vi.fn() } },
+    });
+    expect(read()).toMatchObject({ native: true, nativeUpdate: true });
   });
 });

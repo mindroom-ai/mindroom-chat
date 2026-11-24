@@ -8,10 +8,16 @@ import React, {
   useEffect,
   useRef,
   useState,
+  type JSX,
 } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
+import {
+  type DOMNode,
+  HTMLReactParserOptions,
+  attributesToProps,
+  domToReact,
+} from 'html-react-parser';
 import { isTag, isText } from 'domhandler';
 import type { ChildNode, Element } from 'domhandler';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -226,8 +232,8 @@ function MessageLinkLabel({
   const place = room?.name
     ? `#${revealDirectionControls(room.name)}`
     : isAlias
-    ? revealDirectionControls(roomIdOrAlias)
-    : undefined;
+      ? revealDirectionControls(roomIdOrAlias)
+      : undefined;
   if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
   const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
   return (
@@ -406,10 +412,10 @@ type CodeBlockProps = {
 /** Parser options that also show the direction controls of text as code points. */
 const revealingText = (opts: HTMLReactParserOptions): HTMLReactParserOptions => ({
   ...opts,
-  replace: (node) => {
-    if (!isText(node)) return opts.replace?.(node);
+  replace: (node, index) => {
+    if (!isText(node)) return opts.replace?.(node, index);
     const shown = revealDirectionControls(node.data);
-    return shown === node.data ? opts.replace?.(node) : <>{shown}</>;
+    return shown === node.data ? opts.replace?.(node, index) : <>{shown}</>;
   },
 });
 
@@ -423,7 +429,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   const [wrap, setWrap] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
   // The view (collapse, wrap, code length) whose last line the reader scrolled to, if any.
   const [endView, setEndView] = useState<string>();
@@ -473,7 +479,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   if (formatted && opts) {
     body = (
       <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-        {domToReact(children, revealingText(opts))}
+        {domToReact(children as DOMNode[], revealingText(opts))}
       </code>
     );
   } else if (searchMatch) {
@@ -718,7 +724,7 @@ export const getReactCustomHtmlParser = (
         return (
           <Spoiler reason={attribs['data-mx-spoiler'] || undefined}>
             {renderCustomElement(name, inner, children, parserOptions) ??
-              domToReact(children, parserOptions)}
+              domToReact(children as DOMNode[], parserOptions)}
           </Spoiler>
         );
       }
@@ -735,7 +741,7 @@ export const getReactCustomHtmlParser = (
             size={HEADING_SIZES[name]}
             className={classNames(css.Heading, css.MarginSpaced, props.className)}
           >
-            {domToReact(children, parserOptions)}
+            {domToReact(children as DOMNode[], parserOptions)}
           </Text>
         );
       }
@@ -744,7 +750,7 @@ export const getReactCustomHtmlParser = (
         case 'p':
           return (
             <p {...props} className={classNames(css.Paragraph, css.MarginSpaced, props.className)}>
-              {domToReact(children, parserOptions)}
+              {domToReact(children as DOMNode[], parserOptions)}
             </p>
           );
         case 'blockquote':
@@ -753,19 +759,19 @@ export const getReactCustomHtmlParser = (
               {...props}
               className={classNames(css.BlockQuote, css.MarginSpaced, props.className)}
             >
-              {domToReact(children, parserOptions)}
+              {domToReact(children as DOMNode[], parserOptions)}
             </blockquote>
           );
         case 'ul':
           return (
             <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
-              {domToReact(children, parserOptions)}
+              {domToReact(children as DOMNode[], parserOptions)}
             </ul>
           );
         case 'ol':
           return (
             <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
-              {domToReact(children, parserOptions)}
+              {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
         case 'pre':
@@ -786,7 +792,7 @@ export const getReactCustomHtmlParser = (
         case 'a': {
           const { href } = attribs;
           stripLinkTextBidi(children);
-          const content = domToReact(children, parserOptions);
+          const content = domToReact(children as DOMNode[], parserOptions);
           const hasSpoiler = containsSpoiler(children);
           if (href && testMatrixTo(href)) {
             const trimmedText = textContent(children).trim();

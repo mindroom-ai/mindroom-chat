@@ -46,7 +46,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
   const [state, publish] = useState<Omit<ThreadSessionSnapshot, 'route'>>(initialState);
   const routeRef = useRef(route);
   const lifetime = useRef({ generation: 0, alive: true });
-  const runtimeRef = useRef<ThreadOpenRuntime>();
+  const runtimeRef = useRef<ThreadOpenRuntime>(undefined);
   if (routeRef.current.roomId !== route.roomId || routeRef.current.threadId !== route.threadId) {
     lifetime.current.generation += 1;
     runtimeRef.current = undefined;

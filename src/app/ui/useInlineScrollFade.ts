@@ -15,7 +15,7 @@ export const markInlineOverflow = (element: HTMLElement): void => {
 };
 
 /** Keeps the marks of {@link markInlineOverflow} current as the row scrolls or changes size. */
-export const useInlineScrollFade = (ref: RefObject<HTMLElement>): void => {
+export const useInlineScrollFade = (ref: RefObject<HTMLElement | null>): void => {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return undefined;

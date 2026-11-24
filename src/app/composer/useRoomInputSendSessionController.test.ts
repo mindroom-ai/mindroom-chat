@@ -9,11 +9,7 @@ import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
-import {
-  IReplyDraft,
-  roomUploadAtomFamily,
-  threadViewVoiceComposersAtom,
-} from './roomInputDrafts';
+import { IReplyDraft, roomUploadAtomFamily, threadViewVoiceComposersAtom } from './roomInputDrafts';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
@@ -67,7 +63,8 @@ const createDeferred = <T>() => {
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file: not encrypted, not a voice message, not a text paste.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
   },
@@ -77,7 +74,8 @@ const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => (
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file that also carries the marker of a pasted text.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
     mindroomPasteAttachment: {
@@ -514,7 +512,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
+    ]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -525,7 +525,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(room.current().joinedSendPending).toBe(true);
   });
 
-  it("takes a send parked for its thread over once its own send is done", async () => {
+  it('takes a send parked for its thread over once its own send is done', async () => {
     const store = getDefaultStore();
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
@@ -533,7 +533,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' },
+    ]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];
@@ -544,7 +546,10 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     store.set(threadViewVoiceComposersAtom, []);
     expect(thread.current().joinedSendPending).toBe(false);
 
-    thread.api.uploadsRef.current = [successUpload(own, 'mxc://mindroom/own'), loadingUpload(child)];
+    thread.api.uploadsRef.current = [
+      successUpload(own, 'mxc://mindroom/own'),
+      loadingUpload(child),
+    ];
     await act(async () => {
       store.set(roomUploadAtomFamily(own), { mxc: 'mxc://mindroom/own' });
       await Promise.resolve();
@@ -1929,11 +1934,7 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     expect(api.hasActiveSendSession()).toBe(false);
 
     const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
-    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual([
-      'steer',
-      'steer',
-      'queue',
-    ]);
+    expect(sent.map((content) => content[MID_TURN_MODE_KEY])).toEqual(['steer', 'steer', 'queue']);
   });
 });
 
@@ -2635,5 +2636,120 @@ describe('useRoomInputSendSessionController root thread model stamping', () => {
       expect(takeRootModelDraft).not.toHaveBeenCalled();
       expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty(THREAD_MODEL_KEY);
     }
+  });
+});
+
+describe('useRoomInputSendSessionController detached handoff invariants', () => {
+  it('parks a post-unmount startSendSession so a mounted composer for that key adopts it', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('post-unmount.png');
+    const item = createUploadItem(file);
+    api.sendSessionUploadItemsRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    unmount();
+
+    const reopened = mountAgain();
+    expect(reopened.current().joinedSendPending).toBe(false);
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated caption' },
+        batch: { fileItems: [item] },
+        composerContext: { roomId: '!room:example.org', threadId: undefined },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(reopened.current().joinedSendPending).toBe(true);
+
+    reopened.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/post-unmount.png' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() =>
+      expect(sentBodies(mx)).toEqual(['post-unmount.png', 'dictated caption'])
+    );
+  });
+
+  it('excludes already-enrolled files when starting a non-batch send on the same composer', async () => {
+    const { api, mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
+    const fileA = createFile('thread-a.png');
+    const itemA = createUploadItem(fileA);
+    api.selectedFilesRef.current = [itemA];
+    api.sendSessionUploadItemsRef.current = [itemA];
+    api.uploadsRef.current = [successUpload(fileA)];
+
+    changeThread('$threadB');
+    await act(async () => {
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'thread B only' },
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['thread B only']);
+  });
+
+  it('isolates an off-context background send on a fresh slot while another thread sends', async () => {
+    const { mx, changeThread, current } = renderHarness({ threadId: '$threadA' });
+    const fileB = createFile('thread-b.png');
+    changeThread('$threadB');
+    current().selectedFilesRef.current = [createUploadItem(fileB)];
+    current().uploadsRef.current = [loadingUpload(fileB)];
+    await act(async () => {
+      await current().startSendSession();
+    });
+
+    await act(async () => {
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'from thread A' },
+        context: {
+          roomId: '!room:example.org',
+          room: { roomId: '!room:example.org', getEventForTxnId: mx.getEventForTxnId } as never,
+          threadId: '$threadA',
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        composerContext: { roomId: '!room:example.org', threadId: '$threadA' },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['from thread A']);
+    expect(current().hasActiveSendSession()).toBe(true);
+  });
+
+  it('guards upload sends with beforeSend and clears the session when refused', async () => {
+    const { api, mx } = renderHarness();
+    const file = createFile('blocked.png');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption' },
+        batch: { fileItems: [item] },
+        beforeSend: () => false,
+        composerAlreadyReset: true,
+      });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('does not grab files staged after Finish & Send when batch has an empty fileItems list', async () => {
+    const { api, mx } = renderHarness();
+    const laterFile = createFile('next-message.png');
+    api.selectedFilesRef.current = [createUploadItem(laterFile)];
+    api.uploadsRef.current = [successUpload(laterFile)];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'dictated only' },
+        batch: { fileItems: [] },
+        composerAlreadyReset: true,
+      });
+    });
+    expect(sentBodies(mx)).toEqual(['dictated only']);
+    expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([laterFile]);
   });
 });

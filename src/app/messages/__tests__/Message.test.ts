@@ -63,7 +63,7 @@ vi.mock('../../ui/page/PageScroll', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {
@@ -227,8 +227,7 @@ vi.mock('../layout/layout', () => ({
       if (typeof ref === 'function') {
         ref(nodeRef.current);
       } else if (ref) {
-        const mutableRef = ref as React.MutableRefObject<HostNodeMock | null>;
-        mutableRef.current = nodeRef.current;
+        ref.current = nodeRef.current;
       }
 
       return React.createElement('div', props, children);
@@ -400,13 +399,13 @@ const createMessageEvent = (content: Record<string, unknown>, eventId = '$event'
     getSender: () => messageSender,
     getTs: () => 1,
     isRedacted: () => false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const createRoom = () =>
   ({
     roomId: '!room:example.org',
     getTimelineForEvent: () => undefined,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 type RenderedMessage = {
   renderer: ReactTestRenderer;
@@ -791,8 +790,7 @@ describe('Message reply details menu item', () => {
     expect(hasSpanText(renderer, 'Input')).toBe(true);
     expect(hasSpanText(renderer, 'Output')).toBe(true);
     const setReturnFocus = getDialogFocusTrapOptions(renderer).setReturnFocus as () =>
-      | HostNodeMock
-      | false;
+      HostNodeMock | false;
     expect(messageBaseNode).toBeDefined();
     expect(setReturnFocus).toBeTypeOf('function');
   });

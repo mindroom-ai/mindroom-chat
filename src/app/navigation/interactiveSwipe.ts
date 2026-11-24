@@ -46,8 +46,8 @@ export interface InteractiveSwipeOptions {
   direction: SwipeDirection;
   priority: number;
   enabled: boolean;
-  elementRef?: RefObject<HTMLElement>;
-  within?: RefObject<Element>;
+  elementRef?: RefObject<HTMLElement | null>;
+  within?: RefObject<Element | null>;
   blockStandaloneWebApp?: boolean;
   cancelCommits?: boolean;
   /** Optional custom blocker; defaults to `hasOpenOverlay(scope)` when omitted. */
@@ -68,8 +68,8 @@ type SwipeRegistration = {
   edge: SwipeEdge;
   direction: SwipeDirection;
   priority: number;
-  elementRef?: RefObject<HTMLElement>;
-  within?: RefObject<Element>;
+  elementRef?: RefObject<HTMLElement | null>;
+  within?: RefObject<Element | null>;
   cancelCommits: boolean;
   isBlockedRef: MutableRefObject<(() => boolean) | undefined>;
   onCommitRef: MutableRefObject<() => void>;
@@ -638,11 +638,14 @@ const handleActiveEnd = (
   const durationMs = gesture.tracker.settleDurationMs(commit, extent, endTimeMs);
   const currentOffset = gesture.tracker.offset;
   const settleToken = ++settleCounter;
-  const watchdogId = setTimeout(() => {
-    if (activeSettle?.token === settleToken) {
-      abortActiveSettle();
-    }
-  }, Math.max(0, durationMs) + SETTLE_WATCHDOG_GRACE_MS);
+  const watchdogId = setTimeout(
+    () => {
+      if (activeSettle?.token === settleToken) {
+        abortActiveSettle();
+      }
+    },
+    Math.max(0, durationMs) + SETTLE_WATCHDOG_GRACE_MS
+  );
 
   activeSettle = {
     token: settleToken,

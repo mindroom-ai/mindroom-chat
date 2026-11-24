@@ -19,7 +19,7 @@ export function ThreadTimelineHeader({
   gapAbove?: boolean;
   /** Gets each height change, and the offset before it, ahead of the layout that moves the rows. */
   onResize: (deltaPx: number, scrollTop: number) => void;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);

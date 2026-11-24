@@ -28,7 +28,7 @@ export const useAttachmentAction = <T>(
 ): [AttachmentActionStatus, () => Promise<T | undefined>] => {
   const mx = useMatrixClient();
   const key = sourceKey(source);
-  const blobRef = useRef<{ key: string; blob: Blob }>();
+  const blobRef = useRef<{ key: string; blob: Blob }>(undefined);
   const busyRef = useRef(false);
   const alive = useAlive();
   const [status, setStatus] = useState<AttachmentActionStatus>('idle');

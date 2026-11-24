@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
 import {
   isThinkingPlaceholderBody,
@@ -12,7 +13,11 @@ import {
   type ToolTraceEvent,
 } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
-import { hasLongTextMetadata } from '../../matrix/protocol/longText';
+import {
+  getCachedLongTextContent,
+  getLongTextSource,
+  hasLongTextMetadata,
+} from '../../matrix/protocol/longText';
 import { parseToolRefText } from '../html/blocks';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
@@ -64,24 +69,35 @@ export const getLiveVerdict = (
   return 'show';
 };
 
+/** A reply's latest resolved content, reading edits from its thread or room timeline set. */
+export const getLatestReplyContent = (room: Room, reply: MatrixEvent): IContent => {
+  const replyId = reply.getId() ?? '';
+  const thread = reply.threadRootId ? room.getThread(reply.threadRootId) : undefined;
+  const timelineSet = thread?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
+  return getLatestMessageContent(reply, getEditedEvent(replyId, reply, timelineSet));
+};
+
 /**
  * The tool calls a reply shows, as its row renders them: its frames' while they show over it, else
- * its latest edit's trace. A redacted reply shows none.
+ * its hydrated long-text sidecar's or latest edit's trace. A redacted reply shows none.
  */
 export const getShownToolCalls = (
   room: Room,
   reply: MatrixEvent,
   store: ReturnType<typeof getLiveReplyStore>,
-  now: number
+  now: number,
+  mx?: Pick<MatrixClient, 'getUserId'>
 ): ToolTraceEvent[] => {
   if (reply.isRedacted()) return [];
   const replyId = reply.getId() ?? '';
-  const thread = reply.threadRootId ? room.getThread(reply.threadRootId) : undefined;
-  const timelineSet = thread?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
-  const content = getLatestMessageContent(reply, getEditedEvent(replyId, reply, timelineSet));
+  const content = getLatestReplyContent(room, reply);
   const live = store.get(room.roomId, replyId);
-  const shown = live && getLiveVerdict(reply, content, live, now) === 'show';
-  return (shown ? live.docs.tools : getContentToolTraceEvents(content)) ?? [];
+  if (live && getLiveVerdict(reply, content, live, now) === 'show') return live.docs.tools;
+  const trustedSidecar =
+    !!mx && isMindroomAgentUserIdForViewer(reply.getSender(), mx.getUserId() ?? undefined);
+  const source = trustedSidecar ? getLongTextSource(content) : undefined;
+  const hydrated = source && mx ? getCachedLongTextContent(source, mx) : undefined;
+  return getContentToolTraceEvents(hydrated ?? content) ?? [];
 };
 
 const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boolean): IContent => {
@@ -262,7 +278,7 @@ export const useLiveReplyContent = (
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
   // grows or pauses.
-  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>();
+  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>(undefined);
   if (docs && entry) shownRef.current = { docs, order: { sid: entry.sid, seq: entry.seq } };
   const heldDocs =
     !docs &&

@@ -418,7 +418,9 @@
         "search": "サイドバーに検索を表示する",
         "searchDescription": "コマンドパレットを開くボタンです。非表示にした場合は、「何でも検索」欄または {{shortcut}} で開けます。",
         "localMindroom": "サイドバーに Local MindRoom を表示する",
-        "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。"
+        "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。",
+        "usage": "サイドバーに使用量を表示する",
+        "usageDescription": "ランタイムが報告すると、プロバイダーの使用上限と7日間のトークン消費量を表示します。非表示のときはホームの ⋮ メニューまたはモデル選択から開けます。"
       },
       "plugins": {
         "title": "プラグイン",
@@ -495,7 +497,8 @@
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
-        "plugins": "プラグイン, 拡張機能, アドオン, 連携"
+        "plugins": "プラグイン, 拡張機能, アドオン, 連携",
+        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -506,7 +509,17 @@
         "thirdPartyNotices": "サードパーティ通知",
         "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。",
         "debugMode": "デバッグモード",
-        "debugModeDescription": "メッセージでこのデバイスの診断情報を送れるように、入力欄の＋メニューに「アプリのログを添付」を追加します。メモリ値と詳細なトレースを含めるには、下の詳細な診断トレースをオンにしてください。"
+        "debugModeDescription": "メッセージでこのデバイスの診断情報を送れるように、入力欄の＋メニューに「アプリのログを添付」を追加します。メモリ値と詳細なトレースを含めるには、下の詳細な診断トレースをオンにしてください。",
+        "updatesTitle": "アプリのアップデート",
+        "updatesDescription": "アップデートはバックグラウンドで自動的にダウンロードされます。",
+        "checkForUpdates": "アップデートを確認",
+        "checkingForUpdates": "アップデートを確認しています…",
+        "upToDate": "MindRoom は最新です。",
+        "updateAvailable": "アップデートがあります。準備ができたらここから再起動できます。",
+        "updateCheckFailed": "現在アップデートを確認できませんでした。もう一度試してください。",
+        "updateReady": "バージョン {{version}} をインストールする準備ができました。",
+        "restartToUpdate": "再起動してアップデート",
+        "updateInstallFailed": "アップデートをインストールするための再起動に失敗しました。もう一度試してください。"
       }
     },
     "createChat": {
@@ -520,9 +533,15 @@
     },
     "spaceNav": {
       "options": "スペースのオプション",
-      "subspaces": "サブスペース",
       "subspaceUnread": "{{name}}、未読メッセージあり",
-      "backToParent": "{{name}} に戻る"
+      "backToParent": "{{name}} に戻る",
+      "add": "追加",
+      "newRoom": "新しいルーム",
+      "addExistingRoom": "既存のルームを追加",
+      "newSubspace": "新しいサブスペース",
+      "addExistingSubspace": "既存のサブスペースを追加",
+      "addToSpace": "{{name}} に追加",
+      "subspaceOptions": "{{name}} のオプション"
     },
     "calls": {
       "panel": {
@@ -549,7 +568,13 @@
         "shareAgain": "もう一度共有",
         "microphoneStopped": "マイクが停止しました。",
         "cameraStopped": "カメラが停止しました。",
-        "turnBackOn": "もう一度オンにする"
+        "turnBackOn": "もう一度オンにする",
+        "nativeScreenShareConnecting": "画面共有を接続中…",
+        "nativeScreenShareFailed": "画面全体を共有できませんでした。",
+        "nativeScreenSharePickerTimedOut": "画面共有が時間内に開始されませんでした。",
+        "nativeScreenShareStopped": "画面共有が停止しました。",
+        "nativeScreenShareSheetBody": "通知やほかのアプリを含め、画面上のすべてが通話に表示されます。",
+        "nativeScreenShareSheetCaption": "上のボタンをタップしてから、「ブロードキャストを開始」をタップしてください。"
       },
       "problems": {
         "service": "通話サービスに接続できませんでした。後でもう一度試してください。",
@@ -850,7 +875,9 @@
     "call": {
       "controls": {
         "startAppShare": "このアプリを共有",
-        "stopAppShare": "このアプリの共有を停止"
+        "stopAppShare": "このアプリの共有を停止",
+        "startEntireScreenShare": "画面全体を共有",
+        "stopEntireScreenShare": "画面全体の共有を停止"
       }
     }
   },
@@ -987,6 +1014,14 @@
         "changedBy": "変更者：{{name}}",
         "scopeOwn": "このスレッドで、あなたが呼びかけられるエージェントとチームの今後の返信に適用されます。",
         "scopeOther": "このスレッドで、{{name}} が呼びかけられるエージェントとチームの今後の返信に適用されます。"
+      },
+      "triggerWakeMarker": {
+        "triggered": "トリガー起動",
+        "webhook": "Webhook",
+        "triggerLabel": "トリガー {{id}}",
+        "sourceLabel": "ソース {{source}}",
+        "triageLabel": "トリアージ：{{reason}}",
+        "payloadLabel": "イベントペイロード JSON"
       },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
@@ -1397,6 +1432,46 @@
         "kept": "下書きはそのまま残しました。依頼文をコピーして自分で追加してください。",
         "copied": "依頼文をコピーしました。下書きに貼り付けてください。"
       }
+    },
+    "usage": {
+      "title": "使用量と上限",
+      "navLowQuota": "使用量（残量低下）",
+      "tabsLimits": "上限",
+      "tabsTokens": "トークンとコスト",
+      "refresh": "更新",
+      "updatedAgo": "{{time}}前に更新",
+      "runtimeLabel": "ランタイム",
+      "loading": "プロバイダーの使用量を確認中…",
+      "unavailableTitle": "使用量データを利用できません",
+      "unavailableBody": "このアカウントのプロバイダー使用上限を報告した接続中のランタイムはありません。",
+      "retry": "再試行",
+      "partialData": "一部のデータのみ — 一部のプロバイダーまたは使用記録を読み込めませんでした。",
+      "stale": "古いデータ",
+      "percentLeft": "残り {{percent}}%",
+      "resetsIn": "{{duration}}後にリセット",
+      "resetsAt": "{{time}}にリセット",
+      "resetsSoon": "まもなくリセット",
+      "quotaAria": "{{label}}: 残り {{percent}}%",
+      "quotaAriaWithReset": "{{label}}: 残り {{percent}}%、{{reset}}",
+      "noSubscriptionLimit": "サブスクリプション上限なし",
+      "payAsYouGo": "従量課金",
+      "limitsUnavailable": "使用上限を利用できません",
+      "notSignedIn": "未サインイン",
+      "tokens7d": "{{tokens}} トークン（7日間）",
+      "estimatedCost": "約 {{cost}}",
+      "totalTokens7d": "7日間の合計トークン",
+      "totalCost7d": "7日間の推定コスト",
+      "dailyChartTitle": "日別トークン（過去7日間）",
+      "dailyBarAria": "{{day}}: {{tokens}} トークン",
+      "breakdownTitle": "アカウント別の内訳",
+      "colAccount": "アカウント",
+      "colTokens": "7日トークン",
+      "colShare": "割合",
+      "colSpend": "7日コスト",
+      "unattributed": "未分類",
+      "allUsageAndLimits": "すべての使用量と上限 →",
+      "noAccounts": "報告されたプロバイダーアカウントはまだありません。",
+      "noDailyData": "過去7日間の日別使用記録はありません。"
     }
   },
   "composer": {
@@ -1434,8 +1509,10 @@
       "cancel": "音声入力をキャンセル",
       "pause": "音声入力を一時停止",
       "resume": "音声入力を再開",
-      "finish": "音声入力を完了",
+      "finish": "入力欄に挿入して完了",
+      "finishAndSend": "完了して送信",
       "retry": "再試行",
+      "retryAndSend": "再試行して送信",
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",
@@ -1444,6 +1521,10 @@
       "statusListening": "音声入力中",
       "statusPaused": "音声入力を一時停止中",
       "statusFinishing": "完了処理中...",
+      "statusSending": "完了して送信中...",
+      "noSpeech": "音声が検出されませんでした。",
+      "noSpeechOffThread": "{{room}} で音声が検出されませんでした。",
+      "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
@@ -1980,5 +2061,8 @@
       "action": "このデバイスを確認",
       "text": "それまでは暗号化されたチャットを読めません。"
     }
+  },
+  "nav": {
+    "usage": "使用量"
   }
 }

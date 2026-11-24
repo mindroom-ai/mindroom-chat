@@ -17,6 +17,7 @@ import {
 import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { StateEvent } from '../matrix/types/room';
 import { MatrixRtcKeyProvider, sendCallKey } from './callKeyProvider';
 import {
   chooseCallService,
@@ -27,10 +28,15 @@ import {
   type SfuGrant,
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
-import { RESUME_WINDOW_MS, withdrawOwnMemberships } from './callResume';
+import { RESUME_WINDOW_MS, screenCompanionDeviceId, withdrawOwnMemberships } from './callResume';
 import type { CallNotifyInputs } from './callRings';
 import { startCallRingTrace } from './callRingTrace';
 import { screenShareIsInAppOnly } from './callSupport';
+import {
+  isNativeScreenShareAvailable,
+  type NativeScreenShareSheetStrings,
+} from './nativeScreenShare';
+import { companionMembershipStateKey, NativeScreenShareSession } from './NativeScreenShareSession';
 
 export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 'failed';
 
@@ -97,7 +103,12 @@ export type CallParticipant = {
   video?: CallVideoTrack;
   /** The screen (or window, or tab) this device shares. */
   screen?: CallVideoTrack;
+  /** Primary device ID when this participant is an unmatched screen-only companion. */
+  screenParentDeviceId?: string;
 };
+
+/** Status or error notice for native iOS whole-phone screen sharing. */
+export type NativeScreenShareStatus = 'connecting' | 'failed' | 'picker_timeout' | 'stopped';
 
 export type CallState = {
   phase: CallPhase;
@@ -106,6 +117,10 @@ export type CallState = {
   camera: boolean;
   /** This device shares its screen. */
   screenShare: boolean;
+  /** This device shares its entire screen via the native iOS broadcast extension. */
+  nativeScreenShare?: boolean;
+  /** Status or error notice for native iOS whole-phone screen sharing. */
+  nativeScreenShareStatus?: NativeScreenShareStatus;
   /** Screen sharing was stopped when an in-app-only platform (iOS) went to the background. */
   screenShareStoppedInBackground?: boolean;
   /** Local microphone track ended without user action and has not recovered (nor been dismissed). */
@@ -165,6 +180,18 @@ const KEY_RESEND_RETRY_MS = [1_000, 3_000];
  * the SDK's own default is ninety seconds.
  */
 const RING_LIFETIME_MS = 30_000;
+const CALL_MEMBER = StateEvent.GroupCallMemberPrefix as string;
+const IOS_DELAYED_LEAVE_DELAY_MS = 60_000;
+const SCREEN_COMPANION_SUFFIX = '-screen';
+
+const mapNativeScreenShareStatus = (reason?: string): NativeScreenShareStatus | undefined => {
+  if (reason === 'user' || reason === 'cancelled' || reason === 'system') return undefined;
+  if (reason === 'start_failed' || reason === 'publish_failed' || reason === 'permissions_failed') {
+    return 'failed';
+  }
+  if (reason === 'picker_timeout') return 'picker_timeout';
+  return 'stopped';
+};
 
 const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.length === b.length &&
@@ -177,7 +204,8 @@ const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
       item.speaking === other.speaking &&
       item.microphone === other.microphone &&
       item.video === other.video &&
-      item.screen === other.screen
+      item.screen === other.screen &&
+      item.screenParentDeviceId === other.screenParentDeviceId
     );
   });
 
@@ -273,6 +301,12 @@ export class RoomCall {
   /** Ends the wait for a leftover membership to go (`withdrawLeftover`); the teardown runs it. */
   private endLeftoverWait?: () => void;
 
+  /** LiveKit authorization service URL selected for this call. */
+  private serviceUrl?: string;
+
+  /** Active native iOS whole-phone screen-sharing session, if any. */
+  private nativeScreenShare?: NativeScreenShareSession;
+
   constructor(options: RoomCallOptions) {
     this.options = options;
     this.releaseDeviceLock = options.releaseDeviceLock;
@@ -288,6 +322,7 @@ export class RoomCall {
       phase: 'connecting',
       ...this.requestedInputs,
       screenShare: false,
+      nativeScreenShare: false,
       sound: true,
       audioBlocked: false,
       devices: options.devices ?? {},
@@ -340,8 +375,9 @@ export class RoomCall {
     const media = this.media;
     const audioBlocked =
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
+    const nativeScreenShare = !!this.nativeScreenShare?.isBroadcasting;
     // Sharing also ends from the browser's own "Stop sharing" control.
-    const screenShare = !!media?.localParticipant.isScreenShareEnabled;
+    const screenShare = !!media?.localParticipant.isScreenShareEnabled || nativeScreenShare;
     const microphoneStopped = this.stoppedInputs.get('microphone') === 'shown';
     const cameraStopped = this.stoppedInputs.get('camera') === 'shown';
     const microphoneTrack = this.readMicrophoneTrack();
@@ -349,6 +385,7 @@ export class RoomCall {
       !sameParticipants(participants, this.state.participants) ||
       audioBlocked !== this.state.audioBlocked ||
       screenShare !== this.state.screenShare ||
+      nativeScreenShare !== !!this.state.nativeScreenShare ||
       microphoneStopped !== !!this.state.microphoneStopped ||
       cameraStopped !== !!this.state.cameraStopped ||
       microphoneTrack !== this.state.microphoneTrack ||
@@ -360,6 +397,7 @@ export class RoomCall {
         participants,
         audioBlocked,
         screenShare,
+        nativeScreenShare,
         microphoneStopped,
         cameraStopped,
         microphoneTrack,
@@ -481,12 +519,41 @@ export class RoomCall {
         screen: shown(Track.Source.ScreenShare),
       };
     };
-    const others = activeMemberships(this.session)
-      .map((membership) => ({ ...membership, key: membershipIdentity(membership) }))
-      .filter(({ key }) => key !== this.identity)
-      .map(({ userId, deviceId, key }) => describe(userId, deviceId, key));
     const deviceId = this.mx.getDeviceId() ?? '';
-    return [describe(this.mx.getSafeUserId(), deviceId, this.identity), ...others];
+    const local = describe(this.mx.getSafeUserId(), deviceId, this.identity);
+    const memberships = activeMemberships(this.session)
+      .map((membership) => ({ ...membership, key: membershipIdentity(membership) }))
+      .filter(({ key }) => key !== this.identity);
+    const primaries = [
+      local,
+      ...memberships
+        .filter((membership) => !membership.screenOnly)
+        .map(({ userId, deviceId: memberDeviceId, key }) => describe(userId, memberDeviceId, key)),
+    ];
+    const unmatchedCompanions: CallParticipant[] = [];
+    memberships
+      .filter((membership) => membership.screenOnly)
+      .forEach((companion) => {
+        const described = describe(companion.userId, companion.deviceId, companion.key);
+        const target = primaries.find(
+          (primary) =>
+            primary.userId === companion.userId &&
+            (companion.screenParentDeviceId === primary.deviceId ||
+              companion.deviceId === screenCompanionDeviceId(primary.deviceId))
+        );
+        if (target) {
+          target.screen = target.screen ?? described.screen;
+        } else {
+          const inferredParent = companion.deviceId.endsWith(SCREEN_COMPANION_SUFFIX)
+            ? companion.deviceId.slice(0, -SCREEN_COMPANION_SUFFIX.length) || undefined
+            : undefined;
+          const screenParentDeviceId = companion.screenParentDeviceId ?? inferredParent;
+          unmatchedCompanions.push(
+            screenParentDeviceId ? { ...described, screenParentDeviceId } : described
+          );
+        }
+      });
+    return [...primaries, ...unmatchedCompanions];
   }
 
   private attachAudio(track: RemoteTrack) {
@@ -551,6 +618,7 @@ export class RoomCall {
     [RoomEvent.ParticipantConnected]: (participant) => {
       this.keyPeers.add(participant.identity);
       this.resendOwnKey();
+      this.nativeScreenShare?.onPeerConnected(participant.identity);
       this.refresh();
     },
     [RoomEvent.ParticipantDisconnected]: this.refresh,
@@ -618,7 +686,13 @@ export class RoomCall {
   private onVisibilityChange = () => {
     if (isPageHidden()) {
       // In-app capture (iOS WebKit) sends black frames once the app leaves the foreground.
-      if (!this.stopped && !this.rejoin && screenShareIsInAppOnly()) {
+      // Native whole-phone broadcast capture continues in the background via ReplayKit.
+      if (
+        !this.stopped &&
+        !this.rejoin &&
+        screenShareIsInAppOnly() &&
+        !this.nativeScreenShare?.isBroadcasting
+      ) {
         if (this.screenShareStart) {
           this.screenShareStart.hid = true;
         } else if (this.state.screenShare || this.media?.localParticipant.isScreenShareEnabled) {
@@ -628,6 +702,7 @@ export class RoomCall {
       return;
     }
     this.shownAt = Date.now();
+    this.nativeScreenShare?.onForeground();
     // The deadline's timer can be late on a page that was suspended.
     if (this.rejoin && this.shownAt >= this.rejoin.deadline) this.fail('connection');
     else this.wakeShownWaiters();
@@ -650,6 +725,9 @@ export class RoomCall {
     }
     // What this device really had: an input that failed to open stays off.
     Object.assign(this.requestedInputs, this.getResumeInputs());
+    const nativeShare = this.nativeScreenShare;
+    this.nativeScreenShare = undefined;
+    void nativeShare?.stop().catch(() => undefined);
     const retired = this.detachMedia();
     void retired?.dispose().catch(() => undefined);
     this.worker?.terminate();
@@ -672,6 +750,8 @@ export class RoomCall {
       phase: 'reconnecting',
       ...this.requestedInputs,
       screenShare: false,
+      nativeScreenShare: false,
+      nativeScreenShareStatus: undefined,
       audioBlocked: false,
       microphoneTrack: undefined,
       participants: this.readParticipants(this.requestedInputs.microphone),
@@ -687,6 +767,7 @@ export class RoomCall {
 
   private onMemberships = () => {
     this.followMembers();
+    this.nativeScreenShare?.onMembershipsChanged();
     this.refresh();
     this.resendOwnKey();
   };
@@ -723,7 +804,7 @@ export class RoomCall {
     const members = activeMemberships(this.session);
     this.keyPeers.forEach((identity) => {
       const member = members.find((candidate) => membershipIdentity(candidate) === identity);
-      if (!member) return;
+      if (!member || member.screenOnly) return;
       // A device that joins again (a new membership) gets the key again.
       const sent = `${identity} ${member.createdTs} ${own.index}`;
       if (this.keysResent.has(sent)) return;
@@ -846,6 +927,7 @@ export class RoomCall {
       return;
     }
     const serviceUrl = service.url;
+    this.serviceUrl = serviceUrl;
 
     let grant: SfuGrant;
     try {
@@ -882,6 +964,10 @@ export class RoomCall {
           callIntent: this.state.camera ? 'video' : 'audio',
           notificationType: rejoin ? undefined : this.options.notify,
           notificationLifetimeMs: RING_LIFETIME_MS,
+          // Gives iOS WebView JS breathing room while backgrounded during whole-screen sharing (`matrix-js-sdk` clamps to server `max_delay_ms`).
+          ...(isNativeScreenShareAvailable()
+            ? { delayedLeaveEventDelayMs: IOS_DELAYED_LEAVE_DELAY_MS }
+            : {}),
         }
       );
     } catch {
@@ -977,9 +1063,10 @@ export class RoomCall {
         if (this.media !== media || op !== this.toggleOps[kind]) return;
       }
     }
-    const failed = await (kind === 'microphone'
-      ? media.localParticipant.setMicrophoneEnabled(on)
-      : media.localParticipant.setCameraEnabled(on)
+    const failed = await (
+      kind === 'microphone'
+        ? media.localParticipant.setMicrophoneEnabled(on)
+        : media.localParticipant.setCameraEnabled(on)
     ).then(
       () => false,
       () => true
@@ -1007,11 +1094,88 @@ export class RoomCall {
     return this.setInputEnabled('camera', on);
   }
 
+  /** Starts or stops whole-phone screen sharing via the native iOS ReplayKit broadcast extension. */
+  async setNativeScreenShare(on: boolean, strings?: NativeScreenShareSheetStrings) {
+    if (!on) {
+      const active = this.nativeScreenShare;
+      this.nativeScreenShare = undefined;
+      if (this.state.nativeScreenShareStatus !== undefined) {
+        this.update({ nativeScreenShareStatus: undefined });
+      }
+      if (active) await active.stop().catch(() => undefined);
+      this.refresh();
+      return;
+    }
+    if (
+      this.stopped ||
+      this.state.phase !== 'connected' ||
+      this.rejoin ||
+      !this.serviceUrl ||
+      !isNativeScreenShareAvailable() ||
+      this.nativeScreenShare
+    ) {
+      return;
+    }
+    const primaryDeviceId = this.mx.getDeviceId();
+    if (!primaryDeviceId) return;
+    if (this.media?.localParticipant.isScreenShareEnabled) {
+      await this.setScreenShare(false);
+    }
+    if (
+      this.stopped ||
+      this.state.phase !== 'connected' ||
+      this.rejoin ||
+      !this.serviceUrl ||
+      this.nativeScreenShare
+    ) {
+      return;
+    }
+    const share = new NativeScreenShareSession({
+      mx: this.mx,
+      room: this.room,
+      session: this.session,
+      serviceUrl: this.serviceUrl,
+      primaryDeviceId,
+      encrypted: this.encrypted,
+      strings,
+      onScreenKey: (key, keyIndex, identity) => {
+        this.keyProvider?.setParticipantKey(key, keyIndex, identity).catch(() => undefined);
+      },
+      onStateChange: (state, reason) => {
+        if (this.nativeScreenShare !== share) return;
+        if (state === 'broadcasting') {
+          this.dismissScreenShareNotice();
+          this.update({ nativeScreenShareStatus: undefined });
+          this.refresh();
+        } else {
+          this.nativeScreenShare = undefined;
+          this.update({ nativeScreenShareStatus: mapNativeScreenShareStatus(reason) });
+          this.refresh();
+        }
+      },
+    });
+    this.nativeScreenShare = share;
+    this.update({ nativeScreenShareStatus: 'connecting' });
+    try {
+      await share.start();
+    } catch {
+      if (this.nativeScreenShare === share) {
+        this.nativeScreenShare = undefined;
+        this.update({ nativeScreenShareStatus: 'failed' });
+        this.refresh();
+      }
+    }
+  }
+
   /**
    * Starts or stops sharing a screen, window or tab the person picks (with the tab's sound where
    * the browser offers it). Closing the browser's picker leaves sharing off without a problem.
    */
   async setScreenShare(on: boolean) {
+    if (!on && this.nativeScreenShare) {
+      await this.setNativeScreenShare(false);
+      if (!this.media?.localParticipant.isScreenShareEnabled) return;
+    }
     const media = this.media;
     const participant = media?.localParticipant;
     if (!participant || this.state.phase === 'connecting' || this.rejoin) return;
@@ -1043,6 +1207,12 @@ export class RoomCall {
   dismissScreenShareNotice() {
     if (this.state.screenShareStoppedInBackground) {
       this.update({ screenShareStoppedInBackground: false });
+    }
+  }
+
+  dismissNativeScreenShareStatus() {
+    if (this.state.nativeScreenShareStatus !== undefined) {
+      this.update({ nativeScreenShareStatus: undefined });
     }
   }
 
@@ -1091,12 +1261,17 @@ export class RoomCall {
     const rejoin = this.rejoin;
     this.rejoin = undefined;
     window.clearTimeout(rejoin?.timer);
+    const nativeShare = this.nativeScreenShare;
+    this.nativeScreenShare = undefined;
     const media = this.detachMedia();
     this.wakeShownWaiters();
     this.endLeftoverWait?.();
     this.stoppedInputs.clear();
     this.update({
       microphoneTrack: undefined,
+      screenShare: false,
+      nativeScreenShare: false,
+      nativeScreenShareStatus: undefined,
       screenShareStoppedInBackground: false,
       microphoneStopped: false,
       cameraStopped: false,
@@ -1111,8 +1286,39 @@ export class RoomCall {
       const membership = this.session.isJoined()
         ? this.session.leave(LEAVE_TIMEOUT_MS)
         : rejoin && Promise.race([rejoin.left, timeout]);
+      const deviceId = this.mx.getDeviceId();
+      const companionStateKey =
+        !nativeShare && deviceId
+          ? companionMembershipStateKey(
+              this.room,
+              this.mx.getSafeUserId(),
+              screenCompanionDeviceId(deviceId)
+            )
+          : undefined;
+      const companionContent = companionStateKey
+        ? this.room.currentState?.getStateEvents(CALL_MEMBER, companionStateKey)?.getContent()
+        : undefined;
+      const staleCompanion =
+        companionStateKey && companionContent && Object.keys(companionContent).length > 0
+          ? Promise.race([
+              this.mx
+                .sendStateEvent(
+                  this.room.roomId,
+                  CALL_MEMBER as never,
+                  {} as never,
+                  companionStateKey
+                )
+                .catch(() => undefined),
+              timeout,
+            ])
+          : undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
-      await Promise.allSettled([media?.disconnect(true), membership]);
+      await Promise.allSettled([
+        media?.disconnect(true),
+        membership,
+        nativeShare?.stop(),
+        staleCompanion,
+      ]);
       window.clearTimeout(timer);
       await media?.dispose().catch(() => undefined);
     } finally {

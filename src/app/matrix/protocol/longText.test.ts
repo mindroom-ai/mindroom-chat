@@ -8,6 +8,7 @@ import {
   hasLongTextMetadata,
   hydrateLongTextSource,
   parseLongTextJsonSidecar,
+  subscribeLongTextHydration,
   withToolTraceFallback,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
@@ -886,5 +887,81 @@ describe('withToolTraceFallback', () => {
     };
     const result = withToolTraceFallback(nextPreview, previousV2);
     expect(result['io.mindroom.tool_trace']).toEqual(previousV2['io.mindroom.tool_trace']);
+  });
+});
+
+describe('subscribeLongTextHydration', () => {
+  const makeSource = (mxcUri: string) =>
+    expectDefined(
+      getLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview',
+        url: mxcUri,
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      })
+    );
+
+  it('notifies subscribers when content is cached, respects unsubscribe, and survives cache clear', async () => {
+    const owner = {};
+    const otherOwner = {};
+    const onHydrated = vi.fn();
+    const keepListener = vi.fn();
+    const otherListener = vi.fn();
+    let stopSelf: () => void = () => undefined;
+    stopSelf = subscribeLongTextHydration(owner, () => {
+      onHydrated();
+      stopSelf();
+    });
+    const stopKeep = subscribeLongTextHydration(owner, keepListener);
+    const stopOther = subscribeLongTextHydration(otherOwner, otherListener);
+
+    const source = makeSource('mxc://server/sub-1');
+    await hydrateLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'full' }),
+      owner
+    );
+    expect(onHydrated).toHaveBeenCalledTimes(1);
+    expect(keepListener).toHaveBeenCalledTimes(1);
+    expect(otherListener).not.toHaveBeenCalled();
+
+    // Already cached: no duplicate notification.
+    await hydrateLongTextSource(source, async () => '', owner);
+    expect(keepListener).toHaveBeenCalledTimes(1);
+
+    // Clearing the cache keeps active subscriptions alive; unsubscribed listeners stay silent.
+    clearLongTextHydrationCache();
+    await hydrateLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'reloaded' }),
+      owner
+    );
+    expect(onHydrated).toHaveBeenCalledTimes(1);
+    expect(keepListener).toHaveBeenCalledTimes(2);
+    stopKeep();
+    stopOther();
+  });
+
+  it('does not notify on failed, invalid, or stale sidecars', async () => {
+    const owner = {};
+    const listener = vi.fn();
+    const stop = subscribeLongTextHydration(owner, listener);
+
+    await hydrateLongTextSource(
+      makeSource('mxc://server/fail'),
+      async () => {
+        throw new Error('network');
+      },
+      owner
+    );
+    await hydrateLongTextSource(makeSource('mxc://server/invalid'), async () => 'not-json', owner);
+    await hydrateLongTextSource(
+      makeSource('mxc://server/stale'),
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'stale' }),
+      owner,
+      () => false
+    );
+    expect(listener).not.toHaveBeenCalled();
+    stop();
   });
 });

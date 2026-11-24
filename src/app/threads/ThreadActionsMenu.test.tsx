@@ -61,7 +61,7 @@ vi.mock('./summary/threadSummaryActions', async (original) => ({
 vi.mock('../lib/dom', () => ({ copyToClipboard: state.copy }));
 vi.mock('../matrix/via-servers', () => ({ getViaServers: () => ['test'] }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),
@@ -106,7 +106,13 @@ const renderMenu = (overrides: Partial<ThreadActionsMenuProps> = {}) => (
     {...overrides}
   />
 );
-const render = (overrides: Partial<ThreadActionsMenuProps> = {}) => create(renderMenu(overrides));
+const render = (overrides: Partial<ThreadActionsMenuProps> = {}) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(renderMenu(overrides));
+  });
+  return renderer;
+};
 const click = (renderer: ReturnType<typeof create>, label: string) =>
   act(() => {
     renderer.root

@@ -37,10 +37,10 @@ export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
 const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
 /**
  * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code),
- * at the end of its top edge, and a file card's (View, Download). They sit under a toolbar that
- * moves down into a row whose code block or file starts at its top or below its sender line.
+ * at the end of its top edge, a file card's (View, Download), and an inline canvas's update
+ * notice (Load update). They sit under a toolbar that moves down into a row.
  */
-const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions]';
+const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions], [data-canvas-actions]';
 /**
  * The sender line at the top of a message: its name, the reply details button of an agent reply
  * and the time, which the toolbar keeps clear of once it moves down into its row.
@@ -147,15 +147,15 @@ export const toolbarOffset = (
  * scrolls under it or the row changes size.
  */
 export const useToolbarClearance = (
-  rowRef: RefObject<HTMLElement>,
-  toolbarRef: RefObject<HTMLElement>,
+  rowRef: RefObject<HTMLElement | null>,
+  toolbarRef: RefObject<HTMLElement | null>,
   shown: boolean
 ): number | undefined => {
   const [clearance, setClearance] = useState<number>();
-  const clearanceRef = useRef<number>();
+  const clearanceRef = useRef<number>(undefined);
   clearanceRef.current = clearance;
   // The toolbar's usual offset from the top of its row, measured while it sits there.
-  const usualOffset = useRef<number>();
+  const usualOffset = useRef<number>(undefined);
 
   useLayoutEffect(() => {
     const row = rowRef.current;

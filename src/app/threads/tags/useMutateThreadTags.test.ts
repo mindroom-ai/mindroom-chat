@@ -25,8 +25,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 const { threadUtilsMockState } = vi.hoisted(() => ({
   threadUtilsMockState: {
     defaultGetValidThreadRootEvent: undefined as
-      | typeof import('../../event-store/threads/threadUtils').getValidThreadRootEvent
-      | undefined,
+      typeof import('../../event-store/threads/threadUtils').getValidThreadRootEvent | undefined,
   },
 }));
 
@@ -119,11 +118,11 @@ const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixE
           eventType === MINDROOM_THREAD_TAGS_EVENT
             ? events
             : stateKey === undefined
-            ? []
-            : undefined,
+              ? []
+              : undefined,
       }),
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 /** The thread's tags as shown: live tags with the pending writes on top; undefined without any. */
 const pendingTags = (room: Room, threadRootId: string) => {
@@ -172,19 +171,22 @@ describe('useMutateThreadTags', () => {
               type === 'm.room.pinned_events'
                 ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
                 : stateKey === undefined
-                ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
-                : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
+                  ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+                  : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
           }),
-        } as never);
+        }) as never;
       let snapshot!: ReturnType<typeof useMutateThreadTags>;
-      const renderer = create(
-        React.createElement(Harness, {
-          room,
-          onRender: (value) => {
-            snapshot = value;
-          },
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            onRender: (value) => {
+              snapshot = value;
+            },
+          })
+        );
+      });
       await act(async () => {
         if (operation === 'setResolved') await snapshot.setResolved('$root', true);
         else if (operation === 'setUnresolved') await snapshot.setResolved('$root', false);
@@ -216,14 +218,17 @@ describe('useMutateThreadTags', () => {
       );
     const room = makeRoom([], { $second: makeThreadRootEvent('$second') });
     let snapshot!: ReturnType<typeof useMutateThreadTags>;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
     let first!: Promise<void>;
     let second!: Promise<void>;
     act(() => {
@@ -269,14 +274,17 @@ describe('useMutateThreadTags', () => {
     const room = makeRoom();
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.addTag('$root', 'bug');
@@ -311,14 +319,17 @@ describe('useMutateThreadTags', () => {
     mockedGetValidThreadRootEvent.mockReturnValue(makeThreadRootEvent('$validated-root'));
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.addTag('$unvalidated-root', 'bug');
@@ -358,14 +369,17 @@ describe('useMutateThreadTags', () => {
     ]);
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.removeTag('$root', 'feature');
@@ -396,14 +410,17 @@ describe('useMutateThreadTags', () => {
     ]);
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.setResolved('$root', true);
@@ -437,14 +454,17 @@ describe('useMutateThreadTags', () => {
       }),
     ]);
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.setResolved('$root', true);
@@ -457,14 +477,16 @@ describe('useMutateThreadTags', () => {
     // Without a snooze, or when reopening, only the resolved tag is written.
     sendStateEvent.mockClear();
     const plain = makeRoom([]);
-    renderer.update(
-      React.createElement(Harness, {
-        room: plain,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    act(() => {
+      renderer.update(
+        React.createElement(Harness, {
+          room: plain,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
     await act(async () => {
       await snapshot?.setResolved('$root', true);
     });
@@ -486,14 +508,17 @@ describe('useMutateThreadTags', () => {
     });
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.setResolved('$standalone', true);
@@ -523,14 +548,17 @@ describe('useMutateThreadTags', () => {
     });
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.addTag('$standalone', 'triage');
@@ -559,14 +587,17 @@ describe('useMutateThreadTags', () => {
     ]);
 
     let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     await act(async () => {
       await snapshot?.setResolved('$root', false);
@@ -588,14 +619,17 @@ describe('useMutateThreadTags', () => {
   });
   const renderHarness = (room: Room) => {
     let snapshot!: ReturnType<typeof useMutateThreadTags>;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
     return { renderer, current: () => snapshot };
   };
 
@@ -698,10 +732,10 @@ describe('useMutateThreadTags', () => {
             type === 'm.room.pinned_events'
               ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
               : stateKey === undefined
-              ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
-              : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
+                ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+                : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
         }),
-      } as never);
+      }) as never;
     const pinned = renderHarness(room);
     await act(async () => {
       written = await pinned.current().snooze('$root', new Date('2026-11-14T08:00:00Z'));

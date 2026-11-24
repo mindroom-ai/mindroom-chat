@@ -145,7 +145,7 @@ export const resolveThreadInvolvement = ({
     replyCount ??
     (thread && roomThreadListIsListed(room)
       ? getVisibleThreadMessageCount(thread, undefined, visibleReplies)
-      : (rootEvent && getThreadReplyCount(room, rootEvent)) ?? 0);
+      : ((rootEvent && getThreadReplyCount(room, rootEvent)) ?? 0));
   const pendingOwnFirstReplyTs =
     liveReplyCount === 0
       ? getPendingOwnThreadReply(room, threadRootId, userId)?.getTs()

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import React from 'react';
+import React, { act } from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import {
   createClient,
   EventStatus,
@@ -15,7 +15,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
-import { CANVAS_LIBRARY_SOURCE, canvasPolicy, type CanvasSaved } from '../messages/canvas/canvasDocument';
+import {
+  CANVAS_LIBRARY_SOURCE,
+  canvasPolicy,
+  type CanvasSaved,
+} from '../messages/canvas/canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from '../messages/canvas/canvasTheme';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 
@@ -802,6 +806,53 @@ describe('CanvasPanel', () => {
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(page()).toContain('<p>Step 2</p>');
     expect(reportButton()).toBeNull();
+  });
+
+  it('clears the previous page alert immediately on Load update and keeps errors reported before passive effects', async () => {
+    render();
+    await reportError('Blocked probe (connect-src)');
+    const prevAlert = container.querySelector('[role="alert"]');
+    expect(prevAlert).not.toBeNull();
+    prevAlert!.setAttribute('data-prev', '1');
+    await touchFrame();
+    const next = { ...canvas, revisionEventId: '$edit-2', html: '<p>Step 2</p>' };
+    render({ canvas: next });
+    expect(buttonNamed('Load update')).not.toBeUndefined();
+
+    // Commit the new revision synchronously, then deliver errors from the new frame before passive
+    // effects flush (as happens under React 19 when the new iframe reports CSP errors quickly).
+    await act(async () => {
+      flushSync(() => {
+        buttonNamed('Load update')!.click();
+      });
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+      const nextWin = canvasWindow() as Window;
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'mindroom.canvas.error',
+            version: 1,
+            message: 'Blocked probe (connect-src)',
+          },
+          origin: 'null',
+          source: nextWin,
+        })
+      );
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'mindroom.canvas.error', version: 1, message: 'Blocked img (img-src)' },
+          origin: 'null',
+          source: nextWin,
+        })
+      );
+    });
+
+    const nextAlert = container.querySelector('[role="alert"]');
+    expect(nextAlert).not.toBeNull();
+    expect(nextAlert).not.toBe(prevAlert);
+    expect(nextAlert!.getAttribute('data-prev')).toBeNull();
+    expect(nextAlert!.textContent).toContain('Blocked probe (connect-src)');
+    expect(nextAlert!.textContent).toContain('Blocked img (img-src)');
   });
 
   it('switches versions from the header, but not while an answer waits', async () => {

@@ -5,7 +5,7 @@ import { SWIPE_PRIORITY } from '../../navigation/interactiveSwipe';
 import { ImageViewer } from './ImageViewer';
 
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
-const saveFile = vi.hoisted(() => vi.fn(async () => true));
+const saveFile = vi.hoisted(() => vi.fn(async (_blob?: Blob, _fileName?: string) => true));
 vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
 const edgeSwipe = vi.hoisted(() => ({
   last: undefined as
@@ -455,5 +455,30 @@ describe('ImageViewer download', () => {
 
     rerender(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
+  });
+
+  it.each([
+    ['converted display copy', 'blob:converted-jpeg', undefined],
+    ['failed display decode', undefined, vi.fn()],
+  ])('saves original downloadBlob bytes for %s', async (_label, src, onRetry) => {
+    saveFile.mockClear();
+    saveFile.mockResolvedValueOnce(true);
+    const originalHeic = new Blob(['raw-heic-bytes'], { type: 'image/heic' });
+    render(
+      <ImageViewer
+        src={src}
+        downloadBlob={originalHeic}
+        onRetry={onRetry}
+        alt="photo.heic"
+        requestClose={vi.fn()}
+      />
+    );
+    const button = screen.getByRole('button', { name: 'Download' });
+    expect(button.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(saveFile).toHaveBeenCalledOnce());
+    const [savedBlob, savedName] = saveFile.mock.calls[0] ?? [];
+    expect(savedName).toBe('photo.heic');
+    expect(savedBlob?.size).toBe(originalHeic.size);
   });
 });

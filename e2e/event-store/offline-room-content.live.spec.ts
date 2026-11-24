@@ -48,7 +48,7 @@ const uploadMedia = async (
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': contentType,
     },
-    body: bytes,
+    body: new Uint8Array(bytes),
   });
   expect(response.status).toBe(200);
   const content = (await response.json()) as { content_uri?: string };
@@ -702,66 +702,67 @@ test.describe('persisted historical room content', () => {
     }
   });
 
-  test('reopens an older thread body and decoded image after a WebKit profile restart', { tag: '@webkit' }, async ({
-    baseURL,
-    browserName,
-  }, testInfo) => {
-    test.setTimeout(180_000);
-    test.skip(browserName !== 'webkit', 'Persistent-profile restart coverage uses WebKit');
-    test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
-    expect(baseURL).toEqual(expect.any(String));
-    const homeserver = getHomeserver();
-    const profile = testInfo.outputPath('persistent-profile');
-    const contextOptions = {
-      baseURL,
-      viewport: phone.viewport,
-      isMobile: true,
-      hasTouch: true,
-    };
-    let fixture: OfflineFixture | undefined;
-    let context: BrowserContext = await webkit.launchPersistentContext(profile, {
-      ...contextOptions,
-      serviceWorkers: 'allow',
-    });
-    try {
-      fixture = await createOfflineFixture(homeserver);
-      const page = context.pages()[0] ?? (await context.newPage());
-      const { threadUrl } = await warmHistoricalContent(page, homeserver, fixture);
-      await page.evaluate(async () => {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((registration) => registration.unregister()));
-      });
-      await context.close();
-
-      context = await webkit.launchPersistentContext(profile, {
+  test(
+    'reopens an older thread body and decoded image after a WebKit profile restart',
+    { tag: '@webkit' },
+    async ({ baseURL, browserName }, testInfo) => {
+      test.setTimeout(180_000);
+      test.skip(browserName !== 'webkit', 'Persistent-profile restart coverage uses WebKit');
+      test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+      expect(baseURL).toEqual(expect.any(String));
+      const homeserver = getHomeserver();
+      const profile = testInfo.outputPath('persistent-profile');
+      const contextOptions = {
+        baseURL,
+        viewport: phone.viewport,
+        isMobile: true,
+        hasTouch: true,
+      };
+      let fixture: OfflineFixture | undefined;
+      let context: BrowserContext = await webkit.launchPersistentContext(profile, {
         ...contextOptions,
-        serviceWorkers: 'block',
-      });
-      let releaseRequests!: () => void;
-      const requestsHeld = new Promise<void>((resolve) => {
-        releaseRequests = resolve;
-      });
-      let matrixRequestsHeld = 0;
-      await context.route(/\/_matrix\//, async (route) => {
-        matrixRequestsHeld += 1;
-        await requestsHeld;
-        await route.abort();
+        serviceWorkers: 'allow',
       });
       try {
-        const reopened = context.pages()[0] ?? (await context.newPage());
-        await reopened.goto(threadUrl, { waitUntil: 'domcontentloaded' });
-        await expect.poll(() => matrixRequestsHeld).toBeGreaterThan(0);
-        await expectHistoricalContent(reopened, fixture);
-      } finally {
-        releaseRequests();
-        await context.unrouteAll({ behavior: 'wait' });
-      }
-    } finally {
-      try {
+        fixture = await createOfflineFixture(homeserver);
+        const page = context.pages()[0] ?? (await context.newPage());
+        const { threadUrl } = await warmHistoricalContent(page, homeserver, fixture);
+        await page.evaluate(async () => {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((registration) => registration.unregister()));
+        });
         await context.close();
+
+        context = await webkit.launchPersistentContext(profile, {
+          ...contextOptions,
+          serviceWorkers: 'block',
+        });
+        let releaseRequests!: () => void;
+        const requestsHeld = new Promise<void>((resolve) => {
+          releaseRequests = resolve;
+        });
+        let matrixRequestsHeld = 0;
+        await context.route(/\/_matrix\//, async (route) => {
+          matrixRequestsHeld += 1;
+          await requestsHeld;
+          await route.abort();
+        });
+        try {
+          const reopened = context.pages()[0] ?? (await context.newPage());
+          await reopened.goto(threadUrl, { waitUntil: 'domcontentloaded' });
+          await expect.poll(() => matrixRequestsHeld).toBeGreaterThan(0);
+          await expectHistoricalContent(reopened, fixture);
+        } finally {
+          releaseRequests();
+          await context.unrouteAll({ behavior: 'wait' });
+        }
       } finally {
-        if (fixture) await forgetFixtureRoom(homeserver, fixture);
+        try {
+          await context.close();
+        } finally {
+          if (fixture) await forgetFixtureRoom(homeserver, fixture);
+        }
       }
     }
-  });
+  );
 });

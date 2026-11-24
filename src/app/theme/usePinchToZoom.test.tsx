@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, renderHook } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { type ComponentProps, type ReactNode, type RefObject, StrictMode, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageOverlay } from '../messages/content/ImageOverlay';
@@ -15,9 +15,9 @@ import {
 
 // JSDOM lays nothing out, so every element counts as shown for the image viewer's focus trap.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
@@ -1459,7 +1459,7 @@ describe('usePinchToZoom', () => {
     it('hands nothing more of a touch pinch once its hook goes, though its element stays', () => {
       const { setPageZoom } = mount(100);
       const calls: string[] = [];
-      function Zoom({ target }: { target: RefObject<HTMLDivElement> }) {
+      function Zoom({ target }: { target: RefObject<HTMLDivElement | null> }) {
         usePinchSurface(target, { onPinch: ({ phase }) => calls.push(phase) });
         return null;
       }

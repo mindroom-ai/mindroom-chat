@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { createStore, Provider } from 'jotai';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -234,7 +234,7 @@ const addRow = (eventId: string, place: { top: number; bottom: number }) => {
   const row = document.createElement('div');
   row.setAttribute('data-message-id', eventId);
   row.getBoundingClientRect = () =>
-    ({ ...place, left: 0, right: 300, width: 300, height: place.bottom - place.top } as DOMRect);
+    ({ ...place, left: 0, right: 300, width: 300, height: place.bottom - place.top }) as DOMRect;
   document.body.append(row);
   return place;
 };

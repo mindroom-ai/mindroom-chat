@@ -3,8 +3,10 @@ import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'mat
 import { describe, expect, it } from 'vitest';
 import { activeCallAtom, type ActiveCall } from '../calls/callStore';
 import {
+  detachedDictationSendsAtom,
   getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
+  type DetachedDictationSend,
   type PendingVoiceSendDraft,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
@@ -15,7 +17,7 @@ import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 
-const event = (status: EventStatus | null) => ({ status } as MatrixEvent);
+const event = (status: EventStatus | null) => ({ status }) as MatrixEvent;
 
 /** A client with one room whose timeline (and one thread) hold events of these statuses. */
 const client = ({
@@ -31,7 +33,7 @@ const client = ({
         getThreads: () => [{ liveTimeline: { getEvents: () => thread.map(event) } }],
       } as unknown as Room,
     ],
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('reloadWouldLoseWork', () => {
   const draftKey = getRoomInputDraftKey('@reader:example.org', '!room:example.org');
@@ -77,6 +79,17 @@ describe('reloadWouldLoseWork', () => {
   it('loses a voice message that is being recorded, whichever page shows', () => {
     const store = createStore();
     store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
+    expect(reloadWouldLoseWork(store, undefined)).toBe(true);
+  });
+
+  it('loses a detached Finish & Send dictation that is finishing or waiting to retry', () => {
+    const store = createStore();
+    store.set(
+      detachedDictationSendsAtom,
+      new Map([
+        ['composer-1', { ownerKey: 'composer-1', status: 'sending' } as DetachedDictationSend],
+      ])
+    );
     expect(reloadWouldLoseWork(store, undefined)).toBe(true);
   });
 

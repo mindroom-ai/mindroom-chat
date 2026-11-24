@@ -28,6 +28,36 @@ const fakes = vi.hoisted(() => ({
   serviceUrl: 'https://rtc.calls.test',
   /** Every key set on a media key provider: index and media identity. */
   keys: [] as Array<{ keyIndex: number; identity: string; key: Uint8Array }>,
+  nativeScreenShareAvailable: false,
+  nativeScreenListener: undefined as
+    | ((event: {
+        generation: number;
+        state: 'broadcasting' | 'stopped';
+        reason?: string;
+        detail?: string;
+      }) => void)
+    | undefined,
+  nativePlugin: {
+    start: vi.fn(async () => ({ generation: 1 })),
+    setKey: vi.fn(async () => undefined),
+    updateAllowedParticipants: vi.fn(async () => undefined),
+    heartbeat: vi.fn(async () => undefined),
+    stop: vi.fn(async () => undefined),
+    addListener: vi.fn(
+      async (
+        _event: 'stateChange',
+        cb: (event: {
+          generation: number;
+          state: 'broadcasting' | 'stopped';
+          reason?: string;
+          detail?: string;
+        }) => void
+      ) => {
+        fakes.nativeScreenListener = cb;
+        return { remove: vi.fn() };
+      }
+    ),
+  },
 }));
 
 const inputTrack = (id: string, readyState: MediaStreamTrackState = 'live') =>
@@ -181,6 +211,20 @@ vi.mock('./callResume', async (importOriginal) => {
   };
 });
 
+vi.mock('./nativeScreenShare', () => ({
+  isNativeScreenShareAvailable: () => fakes.nativeScreenShareAvailable,
+  nativeScreenShare: {
+    start: (...args: unknown[]) => fakes.nativePlugin.start(...(args as [])),
+    setKey: (...args: unknown[]) => fakes.nativePlugin.setKey(...(args as [])),
+    updateAllowedParticipants: (...args: unknown[]) =>
+      fakes.nativePlugin.updateAllowedParticipants(...(args as [])),
+    heartbeat: (...args: unknown[]) => fakes.nativePlugin.heartbeat(...(args as [])),
+    stop: (...args: unknown[]) => fakes.nativePlugin.stop(...(args as [])),
+    addListener: (...args: unknown[]) =>
+      fakes.nativePlugin.addListener(...(args as ['stateChange', never])),
+  },
+}));
+
 const ME = '@me:calls.test';
 const DEVICE = 'MYDEVICE';
 const ROOM_ID = '!call:calls.test';
@@ -191,14 +235,21 @@ type FakeMembership = {
   transports: unknown[];
   isExpired: () => boolean;
   createdTs: () => number;
+  applicationData?: Record<string, unknown>;
 };
 
-const membership = (userId: string, deviceId: string, createdTs = 1): FakeMembership => ({
+const membership = (
+  userId: string,
+  deviceId: string,
+  createdTs = 1,
+  applicationData?: Record<string, unknown>
+): FakeMembership => ({
   userId,
   deviceId,
   transports: [{ type: 'livekit', livekit_service_url: fakes.serviceUrl }],
   isExpired: () => false,
   createdTs: () => createdTs,
+  ...(applicationData ? { applicationData } : {}),
 });
 
 /** A MatrixRTC session of one room: its memberships, and whether this device joined it. */
@@ -269,12 +320,14 @@ const setup = ({
   video,
   microphone,
   notify,
+  stateEvents,
 }: {
   encrypted?: boolean;
   grant?: RoomCallOptions['grant'];
   video?: boolean;
   microphone?: boolean;
   notify?: RoomCallOptions['notify'];
+  stateEvents?: Record<string, Record<string, unknown>>;
 } = {}) => {
   const session = new FakeSession();
   const mx = {
@@ -282,6 +335,8 @@ const setup = ({
     getSafeUserId: () => ME,
     getUserId: () => ME,
     getDeviceId: () => DEVICE,
+    getSyncState: () => 'SYNCING',
+    sendStateEvent: vi.fn(async () => ({ event_id: '$state' })),
     getOpenIdToken: vi.fn(async () => ({
       access_token: 'openid',
       token_type: 'Bearer',
@@ -291,8 +346,20 @@ const setup = ({
   } as unknown as MatrixClient;
   const room = {
     roomId: ROOM_ID,
+    getVersion: () => '11',
     hasEncryptionStateEvent: () => encrypted,
     getJoinedMemberCount: () => 2,
+    ...(stateEvents
+      ? {
+          currentState: {
+            getStateEvents: (type: string, key?: string) => {
+              if (type !== 'org.matrix.msc3401.call.member' || key === undefined) return null;
+              const content = stateEvents[key];
+              return content ? { getContent: () => content } : null;
+            },
+          },
+        }
+      : {}),
     on: vi.fn(),
     off: vi.fn(),
   } as unknown as Room;
@@ -311,6 +378,9 @@ beforeEach(() => {
   fakes.connect = undefined;
   fakes.encryption = undefined;
   fakes.keys.length = 0;
+  fakes.nativeScreenShareAvailable = false;
+  fakes.nativeScreenListener = undefined;
+  Object.values(fakes.nativePlugin).forEach((fn) => fn.mockClear());
   vi.mocked(getLivekitServiceUrl).mockClear();
   vi.mocked(requestSfuGrant).mockReset();
   vi.mocked(requestSfuGrant).mockResolvedValue({ url: 'wss://sfu.calls.test', jwt: 'jwt' });
@@ -2533,5 +2603,318 @@ describe('RoomCall iOS background screen share, track ended, and dead-device war
     });
     await call.setMicrophone(true);
     expect(call.getState()).toMatchObject({ microphone: true, microphoneStopped: false });
+  });
+});
+
+describe('RoomCall native whole-phone screen share and companion folding', () => {
+  const IPHONE = { userAgent: 'iPhone OS 18_0', platform: 'iPhone', maxTouchPoints: 5 };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('raises delayedLeaveEventDelayMs to 60s without overriding restart interval only when native screen share is available', async () => {
+    const desktop = setup();
+    await desktop.call.join();
+    const desktopOpts = desktop.session.join.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(desktopOpts.delayedLeaveEventDelayMs).toBeUndefined();
+    expect(desktopOpts.delayedLeaveEventRestartMs).toBeUndefined();
+    await desktop.call.leave();
+
+    fakes.nativeScreenShareAvailable = true;
+    const ios = setup();
+    await ios.call.join();
+    const iosOpts = ios.session.join.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(iosOpts.delayedLeaveEventDelayMs).toBe(60_000);
+    expect(iosOpts.delayedLeaveEventRestartMs).toBeUndefined();
+    await ios.call.leave();
+  });
+
+  it('folds screen-only companions onto their primary participant without hiding real second devices', async () => {
+    const { call, session } = setup();
+    session.memberships.push(
+      membership(ME, `${DEVICE}-screen`, 2, {
+        'chat.mindroom.screen_only': true,
+        'chat.mindroom.screen_parent_device_id': DEVICE,
+      }),
+      membership('@bob:example.com', 'BOB_PHONE', 3),
+      membership('@bob:example.com', 'BOB_PHONE-screen', 4, {
+        'chat.mindroom.screen_only': true,
+        'chat.mindroom.screen_parent_device_id': 'BOB_PHONE',
+      }),
+      membership('@bob:example.com', 'BOB_LAPTOP', 5)
+    );
+    await call.join();
+    const media = onlyMediaRoom();
+    const myScreenTrack = { kind: 'video', id: 'my-screen', detach: () => [] };
+    const bobScreenTrack = { kind: 'video', id: 'bob-screen', detach: () => [] };
+    const remoteWithScreen = (identity: string, screenTrack?: unknown) => ({
+      identity,
+      isSpeaking: false,
+      isMicrophoneEnabled: true,
+      audioTrackPublications: new Map(),
+      getTrackPublication: (source: string) =>
+        source === 'screen_share' && screenTrack
+          ? { isMuted: false, track: screenTrack }
+          : undefined,
+    });
+    media.remoteParticipants.set(
+      `${ME}:${DEVICE}-screen`,
+      remoteWithScreen(`${ME}:${DEVICE}-screen`, myScreenTrack)
+    );
+    media.remoteParticipants.set(
+      '@bob:example.com:BOB_PHONE',
+      remoteWithScreen('@bob:example.com:BOB_PHONE')
+    );
+    media.remoteParticipants.set(
+      '@bob:example.com:BOB_PHONE-screen',
+      remoteWithScreen('@bob:example.com:BOB_PHONE-screen', bobScreenTrack)
+    );
+    media.remoteParticipants.set(
+      '@bob:example.com:BOB_LAPTOP',
+      remoteWithScreen('@bob:example.com:BOB_LAPTOP')
+    );
+    media.emit('ParticipantConnected', { identity: '@bob:example.com:BOB_PHONE-screen' });
+
+    const participants = call.getState().participants;
+    expect(participants.map((p) => p.key)).toEqual([
+      `${ME}:${DEVICE}`,
+      '@bob:example.com:BOB_PHONE',
+      '@bob:example.com:BOB_LAPTOP',
+    ]);
+    expect(participants[0]?.local).toBe(true);
+    expect(participants[0]?.screen).toBe(myScreenTrack);
+    expect(participants[1]?.screen).toBe(bobScreenTrack);
+    expect(participants[2]?.screen).toBeUndefined();
+
+    // When a primary flickers out, unmatched companions keep screenParentDeviceId (explicit or inferred).
+    session.setMemberships([
+      membership('@bob:example.com', 'BOB_PHONE-screen', 4, {
+        'chat.mindroom.screen_only': true,
+        'chat.mindroom.screen_parent_device_id': 'BOB_PHONE',
+      }),
+      membership('@carol:example.com', 'CAROL_PHONE-screen', 6, {
+        'chat.mindroom.screen_only': true,
+      }),
+    ]);
+    const afterFlicker = call.getState().participants;
+    expect(afterFlicker.find((p) => p.key === '@bob:example.com:BOB_PHONE-screen')).toMatchObject({
+      screen: bobScreenTrack,
+      screenParentDeviceId: 'BOB_PHONE',
+    });
+    expect(
+      afterFlicker.find((p) => p.key === '@carol:example.com:CAROL_PHONE-screen')
+    ).toMatchObject({ screenParentDeviceId: 'CAROL_PHONE' });
+  });
+
+  it('skips resending primary media keys to screen-only companion memberships', async () => {
+    const { call, session } = setup({ encrypted: true });
+    session.memberships.push(
+      membership('@bob:example.com', 'BOB_PHONE', 3),
+      membership('@bob:example.com', 'BOB_PHONE-screen', 4, {
+        'chat.mindroom.screen_only': true,
+        'chat.mindroom.screen_parent_device_id': 'BOB_PHONE',
+      })
+    );
+    await call.join();
+    const ownMembership = session.join.mock.calls[0]?.[0];
+    session.emit(
+      MatrixRTCSessionEvent.EncryptionKeyChanged,
+      new Uint8Array(32),
+      0,
+      ownMembership,
+      `${ME}:${DEVICE}`
+    );
+    const media = onlyMediaRoom();
+    media.emit('ParticipantConnected', { identity: '@bob:example.com:BOB_PHONE' });
+    media.emit('ParticipantConnected', { identity: '@bob:example.com:BOB_PHONE-screen' });
+    await settle();
+
+    expect(sendCallKey).toHaveBeenCalledTimes(1);
+    expect(sendCallKey).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        to: expect.objectContaining({ userId: '@bob:example.com', deviceId: 'BOB_PHONE' }),
+      })
+    );
+  });
+
+  it('keeps native whole-phone screen share running in background on iOS and stops cleanly via setScreenShare(false) or leave()', async () => {
+    vi.stubGlobal('navigator', IPHONE);
+    fakes.nativeScreenShareAvailable = true;
+    const { call, mx } = setup({ encrypted: true });
+    await call.join();
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+
+    expect(call.getState()).toMatchObject({ screenShare: true, nativeScreenShare: true });
+
+    // Backgrounding on iOS must NOT stop active native whole-phone sharing.
+    setVisibility('hidden');
+    await settle();
+    expect(call.getState()).toMatchObject({
+      screenShare: true,
+      nativeScreenShare: true,
+    });
+    expect(call.getState().screenShareStoppedInBackground).toBeFalsy();
+    expect(fakes.nativePlugin.stop).not.toHaveBeenCalled();
+
+    // Returning to foreground immediately refreshes the native heartbeat lease.
+    setVisibility('visible');
+    await settle();
+    expect(fakes.nativePlugin.heartbeat).toHaveBeenCalledWith({ generation: 1 });
+
+    // setScreenShare(false) stops active native share and withdraws companion membership.
+    await call.setScreenShare(false);
+    await settle();
+    expect(call.getState()).toMatchObject({ screenShare: false, nativeScreenShare: false });
+    expect(fakes.nativePlugin.stop).toHaveBeenCalledTimes(1);
+    expect(mx.sendStateEvent).toHaveBeenLastCalledWith(
+      ROOM_ID,
+      'org.matrix.msc3401.call.member',
+      {},
+      `_${ME}_${DEVICE}-screen_m.call`
+    );
+
+    // Starting again and calling leave() stops native share during teardown.
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(true);
+    await call.leave();
+    expect(fakes.nativePlugin.stop).toHaveBeenCalledTimes(2);
+    expect(call.getState().nativeScreenShare).toBe(false);
+  });
+
+  it('surfaces typed native screen-share statuses and forwards picker sheet strings', async () => {
+    vi.stubGlobal('navigator', IPHONE);
+    fakes.nativeScreenShareAvailable = true;
+    const { call } = setup({ encrypted: true });
+    await call.join();
+    const sheetStrings = {
+      title: 'Share entire screen',
+      body: 'Body',
+      caption: 'Caption',
+      cancel: 'Cancel',
+    };
+
+    // Connecting status appears on start, sheet strings reach plugin.start, and broadcasting clears it.
+    await call.setNativeScreenShare(true, sheetStrings);
+    expect(fakes.nativePlugin.start).toHaveBeenCalledWith(
+      expect.objectContaining({ strings: sheetStrings })
+    );
+    expect(call.getState().nativeScreenShareStatus).toBe('connecting');
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(true);
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    // User stop, picker cancellation, and intentional system stop clear status without an error.
+    await call.setNativeScreenShare(false);
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    await call.setNativeScreenShare(true);
+    expect(call.getState().nativeScreenShareStatus).toBe('connecting');
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'cancelled' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(false);
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'system' });
+    await settle();
+    expect(call.getState().nativeScreenShare).toBe(false);
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    // Start rejection, publish failure, and permissions failure map to 'failed' and can be dismissed.
+    fakes.nativePlugin.start.mockRejectedValueOnce(new Error('TLS handshake failed'));
+    await call.setNativeScreenShare(true);
+    expect(call.getState().nativeScreenShareStatus).toBe('failed');
+    call.dismissNativeScreenShareStatus();
+    expect(call.getState().nativeScreenShareStatus).toBeUndefined();
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({
+      generation: 1,
+      state: 'stopped',
+      reason: 'publish_failed',
+      detail: 'Broadcast socket closed',
+    });
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBe('failed');
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({
+      generation: 1,
+      state: 'stopped',
+      reason: 'permissions_failed',
+    });
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBe('failed');
+
+    // Picker timeout maps to 'picker_timeout', and unexpected stops map to 'stopped'.
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'picker_timeout' });
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBe('picker_timeout');
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+    fakes.nativeScreenListener?.({
+      generation: 1,
+      state: 'stopped',
+      reason: 'disconnected',
+      detail: 'Network lost',
+    });
+    await settle();
+    expect(call.getState().nativeScreenShareStatus).toBe('stopped');
+  });
+
+  it('withdraws a lingering companion state event on leave() even after native screen share already stopped offline', async () => {
+    vi.stubGlobal('navigator', IPHONE);
+    fakes.nativeScreenShareAvailable = true;
+    const companionKey = `_${ME}_${DEVICE}-screen_m.call`;
+    const { call, mx } = setup({
+      encrypted: true,
+      stateEvents: {
+        [companionKey]: { application: 'm.call', device_id: `${DEVICE}-screen` },
+      },
+    });
+    await call.join();
+
+    await call.setNativeScreenShare(true);
+    fakes.nativeScreenListener?.({ generation: 1, state: 'broadcasting' });
+    await settle();
+
+    // Native lease expires while offline so its own withdrawal fails, leaving room state stale.
+    vi.mocked(mx.sendStateEvent).mockRejectedValueOnce(new Error('offline'));
+    fakes.nativeScreenListener?.({ generation: 1, state: 'stopped', reason: 'lease_expired' });
+    await settle();
+    expect(call.getState()).toMatchObject({
+      nativeScreenShare: false,
+      nativeScreenShareStatus: 'stopped',
+    });
+
+    // Hanging up withdraws the lingering companion state event immediately.
+    vi.mocked(mx.sendStateEvent).mockClear();
+    await call.leave();
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      ROOM_ID,
+      'org.matrix.msc3401.call.member',
+      {},
+      companionKey
+    );
+
+    // An already-empty companion state event does not trigger a redundant withdrawal.
+    const empty = setup({ stateEvents: { [companionKey]: {} } });
+    await empty.call.join();
+    vi.mocked(empty.mx.sendStateEvent).mockClear();
+    await empty.call.leave();
+    expect(empty.mx.sendStateEvent).not.toHaveBeenCalled();
   });
 });

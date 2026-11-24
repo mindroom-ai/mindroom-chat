@@ -120,7 +120,7 @@ vi.mock('../composer/RoomInput', () => ({
     threadId?: string;
     forkFrom?: { threadId: string; eventId: string };
     onRoomMessageSent?: (eventId: string) => boolean | void;
-    fileDropContainerRef: RefObject<HTMLElement>;
+    fileDropContainerRef: RefObject<HTMLElement | null>;
   }) => {
     state.composer = { threadId, forkFrom, onRoomMessageSent };
     const view = useContext(ConversationViewContext);
@@ -251,7 +251,7 @@ it('tells an upgraded room or a missing permission where the composer would be',
 });
 
 it('shows the room header it is given in its floating header', () => {
-  let headerRef: RefObject<HTMLDivElement> | undefined;
+  let headerRef: RefObject<HTMLDivElement | null> | undefined;
   render(
     <ThreadView
       room={room}

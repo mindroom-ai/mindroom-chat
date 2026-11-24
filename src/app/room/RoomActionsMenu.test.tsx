@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   openSettings: vi.fn(),
   sendStateEvent: vi.fn(() => Promise.resolve({})),
+  removeSpaceChild: vi.fn(() => Promise.resolve()),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   rooms: {} as Record<string, unknown>,
   plugins: [] as RegisteredPlugin[],
@@ -33,9 +34,13 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
   useNavigate: () => state.navigate,
 }));
+vi.mock('../spaces/lobby/spaceChildren', () => ({
+  removeSpaceChild: state.removeSpaceChild,
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:example.org',
+    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
     sendStateEvent: state.sendStateEvent,
   }),
 }));
@@ -131,6 +136,7 @@ const room = {
 /** A room menu as an entry point shows it, with its dialog beside it as the entry points do. */
 function Harness(props: {
   spaceId?: string;
+  removeFromSpaceId?: string;
   threadId?: string;
   roomEntries?: React.ReactNode;
   close?: () => void;
@@ -145,6 +151,7 @@ function Harness(props: {
         close={props.close ?? vi.fn()}
         showDialog={showDialog}
         spaceId={props.spaceId}
+        removeFromSpaceId={props.removeFromSpaceId}
         threadId={props.threadId}
         onLeft={props.onLeft}
         roomEntries={props.roomEntries}
@@ -347,6 +354,125 @@ describe('the shared room actions', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));
     expect(state.sendStateEvent).not.toHaveBeenCalled();
   });
+
+  describe('Remove from <space> parity', () => {
+    const spaceId = '!design:example.org';
+    const makeJoinedSpace = (overrides: Record<string, unknown> = {}) => ({
+      roomId: spaceId,
+      name: 'Design Team',
+      isSpaceRoom: () => true,
+      getMyMembership: () => 'join',
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      ...overrides,
+    });
+    const linkDirectlyToSpace = (...parents: string[]) => {
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([[room.roomId, new Set(parents)]]),
+      });
+    };
+
+    it('offers critical Remove from <space> for a direct child from sidebar row or room header and calls removeSpaceChild', () => {
+      state.removeSpaceChild.mockClear();
+      state.rooms[spaceId] = makeJoinedSpace();
+      linkDirectlyToSpace(spaceId);
+      const close = vi.fn();
+      render(<Harness removeFromSpaceId={spaceId} close={close} />);
+
+      const entry = screen.getByRole('menuitem', { name: 'Remove from Design Team' });
+      expect(rows()).toEqual([
+        ...SHARED.slice(0, -2),
+        'Remove from Design Team',
+        ...SHARED.slice(-2),
+      ]);
+      expect(entry.className).toBe(screen.getByRole('menuitem', { name: 'Leave Room' }).className);
+
+      fireEvent.click(entry);
+      expect(close).toHaveBeenCalledOnce();
+      expect(state.removeSpaceChild).toHaveBeenCalledWith(
+        expect.anything(),
+        spaceId,
+        '!room:example.org'
+      );
+
+      // Room header menu (passes spaceId without removeFromSpaceId) stays unified for direct children.
+      cleanup();
+      render(<Harness spaceId={spaceId} />);
+      expect(rows()).toEqual([
+        ...SHARED.slice(0, -2),
+        'Remove from Design Team',
+        ...SHARED.slice(-2),
+      ]);
+    });
+
+    it('omits Remove from <space> for non-direct / orphaned sub-rooms, missing permission, or non-joined spaces', () => {
+      state.rooms[spaceId] = makeJoinedSpace();
+
+      // Not directly linked to spaceId (e.g. orphaned chat sub-room under an archived parent).
+      linkDirectlyToSpace('!archived-chat:example.org');
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      linkDirectlyToSpace(spaceId);
+      state.canListRooms = false;
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      state.canListRooms = true;
+      state.rooms[spaceId] = makeJoinedSpace({ getMyMembership: () => 'leave' });
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      delete state.rooms[spaceId];
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+    });
+
+    it('resolves the unique nested sub-space from room header spaceId and omits when ambiguous', () => {
+      const rootId = '!root:example.org';
+      const opsId = '!ops:example.org';
+      state.removeSpaceChild.mockClear();
+      state.rooms[rootId] = makeJoinedSpace({ roomId: rootId, name: 'Field Notes' });
+      state.rooms[spaceId] = makeJoinedSpace();
+      state.rooms[opsId] = makeJoinedSpace({ roomId: opsId, name: 'Operations' });
+
+      // Root -> Design Team -> room, with only spaceId={rootId} (open room header route).
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([
+          [room.roomId, new Set([spaceId])],
+          [spaceId, new Set([rootId])],
+        ]),
+      });
+      const close = vi.fn();
+      render(<Harness spaceId={rootId} close={close} />);
+      const entry = screen.getByRole('menuitem', { name: 'Remove from Design Team' });
+      fireEvent.click(entry);
+      expect(close).toHaveBeenCalledOnce();
+      expect(state.removeSpaceChild).toHaveBeenCalledWith(
+        expect.anything(),
+        spaceId,
+        '!room:example.org'
+      );
+
+      // Ambiguous multi-parent under Root (both Design Team and Operations) omits Remove from.
+      cleanup();
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([
+          [room.roomId, new Set([spaceId, opsId])],
+          [spaceId, new Set([rootId])],
+          [opsId, new Set([rootId])],
+        ]),
+      });
+      render(<Harness spaceId={rootId} />);
+      expect(screen.queryByRole('menuitem', { name: /^Remove from / })).toBeNull();
+    });
+  });
 });
 
 describe("plugins' entries", () => {
@@ -368,6 +494,7 @@ describe("plugins' entries", () => {
       id: 'example',
       tag: 'example@1.0.0',
       displayName: 'Example',
+      defaultEnabled: true,
       conversationCovers: [],
       messageRenderers: [],
       pages: [],
@@ -420,15 +547,14 @@ describe("plugins' entries", () => {
   const choose = (name: string) => fireEvent.click(screen.getByRole('menuitem', { name }));
 
   /** A dialog that names the room it was shown for. */
-  const exampleDialog = (named: Room) => (close: () => void) =>
-    (
-      <div role="dialog" aria-label="Example dialog">
-        <p>Example dialog of {named.name}</p>
-        <button type="button" onClick={close}>
-          Close example dialog
-        </button>
-      </div>
-    );
+  const exampleDialog = (named: Room) => (close: () => void) => (
+    <div role="dialog" aria-label="Example dialog">
+      <p>Example dialog of {named.name}</p>
+      <button type="button" onClick={close}>
+        Close example dialog
+      </button>
+    </div>
+  );
 
   it('lists them in a group of their own, after the first group and before Remove from, Archive and Leave, in a row menu and in the room header menu', () => {
     buildWith(entry(), entry({ id: 'other', label: 'other' }));

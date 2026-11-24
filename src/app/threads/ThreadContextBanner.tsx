@@ -103,7 +103,7 @@ const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
  * answer. Not measured while `skip`. Assumes the parent is `ThreadTimelineHeader`'s block-level
  * content box (`display: flow-root`), whose width does not depend on the banner's.
  */
-const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
+const useNarrowBanner = (banner: RefObject<HTMLElement | null>, skip: boolean) => {
   const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
     const node = banner.current;
@@ -254,7 +254,7 @@ export function ThreadContextBanner({
   const threadRootId = rootEventId ?? threadId;
   const canOpenMenu = isConfirmedMatrixEventId(threadRootId);
   const [menu, setMenu] = useState<BannerMenuState>();
-  const menuRef = useRef<BannerMenuState>();
+  const menuRef = useRef<BannerMenuState>(undefined);
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
@@ -482,8 +482,8 @@ export function ThreadContextBanner({
           headerModel.isResolved
             ? css.BannerResolved
             : snoozedText
-            ? css.BannerSnoozed
-            : css.Banner,
+              ? css.BannerSnoozed
+              : css.Banner,
           collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
@@ -795,7 +795,7 @@ export function ThreadContextBanner({
                   <IconTooltip
                     label={
                       headerModel.isResolved
-                        ? resolvedByLabel ?? t('thread.resolved')
+                        ? (resolvedByLabel ?? t('thread.resolved'))
                         : t('thread.resolve')
                     }
                     hint={

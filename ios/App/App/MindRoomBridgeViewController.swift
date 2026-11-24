@@ -6,10 +6,6 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
 #if DEBUG
     private var didStartFileSaveAcceptanceFixture = false
 #endif
-#if targetEnvironment(macCatalyst)
-    private var filePromiseDropNamer: FilePromiseDropNamer?
-    private var pageLoadObservation: NSKeyValueObservation?
-#endif
 
     override func router() -> Router {
         MindRoomRouter()
@@ -27,39 +23,14 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         return descriptor
     }
 
-    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
-        let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        // The Mac build gets a Mac user agent and desktop layout instead of the
-        // mobile content mode from capacitor.config.ts. A compile-time check, because
-        // isMacCatalystApp is also true for the App Store iPad app on Apple silicon Macs.
-#if targetEnvironment(macCatalyst)
-        configuration.defaultWebpagePreferences.preferredContentMode = .desktop
-#endif
-        return configuration
-    }
-
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(MindRoomAuthPlugin())
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
-        bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
-#if !targetEnvironment(macCatalyst)
         bridge?.registerPluginInstance(MindRoomNotificationsPlugin())
-#endif
-#if targetEnvironment(macCatalyst)
-        // Mac Catalyst's WebKit has no media capture. Only the main window records voice.
-        if !(self is QuickCaptureViewController) {
-            bridge?.registerPluginInstance(MindRoomVoiceRecorderPlugin())
-        }
-#endif
-#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
-        // The main window shows the update card; the Quick Capture window does not.
-        if !(self is QuickCaptureViewController) { bridge?.registerPluginInstance(MindRoomUpdatePlugin()) }
-#endif
-#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
-        // Only the main bridge consumes Watch Handoff; the widget must not take its pending event.
-        if self is QuickCaptureViewController { return }
+#if os(iOS) && !targetEnvironment(macCatalyst) && canImport(LiveKit)
+        bridge?.registerPluginInstance(MindRoomScreenSharePlugin())
 #endif
         bridge?.registerPluginInstance(MindRoomWatchPlugin())
     }
@@ -72,22 +43,6 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         if activeStatusBarStyle != .default {
             bridge?.statusBarStyle = activeStatusBarStyle
         }
-#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
-        if let scene = view.window?.windowScene, scene.delegate is SceneDelegate {
-            MacWindowing.mainBridgeDidAppear(scene)
-        }
-#endif
-#if targetEnvironment(macCatalyst)
-        // The web view has its drop interaction once it is in a window. WebKit adds its own again
-        // as it restarts the page's process after a crash, and the page then loads anew.
-        if pageLoadObservation == nil {
-            pageLoadObservation = webView?.observe(\.isLoading, options: [.initial, .new]) { [weak self] webView, _ in
-                MainActor.assumeIsolated {
-                    if let namer = FilePromiseDropNamer.install(in: webView) { self?.filePromiseDropNamer = namer }
-                }
-            }
-        }
-#endif
 
 #if DEBUG
         guard ProcessInfo.processInfo.environment["MINDROOM_FILE_SAVE_ACCEPTANCE"] == "1",
@@ -125,69 +80,6 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
             }
         }
 #endif
-    }
-}
-
-/// Mac Catalyst's WebKit hands a page a dropped file only when its item provider has a suggested
-/// name (`canBeRepresentedAsFileUpload` in WebKit's WebItemProviderPasteboard.mm). A file promise
-/// has none: the floating thumbnail of a screen recording or a screenshot, a picture dragged out of
-/// Photos. The page then gets a drop that holds no file. This stands in for the web view's own drop
-/// delegate and gives each promise the file name its source proposes, just before WebKit reads the
-/// drop. Only the Mac app installs it.
-final class FilePromiseDropNamer: NSObject, UIDropInteractionDelegate {
-    /// AppKit's drag pasteboard (`NSPasteboard.Name.drag`), which holds the name a promise proposes.
-    static let dragPasteboard = UIPasteboard.Name("Apple CFPasteboard drag")
-    static let promiseType = "com.apple.pasteboard.promised-file-url"
-    static let proposedNameType = "com.apple.pasteboard.promised-suggested-file-name"
-
-    private weak var webKit: UIDropInteractionDelegate?
-
-    init(standingInFor webKit: UIDropInteractionDelegate) {
-        self.webKit = webKit
-    }
-
-    /// Replaces the drop interaction of the web view's content with one that names promises first.
-    /// Returns the namer to keep, or nil when the content has no drop interaction of WebKit's (none
-    /// yet, or a namer stands in for it already). WebKit's content view is its own drop delegate.
-    static func install(in webView: WKWebView) -> FilePromiseDropNamer? {
-        for view in webView.scrollView.subviews {
-            let drops = view.interactions.compactMap { $0 as? UIDropInteraction }
-            guard let delegate = drops.lazy.compactMap({ $0.delegate }).first(where: { $0 === view }) else { continue }
-            // UIKit gives a drop to one interaction, and a namer of before stays on the view when
-            // WebKit adds its own again: both go, and any other interaction stays.
-            drops.filter { $0.delegate === view || $0.delegate is FilePromiseDropNamer }.forEach(view.removeInteraction)
-            let namer = FilePromiseDropNamer(standingInFor: delegate)
-            view.addInteraction(UIDropInteraction(delegate: namer))
-            return namer
-        }
-        return nil
-    }
-
-    // Every other call of the delegate goes to WebKit as it is.
-    override func responds(to selector: Selector!) -> Bool {
-        super.responds(to: selector) || webKit?.responds(to: selector) == true
-    }
-
-    override func forwardingTarget(for selector: Selector!) -> Any? {
-        webKit
-    }
-
-    func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
-        let board = UIPasteboard(name: Self.dragPasteboard, create: false)
-        for (index, item) in session.items.enumerated() {
-            let provider = item.itemProvider
-            guard (provider.suggestedName ?? "").isEmpty,
-                  provider.registeredTypeIdentifiers.contains(Self.promiseType) else { continue }
-            let proposed = board?
-                .data(forPasteboardType: Self.proposedNameType, inItemSet: IndexSet(integer: index))?
-                .first.flatMap { String(data: $0, encoding: .utf8) }
-            // WebKit puts the name in a path of its own, so it is one path component without control
-            // characters. WebKit adds the file's extension to a name that lacks it.
-            let name = MindRoomFileSavePlugin.safeFileName(proposed, fallback: "File")
-            let controls = name.unicodeScalars.contains { $0.properties.generalCategory == .control }
-            provider.suggestedName = controls ? "File" : name
-        }
-        webKit?.dropInteraction?(interaction, performDrop: session)
     }
 }
 

@@ -133,7 +133,7 @@ vi.mock('../../matrix/session/sessions', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock('../../account/LogoutDialog', () => ({
@@ -254,9 +254,10 @@ const renderSettingsTab = (sessions: StoredSession[] = [activeSession, inactiveS
   vi.mocked(useStoredSessions).mockReturnValue(sessions);
 
   const store = createStore();
-  const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(SettingsTab))
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(React.createElement(Provider, { store }, React.createElement(SettingsTab)));
+  });
 
   return { renderer, store };
 };
@@ -433,9 +434,10 @@ describe('SettingsTab', () => {
     vi.mocked(useStoredSessions).mockReturnValue([localSession]);
 
     const store = createStore();
-    const renderer = create(
-      React.createElement(Provider, { store }, React.createElement(SettingsTab))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(SettingsTab)));
+    });
     openAccountMenu(renderer);
 
     await act(async () => {
@@ -492,9 +494,12 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(sessionWithCachedAvatar);
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithCachedAvatar]);
 
-    const renderer = create(
-      React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
+      );
+    });
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0]!;
@@ -519,9 +524,10 @@ describe('SettingsTab', () => {
     vi.mocked(useStoredSessions).mockImplementation(() => [unresolvedSession]);
 
     const store = createStore();
-    const renderer = create(
-      React.createElement(Provider, { store }, React.createElement(SettingsTab))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(SettingsTab)));
+    });
 
     await act(async () => {
       unresolvedSession = { ...unresolvedSession, lastUsedAt: 2 };
@@ -651,9 +657,12 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(sessionWithLastKnownAvatar);
     vi.mocked(useStoredSessions).mockReturnValue([sessionWithLastKnownAvatar]);
 
-    const renderer = create(
-      React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
+      );
+    });
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0]!;
@@ -683,9 +692,12 @@ describe('SettingsTab', () => {
     vi.mocked(useActiveSession).mockReturnValue(staleActiveSession);
     vi.mocked(useStoredSessions).mockReturnValue([refreshedSession]);
 
-    const renderer = create(
-      React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store: createStore() }, React.createElement(SettingsTab))
+      );
+    });
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
     )[0]!;

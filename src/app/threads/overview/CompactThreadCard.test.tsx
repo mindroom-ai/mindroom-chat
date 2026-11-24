@@ -256,15 +256,18 @@ describe('CompactThreadCard', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
     try {
-      const textFor = (until: number) =>
-        JSON.stringify(
-          create(
+      const textFor = (until: number) => {
+        let renderer!: ReturnType<typeof create>;
+        act(() => {
+          renderer = create(
             <CompactThreadCard
               viewModel={makeViewModel({ snoozedUntilTs: until })}
               onClick={vi.fn()}
             />
-          ).toJSON()
-        );
+          );
+        });
+        return JSON.stringify(renderer.toJSON());
+      };
       const tomorrow = new Date(2026, 10, 15, 9, 0).getTime();
       const nextYear = new Date(2027, 0, 5, 9, 0).getTime();
       const format = (options: Intl.DateTimeFormatOptions, ts: number) =>
@@ -283,9 +286,12 @@ describe('CompactThreadCard', () => {
   });
 
   it('renders the pending send indicator beside compact preview text', () => {
-    const renderer = create(
-      <CompactThreadCard viewModel={makeViewModel({ hasPendingSend: true })} onClick={vi.fn()} />
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <CompactThreadCard viewModel={makeViewModel({ hasPendingSend: true })} onClick={vi.fn()} />
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
@@ -298,12 +304,15 @@ describe('CompactThreadCard', () => {
   });
 
   it('renders terminal failure instead of pending state beside compact preview text', () => {
-    const renderer = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({ hasPendingSend: true, hasFailedSend: true })}
-        onClick={vi.fn()}
-      />
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({ hasPendingSend: true, hasFailedSend: true })}
+          onClick={vi.fn()}
+        />
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
     const ariaLabel = renderer.root.findByType('button').props['aria-label'];
@@ -321,27 +330,33 @@ describe('CompactThreadCard', () => {
 
   it('marks unread threads with an accent edge and accented time instead of a dot', () => {
     relativeTime.value = '2d';
-    const readRenderer = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({
-          attentionState: 'needs-attention',
-          attentionStatusText: 'Needs attention',
-        })}
-        onClick={vi.fn()}
-      />
-    );
+    let readRenderer!: ReturnType<typeof create>;
+    act(() => {
+      readRenderer = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            attentionState: 'needs-attention',
+            attentionStatusText: 'Needs attention',
+          })}
+          onClick={vi.fn()}
+        />
+      );
+    });
     const readButton = readRenderer.root.findByType('button');
     expect(readButton.props.className).toBe('Card');
     expect(readButton.props['data-thread-unread']).toBeUndefined();
     expect(readRenderer.root.findByProps({ className: 'TimeText' }).props.children).toBe('2d');
     readRenderer.unmount();
 
-    const unreadRenderer = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({ isUnread: true, isResolved: true })}
-        onClick={vi.fn()}
-      />
-    );
+    let unreadRenderer!: ReturnType<typeof create>;
+    act(() => {
+      unreadRenderer = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({ isUnread: true, isResolved: true })}
+          onClick={vi.fn()}
+        />
+      );
+    });
     const button = unreadRenderer.root.findByType('button');
 
     expect(button.props.className).toBe('Card CardResolved CardUnread');
@@ -357,15 +372,18 @@ describe('CompactThreadCard', () => {
 
   it('asks for the compact time and reads the full timestamp to assistive technology', () => {
     relativeTime.value = '2d';
-    const renderer = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({
-          lastActivityTs: 1,
-          lastActivityTitle: 'Oct 2, 2026, 14:00',
-        })}
-        onClick={vi.fn()}
-      />
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            lastActivityTs: 1,
+            lastActivityTitle: 'Oct 2, 2026, 14:00',
+          })}
+          onClick={vi.fn()}
+        />
+      );
+    });
 
     expect(relativeTime.format).toBe('compact');
     expect(renderer.root.findByProps({ className: 'TimeText' }).props.title).toBe(
@@ -379,17 +397,20 @@ describe('CompactThreadCard', () => {
   });
 
   it('leaves the preview row to the preview and counts replies in the metadata row', () => {
-    const renderer = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({
-          messageCount: 1234,
-          messageCountLabel: '1,234 msgs',
-          messageCountText: '1,234',
-          tags: ['blog'],
-        })}
-        onClick={vi.fn()}
-      />
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            messageCount: 1234,
+            messageCountLabel: '1,234 msgs',
+            messageCountText: '1,234',
+            tags: ['blog'],
+          })}
+          onClick={vi.fn()}
+        />
+      );
+    });
     const preview = renderer.root.findByProps({ className: 'MessagePreview' });
     const metadata = renderer.root.findByProps({ className: 'MetadataRow' });
     const replyCount = metadata.findByProps({ 'data-compact-card-reply-count': 'true' });
@@ -406,32 +427,38 @@ describe('CompactThreadCard', () => {
   });
 
   it('shows no count on a thread without replies and the count on one with two', () => {
-    const unanswered = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({
-          messageCount: 0,
-          messageCountLabel: '0 replies',
-          messageCountText: '0',
-        })}
-        onClick={vi.fn()}
-      />
-    );
+    let unanswered!: ReturnType<typeof create>;
+    act(() => {
+      unanswered = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            messageCount: 0,
+            messageCountLabel: '0 replies',
+            messageCountText: '0',
+          })}
+          onClick={vi.fn()}
+        />
+      );
+    });
     expect(
       unanswered.root.findAllByProps({ 'data-compact-card-reply-count': 'true' })
     ).toHaveLength(0);
     expect(unanswered.root.findByType('button').props['aria-label']).not.toContain('0 replies');
     unanswered.unmount();
 
-    const answered = create(
-      <CompactThreadCard
-        viewModel={makeViewModel({
-          messageCount: 2,
-          messageCountLabel: '2 msgs',
-          messageCountText: '2',
-        })}
-        onClick={vi.fn()}
-      />
-    );
+    let answered!: ReturnType<typeof create>;
+    act(() => {
+      answered = create(
+        <CompactThreadCard
+          viewModel={makeViewModel({
+            messageCount: 2,
+            messageCountLabel: '2 msgs',
+            messageCountText: '2',
+          })}
+          onClick={vi.fn()}
+        />
+      );
+    });
     const replyCount = answered.root.findByProps({ 'data-compact-card-reply-count': 'true' });
     expect(replyCount.props.children).toContain('2');
     expect(replyCount.props.title).toBe('2 msgs');
@@ -446,7 +473,10 @@ describe('CompactThreadCard', () => {
       isResolved: true,
       resolvedByDisplayName: 'Alice',
     });
-    const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    });
     const button = renderer.root.findByType('button');
 
     expect(button.props['data-attention-state']).toBe('resolved');
@@ -462,7 +492,10 @@ describe('CompactThreadCard', () => {
       isResolved: true,
       resolvedByDisplayName: 'Alice',
     });
-    const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
+    });
     const metadata = renderer.root.findByProps({ className: 'MetadataRow' });
     const resolverByline = metadata.findByProps({
       'data-compact-card-resolution-byline': 'true',
@@ -479,9 +512,12 @@ describe('CompactThreadCard', () => {
 
   it('leads a resolved title, and only a resolved one, with the check badge', () => {
     const badges = (isResolved: boolean) => {
-      const renderer = create(
-        <CompactThreadCard viewModel={makeViewModel({ isResolved })} onClick={vi.fn()} />
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <CompactThreadCard viewModel={makeViewModel({ isResolved })} onClick={vi.fn()} />
+        );
+      });
       const title = renderer.root.findByProps({ className: 'TitleText' });
       const found = title.findAll(
         (node) => node.type === 'span' && node.props.className === 'ResolvedBadge'

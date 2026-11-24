@@ -11,7 +11,10 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createBackfillScheduler } from '../event-store/engine/backfillScheduler';
 import { scheduleReconcile } from '../event-store/engine/reconciler';
-import { getLinkedTimelines, getThreadTimelineEvents } from '../event-store/timeline/linkedTimelines';
+import {
+  getLinkedTimelines,
+  getThreadTimelineEvents,
+} from '../event-store/timeline/linkedTimelines';
 import { refreshLatestThreadSlice } from './open/threadOpenCacheController';
 import { runThreadOpenSdkBootstrap } from './open/threadOpenSdkBootstrap';
 import type { HydratedThreadCachePage } from '../event-store/threads/types';

@@ -230,8 +230,8 @@ export function BackgroundJobRow({
   const headline = isWorkflow
     ? item.name
     : item.subagent
-    ? described || name
-    : item.plainName ?? name;
+      ? described || name
+      : (item.plainName ?? name);
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;

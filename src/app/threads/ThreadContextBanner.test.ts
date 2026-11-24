@@ -454,8 +454,17 @@ describe('ThreadContextBanner rendering', () => {
     );
   const renderBanner = (
     summaryText?: string,
-    createNodeMock?: (element: React.ReactElement) => unknown
-  ) => create(bannerElement(summaryText), createNodeMock ? { createNodeMock } : undefined);
+    createNodeMock?: (element: React.ReactElement<any>) => unknown
+  ) => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        bannerElement(summaryText),
+        createNodeMock ? { createNodeMock } : undefined
+      );
+    });
+    return renderer;
+  };
 
   it('opens actions for the active thread and current summary without offering navigation', async () => {
     const renderer = renderBanner('Current summary');
@@ -570,7 +579,9 @@ describe('ThreadContextBanner rendering', () => {
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(1);
     expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$next');
     const nextMenu = menuProps.mock.calls.at(-1)![0];
-    renderer.unmount();
+    act(() => {
+      renderer.unmount();
+    });
     await act(() => nextMenu.onClose());
     expect(trigger.focus).not.toHaveBeenCalled();
   });
@@ -790,7 +801,7 @@ describe('ThreadContextBanner rendering', () => {
               .forEach((name) => classes.add(name));
           },
           querySelector: (selector: string) =>
-            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
+            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions })[selector] ?? null,
         };
         lastRow = node;
         return node;
@@ -995,7 +1006,9 @@ describe('ThreadContextBanner rendering', () => {
         expect(tabStops(banner)).toEqual(['Back', 'Thread options', 'Resolve', 'title']);
         zoomTo('16px');
         expect(tabStops(banner)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
-        banner.unmount();
+        act(() => {
+          banner.unmount();
+        });
         expect(rootStyleChanged).toHaveLength(0);
       } finally {
         vi.unstubAllGlobals();
@@ -1201,7 +1214,9 @@ describe('ThreadContextBanner rendering', () => {
       fontSize = '20px';
       rootStyleChanged.run();
       expect(tagPills(banner)).toHaveLength(0);
-      banner.unmount();
+      act(() => {
+        banner.unmount();
+      });
       expect(resized.callbacks).toHaveLength(0);
       expect(rootStyleChanged.callbacks).toHaveLength(0);
     });
@@ -1335,7 +1350,9 @@ describe('ThreadContextBanner rendering', () => {
       short = false;
       screen.turn();
       expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
-      banner.unmount();
+      act(() => {
+        banner.unmount();
+      });
       expect(screen.listeners.size).toBe(0);
     });
   });
@@ -1343,7 +1360,10 @@ describe('ThreadContextBanner rendering', () => {
   it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
     const onShowBeside = vi.fn();
     const onShowFull = vi.fn();
-    const renderer = create(bannerElement(undefined, '$root', { onShowBeside, onShowFull }));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(bannerElement(undefined, '$root', { onShowBeside, onShowFull }));
+    });
     const labels = renderer.root
       .findAllByType('button')
       .map((button) => button.props['aria-label'] as string | undefined);
@@ -1421,14 +1441,20 @@ describe('ThreadContextBanner rendering', () => {
         })
       );
 
-    const untitled = create(element());
+    let untitled!: ReturnType<typeof create>;
+    act(() => {
+      untitled = create(element());
+    });
     const title = untitled.root.findByProps({ 'data-thread-context-root-title': 'true' });
     expect(text(title)).toBe('Deploy plan for Alice: staging first');
     expect(title.props.title).toBe('Deploy plan for Alice: staging first');
     expect(JSON.stringify(untitled.toJSON())).not.toContain('Thread View');
     untitled.unmount();
 
-    const summarized = create(element('Staging deploy plan'));
+    let summarized!: ReturnType<typeof create>;
+    act(() => {
+      summarized = create(element('Staging deploy plan'));
+    });
     expect(summarized.root.findAllByProps({ 'data-thread-context-root-title': 'true' })).toEqual(
       []
     );
@@ -1450,27 +1476,30 @@ describe('ThreadContextBanner rendering', () => {
         content: { msgtype: 'm.text', body: 'Harbor schedule for the week' },
       })
     );
-    const banner = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(ThreadContextBanner, {
-          room: {
-            roomId: '!room:example.org',
-            getThread: () => undefined,
-            findEventById: () => undefined,
-            getUnfilteredTimelineSet: () => undefined,
-            getMember: () => undefined,
-            hasEncryptionStateEvent: () => false,
-            currentState: { getStateEvents: () => [] },
-            on: vi.fn(),
-            removeListener: vi.fn(),
-          } as unknown as Room,
-          threadId: '$root',
-          onExitThread: vi.fn(),
-        })
-      )
-    );
+    let banner!: ReturnType<typeof create>;
+    act(() => {
+      banner = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(ThreadContextBanner, {
+            room: {
+              roomId: '!room:example.org',
+              getThread: () => undefined,
+              findEventById: () => undefined,
+              getUnfilteredTimelineSet: () => undefined,
+              getMember: () => undefined,
+              hasEncryptionStateEvent: () => false,
+              currentState: { getStateEvents: () => [] },
+              on: vi.fn(),
+              removeListener: vi.fn(),
+            } as unknown as Room,
+            threadId: '$root',
+            onExitThread: vi.fn(),
+          })
+        )
+      );
+    });
     const title = banner.root.findByProps({ 'data-thread-context-root-title': 'true' });
     expect(text(title)).toBe('Harbor schedule for the week');
     expect(JSON.stringify(banner.toJSON())).not.toContain('Thread View');
@@ -2096,11 +2125,17 @@ describe('ThreadContextBanner rendering', () => {
     });
     const resolveKeys = (renderer: ReturnType<typeof create>) =>
       renderer.root.findByProps({ 'aria-label': 'Resolve' }).props['aria-keyshortcuts'] as unknown;
-    const main = create(bannerElement());
+    let main!: ReturnType<typeof create>;
+    act(() => {
+      main = create(bannerElement());
+    });
     expect(resolveKeys(main)).toBeDefined();
     main.unmount();
 
-    const second = create(bannerElement(undefined, '$root', { onClose: vi.fn() }));
+    let second!: ReturnType<typeof create>;
+    act(() => {
+      second = create(bannerElement(undefined, '$root', { onClose: vi.fn() }));
+    });
     expect(resolveKeys(second)).toBeUndefined();
     const trigger = {
       focus: vi.fn(),
@@ -2118,7 +2153,10 @@ describe('ThreadContextBanner rendering', () => {
 
   it('with onClose it offers Close thread in place of Back', () => {
     const onClose = vi.fn();
-    const renderer = create(bannerElement(undefined, '$root', { onClose }));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(bannerElement(undefined, '$root', { onClose }));
+    });
     const labels = renderer.root
       .findAllByType('button')
       .map((button) => button.props['aria-label'] as unknown);

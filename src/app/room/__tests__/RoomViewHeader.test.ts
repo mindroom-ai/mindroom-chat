@@ -117,7 +117,7 @@ vi.mock('folds', async (importOriginal) => {
 vi.mock('focus-trap-react', async () => {
   const reactModule = await import('react');
   return {
-    default: ({ children }: { children: React.ReactNode }) =>
+    FocusTrap: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement(reactModule.Fragment, null, children),
   };
 });
@@ -352,17 +352,20 @@ const renderHeader = async (
 ) => {
   const store = createStore();
   const { RoomViewHeader } = await import('../RoomViewHeader');
-  const renderer = create(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(RoomViewHeader, {
-        hasMindroomAgents: true,
-        joinRequestCount,
-        ...headerProps,
-      })
-    )
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(RoomViewHeader, {
+          hasMindroomAgents: true,
+          joinRequestCount,
+          ...headerProps,
+        })
+      )
+    );
+  });
 
   return { renderer, store };
 };

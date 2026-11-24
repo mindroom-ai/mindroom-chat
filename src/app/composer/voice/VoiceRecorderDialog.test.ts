@@ -118,7 +118,7 @@ vi.mock('folds', () => {
         get: (_target, key) => String(key),
       }
     ),
-    Line: Wrapper,
+    Line: (props: Record<string, unknown>) => React.createElement('hr', props),
     Overlay: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
       open ? React.createElement('div', null, children) : null,
     OverlayBackdrop: Wrapper,
@@ -181,12 +181,15 @@ vi.mock('focus-trap-react', () => {
     );
     return React.createElement('div', null, children);
   };
-  return { default: FocusTrapMock };
+  return { FocusTrap: FocusTrapMock };
 });
 
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
+  CapsuleStacked: 'CapsuleStacked',
+  Container: 'Container',
   Control: 'Control',
+  ControlsRow: 'ControlsRow',
   HiddenStatus: 'HiddenStatus',
   Timer: 'Timer',
 }));
@@ -587,6 +590,42 @@ describe('VoiceRecorderComposer', () => {
     // Same-message failure must re-surface the overlay.
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice send failed');
     expect(onSendRecording).toHaveBeenCalledTimes(2);
+
+    renderer.unmount();
+  });
+
+  it('renders the capsule inside the shared Container without Line or inline padding', async () => {
+    setupSupportedRecorder();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        renderInProvider(
+          React.createElement(VoiceRecorderComposer, {
+            ownsPendingVoiceDraft: false,
+            onRetryRequest: vi.fn(),
+            onSendRecording: vi.fn(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    await startRecording();
+
+    const containers = renderer.root.findAllByProps({ className: 'Container' });
+    expect(containers).toHaveLength(1);
+    expect(
+      containers[0]!.findAll(
+        (node) => node.type === 'div' && node.props.className === 'CapsuleStacked'
+      )
+    ).toHaveLength(1);
+    expect(renderer.root.findAllByType('hr')).toHaveLength(0);
+    expect(
+      containers[0]!.findAll(
+        (node) =>
+          node.type === 'div' &&
+          Boolean((node.props as { style?: { padding?: unknown } }).style?.padding)
+      )
+    ).toHaveLength(0);
 
     renderer.unmount();
   });

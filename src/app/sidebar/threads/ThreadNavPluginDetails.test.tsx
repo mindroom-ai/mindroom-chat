@@ -29,6 +29,7 @@ const plugin = (id: string, threadDetails: ThreadDetail[]): RegisteredPlugin => 
   id,
   tag: `${id}@1.0.0`,
   displayName: id,
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
@@ -106,5 +107,16 @@ describe('ThreadNavPluginDetails', () => {
     const { container } = renderDetails([plugin('test', [{ Component: WithPanel }])]);
 
     expect(shown(container)).toEqual(['panel none']);
+  });
+
+  it('omits onClose so sidebar hover card details stay non-interactive', () => {
+    const seen: Array<(() => void) | undefined> = [];
+    const Probe = ({ onClose }: ThreadDetailProps) => {
+      seen.push(onClose);
+      return <span data-detail>Static</span>;
+    };
+    renderDetails([plugin('test', [{ Component: Probe }])]);
+
+    expect(seen).toEqual([undefined]);
   });
 });

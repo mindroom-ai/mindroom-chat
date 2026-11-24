@@ -10,6 +10,3 @@
 "VIDEO_CALL_FROM_USER" = "Chamada de vídeo recebida de %1$@";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ convidou você para %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ convidou você para uma conversa";
-"QUICK_CAPTURE" = "Captura rápida";
-"CHECK_FOR_UPDATES" = "Verificar atualizações…";
-"RESTART_TO_UPDATE" = "Reiniciar para atualizar";

@@ -444,7 +444,9 @@
         "search": "Mostrar Buscar en la barra lateral",
         "searchDescription": "El botón que abre la paleta de comandos. Si lo ocultas, ábrela desde el campo «Buscar cualquier cosa» o con {{shortcut}}.",
         "localMindroom": "Mostrar MindRoom local en la barra lateral",
-        "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local."
+        "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local.",
+        "usage": "Mostrar Uso en la barra lateral",
+        "usageDescription": "Límites de uso de proveedores y gasto de tokens en 7 días, en cuanto un entorno de ejecución los informe. Si está oculto, abre Uso desde el menú ⋮ en Inicio o en el selector de modelos."
       },
       "plugins": {
         "title": "Complementos",
@@ -521,7 +523,8 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "plugins": "complementos, plugins, extensiones, integraciones"
+        "plugins": "complementos, plugins, extensiones, integraciones",
+        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -532,7 +535,17 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada.",
+        "updatesTitle": "Actualizaciones de la app",
+        "updatesDescription": "Las actualizaciones se descargan automáticamente en segundo plano.",
+        "checkForUpdates": "Buscar actualizaciones",
+        "checkingForUpdates": "Buscando actualizaciones…",
+        "upToDate": "MindRoom está actualizado.",
+        "updateAvailable": "Hay una actualización disponible. Podrás reiniciar desde aquí cuando esté lista.",
+        "updateCheckFailed": "No se pudieron buscar actualizaciones en este momento. Inténtalo de nuevo.",
+        "updateReady": "La versión {{version}} está lista para instalar.",
+        "restartToUpdate": "Reiniciar para actualizar",
+        "updateInstallFailed": "No se pudo reiniciar para instalar la actualización. Inténtalo de nuevo."
       }
     },
     "createChat": {
@@ -546,9 +559,15 @@
     },
     "spaceNav": {
       "options": "Opciones del espacio",
-      "subspaces": "Subespacios",
       "subspaceUnread": "{{name}}, mensajes sin leer",
-      "backToParent": "Volver a {{name}}"
+      "backToParent": "Volver a {{name}}",
+      "add": "Añadir",
+      "newRoom": "Nueva sala",
+      "addExistingRoom": "Añadir sala existente",
+      "newSubspace": "Nuevo subespacio",
+      "addExistingSubspace": "Añadir subespacio existente",
+      "addToSpace": "Añadir a {{name}}",
+      "subspaceOptions": "Opciones de {{name}}"
     },
     "calls": {
       "panel": {
@@ -577,7 +596,13 @@
         "shareAgain": "Compartir de nuevo",
         "microphoneStopped": "Tu micrófono se ha detenido.",
         "cameraStopped": "Tu cámara se ha detenido.",
-        "turnBackOn": "Volver a activar"
+        "turnBackOn": "Volver a activar",
+        "nativeScreenShareConnecting": "Conectando pantalla compartida…",
+        "nativeScreenShareFailed": "No se pudo compartir toda tu pantalla.",
+        "nativeScreenSharePickerTimedOut": "La pantalla compartida no se inició a tiempo.",
+        "nativeScreenShareStopped": "Se detuvo la pantalla compartida.",
+        "nativeScreenShareSheetBody": "Todo lo que aparece en tu pantalla, incluidas las notificaciones y otras aplicaciones, será visible en la llamada.",
+        "nativeScreenShareSheetCaption": "Toca el botón de arriba y luego toca Iniciar transmisión."
       },
       "problems": {
         "service": "No se pudo contactar con el servicio de llamadas. Inténtalo de nuevo más tarde.",
@@ -884,7 +909,9 @@
     "call": {
       "controls": {
         "startAppShare": "Compartir esta aplicación",
-        "stopAppShare": "Dejar de compartir esta aplicación"
+        "stopAppShare": "Dejar de compartir esta aplicación",
+        "startEntireScreenShare": "Compartir toda la pantalla",
+        "stopEntireScreenShare": "Dejar de compartir toda la pantalla"
       }
     }
   },
@@ -1025,6 +1052,14 @@
         "changedBy": "Cambiado por {{name}}",
         "scopeOwn": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que puedes dirigirte.",
         "scopeOther": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que {{name}} puede dirigirse."
+      },
+      "triggerWakeMarker": {
+        "triggered": "Activado",
+        "webhook": "Webhook",
+        "triggerLabel": "Activador {{id}}",
+        "sourceLabel": "Origen {{source}}",
+        "triageLabel": "Triaje: {{reason}}",
+        "payloadLabel": "Carga del evento JSON"
       },
       "finishedWork": {
         "workedFor": "Trabajó durante {{duration}}",
@@ -1501,6 +1536,46 @@
         "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
         "copied": "Solicitud copiada. Pégala en tu borrador."
       }
+    },
+    "usage": {
+      "title": "Uso y límites",
+      "navLowQuota": "Uso (cuota baja)",
+      "tabsLimits": "Límites",
+      "tabsTokens": "Tokens y costo",
+      "refresh": "Actualizar",
+      "updatedAgo": "Actualizado {{time}}",
+      "runtimeLabel": "Entorno",
+      "loading": "Consultando el uso del proveedor…",
+      "unavailableTitle": "Datos de uso no disponibles",
+      "unavailableBody": "Ningún entorno conectado informó límites de uso de proveedores para esta cuenta.",
+      "retry": "Reintentar",
+      "partialData": "Datos parciales — no se pudieron cargar algunos proveedores o registros de uso.",
+      "stale": "Desactualizado",
+      "percentLeft": "{{percent}}% restante",
+      "resetsIn": "Se restablece en {{duration}}",
+      "resetsAt": "Se restablece {{time}}",
+      "resetsSoon": "Se restablece pronto",
+      "quotaAria": "{{label}}: {{percent}}% restante",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% restante, {{reset}}",
+      "noSubscriptionLimit": "Sin límite de suscripción",
+      "payAsYouGo": "Pago por uso",
+      "limitsUnavailable": "Límites de uso no disponibles",
+      "notSignedIn": "Sesión no iniciada",
+      "tokens7d": "{{tokens}} tokens (7d)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Tokens totales (7 días)",
+      "totalCost7d": "Gasto estimado (7 días)",
+      "dailyChartTitle": "Tokens diarios (últimos 7 días)",
+      "dailyBarAria": "{{day}}: {{tokens}} tokens",
+      "breakdownTitle": "Desglose por cuenta",
+      "colAccount": "Cuenta",
+      "colTokens": "Tokens (7d)",
+      "colShare": "Porcentaje",
+      "colSpend": "Gasto (7d)",
+      "unattributed": "Sin atribuir",
+      "allUsageAndLimits": "Todo el uso y límites →",
+      "noAccounts": "Aún no se informaron cuentas de proveedores.",
+      "noDailyData": "No se registró uso diario en los últimos 7 días."
     }
   },
   "composer": {
@@ -1538,8 +1613,10 @@
       "cancel": "Cancelar dictado",
       "pause": "Pausar dictado",
       "resume": "Reanudar dictado",
-      "finish": "Finalizar dictado",
+      "finish": "Finalizar en el cuadro de texto",
+      "finishAndSend": "Finalizar y enviar",
       "retry": "Reintentar",
+      "retryAndSend": "Reintentar y enviar",
       "insertPartial": "Insertar texto parcial",
       "discard": "Descartar",
       "dismissError": "Cerrar error de dictado",
@@ -1548,6 +1625,10 @@
       "statusListening": "Dictando",
       "statusPaused": "Dictado en pausa",
       "statusFinishing": "Finalizando...",
+      "statusSending": "Finalizando y enviando...",
+      "noSpeech": "No se detectó voz.",
+      "noSpeechOffThread": "No se detectó voz en {{room}}.",
+      "sendFailedOffThread": "No se pudo finalizar el mensaje dictado en {{room}}. Ábrelo para reintentar.",
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
       "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",
@@ -2116,5 +2197,8 @@
       "action": "Verificar este dispositivo",
       "text": "Hasta entonces no puede leer tus chats cifrados."
     }
+  },
+  "nav": {
+    "usage": "Uso"
   }
 }

@@ -17,6 +17,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
   displayName: id,
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages,
@@ -32,17 +33,16 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
 });
 
 /** A config.json with this `plugins` section. */
-const withPlugins = (plugins: unknown): ClientConfig => ({ plugins } as unknown as ClientConfig);
+const withPlugins = (plugins: unknown): ClientConfig => ({ plugins }) as unknown as ClientConfig;
 
 /** The app at `url` with `config`, around the plugin code under test. */
 const at =
   (url: string, config: ClientConfig = {}) =>
-  ({ children }: { children: ReactNode }) =>
-    (
-      <ClientConfigProvider value={config}>
-        <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
-      </ClientConfigProvider>
-    );
+  ({ children }: { children: ReactNode }) => (
+    <ClientConfigProvider value={config}>
+      <MemoryRouter initialEntries={[url]}>{children}</MemoryRouter>
+    </ClientConfigProvider>
+  );
 
 /** The plugin page the hook finds at `url` with `config`. */
 const pageAt = (url: string, config: ClientConfig = {}) =>

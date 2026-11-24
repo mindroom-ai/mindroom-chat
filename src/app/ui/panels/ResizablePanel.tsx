@@ -127,11 +127,11 @@ export function ResizablePanel({
   // (PanelRow) measures.
   const [availableWidth, setAvailableWidth] = useState(
     () =>
-      (Number.isFinite(maxPanelWidth) ? maxPanelWidth : preferredWidth ?? defaultWidth) +
+      (Number.isFinite(maxPanelWidth) ? maxPanelWidth : (preferredWidth ?? defaultWidth)) +
       minContentWidth
   );
   const panelRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<Drag>();
+  const dragRef = useRef<Drag>(undefined);
   const presence = usePanelPresence();
   const phase = presence?.phase ?? 'shown';
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
@@ -154,11 +154,11 @@ export function ResizablePanel({
   // Beside the content a panel opens and closes by moving its width; phones, full-width and
   // folded panels switch at once.
   const moves = resizable && !mobile;
-  const motionRef = useRef<Animation>();
-  const registration = useRef<PanelRegistration>();
+  const motionRef = useRef<Animation>(undefined);
+  const registration = useRef<PanelRegistration>(undefined);
   const phaseSeen = useRef<PanelPhase>('shown');
   /** The width a released drag left on screen, which the next commit moves from. */
-  const releasedAt = useRef<number>();
+  const releasedAt = useRef<number>(undefined);
   const movesRef = useRef(moves);
   const maxWidth = Math.max(
     Math.min(smallest, availableWidth),

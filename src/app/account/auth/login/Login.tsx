@@ -25,8 +25,7 @@ type ParsedLoginFlows = {
 
 const parseLoginFlows = ({ flows }: ILoginFlowsResponse): ParsedLoginFlows => {
   const sso = flows.find((flow) => flow.type === 'm.login.sso') as
-    | { identity_providers?: IIdentityProvider[] }
-    | undefined;
+    { identity_providers?: IIdentityProvider[] } | undefined;
   return {
     password: flows.some((flow) => flow.type === 'm.login.password'),
     sso: sso ? { providers: sso.identity_providers } : undefined,
@@ -118,7 +117,7 @@ export function Login() {
   const addAccount = isAddAccountSearch(searchParams);
   const [exchange, setExchange] = useState<TokenExchange>();
   const [tokenProblem, setTokenProblem] = useState<TokenProblem>();
-  const handledToken = useRef<string>();
+  const handledToken = useRef<string>(undefined);
 
   // A token is exchanged only when a sign-in started in this tab brought it back, and only at
   // the homeserver that sign-in went to: the server named in the address is not trusted, since

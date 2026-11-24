@@ -47,6 +47,7 @@ const plugin = (threadDetails: ThreadDetail[]): RegisteredPlugin => ({
   id: 'test',
   tag: 'test@1.0.0',
   displayName: 'Test',
+  defaultEnabled: true,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
@@ -578,5 +579,17 @@ describe('ThreadCardDetails', () => {
     rerender(<Harness plugins={plugins} />);
     expect(shown()?.textContent).toBe('Details of $a');
     expect(shows).toHaveBeenCalledTimes(1);
+  });
+  it('omits onClose so hover card details stay non-interactive', () => {
+    const seen: Array<(() => void) | undefined> = [];
+    const Probe = ({ threadId, onClose }: ThreadDetailProps) => {
+      seen.push(onClose);
+      return <span>Details of {threadId}</span>;
+    };
+    const { getByTestId } = render(<Harness plugins={[plugin([{ Component: Probe }])]} />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $a');
+    expect(seen).toEqual([undefined]);
   });
 });

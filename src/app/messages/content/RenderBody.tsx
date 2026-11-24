@@ -1,6 +1,7 @@
 import { ReactNode, memo, useMemo } from 'react';
 import { isText } from 'domhandler';
-import parse, { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
+import { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
+import { parseHtml } from '../../rich-text/parseHtml';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { color } from 'folds';
 import { MessageEmptyContent } from './FallbackContent';
@@ -57,8 +58,8 @@ const withHighlight = (
   if (!regex) return options;
   return {
     ...options,
-    replace: (domNode: DOMNode) => {
-      const replaced = options.replace?.(domNode);
+    replace: (domNode: DOMNode, index: number) => {
+      const replaced = options.replace?.(domNode, index);
       if (replaced) return replaced;
       if (!isText(domNode)) return replaced;
       const parts = highlightText(regex, domNode.data);
@@ -96,7 +97,7 @@ export const RenderBody = memo(function RenderBody({
 
   const customContent = useMemo(() => {
     if (!customBody) return undefined;
-    return parse(
+    return parseHtml(
       sanitizeCustomHtml(customBody, sanitizeOptions),
       withHighlight(resolveHtmlReactParserOptions(htmlReactParserOptions), highlightRegex)
     );

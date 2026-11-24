@@ -65,7 +65,9 @@ describe('rendersWebGLOnCpu', () => {
   });
 
   it('leaves a GPU renderer on the full animation and releases the probe context', () => {
-    const probe = stubRenderer('ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3090, OpenGL ES 3.2)');
+    const probe = stubRenderer(
+      'ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3090, OpenGL ES 3.2)'
+    );
 
     expect(rendersWebGLOnCpu()).toBe(false);
     expect(probe.loseContext).toHaveBeenCalledOnce();

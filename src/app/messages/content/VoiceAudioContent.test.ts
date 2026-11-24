@@ -83,7 +83,7 @@ vi.mock('./voice/VoiceWaveform.css', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {
@@ -213,6 +213,13 @@ const openAudioOptions = (renderer: ReactTestRenderer, index = 0) => {
 
 describe('VoiceAudioContent', () => {
   let renderer: ReactTestRenderer | undefined;
+  const createMounted: typeof create = (...args) => {
+    let next!: ReactTestRenderer;
+    act(() => {
+      next = create(...args);
+    });
+    return next;
+  };
   let nextBlobId: number;
   let pausedState: WeakMap<HTMLMediaElement, boolean>;
   let playSpy: ReturnType<typeof vi.spyOn>;
@@ -236,21 +243,21 @@ describe('VoiceAudioContent', () => {
     ) {
       return pausedState.get(this) ?? true;
     });
-    playSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'play')
-      .mockImplementation(function (this: HTMLMediaElement) {
-        pausedState.set(this, false);
-        this.dispatchEvent(new Event('play'));
-        this.dispatchEvent(new Event('playing'));
-        return Promise.resolve();
-      });
-    pauseSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'pause')
-      .mockImplementation(function (this: HTMLMediaElement) {
-        const wasPlaying = !(pausedState.get(this) ?? true);
-        pausedState.set(this, true);
-        if (wasPlaying) this.dispatchEvent(new Event('pause'));
-      });
+    playSpy = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      pausedState.set(this, false);
+      this.dispatchEvent(new Event('play'));
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    });
+    pauseSpy = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      const wasPlaying = !(pausedState.get(this) ?? true);
+      pausedState.set(this, true);
+      if (wasPlaying) this.dispatchEvent(new Event('pause'));
+    });
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(function (
       this: HTMLMediaElement
     ) {
@@ -296,7 +303,7 @@ describe('VoiceAudioContent', () => {
   };
 
   it('renders play, waveform seek, timer, and speed before interaction', () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     expect(renderer.root.findByProps({ className: 'Root' })).toBeTruthy();
     expect(renderer.root.findByProps({ className: 'WaveformCell' })).toBeTruthy();
@@ -314,7 +321,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('keeps volume, download, and attachment metadata in the More menu', () => {
-    renderer = create(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
+    renderer = createMounted(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
 
     act(() => {
       renderer!.root.findByProps({ 'aria-label': 'More audio options' }).props.onClick({
@@ -335,7 +342,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('opens More after play without reading a cleared event target from the state updater', async () => {
-    renderer = create(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
+    renderer = createMounted(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
 
     const moreTriggerTarget = {
       getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
@@ -364,7 +371,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('reopens volume during deactivation without reading a cleared event target', () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     openAudioOptions(renderer);
 
@@ -404,7 +411,7 @@ describe('VoiceAudioContent', () => {
 
   it('lets listeners set playback speed before loading audio', () => {
     const store = createStore();
-    renderer = create(renderVoiceAudio(store));
+    renderer = createMounted(renderVoiceAudio(store));
     act(() => {
       renderer!.root
         .findByProps({
@@ -417,7 +424,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('shows an audio filename without opening the options menu', () => {
-    renderer = create(
+    renderer = createMounted(
       renderVoiceAudio(createStore(), {
         filename: 'Interview.mp3',
         label: 'audio',
@@ -428,7 +435,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('shows an audio filename with its direction controls as code points', () => {
-    renderer = create(
+    renderer = createMounted(
       renderVoiceAudio(createStore(), {
         filename: 'Interview‮3pm.exe',
         label: 'audio',
@@ -443,7 +450,7 @@ describe('VoiceAudioContent', () => {
 
   it('explains source loading failures and allows another play attempt', async () => {
     mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('network error'));
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     await act(async () => {
       renderer!.root.findByProps({ 'aria-label': 'Play voice message' }).props.onClick();
@@ -467,7 +474,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('lazily loads media on first play, autoplays once loaded, and toggles pause/play', async () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     const audio = await playAndLoad(renderer);
     expect(mocks.downloadCachedAttachment).toHaveBeenCalledOnce();
@@ -496,7 +503,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('seeks through waveform click progress once metadata is ready', async () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
     const audio = await playAndLoad(renderer, { duration: 10, readyState: 1 });
 
     act(() => {
@@ -512,7 +519,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('keeps the latest pending seek until metadata is ready before first playback', async () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     await act(async () => {
       renderer!.root
@@ -549,7 +556,7 @@ describe('VoiceAudioContent', () => {
 
   it('clears current time and pending seek when the media identity changes in-place', async () => {
     const store = createStore();
-    renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
+    renderer = createMounted(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
 
     await act(async () => {
       renderer!.root
@@ -578,7 +585,7 @@ describe('VoiceAudioContent', () => {
 
   it('applies playback rate, pitch preservation, and volume changes (including mute at 0)', async () => {
     const store = createStore();
-    renderer = create(renderVoiceAudio(store));
+    renderer = createMounted(renderVoiceAudio(store));
     const audio = await playAndLoad(renderer, { duration: 10, readyState: 1 });
 
     act(() => {
@@ -620,22 +627,20 @@ describe('VoiceAudioContent', () => {
 
   it('updates all mounted voice players and the shared audio element when rate or volume changes', async () => {
     const store = createStore();
-    act(() => {
-      renderer = create(
-        React.createElement(
-          Provider,
-          { store },
-          React.createElement(React.Fragment, null, [
-            React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-a' }), {
-              key: 'voice-a',
-            }),
-            React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-b' }), {
-              key: 'voice-b',
-            }),
-          ])
-        )
-      );
-    });
+    renderer = createMounted(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(React.Fragment, null, [
+          React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-a' }), {
+            key: 'voice-a',
+          }),
+          React.cloneElement(renderVoiceAudioContent({ url: 'mxc://mindroom/voice-b' }), {
+            key: 'voice-b',
+          }),
+        ])
+      )
+    );
 
     await act(async () => {
       renderer!.root.findAllByProps({ 'aria-label': 'Play voice message' })[0]!.props.onClick();
@@ -652,7 +657,7 @@ describe('VoiceAudioContent', () => {
     expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1.5);
     expect(audio.playbackRate).toBe(1.5);
     expect(
-      renderer!.root.findAllByProps({
+      renderer.root.findAllByProps({
         'aria-label': 'Playback speed, currently 1.5×, click to cycle',
       })
     ).toHaveLength(2);
@@ -671,8 +676,8 @@ describe('VoiceAudioContent', () => {
     expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1);
 
     // Update volume from the first player and verify both menus and the shared audio update.
-    openAudioOptions(renderer!, 0);
-    openAudioOptions(renderer!, 1);
+    openAudioOptions(renderer, 0);
+    openAudioOptions(renderer, 1);
     act(() => {
       renderer!.root
         .findAllByProps({ 'aria-label': 'Voice volume, currently 100%' })[0]!
@@ -691,17 +696,17 @@ describe('VoiceAudioContent', () => {
     expect(store.get(voiceMessageVolumeAtom)).toBe(0.25);
     expect(audio.volume).toBe(0.25);
     expect(
-      renderer!.root.findAllByProps({ 'aria-label': 'Voice volume, currently 25%' })
+      renderer.root.findAllByProps({ 'aria-label': 'Voice volume, currently 25%' })
     ).toHaveLength(2);
   });
 
   it('closes the volume popover when the trigger is clicked again', () => {
     const volumeTriggerNode = document.createElement('button');
     volumeTriggerNode.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 44, height: 44 } as DOMRect);
+      ({ left: 0, top: 0, width: 44, height: 44 }) as DOMRect;
 
-    renderer = create(renderVoiceAudio(), {
-      createNodeMock: (element) => {
+    renderer = createMounted(renderVoiceAudio(), {
+      createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => {
         if (
           element.type === 'button' &&
           typeof element.props['aria-label'] === 'string' &&
@@ -740,7 +745,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('centers the volume slider thumb on the track centerline', () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
 
     openAudioOptions(renderer);
 
@@ -781,7 +786,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('preserves Matrix duration when browser duration is invalid', async () => {
-    renderer = create(renderVoiceAudio());
+    renderer = createMounted(renderVoiceAudio());
     const audio = await playAndLoad(renderer, { duration: Number.NaN, readyState: 1 });
 
     setAudioProps(audio, { duration: Number.POSITIVE_INFINITY, currentTime: 0 });
@@ -802,7 +807,7 @@ describe('VoiceAudioContent', () => {
 
   it('falls back to browser duration when Matrix duration is missing and prefers browser duration when both exist', async () => {
     const store = createStore();
-    renderer = create(
+    renderer = createMounted(
       renderVoiceAudio(store, { info: { mimetype: 'audio/ogg', duration: undefined } })
     );
     expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:00');
@@ -828,7 +833,7 @@ describe('VoiceAudioContent', () => {
 
   it('syncs Matrix duration when metadata arrives after initial render and clears it on media change', async () => {
     const store = createStore();
-    renderer = create(
+    renderer = createMounted(
       renderVoiceAudio(store, {
         url: 'mxc://mindroom/voice-a',
         info: { mimetype: 'audio/ogg', duration: undefined },
@@ -858,7 +863,7 @@ describe('VoiceAudioContent', () => {
   });
 
   it('renders fallback waveform bars for missing metadata', () => {
-    renderer = create(
+    renderer = createMounted(
       React.createElement(
         Provider,
         { store: createStore() },

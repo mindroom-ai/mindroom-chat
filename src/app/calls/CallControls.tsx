@@ -1,13 +1,6 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import {
   Box,
   Icon,
@@ -16,6 +9,7 @@ import {
   Line,
   Text,
   Tooltip,
+  toRem,
   type IconSrc,
   type RectCords,
 } from 'folds';
@@ -264,6 +258,103 @@ export function DeviceControl({
             }}
           >
             <DeviceMenu ref={menuRef} chosen={chosen} onChoose={onChoose} requestClose={close} />
+          </FocusTrap>
+        }
+      />
+    </>
+  );
+}
+
+/** The screen-share menu shown when both whole-screen and in-app sharing are available. */
+export function ScreenShareControl({
+  label,
+  entireScreenLabel,
+  appShareLabel,
+  onShareEntireScreen,
+  onShareApp,
+}: {
+  label: string;
+  entireScreenLabel: string;
+  appShareLabel: string;
+  onShareEntireScreen: () => void;
+  onShareApp: () => void;
+}) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setAnchor(undefined), []);
+  return (
+    <>
+      <CallControl
+        label={label}
+        icon={Icons.ScreenShare}
+        expanded={!!anchor}
+        onClick={(event) => {
+          const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
+          setAnchor((current) => (current ? undefined : { x, y, width, height }));
+        }}
+      />
+      <PopOut
+        anchor={anchor}
+        position="Top"
+        align="Center"
+        offset={8}
+        data-owns-focus=""
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              fallbackFocus: () => menuRef.current ?? document.body,
+              returnFocusOnDeactivate: true,
+              clickOutsideDeactivates: () => {
+                close();
+                return true;
+              },
+              escapeDeactivates: () => {
+                close();
+                return true;
+              },
+            }}
+          >
+            <Menu
+              ref={menuRef}
+              role="menu"
+              tabIndex={-1}
+              aria-label={label}
+              style={{ minWidth: toRem(196) }}
+            >
+              <Box direction="Column" gap="100" style={{ padding: toRem(4) }}>
+                <MenuItem
+                  size="300"
+                  radii="300"
+                  role="menuitem"
+                  variant="Surface"
+                  fill="None"
+                  onClick={() => {
+                    close();
+                    onShareEntireScreen();
+                  }}
+                >
+                  <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
+                    {entireScreenLabel}
+                  </Text>
+                </MenuItem>
+                <MenuItem
+                  size="300"
+                  radii="300"
+                  role="menuitem"
+                  variant="Surface"
+                  fill="None"
+                  onClick={() => {
+                    close();
+                    onShareApp();
+                  }}
+                >
+                  <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
+                    {appShareLabel}
+                  </Text>
+                </MenuItem>
+              </Box>
+            </Menu>
           </FocusTrap>
         }
       />

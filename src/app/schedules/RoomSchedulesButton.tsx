@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
 import {
   Icon,
@@ -37,7 +37,7 @@ export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
 }
 
 /** The horizontal center of the header in viewport pixels, following layout changes. */
-function useCenterX(headerRef?: RefObject<HTMLElement>): number | undefined {
+function useCenterX(headerRef?: RefObject<HTMLElement | null>): number | undefined {
   const [centerX, setCenterX] = useState<number>();
   const header = useCallback(() => headerRef?.current, [headerRef]);
   const measure = useCallback(() => {
@@ -61,7 +61,7 @@ type RoomSchedulesOverlayProps = {
   tasks: readonly ParsedScheduledTask[];
   openThreadId?: string;
   /** The room header spans the room view, which the list sits over. */
-  headerRef?: RefObject<HTMLElement>;
+  headerRef?: RefObject<HTMLElement | null>;
   onClose: (dismissed?: boolean) => void;
   onOpenThread: (threadId: string) => void;
   onCancelTask?: (task: ParsedScheduledTask) => Promise<void>;

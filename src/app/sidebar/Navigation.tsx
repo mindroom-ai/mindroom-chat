@@ -1,4 +1,12 @@
-import { ReactElement, ReactNode, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import {
+  ReactElement,
+  ReactNode,
+  startTransition,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import { PageRoot } from '../ui/page/Page';
@@ -103,7 +111,8 @@ export function CollapsibleSidebarNav() {
         setCollapsed(!collapsed);
         return true;
       }
-      if (collapsed) setCollapsed(false);
+      // Commit the expand after the navigation so the page that mounts with it animates it in.
+      if (collapsed) startTransition(() => setCollapsed(false));
       return false;
     },
     [canCollapse, collapsed, setCollapsed]

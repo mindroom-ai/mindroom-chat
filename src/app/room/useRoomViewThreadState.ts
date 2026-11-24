@@ -194,7 +194,7 @@ export const useRoomViewThreadState = ({
   const threadRootId = useThreadRootEvent(room, threadId);
   const effectiveThreadId = threadRootId ?? threadId;
   const resolvedThreadRootEvent = effectiveThreadId
-    ? room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId)
+    ? (room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId))
     : undefined;
   const threadSummaryInfo = effectiveThreadId ? summaryMap.get(effectiveThreadId) : undefined;
   const recentThreadSummaryText = useMemo(
@@ -381,8 +381,8 @@ export const useRoomViewThreadState = ({
   // the pending query first and compose on top of it — the trailing timer
   // would otherwise clobber a click made inside the debounce window, since
   // applyParsedThreadFilterQuery rebuilds every DSL-owned dimension.
-  const searchQueryDebounceRef = useRef<ReturnType<typeof globalThis.setTimeout>>();
-  const pendingSearchQueryRef = useRef<string>();
+  const searchQueryDebounceRef = useRef<ReturnType<typeof globalThis.setTimeout>>(undefined);
+  const pendingSearchQueryRef = useRef<string>(undefined);
   const threadFilterStateRef = useRef(threadFilterState);
   const hasMindroomAgentsRef = useRef(hasMindroomAgents);
   threadFilterStateRef.current = threadFilterState;

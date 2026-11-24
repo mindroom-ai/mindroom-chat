@@ -38,7 +38,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -281,7 +281,7 @@ const renderPrompt = (options: RenderOptions = {}) => {
         </ScreenSizeProvider>
       </Provider>,
       {
-        createNodeMock: (element) => {
+        createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => {
           if (element.type === 'input' && element.props.type === 'search') {
             return { focus: focusInput };
           }
@@ -805,7 +805,9 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
         n.type === 'input'
     );
     expect(
-      footerControls.map((n) => (n.type === 'input' ? 'input' : n.props.role ?? n.props.className))
+      footerControls.map((n) =>
+        n.type === 'input' ? 'input' : (n.props.role ?? n.props.className)
+      )
     ).toEqual(['switch', 'InviteNoteToggle', 'input']);
 
     // Collapsing skips sending the note.

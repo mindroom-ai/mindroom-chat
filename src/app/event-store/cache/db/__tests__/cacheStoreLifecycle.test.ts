@@ -208,9 +208,8 @@ it.each(['settle', 'prepare'] as const)(
   'stops %s when its lease is revoked while continuation admission finishes',
   async (phase) => {
     const writer = await createRuntime();
-    const { scanThreadRelations, DEFAULT_CONTINUATION_STORE } = await import(
-      '../../../engine/reconcilerScan'
-    );
+    const { scanThreadRelations, DEFAULT_CONTINUATION_STORE } =
+      await import('../../../engine/reconcilerScan');
     const { createClient, Room, MatrixEvent } = await import('matrix-js-sdk');
     const userId = '@writer:example.org';
     const mx = createClient({ baseUrl: 'https://matrix.example.org', userId });

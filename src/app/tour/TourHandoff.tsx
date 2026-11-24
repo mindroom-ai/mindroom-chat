@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { Editor } from '../editor/Editor.css';
 import { hasOpenOverlay } from '../lib/openOverlay';

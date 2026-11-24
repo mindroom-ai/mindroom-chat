@@ -111,8 +111,7 @@ export const startMockMatrixServer = async (
       const relType = parts[1] ? decodeURIComponent(parts[1]) : undefined;
       const matched = events.filter((ev) => {
         const rel = ev.content['m.relates_to'] as
-          | { rel_type?: string; event_id?: string }
-          | undefined;
+          { rel_type?: string; event_id?: string } | undefined;
         return rel?.event_id === targetId && (!relType || rel.rel_type === relType);
       });
       json(200, { chunk: matched.reverse() });

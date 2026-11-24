@@ -22,21 +22,30 @@ const install = (packages: Record<string, [name: string, version: string]>) => {
 };
 
 /**
- * Ends a build whose module graph holds these modules (id, and whether tree-shaking kept it), with
- * these client plugin directories.
+ * Generates a bundle whose emitted chunks hold the modules kept by tree-shaking, with these client
+ * plugin directories.
  */
-const endBuild = (modules: Record<string, boolean>, error?: Error, pluginDirs?: string[]) => {
+const endBuild = (modules: Record<string, boolean>, pluginDirs?: string[]) => {
   const plugin = onePackageCopyPerVersion(pluginDirs);
-  const buildEnd = plugin.buildEnd as unknown as (this: unknown, error?: Error) => void;
-  buildEnd.call(
+  const generateBundle = plugin.generateBundle as unknown as (
+    this: unknown,
+    options: unknown,
+    bundle: Record<string, { type: 'chunk'; moduleIds: string[] } | { type: 'asset' }>
+  ) => void;
+  const kept = Object.entries(modules)
+    .filter(([, included]) => included)
+    .map(([id]) => id);
+  generateBundle.call(
     {
-      getModuleIds: () => Object.keys(modules).values(),
-      getModuleInfo: (id: string) => ({ isIncluded: modules[id] }),
       error: (message: string) => {
         throw new Error(message);
       },
     },
-    error
+    {},
+    {
+      'index.js': { type: 'chunk', moduleIds: kept },
+      'style.css': { type: 'asset' },
+    }
   );
 };
 
@@ -72,19 +81,6 @@ describe('onePackageCopyPerVersion', () => {
     ).not.toThrow();
   });
 
-  it('leaves a build that already failed to report its own error', () => {
-    install({
-      'node_modules/a/node_modules/shared': ['shared', '1.0.0'],
-      'node_modules/b/node_modules/shared': ['shared', '1.0.0'],
-    });
-    const modules = {
-      [at('node_modules/a/node_modules/shared/index.js')]: true,
-      [at('node_modules/b/node_modules/shared/index.js')]: true,
-    };
-    expect(() => endBuild(modules, new Error('could not parse a module'))).not.toThrow();
-    expect(() => endBuild(modules)).toThrow(/shared@1\.0\.0/);
-  });
-
   it('leaves out the packages a client plugin installed in its own directory', () => {
     install({
       'node_modules/shared': ['shared', '1.0.0'],
@@ -95,8 +91,8 @@ describe('onePackageCopyPerVersion', () => {
       [at('node_modules/shared/index.js')]: true,
       [at('plugins/example/node_modules/shared/index.js')]: true,
     };
-    expect(() => endBuild(modules, undefined, [at('plugins/example')])).not.toThrow();
-    expect(() => endBuild(modules, undefined, [at('plugins/other')])).toThrow(/shared@1\.0\.0/);
+    expect(() => endBuild(modules, [at('plugins/example')])).not.toThrow();
+    expect(() => endBuild(modules, [at('plugins/other')])).toThrow(/shared@1\.0\.0/);
   });
 });
 
@@ -105,7 +101,7 @@ describe('a client plugin', () => {
     // An npm alias ("jotai-copy": "npm:jotai@2.6.0") installs jotai under another name.
     install({ 'plugins/example/node_modules/jotai-copy': ['jotai', '2.6.0'] });
     const modules = { [at('plugins/example/node_modules/jotai-copy/esm/index.mjs')]: true };
-    expect(() => endBuild(modules, undefined, [at('plugins/example')])).toThrow(
+    expect(() => endBuild(modules, [at('plugins/example')])).toThrow(
       `jotai: ${path.relative(
         process.cwd(),
         at('plugins/example/node_modules/jotai-copy')
@@ -116,6 +112,6 @@ describe('a client plugin', () => {
   it("leaves out shared packages outside the plugin's node_modules, such as the app's in a plugin directory that holds it", () => {
     install({ 'plugins/acme/client/node_modules/jotai': ['jotai', '2.6.0'] });
     const modules = { [at('plugins/acme/client/node_modules/jotai/esm/index.mjs')]: true };
-    expect(() => endBuild(modules, undefined, [at('plugins/acme')])).not.toThrow();
+    expect(() => endBuild(modules, [at('plugins/acme')])).not.toThrow();
   });
 });

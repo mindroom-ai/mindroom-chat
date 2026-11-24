@@ -12,7 +12,7 @@ const commands = {
   e2ee: { name: 'e2ee', description: 'Show encryption diagnostics.' },
 } as unknown as Record<string, SlashCommand>;
 
-const line = (...children: unknown[]) => ({ type: 'paragraph', children } as Descendant);
+const line = (...children: unknown[]) => ({ type: 'paragraph', children }) as Descendant;
 
 describe('readUnknownCommand', () => {
   it('names a leading /word that is no command', () => {

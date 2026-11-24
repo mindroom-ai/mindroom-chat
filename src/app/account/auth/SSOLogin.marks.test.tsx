@@ -1,5 +1,5 @@
 import React from 'react';
-import { create, type ReactTestInstance } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SSOAction, type IIdentityProvider } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
@@ -48,14 +48,19 @@ const HOMESERVER = 'https://hs.example';
 const mediaUrlOf = (mxc: string) =>
   `${HOMESERVER}/_matrix/media/v3/download/${mxc.slice('mxc://'.length)}`;
 
-const render = (providers: IIdentityProvider[]) =>
-  create(
-    React.createElement(SSOLogin, {
-      providers,
-      redirectUrl: 'https://chat.example/login/hs.example/',
-      action: SSOAction.LOGIN,
-    })
-  );
+const render = (providers: IIdentityProvider[]) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(SSOLogin, {
+        providers,
+        redirectUrl: 'https://chat.example/login/hs.example/',
+        action: SSOAction.LOGIN,
+      })
+    );
+  });
+  return renderer;
+};
 
 const buttonFor = (renderer: ReturnType<typeof create>, label: string): ReactTestInstance => {
   const button = renderer.root

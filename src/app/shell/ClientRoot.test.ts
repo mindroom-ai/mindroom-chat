@@ -59,7 +59,7 @@ vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 
@@ -250,7 +250,9 @@ describe('ClientRoot', () => {
   let renderer: ReactTestRenderer | undefined;
 
   afterEach(() => {
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
     renderer = undefined;
     currentSession = undefined;
     // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
@@ -581,6 +583,9 @@ describe('ClientRoot', () => {
       getSafeUserId: vi.fn(() => '@alice:example.com'),
       getSyncState: vi.fn(() => null),
       getRooms: vi.fn(() => []),
+      store: {
+        getSyncToken: vi.fn(() => null),
+      },
     };
 
     currentSession = {

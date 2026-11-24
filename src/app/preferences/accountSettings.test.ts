@@ -3,7 +3,7 @@ import {
   DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
   mergeAccountSettings,
   sanitizeAccountSettings,
-  setPluginDisabled,
+  setPluginEnabledPreference,
 } from './accountSettings';
 
 describe('sanitizeAccountSettings', () => {
@@ -40,28 +40,29 @@ describe('sanitizeAccountSettings', () => {
     expect(sanitizeAccountSettings({ macAppOffered: 'yes' }).macAppOffered).toBe(false);
   });
 
-  it('sanitizes disabledPlugins as deduplicated non-empty string IDs', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.disabledPlugins).toEqual([]);
-    expect(sanitizeAccountSettings({}).disabledPlugins).toEqual([]);
-    expect(sanitizeAccountSettings({ disabledPlugins: 'example' }).disabledPlugins).toEqual([]);
-    expect(sanitizeAccountSettings({ disabledPlugins: { example: true } }).disabledPlugins).toEqual(
-      []
-    );
-    expect(
-      sanitizeAccountSettings({
-        disabledPlugins: [
-          'pull-requests',
-          '',
-          '  ',
-          42,
-          null,
-          'thread-usage',
-          'pull-requests',
-          ' thread-usage ',
-        ],
-      }).disabledPlugins
-    ).toEqual(['pull-requests', 'thread-usage']);
-  });
+  it.each(['disabledPlugins', 'enabledPlugins'] as const)(
+    'sanitizes %s as deduplicated non-empty string IDs',
+    (key) => {
+      expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key]).toEqual([]);
+      expect(sanitizeAccountSettings({})[key]).toEqual([]);
+      expect(sanitizeAccountSettings({ [key]: 'example' })[key]).toEqual([]);
+      expect(sanitizeAccountSettings({ [key]: { example: true } })[key]).toEqual([]);
+      expect(
+        sanitizeAccountSettings({
+          [key]: [
+            'pull-requests',
+            '',
+            '  ',
+            42,
+            null,
+            'thread-usage',
+            'pull-requests',
+            ' thread-usage ',
+          ],
+        })[key]
+      ).toEqual(['pull-requests', 'thread-usage']);
+    }
+  );
 
   it('ignores unknown keys when reading', () => {
     expect(
@@ -98,16 +99,17 @@ describe('mergeAccountSettings', () => {
     ).toEqual({ showThreadsInSidebar: true, futureKey: 'x', tourOffered: true });
   });
 
-  it('preserves unknown keys when updating disabledPlugins', () => {
+  it('preserves unknown keys when updating plugin preferences', () => {
     expect(
       mergeAccountSettings(
         { showThreadsInSidebar: true, futureKey: 'x' },
-        { disabledPlugins: ['pull-requests'] }
+        { disabledPlugins: ['pull-requests'], enabledPlugins: ['opt-in'] }
       )
     ).toEqual({
       showThreadsInSidebar: true,
       futureKey: 'x',
       disabledPlugins: ['pull-requests'],
+      enabledPlugins: ['opt-in'],
     });
   });
 
@@ -121,18 +123,31 @@ describe('mergeAccountSettings', () => {
   });
 });
 
-describe('setPluginDisabled', () => {
-  it('adds and removes plugin IDs without duplicates and preserves order', () => {
-    expect(setPluginDisabled([], 'pull-requests', true)).toEqual(['pull-requests']);
-    expect(setPluginDisabled(['pull-requests'], 'pull-requests', true)).toEqual(['pull-requests']);
-    expect(setPluginDisabled(['pull-requests'], 'thread-usage', true)).toEqual([
-      'pull-requests',
-      'thread-usage',
-    ]);
-    expect(setPluginDisabled(['pull-requests', 'thread-usage'], 'pull-requests', false)).toEqual([
-      'thread-usage',
-    ]);
-    expect(setPluginDisabled(['thread-usage'], 'missing', false)).toEqual(['thread-usage']);
-    expect(setPluginDisabled(['a', 'a', ''], '  ', true)).toEqual(['a']);
+describe('setPluginEnabledPreference', () => {
+  it('moves plugin IDs between enabledPlugins and disabledPlugins without duplicates', () => {
+    expect(
+      setPluginEnabledPreference({ disabledPlugins: [], enabledPlugins: [] }, 'opt-in', true)
+    ).toEqual({ disabledPlugins: [], enabledPlugins: ['opt-in'] });
+    expect(
+      setPluginEnabledPreference(
+        { disabledPlugins: ['pull-requests', 'thread-usage'], enabledPlugins: ['opt-in'] },
+        ' pull-requests ',
+        true
+      )
+    ).toEqual({ disabledPlugins: ['thread-usage'], enabledPlugins: ['opt-in', 'pull-requests'] });
+    expect(
+      setPluginEnabledPreference(
+        { disabledPlugins: ['thread-usage'], enabledPlugins: ['opt-in', 'pull-requests'] },
+        'opt-in',
+        false
+      )
+    ).toEqual({ disabledPlugins: ['thread-usage', 'opt-in'], enabledPlugins: ['pull-requests'] });
+    expect(
+      setPluginEnabledPreference(
+        { disabledPlugins: ['a', 'a', ''], enabledPlugins: [' b ', 'b'] },
+        '  ',
+        true
+      )
+    ).toEqual({ disabledPlugins: ['a'], enabledPlugins: ['b'] });
   });
 });

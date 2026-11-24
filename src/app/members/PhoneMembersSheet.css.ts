@@ -1,7 +1,6 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, color } from 'folds';
+import { DefaultReset, color, toRem } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
-import { cardRadius } from '../ui/page/floatingCards.css';
 
 // The navigation drawer's motion (`PhoneNavDrawer.css.ts`), from the other edge; reduced motion
 // collapses it app-wide (src/index.css).
@@ -31,8 +30,8 @@ export const Scrim = style([
 
 /**
  * The sheet, as wide as the drawer: off screen past the end edge until it is out. Like the drawer,
- * it rounds its one free corner as the page's card does where it floats: the top one meets the bar
- * and the others the screen's edge.
+ * it rounds its one free lower corner to 28 px: the top meets the bar and the other edges meet the
+ * screen.
  */
 export const Panel = style([
   DefaultReset,
@@ -46,7 +45,9 @@ export const Panel = style([
     inlineSize: 'min(calc(100% - 56px), 420px)',
     backgroundColor: color.Background.Container,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
-    borderEndStartRadius: cardRadius,
+    // Cast the shadow to the side only, never upward onto the top bar.
+    clipPath: 'inset(0 -48px)',
+    borderEndStartRadius: toRem(28),
     // The last member rows stay inside the round corner.
     overflow: 'clip',
     // The last members clear the home indicator.

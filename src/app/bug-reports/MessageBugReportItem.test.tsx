@@ -108,9 +108,15 @@ const sendFromDialog = async (renderer: ReturnType<typeof create>, includeText =
   await act(async () => {
     renderer.root.findByType('button').props.onClick();
   });
+  let thrown: unknown;
   await act(async () => {
-    await renderer.root.findByType(mocks.consentDialog as never).props.onSend(includeText);
+    try {
+      await renderer.root.findByType(mocks.consentDialog as never).props.onSend(includeText);
+    } catch (error) {
+      thrown = error;
+    }
   });
+  if (thrown !== undefined) throw thrown;
 };
 
 describe('MessageBugReportItem', () => {

@@ -26,13 +26,13 @@ vi.mock('folds', async (importOriginal) => {
     Tooltip: passthrough,
     TooltipProvider: ({ children }: { children: (ref: null) => React.ReactNode }) => children(null),
     as: <T extends React.ElementType, P>(component: React.ForwardRefRenderFunction<any, P>) =>
-      React.forwardRef(component) as unknown as T,
+      React.forwardRef(component as React.ForwardRefRenderFunction<any, any>) as unknown as T,
     toRem: (value: number) => `${value / 16}rem`,
   };
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -129,19 +129,15 @@ const reaction = (sender: string, id = `$${sender}`) =>
     getTs: () => 0,
     getRelation: () => ({ rel_type: 'm.annotation' }),
     isRedacted: () => false,
-  } as MatrixEvent);
+  }) as MatrixEvent;
 const stops = (senders: string[]) =>
   new MockRelations([['🛑', new Set(senders.map((sender) => reaction(sender)))]]);
 const streamingReply = () =>
   ({
     getSender: () => AGENT,
     getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
-  } as MatrixEvent);
-const stopProps = (
-  relations: MockRelations,
-  targetEvent: MatrixEvent,
-  onReactionToggle: Mock
-) => ({
+  }) as MatrixEvent;
+const stopProps = (relations: MockRelations, targetEvent: MatrixEvent, onReactionToggle: Mock) => ({
   room: {} as never,
   mEventId: '$event',
   targetEvent,

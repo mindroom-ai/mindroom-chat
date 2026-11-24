@@ -107,7 +107,7 @@ vi.mock('../lib/hooks/useScreenSize', () => ({
 vi.mock('focus-trap-react', async () => {
   const reactModule = await import('react');
   return {
-    default: ({ children }: { children: React.ReactNode }) =>
+    FocusTrap: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('div', { 'data-testid': 'focus-trap' }, children),
   };
 });
@@ -255,9 +255,12 @@ vi.mock('./CommandPalette.css', () => ({
 const renderRenderer = (open: CommandPaletteTab | undefined) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
-  const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(CommandPaletteRenderer))
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(Provider, { store }, React.createElement(CommandPaletteRenderer))
+    );
+  });
 
   return { renderer, store };
 };

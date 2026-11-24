@@ -385,7 +385,7 @@ export function SubagentRunView({
   const openAt = node.turns.some(({ run }) => run.run === asked) ? asked : undefined;
   const following = useRef(active && !openAt);
   /** Where keeping the end left the box, so the scroll event that move fires is not the reader's. */
-  const pinnedTop = useRef<number>();
+  const pinnedTop = useRef<number>(undefined);
   /** Whether the reader saw the end before the latest change: after it, or since they scrolled. */
   const atEnd = useRef(false);
   const keepEnd = useCallback(() => {

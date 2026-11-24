@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { color, configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { darkTheme, lightTheme } from '../../src/app/theme/colors.css';

@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode } from 'react';
+import { CSSProperties, ReactNode, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
@@ -36,7 +36,9 @@ import {
   getBlobSafeMimeType,
   getFileNameExt,
   getMimeTypeBase,
+  isHeicMimeType,
 } from '../../lib/mimeTypes';
+import { MAX_HEIC_BYTES } from './imageOriginal';
 import { isRecord } from '../../lib/isRecord';
 import { isVoiceMessageContent } from './voiceMessageContent';
 
@@ -180,6 +182,8 @@ export type RenderImageContentArgs = {
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
+  /** Switches the timeline tile to a file row when the picture cannot be decoded. */
+  onFallbackToFile?: () => void;
 };
 
 /**
@@ -226,8 +230,8 @@ type MImageProps = {
 };
 
 /**
- * What an `m.image` event's content shows: the image, `'file'` for an image type a browser should
- * not render (SVG), shown as a file row, or nothing without a file.
+ * What an `m.image` event's content shows: the image, `'file'` for an image shown as a file row
+ * (SVG or oversized HEIC), or nothing without a file.
  */
 export const readImageAttachment = (
   content: MessageContent
@@ -238,7 +242,8 @@ export const readImageAttachment = (
   const mimeType = readMimeType(info);
   if (
     !getMimeTypeBase(mimeType).startsWith('image/') ||
-    getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE
+    getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE ||
+    (isHeicMimeType(mimeType) && typeof info.size === 'number' && info.size > MAX_HEIC_BYTES)
   ) {
     return 'file';
   }
@@ -251,14 +256,16 @@ export const readImageAttachment = (
   };
 };
 
-/** An image, or a file row for image types a browser should not render (SVG). */
+/** An image, or a file row for types a browser should not render (SVG) or fails to decode. */
 export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
   const image = readImageAttachment(content);
+  const [failedKey, setFailedKey] = useState<string>();
   if (!image) return <BrokenContent />;
-  if (image === 'file') return <>{renderAsFile()}</>;
+  const sourceKey = image === 'file' ? undefined : `${image.url}|${image.mimeType}`;
+  if (image === 'file' || failedKey === sourceKey) return <>{renderAsFile()}</>;
   return (
     <Box style={{ ...mediaBoxStyle(image.info), ...outlineStyle(outlined, toRem(12)) }}>
-      {renderImageContent(image)}
+      {renderImageContent({ ...image, onFallbackToFile: () => setFailedKey(sourceKey) })}
     </Box>
   );
 }

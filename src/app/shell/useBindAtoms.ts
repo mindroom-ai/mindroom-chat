@@ -5,6 +5,7 @@ import { useBindWorkflowFrames } from '../messages/live/bindWorkflowFrames';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { useModelControllerLifetime } from '../models/useModelPicker';
+import { useProviderUsageControllerLifetime } from '../usage/useProviderUsage';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
@@ -46,4 +47,5 @@ export function useBindAtoms(client: MatrixClient): void {
   // The model picker's owner listens from the start, instead of from the first thread that shows
   // a model chip; it reads the same client from MatrixClientProvider.
   useModelControllerLifetime();
+  useProviderUsageControllerLifetime();
 }

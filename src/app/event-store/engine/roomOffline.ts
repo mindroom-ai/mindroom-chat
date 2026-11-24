@@ -13,10 +13,7 @@ import {
   setEvictionDownloadingRoomIds,
   type CacheStoreWriteLease,
 } from '../cache/db';
-import {
-  readRoomOfflineProgress,
-  updateRoomOfflineProgress,
-} from '../cache/db/cacheStoreMeta';
+import { readRoomOfflineProgress, updateRoomOfflineProgress } from '../cache/db/cacheStoreMeta';
 import {
   loadRoomOfflineEventBatch,
   loadCachedEventAcrossRoomScopes,
@@ -355,7 +352,7 @@ export const createRoomOfflineController = ({
       // Automatic work visits pending owners only. Explicit Download also repairs old retained data.
       const retryProgress = await readRoomOfflineProgress(sessionId, roomId);
       // Each explicit request covers the prefix skipped by automatic continuation.
-      let after = intent.explicit ? undefined : retryProgress.retryAfterEventId ?? undefined;
+      let after = intent.explicit ? undefined : (retryProgress.retryAfterEventId ?? undefined);
       intent.fullScanPending = false;
       let retried = 0;
       const pendingIds = intent.explicit

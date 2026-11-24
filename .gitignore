@@ -1,6 +1,6 @@
 node_modules/
 dist/
-# Native Mac archives, derived data and contract-test executables.
+# Desktop build outputs and temporary build artifacts.
 /build/
 test-results/
 playwright-report/
@@ -22,6 +22,3 @@ ios/Watch/MatrixRustSDK/*.zip
 ios/Watch/MatrixRustSDK/release
 ios/Watch/MatrixRustSDK/build/
 ios/Watch/**/.build/
-
-# Sparkle for the Mac app's updater bundle (scripts/fetch-sparkle.sh).
-ios/MacUpdater/Sparkle/

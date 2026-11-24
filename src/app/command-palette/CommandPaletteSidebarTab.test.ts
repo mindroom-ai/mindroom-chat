@@ -69,9 +69,12 @@ const renderSearchTab = (open = false) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open ? 'all' : undefined);
 
-  const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(CommandPaletteSidebarTab))
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(Provider, { store }, React.createElement(CommandPaletteSidebarTab))
+    );
+  });
 
   return { renderer, store };
 };

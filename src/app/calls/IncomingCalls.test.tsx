@@ -377,4 +377,39 @@ describe('IncomingCalls ring alerts', () => {
       Reflect.deleteProperty(window, 'mindroomDesktop');
     }
   });
+
+  it('uses a per-event ring tag on desktop and keeps a room-scoped tag on web', () => {
+    calls.settings = true;
+    const tags: (string | undefined)[] = [];
+    class TagRecordingNotification {
+      static permission = 'granted';
+
+      close = vi.fn();
+
+      constructor(_title: string, options?: NotificationOptions) {
+        tags.push(options?.tag);
+      }
+    }
+    vi.stubGlobal('Notification', TagRecordingNotification);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const store = createStore();
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
+
+    const webRenderer = mountAndRing(store, '$web-ring');
+    act(() => webRenderer.unmount());
+
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { isWindowFocused: () => false },
+    });
+    let desktopRenderer: ReactTestRenderer | undefined;
+    try {
+      desktopRenderer = mountAndRing(store, '$desktop-ring-1');
+    } finally {
+      act(() => desktopRenderer?.unmount());
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+
+    expect(tags).toEqual([`call-ring-${ROOM_ID}`, `call-ring-${ROOM_ID}:$desktop-ring-1`]);
+  });
 });

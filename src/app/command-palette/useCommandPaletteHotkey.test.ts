@@ -29,7 +29,7 @@ const createKeyboardEvent = (): KeyboardEvent =>
     key: 'k',
     ctrlKey: true,
     preventDefault: vi.fn(),
-  } as unknown as KeyboardEvent);
+  }) as unknown as KeyboardEvent;
 
 const renderHookHarness = (portalChildren: unknown[] = []) => {
   const snapshot: Snapshot = {
@@ -47,7 +47,10 @@ const renderHookHarness = (portalChildren: unknown[] = []) => {
     return null;
   }
 
-  const renderer = create(React.createElement(Harness));
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(React.createElement(Harness));
+  });
 
   return {
     renderer,

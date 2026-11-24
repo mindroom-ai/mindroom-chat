@@ -56,12 +56,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('stores state under a user-and-room-scoped key', async () => {
-    const { createDefaultThreadFilterState, serializeThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState, serializeThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -88,9 +86,8 @@ describe('roomThreadFilterState', () => {
   });
 
   it('loads older room filters as off and round-trips a For me choice', async () => {
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
     const key = getRoomThreadFilterStorageKey('@alice:example.org', '!room-a:example.org');
     const atom = roomThreadFilterAtomFamily('@alice:example.org', '!room-a:example.org');
     const store = createStore();
@@ -112,12 +109,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('keeps a chosen filter that equals the default, and removes the key when cleared', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -140,9 +135,8 @@ describe('roomThreadFilterState', () => {
   });
 
   it('clears only the selected users stored thread filters', async () => {
-    const { clearRoomThreadFiltersStore, getRoomThreadFilterStorageKey } = await import(
-      './roomThreadFilterState'
-    );
+    const { clearRoomThreadFiltersStore, getRoomThreadFilterStorageKey } =
+      await import('./roomThreadFilterState');
 
     const aliceRoomA = getRoomThreadFilterStorageKey('@alice:example.org', '!room-a:example.org');
     const aliceRoomB = getRoomThreadFilterStorageKey('@alice:example.org', '!room-b:example.org');
@@ -162,9 +156,8 @@ describe('roomThreadFilterState', () => {
   });
 
   it('evicts cached atom-family entries so a removed account re-added in the same tab loads defaults', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
     const {
       clearRoomThreadFiltersStore,
       getRoomThreadFilterStorageKey,
@@ -204,9 +197,8 @@ describe('roomThreadFilterState', () => {
   });
 
   it('isolates the same roomId across different users', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
     const { roomThreadFilterAtomFamily } = await import('./roomThreadFilterState');
 
     const roomId = '!shared-room:example.org';
@@ -234,12 +226,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('updates mounted consumers when a storage event changes the same key', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -266,12 +256,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('loads a localStorage update that happens after atom creation but before mount', async () => {
-    const { createDefaultThreadFilterState, serializeThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState, serializeThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -297,12 +285,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('migrates older stored payloads by defaulting missing query and status mode', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';
@@ -345,12 +331,10 @@ describe('roomThreadFilterState', () => {
   });
 
   it('migrates the authoritative v1 DSL into canonical structured fields and free text', async () => {
-    const { createDefaultThreadFilterState } = await import(
-      '../../event-store/threads/roomThreadOverviewModel'
-    );
-    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
-      './roomThreadFilterState'
-    );
+    const { createDefaultThreadFilterState } =
+      await import('../../event-store/threads/roomThreadOverviewModel');
+    const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } =
+      await import('./roomThreadFilterState');
 
     const userId = '@alice:example.org';
     const roomId = '!room-a:example.org';

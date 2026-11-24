@@ -42,7 +42,7 @@ const hoverAndFocus = (fill: string, ring: string) =>
   ({
     '&:hover': { backgroundColor: fill },
     '&:focus-visible': { outline: `2px solid ${ring}` },
-  } as const);
+  }) as const;
 
 const pickerWidth = toRem(272);
 const effortWidth = toRem(192);
@@ -368,11 +368,19 @@ export const Results = style([
 
 export const Group = style([column, { gap: config.space.S100 }]);
 
+export const GroupHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: config.space.S200,
+  paddingBlockStart: config.space.S200,
+  paddingInline: config.space.S300,
+});
+
 export const GroupTitle = style([
   muted,
+  ellipsis,
   {
-    paddingBlockStart: config.space.S200,
-    paddingInline: config.space.S300,
     fontSize: config.fontSize.O400,
     lineHeight: toRem(16),
     fontWeight: config.fontWeight.W500,
@@ -450,6 +458,35 @@ export const Check = style({
   flexShrink: 0,
   color: color.Primary.Main,
 });
+
+export const UsageFooter = style([
+  centeredRow(config.space.S200),
+  {
+    flex: 'none',
+    justifyContent: 'space-between',
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S300,
+    borderBlockStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    fontSize: config.fontSize.T200,
+  },
+]);
+
+export const UsageUpdated = style([muted, ellipsis]);
+
+export const UsageLink = style([
+  control,
+  {
+    marginInlineStart: 'auto',
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
+    borderRadius: config.radii.R300,
+    color: color.Primary.Main,
+    fontSize: config.fontSize.T200,
+    fontWeight: config.fontWeight.W500,
+    whiteSpace: 'nowrap',
+    selectors: hoverAndFocus(color.Surface.ContainerHover, color.Primary.Main),
+  },
+]);
 
 export const Empty = style([
   muted,

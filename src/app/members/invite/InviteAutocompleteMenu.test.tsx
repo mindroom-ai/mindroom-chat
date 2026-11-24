@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type FocusTrap from 'focus-trap-react';
+import type { FocusTrap } from 'focus-trap-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
 
@@ -24,9 +24,9 @@ vi.mock('folds', async (original) => {
 // The real focus trap, so its deactivation reports come as late as they do in the app. jsdom lays
 // nothing out, so every element counts as shown for it.
 vi.mock('focus-trap-react', async (original) => {
-  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  const { FocusTrap: RealTrap } = await original<{ FocusTrap: typeof FocusTrap }>();
   return {
-    default: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: ({ focusTrapOptions, ...props }: React.ComponentProps<typeof FocusTrap>) => (
       <RealTrap
         {...props}
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}

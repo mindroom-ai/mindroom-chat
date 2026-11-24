@@ -1,16 +1,17 @@
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
-import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
-
-enableMapSet();
+import {
+  roomIdToTypingMembersAtom,
+  useBindRoomIdToTypingMembersAtom,
+} from '../matrix/state/typingMembers';
 
 const createClient = () => ({
   getAccountData: vi.fn(() => undefined),
   getRooms: vi.fn(() => []),
   on: vi.fn(),
+  off: vi.fn(),
   removeListener: vi.fn(),
 });
 
@@ -18,7 +19,9 @@ describe('account atom binding resets', () => {
   let renderer: ReactTestRenderer | undefined;
 
   afterEach(() => {
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
     renderer = undefined;
     vi.useRealTimers();
   });

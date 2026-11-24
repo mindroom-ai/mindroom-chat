@@ -59,7 +59,7 @@ export const useWindowKeepsNewestRow = ({
   threadId: string | undefined;
   setTimeline: SetTimeline;
 }) => {
-  const windowEndRef = useRef<{ end: number; count: number }>();
+  const windowEndRef = useRef<{ end: number; count: number }>(undefined);
   useLayoutEffect(() => {
     const { start, end } = activeTimelineRange;
     const previous = windowEndRef.current;
@@ -299,7 +299,7 @@ export const useRoomWindowPaginator = ({
   const pendingRoomFoldPxRef = useRef(0);
   // The window the pending fold was priced against: a render that still shows it has not mounted
   // the fold's rows.
-  const roomFoldWindowRef = useRef<ItemRange>();
+  const roomFoldWindowRef = useRef<ItemRange>(undefined);
   const roomFoldPriceRef = useRef<RoomRowFoldPrice>(() => 0);
   const handleRoomRangeChange = useCallback(
     (next: ItemRange, pagedFrom?: ItemRange) => {
@@ -362,7 +362,7 @@ export const useRoomWindowPaginator = ({
   // looks for cached thread replies), and a request made meanwhile joins it. The page's own
   // request answers for it: when one joined, the paginator looks at the sentinel again once the
   // page settles, whatever the page added, since those rows can leave the sentinel in view.
-  const backPageRef = useRef<{ page: Promise<void>; joined: boolean }>();
+  const backPageRef = useRef<{ page: Promise<void>; joined: boolean }>(undefined);
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
       const edge = back ? firstRoomTimelineRef.current : lastRoomTimelineRef.current;

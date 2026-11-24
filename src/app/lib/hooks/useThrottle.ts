@@ -18,8 +18,8 @@ export function useThrottle<A extends unknown[]>(
   const { wait = 200, immediate = false } = options ?? {};
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const argsRef = useRef<A>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const argsRef = useRef<A>(undefined);
 
   useEffect(
     () => () => {

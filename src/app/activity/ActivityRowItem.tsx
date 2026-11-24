@@ -1,4 +1,4 @@
-import { memo, useState, type MouseEvent } from 'react';
+import { memo, useState, type MouseEvent, type JSX } from 'react';
 import classNames from 'classnames';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -299,7 +299,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const lead = actorIds[0];
   const avatarMxc = room && lead ? getMemberAvatarMxc(room, lead) : undefined;
   const avatarUrl = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
+    ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined)
     : undefined;
   const suffix = sentenceSuffix(t, row);
   const kind = KIND_ICONS[row.kind];
@@ -314,7 +314,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     viewerId
   );
 
-  let preview = '';
+  let preview: string;
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
   else if (row.kind === 'approval' && row.signals.pendingApproval) {
     // What it runs shows beside Approve, as the thread's approval card shows it.

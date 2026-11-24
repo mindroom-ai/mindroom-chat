@@ -31,27 +31,27 @@ PASS and FAIL are judged per cell against the budget of that scenario: busy unde
 
 1x CPU:
 
-| Scenario | 7 streams | 25 streams | 50 streams |
-|---|---|---|---|
-| Compact view, no input | 39 % (25 and 53), 8 over 100 ms **FAIL** | 58 %, 13 over 100 ms **FAIL** | 84 %, 18 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 25 ms, 4 over 100 ms **FAIL** | p95 37 ms, 6 over 100 ms **FAIL** | p95 54 ms, 12 over 100 ms **FAIL** |
-| Open a thread from its card | 134 ms PASS | 173 ms PASS | 165 ms PASS |
-| Open thread, no input | 21 %, 1 over 100 ms **FAIL** | 34 %, 1 over 100 ms **FAIL** | 51 %, 1 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 10 ms PASS | p95 10 ms PASS | p95 10 ms PASS |
-| Back to Compact, then another thread | back 278 ms, thread 124 ms **FAIL** | back 236 ms, thread 177 ms **FAIL** | back 253 ms, thread 141 ms **FAIL** |
-| Reload to the first card (no budget) | 366 ms | 470 ms | 516 ms |
+| Scenario                             | 7 streams                                | 25 streams                          | 50 streams                          |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------- | ----------------------------------- |
+| Compact view, no input               | 39 % (25 and 53), 8 over 100 ms **FAIL** | 58 %, 13 over 100 ms **FAIL**       | 84 %, 18 over 100 ms **FAIL**       |
+| Compact view, wheel scrolling        | p95 25 ms, 4 over 100 ms **FAIL**        | p95 37 ms, 6 over 100 ms **FAIL**   | p95 54 ms, 12 over 100 ms **FAIL**  |
+| Open a thread from its card          | 134 ms PASS                              | 173 ms PASS                         | 165 ms PASS                         |
+| Open thread, no input                | 21 %, 1 over 100 ms **FAIL**             | 34 %, 1 over 100 ms **FAIL**        | 51 %, 1 over 100 ms **FAIL**        |
+| Typing in the thread composer        | p95 10 ms PASS                           | p95 10 ms PASS                      | p95 10 ms PASS                      |
+| Back to Compact, then another thread | back 278 ms, thread 124 ms **FAIL**      | back 236 ms, thread 177 ms **FAIL** | back 253 ms, thread 141 ms **FAIL** |
+| Reload to the first card (no budget) | 366 ms                                   | 470 ms                              | 516 ms                              |
 
 4x CPU:
 
-| Scenario | 7 streams | 25 streams | 50 streams |
-|---|---|---|---|
-| Compact view, no input | 95 %, 94 over 100 ms **FAIL** | 94 %, 110 over 100 ms **FAIL** | 97 %, 122 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 92 ms, 48 over 100 ms **FAIL** | p95 250 ms, 74 over 100 ms **FAIL** | p95 353 ms, 76 over 100 ms **FAIL** |
-| Open a thread from its card | 860 ms **FAIL** | 733 ms **FAIL** | 609 ms **FAIL** |
-| Open thread, no input | 58 %, 22 over 100 ms **FAIL** | 88 %, 50 over 100 ms **FAIL** | 93 %, 91 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 109 ms **FAIL** | p95 43 ms PASS | p95 200 ms **FAIL** |
+| Scenario                             | 7 streams                            | 25 streams                           | 50 streams                           |
+| ------------------------------------ | ------------------------------------ | ------------------------------------ | ------------------------------------ |
+| Compact view, no input               | 95 %, 94 over 100 ms **FAIL**        | 94 %, 110 over 100 ms **FAIL**       | 97 %, 122 over 100 ms **FAIL**       |
+| Compact view, wheel scrolling        | p95 92 ms, 48 over 100 ms **FAIL**   | p95 250 ms, 74 over 100 ms **FAIL**  | p95 353 ms, 76 over 100 ms **FAIL**  |
+| Open a thread from its card          | 860 ms **FAIL**                      | 733 ms **FAIL**                      | 609 ms **FAIL**                      |
+| Open thread, no input                | 58 %, 22 over 100 ms **FAIL**        | 88 %, 50 over 100 ms **FAIL**        | 93 %, 91 over 100 ms **FAIL**        |
+| Typing in the thread composer        | p95 109 ms **FAIL**                  | p95 43 ms PASS                       | p95 200 ms **FAIL**                  |
 | Back to Compact, then another thread | back 1024 ms, thread 804 ms **FAIL** | back 1030 ms, thread 671 ms **FAIL** | back 1026 ms, thread 236 ms **FAIL** |
-| Reload to the first card (no budget) | 1528 ms | 1628 ms | 2000 ms |
+| Reload to the first card (no budget) | 1528 ms                              | 1628 ms                              | 2000 ms                              |
 
 The open thread's one frame over 100 ms at 1x is the end of the thread's own opening, which the scenario's window still sees; without it the 7-stream cell passes (21 % busy). The 7-stream load is bursty (a census reply streams text for about 5 s and runs tools for the rest), so at 7 streams the driver's 5 s reports range from 1 to 31 frames a second, and a 30 s window catches more or fewer of the bursts; that is the spread of 25 and 53 %.
 
@@ -59,47 +59,47 @@ The open thread's one frame over 100 ms at 1x is the end of the thread's own ope
 
 1x CPU:
 
-| Scenario | 7 streams | 25 streams | 50 streams |
-|---|---|---|---|
-| Compact view, no input | 51 %, 28 over 100 ms **FAIL** | 87 %, 56 over 100 ms **FAIL** | 92 %, 72 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 67 ms, 15 over 100 ms **FAIL** | p95 100 ms, 46 over 100 ms **FAIL** | p95 133 ms, 63 over 100 ms **FAIL** |
-| Open a thread from its card | 351 ms **FAIL** | 326 ms **FAIL** | 182 ms PASS |
-| Open thread, no input | 30 %, 2 over 100 ms **FAIL** | 59 %, 2 over 100 ms **FAIL** | 81 %, 1 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 20 ms PASS | p95 26 ms PASS | p95 74 ms **FAIL** |
+| Scenario                             | 7 streams                           | 25 streams                          | 50 streams                          |
+| ------------------------------------ | ----------------------------------- | ----------------------------------- | ----------------------------------- |
+| Compact view, no input               | 51 %, 28 over 100 ms **FAIL**       | 87 %, 56 over 100 ms **FAIL**       | 92 %, 72 over 100 ms **FAIL**       |
+| Compact view, wheel scrolling        | p95 67 ms, 15 over 100 ms **FAIL**  | p95 100 ms, 46 over 100 ms **FAIL** | p95 133 ms, 63 over 100 ms **FAIL** |
+| Open a thread from its card          | 351 ms **FAIL**                     | 326 ms **FAIL**                     | 182 ms PASS                         |
+| Open thread, no input                | 30 %, 2 over 100 ms **FAIL**        | 59 %, 2 over 100 ms **FAIL**        | 81 %, 1 over 100 ms **FAIL**        |
+| Typing in the thread composer        | p95 20 ms PASS                      | p95 26 ms PASS                      | p95 74 ms **FAIL**                  |
 | Back to Compact, then another thread | back 497 ms, thread 220 ms **FAIL** | back 504 ms, thread 296 ms **FAIL** | back 488 ms, thread 201 ms **FAIL** |
-| Reload to the first card (no budget) | 1289 ms | 1685 ms | 1627 ms |
+| Reload to the first card (no budget) | 1289 ms                             | 1685 ms                             | 1627 ms                             |
 
 4x CPU:
 
-| Scenario | 7 streams | 25 streams | 50 streams |
-|---|---|---|---|
-| Compact view, no input | 97 %, 61 over 100 ms **FAIL** | 98 %, 75 over 100 ms **FAIL** | 98 %, 82 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 567 ms, 53 over 100 ms **FAIL** | p95 617 ms, 59 over 100 ms **FAIL** | p95 733 ms, 64 over 100 ms **FAIL** |
-| Open a thread from its card | 1410 ms **FAIL** | 1516 ms **FAIL** | 681 ms **FAIL** |
-| Open thread, no input | 94 %, 33 over 100 ms **FAIL** | 98 %, 78 over 100 ms **FAIL** | 98 %, 71 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 327 ms **FAIL** | p95 363 ms **FAIL** | p95 369 ms **FAIL** |
+| Scenario                             | 7 streams                             | 25 streams                           | 50 streams                           |
+| ------------------------------------ | ------------------------------------- | ------------------------------------ | ------------------------------------ |
+| Compact view, no input               | 97 %, 61 over 100 ms **FAIL**         | 98 %, 75 over 100 ms **FAIL**        | 98 %, 82 over 100 ms **FAIL**        |
+| Compact view, wheel scrolling        | p95 567 ms, 53 over 100 ms **FAIL**   | p95 617 ms, 59 over 100 ms **FAIL**  | p95 733 ms, 64 over 100 ms **FAIL**  |
+| Open a thread from its card          | 1410 ms **FAIL**                      | 1516 ms **FAIL**                     | 681 ms **FAIL**                      |
+| Open thread, no input                | 94 %, 33 over 100 ms **FAIL**         | 98 %, 78 over 100 ms **FAIL**        | 98 %, 71 over 100 ms **FAIL**        |
+| Typing in the thread composer        | p95 327 ms **FAIL**                   | p95 363 ms **FAIL**                  | p95 369 ms **FAIL**                  |
 | Back to Compact, then another thread | back 2093 ms, thread 1031 ms **FAIL** | back 2012 ms, thread 439 ms **FAIL** | back 2042 ms, thread 390 ms **FAIL** |
-| Reload to the first card (no budget) | 5040 ms | 6589 ms | 5666 ms |
+| Reload to the first card (no budget) | 5040 ms                               | 6589 ms                              | 5666 ms                              |
 
 ### 17 agents, gce-dev, 50 streams (3 runs)
 
-| Scenario | 1x CPU | 4x CPU |
-|---|---|---|
-| Compact view, no input | 79 %, 14 over 100 ms **FAIL** | 98 %, 99 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 33 ms, 12 over 100 ms **FAIL** | p95 533 ms, 57 over 100 ms **FAIL** |
-| Open a thread from its card | 358 ms **FAIL** | 809 ms **FAIL** |
-| Open thread, no input | 50 %, 1 over 100 ms **FAIL** | 96 %, 44 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 23 ms PASS | p95 139 ms **FAIL** |
+| Scenario                             | 1x CPU                              | 4x CPU                               |
+| ------------------------------------ | ----------------------------------- | ------------------------------------ |
+| Compact view, no input               | 79 %, 14 over 100 ms **FAIL**       | 98 %, 99 over 100 ms **FAIL**        |
+| Compact view, wheel scrolling        | p95 33 ms, 12 over 100 ms **FAIL**  | p95 533 ms, 57 over 100 ms **FAIL**  |
+| Open a thread from its card          | 358 ms **FAIL**                     | 809 ms **FAIL**                      |
+| Open thread, no input                | 50 %, 1 over 100 ms **FAIL**        | 96 %, 44 over 100 ms **FAIL**        |
+| Typing in the thread composer        | p95 23 ms PASS                      | p95 139 ms **FAIL**                  |
 | Back to Compact, then another thread | back 324 ms, thread 281 ms **FAIL** | back 1104 ms, thread 408 ms **FAIL** |
 
 This room has 170 threads, a third of the other profile's, so its Compact view is cheaper although it carries more frames (47 a second against 30): the Compact cost follows the number of threads more than the frame rate.
 
 ### 20 minutes of streaming (gce-dev, 50 streams, 1x, one run)
 
-| Budget | Measured | |
-|---|---|---|
-| Heap growth under 50 MB | 70 MB to 1,232 MB as sampled; the lowest sample of each 2 minutes rose from 164 MB to 1,038 MB | **FAIL** |
-| DOM node count stays bounded | 3,400 to 65,700 as sampled; 3,300 to 5,200 after a forced collection (10-minute run) | PASS |
+| Budget                       | Measured                                                                                       |          |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- | -------- |
+| Heap growth under 50 MB      | 70 MB to 1,232 MB as sampled; the lowest sample of each 2 minutes rose from 164 MB to 1,038 MB | **FAIL** |
+| DOM node count stays bounded | 3,400 to 65,700 as sampled; 3,300 to 5,200 after a forced collection (10-minute run)           | PASS     |
 
 A second run of 10 minutes (a throwaway patch) forced a collection after every minute and read the heap then: 134 MB after minute 1 and 302 MB after minute 10 at 50 streams (18 MB a minute), 81 MB and 145 MB at 7 streams (7 MB a minute). So most of the 1.2 GB is garbage a busy main thread had not collected yet, and what stays still grows 3 to 7 times faster than the budget's 2.5 MB a minute. Hotspot 4. The spec's `PERF_SOAK_GC=1`, added after these runs, reads the soak this way; its own 10-minute run at 50 streams read 156 MB after the first minute and 300 MB after the tenth.
 
@@ -107,11 +107,11 @@ A second run of 10 minutes (a throwaway patch) forced a collection after every m
 
 Per second over the whole live phase after the ramp, from the driver's own sync (mean of its 5 s reports): live frames (and the busiest 5 s), durable edits, jobs state writes.
 
-| Run | 7 streams | 25 streams | 50 streams |
-|---|---|---|---|
-| gce-dev, one agent | 11 (28), 0.6, 0.9 | 27 (32), 2.2, 3.3 | 30 (32), 4.1, 6.0 |
-| M5, one agent | 12 to 15 (31), 0.6 to 1.0, 1.0 to 1.3 | 27 (32), 2.2, 3.3 | 30 (33), 4.9, 6.9 |
-| gce-dev, 17 agents | | | 47 (77), 4.3, 1.8 |
+| Run                | 7 streams                             | 25 streams        | 50 streams        |
+| ------------------ | ------------------------------------- | ----------------- | ----------------- |
+| gce-dev, one agent | 11 (28), 0.6, 0.9                     | 27 (32), 2.2, 3.3 | 30 (32), 4.1, 6.0 |
+| M5, one agent      | 12 to 15 (31), 0.6 to 1.0, 1.0 to 1.3 | 27 (32), 2.2, 3.3 | 30 (33), 4.9, 6.9 |
+| gce-dev, 17 agents |                                       |                   | 47 (77), 4.3, 1.8 |
 
 With one agent the frames stop at 30 a second (150 in nearly every 5 s report at 50 streams): hotspot 6. With 17 agents the same 50 streams carry 47 a second and up to 77; a census reply streams text for a small part of its life, so 50 streams are far from 500 frames a second. Durable edits and jobs state writes keep growing with the streams, and the Compact cost grows with them.
 
@@ -265,12 +265,12 @@ node scripts/perf/cpuprofile-summary.mjs <out>/head/gce-<slot>/<profile> --maps 
 
 MacBook M5, Playwright's WebKit against Playwright's Chromium, 7 streams, 1x, back to back in one job (two rounds of each, same room, same driver seed; by the page's count 12.6 to 13 frames a second in every window, except one Chromium Compact window with 21). WebKit has no developer tools session, so there is no busy share, no long animation frames and no profile: only frame intervals, commits and the load.
 
-| Window | Engine | Frame p50 | Frame p95 | Longest frame | Frames painted of those possible |
-|---|---|---|---|---|---|
-| Compact, no input | Chromium (120 Hz) | 8.3 ms | 10.1, 10.2 ms | 133 ms | 91 and 90 % (3,290 and 3,243 of 3,600) |
-| Compact, no input | WebKit (60 Hz) | 17 ms | 52, 51 ms | 204, 206 ms | 84 % (1,516 and 1,515 of 1,800) |
-| Open thread, no input | Chromium | 8.3 ms | 10 ms | 34, 43 ms | 99 % |
-| Open thread, no input | WebKit | 17 ms | 25, 24 ms | 87, 89 ms | 98 % |
+| Window                | Engine            | Frame p50 | Frame p95     | Longest frame | Frames painted of those possible       |
+| --------------------- | ----------------- | --------- | ------------- | ------------- | -------------------------------------- |
+| Compact, no input     | Chromium (120 Hz) | 8.3 ms    | 10.1, 10.2 ms | 133 ms        | 91 and 90 % (3,290 and 3,243 of 3,600) |
+| Compact, no input     | WebKit (60 Hz)    | 17 ms     | 52, 51 ms     | 204, 206 ms   | 84 % (1,516 and 1,515 of 1,800)        |
+| Open thread, no input | Chromium          | 8.3 ms    | 10 ms         | 34, 43 ms     | 99 %                                   |
+| Open thread, no input | WebKit            | 17 ms     | 25, 24 ms     | 87, 89 ms     | 98 %                                   |
 
 In the earlier single pass WebKit's typing was p95 19 ms against 10 ms, and its Compact window under 29 frames a second had a frame p95 of 82 ms.
 
@@ -282,12 +282,12 @@ How it ran: the scenarios test then had no `@webkit` tag, which the `webkit` Pla
 
 The probe's `nodes` (Chrome's count of live `Node` objects) read 5,000 to 68,000 in the thread scenarios, and 140,000 to 150,000 in the production copy's thread view, while the page held far fewer attached nodes. One run on gce-dev (7 and 50 streams, 1x) counted, after `compact-idle`, `thread-open`, `thread-idle` and `switch`: Chrome's `Nodes`, the nodes attached to the documents (a tree walk, text nodes included), then forced three collections (`HeapProfiler.collectGarbage`) and counted again, twice 5 s apart.
 
-| After | Attached | `Nodes` before a collection | `Nodes` after it |
-|---|---|---|---|
-| Compact, no input | 3,040 to 3,200 | 3,200 to 3,600 | 3,200 to 3,350 |
-| Thread open | 1,630 to 1,730 | 4,400 to 9,900 | 3,850 to 3,880 |
-| Open thread, no input | 1,600 to 1,740 | 3,900 to 5,300 | 3,910 to 3,920 |
-| Five switches | 1,490 to 1,740 | 4,100 to 4,800 | 3,800 to 4,700 |
+| After                 | Attached       | `Nodes` before a collection | `Nodes` after it |
+| --------------------- | -------------- | --------------------------- | ---------------- |
+| Compact, no input     | 3,040 to 3,200 | 3,200 to 3,600              | 3,200 to 3,350   |
+| Thread open           | 1,630 to 1,730 | 4,400 to 9,900              | 3,850 to 3,880   |
+| Open thread, no input | 1,600 to 1,740 | 3,900 to 5,300              | 3,910 to 3,920   |
+| Five switches         | 1,490 to 1,740 | 4,100 to 4,800              | 3,800 to 4,700   |
 
 After a collection the count stays in one band at both levels: 2,100 to 2,300 nodes above the attached ones after a thread opens and while it is open, 2,300 (50 streams) and 3,000 (7 streams) after five switches, and about 150 above them in the Compact view (the page's other documents). The large readings are nodes waiting for the collector, made by re-rendering; they fall back at each collection. So the large counts do not hold after a collection, and the node count is not a hotspot of its own; the churn that makes them is the re-rendering of hotspots 1 and 3. The 10-minute soak agrees: 3,300 to 5,200 nodes after each forced collection. The production copy's thread view was not checked this way.
 
@@ -295,24 +295,24 @@ After a collection the count stays in one band at both levels: 2,100 to 2,300 no
 
 `e2e/perf/workloads/real-work-live.json` is made from aggregates of one production room, 2026-11-18: the 24 hours before the census, read from the backend's own records (its replies, its tool-call log and its jobs) and the room's thread tags. Only counts and percentiles were taken. It differs from the census profile above in the replies (minutes long, with many tool calls and tool traces as large as real ones) and in the background jobs and sub-agent runs that the room's jobs state lists while no reply streams.
 
-| Measure (24 h unless named) | p50 | p90 | max | Profile |
-|---|---|---|---|---|
-| Replies under way at once (each 10 s) | 5 | 11 | 20 | `live.streams` 6 (an earlier count of the busiest hours: 6, 8, 11) |
-| Reply duration (s) | 81 | 1,005 | 34,041 | tools times `toolsec` plus words over `wps`: drawn 95, 973 |
-| Words per reply | 313 | 537 | 4,024 | `reply.words` 313, 537, 1,158 |
-| Tool calls per reply | 4 | 24 | 310 | `reply.tools` 4, 24, 50 |
-| Seconds per tool step (reply time over its tool calls) | 21 | 73 | 1,893 | `reply.toolsec` 12, 73, 110 |
-| One tool call by itself (s; the log's last 14 h) | 0.4 | 58 | 4,618 | none (the stub has no model time; see below) |
-| Reply size with its tool trace (kB) | 5.3 | 22.1 | 230 | follows from the rows above and `toolout` |
-| Tool trace entry (bytes); tool output (characters, the log's last 14 h) | 751; 687 | 972; 2,048 | 2,051 | `reply.toolout` 700 (the trace keeps 500 of them) |
-| Links per reply | 0 | 1 | 5 | `reply.links` 0, 1, 5 |
-| Reasoning | | | | not in the records: the census profile's |
-| Background jobs and sub-agent runs started per reply (60 % of replies start one) | 1 | 3 | 113 | `reply.bg` 1, 3, 10 |
-| Their duration (s; to the follow-up that reports them, else their last update) | 308 | 1,972 | 11,306 | `reply.bgsec` 308, 1,972, 2,248 |
-| Of them at once: all; background tool jobs; sub-agent runs | 13; 1; 11 | 29; 7; 23 | 55; 40; 42 | `live.jobs` 13 |
-| Job records started a minute | 4 | 14 | 41 | none: the stub's calls and jobs write the state |
-| Turns per thread, 25 days: the tenth with 28 or more (19 threads, 8 of them open); the others | 42; 4 | 72; 15 | 101; 27 | `heavy` (8 threads), `turns` |
-| Pause between a thread's replies (s; gaps under 1 h, 95 % of them) | 266 | 1,776 | 3,551 | `live.pauseSeconds` |
+| Measure (24 h unless named)                                                                   | p50       | p90        | max        | Profile                                                            |
+| --------------------------------------------------------------------------------------------- | --------- | ---------- | ---------- | ------------------------------------------------------------------ |
+| Replies under way at once (each 10 s)                                                         | 5         | 11         | 20         | `live.streams` 6 (an earlier count of the busiest hours: 6, 8, 11) |
+| Reply duration (s)                                                                            | 81        | 1,005      | 34,041     | tools times `toolsec` plus words over `wps`: drawn 95, 973         |
+| Words per reply                                                                               | 313       | 537        | 4,024      | `reply.words` 313, 537, 1,158                                      |
+| Tool calls per reply                                                                          | 4         | 24         | 310        | `reply.tools` 4, 24, 50                                            |
+| Seconds per tool step (reply time over its tool calls)                                        | 21        | 73         | 1,893      | `reply.toolsec` 12, 73, 110                                        |
+| One tool call by itself (s; the log's last 14 h)                                              | 0.4       | 58         | 4,618      | none (the stub has no model time; see below)                       |
+| Reply size with its tool trace (kB)                                                           | 5.3       | 22.1       | 230        | follows from the rows above and `toolout`                          |
+| Tool trace entry (bytes); tool output (characters, the log's last 14 h)                       | 751; 687  | 972; 2,048 | 2,051      | `reply.toolout` 700 (the trace keeps 500 of them)                  |
+| Links per reply                                                                               | 0         | 1          | 5          | `reply.links` 0, 1, 5                                              |
+| Reasoning                                                                                     |           |            |            | not in the records: the census profile's                           |
+| Background jobs and sub-agent runs started per reply (60 % of replies start one)              | 1         | 3          | 113        | `reply.bg` 1, 3, 10                                                |
+| Their duration (s; to the follow-up that reports them, else their last update)                | 308       | 1,972      | 11,306     | `reply.bgsec` 308, 1,972, 2,248                                    |
+| Of them at once: all; background tool jobs; sub-agent runs                                    | 13; 1; 11 | 29; 7; 23  | 55; 40; 42 | `live.jobs` 13                                                     |
+| Job records started a minute                                                                  | 4         | 14         | 41         | none: the stub's calls and jobs write the state                    |
+| Turns per thread, 25 days: the tenth with 28 or more (19 threads, 8 of them open); the others | 42; 4     | 72; 15     | 101; 27    | `heavy` (8 threads), `turns`                                       |
+| Pause between a thread's replies (s; gaps under 1 h, 95 % of them)                            | 266       | 1,776      | 3,551      | `live.pauseSeconds`                                                |
 
 Counts: 952 replies in 79 threads; 187 threads with replies in the 25 days of records, 159 of them resolved (`threads` 187, `resolvedThreads` 159); the room's thread tags name 654 threads, 625 of them resolved, whose history with these turns would take more than the hour the history phase has. One agent replied (`agents` 1). Per reply, the agent added 1.4 reactions and 1.0 redactions and people 0.05 reactions; the stack's backend makes its own (1.0 and 1.0 a reply in a check run), so the profile has no field for them, nor for the agent's 16 message events (edits) a reply. 112 other rooms are known to the backend, 8 of which had 28 to 314 events in the 24 h (`quietRooms` 112, `quietMessages` 10).
 
@@ -331,32 +331,32 @@ Limits of the profile:
 
 Commit `935bb5127` (the app's `src` tree is that of main at `1a9a0fcf6`), gce-dev slots 70 and 71 at once, `PERF_CPU_THROTTLE=1,4 PERF_PROFILE=1`, 6 streams; two runs, given as "first, second". Both held 6 streams in every window and gave up no reply as stuck. Budgets as under "Result against the budgets"; back and switch are each run's median of its 5 steps.
 
-| Scenario | 1x CPU | 4x CPU |
-|---|---|---|
-| Compact view, no input | 18 %, 18 %; p95 17 ms; 3 and 2 over 100 ms **FAIL** | 76 %, 70 %; p95 33 ms; 22 and 22 over 100 ms **FAIL** |
-| Compact view, wheel scrolling | p95 17 ms, 0 over 100 ms PASS | p95 33 and 50 ms, 4 and 8 over 100 ms **FAIL** |
-| Open a thread from its card | 313 and 320 ms **FAIL** | 1,082 and 1,349 ms **FAIL** |
-| Open thread, no input | 17 %, 14 %; p95 17 ms; 1 and 1 over 100 ms **FAIL** | 57 %, 44 %; p95 50 and 33 ms; 13 and 11 over 100 ms **FAIL** |
-| Typing in the thread composer | p95 18 and 19 ms PASS | p95 58 and 110 ms **FAIL** |
-| Back to Compact, then another thread | back 156 and 143 ms, thread 481 and 243 ms **FAIL** | back 592 and 693 ms, thread 886 and 1,135 ms **FAIL** |
-| Reload to the first card (no budget) | 1,024 and 1,091 ms | 3,894 and 4,252 ms |
+| Scenario                             | 1x CPU                                              | 4x CPU                                                       |
+| ------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------ |
+| Compact view, no input               | 18 %, 18 %; p95 17 ms; 3 and 2 over 100 ms **FAIL** | 76 %, 70 %; p95 33 ms; 22 and 22 over 100 ms **FAIL**        |
+| Compact view, wheel scrolling        | p95 17 ms, 0 over 100 ms PASS                       | p95 33 and 50 ms, 4 and 8 over 100 ms **FAIL**               |
+| Open a thread from its card          | 313 and 320 ms **FAIL**                             | 1,082 and 1,349 ms **FAIL**                                  |
+| Open thread, no input                | 17 %, 14 %; p95 17 ms; 1 and 1 over 100 ms **FAIL** | 57 %, 44 %; p95 50 and 33 ms; 13 and 11 over 100 ms **FAIL** |
+| Typing in the thread composer        | p95 18 and 19 ms PASS                               | p95 58 and 110 ms **FAIL**                                   |
+| Back to Compact, then another thread | back 156 and 143 ms, thread 481 and 243 ms **FAIL** | back 592 and 693 ms, thread 886 and 1,135 ms **FAIL**        |
+| Reload to the first card (no budget) | 1,024 and 1,091 ms                                  | 3,894 and 4,252 ms                                           |
 
 The load (driver, after the ramp, both runs): 6.2 live frames a second (30 in the busiest 5 s), 0.59 durable edits and 0.46 jobs state writes a second. The room's own rates for comparison: its agent's message events (replies and their edits) came at 0.18 a second over the 24 h and its job records started at 0.1 a second, each listed one rewriting the state when it starts and ends; so the run's edits are about 3 times and its jobs state writes at least 2.4 times the room's. The jobs state listed 13 jobs at the first window and 42 to 50 at the end, of them 20 to 34 older than 2 minutes (the background jobs), in 14 to 21 threads: the room had 13 at the median and 29 at p90.
 
 Where the main thread goes, 1x, inclusive time over the window's wall time (both runs within 0.1 point but where named; `cpuprofile-summary.mjs --top 40`, no warning):
 
-| Compact view, no input | Share | Open thread, no input | Share |
-|---|---|---|---|
-| `RoomTimelineRows` (`src/app/timeline/RoomTimeline.tsx:286`) | 0.9 % | `RoomTimelineRows` (`RoomTimeline.tsx:286`) | 0.8, 0.5 % |
-| the thread index (`src/app/threads/overview/useThreadIndex.ts:346`) | 0.6 % | the sync's fetch (`src/app/matrix/client/syncStall.ts:78`) | 0.4 % |
-| the event cache's write (`src/app/event-store/cache/db/cacheStoreEvents.ts:963`) | 0.5 % | the reachability check around it (`src/app/matrix/client/homeserverReachability.ts:91`) | 0.4 % |
-| the event cache's read (`cacheStoreEvents.ts:1584`) | 0.4 % | the client's fetch (`src/app/matrix/client/matrixClientFactory.ts:63`) | 0.3 % |
-| the sync's fetch (`syncStall.ts:78`) | 0.4 % | the saved redactions' gap (`src/app/matrix/client/savedSyncRedactions.ts:208`) | 0.3 % |
-| the reachability check (`homeserverReachability.ts:91`) | 0.4 % | `deepTrace` (`src/app/diagnostics/deepTrace.ts:699`) | 0.3 % |
-| the client's fetch (`matrixClientFactory.ts:63`) | 0.4 % | the thread's approvals (`src/app/approvals/ThreadApprovalProvider.tsx:187`) | 0.2 % |
-| `src/app/event-store/cache/eventRepository.ts:1276` | 0.4 % | `src/app/approvals/threadApprovalEvents.ts:100` | 0.2 % |
-| `deepTrace` (`deepTrace.ts:699`) | 0.4 % | the turn folds (`src/app/timeline/useThreadTurnFolds.ts:117`) | 0.3, 0.1 % |
-| the thread records (`src/app/event-store/threads/threadRecord.ts:334`) | 0.4 % | `src/app/timeline/threadTurnFolds.ts:75` | 0.3, 0.1 % |
+| Compact view, no input                                                           | Share | Open thread, no input                                                                   | Share      |
+| -------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------- | ---------- |
+| `RoomTimelineRows` (`src/app/timeline/RoomTimeline.tsx:286`)                     | 0.9 % | `RoomTimelineRows` (`RoomTimeline.tsx:286`)                                             | 0.8, 0.5 % |
+| the thread index (`src/app/threads/overview/useThreadIndex.ts:346`)              | 0.6 % | the sync's fetch (`src/app/matrix/client/syncStall.ts:78`)                              | 0.4 %      |
+| the event cache's write (`src/app/event-store/cache/db/cacheStoreEvents.ts:963`) | 0.5 % | the reachability check around it (`src/app/matrix/client/homeserverReachability.ts:91`) | 0.4 %      |
+| the event cache's read (`cacheStoreEvents.ts:1584`)                              | 0.4 % | the client's fetch (`src/app/matrix/client/matrixClientFactory.ts:63`)                  | 0.3 %      |
+| the sync's fetch (`syncStall.ts:78`)                                             | 0.4 % | the saved redactions' gap (`src/app/matrix/client/savedSyncRedactions.ts:208`)          | 0.3 %      |
+| the reachability check (`homeserverReachability.ts:91`)                          | 0.4 % | `deepTrace` (`src/app/diagnostics/deepTrace.ts:699`)                                    | 0.3 %      |
+| the client's fetch (`matrixClientFactory.ts:63`)                                 | 0.4 % | the thread's approvals (`src/app/approvals/ThreadApprovalProvider.tsx:187`)             | 0.2 %      |
+| `src/app/event-store/cache/eventRepository.ts:1276`                              | 0.4 % | `src/app/approvals/threadApprovalEvents.ts:100`                                         | 0.2 %      |
+| `deepTrace` (`deepTrace.ts:699`)                                                 | 0.4 % | the turn folds (`src/app/timeline/useThreadTurnFolds.ts:117`)                           | 0.3, 0.1 % |
+| the thread records (`src/app/event-store/threads/threadRecord.ts:334`)           | 0.4 % | `src/app/timeline/threadTurnFolds.ts:75`                                                | 0.3, 0.1 % |
 
 The crypto machine's sync handling (`OlmMachine::receive_sync_changes`, hotspot 11) is the largest single block in both, 2.1 to 2.2 % of the Compact window: more than any of the app's functions.
 

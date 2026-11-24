@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import {
@@ -42,6 +42,9 @@ vi.mock('../ui/sidebar/SidebarContent', () => ({
 vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: tab('canvases'),
+}));
+vi.mock('./rail/UsageTab', () => ({
+  UsageTab: tab('usage'),
 }));
 vi.mock('./rail/DirectTab', () => ({
   DirectTab: tab('direct'),
@@ -87,13 +90,16 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const CANVASES: ClientConfig = { mindroom: { canvas: { enabled: true } } };
 
 const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.Desktop) => {
-  const renderer = create(
-    <ScreenSizeProvider value={screenSize}>
-      <ClientConfigProvider value={config}>
-        <SidebarNav />
-      </ClientConfigProvider>
-    </ScreenSizeProvider>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <ScreenSizeProvider value={screenSize}>
+        <ClientConfigProvider value={config}>
+          <SidebarNav />
+        </ClientConfigProvider>
+      </ScreenSizeProvider>
+    );
+  });
   const tabs = renderer.root
     .findAll((node) => typeof node.props['data-tab'] === 'string')
     .map((node) => node.props['data-tab'] as string);
@@ -105,6 +111,7 @@ const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.D
 const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['threads', 'showThreadsInSidebar'],
   ['canvases', 'showCanvasesInSidebar'],
+  ['usage', 'showUsageInSidebar'],
   ['explore', 'showExploreInSidebar'],
   ['createSpace', 'showCreateSpaceInSidebar'],
   ['search', 'showSearchInSidebar'],
@@ -142,6 +149,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'activity',
       'threads',
       'canvases',
+      'usage',
       'spaces',
       'explore',
       'createSpace',
@@ -156,7 +164,7 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_ON, [setting]: false };
     const { tabs } = renderedTabs();
     expect(tabs).not.toContain(button);
-    expect(tabs).toHaveLength(11);
+    expect(tabs).toHaveLength(12);
   });
 
   it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {

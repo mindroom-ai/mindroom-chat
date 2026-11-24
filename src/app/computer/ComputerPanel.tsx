@@ -28,13 +28,7 @@ const LazyComputerScreen = lazyPart(() => import('./ComputerScreen'), ComputerSc
 const actionButtonProps = { size: '300', fill: 'Soft', outlined: true, radii: '300' } as const;
 
 type PanelPhase =
-  | 'selecting'
-  | 'connecting'
-  | 'reconnecting'
-  | 'ready'
-  | 'disconnected'
-  | 'stopped'
-  | 'error';
+  'selecting' | 'connecting' | 'reconnecting' | 'ready' | 'disconnected' | 'stopped' | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
 // Starts at capture, not at connect. A release slower than this falls back to a blank screen.
@@ -156,20 +150,20 @@ export function ComputerPanel({
   const [releaseNotice, setReleaseNotice] = useState<'released' | 'sent'>();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const screenRef = useRef<ComputerScreenHandle>(null);
-  const sessionRef = useRef<ComputerSessionClient>();
+  const sessionRef = useRef<ComputerSessionClient>(undefined);
   const lifecycleRef = useRef(0);
-  const activeStreamTicketRef = useRef<string>();
-  const releasingStreamTicketRef = useRef<string>();
+  const activeStreamTicketRef = useRef<string>(undefined);
+  const releasingStreamTicketRef = useRef<string>(undefined);
   const disposedSessionsRef = useRef(new WeakSet<ComputerSessionClient>());
   // Aborted by the session effect's cleanup, which cancels every pending retry and request.
-  const lifecycleSignalRef = useRef<AbortSignal>();
-  const connectedStreamRef = useRef<{ ticket: string; since: number }>();
+  const lifecycleSignalRef = useRef<AbortSignal>(undefined);
+  const connectedStreamRef = useRef<{ ticket: string; since: number }>(undefined);
   // Automatic reconnect attempts since a stream last stayed connected.
   const reconnectAttemptsRef = useRef(0);
   const recoverOnRestartRef = useRef(false);
   // Lets the session effect hand a replacement session's failed first connect to the retry policy.
   const reconnectAutomaticallyRef =
-    useRef<(session: ComputerSessionClient, message?: string) => Promise<void>>();
+    useRef<(session: ComputerSessionClient, message?: string) => Promise<void>>(undefined);
 
   const chosenAgent = useMemo(
     () => agents.find((agent) => agent.userId === chosenAgentId),

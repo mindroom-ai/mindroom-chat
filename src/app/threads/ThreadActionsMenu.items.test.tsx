@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -68,7 +67,7 @@ vi.mock('folds', async (original) => ({
   PopOut: ({ content }: { content: React.ReactNode }) => content,
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const rootEvent = new MatrixEvent({
@@ -331,8 +330,8 @@ describe('ThreadActionsMenu rows', () => {
     const menu = host.querySelector<HTMLElement>('[role="menu"]');
 
     // Narrower only on a screen without the room for it and a margin.
-    expect(menu?.getAttribute('style')).toContain('min-width: min(13.75rem, calc(100vw - 1rem))');
-    expect(menu?.getAttribute('style')).toContain('max-width: calc(100vw - 1rem)');
+    expect(menu?.style.minWidth).toBe('min(13.75rem, -1rem + 100vw)');
+    expect(menu?.style.maxWidth).toBe('calc(-1rem + 100vw)');
     expect(menu?.style.borderRadius).toBe(config.radii.R500);
   });
 });
@@ -448,6 +447,7 @@ describe("ThreadActionsMenu's thread details", () => {
     id,
     tag: `${id}@1.0.0`,
     displayName: id,
+    defaultEnabled: true,
     conversationCovers: [],
     messageRenderers: [],
     pages: [],

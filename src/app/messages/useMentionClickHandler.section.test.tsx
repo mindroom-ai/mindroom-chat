@@ -4,7 +4,7 @@
 // a room that is not joined opens in. useMentionClickHandler.test.tsx covers the handler alone.
 
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -43,7 +43,7 @@ const makeRoom = (
     getCanonicalAlias: () => alias,
     getAltAliases: () => [],
     isSpaceRoom: () => isSpace,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const rooms = [
   makeRoom(SPACE_ID, { isSpace: true }),

@@ -6,19 +6,19 @@ How to build the client, serve it, and point it at a homeserver and a MindRoom b
 
 `just build` writes a static site to `dist/`:
 
-| File | Purpose |
-|---|---|
-| `index.html`, `assets/`, `res/`, `sound/`, `public/locales/`, `manifest.json` | the app |
-| `config.json` | a copy of `config/mindroom.json`; replace it per deployment ([`configuration.md`](configuration.md)) |
-| `runtime-config.js` | sets the deployment globals before the app starts (base path, service worker, sign-in recovery) |
-| `authentication-recovery.js` | recovers sign-in behind an authenticating proxy |
-| `sw.js` | the service worker: precaches what a signed-in start needs for offline starts, keeps the build's other files and the language catalogs once a page has loaded them, fetches authenticated media |
-| `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
-| `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
-| `public/plugins/<id>/` | the files of each client plugin's `public/` directory, in a build with plugins ([`client-plugins.md`](client-plugins.md#public-files)) |
+| File                                                                          | Purpose                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.html`, `assets/`, `res/`, `sound/`, `public/locales/`, `manifest.json` | the app                                                                                                                                                                                         |
+| `config.json`                                                                 | a copy of `config/mindroom.json`; replace it per deployment ([`configuration.md`](configuration.md))                                                                                            |
+| `runtime-config.js`                                                           | sets the deployment globals before the app starts (base path, service worker, sign-in recovery)                                                                                                 |
+| `authentication-recovery.js`                                                  | recovers sign-in behind an authenticating proxy                                                                                                                                                 |
+| `sw.js`                                                                       | the service worker: precaches what a signed-in start needs for offline starts, keeps the build's other files and the language catalogs once a page has loaded them, fetches authenticated media |
+| `version.json`                                                                | the build version, polled by running clients, whose service worker then installs a new deployment for the next start                                                                            |
+| `public/licenses/`                                                            | `LICENSE`, `NOTICE` and third-party license texts                                                                                                                                               |
+| `public/plugins/<id>/`                                                        | the files of each client plugin's `public/` directory, in a build with plugins ([`client-plugins.md`](client-plugins.md#public-files))                                                          |
 
 - `branding` in `config.json` puts a company's logo, name and footer on the sign-in pages without a new build ([`configuration.md`](configuration.md#branding)).
-- `just build`, `npm run build:ios` (the iOS and Mac apps, through `scripts/build.sh`) and the container image build in the client plugins `bundled-plugins.txt` pins at a commit of each one's GitHub repository (today [pull requests](https://github.com/mindroom-ai/pull-request-client-plugin): GitHub pull request cards, a thread's pull requests and worktree branch, and the pull request side panel; and [thread usage](https://github.com/mindroom-ai/thread-usage-client-plugin): per-thread AI cost, tokens, models, and context window telemetry on Compact cards and thread details), downloaded and installed by `scripts/bundled-plugins.mjs` into `~/.cache/mindroom-chat/bundled-plugins/`. `MINDROOM_CLIENT_PLUGINS` names other plugins instead; set empty (`MINDROOM_CLIENT_PLUGINS= just build`, `--build-arg MINDROOM_CLIENT_PLUGINS=`) it builds none. `npx vite build` and `npm run build` take only the plugins the variable names.
+- `just build`, `npm run build:ios` (the iOS and Mac apps, through `scripts/build.sh`) and the container image build in the client plugins `bundled-plugins.txt` pins at a commit of each one's GitHub repository (today [pull requests](https://github.com/mindroom-ai/pull-request-client-plugin): GitHub pull request cards, a thread's pull requests and worktree branch, and the pull request side panel; and [thread usage](https://github.com/mindroom-ai/thread-usage-client-plugin): per-thread AI cost, tokens, models, and context window telemetry on Compact cards and thread details, off by default until enabled in Settings → Plugins), downloaded and installed by `scripts/bundled-plugins.mjs` into `~/.cache/mindroom-chat/bundled-plugins/`. `MINDROOM_CLIENT_PLUGINS` names other plugins instead; set empty (`MINDROOM_CLIENT_PLUGINS= just build`, `--build-arg MINDROOM_CLIENT_PLUGINS=`) it builds none. `npx vite build` and `npm run build` take only the plugins the variable names.
 - `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`); client plugins add a digest of their files to the first.
 
 ## Serve
@@ -34,12 +34,12 @@ Who may frame the app is a response header, not part of the build (values in `sc
 
 Every release publishes `ghcr.io/mindroom-ai/mindroom-chat` for `linux/amd64` and `linux/arm64`, built from the release's commit as that release. Releases are the calendar versions `vYYYY.M.N` of [`ios-release.md`](ios-release.md#calendar-versions): one after every push to `main` whose CI passes, and any cut by hand with `just release`.
 
-| Tag | Image |
-|---|---|
-| `YYYY.M.N`, for example `2026.11.0` | release `v2026.11.0` |
-| `vYYYY.M.N` | the same image, under the release's Git tag |
-| `sha-<commit>` | the same image, under the first 7 characters of the release's commit |
-| `latest` | the newest release, once its image is published |
+| Tag                                 | Image                                                                                    |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `YYYY.M.N`, for example `2026.11.0` | release `v2026.11.0`                                                                     |
+| `vYYYY.M.N`                         | the same image, under the release's Git tag                                              |
+| `sha-<commit>`                      | the same image, under the first 7 characters of the release's commit                     |
+| `latest`                            | the newest release, once its image is published                                          |
 | `dev`, `commit-<sha>`, branch names | the earlier MindRoom Chat app, from its own repository; this repository never moves them |
 
 A release's own tags never move to another image. The image reports its release everywhere: `version.json` holds `{"version":"v2026.11.0","release":"v2026.11.0"}`, Settings > About shows `v2026.11.0`, and the labels `org.opencontainers.image.version` and `org.opencontainers.image.revision` name the release and its commit.

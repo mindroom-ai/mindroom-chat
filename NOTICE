@@ -29,7 +29,7 @@ and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
 (see below). scripts/license-check.mjs accepts these licenses:
 MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
 Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
-MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
+MPL-2.0 (used unmodified), Python-2.0 and PSF-2.0 (argparse), and Unlicense (big-integer
 and stream-buffers, under @capacitor/cli). It accepts six packages by name:
 require-like and khroma (MIT license text, no license field; khroma is part of
 Mermaid's build for canvases), elkjs (see below), caniuse-lite (CC-BY-4.0
@@ -59,16 +59,6 @@ Electron (Mac desktop shell)
   Node.js; their third-party notices ship alongside the Electron runtime
   (LICENSES.chromium.html and LICENSE in the Electron distribution).
 
-Sparkle (Mac app updater)
-  Sparkle 2.10.1, Copyright (c) 2006-2013 Andy Matuschak and the other
-  authors its license names, MIT License (https://github.com/sparkle-project/Sparkle).
-  The Developer ID Mac app embeds it unmodified in its updater bundle,
-  fetched by scripts/fetch-sparkle.sh. Its license file also covers the parts
-  it includes: bsdiff 4.3 (BSD-style, Copyright 2003-2005 Colin Percival),
-  sais-lite (MIT, Copyright 2008-2010 Yuta Mori), orlp/ed25519 (zlib,
-  Copyright 2015 Orson Peters) and SUSignatureVerifier.m (BSD-style,
-  Copyright 2011 Mark Hamlin). License text: licenses/Sparkle-MIT.txt.
-
 noVNC
   @novnc/novnc 1.7.0, Copyright (C) The noVNC authors, Mozilla Public License
   2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.
@@ -88,10 +78,10 @@ folds
   listed under "Modified dependencies".
 
 Inter
-  The Inter typeface, Copyright 2020 The Inter Project Authors
+  The Inter typeface, Copyright 2016 The Inter Project Authors
   (https://github.com/rsms/inter), SIL Open Font License 1.1, packaged as
-  @fontsource/inter 4.5.14 (MIT). The web bundle includes its font files
-  unmodified. License text: licenses/Inter-OFL-1.1.txt.
+  @fontsource-variable/inter 5.3.0 (OFL-1.1). The web bundle includes its font
+  files unmodified. License text: licenses/Inter-OFL-1.1.txt.
 
 KaTeX fonts
   The math renderer, katex 0.19.1 (MIT, Copyright (c) 2013-2020 Khan Academy
@@ -263,11 +253,8 @@ Modified dependencies
     WebViewAssetHandler.swift, CAPNotifications.swift,
     WebViewDelegationHandler.swift.
 
-  i18next 23.12.2 (MIT), patches/i18next+23.12.2.patch modifies:
-    dist/cjs/i18next.js, dist/esm/i18next.js.
-
-  scheduler 0.23.2 (MIT), patches/scheduler+0.23.2.patch modifies:
-    cjs/scheduler.development.js, cjs/scheduler.production.min.js, and adds
+  scheduler 0.28.0 (MIT), patches/scheduler+0.28.0.patch modifies:
+    cjs/scheduler.development.js, cjs/scheduler.production.js, and adds
     cjs/mindroom-wakeup.js.
 
   @tanstack/virtual-core 3.17.3 (MIT),

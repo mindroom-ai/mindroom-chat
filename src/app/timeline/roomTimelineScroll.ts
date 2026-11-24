@@ -408,7 +408,7 @@ export const useLatestRowPin = ({
     // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
     // will end is at the newest row: the end the list has now would show a blank band above the
     // composer for a frame. Any other reader is brought to the end the list has.
-    const heldPx = listHeightHeld ? pendingListShrinkPx?.() ?? 0 : 0;
+    const heldPx = listHeightHeld ? (pendingListShrinkPx?.() ?? 0) : 0;
     if (
       heldPx >= 1 &&
       scrollElement &&
@@ -429,7 +429,7 @@ export const useLatestRowPin = ({
  * renders it hidden. iOS only; the timeline's own pins never call it.
  */
 export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
-  const restoreRef = useRef<(() => void) | undefined>();
+  const restoreRef = useRef<(() => void) | undefined>(undefined);
   const restore = useCallback(() => {
     const pendingRestore = restoreRef.current;
     if (!pendingRestore) return;
@@ -497,7 +497,7 @@ export const useGestureBottomPins = ({
  */
 export const useThreadOpenedAtLatest = (viewKey: string, latestPending: boolean) => {
   const viewKeyRef = useLatestRef(viewKey);
-  const openedViewKeyRef = useRef<string>();
+  const openedViewKeyRef = useRef<string>(undefined);
   const openedAtLatestRef = useViewScopedFlag(viewKey);
   const startOpen = useCallback(() => {
     openedViewKeyRef.current = viewKeyRef.current;

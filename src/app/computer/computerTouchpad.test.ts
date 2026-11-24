@@ -5,10 +5,7 @@ import { attachComputerTouchpad } from './computerTouchpad';
 import { SCROLL_GAIN, pointerGain } from './touchpadGestures';
 // noVNC's mouse capture, which its canvas takes on every mousedown. The package exports only RFB.
 /* eslint-disable import/no-relative-packages */
-import {
-  releaseCapture,
-  setCapture,
-} from '../../../node_modules/@novnc/novnc/core/util/events.js';
+import { releaseCapture, setCapture } from '../../../node_modules/@novnc/novnc/core/util/events.js';
 /* eslint-enable import/no-relative-packages */
 
 type Finger = { id: number; x: number; y: number; on?: EventTarget };

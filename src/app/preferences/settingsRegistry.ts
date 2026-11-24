@@ -37,6 +37,8 @@ export type SettingsContext = {
   errorReporting: boolean;
   /** The sidebar buttons the deployment offers a switch for. */
   railButtons: Readonly<Record<string, boolean>>;
+  /** The packaged Electron desktop app's updater bridge is present (native/nativeUpdate.ts). */
+  nativeUpdate: boolean;
   /** The deployment offers the Mac app and this is a browser on a Mac (native/macApp.ts). */
   macApp: boolean;
   /** At least one bundled client plugin is left enabled by deployment config.json. */
@@ -175,6 +177,7 @@ const DEV = 'featureUi.settings.developerTools';
 export const SIDEBAR_SWITCH_SETTINGS = {
   threads: 'sidebarThreads',
   canvases: 'sidebarCanvases',
+  usage: 'sidebarUsage',
   explore: 'sidebarExplore',
   createSpace: 'sidebarCreateSpace',
   search: 'sidebarSearch',
@@ -624,6 +627,7 @@ export const SETTINGS = [
     'settings.general.interface.showCanvasesInSidebar',
     `${SIDEBAR}.canvasesDescription`
   ),
+  sidebarSwitch('usage', `${SIDEBAR}.usage`, `${SIDEBAR}.usageDescription`),
   sidebarSwitch('explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
   sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
   sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
@@ -780,6 +784,16 @@ export const SETTINGS = [
     hidden: (context) => !context.developerTools,
   },
   {
+    id: 'appUpdates',
+    page: 'about',
+    group: `${ABOUT}.options`,
+    labelKey: `${ABOUT}.updatesTitle`,
+    descriptionKey: `${ABOUT}.updatesDescription`,
+    keywordsKey: `${KEYWORDS}.appUpdates`,
+    scope: 'device',
+    hidden: (context) => !context.nativeUpdate,
+  },
+  {
     id: 'macApp',
     page: 'about',
     group: `${ABOUT}.options`,
@@ -835,14 +849,12 @@ export const SETTINGS = [
 ] as const satisfies readonly SettingDefinition[];
 
 const PAGE_BY_REQUEST = new Map<string, SettingsPageId>(
-  SETTINGS_PAGES.flatMap(
-    (page): Array<[string, SettingsPageId]> => [
-      [page.id, page.id],
-      ...('aliases' in page
-        ? page.aliases.map((alias): [string, SettingsPageId] => [alias, page.id])
-        : []),
-    ]
-  )
+  SETTINGS_PAGES.flatMap((page): Array<[string, SettingsPageId]> => [
+    [page.id, page.id],
+    ...('aliases' in page
+      ? page.aliases.map((alias): [string, SettingsPageId] => [alias, page.id])
+      : []),
+  ])
 );
 
 /** The page an id or earlier id names; `undefined` for anything else. */

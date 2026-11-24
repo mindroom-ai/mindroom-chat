@@ -38,7 +38,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('./viewers/EventSourceViewer', () => ({
   EventSourceViewer: ({ name }: { name: string }) => <div data-viewer-name={name} />,
@@ -66,11 +66,14 @@ describe('MessageSourceCodeItem', () => {
       replacingEvent: () => undefined,
     };
     const room = { getTimelineForEvent: () => undefined };
-    const renderer = create(
-      <I18nextProvider i18n={language}>
-        <MessageSourceCodeItem room={room as never} mEvent={event as never} />
-      </I18nextProvider>
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <MessageSourceCodeItem room={room as never} mEvent={event as never} />
+        </I18nextProvider>
+      );
+    });
 
     const findDialog = () =>
       renderer.root.find((node) => node.type === 'div' && node.props.role === 'dialog');
@@ -109,11 +112,14 @@ describe('MessageReadReceiptItem', () => {
       },
     });
     const room = { getTimelineForEvent: () => undefined };
-    const renderer = create(
-      <I18nextProvider i18n={language}>
-        <MessageReadReceiptItem room={room as never} eventId="$evt_receipts_1" />
-      </I18nextProvider>
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <MessageReadReceiptItem room={room as never} eventId="$evt_receipts_1" />
+        </I18nextProvider>
+      );
+    });
 
     await act(() => renderer.root.findByType('button').props.onClick());
     const dialog = renderer.root.find(

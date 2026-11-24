@@ -20,11 +20,14 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
     }),
 }));
 const client = vi.hoisted(() => ({}));
+const saveFile = vi.hoisted(() => vi.fn(async (_blob?: Blob, _name?: string) => true));
+const decodeHeicBlob = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
-vi.mock('../../native/nativeFileSave', () => ({ saveFile: async () => true }));
+vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
+vi.mock('./heicDecode', () => ({ decodeHeicBlob }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  FocusTrap: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
 
 const ROOM = '!room:example.org';
@@ -296,5 +299,26 @@ describe('ImageGallery', () => {
     await finish(A.url);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:1');
+  });
+
+  it('keeps Download enabled with the original HEIC bytes when display conversion fails', async () => {
+    saveFile.mockClear();
+    decodeHeicBlob.mockRejectedValueOnce(new Error('corrupt heic'));
+    const heicSlide: ImageSlide = { ...A, body: 'photo.heic', mimeType: 'image/heic' };
+    const originalHeic = new Blob(['raw-heic-original'], { type: 'image/heic' });
+    render(<Conversation slides={[heicSlide]} origin={heicSlide} />);
+    await act(async () => {
+      downloads.calls.at(-1)?.resolve(originalHeic);
+    });
+    expect(screen.getByText('Failed to load image!')).toBeTruthy();
+    const downloadButton = screen.getByRole('button', { name: 'Download' });
+    expect(downloadButton.hasAttribute('disabled')).toBe(false);
+    await act(async () => {
+      fireEvent.click(downloadButton);
+    });
+    expect(saveFile).toHaveBeenCalledOnce();
+    const [savedBlob, savedName] = saveFile.mock.calls[0] ?? [];
+    expect(savedName).toBe('photo.heic');
+    expect(savedBlob?.size).toBe(originalHeic.size);
   });
 });

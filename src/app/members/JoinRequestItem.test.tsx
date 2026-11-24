@@ -85,7 +85,7 @@ vi.mock('./MembersDrawer.css', () => ({
   JoinRequestMessage: 'JoinRequestMessage',
 }));
 
-const createRoom = (): Room => ({ roomId: '!room:example.org' } as Room);
+const createRoom = (): Room => ({ roomId: '!room:example.org' }) as Room;
 
 const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMember =>
   ({
@@ -99,19 +99,24 @@ const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMe
         getTs: () => 123,
       },
     },
-  } as unknown as RoomMember);
+  }) as unknown as RoomMember;
 
 const renderItem = (
   options: { canApprove?: boolean; canDecline?: boolean; reason?: unknown } = {}
-): ReactTestRenderer =>
-  create(
-    <JoinRequestItem
-      room={createRoom()}
-      member={createKnockingMember(options.reason)}
-      canApprove={options.canApprove ?? true}
-      canDecline={options.canDecline ?? true}
-    />
-  );
+): ReactTestRenderer => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <JoinRequestItem
+        room={createRoom()}
+        member={createKnockingMember(options.reason)}
+        canApprove={options.canApprove ?? true}
+        canDecline={options.canDecline ?? true}
+      />
+    );
+  });
+  return renderer;
+};
 
 const textContent = (renderer: ReactTestRenderer): string =>
   renderer.root

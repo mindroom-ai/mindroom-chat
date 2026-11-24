@@ -4,7 +4,7 @@
  * attachments (only their names are kept), and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
-import { atomFamily } from 'jotai/utils';
+import { atomFamily } from 'jotai-family';
 import type { Descendant } from 'slate';
 import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
@@ -27,6 +27,7 @@ import {
 } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
 import type { MidTurnMode } from '../preferences/midTurnModes';
+import type { DictationSession } from './dictation/dictationSession';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
 export type { TUploadItem } from '../matrix/state/upload';
@@ -155,7 +156,7 @@ const sameDestination = (a?: HomeAskDestination, b?: HomeAskDestination): boolea
 // can keep editing in memory but no longer writes to storage.
 const draftGenerations = new Map<string, number>();
 const getDraftGeneration = (userId: string | undefined) =>
-  userId === undefined ? 0 : draftGenerations.get(userId) ?? 0;
+  userId === undefined ? 0 : (draftGenerations.get(userId) ?? 0);
 
 /**
  * An account's Home ask draft: its text and where it goes, read from storage in one snapshot and
@@ -448,8 +449,8 @@ export const composerUploadItemsAtom = (roomId: string, view: string | undefined
 export type StagedList = ReturnType<typeof composerUploadItemsAtom>;
 
 /** The upload state of a staged file. */
-export const roomUploadAtomFamily = atomFamily(
-  (file: TUploadContent): TUploadAtom => createUploadAtom(file)
+export const roomUploadAtomFamily = atomFamily((file: TUploadContent): TUploadAtom =>
+  createUploadAtom(file)
 );
 
 /**
@@ -477,6 +478,34 @@ export const voiceAutoSendPendingAtom = atom(false);
 
 /** Unique owner key while a composer has an active streaming dictation session. */
 export const activeDictationAtom = atom<string | undefined>(undefined);
+
+/** A dictation session detached from its composer to finish and send in the background. */
+export type DetachedDictationSend = {
+  readonly ownerKey: string;
+  readonly roomId: string;
+  readonly roomName: string;
+  readonly status: 'sending' | 'failed';
+  readonly session: DictationSession;
+  readonly retryAndSend: () => void;
+  readonly insertPartial: () => void;
+  readonly discard: () => void;
+  readonly abort: () => void;
+};
+
+/** Non-blocking shell notice when a detached dictation send fails or detects no speech off-thread. */
+export type DetachedDictationError = {
+  readonly ownerKey: string;
+  readonly roomName: string;
+  readonly kind: 'failed' | 'noSpeech';
+};
+
+/** In-flight and failed background Finish & Send dictations, keyed by stable composer send key. */
+export const detachedDictationSendsAtom = atom<ReadonlyMap<string, DetachedDictationSend>>(
+  new Map()
+);
+
+/** Shell-level alert for a detached dictation send that failed while the user was elsewhere. */
+export const detachedDictationErrorAtom = atom<DetachedDictationError | undefined>(undefined);
 
 /** The composer a recorded voice message belongs to: its room's page or a view of its thread. */
 export const voiceComposerKey = ({
@@ -519,19 +548,6 @@ export const composerOfferAtom = (
 
 // What a reload would lose.
 
-/** The keys a family holds atoms for, listed without creating or removing any. */
-const familyKeys = <Key>(family: {
-  setShouldRemove: (test: ((createdAt: number, key: Key) => boolean) | null) => void;
-}): Key[] => {
-  const keys: Key[] = [];
-  family.setShouldRemove((_createdAt, key) => {
-    keys.push(key);
-    return false;
-  });
-  family.setShouldRemove(null);
-  return keys;
-};
-
 /**
  * Whether a composer holds something that only lives in memory, so a page reload would drop it:
  * a staged file, the message being replied to, or a voice message, recorded or being recorded.
@@ -544,10 +560,11 @@ export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
   store.get(voiceDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
   store.get(activeDictationAtom) !== undefined ||
-  familyKeys(roomIdToUploadItemsAtomFamily).some(
+  store.get(detachedDictationSendsAtom).size > 0 ||
+  [...roomIdToUploadItemsAtomFamily.getParams()].some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
   ) ||
-  familyKeys(roomIdToReplyDraftAtomFamily).some(
+  [...roomIdToReplyDraftAtomFamily.getParams()].some(
     (key) => store.get(roomIdToReplyDraftAtomFamily(key)) !== undefined
   );
 
@@ -574,6 +591,9 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   store.set(voiceAutoSendPendingAtom, false);
   store.set(activeDictationAtom, undefined);
   endVoiceRecordingsOfAccount(store);
+  store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());
+  store.set(detachedDictationSendsAtom, new Map());
+  store.set(detachedDictationErrorAtom, undefined);
 };
 
 // Only logout or another session ends the account's voice work, not a route unmount. Sessions

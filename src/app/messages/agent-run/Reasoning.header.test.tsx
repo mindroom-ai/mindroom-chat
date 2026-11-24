@@ -49,7 +49,7 @@ describe('reasoning header', () => {
     act(() => {
       renderer = create(<>{withReasoning(content, <p>Answer</p>, {})}</>, {
         // Each button records its class when it takes the focus.
-        createNodeMock: (element) =>
+        createNodeMock: (element: React.ReactElement<Record<string, unknown>>) =>
           element.type === 'button'
             ? { focus: () => focused.push(element.props.className as string) }
             : null,

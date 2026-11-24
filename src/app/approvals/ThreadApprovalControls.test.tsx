@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { expect, it, vi } from 'vitest';
 import {
   ApprovalHistory,
@@ -21,7 +20,7 @@ vi.mock('../ui/page/PageScroll', () => ({
   }: {
     header?: React.ReactNode;
     children: React.ReactNode;
-    scrollRef?: React.RefObject<HTMLDivElement>;
+    scrollRef?: React.RefObject<HTMLDivElement | null>;
   }) => (
     <div ref={scrollRef}>
       {header}
@@ -94,12 +93,10 @@ vi.mock('./ThreadApprovals.css', () => ({
   DialogHeading: 'DialogHeading',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
-  const { default: FocusTrap } = await importOriginal<{
-    default: typeof import('focus-trap-react');
-  }>();
+  const { FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
   return {
     // JSDOM has no layout; keep the real trap and focus handoffs.
-    default: (props: React.ComponentProps<typeof FocusTrap>) => (
+    FocusTrap: (props: React.ComponentProps<typeof FocusTrap>) => (
       <FocusTrap
         {...props}
         focusTrapOptions={{

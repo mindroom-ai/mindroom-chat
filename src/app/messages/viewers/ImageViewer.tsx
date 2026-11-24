@@ -41,20 +41,21 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  * Retry only saves again. The state belongs to the picture it was for: another picture starts
  * at a plain Download.
  */
-const useSaveMedia = (src: string, fileName: string) => {
-  const [saved, setSaved] = useState<{ src: string; state: DownloadState }>();
-  const blobRef = useRef<{ src: string; blob: Blob }>();
-  const state = saved?.src === src ? saved.state : 'idle';
+const useSaveMedia = (src: string | undefined, fileName: string, downloadBlob?: Blob) => {
+  const mediaKey: string | Blob | undefined = src || downloadBlob;
+  const [saved, setSaved] = useState<{ key: string | Blob; state: DownloadState }>();
+  const blobRef = useRef<{ key: string | Blob; blob: Blob }>(undefined);
+  const state = mediaKey !== undefined && saved?.key === mediaKey ? saved.state : 'idle';
 
   const save = async () => {
-    if (state === 'saving') return;
+    if (!mediaKey || state === 'saving') return;
     // A save that ends after another picture's started leaves that one's state alone.
     const finish = (next: DownloadState) =>
-      setSaved((prev) => (prev?.src === src ? { src, state: next } : prev));
-    setSaved({ src, state: 'saving' });
+      setSaved((prev) => (prev?.key === mediaKey ? { key: mediaKey, state: next } : prev));
+    setSaved({ key: mediaKey, state: 'saving' });
     try {
-      if (blobRef.current?.src !== src) {
-        blobRef.current = { src, blob: await downloadMedia(src) };
+      if (blobRef.current?.key !== mediaKey) {
+        blobRef.current = { key: mediaKey, blob: downloadBlob ?? (await downloadMedia(src ?? '')) };
       }
       await saveFile(new Blob([blobRef.current.blob], { type: DOWNLOAD_MIME_TYPE }), fileName);
       finish('idle');
@@ -72,6 +73,8 @@ type ImageViewerProps = {
   alt: string;
   /** The picture; until it is there the image area shows a spinner. */
   src?: string;
+  /** Original attachment bytes to save when `src` is a converted display copy (e.g. HEIC). */
+  downloadBlob?: Blob;
   requestClose: () => void;
   /** Set when the picture failed to load: the image area offers Retry in its place. */
   onRetry?: () => void;
@@ -85,9 +88,9 @@ type ImageViewerProps = {
    */
   onStep?: (delta: StepDelta) => void;
   /** On phones, the viewer's screen: a swipe from its left edge closes the viewer at fit. */
-  edgeSwipeArea?: RefObject<Element>;
+  edgeSwipeArea?: RefObject<Element | null>;
   /** On phones, the overlay surface wrapping the viewer and backdrop so pinches spanning the exposed strip still zoom the image. */
-  pinchSurfaceRef?: RefObject<HTMLElement>;
+  pinchSurfaceRef?: RefObject<HTMLElement | null>;
 };
 
 // Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
@@ -114,7 +117,7 @@ const arrowStep = (rightward: boolean): StepDelta =>
  */
 const useSwipe = (enabled: boolean, edgeCloses: boolean, onSwipe: (leftward: boolean) => void) => {
   const pointersRef = useRef(new Set<number>());
-  const startRef = useRef<{ pointerId: number; x: number; y: number }>();
+  const startRef = useRef<{ pointerId: number; x: number; y: number }>(undefined);
 
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
@@ -176,6 +179,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       requestClose,
       alt,
       src,
+      downloadBlob,
       onRetry,
       onImageError,
       position,
@@ -188,7 +192,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     ref
   ) => {
     const { t } = useTranslation();
-    const [downloadState, download] = useSaveMedia(src ?? '', alt);
+    const [downloadState, download] = useSaveMedia(src, alt, downloadBlob);
     // The name shows its direction controls; the download keeps it as it is.
     const shownAlt = revealDirectionControls(alt);
     const imageRef = useRef<HTMLImageElement>(null);
@@ -398,7 +402,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             <Button
               type="button"
               before={downloadIcon}
-              disabled={saving || !src}
+              disabled={saving || (!src && !downloadBlob)}
               onClick={() => void download()}
               variant={downloadState === 'failed' ? 'Critical' : 'Primary'}
               fill="Solid"

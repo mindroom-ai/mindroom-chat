@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 
-import React from 'react';
+import React, { act } from 'react';
 import { isText } from 'domhandler';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -71,23 +70,26 @@ const getNodeText = (value: ReactTestInstance | string | number): string => {
 
 describe('MessageExtras', () => {
   it('renders one details element per section', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({ title: 'First' }),
-          section({ title: 'Second', content: 'two' }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({ title: 'First' }),
+            section({ title: 'Second', content: 'two' }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(2);
     expect(getNodeText(renderer.root)).toContain('First');
     expect(getNodeText(renderer.root)).toContain('Second');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('opens only sections that start uncollapsed', () => {
@@ -114,9 +116,7 @@ describe('MessageExtras', () => {
     expect(details[0]!.open).toBe(false);
     expect(details[1]!.open).toBe(true);
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it('does not reset details state on rerender', () => {
@@ -154,9 +154,7 @@ describe('MessageExtras', () => {
 
     expect(details?.open).toBe(false);
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it('keeps user-toggled details state when streaming edits change section content', () => {
@@ -218,47 +216,51 @@ describe('MessageExtras', () => {
     expect(details?.open).toBe(true);
     expect(container.textContent).toContain('final update');
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it('renders text/plain literally without markdown or HTML parsing', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            content: '<strong>literal</strong>\n**not bold**',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              content: '<strong>literal</strong>\n**not bold**',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('pre')).toHaveLength(1);
     expect(renderer.root.findAllByType('strong')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
     expect(getNodeText(renderer.root)).toContain('**not bold**');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders text/markdown through sanitized markdown output', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            contentType: 'text/markdown',
-            content: '**bold**\n```ts\nconst value = 1;\n```',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              contentType: 'text/markdown',
+              content: '**bold**\n```ts\nconst value = 1;\n```',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('strong')).toHaveLength(1);
     expect(renderer.root.findAllByType('pre')).toHaveLength(1);
@@ -266,71 +268,80 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('bold');
     expect(getNodeText(renderer.root)).toContain('const value = 1;');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('escapes raw dangerous markdown input before HTML parsing', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            contentType: 'text/markdown',
-            content:
-              '<details open><summary>raw</summary>expanded</details><script>alert(1)</script>',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              contentType: 'text/markdown',
+              content:
+                '<details open><summary>raw</summary>expanded</details><script>alert(1)</script>',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('script')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<details open>');
     expect(getNodeText(renderer.root)).toContain('<script>alert(1)</script>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders titles as escaped React text', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras([
-          section({
-            title: '<img src=x onerror=alert(1)>',
-          }),
-        ]),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras([
+            section({
+              title: '<img src=x onerror=alert(1)>',
+            }),
+          ]),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(getNodeText(renderer.root)).toContain('<img src=x onerror=alert(1)>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders sanitized text/html as elements inside one client-owned details wrapper', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<h2>Evidence</h2><p><strong>safe</strong></p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table><a href="https://example.test">link</a>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<h2>Evidence</h2><p><strong>safe</strong></p><ul><li>item</li></ul><table><tr><td>cell</td></tr></table><a href="https://example.test">link</a>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('summary')).toHaveLength(1);
@@ -344,27 +355,30 @@ describe('MessageExtras', () => {
     expect(link.props.target).toBe('_blank');
     expect(link.props.rel).toBe('noreferrer noopener');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('renders sanitized text/html SVG sections as React SVG elements', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<svg viewBox="0 0 200 40"><polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"/></svg>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<svg viewBox="0 0 200 40"><polyline fill="none" stroke="#7d5fff" points="0,30 50,10 100,20 150,5 200,15"/></svg>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     const svg = renderer.root.findByType('svg');
     const polyline = renderer.root.findByType('polyline');
@@ -374,27 +388,30 @@ describe('MessageExtras', () => {
     expect(polyline.props.stroke).toBe('#7d5fff');
     expect(polyline.props.points).toBe('0,30 50,10 100,20 150,5 200,15');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('removes sender-owned disclosure controls from text/html sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              contentType: 'text/html',
-              content:
-                '<details open><summary>sender summary</summary><p>sender body</p></details><p>safe</p>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                contentType: 'text/html',
+                content:
+                  '<details open><summary>sender summary</summary><p>sender body</p></details><p>safe</p>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('details')).toHaveLength(1);
     expect(renderer.root.findAllByType('summary')).toHaveLength(1);
@@ -402,7 +419,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).not.toContain('sender summary');
     expect(getNodeText(renderer.root)).not.toContain('sender body');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('keeps user-toggled details state when streaming edits change html content', () => {
@@ -446,31 +463,32 @@ describe('MessageExtras', () => {
     expect(details?.open).toBe(false);
     expect(container.querySelector('p')?.textContent).toBe('streamed update');
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it('sanitizes malicious html sections while preserving sibling sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              title: 'HTML',
-              contentType: 'text/html',
-              content:
-                '<p onclick="alert(1)">safe</p><script>alert(1)</script><img src="https://example.test/x.png"><a href="javascript:alert(1)">bad link</a>',
-            }),
-            section({ title: 'Plain', content: '<strong>literal</strong>' }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {},
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                title: 'HTML',
+                contentType: 'text/html',
+                content:
+                  '<p onclick="alert(1)">safe</p><script>alert(1)</script><img src="https://example.test/x.png"><a href="javascript:alert(1)">bad link</a>',
+              }),
+              section({ title: 'Plain', content: '<strong>literal</strong>' }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {},
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     expect(renderer.root.findAllByType('script')).toHaveLength(0);
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
@@ -479,38 +497,41 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('safe');
     expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('does not linkify disallowed plain-text URL schemes inside text/html sections', () => {
-    const renderer = create(
-      React.createElement(MessageExtras, {
-        extras: createExtras(
-          [
-            section({
-              title: 'HTML',
-              contentType: 'text/html',
-              content:
-                '<p>magnet:?xt=urn:btih:abc ftp://example.test/file https://example.test</p><a href="mailto:user@example.test">mail</a>',
-            }),
-          ],
-          2
-        ),
-        htmlReactParserOptions: {
-          replace: (domNode) => {
-            if ('type' in domNode && isText(domNode)) {
-              const data = 'data' in domNode ? domNode.data : '';
-              if (typeof data === 'string' && data.includes('magnet:')) {
-                return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MessageExtras, {
+          extras: createExtras(
+            [
+              section({
+                title: 'HTML',
+                contentType: 'text/html',
+                content:
+                  '<p>magnet:?xt=urn:btih:abc ftp://example.test/file https://example.test</p><a href="mailto:user@example.test">mail</a>',
+              }),
+            ],
+            2
+          ),
+          htmlReactParserOptions: {
+            replace: (domNode) => {
+              if ('type' in domNode && isText(domNode)) {
+                const data = 'data' in domNode ? domNode.data : '';
+                if (typeof data === 'string' && data.includes('magnet:')) {
+                  return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);
+                }
               }
-            }
-            return undefined;
+              return undefined;
+            },
           },
-        },
-        markerContent: {},
-        toolRows: true,
-      })
-    );
+          markerContent: {},
+          toolRows: true,
+        })
+      );
+    });
 
     const links = renderer.root.findAllByType('a');
     expect(links).toHaveLength(1);
@@ -519,7 +540,7 @@ describe('MessageExtras', () => {
     expect(getNodeText(renderer.root)).toContain('ftp://example.test/file');
     expect(getNodeText(renderer.root)).toContain('https://example.test');
 
-    renderer.unmount();
+    act(() => renderer.unmount());
   });
 
   it('does not re-parse unchanged sections when re-rendered with equal extras', () => {
@@ -572,9 +593,7 @@ describe('MessageExtras', () => {
     expect(sanitizeCustomHtmlSpy.mock.calls.length).toBe(markdownCallsAfterMount);
     expect(sanitizeExtraHtmlSpy.mock.calls.length).toBe(htmlCallsAfterMount);
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it('re-parses a section when its content changes', () => {
@@ -604,9 +623,7 @@ describe('MessageExtras', () => {
     expect(sanitizeExtraHtmlSpy.mock.calls.length).toBeGreaterThan(0);
     expect(container.textContent).toContain('second');
 
-    act(() => {
-      root?.unmount();
-    });
+    act(() => root?.unmount());
   });
 
   it.each([
@@ -652,6 +669,44 @@ describe('MessageExtras', () => {
       act(() => root.unmount());
       container.remove();
       Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
+  it('drops non-SVG <title> in text/html extras so document.title stays intact while keeping <svg><title>', () => {
+    const previousTitle = document.title;
+    document.title = 'MindRoom';
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root: Root = createRoot(container);
+    try {
+      act(() => {
+        root.render(
+          React.createElement(MessageExtras, {
+            extras: createExtras(
+              [
+                section({
+                  contentType: 'text/html',
+                  collapsed: true,
+                  content:
+                    '<title>Weekly report</title><div><title>Nested</title><svg><title>Chart</title><rect width="10" height="10" /></svg></div>',
+                }),
+              ],
+              2
+            ),
+            htmlReactParserOptions: {},
+            markerContent: {},
+            toolRows: false,
+          })
+        );
+      });
+      expect(document.title).toBe('MindRoom');
+      expect(document.head.querySelectorAll('title')).toHaveLength(1);
+      expect(container.querySelector('svg title')?.textContent).toBe('Chart');
+      expect(container.querySelectorAll('title')).toHaveLength(1);
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+      document.title = previousTitle;
     }
   });
 });

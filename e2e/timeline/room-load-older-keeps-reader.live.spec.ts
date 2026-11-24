@@ -128,7 +128,9 @@ test('older rows loaded above a reader at the top keep them there (Chromium)', a
   await olderRowsKeepReader(page);
 });
 
-test('older rows loaded above a reader at the top keep them there (WebKit)', async ({ baseURL }) => {
+test('older rows loaded above a reader at the top keep them there (WebKit)', async ({
+  baseURL,
+}) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
   test.setTimeout(180_000);
   const browser = await launchWebKit();

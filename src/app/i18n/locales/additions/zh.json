@@ -418,7 +418,9 @@
         "search": "在侧边栏显示搜索",
         "searchDescription": "用于打开命令面板的按钮。隐藏后，可从“查找任何内容”输入框打开，或按 {{shortcut}}。",
         "localMindroom": "在侧边栏显示 Local MindRoom",
-        "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
+        "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。",
+        "usage": "在侧边栏显示用量",
+        "usageDescription": "运行时上报后显示提供商配额限制和 7 天令牌消耗。隐藏时可从主页的 ⋮ 菜单或模型选择器打开用量。"
       },
       "plugins": {
         "title": "插件",
@@ -495,7 +497,8 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "plugins": "插件, 扩展, 附加组件, 集成"
+        "plugins": "插件, 扩展, 附加组件, 集成",
+        "appUpdates": "更新, 版本, 升级, 重启"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -506,7 +509,17 @@
         "thirdPartyNotices": "第三方声明",
         "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
         "debugMode": "调试模式",
-        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。"
+        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。",
+        "updatesTitle": "应用更新",
+        "updatesDescription": "更新会在后台自动下载。",
+        "checkForUpdates": "检查更新",
+        "checkingForUpdates": "正在检查更新…",
+        "upToDate": "MindRoom 已是最新版本。",
+        "updateAvailable": "有可用更新。准备就绪后可在此处重启。",
+        "updateCheckFailed": "目前无法检查更新，请重试。",
+        "updateReady": "版本 {{version}} 已准备好安装。",
+        "restartToUpdate": "重启以更新",
+        "updateInstallFailed": "无法重启以安装更新，请重试。"
       }
     },
     "createChat": {
@@ -520,9 +533,15 @@
     },
     "spaceNav": {
       "options": "空间选项",
-      "subspaces": "子空间",
       "subspaceUnread": "{{name}}，有未读消息",
-      "backToParent": "返回 {{name}}"
+      "backToParent": "返回 {{name}}",
+      "add": "添加",
+      "newRoom": "新建房间",
+      "addExistingRoom": "添加现有房间",
+      "newSubspace": "新建子空间",
+      "addExistingSubspace": "添加现有子空间",
+      "addToSpace": "添加到 {{name}}",
+      "subspaceOptions": "{{name}} 选项"
     },
     "calls": {
       "panel": {
@@ -549,7 +568,13 @@
         "shareAgain": "重新共享",
         "microphoneStopped": "你的麦克风已停止。",
         "cameraStopped": "你的摄像头已停止。",
-        "turnBackOn": "重新开启"
+        "turnBackOn": "重新开启",
+        "nativeScreenShareConnecting": "正在连接屏幕共享…",
+        "nativeScreenShareFailed": "无法共享你的整个屏幕。",
+        "nativeScreenSharePickerTimedOut": "屏幕共享未能及时开始。",
+        "nativeScreenShareStopped": "屏幕共享已停止。",
+        "nativeScreenShareSheetBody": "你屏幕上的所有内容（包括通知和其他应用）都将对通话可见。",
+        "nativeScreenShareSheetCaption": "轻点上方按钮，然后轻点“开始直播”。"
       },
       "problems": {
         "service": "无法连接到通话服务，请稍后重试。",
@@ -850,7 +875,9 @@
     "call": {
       "controls": {
         "startAppShare": "共享此应用",
-        "stopAppShare": "停止共享此应用"
+        "stopAppShare": "停止共享此应用",
+        "startEntireScreenShare": "共享整个屏幕",
+        "stopEntireScreenShare": "停止共享整个屏幕"
       }
     }
   },
@@ -987,6 +1014,14 @@
         "changedBy": "更改者：{{name}}",
         "scopeOwn": "适用于此话题中你可以对话的智能体和团队今后的回复。",
         "scopeOther": "适用于此话题中 {{name}} 可以对话的智能体和团队今后的回复。"
+      },
+      "triggerWakeMarker": {
+        "triggered": "已触发",
+        "webhook": "Webhook",
+        "triggerLabel": "触发器 {{id}}",
+        "sourceLabel": "来源 {{source}}",
+        "triageLabel": "分流：{{reason}}",
+        "payloadLabel": "事件载荷 JSON"
       },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
@@ -1397,6 +1432,46 @@
         "kept": "您的草稿保持原样。复制请求后自行添加。",
         "copied": "请求已复制。请粘贴到您的草稿中。"
       }
+    },
+    "usage": {
+      "title": "用量与限制",
+      "navLowQuota": "用量（配额偏低）",
+      "tabsLimits": "限制",
+      "tabsTokens": "令牌与费用",
+      "refresh": "刷新",
+      "updatedAgo": "更新于 {{time}}",
+      "runtimeLabel": "运行时",
+      "loading": "正在检查提供商用量…",
+      "unavailableTitle": "用量数据不可用",
+      "unavailableBody": "没有已连接的运行时为此账号上报提供商配额限制。",
+      "retry": "重试",
+      "partialData": "部分数据 — 某些提供商或用量记录未能加载。",
+      "stale": "已过期",
+      "percentLeft": "剩余 {{percent}}%",
+      "resetsIn": "{{duration}}后重置",
+      "resetsAt": "{{time}}重置",
+      "resetsSoon": "即将重置",
+      "quotaAria": "{{label}}：剩余 {{percent}}%",
+      "quotaAriaWithReset": "{{label}}：剩余 {{percent}}%，{{reset}}",
+      "noSubscriptionLimit": "无订阅限额",
+      "payAsYouGo": "按量付费",
+      "limitsUnavailable": "配额限制不可用",
+      "notSignedIn": "未登录",
+      "tokens7d": "{{tokens}} 令牌（7天）",
+      "estimatedCost": "约 {{cost}}",
+      "totalTokens7d": "7 天令牌总量",
+      "totalCost7d": "7 天估算费用",
+      "dailyChartTitle": "每日令牌用量（近 7 天）",
+      "dailyBarAria": "{{day}}：{{tokens}} 令牌",
+      "breakdownTitle": "各账号明细",
+      "colAccount": "账号",
+      "colTokens": "7天令牌",
+      "colShare": "占比",
+      "colSpend": "7天费用",
+      "unattributed": "未归类",
+      "allUsageAndLimits": "查看全部用量与限制 →",
+      "noAccounts": "尚未上报提供商账号。",
+      "noDailyData": "过去 7 天没有每日用量记录。"
     }
   },
   "composer": {
@@ -1434,8 +1509,10 @@
       "cancel": "取消听写",
       "pause": "暂停听写",
       "resume": "继续听写",
-      "finish": "完成听写",
+      "finish": "完成并插入输入框",
+      "finishAndSend": "完成并发送",
       "retry": "重试",
+      "retryAndSend": "重试并发送",
       "insertPartial": "插入部分文本",
       "discard": "放弃",
       "dismissError": "关闭听写错误",
@@ -1444,6 +1521,10 @@
       "statusListening": "正在听写",
       "statusPaused": "听写已暂停",
       "statusFinishing": "正在完成...",
+      "statusSending": "正在完成并发送...",
+      "noSpeech": "未检测到语音。",
+      "noSpeechOffThread": "在 {{room}} 中未检测到语音。",
+      "sendFailedOffThread": "无法完成 {{room}} 中的听写消息。请打开并重试。",
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
@@ -1980,5 +2061,8 @@
       "action": "验证此设备",
       "text": "在此之前，它无法读取你的加密聊天。"
     }
+  },
+  "nav": {
+    "usage": "用量"
   }
 }

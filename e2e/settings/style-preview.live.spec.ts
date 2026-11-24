@@ -66,10 +66,7 @@ test('capture styling screenshots', async ({ page }) => {
   }
 
   // Extra dark-theme surfaces: plain timeline, settings, create-room dialog.
-  await page.evaluate(
-    (s) => localStorage.setItem('settings', s),
-    settingsJson('dark-theme', 0)
-  );
+  await page.evaluate((s) => localStorage.setItem('settings', s), settingsJson('dark-theme', 0));
   await page.goto('/home/');
   await page.waitForTimeout(5000);
 
