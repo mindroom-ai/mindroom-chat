@@ -101,10 +101,18 @@ describe('useSpaceRoomSections room in a space and its sub-space', () => {
       {
         '!root': { name: 'Root', space: true },
         '!sub': { name: 'Sub', space: true },
+        '!crew': { name: 'Crew', space: true },
         '!lounge': { name: 'Lounge' },
         '!garden': { name: 'Garden' },
+        '!workshop': { name: 'Workshop' },
       },
-      { '!sub': ['!root'], '!lounge': ['!root'], '!garden': ['!root', '!sub'] }
+      {
+        '!sub': ['!root'],
+        '!crew': ['!sub'],
+        '!lounge': ['!root'],
+        '!garden': ['!root', '!sub'],
+        '!workshop': ['!root', '!sub', '!crew'],
+      }
     );
     const sectionOf = (spaceId: string) =>
       result.latest.sections.find((section) => section.spaceId === spaceId)!;
@@ -114,6 +122,10 @@ describe('useSpaceRoomSections room in a space and its sub-space', () => {
     expect(result.latest.canMoveRoom('!sub', '!root', '!garden')).toBe(true);
     expect(result.latest.canMoveRoom('!root', '!sub', '!garden')).toBe(false);
     expect(result.latest.canMoveRoom('!root', '!sub', '!lounge')).toBe(true);
+    // Sub would still hide Workshop from Rooms, so only the move up to Sub is allowed.
+    expect(sectionOf('!crew').orderedTop).toEqual(['!workshop']);
+    expect(result.latest.canMoveRoom('!crew', '!root', '!workshop')).toBe(false);
+    expect(result.latest.canMoveRoom('!crew', '!sub', '!workshop')).toBe(true);
   });
 });
 
