@@ -285,7 +285,8 @@ describe('CompactRoomEmptyState', () => {
     const { props } = renderEmptyState({ threadRecordMap: records });
 
     expect(screen.getByRole('heading', { name: 'All caught up' })).toBeTruthy();
-    expect(screen.getByText('3 resolved · 1 snoozed')).toBeTruthy();
+    expect(screen.getByText('3 resolved')).toBeTruthy();
+    expect(screen.getAllByText('1 snoozed')).toHaveLength(1);
     expect(screen.getByText('Start a new thread below')).toBeTruthy();
 
     const peekRegion = screen.getByRole('region', { name: 'Recently resolved' });
@@ -295,7 +296,9 @@ describe('CompactRoomEmptyState', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
     expect(props.onReset).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: '1 snoozed' }));
+    const snoozedButton = screen.getByRole('button', { name: '1 snoozed' });
+    expect(peekRegion.contains(snoozedButton)).toBe(false);
+    fireEvent.click(snoozedButton);
     expect(props.onShowSnoozed).toHaveBeenCalledTimes(1);
 
     const truncatedNode = screen.getByText(expectedTruncated);
@@ -321,11 +324,15 @@ describe('CompactRoomEmptyState', () => {
   it('omits zero counts, recently resolved peek when none exist, compose whisper, and Reopen when not allowed', () => {
     const snoozedOnly = new Map<string, ThreadRecord>([
       ['$s1', makeRecord('$s1', { snoozedUntilTs: NOW + 60_000 })],
-      ['$s2', makeRecord('$s2', { snoozedUntilTs: NOW + 120_000 })],
     ]);
-    renderEmptyState({ threadRecordMap: snoozedOnly, canCompose: false, canToggle: false });
+    const snoozed = renderEmptyState({
+      threadRecordMap: snoozedOnly,
+      canCompose: false,
+      canToggle: false,
+    });
 
-    expect(screen.getByText('2 snoozed')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '1 snoozed' }));
+    expect(snoozed.props.onShowSnoozed).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/resolved/i)).toBeNull();
     expect(screen.queryByText('Start a new thread below')).toBeNull();
     expect(screen.queryByRole('region', { name: 'Recently resolved' })).toBeNull();

@@ -263,6 +263,7 @@ export type RoomTimelineProps = {
   onRemoveTag?: (tag: string) => void;
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
+  onShowSnoozed?: () => void;
   onSearchQueryChange?: (query: string) => void;
   /** Compact shows its cards in sections (Needs you, Working, Later, Done). */
   threadSections?: boolean;
@@ -306,7 +307,6 @@ const useTimelineDisplaySettings = () => ({
   messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
   hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
-  simpleThreadFilters: !!useSettingValue(settingsAtom, 'simpleThreadFilters'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
@@ -377,7 +377,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     messageSpacing,
     showHiddenEvents,
     hideThreadFilterBar,
-    simpleThreadFilters,
     prefetchDepth,
   } = useTimelineDisplaySettings();
   const compactLayout = messageLayout === MessageLayout.Compact;
@@ -2098,10 +2097,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
             canCompose,
             onReset: props.onReset ?? ignoreFilterChange,
             onToggleForMe: props.onToggleForMe,
-            onShowSnoozed:
-              !simpleThreadFilters && hasMindroomAgents && props.onSelectTab
-                ? () => props.onSelectTab?.('later')
-                : (props.onReset ?? ignoreFilterChange),
+            onShowSnoozed: props.onShowSnoozed ?? props.onReset ?? ignoreFilterChange,
           }}
         />
       </Box>

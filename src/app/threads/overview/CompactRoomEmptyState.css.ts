@@ -105,14 +105,6 @@ export const InlineLink = style([
   },
 ]);
 
-export const PeekSnoozedLink = style([
-  InlineLink,
-  {
-    fontSize: config.fontSize.T200,
-    lineHeight: config.lineHeight.T200,
-  },
-]);
-
 export const Subtitle = style({
   marginBlockStart: config.space.S100,
   maxInlineSize: toRem(360),

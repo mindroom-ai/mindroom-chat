@@ -113,8 +113,7 @@ export const classifyCompactRoomEmptyState = (
 
   resolvedRecords.sort((a, b) => {
     const primaryDiff =
-      (getRecentlyResolvedTs(b, tagSnapshots) ?? 0) -
-      (getRecentlyResolvedTs(a, tagSnapshots) ?? 0);
+      (getRecentlyResolvedTs(b, tagSnapshots) ?? 0) - (getRecentlyResolvedTs(a, tagSnapshots) ?? 0);
     if (primaryDiff !== 0) return primaryDiff;
     const activityDiff = (b.status.lastActivityTs ?? 0) - (a.status.lastActivityTs ?? 0);
     if (activityDiff !== 0) return activityDiff;
@@ -301,21 +300,6 @@ export function CompactRoomEmptyState({
       );
     }
     const animateRing = motionAllowed();
-    const summaryParts: string[] = [];
-    if (model.resolvedCount > 0) {
-      summaryParts.push(
-        t('mindroomUi.threads.compactRoomEmptyState.resolvedCount', {
-          count: model.resolvedCount,
-        })
-      );
-    }
-    if (model.snoozedCount > 0) {
-      summaryParts.push(
-        t('mindroomUi.threads.compactRoomEmptyState.snoozedCount', {
-          count: model.snoozedCount,
-        })
-      );
-    }
 
     return (
       <div key="inboxZero" className={css.Root} data-compact-room-empty-state="inboxZero">
@@ -334,11 +318,29 @@ export function CompactRoomEmptyState({
           {t('mindroomUi.threads.compactRoomEmptyState.allCaughtUp')}
         </Text>
         <div className={css.SummaryRow}>
-          {summaryParts.length > 0 && (
+          {model.resolvedCount > 0 && (
             <>
               <Text as="span" size="T300" priority="400">
-                {summaryParts.join(' · ')}
+                {t('mindroomUi.threads.compactRoomEmptyState.resolvedCount', {
+                  count: model.resolvedCount,
+                })}
               </Text>
+              <span className={css.Separator} aria-hidden="true">
+                ·
+              </span>
+            </>
+          )}
+          {model.snoozedCount > 0 && (
+            <>
+              <button
+                type="button"
+                className={css.InlineLink}
+                onClick={(event) => activateWithFocusRestore(event, onShowSnoozed)}
+              >
+                {t('mindroomUi.threads.compactRoomEmptyState.snoozedCount', {
+                  count: model.snoozedCount,
+                })}
+              </button>
               <span className={css.Separator} aria-hidden="true">
                 ·
               </span>
@@ -364,17 +366,6 @@ export function CompactRoomEmptyState({
               >
                 {t('mindroomUi.threads.compactRoomEmptyState.recentlyResolved')}
               </Text>
-              {model.snoozedCount > 0 && (
-                <button
-                  type="button"
-                  className={css.PeekSnoozedLink}
-                  onClick={(event) => activateWithFocusRestore(event, onShowSnoozed)}
-                >
-                  {t('mindroomUi.threads.compactRoomEmptyState.snoozedCount', {
-                    count: model.snoozedCount,
-                  })}
-                </button>
-              )}
             </div>
             <ul className={css.PeekList}>
               {model.recentlyResolved.map((record) => (
