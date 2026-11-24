@@ -345,7 +345,10 @@ describe('replay server integration with patched matrix-js-sdk', () => {
     // Paginate room history backwards through /messages
     const liveTimeline = room.getLiveTimeline();
     const beforeCount = liveTimeline.getEvents().length;
-    const paginated = await client.paginateEventTimeline(liveTimeline, { backwards: true });
+    const paginated = await client.paginateEventTimeline(liveTimeline, {
+      backwards: true,
+      limit: 1,
+    });
     expect(paginated).toBe(true);
     expect(liveTimeline.getEvents().length).toBeGreaterThan(beforeCount);
 

@@ -475,7 +475,7 @@ export async function runCapture(options) {
   for (const ref of extractMxcReferences(snapshot, liveEntries).slice(0, maxBlobs)) {
     const encS = encodeURIComponent(ref.server);
     const encM = encodeURIComponent(ref.mediaId);
-    let dl = null;
+    let dl;
     try {
       dl = await matrixGet(homeserver, token, `/_matrix/client/v1/media/download/${encS}/${encM}`, {
         binary: true,
