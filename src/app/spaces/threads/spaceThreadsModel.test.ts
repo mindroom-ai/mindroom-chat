@@ -13,6 +13,7 @@ import {
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
   getRoomAccentColor,
+  pruneSpaceRoomSelection,
   resolveActiveSpaceRoomIds,
   resolveComposerTargetRoom,
   selectOnlySpaceRoom,
@@ -115,7 +116,6 @@ const runFilter = (
   overrides: {
     selectedRoomIds?: ReadonlySet<string>;
     filterState?: Partial<ThreadFilterState>;
-    searchQuery?: string;
     simpleMode?: boolean;
     hasMindroomAgents?: boolean;
     groupSections?: boolean;
@@ -126,7 +126,6 @@ const runFilter = (
     spaceRoomIds: new Set([ROOM_A, ROOM_B]),
     selectedRoomIds: overrides.selectedRoomIds,
     filterState: { ...createDefaultThreadFilterState(), ...overrides.filterState },
-    searchQuery: overrides.searchQuery,
     simpleMode: overrides.simpleMode ?? false,
     snoozeNow: NOW,
     hasMindroomAgents: overrides.hasMindroomAgents ?? true,
@@ -228,14 +227,18 @@ describe('spaceThreadsModel', () => {
     ).toEqual(['$working']);
     // Search matches room name + thread text together.
     expect(
-      runFilter(entries, { searchQuery: 'design logo' }).entries.map((e) => e.threadRootId)
+      runFilter(entries, { filterState: { freeText: 'design logo' } }).entries.map(
+        (e) => e.threadRootId
+      )
     ).toEqual(['$later']);
     expect(
-      runFilter(entries, { searchQuery: 'is:resolved icon' }).entries.map((e) => e.threadRootId)
+      runFilter(entries, { filterState: { resolved: 'include', freeText: 'icon' } }).entries.map(
+        (e) => e.threadRootId
+      )
     ).toEqual(['$done']);
   });
 
-  it('groups into COMPACT_THREAD_SECTION_ORDER and orders Later by soonest return time', () => {
+  it('groups via buildCompactThreadSections and orders Later by soonest return time', () => {
     const entries = [
       makeEntry({ roomId: ROOM_A, threadRootId: '$done', isResolved: true, lastActivityTs: NOW }),
       makeEntry({
@@ -287,9 +290,16 @@ describe('spaceThreadsModel', () => {
     expect(asc.effectiveFilterState.tab).toBeUndefined();
   });
 
-  it('toggles room selection without ever yielding 0 active rooms', () => {
+  it('prunes and toggles room selection without ever yielding 0 active rooms', () => {
     const rooms = [ROOM_A, ROOM_B, '!gamma:example.org'];
     expect(resolveActiveSpaceRoomIds(rooms, undefined)).toEqual(rooms);
+
+    // Pruning drops departed rooms and normalizes empty or full sets back to All (undefined).
+    expect(pruneSpaceRoomSelection(new Set([ROOM_B, '!gone:example.org']), [ROOM_A, ROOM_B])).toEqual(
+      new Set([ROOM_B])
+    );
+    expect(pruneSpaceRoomSelection(new Set(['!gone:example.org']), [ROOM_A, ROOM_B])).toBeUndefined();
+    expect(pruneSpaceRoomSelection(new Set([ROOM_A, ROOM_B]), [ROOM_A, ROOM_B])).toBeUndefined();
 
     // From All, toggling Room A excludes Room A.
     const withoutA = toggleSpaceRoomSelection(undefined, ROOM_A, rooms);
@@ -313,7 +323,6 @@ describe('spaceThreadsModel', () => {
         activeRoomIds: [ROOM_B],
         sendableRoomIds: sendable,
         currentTargetRoomId: ROOM_A,
-        lastTargetRoomId: ROOM_A,
         hasDraft: true,
       })
     ).toBe(ROOM_A);
@@ -324,7 +333,6 @@ describe('spaceThreadsModel', () => {
         activeRoomIds: [ROOM_B],
         sendableRoomIds: sendable,
         currentTargetRoomId: ROOM_A,
-        lastTargetRoomId: ROOM_A,
         hasDraft: false,
       })
     ).toBe(ROOM_B);
@@ -339,17 +347,17 @@ describe('spaceThreadsModel', () => {
       })
     ).toBe(ROOM_B);
 
-    // Multi-room active view prefers currentTarget -> lastTarget -> first active sendable -> first sendable.
+    // Multi-room active view preserves explicit currentTarget when still active and sendable.
     expect(
       resolveComposerTargetRoom({
         activeRoomIds: [ROOM_A, ROOM_B],
         sendableRoomIds: sendable,
-        lastTargetRoomId: ROOM_B,
+        currentTargetRoomId: ROOM_B,
         hasDraft: false,
       })
     ).toBe(ROOM_B);
 
-    // Filtering to a read-only room falls back to first sendable room in the Space.
+    // Filtering to a read-only room falls back to sendable rooms and honors explicit selection among them.
     expect(
       resolveComposerTargetRoom({
         activeRoomIds: ['!readonly:example.org'],
@@ -357,6 +365,14 @@ describe('spaceThreadsModel', () => {
         hasDraft: false,
       })
     ).toBe(ROOM_A);
+    expect(
+      resolveComposerTargetRoom({
+        activeRoomIds: ['!readonly:example.org'],
+        sendableRoomIds: sendable,
+        currentTargetRoomId: ROOM_B,
+        hasDraft: false,
+      })
+    ).toBe(ROOM_B);
 
     expect(
       resolveComposerTargetRoom({

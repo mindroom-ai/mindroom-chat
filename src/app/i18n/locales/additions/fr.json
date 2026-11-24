@@ -2126,8 +2126,6 @@
       "postTo": "Publier dans :",
       "postToRoom": "Publier dans #{{room}}",
       "chooseRoomAria": "Choisir le salon de publication",
-      "searchRooms": "Rechercher des salons",
-      "noMatchingRooms": "Aucun salon correspondant",
       "draftPinned": "Brouillon pour #{{room}}",
       "readOnly": "Aucun salon de cet espace ne permet de publier."
     },

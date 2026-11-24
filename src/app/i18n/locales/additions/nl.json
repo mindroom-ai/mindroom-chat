@@ -2064,8 +2064,6 @@
       "postTo": "Plaatsen in:",
       "postToRoom": "Plaatsen in #{{room}}",
       "chooseRoomAria": "Kies een kamer om in te plaatsen",
-      "searchRooms": "Kamers zoeken",
-      "noMatchingRooms": "Geen overeenkomende kamers",
       "draftPinned": "Concept voor #{{room}}",
       "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
     },

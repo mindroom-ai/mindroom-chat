@@ -2064,8 +2064,6 @@
       "postTo": "Post to:",
       "postToRoom": "Post to #{{room}}",
       "chooseRoomAria": "Choose room to post to",
-      "searchRooms": "Search rooms",
-      "noMatchingRooms": "No matching rooms",
       "draftPinned": "Draft for #{{room}}",
       "readOnly": "No rooms in this space allow posting."
     },

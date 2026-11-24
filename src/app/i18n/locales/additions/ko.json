@@ -2002,8 +2002,6 @@
       "postTo": "게시 대상:",
       "postToRoom": "#{{room}}에 게시",
       "chooseRoomAria": "게시할 방 선택",
-      "searchRooms": "방 검색",
-      "noMatchingRooms": "일치하는 방이 없습니다",
       "draftPinned": "#{{room}} 임시 저장",
       "readOnly": "이 스페이스에 게시할 수 있는 방이 없습니다."
     },

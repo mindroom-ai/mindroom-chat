@@ -2002,8 +2002,6 @@
       "postTo": "投稿先:",
       "postToRoom": "#{{room}}に投稿",
       "chooseRoomAria": "投稿先のルームを選択",
-      "searchRooms": "ルームを検索",
-      "noMatchingRooms": "一致するルームがありません",
       "draftPinned": "#{{room}}の下書き",
       "readOnly": "このスペースに投稿できるルームがありません。"
     },

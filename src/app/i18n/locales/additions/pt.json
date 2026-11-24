@@ -2126,8 +2126,6 @@
       "postTo": "Enviar para:",
       "postToRoom": "Enviar para #{{room}}",
       "chooseRoomAria": "Escolher sala para enviar",
-      "searchRooms": "Pesquisar salas",
-      "noMatchingRooms": "Nenhuma sala encontrada",
       "draftPinned": "Rascunho para #{{room}}",
       "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
     },

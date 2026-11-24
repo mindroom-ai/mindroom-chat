@@ -105,7 +105,7 @@ export const RoomChipName = style({
 });
 
 export const RoomChipCount = style({
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
   fontVariantNumeric: 'tabular-nums',
 });
 
@@ -118,10 +118,10 @@ export const RoomChipOnlyButton = style([
     paddingInline: config.space.S200,
     borderInlineStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     color: 'inherit',
-    opacity: config.opacity.P300,
+    opacity: config.opacity.P400,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
-    fontSize: toRem(11),
+    fontSize: toRem(12),
     borderRadius: config.radii.R300,
     '@media': {
       '(hover: hover)': {
@@ -212,43 +212,10 @@ export const ComposerDraftNote = style({
   whiteSpace: 'nowrap',
 });
 
-export const ComposerMenuSearch = style({
-  inlineSize: '100%',
-  boxSizing: 'border-box',
-  blockSize: CONTROL_HEIGHT,
-  paddingInline: config.space.S200,
-  marginBlockEnd: config.space.S100,
-  borderRadius: config.radii.R300,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.Surface.Container,
-  color: color.Surface.OnContainer,
-  font: 'inherit',
-  fontSize: toRem(13),
-  selectors: { '&:focus-visible': FOCUS_RING },
-});
-
-export const ComposerMenuRow = style([
-  DefaultReset,
-  HOVER_BG,
-  {
-    display: 'flex',
-    alignItems: 'center',
-    columnGap: config.space.S200,
-    inlineSize: '100%',
-    blockSize: CONTROL_HEIGHT,
-    paddingInline: config.space.S200,
-    borderRadius: config.radii.R300,
-    color: color.SurfaceVariant.OnContainer,
-    cursor: 'pointer',
-    textAlign: 'start',
-    selectors: { '&:focus-visible': FOCUS_RING },
-  },
-]);
-
 export const ReadOnlyNotice = style({
   paddingBlock: config.space.S200,
   paddingInline: config.space.S400,
   textAlign: 'center',
   color: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
 });

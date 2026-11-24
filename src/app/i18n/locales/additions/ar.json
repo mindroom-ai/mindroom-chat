@@ -2312,8 +2312,6 @@
       "postTo": "النشر في:",
       "postToRoom": "النشر في #⁨{{room}}⁩",
       "chooseRoomAria": "اختر غرفة للنشر فيها",
-      "searchRooms": "البحث في الغرف",
-      "noMatchingRooms": "لا توجد غرف مطابقة",
       "draftPinned": "مسودة لـ #⁨{{room}}⁩",
       "readOnly": "لا توجد غرف في هذه المساحة تسمح بالنشر."
     },

@@ -5,7 +5,8 @@ import {
   normalizeThreadSearchText,
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
-import { COMPACT_THREAD_SECTION_ORDER } from '../../threads/overview/compactThreadSections';
+import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
+import { buildCompactThreadSections } from '../../threads/overview/compactThreadSections';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import {
   selectThreadWorkflowTab,
@@ -15,21 +16,16 @@ import {
   type StatusCounts,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from '../../event-store/threads/threadFilterDsl';
 import { matchesThreadPeopleFilter } from '../../event-store/threads/threadPeopleFilter';
 import {
   computeThreadRecordStatusCounts,
   computeThreadRecordTagCounts,
-  matchesThreadRecordFilterState,
+  computeThreadWorkflowCounts,
+  filterThreadRecordRootIds,
 } from '../../event-store/threads/threadRecordOverview';
-import {
-  classifyThreadWorkflow,
-  threadReturnTs,
-  type ThreadWorkflowBucket,
-  type ThreadWorkflowCounts,
+import type {
+  ThreadWorkflowBucket,
+  ThreadWorkflowCounts,
 } from '../../event-store/threads/threadWorkflow';
 
 const ROOM_ACCENT_PALETTE = [
@@ -86,14 +82,27 @@ export const collectSpaceThreadEntries = (
   return entries;
 };
 
+/** Prunes room selection to currently visible rooms; returns undefined (= All) when empty or full. */
+export const pruneSpaceRoomSelection = (
+  selectedRoomIds: ReadonlySet<string> | undefined,
+  allRoomIds: readonly string[]
+): Set<string> | undefined => {
+  if (!selectedRoomIds || selectedRoomIds.size === 0) return undefined;
+  const valid = new Set(allRoomIds);
+  const pruned = new Set<string>();
+  selectedRoomIds.forEach((id) => {
+    if (valid.has(id)) pruned.add(id);
+  });
+  return pruned.size === 0 || pruned.size === valid.size ? undefined : pruned;
+};
+
 /** Active room IDs for the room filter; undefined or empty means all rooms in the Space. */
 export const resolveActiveSpaceRoomIds = (
   allRoomIds: readonly string[],
   selectedRoomIds: ReadonlySet<string> | undefined
 ): string[] => {
-  if (!selectedRoomIds || selectedRoomIds.size === 0) return [...allRoomIds];
-  const filtered = allRoomIds.filter((roomId) => selectedRoomIds.has(roomId));
-  return filtered.length > 0 ? filtered : [...allRoomIds];
+  const pruned = pruneSpaceRoomSelection(selectedRoomIds, allRoomIds);
+  return pruned ? allRoomIds.filter((roomId) => pruned.has(roomId)) : [...allRoomIds];
 };
 
 /** Toggles a room in or out of selection; unchecking the last active room resets to All. */
@@ -104,12 +113,9 @@ export const toggleSpaceRoomSelection = (
 ): Set<string> | undefined => {
   if (allRoomIds.length <= 1) return undefined;
   const active = new Set(resolveActiveSpaceRoomIds(allRoomIds, selectedRoomIds));
-  if (active.has(roomId)) {
-    active.delete(roomId);
-    return active.size === 0 ? undefined : active;
-  }
-  if (allRoomIds.includes(roomId)) active.add(roomId);
-  return allRoomIds.every((id) => active.has(id)) ? undefined : active;
+  if (active.has(roomId)) active.delete(roomId);
+  else if (allRoomIds.includes(roomId)) active.add(roomId);
+  return pruneSpaceRoomSelection(active, allRoomIds);
 };
 
 /** Downselects to 1 room (`undefined` when the Space only has 1 room). */
@@ -123,12 +129,12 @@ export type FilterAndSortSpaceThreadsOptions = {
   spaceRoomIds: ReadonlySet<string>;
   selectedRoomIds: ReadonlySet<string> | undefined;
   filterState: ThreadFilterState;
-  searchQuery?: string;
   simpleMode: boolean;
   snoozeNow: number;
   hasMindroomAgents: boolean;
   roomNameById: ReadonlyMap<string, string>;
   groupSections?: boolean;
+  signalsOf?: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
 };
 
 export type SpaceThreadSection = { id: ThreadWorkflowBucket; entries: CrossRoomThreadIndexEntry[] };
@@ -147,22 +153,16 @@ export type SpaceThreadsResult = {
 
 const projectFilterState = (
   filterState: ThreadFilterState,
-  searchQuery: string | undefined,
   simpleMode: boolean,
   hasMindroomAgents: boolean
 ): ThreadFilterState => {
-  const withQuery =
-    searchQuery === undefined
-      ? filterState
-      : hasMindroomAgents
-      ? applyParsedThreadFilterQuery(filterState, parseThreadFilterQuery(searchQuery))
-      : { ...filterState, freeText: searchQuery, unsupportedQuery: '' };
   if (simpleMode) {
     return hasMindroomAgents
-      ? simplifyThreadFilterState(withQuery)
-      : simplifyAgentlessSimpleThreadFilterState(withQuery);
+      ? simplifyThreadFilterState(filterState)
+      : simplifyAgentlessSimpleThreadFilterState(filterState);
   }
-  return hasMindroomAgents ? withQuery : simplifyAgentlessThreadFilterState(withQuery);
+  if (!hasMindroomAgents) return simplifyAgentlessThreadFilterState(filterState);
+  return filterState.tab ? selectThreadWorkflowTab(filterState, filterState.tab) : filterState;
 };
 
 /** Filters, counts, sorts, and optionally groups all threads belonging to a Matrix Space. */
@@ -171,12 +171,12 @@ export const filterAndSortSpaceThreads = ({
   spaceRoomIds,
   selectedRoomIds,
   filterState,
-  searchQuery,
   simpleMode,
   snoozeNow,
   hasMindroomAgents,
   roomNameById,
   groupSections = false,
+  signalsOf,
 }: FilterAndSortSpaceThreadsOptions): SpaceThreadsResult => {
   const roomCounts = new Map<string, number>();
   spaceRoomIds.forEach((roomId) => roomCounts.set(roomId, 0));
@@ -188,32 +188,23 @@ export const filterAndSortSpaceThreads = ({
     roomCounts.set(entry.roomId, (roomCounts.get(entry.roomId) ?? 0) + 1);
   }
 
-  const roomSelection =
-    selectedRoomIds && selectedRoomIds.size > 0
-      ? new Set([...selectedRoomIds].filter((roomId) => spaceRoomIds.has(roomId)))
-      : undefined;
-  const scoped =
-    roomSelection && roomSelection.size > 0
-      ? spaceEntries.filter((entry) => roomSelection.has(entry.roomId))
-      : spaceEntries;
+  const roomSelection = pruneSpaceRoomSelection(selectedRoomIds, [...spaceRoomIds]);
+  const scoped = roomSelection
+    ? spaceEntries.filter((entry) => roomSelection.has(entry.roomId))
+    : spaceEntries;
 
-  const recordMap = new Map(scoped.map((entry) => [entry.key, entry.threadRecord] as const));
+  // Re-key records by cross-room `entry.key` so shared single-room helpers cannot collide across rooms.
+  const keyedRecordMap = new Map(
+    scoped.map((entry) => [entry.key, { ...entry.threadRecord, threadRootId: entry.key }] as const)
+  );
   const scopedKeys = scoped.map((entry) => entry.key);
-  const statusCounts = computeThreadRecordStatusCounts(scopedKeys, recordMap, snoozeNow);
-  const tagCounts = computeThreadRecordTagCounts(scopedKeys, recordMap);
+  const statusCounts = computeThreadRecordStatusCounts(scopedKeys, keyedRecordMap, snoozeNow);
+  const tagCounts = computeThreadRecordTagCounts(scopedKeys, keyedRecordMap);
   const availableTags = Object.keys(tagCounts).sort((a, b) => a.localeCompare(b));
 
-  const effective = projectFilterState(filterState, searchQuery, simpleMode, hasMindroomAgents);
+  const effective = projectFilterState(filterState, simpleMode, hasMindroomAgents);
   const searchTokens = normalizeThreadSearchText(effective.freeText).split(' ').filter(Boolean);
-  const tabNeutral: ThreadFilterState = {
-    ...selectThreadWorkflowTab(effective, 'all'),
-    people: undefined,
-  };
-  const recordFilter: ThreadFilterState = { ...effective, people: undefined };
-  const bucketCounts: ThreadWorkflowCounts = { needsYou: 0, working: 0, later: 0, done: 0, all: 0 };
-  const filtered: CrossRoomThreadIndexEntry[] = [];
-
-  for (const entry of scoped) {
+  const prefiltered = scoped.filter((entry) => {
     const people = effective.people;
     if (
       people &&
@@ -221,48 +212,57 @@ export const filterAndSortSpaceThreads = ({
       !(entry.rootSenderId && people.includes(entry.rootSenderId)) &&
       !matchesThreadPeopleFilter(entry.threadRecord, people)
     ) {
-      continue;
+      return false;
     }
     if (searchTokens.length > 0) {
       const roomName = roomNameById.get(entry.roomId) ?? entry.roomName;
       const haystack = normalizeThreadSearchText(`${entry.searchableText} ${roomName}`);
-      if (!searchTokens.every((token) => haystack.includes(token))) continue;
+      if (!searchTokens.every((token) => haystack.includes(token))) return false;
     }
-    const isForUser = () => entry.isForUser;
-    if (matchesThreadRecordFilterState(entry.threadRecord, tabNeutral, snoozeNow, isForUser)) {
-      bucketCounts[classifyThreadWorkflow(entry.threadRecord.status, snoozeNow)] += 1;
-      bucketCounts.all += 1;
-    }
-    if (matchesThreadRecordFilterState(entry.threadRecord, recordFilter, snoozeNow, isForUser)) {
-      filtered.push(entry);
-    }
-  }
+    return true;
+  });
+
+  const entryByKey = new Map(prefiltered.map((entry) => [entry.key, entry] as const));
+  const prefilteredKeys = prefiltered.map((entry) => entry.key);
+  const isForUser = (key: string) => entryByKey.get(key)?.isForUser ?? false;
+  const recordFilter: ThreadFilterState = { ...effective, freeText: '', people: undefined };
+  const bucketCounts = computeThreadWorkflowCounts(
+    prefilteredKeys,
+    keyedRecordMap,
+    recordFilter,
+    snoozeNow,
+    isForUser
+  );
+  const filtered = filterThreadRecordRootIds(
+    prefilteredKeys,
+    recordFilter,
+    keyedRecordMap,
+    snoozeNow,
+    isForUser
+  )
+    .map((key) => entryByKey.get(key))
+    .filter((entry): entry is CrossRoomThreadIndexEntry => Boolean(entry));
 
   const direction = effective.sortDirection === 'asc' ? 1 : -1;
-  const compareActivity = (a: CrossRoomThreadIndexEntry, b: CrossRoomThreadIndexEntry) =>
-    (a.lastActivityTs - b.lastActivityTs) * direction || a.key.localeCompare(b.key);
-  filtered.sort(compareActivity);
+  filtered.sort(
+    (a, b) => (a.lastActivityTs - b.lastActivityTs) * direction || a.key.localeCompare(b.key)
+  );
 
-  const sections: SpaceThreadSection[] = [];
-  if (groupSections) {
-    const grouped: Record<ThreadWorkflowBucket, CrossRoomThreadIndexEntry[]> = {
-      needsYou: [],
-      working: [],
-      later: [],
-      done: [],
-    };
-    filtered.forEach((entry) =>
-      grouped[classifyThreadWorkflow(entry.threadRecord.status, snoozeNow)].push(entry)
-    );
-    grouped.later.sort(
-      (a, b) =>
-        threadReturnTs(a.threadRecord.status, snoozeNow) -
-          threadReturnTs(b.threadRecord.status, snoozeNow) || compareActivity(a, b)
-    );
-    COMPACT_THREAD_SECTION_ORDER.forEach((id) => {
-      if (grouped[id].length > 0) sections.push({ id, entries: grouped[id] });
-    });
-  }
+  const sections: SpaceThreadSection[] = groupSections
+    ? buildCompactThreadSections({
+        threadRootIds: filtered.map((entry) => entry.key),
+        recordMap: keyedRecordMap,
+        entryOf: (key) => entryByKey.get(key),
+        signalsOf: (entry) => signalsOf?.(entry),
+        pinnedRootIds: [],
+        now: snoozeNow,
+      }).map((section) => ({
+        id: section.id,
+        entries: section.rootIds
+          .map((key) => entryByKey.get(key))
+          .filter((entry): entry is CrossRoomThreadIndexEntry => Boolean(entry)),
+      }))
+    : [];
 
   return {
     scopedTotalCount: scoped.length,
@@ -281,7 +281,6 @@ export type ResolveComposerTargetRoomOptions = {
   activeRoomIds: readonly string[];
   sendableRoomIds: readonly string[];
   currentTargetRoomId?: string;
-  lastTargetRoomId?: string;
   hasDraft: boolean;
 };
 
@@ -294,7 +293,6 @@ export const resolveComposerTargetRoom = ({
   activeRoomIds,
   sendableRoomIds,
   currentTargetRoomId,
-  lastTargetRoomId,
   hasDraft,
 }: ResolveComposerTargetRoomOptions): string | undefined => {
   const sendableSet = new Set(sendableRoomIds);
@@ -302,10 +300,10 @@ export const resolveComposerTargetRoom = ({
     return currentTargetRoomId;
   }
   const activeSendable = activeRoomIds.filter((roomId) => sendableSet.has(roomId));
-  if (activeSendable.length === 1) return activeSendable[0];
-  if (currentTargetRoomId && activeSendable.includes(currentTargetRoomId)) {
+  const candidates = activeSendable.length > 0 ? activeSendable : sendableRoomIds;
+  if (candidates.length === 1) return candidates[0];
+  if (currentTargetRoomId && candidates.includes(currentTargetRoomId)) {
     return currentTargetRoomId;
   }
-  if (lastTargetRoomId && activeSendable.includes(lastTargetRoomId)) return lastTargetRoomId;
-  return activeSendable[0] ?? sendableRoomIds[0];
+  return candidates[0];
 };

@@ -2064,8 +2064,6 @@
       "postTo": "Senden an:",
       "postToRoom": "An #{{room}} senden",
       "chooseRoomAria": "Raum zum Senden auswählen",
-      "searchRooms": "Räume suchen",
-      "noMatchingRooms": "Keine passenden Räume",
       "draftPinned": "Entwurf für #{{room}}",
       "readOnly": "In keinem Raum dieses Space sind Nachrichten erlaubt."
     },

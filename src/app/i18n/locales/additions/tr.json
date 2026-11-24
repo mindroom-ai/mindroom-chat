@@ -2064,8 +2064,6 @@
       "postTo": "Gönder:",
       "postToRoom": "#{{room}} odasına gönder",
       "chooseRoomAria": "Gönderilecek odayı seç",
-      "searchRooms": "Odaları ara",
-      "noMatchingRooms": "Eşleşen oda yok",
       "draftPinned": "#{{room}} için taslak",
       "readOnly": "Bu alandaki hiçbir oda mesaj göndermeye izin vermiyor."
     },

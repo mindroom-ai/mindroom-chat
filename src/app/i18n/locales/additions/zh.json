@@ -2002,8 +2002,6 @@
       "postTo": "发送到：",
       "postToRoom": "发送到 #{{room}}",
       "chooseRoomAria": "选择要发送到的房间",
-      "searchRooms": "搜索房间",
-      "noMatchingRooms": "没有匹配的房间",
       "draftPinned": "#{{room}} 的草稿",
       "readOnly": "此空间中没有允许发送消息的房间。"
     },

@@ -2064,8 +2064,6 @@
       "postTo": "পোস্ট করুন:",
       "postToRoom": "#{{room}}-এ পোস্ট করুন",
       "chooseRoomAria": "পোস্ট করার জন্য রুম নির্বাচন করুন",
-      "searchRooms": "রুম খুঁজুন",
-      "noMatchingRooms": "কোনো মিল থাকা রুম নেই",
       "draftPinned": "#{{room}}-এর খসড়া",
       "readOnly": "এই স্পেসের কোনো রুমে পোস্ট করার অনুমতি নেই।"
     },

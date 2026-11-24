@@ -16,6 +16,8 @@ import { ownDirectionLine } from '../../ui/directional';
 import { getRoomAccentColor, type SpaceThreadSection } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
 
+export type SpaceThreadsEmptyKey = 'no-rooms' | 'no-threads' | 'no-matching';
+
 export type SpaceThreadsListProps = {
   entries: readonly CrossRoomThreadIndexEntry[];
   sections: readonly SpaceThreadSection[];
@@ -29,7 +31,7 @@ export type SpaceThreadsListProps = {
   showRoomBadge: boolean;
   snoozeNow: number;
   showLoading: boolean;
-  emptyKey?: 'no-rooms' | 'no-threads';
+  emptyKey?: SpaceThreadsEmptyKey;
   onOpenThread: (roomId: string, threadRootId: string) => void;
 };
 
@@ -113,6 +115,8 @@ export function SpaceThreadsList({
             {t(
               emptyKey === 'no-rooms'
                 ? 'spaceThreads.empty.noRooms'
+                : emptyKey === 'no-matching'
+                ? 'mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters'
                 : 'spaceThreads.empty.noThreads'
             )}
           </Text>

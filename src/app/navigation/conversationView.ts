@@ -32,12 +32,6 @@ export const ROOM_MESSAGES_VIEW = 'room-messages';
 /** Home's ask field (shell/HomeAsk.tsx): a composer with no conversation, shown with Home. */
 export const HOME_ASK_VIEW = 'home-ask';
 
-/** Space threads composer (spaces/threads/SpaceThreadComposer.tsx): standalone composer in a space. */
-export const SPACE_THREADS_VIEW = 'space-threads';
-
-const isStandaloneComposerView = (view: string): boolean =>
-  view === HOME_ASK_VIEW || view === SPACE_THREADS_VIEW;
-
 /** Lists the view `view`, which shows `roomId` (and `threadId`), while `shown` holds. */
 export const useShownConversationView = (
   shown: boolean,
@@ -63,7 +57,7 @@ export const useConversationHidden = (): boolean => {
   const pageHidden = useAtomValue(conversationHiddenAtom);
   const shown = useAtomValue(shownConversationViewsAtom);
   if (view === undefined) return pageHidden;
-  return !isStandaloneComposerView(view) && !shown.some((place) => place.view === view);
+  return view !== HOME_ASK_VIEW && !shown.some((place) => place.view === view);
 };
 
 /**
@@ -80,8 +74,7 @@ export const useConversationOutOfSightAtom = (): Atom<boolean> => {
         : atom(
             (get) =>
               get(phoneNavDrawerOpenAtom) ||
-              (!isStandaloneComposerView(view) &&
-                !get(shownConversationViewsAtom).some((shown) => shown.view === view))
+              !get(shownConversationViewsAtom).some((shown) => shown.view === view)
           ),
     [view]
   );

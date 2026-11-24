@@ -2002,8 +2002,6 @@
       "postTo": "Kirim ke:",
       "postToRoom": "Kirim ke #{{room}}",
       "chooseRoomAria": "Pilih ruang tujuan kirim",
-      "searchRooms": "Cari ruang",
-      "noMatchingRooms": "Tidak ada ruang yang cocok",
       "draftPinned": "Draf untuk #{{room}}",
       "readOnly": "Tidak ada ruang di space ini yang mengizinkan pengiriman."
     },

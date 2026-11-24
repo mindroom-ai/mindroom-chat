@@ -2126,8 +2126,6 @@
       "postTo": "Publicar en:",
       "postToRoom": "Publicar en #{{room}}",
       "chooseRoomAria": "Elegir sala para publicar",
-      "searchRooms": "Buscar salas",
-      "noMatchingRooms": "No hay salas coincidentes",
       "draftPinned": "Borrador para #{{room}}",
       "readOnly": "Ninguna sala de este espacio permite publicar."
     },

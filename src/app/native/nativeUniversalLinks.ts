@@ -143,7 +143,7 @@ const readSafeViaServers = (params: URLSearchParams): string[] => {
 
 const resolveUniversalLinkBaseRoute = (
   segments: readonly string[]
-): { basePath: string; isLobby?: boolean } | undefined => {
+): { basePath: string; isSpacePage?: boolean } | undefined => {
   const [first, second, third] = segments;
   if (!first) return undefined;
 
@@ -160,9 +160,9 @@ const resolveUniversalLinkBaseRoute = (
   if (segments.length === 1) return { basePath: getSpacePath(first) };
   if (segments.length === 2 && second) {
     if (second.toLowerCase() === 'lobby')
-      return { basePath: getSpaceLobbyPath(first), isLobby: true };
+      return { basePath: getSpaceLobbyPath(first), isSpacePage: true };
     if (second.toLowerCase() === 'threads')
-      return { basePath: getSpaceThreadsPath(first), isLobby: true };
+      return { basePath: getSpaceThreadsPath(first), isSpacePage: true };
     if (isEventId(second) || isRoomOrAlias(second))
       return { basePath: getSpaceRoomPath(first, second) };
     return undefined;
@@ -204,13 +204,13 @@ export const getAppPathFromUniversalLink = (incomingUrl: string): string | undef
   const viaServers = readSafeViaServers(url.searchParams);
   const rawThreadId = url.searchParams.get('threadId');
   const threadId =
-    !route.isLobby && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
+    !route.isSpacePage && rawThreadId && isEventId(rawThreadId) ? rawThreadId : undefined;
   const rawForkAt = url.searchParams.get('forkAt');
   const forkAt = threadId && rawForkAt && isEventId(rawForkAt) ? rawForkAt : undefined;
   return withSearchParam(route.basePath, {
     viaServers: viaServers.length > 0 ? viaServers.join(',') : undefined,
     threadId,
     forkAt,
-    focusEvent: !route.isLobby && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
+    focusEvent: !route.isSpacePage && url.searchParams.get('focusEvent') === '1' ? '1' : undefined,
   });
 };

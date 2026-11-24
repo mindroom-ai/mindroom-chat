@@ -16,8 +16,8 @@ import * as css from './SpaceThreads.css';
 export type SpaceThreadsHeaderProps = {
   space: Room;
   spaceIdOrAlias: string;
-  activeRoomCount: number;
-  totalRoomCount: number;
+  activeRoomCount?: number;
+  totalRoomCount?: number;
 };
 
 export function SpaceThreadsHeader({
@@ -37,20 +37,22 @@ export function SpaceThreadsHeader({
   return (
     <PageHeader balance={screenSize === ScreenSize.Mobile}>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minInlineSize: 0 }}>
-        <PhoneBackButton to={getSpacePath(spaceIdOrAlias)} />
+        <PhoneBackButton to={getSpacePath(spaceIdOrAlias)} openedFrom={[overviewPath]} />
         <Box grow="Yes" alignItems="Center" gap="200" style={{ minInlineSize: 0 }}>
           <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
           <Text size="H4" truncate {...ownDirectionLine}>
             {spaceName}
           </Text>
-          <Text as="span" size="T200" className={css.HeaderBadge} data-space-rooms-badge="true">
-            {activeRoomCount === totalRoomCount
-              ? t('spaceThreads.header.roomsCount', { count: totalRoomCount })
-              : t('spaceThreads.header.roomsFiltered', {
-                  active: activeRoomCount,
-                  total: totalRoomCount,
-                })}
-          </Text>
+          {totalRoomCount !== undefined && activeRoomCount !== undefined && (
+            <Text as="span" size="T200" className={css.HeaderBadge} data-space-rooms-badge="true">
+              {activeRoomCount === totalRoomCount
+                ? t('spaceThreads.header.roomsCount', { count: totalRoomCount })
+                : t('spaceThreads.header.roomsFiltered', {
+                    active: activeRoomCount,
+                    total: totalRoomCount,
+                  })}
+            </Text>
+          )}
         </Box>
         {screenSize === ScreenSize.Mobile ? (
           <TooltipProvider

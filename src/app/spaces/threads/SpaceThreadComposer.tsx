@@ -1,18 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Text } from 'folds';
-import { useAtomValue } from 'jotai';
+import { useCallback, useMemo, useState, type RefObject } from 'react';
+import { Box, Icon, Icons, Text } from 'folds';
+import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { EventTimeline, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import type { Editor } from 'slate';
+import { ComposerMenuButton } from '../../composer/ComposerMenuButton';
 import { RoomInput } from '../../composer/RoomInput';
+import * as composerCss from '../../composer/RoomInput.css';
 import {
   composerUploadItemsAtom,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { useEditor } from '../../editor/Editor';
-import { isEmptyEditor } from '../../editor/utils';
 import {
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
@@ -21,19 +21,14 @@ import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import {
-  getPowersLevelFromMatrixEvent,
-  PowerLevelsContextProvider,
-  usePowerLevels,
-} from '../../matrix/hooks/usePowerLevels';
+import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
 import { StateEvent } from '../../matrix/types/room';
-import { ConversationViewContext, SPACE_THREADS_VIEW } from '../../navigation/conversationView';
 import * as overviewCss from '../../threads/overview/RoomThreadOverview.css';
 import { ownDirectionLine } from '../../ui/directional';
-import { SpaceComposerRoomMenu } from './SpaceComposerRoomMenu';
+import { MenuEntry } from '../../ui/MenuEntry';
 import { resolveComposerTargetRoom } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
 
@@ -42,7 +37,6 @@ const MAX_INLINE_PILLS = 4;
 export type SpaceComposerRoom = { room: Room; name: string; accentColor: string };
 
 export type SpaceThreadComposerProps = {
-  spaceId: string;
   rooms: readonly SpaceComposerRoom[];
   activeRoomIds: readonly string[];
   fileDropContainerRef: RefObject<HTMLElement | null>;
@@ -61,44 +55,7 @@ const canSendMessageToRoom = (room: Room, userId: string): boolean => {
   );
 };
 
-function SpaceRoomInputBridge({
-  room,
-  editor,
-  fileDropContainerRef,
-  onThreadCreated,
-}: {
-  room: Room;
-  editor: Editor;
-  fileDropContainerRef: RefObject<HTMLElement | null>;
-  onThreadCreated: (roomId: string, eventId: string) => void;
-}) {
-  const powerLevels = usePowerLevels(room);
-  const onRoomMessageSent = useCallback(
-    (eventId: string): boolean => {
-      if (!isConfirmedMatrixEventId(eventId) && !isLocalEchoEventId(eventId)) return false;
-      onThreadCreated(room.roomId, eventId);
-      return true;
-    },
-    [onThreadCreated, room.roomId]
-  );
-  return (
-    <PowerLevelsContextProvider value={powerLevels}>
-      <ConversationViewContext.Provider value={SPACE_THREADS_VIEW}>
-        <RoomInput
-          editor={editor}
-          fileDropContainerRef={fileDropContainerRef}
-          roomId={room.roomId}
-          room={room}
-          threadingEnabled
-          onRoomMessageSent={onRoomMessageSent}
-        />
-      </ConversationViewContext.Provider>
-    </PowerLevelsContextProvider>
-  );
-}
-
 export function SpaceThreadComposer({
-  spaceId,
   rooms,
   activeRoomIds,
   fileDropContainerRef,
@@ -111,13 +68,6 @@ export function SpaceThreadComposer({
   const editor = useEditor();
   const [permissionsVersion, refreshPermissions] = useForceUpdate();
   const [chosenTargetRoomId, setChosenTargetRoomId] = useState<string | undefined>(undefined);
-  const [lastTargetRoomId, setLastTargetRoomId] = useState<string | undefined>(undefined);
-  const boundDraftRoomRef = useRef<string | undefined>(undefined);
-
-  useEffect(() => {
-    setChosenTargetRoomId(undefined);
-    setLastTargetRoomId(undefined);
-  }, [spaceId]);
 
   const roomIdsSet = useMemo(() => new Set(rooms.map((item) => item.room.roomId)), [rooms]);
   useStateEventCallback(
@@ -148,39 +98,51 @@ export function SpaceThreadComposer({
     [sendableRooms]
   );
 
-  const draftRoomId = chosenTargetRoomId ?? sendableRoomIds[0] ?? '';
-  const draft = useAtomValue(
-    useMemo(
-      () => roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, draftRoomId)),
-      [draftRoomId, myUserId]
-    )
+  // Primitive key stays equal across subsequent keystrokes so typing does not re-render this dock.
+  const draftedRoomsKeyAtom = useMemo(
+    () =>
+      atom((get) =>
+        sendableRoomIds
+          .filter(
+            (roomId) =>
+              get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, roomId))).length > 0 ||
+              get(composerUploadItemsAtom(roomId, undefined)).length > 0
+          )
+          .join('\0')
+      ),
+    [myUserId, sendableRoomIds]
   );
-  const stagedUploads = useAtomValue(
-    useMemo(() => composerUploadItemsAtom(draftRoomId, SPACE_THREADS_VIEW), [draftRoomId])
+  const draftedRoomsKey = useAtomValue(draftedRoomsKeyAtom);
+  const draftedRoomIds = useMemo(
+    () => new Set(draftedRoomsKey ? draftedRoomsKey.split('\0') : []),
+    [draftedRoomsKey]
   );
-  const hasDraft =
-    Boolean(chosenTargetRoomId) &&
-    (draft.length > 0 ||
-      stagedUploads.length > 0 ||
-      (boundDraftRoomRef.current === chosenTargetRoomId && !isEmptyEditor(editor)));
 
+  const currentHasDraft = Boolean(chosenTargetRoomId && draftedRoomIds.has(chosenTargetRoomId));
   const targetRoomId = resolveComposerTargetRoom({
     activeRoomIds,
     sendableRoomIds,
     currentTargetRoomId: chosenTargetRoomId,
-    lastTargetRoomId,
-    hasDraft,
+    hasDraft: currentHasDraft,
   });
-
-  useEffect(() => {
-    boundDraftRoomRef.current = targetRoomId;
-    if (targetRoomId && targetRoomId !== chosenTargetRoomId) {
-      setChosenTargetRoomId(targetRoomId);
-      setLastTargetRoomId(targetRoomId);
-    }
-  }, [chosenTargetRoomId, targetRoomId]);
+  const targetHasDraft = Boolean(targetRoomId && draftedRoomIds.has(targetRoomId));
+  // Freeze destination once the active target holds a draft so later room-filter changes keep it.
+  if (targetHasDraft && targetRoomId && chosenTargetRoomId !== targetRoomId) {
+    setChosenTargetRoomId(targetRoomId);
+  }
 
   const targetRoom = sendableRooms.find((item) => item.room.roomId === targetRoomId);
+  const onRoomMessageSent = useCallback(
+    (eventId: string): boolean => {
+      if (!targetRoomId || (!isConfirmedMatrixEventId(eventId) && !isLocalEchoEventId(eventId))) {
+        return false;
+      }
+      onThreadCreated(targetRoomId, eventId);
+      return true;
+    },
+    [onThreadCreated, targetRoomId]
+  );
+
   if (!targetRoom) {
     return (
       <div className={css.ComposerDock} data-space-composer="true">
@@ -193,19 +155,13 @@ export function SpaceThreadComposer({
 
   const activeSet = new Set(activeRoomIds);
   const activeSendable = sendableRooms.filter((item) => activeSet.has(item.room.roomId));
-  const draftPinnedOutsideFilter = hasDraft && !activeSet.has(targetRoom.room.roomId);
+  const baseDestinations = activeSendable.length > 0 ? activeSendable : sendableRooms;
+  const eligibleRooms = baseDestinations.some((item) => item.room.roomId === targetRoom.room.roomId)
+    ? baseDestinations
+    : [targetRoom, ...baseDestinations];
+  const draftPinnedOutsideFilter = targetHasDraft && !activeSet.has(targetRoom.room.roomId);
   const useDropdown =
-    screenSize === ScreenSize.Mobile ||
-    activeSendable.length > MAX_INLINE_PILLS ||
-    (activeSendable.length === 0 && sendableRooms.length > MAX_INLINE_PILLS);
-  const basePills = activeSendable.length > 0 ? activeSendable : sendableRooms;
-  const pillRooms = basePills.some((item) => item.room.roomId === targetRoom.room.roomId)
-    ? basePills
-    : [targetRoom, ...basePills];
-  const selectTarget = (roomId: string) => {
-    setChosenTargetRoomId(roomId);
-    setLastTargetRoomId(roomId);
-  };
+    screenSize === ScreenSize.Mobile || eligibleRooms.length > MAX_INLINE_PILLS;
 
   return (
     <div
@@ -215,17 +171,62 @@ export function SpaceThreadComposer({
     >
       <div className={css.ComposerTargetBar}>
         {useDropdown ? (
-          <SpaceComposerRoomMenu
-            sendableRooms={sendableRooms}
-            targetRoom={targetRoom}
-            onSelect={selectTarget}
-          />
+          <span data-space-composer-picker="true">
+            <ComposerMenuButton
+              label={t('spaceThreads.composer.chooseRoomAria')}
+              icon={Icons.ChevronBottom}
+              face={{
+                content: (
+                  <>
+                    <span
+                      className={css.RoomDot}
+                      style={{ backgroundColor: targetRoom.accentColor }}
+                      aria-hidden="true"
+                    />
+                    <Text as="span" size="T200" truncate {...ownDirectionLine}>
+                      {t('spaceThreads.composer.postToRoom', { room: targetRoom.name })}
+                    </Text>
+                  </>
+                ),
+                label: t('spaceThreads.composer.postToRoom', { room: targetRoom.name }),
+              }}
+            >
+              {({ choose }) =>
+                eligibleRooms.map((item) => {
+                  const active = item.room.roomId === targetRoom.room.roomId;
+                  return (
+                    <MenuEntry
+                      key={item.room.roomId}
+                      role="menuitemradio"
+                      aria-checked={active}
+                      fill={active ? 'Soft' : 'None'}
+                      className={composerCss.ComposerMenuItem}
+                      label={item.name}
+                      icon={Icons.Check}
+                      after={
+                        <Box as="span" alignItems="Center" gap="200">
+                          {active && <Icon size="50" src={Icons.Check} aria-hidden="true" />}
+                          <span
+                            className={css.RoomDot}
+                            style={{ backgroundColor: item.accentColor }}
+                            aria-hidden="true"
+                          />
+                        </Box>
+                      }
+                      onSelect={choose(() => setChosenTargetRoomId(item.room.roomId))}
+                      data-space-composer-option={item.room.roomId}
+                    />
+                  );
+                })
+              }
+            </ComposerMenuButton>
+          </span>
         ) : (
           <>
             <Text as="span" size="T200" priority="400">
               {t('spaceThreads.composer.postTo')}
             </Text>
-            {pillRooms.map((item) => {
+            {eligibleRooms.map((item) => {
               const active = item.room.roomId === targetRoom.room.roomId;
               return (
                 <button
@@ -236,7 +237,7 @@ export function SpaceThreadComposer({
                     active && overviewCss.SortButtonActive
                   )}
                   aria-pressed={active}
-                  onClick={() => selectTarget(item.room.roomId)}
+                  onClick={() => setChosenTargetRoomId(item.room.roomId)}
                   data-space-composer-target={item.room.roomId}
                 >
                   <span
@@ -263,11 +264,13 @@ export function SpaceThreadComposer({
           </Text>
         )}
       </div>
-      <SpaceRoomInputBridge
-        room={targetRoom.room}
+      <RoomInput
         editor={editor}
         fileDropContainerRef={fileDropContainerRef}
-        onThreadCreated={onThreadCreated}
+        roomId={targetRoom.room.roomId}
+        room={targetRoom.room}
+        threadingEnabled
+        onRoomMessageSent={onRoomMessageSent}
       />
     </div>
   );
