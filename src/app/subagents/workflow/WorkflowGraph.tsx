@@ -72,7 +72,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   const model = subagentRun?.meta.model
     ? getAiRunCompactModelLabel(subagentRun.meta.model)
     : node.model;
-  const usage = isLive ? subagentRun?.meta.usage ?? node.usage : node.usage;
+  const usage = isLive ? (subagentRun?.meta.usage ?? node.usage) : node.usage;
   const tokens = usage ? usage.inputTokens + usage.outputTokens : 0;
   const cost =
     usage?.costUsd !== undefined && (usage.costUsd > 0 || tokens > 0)
@@ -87,12 +87,12 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   const note = node.cached
     ? t('mindroomUi.workflowRun.node.reused')
     : node.status === 'queued'
-    ? t('mindroomUi.workflowRun.node.queued')
-    : node.status === 'indeterminate'
-    ? t('mindroomUi.workflowRun.node.mayHaveRun')
-    : node.status === 'waiting' && node.waitingOn
-    ? workflowNodeWaitLabel(node.waitingOn, t)
-    : undefined;
+      ? t('mindroomUi.workflowRun.node.queued')
+      : node.status === 'indeterminate'
+        ? t('mindroomUi.workflowRun.node.mayHaveRun')
+        : node.status === 'waiting' && node.waitingOn
+          ? workflowNodeWaitLabel(node.waitingOn, t)
+          : undefined;
   const meta = [
     node.agent ? agentProfile.name : undefined,
     model,

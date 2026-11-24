@@ -35,7 +35,7 @@ export type WorkflowCardRecord = {
 
 const runKey = (roomId: string, run: string) => `${roomId}\0${run}`;
 const agentFromSender = (sender: string) => {
-  const local = sender.startsWith('@') ? sender.slice(1).split(':')[0] ?? sender : sender;
+  const local = sender.startsWith('@') ? (sender.slice(1).split(':')[0] ?? sender) : sender;
   return local.startsWith('mindroom_') ? local.slice('mindroom_'.length) : local;
 };
 
@@ -54,11 +54,11 @@ export const selectWorkflowRun = (
       (live.meta.attempt !== record.card.attempt
         ? live.meta.attempt > record.card.attempt
         : liveActive !== cardActive
-        ? !liveActive
-        : liveActive
-        ? !live.stale || record.receivedAt <= live.lastFrameAt
-        : live.meta.endedAt !== null &&
-          (record.card.endedAt === null || live.meta.endedAt > record.card.endedAt)));
+          ? !liveActive
+          : liveActive
+            ? !live.stale || record.receivedAt <= live.lastFrameAt
+            : live.meta.endedAt !== null &&
+              (record.card.endedAt === null || live.meta.endedAt > record.card.endedAt)));
   const summary = liveWins ? live!.meta : record.card;
   const sameTerminal =
     sameAttempt &&
@@ -69,10 +69,10 @@ export const selectWorkflowRun = (
   const graph = liveWins
     ? live!.graph
     : sameTerminal && live.graph.nodes.length >= (record.card.graph?.nodes.length ?? 0)
-    ? live.graph
-    : sameAttempt
-    ? record.card.graph ?? live?.graph
-    : record.card.graph;
+      ? live.graph
+      : sameAttempt
+        ? (record.card.graph ?? live?.graph)
+        : record.card.graph;
   return {
     ...summary,
     run: record?.card.run ?? live!.run,

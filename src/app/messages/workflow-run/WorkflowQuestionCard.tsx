@@ -98,7 +98,7 @@ export function WorkflowQuestionCard({
 
   const requesterName =
     question.requester && room
-      ? getMemberDisplayName(room, question.requester) ?? question.requester
+      ? (getMemberDisplayName(room, question.requester) ?? question.requester)
       : question.requester;
   const disabled = !isRequester || pending;
   const shownFeedback = isOpen ? feedback : null;

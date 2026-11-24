@@ -526,7 +526,7 @@ function RoomContent() {
                 room={room}
                 run={workflowPanel.run}
                 threadId={
-                  workflowPanel.threadId !== undefined ? workflowPanel.threadId : threadId ?? null
+                  workflowPanel.threadId !== undefined ? workflowPanel.threadId : (threadId ?? null)
                 }
                 onClose={workflowPanel.close}
                 readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}

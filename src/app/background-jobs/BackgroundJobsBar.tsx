@@ -384,8 +384,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                         group.kind === 'workflow'
                           ? 'mindroomUi.backgroundJobs.groupWorkflows'
                           : group.kind === 'subagent'
-                          ? 'mindroomUi.backgroundJobs.groupSubagents'
-                          : 'mindroomUi.backgroundJobs.groupTools',
+                            ? 'mindroomUi.backgroundJobs.groupSubagents'
+                            : 'mindroomUi.backgroundJobs.groupTools',
                         { number: group.items.length }
                       )}
                     </h3>

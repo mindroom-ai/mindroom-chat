@@ -96,10 +96,10 @@ export function WorkflowRunControls({
   const resumeMode = !canResume
     ? null
     : status === 'completed'
-    ? 'runAgain'
-    : status === 'failed' || status === 'cancelled' || status === 'interrupted'
-    ? 'resume'
-    : null;
+      ? 'runAgain'
+      : status === 'failed' || status === 'cancelled' || status === 'interrupted'
+        ? 'resume'
+        : null;
 
   const stop = async () => {
     if (!jobId || stopping) return;
@@ -149,8 +149,8 @@ export function WorkflowRunControls({
             {resuming
               ? t('mindroomUi.workflowRun.starting')
               : resumeMode === 'runAgain'
-              ? t('mindroomUi.workflowRun.runAgain')
-              : t('mindroomUi.workflowRun.resume')}
+                ? t('mindroomUi.workflowRun.runAgain')
+                : t('mindroomUi.workflowRun.resume')}
           </Text>
         </Button>
       )}
@@ -234,7 +234,7 @@ export function WorkflowRunMetrics({
   const elapsedText = formatWorkflowElapsed(
     view.startedAt,
     view.endedAt,
-    isLive ? now ?? ticked : null,
+    isLive ? (now ?? ticked) : null,
     language
   );
   return (

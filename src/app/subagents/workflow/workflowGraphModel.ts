@@ -97,8 +97,8 @@ const foldPriority = (item: WorkflowGraphItem): [number, number] => {
     return group.failed > 0
       ? [1, idNum(group.id)]
       : group.done < group.total
-      ? [2, idNum(group.id)]
-      : [4, -idNum(group.id)];
+        ? [2, idNum(group.id)]
+        : [4, -idNum(group.id)];
   }
   const rank = STATUS_RANK[item.node.status];
   return [rank, rank === 4 ? -(item.node.endedAt ?? idNum(item.node.id)) : idNum(item.node.id)];

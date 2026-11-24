@@ -32,7 +32,8 @@ export const parseWorkflowRunCard = (content: unknown) => {
   if (!raw || typeof raw.run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(raw.run)) return null;
   const summary = parseRunSummary(raw, false);
   if (!summary) return null;
-  const graph = raw.graph !== undefined ? parseWorkflowRunGraph(raw.graph) ?? undefined : undefined;
+  const graph =
+    raw.graph !== undefined ? (parseWorkflowRunGraph(raw.graph) ?? undefined) : undefined;
   return {
     ...summary,
     run: raw.run,
@@ -139,6 +140,6 @@ export const parseWorkflowAnswerRejection = (
   if (!sender || !isMindroomAgentUserIdForViewer(sender, viewerUserId ?? undefined)) return null;
   const content = event.getContent();
   const reason = isRecord(content) ? optStr(content.reason) : undefined;
-  const answerEventId = reason ? replyId(content) ?? replyId(event.getWireContent()) : undefined;
+  const answerEventId = reason ? (replyId(content) ?? replyId(event.getWireContent())) : undefined;
   return reason && answerEventId ? { answerEventId, reason } : null;
 };

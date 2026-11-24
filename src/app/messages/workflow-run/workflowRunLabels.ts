@@ -39,10 +39,10 @@ export const workflowNodeStatusLabel = (
   status === 'waiting' && waitingOn
     ? t(WAITING_ON_KEYS[waitingOn])
     : status === 'queued'
-    ? t('mindroomUi.workflowRun.node.queued')
-    : status === 'indeterminate'
-    ? t('mindroomUi.workflowRun.node.mayHaveRun')
-    : t(STATUS_KEYS[status]);
+      ? t('mindroomUi.workflowRun.node.queued')
+      : status === 'indeterminate'
+        ? t('mindroomUi.workflowRun.node.mayHaveRun')
+        : t(STATUS_KEYS[status]);
 
 export const workflowRunHeading = (
   meta: { title: string | null; name?: string | null },

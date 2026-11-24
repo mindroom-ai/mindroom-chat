@@ -242,8 +242,8 @@ export function BackgroundJobRow({
     ? item.waiting
       ? t('mindroomUi.backgroundJobs.waiting')
       : item.workflowWaiting
-      ? t('mindroomUi.workflowRun.node.waitingOn.user')
-      : undefined
+        ? t('mindroomUi.workflowRun.node.waitingOn.user')
+        : undefined
     : undefined;
   const detail = details && ((described && meta) || tool || doing);
   const headlineTitle = meta?.task || item.name;
