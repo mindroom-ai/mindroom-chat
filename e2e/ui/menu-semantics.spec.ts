@@ -115,7 +115,7 @@ const axeFindings = async (page: Page, menu: Locator): Promise<string[]> => {
     const { axe } = window as unknown as {
       axe: { run: (context: Element) => Promise<AxeResult> };
     };
-    const result = await axe.run(element!);
+    const result = await axe.run(element);
     return result.violations
       .filter((violation) => violation.impact === 'critical' || violation.impact === 'serious')
       .flatMap((violation) =>
