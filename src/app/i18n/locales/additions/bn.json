@@ -1214,6 +1214,7 @@
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
       "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "groupWorkflows": "ওয়ার্কফ্লো · {{number}}",
       "groupSubagents": "সাব-এজেন্ট · {{number}}",
       "groupTools": "টুল · {{number}}",
       "tools_one": "{{count}}টি টুল",
@@ -1258,6 +1259,45 @@
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
       "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+    },
+    "workflowRun": {
+      "title": "ওয়ার্কফ্লো",
+      "status": {
+        "starting": "শুরু হচ্ছে",
+        "running": "চলছে",
+        "waiting": "আপনার অপেক্ষায়",
+        "completed": "সম্পন্ন",
+        "failed": "ব্যর্থ",
+        "cancelled": "বাতিল",
+        "interrupted": "বিঘ্নিত"
+      },
+      "counts": "{{done}} সম্পন্ন, {{running}} চলছে, {{waiting}} অপেক্ষায়",
+      "reused": "পুনরায় ব্যবহৃত: {{count}}",
+      "cost": "এখন পর্যন্ত {{spent}}, মোট প্রায় {{projected}}",
+      "costAtLeast": "এখন পর্যন্ত অন্তত {{spent}}",
+      "largeRun": "বড় রান",
+      "attempt": "চেষ্টা {{number}}",
+      "stop": "থামান",
+      "stopping": "থামানো হচ্ছে…",
+      "resume": "পুনরায় চালু করুন",
+      "runAgain": "আবার চালান",
+      "starting": "শুরু হচ্ছে…",
+      "failedCount_one": "{{count}}টি ব্যর্থ",
+      "failedCount_other": "{{count}}টি ব্যর্থ",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "ইতিমধ্যেই উত্তর দেওয়া হয়েছে।",
+          "noLongerOpen": "এই প্রশ্নটি আর খোলা নেই।",
+          "notAnOption": "এটি কোনো বিকল্প নয়।",
+          "notForYou": "শুধু যিনি রান শুরু করেছেন তিনিই উত্তর দিতে পারবেন।"
+        },
+        "noReply": "এখনো কোনো উত্তর আসেনি। আবার চেষ্টা করুন।",
+        "placeholder": "আপনার উত্তর লিখুন",
+        "send": "পাঠান",
+        "answered": "উত্তর দেওয়া হয়েছে: {{answer}}",
+        "cancelled": "বাতিল",
+        "onlyRequester": "শুধু {{name}} উত্তর দিতে পারবেন।"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",

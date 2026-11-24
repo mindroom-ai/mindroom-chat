@@ -1214,6 +1214,7 @@
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
       "jobCountFinished": "{{count}} achtergrondtaken voltooid",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Subagenten · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1258,6 +1259,45 @@
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
       "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starten",
+        "running": "Actief",
+        "waiting": "Wacht op jou",
+        "completed": "Klaar",
+        "failed": "Mislukt",
+        "cancelled": "Geannuleerd",
+        "interrupted": "Onderbroken"
+      },
+      "counts": "{{done}} klaar, {{running}} actief, {{waiting}} wachtend",
+      "reused": "Hergebruikt: {{count}}",
+      "cost": "{{spent}} tot nu toe, ongeveer {{projected}} in totaal",
+      "costAtLeast": "minstens {{spent}} tot nu toe",
+      "largeRun": "Grote run",
+      "attempt": "Poging {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Stoppen…",
+      "resume": "Hervatten",
+      "runAgain": "Opnieuw uitvoeren",
+      "starting": "Starten…",
+      "failedCount_one": "{{count}} mislukt",
+      "failedCount_other": "{{count}} mislukt",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Al beantwoord.",
+          "noLongerOpen": "Deze vraag staat niet meer open.",
+          "notAnOption": "Dat is geen van de opties.",
+          "notForYou": "Alleen degene die de run startte kan antwoorden."
+        },
+        "noReply": "Nog geen reactie. Probeer opnieuw.",
+        "placeholder": "Typ je antwoord",
+        "send": "Versturen",
+        "answered": "Beantwoord: {{answer}}",
+        "cancelled": "Geannuleerd",
+        "onlyRequester": "Alleen {{name}} kan antwoorden."
+      }
     },
     "subagents": {
       "title": "Subagenten",

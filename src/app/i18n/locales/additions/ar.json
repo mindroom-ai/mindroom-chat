@@ -1354,6 +1354,7 @@
       "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)",
       "finished": "انتهى: ⁨{{tool}}⁩",
       "jobCountFinished": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "groupWorkflows": "سير العمل · ⁨{{number}}⁩",
       "groupSubagents": "الوكلاء الفرعيون · ⁨{{number}}⁩",
       "groupTools": "الأدوات · ⁨{{number}}⁩",
       "tools_zero": "الأدوات: ⁨{{count}}⁩",
@@ -1418,6 +1419,49 @@
       "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
+    },
+    "workflowRun": {
+      "title": "سير العمل",
+      "status": {
+        "starting": "جارٍ البدء",
+        "running": "قيد التشغيل",
+        "waiting": "بانتظارك",
+        "completed": "تم",
+        "failed": "فشل",
+        "cancelled": "ملغى",
+        "interrupted": "توقف مؤقتاً"
+      },
+      "counts": "⁨{{done}}⁩ مكتمل، ⁨{{running}}⁩ قيد التشغيل، ⁨{{waiting}}⁩ بانتظارك",
+      "reused": "معاد استخدامه: ⁨{{count}}⁩",
+      "cost": "⁨{{spent}}⁩ حتى الآن، حوالي ⁨{{projected}}⁩ بالإجمال",
+      "costAtLeast": "على الأقل ⁨{{spent}}⁩ حتى الآن",
+      "largeRun": "تشغيل كبير",
+      "attempt": "المحاولة ⁨{{number}}⁩",
+      "stop": "إيقاف",
+      "stopping": "جارٍ الإيقاف…",
+      "resume": "استئناف",
+      "runAgain": "تشغيل مجدداً",
+      "starting": "جارٍ البدء…",
+      "failedCount_zero": "⁨{{count}}⁩ فشل",
+      "failedCount_one": "⁨{{count}}⁩ فشل",
+      "failedCount_two": "⁨{{count}}⁩ فشل",
+      "failedCount_few": "⁨{{count}}⁩ فشل",
+      "failedCount_many": "⁨{{count}}⁩ فشل",
+      "failedCount_other": "⁨{{count}}⁩ فشل",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "تمت الإجابة بالفعل.",
+          "noLongerOpen": "هذا السؤال لم يعد مفتوحاً.",
+          "notAnOption": "هذا ليس من بين الخيارات.",
+          "notForYou": "يمكن فقط لمن بدأ التشغيل الإجابة."
+        },
+        "noReply": "لا يوجد رد بعد. حاول مجدداً.",
+        "placeholder": "اكتب إجابتك",
+        "send": "إرسال",
+        "answered": "تمت الإجابة: ⁨{{answer}}⁩",
+        "cancelled": "ملغى",
+        "onlyRequester": "يمكن فقط لـ ⁨{{name}}⁩ الإجابة."
+      }
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",

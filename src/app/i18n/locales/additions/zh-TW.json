@@ -1179,6 +1179,7 @@
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成",
+      "groupWorkflows": "工作流程 · {{number}}",
       "groupSubagents": "子代理 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
@@ -1218,6 +1219,44 @@
       },
       "jobTotal_other": "{{count}} 個背景工作",
       "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+    },
+    "workflowRun": {
+      "title": "工作流程",
+      "status": {
+        "starting": "正在啟動",
+        "running": "執行中",
+        "waiting": "等待回覆",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "counts": "{{done}} 已完成，{{running}} 執行中，{{waiting}} 等待中",
+      "reused": "已重複使用：{{count}}",
+      "cost": "目前已花費 {{spent}}，預計總計約 {{projected}}",
+      "costAtLeast": "目前已花費至少 {{spent}}",
+      "largeRun": "大型執行",
+      "attempt": "第 {{number}} 次嘗試",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "繼續",
+      "runAgain": "再次執行",
+      "starting": "正在啟動…",
+      "failedCount_other": "{{count}} 項失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已經回答過了。",
+          "noLongerOpen": "此問題已關閉。",
+          "notAnOption": "這不是可選項之一。",
+          "notForYou": "只有發起此執行的人可以回答。"
+        },
+        "noReply": "尚未收到回覆，請重試。",
+        "placeholder": "輸入你的回答",
+        "send": "傳送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      }
     },
     "subagents": {
       "title": "子代理",

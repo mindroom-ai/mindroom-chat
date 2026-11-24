@@ -9,6 +9,7 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
+import { getWorkflowRunStore } from '../messages/live/workflowRunStore';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { BackgroundJobRow } from './BackgroundJobRow';
 import type { BackgroundJobsBarItem } from './backgroundJobsPresentation';
@@ -1131,4 +1132,71 @@ it('stop all sends one event for the view and marks every job stopping', async (
   expect(
     container.querySelectorAll('button[aria-label^="mindroomUi.backgroundJobs.stopTaskFor"]')
   ).toHaveLength(0);
+});
+
+it('renders a workflow run job row with title, counts, usage cells, and Stop', () => {
+  showUsageDetails(true);
+  const runId = 'wf-11111111111111111111111111111111';
+  const workflowStore = getWorkflowRunStore(mx as never);
+  workflowStore.ingest(
+    '!room:example.org',
+    '@mindroom_panels:example.org',
+    {
+      run: runId,
+      sid: '1795389735000-a1b2c3d4',
+      seq: 1,
+      meta: {
+        agent: 'panels',
+        threadId: '$thread',
+        title: 'Audit the sample module',
+        status: 'running',
+        attempt: 1,
+        startedAt: 1795389735,
+        endedAt: null,
+        maxConcurrent: 8,
+        maxCostUsd: null,
+        large: false,
+        counts: { queued: 0, running: 2, waiting: 1, completed: 4, failed: 0, indeterminate: 0, cached: 0 },
+        usage: {
+          inputTokens: 12000,
+          outputTokens: 3000,
+          toolCalls: 5,
+          costUsd: 0.25,
+          attemptCostUsd: 0.25,
+          projectedCostUsd: 0.5,
+          costUnknown: false,
+        },
+      },
+      snapshot: {
+        phases: ['Audit'],
+        groups: [],
+        nodes: [],
+        edges: [],
+        log: [],
+        omitted: { queued: 0, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 0, phases: 0, log: 0 },
+      },
+    },
+    Date.now()
+  );
+  state.jobs = [
+    {
+      jobId: 'job-wf-row',
+      agentId: '@mindroom_panels:example.org',
+      threadId: '$thread',
+      kind: 'workflow',
+      tool: 'workflow',
+      status: 'running',
+      startedAt: '2026-11-23T00:00:00+00:00',
+      workflow: runId,
+    },
+  ];
+  render();
+  expect(container.querySelector('[data-job-kind="workflow"]')).not.toBeNull();
+  expect(container.textContent).toContain('Audit the sample module');
+  expect(container.textContent).toContain('mindroomUi.workflowRun.counts');
+  expect(container.querySelector('[data-job-stat="calls"]')?.textContent).toBe('5');
+  expect(container.querySelector('[data-cancel-job]')).not.toBeNull();
+  act(() => {
+    workflowStore.clear();
+  });
 });

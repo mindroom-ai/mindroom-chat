@@ -362,4 +362,64 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(presented?.title).toBe('Running: run_tests');
     expect(presented?.heading).toBe('1 background job');
   });
+
+  it('lists a workflow run as one row of the workflow group beside ordinary sub-agents', () => {
+    const runId = 'wf-11111111111111111111111111111111';
+    const workflowEntry = {
+      roomId: '!room:example.org',
+      sender: '@mindroom_panels:example.org',
+      run: runId,
+      sid: '1795389735000-a1b2c3d4',
+      seq: 1,
+      meta: {
+        agent: 'panels',
+        threadId: '$thread',
+        title: 'Audit the sample module',
+        status: 'waiting' as const,
+        attempt: 1,
+        startedAt: 1795389735,
+        endedAt: null,
+        maxConcurrent: 8,
+        maxCostUsd: null,
+        large: false,
+        counts: { queued: 0, running: 2, waiting: 1, completed: 3, failed: 0, indeterminate: 0, cached: 0 },
+        usage: {
+          inputTokens: 1000,
+          outputTokens: 200,
+          toolCalls: 4,
+          costUsd: 0.05,
+          attemptCostUsd: 0.05,
+          projectedCostUsd: 0.1,
+          costUnknown: false,
+        },
+      },
+      graph: {
+        phases: ['Audit'],
+        groups: [],
+        nodes: [],
+        edges: [],
+        log: [],
+        omitted: { queued: 0, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 0, phases: 0, log: 0 },
+      },
+      lastFrameAt: 1000,
+      stale: false,
+    };
+    const model = presentBackgroundJobs(
+      [
+        job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId }),
+        job('job_sub', { kind: 'subagent', tool: 'researcher' }),
+      ],
+      none,
+      t,
+      2,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, workflowEntry]]) }
+    );
+    expect(model?.groups.map((group) => group.kind)).toEqual(['workflow', 'subagent']);
+    expect(model?.items[0]).toMatchObject({
+      jobId: 'job_wf',
+      name: 'Audit the sample module',
+      state: 'waiting',
+      waiting: true,
+    });
+  });
 });

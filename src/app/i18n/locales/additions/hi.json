@@ -1214,6 +1214,7 @@
       "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
       "finished": "पूरा हुआ: {{tool}}",
       "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "groupWorkflows": "वर्कफ़्लो · {{number}}",
       "groupSubagents": "सब-एजेंट · {{number}}",
       "groupTools": "टूल · {{number}}",
       "tools_one": "{{count}} टूल",
@@ -1258,6 +1259,45 @@
       "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
       "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
       "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
+    },
+    "workflowRun": {
+      "title": "वर्कफ़्लो",
+      "status": {
+        "starting": "शुरू हो रहा है",
+        "running": "चल रहा है",
+        "waiting": "आपकी प्रतीक्षा में",
+        "completed": "पूर्ण",
+        "failed": "विफल",
+        "cancelled": "रद्द",
+        "interrupted": "बाधित"
+      },
+      "counts": "{{done}} पूर्ण, {{running}} चल रहे, {{waiting}} प्रतीक्षारत",
+      "reused": "पुनः प्रयुक्त: {{count}}",
+      "cost": "अब तक {{spent}}, कुल लगभग {{projected}}",
+      "costAtLeast": "अब तक कम से कम {{spent}}",
+      "largeRun": "बड़ा रन",
+      "attempt": "प्रयास {{number}}",
+      "stop": "रोकें",
+      "stopping": "रोका जा रहा है…",
+      "resume": "फिर शुरू करें",
+      "runAgain": "फिर से चलाएं",
+      "starting": "शुरू हो रहा है…",
+      "failedCount_one": "{{count}} विफल",
+      "failedCount_other": "{{count}} विफल",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "पहले ही उत्तर दिया जा चुका है।",
+          "noLongerOpen": "यह प्रश्न अब खुला नहीं है।",
+          "notAnOption": "यह विकल्पों में से नहीं है।",
+          "notForYou": "केवल रन शुरू करने वाला व्यक्ति ही उत्तर दे सकता है।"
+        },
+        "noReply": "अभी तक कोई उत्तर नहीं। पुनः प्रयास करें।",
+        "placeholder": "अपना उत्तर लिखें",
+        "send": "भेजें",
+        "answered": "उत्तर दिया गया: {{answer}}",
+        "cancelled": "रद्द",
+        "onlyRequester": "केवल {{name}} उत्तर दे सकते हैं।"
+      }
     },
     "subagents": {
       "title": "सब-एजेंट",

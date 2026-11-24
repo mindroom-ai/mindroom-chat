@@ -1214,6 +1214,7 @@
       "jobCountShowing": "{{count}} Hintergrundaufgaben ({{shown}} angezeigt)",
       "finished": "Abgeschlossen: {{tool}}",
       "jobCountFinished": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-Agenten · {{number}}",
       "groupTools": "Werkzeuge · {{number}}",
       "tools_one": "{{count}} Werkzeug",
@@ -1258,6 +1259,45 @@
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
       "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Startet",
+        "running": "Läuft",
+        "waiting": "Wartet auf dich",
+        "completed": "Fertig",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen",
+        "interrupted": "Unterbrochen"
+      },
+      "counts": "{{done}} fertig, {{running}} aktiv, {{waiting}} wartend",
+      "reused": "Wiederverwendet: {{count}}",
+      "cost": "Bisher {{spent}}, insgesamt etwa {{projected}}",
+      "costAtLeast": "bisher mindestens {{spent}}",
+      "largeRun": "Großer Lauf",
+      "attempt": "Versuch {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Wird gestoppt…",
+      "resume": "Fortsetzen",
+      "runAgain": "Erneut ausführen",
+      "starting": "Wird gestartet…",
+      "failedCount_one": "{{count}} fehlgeschlagen",
+      "failedCount_other": "{{count}} fehlgeschlagen",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Bereits beantwortet.",
+          "noLongerOpen": "Diese Frage ist nicht mehr offen.",
+          "notAnOption": "Das ist keine der Optionen.",
+          "notForYou": "Nur die Person, die den Lauf gestartet hat, kann antworten."
+        },
+        "noReply": "Noch keine Antwort. Bitte erneut versuchen.",
+        "placeholder": "Antwort eingeben",
+        "send": "Senden",
+        "answered": "Beantwortet: {{answer}}",
+        "cancelled": "Abgebrochen",
+        "onlyRequester": "Nur {{name}} kann antworten."
+      }
     },
     "subagents": {
       "title": "Sub-Agenten",

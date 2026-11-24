@@ -1249,6 +1249,7 @@
       "jobCountShowing": "{{count}} tâches en arrière-plan ({{shown}} affichées)",
       "finished": "Terminé : {{tool}}",
       "jobCountFinished": "{{count}} tâches en arrière-plan terminées",
+      "groupWorkflows": "Flux de travail · {{number}}",
       "groupSubagents": "Sous-agents · {{number}}",
       "groupTools": "Outils · {{number}}",
       "tools_one": "{{count}} outil",
@@ -1298,6 +1299,46 @@
       "jobTotalFinished_one": "{{count}} tâche en arrière-plan terminée",
       "jobTotalFinished_many": "{{count}} tâches en arrière-plan terminées",
       "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées"
+    },
+    "workflowRun": {
+      "title": "Flux de travail",
+      "status": {
+        "starting": "Démarrage",
+        "running": "En cours",
+        "waiting": "En attente de vous",
+        "completed": "Terminé",
+        "failed": "Échoué",
+        "cancelled": "Annulé",
+        "interrupted": "Interrompu"
+      },
+      "counts": "{{done}} terminés, {{running}} en cours, {{waiting}} en attente",
+      "reused": "Réutilisés : {{count}}",
+      "cost": "{{spent}} jusqu'ici, environ {{projected}} au total",
+      "costAtLeast": "au moins {{spent}} jusqu'ici",
+      "largeRun": "Exécution volumineuse",
+      "attempt": "Tentative {{number}}",
+      "stop": "Arrêter",
+      "stopping": "Arrêt…",
+      "resume": "Reprendre",
+      "runAgain": "Relancer",
+      "starting": "Démarrage…",
+      "failedCount_one": "{{count}} échoués",
+      "failedCount_many": "{{count}} échoués",
+      "failedCount_other": "{{count}} échoués",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Déjà répondu.",
+          "noLongerOpen": "Cette question n'est plus ouverte.",
+          "notAnOption": "Ce n'est pas l'une des options.",
+          "notForYou": "Seule la personne ayant lancé l'exécution peut répondre."
+        },
+        "noReply": "Pas encore de réponse. Réessayez.",
+        "placeholder": "Saisissez votre réponse",
+        "send": "Envoyer",
+        "answered": "Répondu : {{answer}}",
+        "cancelled": "Annulé",
+        "onlyRequester": "Seul {{name}} peut répondre."
+      }
     },
     "subagents": {
       "title": "Sous-agents",

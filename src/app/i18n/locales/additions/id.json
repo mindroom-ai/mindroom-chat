@@ -1179,6 +1179,7 @@
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
       "jobCountFinished": "{{count}} tugas latar belakang selesai",
+      "groupWorkflows": "Alur kerja · {{number}}",
       "groupSubagents": "Subagen · {{number}}",
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
@@ -1218,6 +1219,44 @@
       },
       "jobTotal_other": "{{count}} tugas latar belakang",
       "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
+    },
+    "workflowRun": {
+      "title": "Alur kerja",
+      "status": {
+        "starting": "Memulai",
+        "running": "Berjalan",
+        "waiting": "Menunggu Anda",
+        "completed": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dibatalkan",
+        "interrupted": "Terhenti"
+      },
+      "counts": "{{done}} selesai, {{running}} berjalan, {{waiting}} menunggu",
+      "reused": "Digunakan kembali: {{count}}",
+      "cost": "{{spent}} sejauh ini, sekitar {{projected}} total",
+      "costAtLeast": "setidaknya {{spent}} sejauh ini",
+      "largeRun": "Eksekusi besar",
+      "attempt": "Percobaan {{number}}",
+      "stop": "Hentikan",
+      "stopping": "Menghentikan…",
+      "resume": "Lanjutkan",
+      "runAgain": "Jalankan lagi",
+      "starting": "Memulai…",
+      "failedCount_other": "{{count}} gagal",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Sudah dijawab.",
+          "noLongerOpen": "Pertanyaan ini tidak lagi terbuka.",
+          "notAnOption": "Itu bukan salah satu pilihan.",
+          "notForYou": "Hanya orang yang memulai eksekusi yang dapat menjawab."
+        },
+        "noReply": "Belum ada balasan. Coba lagi.",
+        "placeholder": "Ketik jawaban Anda",
+        "send": "Kirim",
+        "answered": "Dijawab: {{answer}}",
+        "cancelled": "Dibatalkan",
+        "onlyRequester": "Hanya {{name}} yang dapat menjawab."
+      }
     },
     "subagents": {
       "title": "Subagen",

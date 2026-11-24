@@ -1179,6 +1179,7 @@
       "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
       "finished": "完了: {{tool}}",
       "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了",
+      "groupWorkflows": "ワークフロー · {{number}}",
       "groupSubagents": "サブエージェント · {{number}}",
       "groupTools": "ツール · {{number}}",
       "tools_other": "ツール {{count}} 件",
@@ -1218,6 +1219,44 @@
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
       "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
+    },
+    "workflowRun": {
+      "title": "ワークフロー",
+      "status": {
+        "starting": "開始中",
+        "running": "実行中",
+        "waiting": "回答待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "キャンセル",
+        "interrupted": "中断"
+      },
+      "counts": "完了 {{done}}、実行中 {{running}}、待機中 {{waiting}}",
+      "reused": "再利用: {{count}}",
+      "cost": "これまで {{spent}}、合計約 {{projected}}",
+      "costAtLeast": "これまで少なくとも {{spent}}",
+      "largeRun": "大規模実行",
+      "attempt": "試行 {{number}}",
+      "stop": "停止",
+      "stopping": "停止中…",
+      "resume": "再開",
+      "runAgain": "再実行",
+      "starting": "開始中…",
+      "failedCount_other": "{{count}} 件失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "すでに回答済みです。",
+          "noLongerOpen": "この質問はもう受け付けていません。",
+          "notAnOption": "選択肢に含まれていません。",
+          "notForYou": "実行を開始した人のみ回答できます。"
+        },
+        "noReply": "まだ応答がありません。もう一度お試しください。",
+        "placeholder": "回答を入力",
+        "send": "送信",
+        "answered": "回答済み: {{answer}}",
+        "cancelled": "キャンセル",
+        "onlyRequester": "{{name}} のみ回答できます。"
+      }
     },
     "subagents": {
       "title": "サブエージェント",

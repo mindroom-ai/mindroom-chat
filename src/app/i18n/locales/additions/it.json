@@ -1249,6 +1249,7 @@
       "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
       "finished": "Completato: {{tool}}",
       "jobCountFinished": "{{count}} attività in background completate",
+      "groupWorkflows": "Flussi di lavoro · {{number}}",
       "groupSubagents": "Sottoagenti · {{number}}",
       "groupTools": "Strumenti · {{number}}",
       "tools_one": "{{count}} strumento",
@@ -1298,6 +1299,46 @@
       "jobTotalFinished_one": "{{count}} attività in background completata",
       "jobTotalFinished_many": "{{count}} attività in background completate",
       "jobTotalFinished_other": "{{count}} attività in background completate"
+    },
+    "workflowRun": {
+      "title": "Flusso di lavoro",
+      "status": {
+        "starting": "Avvio",
+        "running": "In esecuzione",
+        "waiting": "In attesa di te",
+        "completed": "Fatto",
+        "failed": "Non riuscito",
+        "cancelled": "Annullato",
+        "interrupted": "Interrotto"
+      },
+      "counts": "{{done}} completati, {{running}} in corso, {{waiting}} in attesa",
+      "reused": "Riutilizzati: {{count}}",
+      "cost": "{{spent}} finora, circa {{projected}} in totale",
+      "costAtLeast": "almeno {{spent}} finora",
+      "largeRun": "Esecuzione ampia",
+      "attempt": "Tentativo {{number}}",
+      "stop": "Ferma",
+      "stopping": "Arresto…",
+      "resume": "Riprendi",
+      "runAgain": "Esegui di nuovo",
+      "starting": "Avvio…",
+      "failedCount_one": "{{count}} non riusciti",
+      "failedCount_many": "{{count}} non riusciti",
+      "failedCount_other": "{{count}} non riusciti",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Già risposto.",
+          "noLongerOpen": "Questa domanda non è più aperta.",
+          "notAnOption": "Non è una delle opzioni.",
+          "notForYou": "Solo chi ha avviato l'esecuzione può rispondere."
+        },
+        "noReply": "Nessuna risposta ancora. Riprova.",
+        "placeholder": "Scrivi la tua risposta",
+        "send": "Invia",
+        "answered": "Risposto: {{answer}}",
+        "cancelled": "Annullato",
+        "onlyRequester": "Solo {{name}} può rispondere."
+      }
     },
     "subagents": {
       "title": "Sottoagenti",

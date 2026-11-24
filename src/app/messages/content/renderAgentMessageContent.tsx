@@ -52,6 +52,12 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
+import {
+  parseWorkflowRunCard,
+  parseWorkflowRunQuestion,
+} from '../../matrix/protocol/workflowRunContent';
+import { WorkflowQuestionCard } from '../workflow-run/WorkflowQuestionCard';
+import { WorkflowRunCard } from '../workflow-run/WorkflowRunCard';
 import { readAgentNoticeMarker } from '../agentNoticeMarker';
 import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
@@ -511,6 +517,36 @@ export const renderAgentMessageContent = ({
   // views, such as threads shown in the room, keep the message row with the marker as its body.
   const notice = fromMindroomAgent ? readAgentNoticeMarker(content, mEvent?.getTs()) : null;
   if (notice) return notice;
+
+  // Workflow run and question notices render as cards only when sent by a MindRoom agent.
+  const workflowRoomId = roomId ?? mEvent?.getRoomId();
+  if (fromMindroomAgent && workflowRoomId) {
+    const workflowRunCard = parseWorkflowRunCard(content);
+    if (workflowRunCard) {
+      return (
+        <WorkflowRunCard
+          card={workflowRunCard}
+          roomId={workflowRoomId}
+          threadId={threadId ?? mEvent?.threadRootId ?? null}
+          eventId={eventId ?? mEvent?.getId()}
+          sender={mEvent?.getSender()}
+          readOnly={readOnly}
+        />
+      );
+    }
+    const workflowQuestion = parseWorkflowRunQuestion(content);
+    if (workflowQuestion) {
+      return (
+        <WorkflowQuestionCard
+          question={workflowQuestion}
+          roomId={workflowRoomId}
+          threadId={threadId ?? mEvent?.threadRootId ?? null}
+          eventId={eventId ?? mEvent?.getId()}
+          readOnly={readOnly}
+        />
+      );
+    }
+  }
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.

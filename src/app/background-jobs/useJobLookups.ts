@@ -8,6 +8,7 @@ import { getThreadTailEvents } from '../matrix/thread';
 import { getLiveReplyStore, type LiveReplyStore } from '../messages/live/liveReplyStore';
 import { getShownToolCalls } from '../messages/live/useLiveReplyContent';
 import { getSubagentRunStore, type SubagentRun } from '../messages/live/subagentRunStore';
+import { getWorkflowRunStore, type WorkflowRunEntry } from '../messages/live/workflowRunStore';
 import { runToolCall, toolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
 import { subscribeRoomSignals } from '../threads/cross-room/threadSignalsReader';
@@ -122,6 +123,37 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
  * What the jobs bar joins its jobs to (`presentBackgroundJobs`): `listed` when the visible
  * rows show both usage and current calls.
  */
+const shownOfWorkflowRun = (entry: WorkflowRunEntry, listed: boolean) => {
+  const { title, name, status, counts, usage, endedAt } = entry.meta;
+  return listed ? [entry.run, title, name, status, counts, usage, endedAt] : [entry.run, title, name, status];
+};
+
+const useJobWorkflowRuns = (
+  roomId: string,
+  jobs: readonly BackgroundJob[],
+  listed: boolean
+): ReadonlyMap<string, WorkflowRunEntry> => {
+  const store = getWorkflowRunStore(useMatrixClient());
+  const subscribe = useCallback(
+    (onChange: () => void) => store.subscribe(roomId, onChange),
+    [roomId, store]
+  );
+  const pick = useCallback(() => {
+    const map = new Map<string, WorkflowRunEntry>();
+    jobs.forEach((job) => {
+      if (job.kind !== 'workflow' || !job.workflow) return;
+      const entry = store.get(roomId, job.workflow);
+      if (entry) map.set(job.workflow, entry);
+    });
+    return map;
+  }, [jobs, roomId, store]);
+  const shown = useSyncExternalStore(subscribe, () =>
+    JSON.stringify([...pick().values()].map((entry) => shownOfWorkflowRun(entry, listed)))
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(pick, [pick, shown, listed]);
+};
+
 export const useJobLookups = (
   room: Room,
   jobs: readonly BackgroundJob[],
@@ -129,5 +161,6 @@ export const useJobLookups = (
 ): BackgroundJobLookups => {
   const runs = useJobRuns(room.roomId, jobs, listed);
   const toolCallFor = useJobToolCalls(room, jobs, listed);
-  return useMemo(() => ({ runs, toolCallFor }), [runs, toolCallFor]);
+  const workflowRuns = useJobWorkflowRuns(room.roomId, jobs, listed);
+  return useMemo(() => ({ runs, toolCallFor, workflowRuns }), [runs, toolCallFor, workflowRuns]);
 };

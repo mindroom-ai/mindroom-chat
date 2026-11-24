@@ -1214,6 +1214,7 @@
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-agents · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1258,6 +1259,45 @@
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
       "jobTotalFinished_other": "{{count}} background jobs finished"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starting",
+        "running": "Running",
+        "waiting": "Waiting for you",
+        "completed": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "counts": "{{done}} done, {{running}} running, {{waiting}} waiting",
+      "reused": "Reused: {{count}}",
+      "cost": "{{spent}} so far, about {{projected}} in total",
+      "costAtLeast": "at least {{spent}} so far",
+      "largeRun": "Large run",
+      "attempt": "Attempt {{number}}",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "resume": "Resume",
+      "runAgain": "Run again",
+      "starting": "Starting…",
+      "failedCount_one": "{{count}} failed",
+      "failedCount_other": "{{count}} failed",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Already answered.",
+          "noLongerOpen": "This question is no longer open.",
+          "notAnOption": "That is not one of the options.",
+          "notForYou": "Only the person who started the run can answer."
+        },
+        "noReply": "No reply yet. Try again.",
+        "placeholder": "Type your answer",
+        "send": "Send",
+        "answered": "Answered: {{answer}}",
+        "cancelled": "Cancelled",
+        "onlyRequester": "Only {{name}} can answer."
+      }
     },
     "subagents": {
       "title": "Sub-agents",

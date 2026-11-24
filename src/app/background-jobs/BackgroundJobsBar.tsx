@@ -90,9 +90,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const lookups = useJobLookups(room, jobs, details && (expanded || !several));
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
-  const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
+  const endedAt = ({ finished, run, workflowRun, jobId }: BackgroundJobsBarItem) => {
     if (finished && !ended.has(jobId))
-      ended.set(jobId, (run?.meta.endedAt ?? Date.now() / 1000) * 1000);
+      ended.set(jobId, (workflowRun?.meta.endedAt ?? run?.meta.endedAt ?? Date.now() / 1000) * 1000);
     return finished ? ended.get(jobId) : undefined;
   };
   const anchor = useRef<HTMLDivElement>(null);
@@ -371,7 +371,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   {model.groups.length > 1 ? (
                     <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
                       {t(
-                        group.kind === 'subagent'
+                        group.kind === 'workflow'
+                          ? 'mindroomUi.backgroundJobs.groupWorkflows'
+                          : group.kind === 'subagent'
                           ? 'mindroomUi.backgroundJobs.groupSubagents'
                           : 'mindroomUi.backgroundJobs.groupTools',
                         { number: group.items.length }
@@ -383,7 +385,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   {details &&
                     (['calls', 'tokens', 'cost'] as const).map((column) => (
                       <span key={column} className={css.StatColumn} aria-hidden>
-                        {group.kind === 'subagent' &&
+                        {(group.kind === 'subagent' || group.kind === 'workflow') &&
                           t(`mindroomUi.backgroundJobs.column.${column}`)}
                       </span>
                     ))}

@@ -1284,6 +1284,7 @@
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
       "jobCountFinished": "Завершено фоновых задач: {{count}}",
+      "groupWorkflows": "Рабочие процессы · {{number}}",
       "groupSubagents": "Субагенты · {{number}}",
       "groupTools": "Инструменты · {{number}}",
       "tools_one": "{{count}} инструмент",
@@ -1338,6 +1339,47 @@
       "jobTotalFinished_few": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_many": "Завершено фоновых задач: {{count}}",
       "jobTotalFinished_other": "Завершено фоновых задач: {{count}}"
+    },
+    "workflowRun": {
+      "title": "Рабочий процесс",
+      "status": {
+        "starting": "Запуск",
+        "running": "Выполняется",
+        "waiting": "Ждёт вас",
+        "completed": "Готово",
+        "failed": "Ошибка",
+        "cancelled": "Отменено",
+        "interrupted": "Прервано"
+      },
+      "counts": "{{done}} готово, {{running}} выполняется, {{waiting}} ждёт",
+      "reused": "Повторно использовано: {{count}}",
+      "cost": "{{spent}} сейчас, всего около {{projected}}",
+      "costAtLeast": "не менее {{spent}} сейчас",
+      "largeRun": "Крупный запуск",
+      "attempt": "Попытка {{number}}",
+      "stop": "Остановить",
+      "stopping": "Остановка…",
+      "resume": "Продолжить",
+      "runAgain": "Запустить снова",
+      "starting": "Запуск…",
+      "failedCount_one": "{{count}} с ошибкой",
+      "failedCount_few": "{{count}} с ошибкой",
+      "failedCount_many": "{{count}} с ошибкой",
+      "failedCount_other": "{{count}} с ошибкой",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Ответ уже дан.",
+          "noLongerOpen": "Этот вопрос больше не открыт.",
+          "notAnOption": "Это не один из вариантов.",
+          "notForYou": "Ответить может только тот, кто запустил процесс."
+        },
+        "noReply": "Ответа пока нет. Попробуйте снова.",
+        "placeholder": "Введите ответ",
+        "send": "Отправить",
+        "answered": "Ответ: {{answer}}",
+        "cancelled": "Отменено",
+        "onlyRequester": "Ответить может только {{name}}."
+      }
     },
     "subagents": {
       "title": "Субагенты",
