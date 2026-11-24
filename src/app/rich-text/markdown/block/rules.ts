@@ -43,7 +43,7 @@ type Opener = Omit<FencedCodeBlock, 'closer'> & { closer?: Line };
 const findFencedCodeBlocks = (text: string, firstOnly: boolean): FencedCodeBlock[] => {
   const openers: Opener[] = [];
   const openByLength = new Map<number, Opener[]>();
-  for (let start = 0; ; ) {
+  for (let start = 0; ;) {
     const lineBreak = text.indexOf('\n', start);
     const line = { start, end: lineBreak < 0 ? text.length : lineBreak };
     const run = backtickRunLength(text, line.start, line.end);

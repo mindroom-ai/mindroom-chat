@@ -34,7 +34,7 @@ import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
 import { UnlistedServerCheck } from './UnlistedServerCheck';
 import { openAfterSignIn } from './completeSession';
-import { parkLiveVoiceRecording } from '../../composer/voice/liveVoiceRecording';
+import { parkLiveCapture } from '../../composer/capture/liveCapture';
 import * as css from './styles.css';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
@@ -245,7 +245,7 @@ export function AuthLayout() {
   // Add account opens these pages over a live voice recording, and nothing here shows one: it
   // parks, and waits as a recovered recording for the way back.
   const store = useStore();
-  useEffect(() => parkLiveVoiceRecording(store), [store]);
+  useEffect(() => parkLiveCapture(store), [store]);
   // Adding an account can be abandoned: back to where the signed-in account was.
   const returnPath = resolveAddAccountReturnPath(search, activeSession);
 

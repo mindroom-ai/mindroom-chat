@@ -41,7 +41,7 @@ const record = (
       ...presentation,
     },
     status: { isResolved: false, isStreaming: false, isUnread: false, tags: [], lastActivityTs },
-  } as unknown as ThreadRecord);
+  }) as unknown as ThreadRecord;
 
 describe('who took part in a thread', () => {
   it("lists the root's sender and every replier once", () => {

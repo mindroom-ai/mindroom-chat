@@ -708,7 +708,18 @@
       "manage": "Beheren"
     },
     "roomOrder": {
-      "sortByName": "Kamers sorteren van A tot Z"
+      "sortRooms": "Kamers sorteren",
+      "sortHeading": "Kamers sorteren",
+      "displayHeading": "Weergave",
+      "recentActivity": "Recente activiteit",
+      "aToZ": "A tot Z",
+      "customOrder": "Aangepaste volgorde",
+      "saved": "Opgeslagen",
+      "showActivityTimes": "Activiteitstijden tonen",
+      "matchSpace": "Zoals space ({{mode}})",
+      "shortRecent": "Recent",
+      "shortName": "A tot Z",
+      "shortManual": "Eigen"
     },
     "roomActions": {
       "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
@@ -1492,7 +1503,20 @@
       "capReached": "Limiet van 5:00 bereikt",
       "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
       "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
-      "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen."
+      "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen.",
+      "discardDictation": "Dicteren verwijderen",
+      "discardConfirmTitle": "Dicteren verwijderen?",
+      "discardConfirmBody": "Deze dicteertekst is nog niet ingevoegd of verstuurd. Definitief verwijderen?",
+      "errorTitle": "Dicteerfout",
+      "statusRecovered": "Herstelde dicteeropname",
+      "recoveredDuration": "Hersteld · {{time}}",
+      "indicator": {
+        "recording": "Aan het dicteren {{time}}",
+        "paused": "Dicteren gepauzeerd {{time}}",
+        "recovered": "Hersteld dicteren {{time}}",
+        "finishing": "Dicteren afronden...",
+        "failed": "Dicteren vereist aandacht"
+      }
     }
   },
   "commandPalette": {
@@ -1598,6 +1622,7 @@
       "needsYou": "Jij bent aan zet",
       "working": "Bezig",
       "later": "Later",
+      "quiet": "Stil",
       "done": "Klaar",
       "all": "Alle",
       "description": {
@@ -1949,6 +1974,7 @@
       "working": "Bezig",
       "later": "Later",
       "idle": "Inactief",
+      "quiet": "Stil",
       "resolved": "Opgelost"
     },
     "live": {

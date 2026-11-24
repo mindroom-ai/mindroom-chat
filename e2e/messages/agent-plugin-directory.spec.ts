@@ -97,7 +97,7 @@ pageTest("a plugin directory's fixture page is served", async ({ page }) => {
   // Set up by the SDK's `bootFixturePage`: the plugin's strings, the dark theme and the app's styles.
   await expect(page.getByText("Rendered by the sample plugin's page, dark")).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme-kind', 'dark');
-  await expect(page.locator('body')).toHaveCSS('font-family', /InterVariable/);
+  await expect(page.locator('body')).toHaveCSS('font-family', /Inter Variable/);
 });
 
 test('a plugin that fails its check refuses the start and leaves the running stack', async ({

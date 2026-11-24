@@ -1,10 +1,5 @@
 import { expect, test } from '@playwright/test';
-import {
-  buildLoginPath,
-  buildRegisterPath,
-  buildResetPasswordPath,
-  getHomeserver,
-} from '../env';
+import { buildLoginPath, buildRegisterPath, buildResetPasswordPath, getHomeserver } from '../env';
 
 const isLocalHomeserver = (homeserver: string) =>
   /(^https?:\/\/127\.0\.0\.1)|(^https?:\/\/localhost)|matrix\.localhost|127\.0\.0\.1|localhost/.test(
@@ -21,7 +16,10 @@ test('deployed login route renders the SSO-only auth shell with explicit server 
   page,
 }) => {
   const homeserver = getHomeserver();
-  test.skip(isLocalHomeserver(homeserver), 'Hosted SSO shell is not available on the local docker stack.');
+  test.skip(
+    isLocalHomeserver(homeserver),
+    'Hosted SSO shell is not available on the local docker stack.'
+  );
 
   await page.goto(buildLoginPath(homeserver, true));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
@@ -36,7 +34,10 @@ test('deployed register route renders the SSO sign-up shell and keeps add-accoun
   page,
 }) => {
   const homeserver = getHomeserver();
-  test.skip(isLocalHomeserver(homeserver), 'Hosted SSO shell is not available on the local docker stack.');
+  test.skip(
+    isLocalHomeserver(homeserver),
+    'Hosted SSO shell is not available on the local docker stack.'
+  );
 
   await page.goto(buildRegisterPath(homeserver, true));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);

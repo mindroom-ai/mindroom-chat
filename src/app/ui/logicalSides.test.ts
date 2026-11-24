@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-// The ESLint rule of .eslintrc.cjs that keeps physical sides (left, right) out of the styles of
+// The ESLint rule of eslint.config.mjs that keeps physical sides (left, right) out of the styles of
 // src, so the interface mirrors in right-to-left languages. Made-up paths get the rule by pattern.
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../', import.meta.url)) });
 const STYLE_FILE = 'src/app/ui/Example.css.ts';
@@ -18,6 +18,12 @@ const styleFile = (body: string) =>
   `import { globalStyle, style } from '@vanilla-extract/css';\n\nconst a = '1px';\nconst b = '2px';\nconst c = '3px';\nconst d = '4px';\nconst withMargin = (inset: string) => \`calc(\${inset} + 4px)\`;\n${body}\n`;
 
 describe('logical sides in styles', () => {
+  // Loading the flat config (parser, TypeScript, plugins) takes several seconds on the first call,
+  // which can pass Vitest's 5 s default under a full-suite run.
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(STYLE_FILE);
+  }, 30_000);
+
   it.each([
     'export const x = style({ marginLeft: a });',
     'export const x = style({ paddingRight: a });',

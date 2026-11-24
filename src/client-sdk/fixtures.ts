@@ -4,7 +4,7 @@
 // ships: the dev server and the fixture page build resolve it, the app's build does not. Like
 // `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION.
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../index.css';
 import '../app/theme/Typography.css';
 import type { MatrixClient } from 'matrix-js-sdk';

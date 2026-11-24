@@ -269,7 +269,7 @@ const run = async (browser: Browser, stack: AgentStack, baseURL: string | undefi
       Stream,
       Stream,
       Stream,
-      Stream
+      Stream,
     ];
 
     await Promise.all([

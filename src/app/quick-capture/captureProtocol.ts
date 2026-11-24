@@ -24,11 +24,7 @@ export type CaptureState = {
   items: CaptureItem[];
 };
 export type CaptureErrorCode =
-  | 'no-room'
-  | 'upload-failed'
-  | 'send-failed'
-  | 'forbidden'
-  | 'timeout';
+  'no-room' | 'upload-failed' | 'send-failed' | 'forbidden' | 'timeout';
 /** What went out of an entry that failed after it started its thread. */
 export type CapturePosted = { threadId: string; images: number };
 export type CaptureAction =
@@ -47,8 +43,7 @@ export type CaptureAction =
   | { kind: 'open'; roomId: string; threadId?: string }
   | { kind: 'read'; roomId: string; threadId: string };
 export type CaptureResult =
-  | { ok: true; threadId?: string }
-  | { ok: false; error: CaptureErrorCode; posted?: CapturePosted };
+  { ok: true; threadId?: string } | { ok: false; error: CaptureErrorCode; posted?: CapturePosted };
 export type CaptureMessage =
   | { v: 1; type: 'hello' }
   | { v: 1; type: 'request'; id: string; hostId: string; action: CaptureAction }

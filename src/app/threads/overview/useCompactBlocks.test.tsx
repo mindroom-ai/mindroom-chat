@@ -178,7 +178,8 @@ it.each(['width', 'font'] as const)(
       expect(spacerHeight(view)).toBe(7168.75);
     }
     tick(12);
-    expect(spacerHeight(view)).toBe(10602.25);
+    // Exact 10602.25px serializes to 6 significant digits (10602.3px) in jsdom 31 CSSOM.
+    expect(spacerHeight(view)).toBe(10602.3);
     if (kind === 'font') {
       layout.scroll(view, 30 * 199.25 * 1.5);
       expect(anchor(view, '$row0')).toBeNull();

@@ -16,7 +16,7 @@ import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { StartRoomInputSendSessionOptions } from './useRoomInputSendSessionController';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
-import { liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
+import { liveCaptureAtom } from './capture/liveCapture';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
 
 vi.mock('../matrix/hooks/useMediaConfig', () => ({ useMediaConfig: () => ({}) }));
@@ -71,7 +71,7 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
   } as unknown as Room;
   const store = createStore();
   store.set(settingsAtom, { ...DEFAULT_SETTINGS, midTurnSend: defaultMidTurn });
-  store.set(liveVoiceRecordingAtom, createSession());
+  store.set(liveCaptureAtom, { kind: 'voice', session: createSession() });
 
   const mx = {
     getUserId: () => '@alice:example.org',
@@ -163,7 +163,7 @@ describe('useRoomInputVoice mid-turn mode', () => {
     });
     expect(sendVoiceItem.mock.calls[0]?.[4]).toBe('steer');
 
-    act(() => store.set(liveVoiceRecordingAtom, createSession('second.ogg')));
+    act(() => store.set(liveCaptureAtom, { kind: 'voice', session: createSession('second.ogg') }));
     await act(async () => {
       await getVoice().sendAtPress(() => undefined, false);
     });

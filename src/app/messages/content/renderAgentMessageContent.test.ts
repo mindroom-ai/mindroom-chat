@@ -918,8 +918,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent).toEqual(
       expect.objectContaining({
@@ -960,8 +959,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent?.formatted_body).toContain('<strong data-md="**">now</strong>');
 
@@ -995,8 +993,7 @@ describe('renderAgentMessageContent', () => {
     });
 
     const previewContent = toolTraceParserOptionsMock.mock.calls.at(-1)?.[1] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(previewContent?.formatted_body).toContain('Intro paragraph');
     expect(previewContent?.formatted_body).toContain('Quoted detail https://example.org');
@@ -1031,9 +1028,8 @@ describe('renderAgentMessageContent', () => {
 
   describe('a canvas answer sent as a long-text sidecar', () => {
     const sidecarAnswer = async () => {
-      const { buildCanvasResponseContent, buildCanvasResponsePreview } = await import(
-        '../canvas/canvasMessages'
-      );
+      const { buildCanvasResponseContent, buildCanvasResponsePreview } =
+        await import('../canvas/canvasMessages');
       const content = buildCanvasResponseContent(
         {
           eventId: '$canvas',

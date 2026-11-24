@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { Box } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { LightTheme } from '../../src/app/theme/useTheme';

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createClient, MemoryStore } from 'matrix-js-sdk';
 import { color, config } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';

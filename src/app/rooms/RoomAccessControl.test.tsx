@@ -60,8 +60,7 @@ const findMembershipListener = () => {
   const listener = vi
     .mocked(mx.on)
     .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1] as
-    | RoomEventHandlerMap[RoomEvent.MyMembership]
-    | undefined;
+    RoomEventHandlerMap[RoomEvent.MyMembership] | undefined;
   if (typeof listener !== 'function') throw new Error('Missing membership listener');
   return listener;
 };
@@ -69,8 +68,7 @@ const findStateEventsListener = () => {
   const listener = vi
     .mocked(mx.on)
     .mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1] as
-    | RoomStateEventHandlerMap[RoomStateEvent.Events]
-    | undefined;
+    RoomStateEventHandlerMap[RoomStateEvent.Events] | undefined;
   if (typeof listener !== 'function') throw new Error('Missing state event listener');
   return listener;
 };
@@ -419,8 +417,8 @@ describe('RoomAccessControl request dialog', () => {
                 {access.requested
                   ? 'Request sent'
                   : access.kind === 'knock'
-                  ? 'Request to join'
-                  : 'Join'}
+                    ? 'Request to join'
+                    : 'Join'}
               </button>
             )}
           </RoomAccessControl>
@@ -514,8 +512,8 @@ describe('RoomAccessControl request dialog', () => {
                 {access.requested
                   ? 'Request sent'
                   : access.kind === 'knock'
-                  ? 'Request to join'
-                  : 'Join'}
+                    ? 'Request to join'
+                    : 'Join'}
               </button>
             )}
           </RoomAccessControl>
@@ -575,8 +573,8 @@ describe('RoomAccessControl request dialog', () => {
                   {access.requested
                     ? 'Request sent'
                     : access.kind === 'knock'
-                    ? 'Request to join'
-                    : 'Join'}
+                      ? 'Request to join'
+                      : 'Join'}
                 </button>
               )}
             </RoomAccessControl>
@@ -608,8 +606,8 @@ describe('RoomAccessControl request dialog', () => {
                   {access.requested
                     ? 'Request sent'
                     : access.kind === 'knock'
-                    ? 'Request to join'
-                    : 'Join'}
+                      ? 'Request to join'
+                      : 'Join'}
                 </button>
               )}
             </RoomAccessControl>

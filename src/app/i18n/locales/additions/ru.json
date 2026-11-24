@@ -742,7 +742,18 @@
       "manage": "Управлять"
     },
     "roomOrder": {
-      "sortByName": "Сортировать комнаты от А до Я"
+      "sortRooms": "Сортировка комнат",
+      "sortHeading": "Сортировка комнат",
+      "displayHeading": "Отображение",
+      "recentActivity": "Недавняя активность",
+      "aToZ": "От А до Я",
+      "customOrder": "Свой порядок",
+      "saved": "Сохранено",
+      "showActivityTimes": "Показывать время активности",
+      "matchSpace": "Как в пространстве ({{mode}})",
+      "shortRecent": "Недавние",
+      "shortName": "А–Я",
+      "shortManual": "Свой"
     },
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",
@@ -1586,7 +1597,20 @@
       "failedSummary_one": "Не удалось расшифровать {{count}} фрагмент.",
       "failedSummary_few": "Не удалось расшифровать {{count}} фрагмента.",
       "failedSummary_many": "Не удалось расшифровать {{count}} фрагментов.",
-      "failedSummary_other": "Не удалось расшифровать {{count}} фрагмента."
+      "failedSummary_other": "Не удалось расшифровать {{count}} фрагмента.",
+      "discardDictation": "Удалить диктовку",
+      "discardConfirmTitle": "Удалить диктовку?",
+      "discardConfirmBody": "Эта диктовка ещё не вставлена и не отправлена. Удалить её навсегда?",
+      "errorTitle": "Ошибка диктовки",
+      "statusRecovered": "Восстановленная диктовка",
+      "recoveredDuration": "Восстановлено · {{time}}",
+      "indicator": {
+        "recording": "Диктовка {{time}}",
+        "paused": "Диктовка на паузе {{time}}",
+        "recovered": "Восстановленная диктовка {{time}}",
+        "finishing": "Завершение диктовки...",
+        "failed": "Диктовка требует внимания"
+      }
     }
   },
   "commandPalette": {
@@ -1692,6 +1716,7 @@
       "needsYou": "Нужно ваше участие",
       "working": "В работе",
       "later": "Позже",
+      "quiet": "Тихие",
       "done": "Готово",
       "all": "Все",
       "description": {
@@ -2063,6 +2088,7 @@
       "working": "В работе",
       "later": "Позже",
       "idle": "Неактивные",
+      "quiet": "Тихие",
       "resolved": "Решённые"
     },
     "live": {

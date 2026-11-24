@@ -367,11 +367,16 @@ export const MetadataDot = style({
 
 export const ScheduledIndicator = style({
   minWidth: 0,
-  maxWidth: '14rem',
   flexShrink: 0,
   overflow: 'hidden',
-  color: 'currentColor',
   whiteSpace: 'nowrap',
+  selectors: {
+    // Outranks threadIndicatorCss.ThreadScheduledIndicator regardless of lazy stylesheet order.
+    '&&': {
+      maxWidth: '14rem',
+      color: 'currentColor',
+    },
+  },
   ...whenCompact({ flexShrink: 1 }),
 });
 

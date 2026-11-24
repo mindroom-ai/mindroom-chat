@@ -589,7 +589,7 @@ function InlineSecretRequestBlock({
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
   const { eventId, request, agentUserId } = secret;
-  const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
+  const toolName = request.kind === 'key' ? request.displayName : (request.label ?? request.env);
   const roomId = message?.roomId;
   const hidden = !shown && !!fold && !fold.open;
   const { line, taken, lineRef } = useSecretRequestLine(eventId, !!roomId, hidden);

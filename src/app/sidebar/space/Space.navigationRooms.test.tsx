@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import { RoomStateEvent } from 'matrix-js-sdk';
+import { RelationType, RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { Space } from './Space';
 import { allRoomsAtom } from '../../matrix/state/roomList';
@@ -19,6 +19,8 @@ import { getSpaceRoomPath } from '../../routes/pathUtils';
 
 const {
   accountData,
+  activeSpace,
+  activityByRoom,
   categoryButtonStats,
   dragGroup,
   editableSpaces,
@@ -33,6 +35,7 @@ const {
   shortcutCalls,
   stateListeners,
   subRooms,
+  timelineListeners,
 } = vi.hoisted(() => {
   const specs = {
     space: { id: '!garden:example.org', name: 'garden', space: true },
@@ -53,6 +56,7 @@ const {
     Object.entries(specs).map(([key, spec]) => [key, spec.id])
   ) as Record<keyof typeof specs, string>;
   const editable = new Set<string>();
+  const activity = new Map<string, number>();
   const roomOf = (roomId: string) => {
     const spec = byId.get(roomId);
     const space = spec?.space ?? false;
@@ -63,6 +67,7 @@ const {
       getCanonicalAlias: () => null,
       getMyMembership: () => 'join',
       isSpaceRoom: () => space,
+      getLastActiveTimestamp: () => activity.get(roomId) ?? 0,
       currentState: { getStateEvents: () => [] },
       getLiveTimeline: () => ({
         getState: () => ({
@@ -89,18 +94,21 @@ const {
     };
   };
   const listeners = new Set<(...args: unknown[]) => void>();
+  const timeline = new Set<(...args: unknown[]) => void>();
   return {
     rooms: { ids, of: roomOf },
+    activeSpace: { roomId: ids.space },
+    activityByRoom: activity,
     editableSpaces: editable,
     stateListeners: listeners,
+    timelineListeners: timeline,
     moveSpaceRoomMock: vi.fn(async (): Promise<void> => undefined),
     removeSpaceChildMock: vi.fn(async (): Promise<void> => undefined),
     openCreateRoomMock: vi.fn(),
     openCreateSpaceMock: vi.fn(),
     dragGroup: {
       canMoveRoom: undefined as
-        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
-        | undefined,
+        ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean) | undefined,
       onMoveRoom: undefined as
         | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => void | Promise<void>)
         | undefined,
@@ -134,12 +142,15 @@ const client = {
   setAccountData: accountData.setAccountData,
   on: (event: string, listener: (...args: unknown[]) => void) => {
     if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.add(listener);
+    if (matchesEnum(event, RoomEvent.Timeline)) timelineListeners.add(listener);
   },
   off: (event: string, listener: (...args: unknown[]) => void) => {
     if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.delete(listener);
+    if (matchesEnum(event, RoomEvent.Timeline)) timelineListeners.delete(listener);
   },
   removeListener: (event: string, listener: (...args: unknown[]) => void) => {
     if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.delete(listener);
+    if (matchesEnum(event, RoomEvent.Timeline)) timelineListeners.delete(listener);
   },
 };
 
@@ -191,12 +202,14 @@ vi.mock('../../ui/directional', async (importOriginal) => ({
 vi.mock('../../ui/nav/NavOptionsMenu', () => ({
   NavOptionsMenu: ({
     label,
+    active,
     children,
   }: {
     label: string;
+    active?: boolean;
     children: (close: () => void) => React.ReactNode;
   }) => (
-    <div data-nav-options={label} aria-label={label}>
+    <div data-nav-options={label} aria-label={label} data-active={active ? 'true' : undefined}>
       {children(() => undefined)}
     </div>
   ),
@@ -280,8 +293,18 @@ vi.mock('../room-nav/SortableRoomList', () => ({
     return <div data-sortable-group>{children}</div>;
   },
   useRoomSectionDrop: () => ({}),
-  SortableRoomList: ({ listId, children }: { listId: string; children?: React.ReactNode }) => (
-    <div data-sortable-list={listId}>{children}</div>
+  SortableRoomList: ({
+    listId,
+    reorderDisabled,
+    children,
+  }: {
+    listId: string;
+    reorderDisabled?: boolean;
+    children?: React.ReactNode;
+  }) => (
+    <div data-sortable-list={listId} data-reorder-disabled={String(Boolean(reorderDisabled))}>
+      {children}
+    </div>
   ),
   SortableRoomRow: ({
     room,
@@ -289,12 +312,14 @@ vi.mock('../room-nav/SortableRoomList', () => ({
     spaceId,
     removeFromSpaceId,
     subRoom,
+    activityTimestamp,
   }: {
     room: { roomId: string };
     linkPath: string;
     spaceId: string;
     removeFromSpaceId?: string;
     subRoom?: boolean;
+    activityTimestamp?: number;
   }) => (
     <div
       data-row-room={room.roomId}
@@ -302,6 +327,7 @@ vi.mock('../room-nav/SortableRoomList', () => ({
       data-space={spaceId}
       data-remove-from-space={removeFromSpaceId}
       data-sub-room={subRoom}
+      data-activity-ts={activityTimestamp}
     />
   ),
 }));
@@ -320,7 +346,7 @@ vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({ JoinBeforeNavigate: () =
 vi.mock('../../room/RoomRoute', () => ({ RouteResolving: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../matrix/hooks/useSpace', () => ({
-  useSpace: () => rooms.of(rooms.ids.space),
+  useSpace: () => rooms.of(activeSpace.roomId),
   SpaceProvider: passthrough,
 }));
 vi.mock('../../matrix/hooks/useRoomMeta', () => ({
@@ -374,8 +400,11 @@ describe('Space navigation', () => {
     screen.size = 'Desktop';
     selected.roomId = undefined;
     shortcutCalls.length = 0;
+    activeSpace.roomId = rooms.ids.space;
+    activityByRoom.clear();
     editableSpaces.clear();
     stateListeners.clear();
+    timelineListeners.clear();
     dragGroup.canMoveRoom = undefined;
     dragGroup.onMoveRoom = undefined;
     categoryButtonStats.mounts.clear();
@@ -391,6 +420,9 @@ describe('Space navigation', () => {
     accountData.setAccountData.mockReset();
     localStorage.clear();
   });
+
+  const textOf = (node: ReactTestInstance | string): string =>
+    typeof node === 'string' ? node : node.children.map((child) => textOf(child)).join(' ');
 
   const rows = () =>
     renderer!.root.findAll(
@@ -552,43 +584,275 @@ describe('Space navigation', () => {
     expect(shortcutCalls).toEqual([[joined, designReview, iconSketches, readingList]]);
   });
 
-  it('resets all manually ordered displayed sections in one atomic account-data write', () => {
-    const { space, joined, design, designReview, iconSketches } = rooms.ids;
+  it('switches sort modes via the Space header Sort rooms menu while preserving saved custom order', () => {
+    const { space, joined, invited, design, designReview, iconSketches } = rooms.ids;
     accountData.content = {
       lists: {
-        [space]: [joined],
-        [design]: [iconSketches, designReview],
+        [space]: [joined, invited],
         '!unrelated:example.org': ['!other:example.org'],
       },
     };
-    renderSpace([space, joined, design, designReview, iconSketches], {
+    renderSpace([space, joined, invited, design, designReview, iconSketches], {
       [joined]: [space],
+      [invited]: [space],
       [design]: [space],
       [designReview]: [design],
       [iconSketches]: [design],
     });
+    // Legacy lists-only data resolves space to manual: seedlings (joined) before compost (invited).
     expect(rows().map((node) => node.props['data-row-room'])).toEqual([
       joined,
-      iconSketches,
+      invited,
       designReview,
+      iconSketches,
     ]);
 
-    const sortButton = renderer!.root.find(
-      (node) => node.type === 'button' && node.props['data-menu-entry'] === 'Sort Rooms A to Z'
+    const headerSortMenu = () => renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
+
+    // Switch Space to A to Z: compost (invited) sorts before seedlings (joined), lists stay intact.
+    const aToZ = headerSortMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('A to Z')
     );
     act(() => {
-      sortButton.props.onClick();
+      aToZ.props.onClick();
     });
 
-    expect(accountData.setAccountData).toHaveBeenCalledTimes(1);
     expect(accountData.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
-      lists: { '!unrelated:example.org': ['!other:example.org'] },
+      lists: {
+        [space]: [joined, invited],
+        '!unrelated:example.org': ['!other:example.org'],
+      },
+      modes: { [space]: 'name' },
     });
     expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      invited,
       joined,
       designReview,
       iconSketches,
     ]);
+
+    // Switching back to Custom order restores the preserved custom list without losing it.
+    const custom = headerSortMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Custom order')
+    );
+    expect(textOf(custom)).toContain('Saved');
+    act(() => {
+      custom.props.onClick();
+    });
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      invited,
+      designReview,
+      iconSketches,
+    ]);
+  });
+
+  it('sorts by Recent activity with sub-room lifting, live timeline updates ignoring edits/backfill, and sub-space overrides', () => {
+    const { space, joined, invited, nestedSub, design, designReview, iconSketches } = rooms.ids;
+    activityByRoom.set(invited, 2000);
+    activityByRoom.set(joined, 1000);
+    activityByRoom.set(nestedSub, 5000); // Newer sub-room lifts joined above invited.
+    activityByRoom.set(designReview, 1500);
+    activityByRoom.set(iconSketches, 4000);
+
+    renderSpace([space, joined, invited, nestedSub, design, designReview, iconSketches], {
+      [joined]: [space],
+      [invited]: [space],
+      [nestedSub]: [joined],
+      [design]: [space],
+      [designReview]: [design],
+      [iconSketches]: [design],
+    });
+    expect(timelineListeners.size).toBe(0);
+
+    // Enable Show activity times and switch to Recent activity via the Space header Sort rooms menu.
+    const headerSortMenu = () => renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
+    const showTimesRow = headerSortMenu().find((node) => node.props.role === 'menuitemcheckbox');
+    act(() => {
+      showTimesRow.props.onClick();
+    });
+    const recentItem = headerSortMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Recent activity')
+    );
+    act(() => {
+      recentItem.props.onClick();
+    });
+
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      invited,
+      iconSketches,
+      designReview,
+    ]);
+    expect(
+      renderer!.root.findByProps({ 'data-sortable-list': space }).props['data-reorder-disabled']
+    ).toBe('true');
+    expect(
+      renderer!.root.findByProps({ 'data-sortable-list': design }).props['data-reorder-disabled']
+    ).toBe('true');
+    expect(
+      rows().find((node) => node.props['data-row-room'] === invited)!.props['data-activity-ts']
+    ).toBe(2000);
+    expect(timelineListeners.size).toBe(1);
+
+    // Backfill, non-live events, and m.replace edits do NOT move invited above joined.
+    activityByRoom.set(invited, 9000);
+    const emitTimeline = (
+      roomId: string,
+      opts: { replace?: boolean; backfill?: boolean; live?: boolean }
+    ) => {
+      const event = {
+        isRelation: (rel?: string) =>
+          rel
+            ? Boolean(opts.replace) && matchesEnum(rel, RelationType.Replace)
+            : Boolean(opts.replace),
+      };
+      act(() => {
+        timelineListeners.forEach((fn) =>
+          fn(event, rooms.of(roomId), Boolean(opts.backfill), false, {
+            liveEvent: opts.live ?? true,
+          })
+        );
+      });
+    };
+    emitTimeline(invited, { backfill: true });
+    emitTimeline(invited, { live: false });
+    emitTimeline(invited, { replace: true });
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      joined,
+      invited,
+      iconSketches,
+      designReview,
+    ]);
+
+    // Real live message moves invited above joined.
+    emitTimeline(invited, { live: true });
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      invited,
+      joined,
+      iconSketches,
+      designReview,
+    ]);
+
+    // Open sub-space Design Team options menu: Match space (Recent) is checked.
+    const openDesignOptions = () => {
+      const btn = renderer!.root.find(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Design Team options'
+      );
+      act(() => {
+        btn.props.onClick({
+          nativeEvent: { pointerType: 'mouse' },
+          currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 24, height: 24 }) },
+        });
+      });
+    };
+    const subMenu = () => renderer!.root.findByProps({ 'data-popout': true });
+    openDesignOptions();
+    const matchSpaceRadio = subMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Match space (Recent)')
+    );
+    expect(matchSpaceRadio.props['aria-checked']).toBe(true);
+
+    // Override Design Team: turn off Show activity times (explicit false) and set A to Z.
+    const subShowTimes = subMenu().find((node) => node.props.role === 'menuitemcheckbox');
+    act(() => {
+      subShowTimes.props.onClick();
+    });
+    const subAToZ = subMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('A to Z')
+    );
+    act(() => {
+      subAToZ.props.onClick();
+    });
+
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      invited,
+      joined,
+      designReview,
+      iconSketches,
+    ]);
+    expect(
+      renderer!.root.findByProps({ 'data-sortable-list': design }).props['data-reorder-disabled']
+    ).toBe('false');
+    expect(
+      rows().find((node) => node.props['data-row-room'] === designReview)!.props['data-activity-ts']
+    ).toBeUndefined();
+    expect(
+      rows().find((node) => node.props['data-row-room'] === invited)!.props['data-activity-ts']
+    ).toBe(9000);
+
+    // Reset Design Team back via "Match space (Recent)".
+    openDesignOptions();
+    const resetMatch = subMenu().find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Match space (Recent)')
+    );
+    expect(resetMatch.props['aria-checked']).toBe(false);
+    act(() => {
+      resetMatch.props.onClick();
+    });
+
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([
+      invited,
+      joined,
+      iconSketches,
+      designReview,
+    ]);
+    expect(
+      rows().find((node) => node.props['data-row-room'] === iconSketches)!.props['data-activity-ts']
+    ).toBe(4000);
+  });
+
+  it('inherits sort mode and showTimes from the parent space when viewing a sub-space standalone', () => {
+    const { space, design, designReview, iconSketches } = rooms.ids;
+    activeSpace.roomId = design;
+    accountData.content = {
+      modes: { [space]: 'recent' },
+      showTimes: { [space]: true },
+    };
+    activityByRoom.set(designReview, 1000);
+    activityByRoom.set(iconSketches, 4000);
+
+    renderSpace([space, design, designReview, iconSketches], {
+      [design]: [space],
+      [designReview]: [design],
+      [iconSketches]: [design],
+    });
+
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([iconSketches, designReview]);
+    expect(
+      rows().find((node) => node.props['data-row-room'] === iconSketches)!.props['data-activity-ts']
+    ).toBe(4000);
+    const sortMenu = renderer!.root.findByProps({ 'data-nav-options': 'Sort rooms' });
+    expect(sortMenu.props['data-active']).toBe('true');
+  });
+
+  it('inherits sort mode and showTimes across a hidden empty organizer sub-space', () => {
+    const { space, organizer, research, readingList, interviews } = rooms.ids;
+    // Organizer is empty and non-editable (hidden from rendered sections), while Research sits under it.
+    accountData.content = {
+      modes: { [space]: 'recent' },
+      showTimes: { [space]: true },
+    };
+    // A to Z order in research: Field Interviews, Reading List. Recent order reverses them.
+    activityByRoom.set(interviews, 1000);
+    activityByRoom.set(readingList, 5000);
+
+    renderSpace([space, organizer, research, readingList, interviews], {
+      [organizer]: [space],
+      [research]: [organizer],
+      [readingList]: [research],
+      [interviews]: [research],
+    });
+
+    // Organizer is hidden, yet Research inherits Recent and showTimes from root space!
+    expect(sectionButtons().map((node) => textOf(node))).toEqual(['Research Group']);
+    expect(rows().map((node) => node.props['data-row-room'])).toEqual([readingList, interviews]);
+    expect(
+      renderer!.root.findByProps({ 'data-sortable-list': research }).props['data-reorder-disabled']
+    ).toBe('true');
+    expect(
+      rows().find((node) => node.props['data-row-room'] === readingList)!.props['data-activity-ts']
+    ).toBe(5000);
   });
 
   it('shows editable empty sub-spaces, reacts to power-level changes, and keeps section headers mounted across toggles', () => {
@@ -807,8 +1071,7 @@ describe('Space navigation', () => {
     expect(joinedRow.props['data-remove-from-space']).toBe(space);
     expect(designReviewRow.props['data-remove-from-space']).toBe(design);
     const subRoomEl = subRooms.renderRoom?.(rooms.of(designReview)) as
-      | React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }>
-      | undefined;
+      React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }> | undefined;
     expect(subRoomEl?.props.subRoom).toBe(true);
     expect(subRoomEl?.props.removeFromSpaceId).toBeUndefined();
 

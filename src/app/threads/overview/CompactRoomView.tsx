@@ -44,7 +44,11 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
+import {
+  COMPACT_THREAD_SECTION_ORDER,
+  type CompactThreadSection,
+  type CompactThreadSectionId,
+} from './compactThreadSections';
 import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
@@ -83,7 +87,7 @@ export type CompactRoomViewProps = {
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
-   * Set while the cards show in sections (Needs you, Working, Later and Done, each folding on its
+   * Set while the cards show in sections (Needs you, Working, Later, Quiet and Done, each folding
    * own): the snooze clock the list was filtered at (`useThreadIndex`'s `snoozeNow`), which the
    * sections classify at too, so they show what the selected tab does.
    */
@@ -99,10 +103,10 @@ export type CompactRoomViewProps = {
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
-const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
-const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
+const sectionRowKey = (id: CompactThreadSectionId): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionOfRow = (key: string): CompactThreadSectionId | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
-    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
+    ? (key.slice(SECTION_ROW_PREFIX.length) as CompactThreadSectionId)
     : undefined;
 
 type GuardProps = {
@@ -425,7 +429,7 @@ export function CompactRoomView({
         : sectionsChoice.folded,
     [sectionsChoice.folded, singleBucketTab]
   );
-  const toggleFold = (id: ThreadWorkflowBucket) => {
+  const toggleFold = (id: CompactThreadSectionId) => {
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
@@ -552,8 +556,9 @@ export function CompactRoomView({
   };
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
   const menuModel =
-    menu?.roomId === room.roomId ? modelByRootId.get(menu.rootId) ?? menu.viewModel : undefined;
+    menu?.roomId === room.roomId ? (modelByRootId.get(menu.rootId) ?? menu.viewModel) : undefined;
   useLayoutEffect(() => {
+    if (menuRef.current === undefined) return;
     menuRef.current = undefined;
     setMenu(undefined);
   }, [room.roomId]);
@@ -646,8 +651,7 @@ export function CompactRoomView({
     if (address && asked.current[0] !== requestKey) asked.current = [requestKey, ...now];
     if (!focusRequest || !focusShown) return;
     // A newer address retires a Back that still waits; a reader whose input scrolled it stays.
-    if (address && !blocks.progress.placed) blocks.progress.wake?.();
-    if (address) blocks.progress.placed = blocks.progress.left = true;
+    if (address) blocks.retireBack();
     const stayed = now.some((value, i) => value === asked.current[i + 1]);
     const place = pushed && view && stayed && compactFocusPlace(focusRequest, view);
     if (place && placing.current !== requestKey) {
@@ -703,7 +707,7 @@ export function CompactRoomView({
     );
   };
 
-  const renderSectionHeader = (id: ThreadWorkflowBucket) => {
+  const renderSectionHeader = (id: CompactThreadSectionId) => {
     const key = sectionRowKey(id);
     const fixedOpen = id === singleBucketTab;
     const closed = folded.includes(id);

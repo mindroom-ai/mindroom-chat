@@ -289,7 +289,7 @@ describe('ImageOverlay interactive edge close', () => {
     expect(modal.hasAttribute('data-swiping')).toBe(true);
     expect(modal.hasAttribute('data-swipe-shadow')).toBe(true);
     expect(backdrop.hasAttribute('data-swiping')).toBe(true);
-    expect(modal.style.translate).toBe('100px 0');
+    expect(modal.style.translate).toBe('100px');
     expect(Number(backdrop.style.opacity)).toBeCloseTo(0.75, 5);
     expect(onClose).not.toHaveBeenCalled();
     expect(store.get(imageViewerOpenAtom)).toBe(true);
@@ -328,7 +328,7 @@ describe('ImageOverlay interactive edge close', () => {
     // Lock origin at x=18; move to x=218 -> offset = 200px (50% >= 35%).
     dispatchTouch(modal, 'touchmove', [{ clientX: 218, clientY: 202 }], 260);
     flushRaf();
-    expect(modal.style.translate).toBe('200px 0');
+    expect(modal.style.translate).toBe('200px');
     expect(Number(backdrop.style.opacity)).toBeCloseTo(0.5, 5);
 
     dispatchTouch(modal, 'touchend', [], 300, [{ clientX: 218, clientY: 202 }]);
@@ -365,7 +365,7 @@ describe('ImageOverlay interactive edge close', () => {
     // Lock origin at x=382; move to x=182 -> offset = 200px, translated -200px.
     dispatchTouch(modal, 'touchmove', [{ clientX: 182, clientY: 200 }], 420);
     flushRaf();
-    expect(modal.style.translate).toBe('-200px 0');
+    expect(modal.style.translate).toBe('-200px');
     expect(Number(backdrop.style.opacity)).toBeCloseTo(0.5, 5);
 
     dispatchTouch(modal, 'touchend', [], 450, [{ clientX: 182, clientY: 200 }]);
@@ -409,7 +409,7 @@ describe('ImageOverlay interactive edge close', () => {
     dispatchTouch(imageArea, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
     dispatchTouch(imageArea, 'touchmove', [{ clientX: 110, clientY: 200, identifier: 0 }], 200);
     flushRaf();
-    expect(modal.style.translate).toBe('90px 0');
+    expect(modal.style.translate).toBe('90px');
     expect(modal.hasAttribute('data-swiping')).toBe(true);
     expect(backdrop.hasAttribute('data-swiping')).toBe(true);
 
@@ -532,7 +532,7 @@ describe('ImageOverlay interactive edge close', () => {
     dispatchTouch(modal, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
     dispatchTouch(modal, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
     flushRaf();
-    expect(modal.style.translate).toBe('130px 0');
+    expect(modal.style.translate).toBe('130px');
 
     // 2nd finger lands in the newly exposed strip on the backdrop outside the translated Modal.
     dispatchTouch(
@@ -605,7 +605,7 @@ describe('ImageOverlay interactive edge close', () => {
     dispatchTouch(imageArea, 'touchstart', [{ clientX: 10, clientY: 200, identifier: 0 }], 100);
     dispatchTouch(imageArea, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
     flushRaf();
-    expect(modal.style.translate).toBe('130px 0');
+    expect(modal.style.translate).toBe('130px');
 
     // 2nd finger lands on the exposed backdrop strip outside the translated Modal.
     dispatchTouch(
@@ -659,22 +659,22 @@ describe('ImageOverlay interactive edge close', () => {
     fireEvent.pointerMove(imageArea, { ...finger, clientX: 150 });
     dispatchTouch(imageArea, 'touchmove', [{ clientX: 150, clientY: 200, identifier: 0 }], 180);
     flushRaf();
-    expect(modal.style.translate).toBe('130px 0');
+    expect(modal.style.translate).toBe('130px');
     dispatchTouch(backdrop, 'touchstart', fingers(150, 40), 210);
     expect(modal.style.translate).toBe('');
 
     // The fingers spread from 110 px to 165 px, then to 220 px, the first one moving 100 px.
     pinchTo(200, 35, 240);
-    expect(image.style.transform).toBe('translate(22.5px, 0px) scale(1.5)');
+    expect(image.style.transform).toBe('translate(22.5px) scale(1.5)');
     pinchTo(250, 30, 270);
     // The way of the fingers' midpoint, 22.5 px a step, and none of the first finger's own.
-    expect(image.style.transform).toBe('translate(45px, 0px) scale(2)');
+    expect(image.style.transform).toBe('translate(45px) scale(2)');
 
     // The 2nd finger lifts: the first one pans from where it is, with no jump.
     const last = fingers(250, 30);
     dispatchTouch(backdrop, 'touchend', last.slice(0, 1), 300, last.slice(1));
     fireEvent.pointerMove(imageArea, { ...finger, clientX: 260 });
-    expect(image.style.transform).toBe('translate(55px, 0px) scale(2)');
+    expect(image.style.transform).toBe('translate(55px) scale(2)');
     expect(onClose).not.toHaveBeenCalled();
   });
 });

@@ -23,7 +23,7 @@ const freePort = () =>
  */
 export const withServePy = async (
   files: Record<string, string>,
-  use: (request: (path: string, init?: RequestInit) => Promise<Response>) => Promise<void>,
+  run: (request: (path: string, init?: RequestInit) => Promise<Response>) => Promise<void>,
   env: Record<string, string> = {}
 ): Promise<void> => {
   const root = mkdtempSync(join(tmpdir(), 'serve-py-'));
@@ -48,7 +48,7 @@ export const withServePy = async (
     }
   };
   try {
-    await use(request);
+    await run(request);
   } finally {
     server.kill();
     rmSync(root, { recursive: true, force: true });

@@ -49,7 +49,7 @@ export const parseThreadFilterQuery = (text: string): ParsedThreadFilterQuery =>
   const unsupported: string[] = [];
   let statusMode: 'and' | 'or' = 'and';
 
-  for (let i = 0; i < tokens.length; ) {
+  for (let i = 0; i < tokens.length;) {
     if (i + 1 < tokens.length && isOrToken(tokens[i + 1]!)) {
       let end = i;
       while (end + 2 < tokens.length && isOrToken(tokens[end + 1]!)) end += 2;

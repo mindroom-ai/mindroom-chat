@@ -207,16 +207,16 @@ describe('slidePhonePage', () => {
       '<div data-page-slide-row="other"><span>Outside the clip container</span></div>';
     const view = stage.querySelector('[data-page-slide-clip]')!;
     vi.stubGlobal('innerHeight', 844);
-    const rect = vi
-      .spyOn(Element.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: Element) {
-        if (this === stage) return new DOMRect(0, 0, 390, 844);
-        if (this === view) return new DOMRect(0, 180, 390, 470);
-        const y = { above: -800, visible: 300, gutter: 1200, below: 1550 }[
-          this.getAttribute('data-page-slide-row') ?? ''
-        ];
-        return new DOMRect(0, y ?? 2000, 380.5, 42.25);
-      });
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element
+    ) {
+      if (this === stage) return new DOMRect(0, 0, 390, 844);
+      if (this === view) return new DOMRect(0, 180, 390, 470);
+      const y = { above: -800, visible: 300, gutter: 1200, below: 1550 }[
+        this.getAttribute('data-page-slide-row') ?? ''
+      ];
+      return new DOMRect(0, y ?? 2000, 380.5, 42.25);
+    });
     try {
       slidePhonePage(() => showThread(true));
       page.frame();
@@ -276,7 +276,7 @@ describe('slidePhonePage', () => {
     // As a browser lays them out, on a screen of twice its pixels: 40 by 20, the wide picture
     // 160 by 160, one of no size, and one scrolled out of the layout, far below it.
     const box = (element: Element) =>
-      ({ Wide: [160, 160], Hidden: [0, 0] }[element.getAttribute('alt') ?? ''] ?? [40, 20]);
+      ({ Wide: [160, 160], Hidden: [0, 0] })[element.getAttribute('alt') ?? ''] ?? [40, 20];
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function width(
       this: HTMLElement
     ) {
@@ -316,7 +316,7 @@ describe('slidePhonePage', () => {
       Wide: [8000, 400],
     };
     const size = (picture: HTMLImageElement): [number, number] =>
-      loaded.call(picture) ? sizes[picture.alt] ?? [40, 40] : [0, 0];
+      loaded.call(picture) ? (sizes[picture.alt] ?? [40, 40]) : [0, 0];
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function width(
       this: HTMLImageElement
     ) {
@@ -853,7 +853,7 @@ describe('movePhoneNavDrawer', () => {
 
 describe('withPhonePageSlide', () => {
   const stateAt = (key: string, historyAction = 'PUSH') =>
-    ({ location: { key }, historyAction } as RouterState);
+    ({ location: { key }, historyAction }) as RouterState;
 
   /** A router that tells its listeners what `emit` gives it. */
   const routerAt = (key: string) => {
@@ -994,7 +994,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
   };
 
   const stateAt = (key: string, historyAction = 'PUSH') =>
-    ({ location: { key }, historyAction } as RouterState);
+    ({ location: { key }, historyAction }) as RouterState;
 
   const routerAt = (key: string) => {
     const listeners = new Set<Listener>();
@@ -1078,8 +1078,8 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(145);
 
     scene!.update(195, 0.5);
-    expect(page.style.translate).toBe('195px 0');
-    expect(under?.style.translate).toBe(`${-0.3 * 390 * 0.5}px 0`);
+    expect(page.style.translate).toBe('195px');
+    expect(under?.style.translate).toBe(`${-0.3 * 390 * 0.5}px`);
     expect(stage.querySelector<HTMLElement>('[data-swipe-dim="back"]')?.style.opacity).toBe('0.06');
 
     // Cancel drag: cleans up styles/preview without committing and preserves cache for retry.
@@ -1240,11 +1240,11 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     const over = stage.querySelector<HTMLElement>('[data-swipe-preview="over"]');
     const dim = stage.querySelector<HTMLElement>('[data-swipe-dim="forward"]');
     expect(over).not.toBeNull();
-    expect(over?.style.translate).toBe('390px 0');
+    expect(over?.style.translate).toBe('390px');
 
     scene!.update(195, 0.5);
-    expect(over?.style.translate).toBe('195px 0');
-    expect(page.style.translate).toBe(`${-0.3 * 390 * 0.5}px 0`);
+    expect(over?.style.translate).toBe('195px');
+    expect(page.style.translate).toBe(`${-0.3 * 390 * 0.5}px`);
     expect(dim?.style.opacity).toBe('0.06');
 
     // Cancel keeps thread preview cached and cleans up cleanly.
@@ -1470,7 +1470,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
         ({
           finished: animPromise,
           cancel: vi.fn(),
-        } as unknown as Animation)
+        }) as unknown as Animation
     );
     const origAnimate = HTMLElement.prototype.animate;
     HTMLElement.prototype.animate = fakeAnimate;
@@ -1798,7 +1798,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     backScene!.update(120, 0.3);
 
     expect(page.hasAttribute('data-swiping')).toBe(true);
-    expect(page.style.translate).toBe('120px 0');
+    expect(page.style.translate).toBe('120px');
     expect(drawerPanel.hasAttribute('data-swiping')).toBe(false);
     expect(drawerPanel.style.translate).toBe('');
     expect(drawerScrim.hasAttribute('data-swiping')).toBe(false);

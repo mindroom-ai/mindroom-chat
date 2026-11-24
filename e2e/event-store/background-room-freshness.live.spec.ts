@@ -22,7 +22,6 @@ test.describe('ISSUE-207 background room cache freshness', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
   test('events arriving in a background room reach its cache', async ({ page }) => {
-
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const { accessToken, userId } = await loginToMatrix(homeserver, username, password);

@@ -56,7 +56,7 @@ const makeRoomEvent = (eventId: string, threadRootId?: string) =>
     isRedacted: () => false,
     isRedaction: () => false,
     threadRootId,
-  } as never);
+  }) as never;
 
 const makeTimeline = (events: unknown[]) =>
   ({
@@ -65,7 +65,7 @@ const makeTimeline = (events: unknown[]) =>
       direction === Direction.Backward ? 'before-token' : undefined,
     setPaginationToken: vi.fn(),
     getNeighbouringTimeline: () => null,
-  } as never);
+  }) as never;
 
 describe('useRoomPaginationCommandController', () => {
   it('does not insert a cached page after navigation changes rooms during the read', async () => {
@@ -802,9 +802,9 @@ it('fences an old page after clear and saves a new page in the same mounted view
   );
   await vi.waitFor(async () =>
     expect(
-      (
-        await loadLatestCachedThreadEvents(sessionId, room.roomId, '$root', 10)
-      ).events.map((event) => event.event_id)
+      (await loadLatestCachedThreadEvents(sessionId, room.roomId, '$root', 10)).events.map(
+        (event) => event.event_id
+      )
     ).toContain('$new-reply')
   );
   act(() => renderer.unmount());

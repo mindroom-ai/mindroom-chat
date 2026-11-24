@@ -27,7 +27,7 @@ export const createBatchedMeasurementRef = <T extends Element>(
 
 // virtual-core keeps a programmatic scroll's target private and limits
 // measurement to rows near that target while it runs.
-type ProgrammaticScroll = { scrollState: unknown };
+type ProgrammaticScroll = { scrollState: { toEnd?: boolean } | null };
 type SmoothScrollGuard = { shouldMeasureDuringScroll?: (index: number) => boolean };
 
 /**
@@ -70,7 +70,10 @@ export const createScrollMountMeasurement = <T extends Element>(
   virtualizer: Virtualizer<HTMLDivElement, T>
 ) => {
   const attached = new Set<T>();
-  const programmaticScroll = () => !!(virtualizer as unknown as ProgrammaticScroll).scrollState;
+  const programmaticScroll = () => {
+    const state = (virtualizer as unknown as ProgrammaticScroll).scrollState;
+    return !!state && !state.toEnd;
+  };
   // virtual-core's default measurement without its cached-size shortcut.
   const readSize = (node: T) => {
     const element = node as unknown as HTMLElement;

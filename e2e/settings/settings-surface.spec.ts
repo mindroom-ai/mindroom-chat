@@ -117,7 +117,7 @@ const menuInsets = (dialog: Locator) =>
     return [field, ...headings, ...rows].map((part) => {
       const box = part.getBoundingClientRect();
       return {
-        part: part === field ? 'search' : part.textContent ?? '',
+        part: part === field ? 'search' : (part.textContent ?? ''),
         start: box.left - start,
         end: end - box.right,
       };
@@ -333,7 +333,7 @@ test('screenshots of the Settings dialog over a busy room', async ({ page }) => 
   const roomId = await signIn(page, 'settings_surface_shots');
   for (const theme of ['dark', 'light']) {
     /* eslint-disable no-await-in-loop -- one picture after the other on one page. */
-    let { dialog, account } = await openAccount(page, roomId, `${theme}-theme`, DESKTOP);
+    const { dialog, account } = await openAccount(page, roomId, `${theme}-theme`, DESKTOP);
     await account.click();
     await settle(page);
     await page.screenshot({ path: `${SHOTS}/desktop-account-${theme}.png` });
@@ -345,10 +345,10 @@ test('screenshots of the Settings dialog over a busy room', async ({ page }) => 
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
 
-    ({ dialog, account } = await openAccount(page, roomId, `${theme}-theme`, PHONE));
+    const { account: phoneAccount } = await openAccount(page, roomId, `${theme}-theme`, PHONE);
     await settle(page);
     await page.screenshot({ path: `${SHOTS}/phone-menu-${theme}.png` });
-    await account.click();
+    await phoneAccount.click();
     await settle(page);
     await page.screenshot({ path: `${SHOTS}/phone-account-${theme}.png` });
 

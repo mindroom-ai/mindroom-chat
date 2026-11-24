@@ -31,7 +31,7 @@ const makeClient = () => {
 };
 
 const joinedRoom = (roomId: string) =>
-  ({ roomId, getMyMembership: () => KnownMembership.Join } as unknown as Room);
+  ({ roomId, getMyMembership: () => KnownMembership.Join }) as unknown as Room;
 
 describe('useBindAllRoomsAtom', () => {
   it('lists a room the first sync brings once the client has stored it', async () => {

@@ -30,7 +30,7 @@ const makeRoom = (roomId: string, stateEvents: StateMap = {}, membership = 'join
         },
       }),
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const makeClient = (
   rooms: Record<string, Room>,
@@ -46,7 +46,7 @@ const makeClient = (
     getSafeUserId: () => '@alice:example.org',
     getDomain: () => 'example.org',
     sendStateEvent,
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const powerLevels = {
   [StateEvent.RoomPowerLevels]: {

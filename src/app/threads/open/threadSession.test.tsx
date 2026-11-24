@@ -109,7 +109,7 @@ const openFixture = () => {
         relationSnapshotComplete: complete,
         expectedReplyCount: 1,
       },
-    } as unknown as ThreadCachedSnapshot);
+    }) as unknown as ThreadCachedSnapshot;
   return { runtime, root, reply, timeline, bootstrap, context, rendered, cache, getThread };
 };
 

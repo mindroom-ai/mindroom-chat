@@ -366,8 +366,8 @@ export const prefetchEventAttachments = async (
             maxBytes: attachment.essential
               ? ESSENTIAL_BODY_MAX_BYTES
               : options.includeAllMedia
-              ? undefined
-              : AUTO_MEDIA_MAX_BYTES,
+                ? undefined
+                : AUTO_MEDIA_MAX_BYTES,
           });
         } catch (error) {
           if (options.signal?.aborted) throw error;
@@ -407,6 +407,6 @@ export const hydrateCachedLongText = async (
     const text = await load(source);
     return await hydrateLongTextSource(source, async () => text, mx, isCurrent);
   } catch {
-    return isCurrent() ? cached ?? source.previewContent : source.previewContent;
+    return isCurrent() ? (cached ?? source.previewContent) : source.previewContent;
   }
 };

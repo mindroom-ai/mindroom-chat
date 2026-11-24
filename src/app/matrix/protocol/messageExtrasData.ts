@@ -91,5 +91,4 @@ export const parseMessageExtras = (content: unknown): MessageExtras | null => {
   }
 };
 
-export const hasMessageExtras = (content: unknown): boolean =>
-  parseMessageExtras(content) !== null;
+export const hasMessageExtras = (content: unknown): boolean => parseMessageExtras(content) !== null;

@@ -1,5 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import isHotkey from 'is-hotkey';
+import { isHotkey } from 'is-hotkey';
 
 type KeyEventLike = Pick<
   KeyboardEvent | ReactKeyboardEvent,

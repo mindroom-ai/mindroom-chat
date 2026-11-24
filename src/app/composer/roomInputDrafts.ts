@@ -4,7 +4,7 @@
  * attachments (only their names are kept), and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
-import { atomFamily } from 'jotai/utils';
+import { atomFamily } from 'jotai-family';
 import type { Descendant } from 'slate';
 import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
@@ -21,10 +21,10 @@ import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { getActiveSession, subscribeToSessionStore } from '../matrix/session/sessions';
 import { clearKeptPastes } from './keptPastes';
 import {
-  endVoiceRecordingsOfAccount,
-  liveVoiceRecordingAtom,
-  voiceDiscardsInFlightAtom,
-} from './voice/liveVoiceRecording';
+  captureDiscardsInFlightAtom,
+  endLiveCapturesOfAccount,
+  liveCaptureAtom,
+} from './capture/liveCapture';
 import { composerStateKey } from '../navigation/conversationView';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 import type { DictationSession } from './dictation/dictationSession';
@@ -156,7 +156,7 @@ const sameDestination = (a?: HomeAskDestination, b?: HomeAskDestination): boolea
 // can keep editing in memory but no longer writes to storage.
 const draftGenerations = new Map<string, number>();
 const getDraftGeneration = (userId: string | undefined) =>
-  userId === undefined ? 0 : draftGenerations.get(userId) ?? 0;
+  userId === undefined ? 0 : (draftGenerations.get(userId) ?? 0);
 
 /**
  * An account's Home ask draft: its text and where it goes, read from storage in one snapshot and
@@ -449,8 +449,8 @@ export const composerUploadItemsAtom = (roomId: string, view: string | undefined
 export type StagedList = ReturnType<typeof composerUploadItemsAtom>;
 
 /** The upload state of a staged file. */
-export const roomUploadAtomFamily = atomFamily(
-  (file: TUploadContent): TUploadAtom => createUploadAtom(file)
+export const roomUploadAtomFamily = atomFamily((file: TUploadContent): TUploadAtom =>
+  createUploadAtom(file)
 );
 
 /**
@@ -476,9 +476,6 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
-/** Unique owner key while a composer has an active streaming dictation session. */
-export const activeDictationAtom = atom<string | undefined>(undefined);
-
 /** A dictation session detached from its composer to finish and send in the background. */
 export type DetachedDictationSend = {
   readonly ownerKey: string;
@@ -488,7 +485,7 @@ export type DetachedDictationSend = {
   readonly session: DictationSession;
   readonly retryAndSend: () => void;
   readonly insertPartial: () => void;
-  readonly discard: () => void;
+  readonly discard: () => Promise<void>;
   readonly abort: () => void;
 };
 
@@ -548,19 +545,6 @@ export const composerOfferAtom = (
 
 // What a reload would lose.
 
-/** The keys a family holds atoms for, listed without creating or removing any. */
-const familyKeys = <Key>(family: {
-  setShouldRemove: (test: ((createdAt: number, key: Key) => boolean) | null) => void;
-}): Key[] => {
-  const keys: Key[] = [];
-  family.setShouldRemove((_createdAt, key) => {
-    keys.push(key);
-    return false;
-  });
-  family.setShouldRemove(null);
-  return keys;
-};
-
 /**
  * Whether a composer holds something that only lives in memory, so a page reload would drop it:
  * a staged file, the message being replied to, or a voice message, recorded or being recorded.
@@ -568,16 +552,15 @@ const familyKeys = <Key>(family: {
  * restores it.
  */
 export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
-  store.get(liveVoiceRecordingAtom) !== undefined ||
+  store.get(liveCaptureAtom) !== undefined ||
   store.get(pendingVoiceSendDraftAtom) !== undefined ||
-  store.get(voiceDiscardsInFlightAtom) > 0 ||
+  store.get(captureDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
-  store.get(activeDictationAtom) !== undefined ||
   store.get(detachedDictationSendsAtom).size > 0 ||
-  familyKeys(roomIdToUploadItemsAtomFamily).some(
+  [...roomIdToUploadItemsAtomFamily.getParams()].some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
   ) ||
-  familyKeys(roomIdToReplyDraftAtomFamily).some(
+  [...roomIdToReplyDraftAtomFamily.getParams()].some(
     (key) => store.get(roomIdToReplyDraftAtomFamily(key)) !== undefined
   );
 
@@ -602,8 +585,7 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
-  store.set(activeDictationAtom, undefined);
-  endVoiceRecordingsOfAccount(store);
+  endLiveCapturesOfAccount(store);
   store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());
   store.set(detachedDictationSendsAtom, new Map());
   store.set(detachedDictationErrorAtom, undefined);

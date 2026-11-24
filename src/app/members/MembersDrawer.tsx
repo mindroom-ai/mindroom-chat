@@ -108,8 +108,7 @@ type FilterSelection = number | 'auto';
 
 /** One row of the list: a power level group's title or a member. */
 export type ListEntry =
-  | { kind: 'group'; tag: MemberPowerTag; spaced: boolean }
-  | { kind: 'member'; member: RoomMember };
+  { kind: 'group'; tag: MemberPowerTag; spaced: boolean } | { kind: 'member'; member: RoomMember };
 
 export const memberName = (room: Room, member: RoomMember): string =>
   getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
@@ -120,7 +119,7 @@ export const memberName = (room: Room, member: RoomMember): string =>
  */
 export const matchesQuery = (room: Room, member: RoomMember, query: string): boolean => {
   const userId = member.userId.toLowerCase();
-  const searched = query.includes(':') ? userId : getMxIdLocalPart(userId) ?? userId;
+  const searched = query.includes(':') ? userId : (getMxIdLocalPart(userId) ?? userId);
   return (
     memberName(room, member).toLowerCase().includes(query) ||
     searched.includes(query.replace(/^@/, ''))
@@ -182,7 +181,7 @@ export function MemberRow({
   const name = memberName(room, member);
   const avatarMxc = member.getMxcAvatarUrl?.();
   const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 48, 48, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 48, 48, 'crop') ?? undefined)
     : undefined;
 
   // The drawer sits at the inline end, so the card opens towards the timeline.

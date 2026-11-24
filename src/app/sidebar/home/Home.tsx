@@ -18,7 +18,9 @@ import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { VirtualTile } from '../../ui/VirtualTile';
 import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
-import { HOME_ROOM_LIST } from '../room-nav/roomOrder';
+import { HOME_ROOM_LIST, type RoomOrder } from '../room-nav/roomOrder';
+import { getRoomActivityTimestamp } from '../room-nav/roomActivity';
+import { RoomSortMenu } from '../room-nav/RoomSortMenu';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
@@ -43,7 +45,8 @@ import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
 import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
+import { MenuGroup } from '../../ui/MenuEntry';
+import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
@@ -55,11 +58,10 @@ const ROOM_ROW_HEIGHT = 36;
 
 type HomeHeaderProps = {
   roomIds: string[];
-  /** Puts the hand-ordered Rooms back in A to Z order; only while they are ordered by hand. */
-  onSortByName?: () => void;
+  sort: Pick<RoomOrder, 'mode' | 'showTimes' | 'hasSavedOrder' | 'setMode' | 'setShowTimes'>;
 };
 
-function HomeHeader({ roomIds, onSortByName }: HomeHeaderProps) {
+function HomeHeader({ roomIds, sort }: HomeHeaderProps) {
   const { t } = useTranslation();
   const title = t('nav.home');
 
@@ -71,28 +73,32 @@ function HomeHeader({ roomIds, onSortByName }: HomeHeaderProps) {
             {title}
           </Text>
         </Box>
-        {/* Its own name, so it is not taken for a room's More Options button. */}
-        <NavOptionsMenu label={t('featureUi.homeNav.options')} width={200}>
-          {(close) => (
-            <>
-              <MenuGroup>
-                <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
-                {onSortByName && (
-                  <MenuEntry
-                    label={t('featureUi.roomOrder.sortByName')}
-                    icon={Icons.Sort}
-                    onSelect={() => {
-                      close();
-                      onSortByName();
-                    }}
-                  />
-                )}
-              </MenuGroup>
-              <HiddenRailPages onClose={close} />
-              <MacAppMenuEntry onClose={close} />
-            </>
-          )}
-        </NavOptionsMenu>
+        <Box alignItems="Center" gap="100" shrink="No">
+          <RoomSortMenu
+            mode={sort.mode}
+            showTimes={sort.showTimes}
+            hasSavedOrder={sort.hasSavedOrder}
+            onModeChange={sort.setMode}
+            onShowTimesChange={sort.setShowTimes}
+            buttonClassName={PairedTouchTarget}
+          />
+          {/* Its own name, so it is not taken for a room's More Options button. */}
+          <NavOptionsMenu
+            label={t('featureUi.homeNav.options')}
+            width={200}
+            buttonClassName={PairedTouchTarget}
+          >
+            {(close) => (
+              <>
+                <MenuGroup>
+                  <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                </MenuGroup>
+                <HiddenRailPages onClose={close} />
+                <MacAppMenuEntry onClose={close} />
+              </>
+            )}
+          </NavOptionsMenu>
+        </Box>
       </Box>
     </PageNavHeader>
   );
@@ -176,6 +182,9 @@ export function Home() {
     linkPath: homeRoomPath(room.roomId),
     selected: room.roomId === selectedRoomId,
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
+    activityTimestamp: roomOrder.showTimes
+      ? getRoomActivityTimestamp(room) || undefined
+      : undefined,
   });
   const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
 
@@ -225,12 +234,7 @@ export function Home() {
       )}
       <PageNavContent
         scrollRef={listScrollRef}
-        header={
-          <HomeHeader
-            roomIds={homeRooms}
-            onSortByName={roomOrder.manual ? roomOrder.reset : undefined}
-          />
-        }
+        header={<HomeHeader roomIds={homeRooms} sort={roomOrder} />}
       >
         {homeRooms.length === 0 ? (
           <NavEmptyLayout
@@ -264,6 +268,7 @@ export function Home() {
                 listId={HOME_ROOM_LIST}
                 roomIds={listedRoomIds}
                 onReorder={roomOrder.save}
+                reorderDisabled={roomOrder.mode === 'recent'}
               >
                 <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
                   {virtualizer.getVirtualItems().map((item) => {

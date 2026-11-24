@@ -24,7 +24,7 @@ import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
 import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
+import { MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
 import {
@@ -56,8 +56,9 @@ import {
 } from '../../navigation/routeVisibility';
 import { useJoinedParentSpaces } from '../../matrix/state/useSpaceSearchRooms';
 import { BackToListButton } from '../../ui/page/PhoneBackButton';
+import { RoomSortMenu } from '../room-nav/RoomSortMenu';
 import { SortableRoomGroup } from '../room-nav/SortableRoomList';
-import { SpaceRoomSection, useSpaceRoomSections } from './SpaceRoomSection';
+import { SpaceRoomSection, type SpaceSortControl, useSpaceRoomSections } from './SpaceRoomSection';
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
 const readViaServers = (searchParams: URLSearchParams): string[] | undefined => {
@@ -139,8 +140,10 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
 type SpaceHeaderProps = {
   /** The space's rooms, which Mark as Read covers. */
   roomIds: string[];
-  /** Puts the hand-ordered Rooms back in A to Z order; only while they are ordered by hand. */
-  onSortByName?: () => void;
+  /** Joined parent spaces when viewing a sub-space standalone. */
+  parents: Room[];
+  /** Sort & activity-times controls for this space. */
+  sort: SpaceSortControl;
 };
 
 /** A sub-space's way back to the room list of the space that holds it. */
@@ -158,10 +161,9 @@ function ParentSpaceBack({ parent, others }: { parent: Room; others: Room[] }) {
   );
 }
 
-/** The space's title bar: its name, a quick add menu when allowed, and the space options menu. */
-function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
+/** The space's title bar: its name, sort menu, quick add menu when allowed, and space options menu. */
+function SpaceHeader({ roomIds, parents, sort }: SpaceHeaderProps) {
   const { t } = useTranslation();
-  const client = useMatrixClient();
   const space = useSpace();
   const name = revealDirectionControls(useRoomName(space));
   const permissions = useSpaceQuickPermissions(space);
@@ -169,9 +171,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const dialogs = useSpaceQuickDialogs(space, {
     onLeft: () => void navigate(getHomePath()),
   });
-  const [parent, ...otherParents] = useJoinedParentSpaces(space.roomId).flatMap(
-    (roomId) => client.getRoom(roomId) ?? []
-  );
+  const [parent, ...otherParents] = parents;
   return (
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
@@ -183,6 +183,14 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
           </Text>
         </Box>
         <Box alignItems="Center" gap="100" shrink="No">
+          <RoomSortMenu
+            mode={sort.mode}
+            showTimes={sort.showTimes}
+            hasSavedOrder={sort.hasSavedOrder}
+            onModeChange={sort.setMode}
+            onShowTimesChange={sort.setShowTimes}
+            buttonClassName={PairedTouchTarget}
+          />
           {permissions.canAdd && (
             <NavOptionsMenu
               icon={Icons.Plus}
@@ -205,7 +213,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
           <NavOptionsMenu
             label={t('featureUi.spaceNav.options')}
             width={220}
-            buttonClassName={permissions.canAdd ? PairedTouchTarget : undefined}
+            buttonClassName={PairedTouchTarget}
           >
             {(close) => (
               <SpaceMenuGroups
@@ -214,21 +222,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
                 dialogs={dialogs}
                 onClose={close}
                 showAdd={false}
-                beforeMain={
-                  <>
-                    <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
-                    {onSortByName && (
-                      <MenuEntry
-                        label={t('featureUi.roomOrder.sortByName')}
-                        icon={Icons.Sort}
-                        onSelect={() => {
-                          close();
-                          onSortByName();
-                        }}
-                      />
-                    )}
-                  </>
-                }
+                beforeMain={<MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
               />
             )}
           </NavOptionsMenu>
@@ -278,23 +272,26 @@ export function Space() {
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
   const threadsSelected = useMatch(SPACE_THREADS_PATH) !== null;
 
+  const parents = useJoinedParentSpaces(space.roomId).flatMap(
+    (roomId) => client.getRoom(roomId) ?? []
+  );
   const {
     spaceRooms,
     sections,
     shortcutRoomIds,
+    sort,
     onCategoryClick,
     onReorder,
-    onSortByName,
     canMoveRoom,
     onMoveRoom,
-  } = useSpaceRoomSections(space.roomId, selectedRoomId);
+  } = useSpaceRoomSections(space.roomId, selectedRoomId, parents[0]?.roomId);
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(shortcutRoomIds, selectedRoomId, spaceRoomPath);
 
   return (
     <PageNav label={title}>
-      <PageNavContent header={<SpaceHeader roomIds={spaceRooms} onSortByName={onSortByName} />}>
+      <PageNavContent header={<SpaceHeader roomIds={spaceRooms} parents={parents} sort={sort} />}>
         <Box direction="Column" gap="300">
           <NavCategory>
             {!phone && <CommandPaletteSearchField className={searchFieldCss.NavSearchField} />}

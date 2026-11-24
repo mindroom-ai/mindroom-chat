@@ -31,11 +31,11 @@ Bas said: "in the macos app. can we add something such that it self-updates auto
 
 How Sparkle gets into the project:
 
-| Way | Verdict |
-|---|---|
+| Way                                                      | Verdict                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Pinned release tarball, fetched by a script (chosen)** | `Sparkle-2.10.1.tar.xz`, sha256 `1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27`, holds `Sparkle.framework` and `bin/generate_appcast`. The bundle target links and embeds the framework with ordinary build phases, which is Sparkle's documented manual setup, "This applies to the setup for the plug-in target as well" [1]. Builds that do not build the bundle (iOS, the Store app, Xcode Cloud) never download it. Same shape as the watch SDK fetch. |
-| Swift package in the project | Xcode would resolve it for every build of the project, iOS and Store included. Whether Xcode embeds a package's binary framework into a plug-in bundle (and not the app) is not something I could confirm. The signing tools would sit in DerivedData. |
-| CocoaPods `Sparkle` | The Podfile is `platform :ios`; the pod is macOS only, and CocoaPods adds no embed step to a bundle target. |
+| Swift package in the project                             | Xcode would resolve it for every build of the project, iOS and Store included. Whether Xcode embeds a package's binary framework into a plug-in bundle (and not the app) is not something I could confirm. The signing tools would sit in DerivedData.                                                                                                                                                                                                                         |
+| CocoaPods `Sparkle`                                      | The Podfile is `platform :ios`; the pod is macOS only, and CocoaPods adds no embed step to a bundle target.                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## Design
 
@@ -52,18 +52,18 @@ How Sparkle gets into the project:
 
 ### Architecture
 
-| File | Role |
-|---|---|
-| `scripts/fetch-sparkle.sh` | Downloads the pinned tarball, checks its sha256, unpacks `Sparkle.framework`, `bin/` and `LICENSE` into `ios/MacUpdater/Sparkle/` (git-ignored). A no-op when that version is there. |
-| `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift` | The two calls the app makes: `start(onChange:)` and `install() -> Bool`. Compiled into `App` and the bundle. |
+| File                                                    | Role                                                                                                                                                                                        |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/fetch-sparkle.sh`                              | Downloads the pinned tarball, checks its sha256, unpacks `Sparkle.framework`, `bin/` and `LICENSE` into `ios/MacUpdater/Sparkle/` (git-ignored). A no-op when that version is there.        |
+| `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift`       | The two calls the app makes: `start(onChange:)` and `install() -> Bool`. Compiled into `App` and the bundle.                                                                                |
 | `ios/MacUpdater/MindRoomMacUpdater.swift`, `Info.plist` | The bundle (`chat.mindroom.app.mac-updater`, principal class `MindRoomMacUpdater`): owns the `SPUUpdater`, is its delegate, keeps the immediate-install block while its update cycle lives. |
-| `ios/App/App/MacUpdater.swift` | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the staged version (main thread only) and logs it. |
-| `ios/App/App/MindRoomUpdatePlugin.swift` | Capacitor plugin `MindRoomUpdate`: methods `status()` and `install()`. No events. |
-| `src/app/native/nativeUpdate.ts` | `watchNativeUpdate()`: asks `status()` when the page starts, when it is shown again and once a minute while shown, and hands the answer to `appUpdate.ts`. |
-| `src/app/config/appUpdate.ts` | `setAppUpdate(update?)`; `reloadForNewVersion()` installs while an app update is set. |
-| `scripts/macos-updater-info-plist.sh` | Build phase of `App`: writes the updater's Info.plist keys into the built Mac app. |
-| `scripts/macos-appcast.sh` | Makes and checks one release's `appcast.xml`: one item whose DMG enclosure carries the EdDSA signature. |
-| `scripts/macos-publish-appcast.sh` | The feed job: copies a ready release's `appcast.xml` to the feed, unless the feed already names that release or a newer one. |
+| `ios/App/App/MacUpdater.swift`                          | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the staged version (main thread only) and logs it.                                                                |
+| `ios/App/App/MindRoomUpdatePlugin.swift`                | Capacitor plugin `MindRoomUpdate`: methods `status()` and `install()`. No events.                                                                                                           |
+| `src/app/native/nativeUpdate.ts`                        | `watchNativeUpdate()`: asks `status()` when the page starts, when it is shown again and once a minute while shown, and hands the answer to `appUpdate.ts`.                                  |
+| `src/app/config/appUpdate.ts`                           | `setAppUpdate(update?)`; `reloadForNewVersion()` installs while an app update is set.                                                                                                       |
+| `scripts/macos-updater-info-plist.sh`                   | Build phase of `App`: writes the updater's Info.plist keys into the built Mac app.                                                                                                          |
+| `scripts/macos-appcast.sh`                              | Makes and checks one release's `appcast.xml`: one item whose DMG enclosure carries the EdDSA signature.                                                                                     |
+| `scripts/macos-publish-appcast.sh`                      | The feed job: copies a ready release's `appcast.xml` to the feed, unless the feed already names that release or a newer one.                                                                |
 
 Data flow: `AppDelegate` calls `MacUpdater.start()` at launch, before any page exists, so a broken page cannot stop an update. Sparkle downloads and stages; its delegate call hands over the version and the install block, and `MacUpdater` keeps the version. The page asks `status()`, gets `{ version }`, and `watchNativeUpdate` calls `setAppUpdate`; the card shows, at most a minute after the update was staged. Reload calls `reloadForNewVersion()`, which calls the plugin's `install()`, which runs the block: Sparkle asks the app to quit, installs and relaunches. When the update cycle ends without an install (`updater(_:didFinishUpdateCycleFor:error:)` [2]), the bundle drops the block, which is dead by then (it holds its driver weakly, `SPUAutomaticUpdateDriver.m:112-119`), `status()` answers `{}`, and the card leaves.
 
@@ -79,14 +79,14 @@ The bundle uses `SPUUpdater` with `SPUStandardUserDriver`, as `SPUStandardUpdate
 
 Only the built Mac `App` gets them. They cannot live in `App/Info.plist`, which the Store app and iOS share. A Run Script phase of `App` runs `scripts/macos-updater-info-plist.sh` after the Info.plist is processed and before signing. It does nothing unless `IS_MACCATALYST = YES` and the build setting `MINDROOM_UPDATE_FEED_URL` is set; then `MINDROOM_UPDATE_PUBLIC_KEY` must be a 44-character base64 key, or the build fails. Both settings exist only in `App`'s Release configuration. The defaults are set here only, never again at run time.
 
-| Key | Value | Why |
-|---|---|---|
-| `SUFeedURL` | `https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml` | The feed (below) |
-| `SUPublicEDKey` | Bas's public key | Sparkle reads it only from the host's Info.plist |
-| `SUEnableAutomaticChecks` | true | No "check automatically?" question on the second launch [3] |
-| `SUAutomaticallyUpdate` | true | Download and stage without asking [3] |
-| `SUScheduledCheckInterval` | 3600 | Sparkle's minimum; releases come many times a day |
-| `SUVerifyUpdateBeforeExtraction` | true | The DMG is not mounted before its signature is checked [3] |
+| Key                              | Value                                                                                    | Why                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `SUFeedURL`                      | `https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml` | The feed (below)                                            |
+| `SUPublicEDKey`                  | Bas's public key                                                                         | Sparkle reads it only from the host's Info.plist            |
+| `SUEnableAutomaticChecks`        | true                                                                                     | No "check automatically?" question on the second launch [3] |
+| `SUAutomaticallyUpdate`          | true                                                                                     | Download and stage without asking [3]                       |
+| `SUScheduledCheckInterval`       | 3600                                                                                     | Sparkle's minimum; releases come many times a day           |
+| `SUVerifyUpdateBeforeExtraction` | true                                                                                     | The DMG is not mounted before its signature is checked [3]  |
 
 ### Feed
 
@@ -133,8 +133,8 @@ What its callers do with it:
 ### Signing
 
 - **Two checks, of two things.** With `SUVerifyUpdateBeforeExtraction`:
-  1. Before the DMG is opened, its enclosure signature must verify against the *installed* app's `SUPublicEDKey`. Only if that fails, Sparkle accepts a DMG that is itself signed with Developer ID by the installed app's team (`SUUpdateValidator.m:60-98`); `build-macos-app.sh:131` signs the DMG so.
-  2. After unpacking: the new app must still have a key and a code signature (`:274-290`), its Apple signature must be valid (`:193-208`), and after the Developer ID fallback the enclosure signature must verify against the *new* app's key (`:210-232`).
+  1. Before the DMG is opened, its enclosure signature must verify against the _installed_ app's `SUPublicEDKey`. Only if that fails, Sparkle accepts a DMG that is itself signed with Developer ID by the installed app's team (`SUUpdateValidator.m:60-98`); `build-macos-app.sh:131` signs the DMG so.
+  2. After unpacking: the new app must still have a key and a code signature (`:274-290`), its Apple signature must be valid (`:193-208`), and after the Developer ID fallback the enclosure signature must verify against the _new_ app's key (`:210-232`).
 - **So a lost key is replaced by** a release whose app carries the new public key and whose enclosure is signed with the new private key; the Developer ID signature of the DMG carries the trust across. Developer ID alone never rescues an enclosure without a valid signature.
 - **Sparkle's helpers.** The framework carries `Autoupdate`, `Updater.app` and two XPC services (unused without a sandbox), ad-hoc signed with the hardened runtime. Embedding re-signs only the framework. "Xcode does re-sign these services and helpers, preserves the Hardened Runtime ... when you Archive and Export an application for notarization" [5], which is what `build-macos-app.sh` does. That sentence is about a framework in an app; here it sits one level deeper, in the plug-in, and nothing I read proves Xcode's export walks that far.
 - **The build script checks the exported app before it notarizes:** `codesign --verify --deep --strict` on the app, and for the plug-in's executable, the framework's and each of the four helpers, that `codesign -dv` names team `DNA6966LGZ` and the `runtime` flag. `generate_appcast` validates the nested signatures again, and notarization is the last gate.
@@ -149,18 +149,18 @@ What its callers do with it:
 
 ### Errors
 
-| Case | What happens |
-|---|---|
-| Offline, feed missing, GitHub down, a bad feed | The check fails, Sparkle logs it, nothing shows (the automatic driver has no error UI; the scheduled one shows errors only after it showed an update, `SPUScheduledUpdateDriver.m:104-106`). Next check in an hour. |
-| DMG whose enclosure signature is wrong or missing | Refused, logged, nothing shows: before it is mounted, unless the DMG is signed with Developer ID by the app's team, in which case it is mounted and then refused against the new app's key. |
+| Case                                                                                           | What happens                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Offline, feed missing, GitHub down, a bad feed                                                 | The check fails, Sparkle logs it, nothing shows (the automatic driver has no error UI; the scheduled one shows errors only after it showed an update, `SPUScheduledUpdateDriver.m:104-106`). Next check in an hour.                                                                       |
+| DMG whose enclosure signature is wrong or missing                                              | Refused, logged, nothing shows: before it is mounted, unless the DMG is signed with Developer ID by the app's team, in which case it is mounted and then refused against the new app's key.                                                                                               |
 | The user cannot write the app's folder (a standard account, an app an administrator installed) | Sparkle cannot install silently (`InstallerLauncher/SUInstallerLauncher.m:469-471`) and falls back to its own window, which offers the update and has macOS ask for an administrator. No card. Accepted: an app dragged to `/Applications` or installed by Homebrew is owned by the user. |
-| App opened from the DMG, or translocated by Gatekeeper | Sparkle refuses to update a read-only location (`SPUBasicUpdateDriver.m:70-82`). In the background that is silent: the app works and never updates until it is moved to Applications. |
-| Reload pressed; the bridge does not answer, the app does not quit, or the call fails otherwise | The button returns, 10 s after the press at the latest, and can be pressed again. The update still installs on quit. |
-| Reload pressed; Sparkle gave the update up meanwhile | The press is refused at once (`NOT_READY`), the card leaves, Reload paths reload the page. Without a press the card leaves within a minute. Sparkle checks again within the hour. |
-| The install fails after the app quit | Sparkle's installer puts the new app in place only after it validated it; the old app stays. Not exercised by the e2e. |
-| The bundle or Sparkle fails to load or start | One log line; the app runs without updates. |
-| The feed's publication fails | The job fails; the feed is the previous one or, for a failure between delete and upload, missing. Re-run the failed job, or the next release repairs it. |
-| A release's `dmg` job fails between the two uploads | The release has an `appcast.xml` and no DMG (or a `starter` DMG, which must be deleted by hand, since the job refuses a release that has an asset of that name). It is not ready, the feed ignores it, and a re-run of the job replaces the `appcast.xml` and uploads the DMG. |
+| App opened from the DMG, or translocated by Gatekeeper                                         | Sparkle refuses to update a read-only location (`SPUBasicUpdateDriver.m:70-82`). In the background that is silent: the app works and never updates until it is moved to Applications.                                                                                                     |
+| Reload pressed; the bridge does not answer, the app does not quit, or the call fails otherwise | The button returns, 10 s after the press at the latest, and can be pressed again. The update still installs on quit.                                                                                                                                                                      |
+| Reload pressed; Sparkle gave the update up meanwhile                                           | The press is refused at once (`NOT_READY`), the card leaves, Reload paths reload the page. Without a press the card leaves within a minute. Sparkle checks again within the hour.                                                                                                         |
+| The install fails after the app quit                                                           | Sparkle's installer puts the new app in place only after it validated it; the old app stays. Not exercised by the e2e.                                                                                                                                                                    |
+| The bundle or Sparkle fails to load or start                                                   | One log line; the app runs without updates.                                                                                                                                                                                                                                               |
+| The feed's publication fails                                                                   | The job fails; the feed is the previous one or, for a failure between delete and upload, missing. Re-run the failed job, or the next release repairs it.                                                                                                                                  |
+| A release's `dmg` job fails between the two uploads                                            | The release has an `appcast.xml` and no DMG (or a `starter` DMG, which must be deleted by hand, since the job refuses a release that has an asset of that name). It is not ready, the feed ignores it, and a re-run of the job replaces the `appcast.xml` and uploads the DMG.            |
 
 ### Bootstrap, Homebrew
 

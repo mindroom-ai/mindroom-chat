@@ -3,11 +3,7 @@ import { Box, Text } from 'folds';
 import { Link, Navigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { SSOAction, type IIdentityProvider } from 'matrix-js-sdk';
-import {
-  AuthFlowsLoader,
-  RegisterFlowStatus,
-  type AuthFlows,
-} from '../AuthFlowsLoader';
+import { AuthFlowsLoader, RegisterFlowStatus, type AuthFlows } from '../AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
 import { getAuthSsoRedirectUrl } from '../authUi';
@@ -25,9 +21,8 @@ import { PasswordRegisterForm, canRegisterWithPassword } from './PasswordRegiste
 
 const getSsoProviders = ({ loginFlows }: AuthFlows): IIdentityProvider[] | undefined => {
   const sso = loginFlows.flows.find((flow) => flow.type === 'm.login.sso') as
-    | { identity_providers?: IIdentityProvider[] }
-    | undefined;
-  return sso ? sso.identity_providers ?? [] : undefined;
+    { identity_providers?: IIdentityProvider[] } | undefined;
+  return sso ? (sso.identity_providers ?? []) : undefined;
 };
 
 type RegisterMethodsProps = {

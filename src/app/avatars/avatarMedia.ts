@@ -127,7 +127,7 @@ registerMemoryGauge('avatar_cache_entries', () => fetchedAvatars.size);
 
 // Each account has its own entries, so one account never reuses what another fetched.
 const cacheKey = (mx: AvatarMediaClient, target: string): string => {
-  let owner = '';
+  let owner: string;
   try {
     owner = mx.getUserId?.() ?? '';
   } catch {

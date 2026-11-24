@@ -242,8 +242,8 @@ export function VoiceAudioContent({
   const errorMessage = playbackFailed
     ? t('sharedUi.voiceAudioContent.playbackError')
     : sourceFailed
-    ? t('sharedUi.voiceAudioContent.loadError')
-    : undefined;
+      ? t('sharedUi.voiceAudioContent.loadError')
+      : undefined;
 
   return (
     <div className={css.Root}>

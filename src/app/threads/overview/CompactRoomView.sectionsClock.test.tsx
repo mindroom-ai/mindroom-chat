@@ -80,7 +80,7 @@ const record = (rootId: string, status: Partial<ThreadStatusSnapshot> = {}): Thr
     threadRootId: rootId,
     status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: {},
-  } as unknown as ThreadRecord);
+  }) as unknown as ThreadRecord;
 
 const records = new Map(
   [record('$read', { lastActivityTs: 10 }), record('$snoozed', { snoozedUntilTs: WAKE })].map(
@@ -138,9 +138,9 @@ describe('Compact sections and the snooze clock of the list', () => {
     vi.setSystemTime(WAKE + 1);
     rerender(view(WAKE + 1));
     act(() => {
-      vi.runOnlyPendingTimers();
+      vi.advanceTimersByTime(100);
     });
 
-    expect(rows()).toEqual(['#needsYou', '$read', '$snoozed']);
+    expect(rows()).toEqual(['#needsYou', '$snoozed', '$read']);
   });
 });

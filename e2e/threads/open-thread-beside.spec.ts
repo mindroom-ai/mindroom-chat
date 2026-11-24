@@ -81,7 +81,9 @@ test('Open in second column shows a second thread in its own column at each widt
   ).toHaveCSS('isolation', 'isolate');
 
   // Wide: messages | B.
-  await (await openCardMenu(page, beta))
+  await (
+    await openCardMenu(page, beta)
+  )
     .getByRole('menuitem', { name: 'Open in second column' })
     .click();
   await expect(second(page).getByText('Example thread beta reply')).toBeVisible({
@@ -182,7 +184,9 @@ test('Open in second column shows a second thread in its own column at each widt
   });
   await second(page).getByRole('button', { name: 'Close thread' }).click();
   await expect(second(page)).toHaveCount(0);
-  await (await openCardMenu(page, gamma))
+  await (
+    await openCardMenu(page, gamma)
+  )
     .getByRole('menuitem', { name: 'Open in second column' })
     .click();
   await expect(second(page).getByText('Example thread gamma reply')).toBeVisible({

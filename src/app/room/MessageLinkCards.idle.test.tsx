@@ -22,7 +22,7 @@ const pluginWith = (hoverCard?: () => null) =>
     tag: 'p@1.0.0',
     sidePanels: [],
     messageLinks: [{ match: () => true, Component: Card, hoverCard }],
-  } as unknown as RegisteredPlugin);
+  }) as unknown as RegisteredPlugin;
 
 // With folds' real PopOut, which listens for the window's resize while it is mounted.
 const listened = (plugin: RegisteredPlugin) => {

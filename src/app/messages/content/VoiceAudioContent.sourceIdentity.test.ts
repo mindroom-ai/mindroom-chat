@@ -154,14 +154,14 @@ describe('VoiceAudioContent media identity', () => {
     ) {
       return pausedState.get(this) ?? true;
     });
-    playSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'play')
-      .mockImplementation(function (this: HTMLMediaElement) {
-        pausedState.set(this, false);
-        this.dispatchEvent(new Event('play'));
-        this.dispatchEvent(new Event('playing'));
-        return Promise.resolve();
-      });
+    playSpy = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      pausedState.set(this, false);
+      this.dispatchEvent(new Event('play'));
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    });
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (
       this: HTMLMediaElement
     ) {

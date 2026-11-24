@@ -20,7 +20,7 @@ vi.mock('../lib/hooks/useIntersectionObserver', () => ({
   },
 }));
 
-const boxRect = (top: number, height: number) => ({ top, bottom: top + height, height } as DOMRect);
+const boxRect = (top: number, height: number) => ({ top, bottom: top + height, height }) as DOMRect;
 
 /**
  * A scroll area 600px tall under an 80px header and above a 120px composer, and its back sentinel

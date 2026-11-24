@@ -338,8 +338,8 @@ function ActiveThreadApprovalProvider({
         approval.status === 'pending'
           ? parseToolApprovalExpiryTimestamp(approval.expiresAt)
           : approval.autoApproval && !approval.autoApproval.revokedAt
-          ? parseToolApprovalExpiryTimestamp(approval.autoApproval.expiresAt)
-          : undefined;
+            ? parseToolApprovalExpiryTimestamp(approval.autoApproval.expiresAt)
+            : undefined;
       if (expiry === undefined || expiry <= now) return [];
       return [approval.status === 'pending' ? expiry : now + ((expiry - now) % 60_000 || 60_000)];
     });

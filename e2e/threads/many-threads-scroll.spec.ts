@@ -681,7 +681,7 @@ const withContext = async (
 test.describe('a room with 245 threads', () => {
   test.beforeAll(async () => {
     test.setTimeout(600_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

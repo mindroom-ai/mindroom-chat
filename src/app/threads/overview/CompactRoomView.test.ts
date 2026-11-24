@@ -191,7 +191,7 @@ const makeRoom = () =>
     roomId: '!room:server',
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getThread: () => null,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('CompactRoomView', () => {
   it('opens thread actions on right click and navigates only after Open thread is chosen', async () => {
@@ -740,7 +740,8 @@ describe('CompactRoomView', () => {
     });
   };
   const nodeMockFor =
-    (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement<any>) =>
+    (scrollElement: ReturnType<typeof createScrollElement>) =>
+    (element: React.ReactElement<any>) =>
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
         : // The cards' container listens for touchmove; a card's track comes to rest as it goes.

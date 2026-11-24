@@ -1,8 +1,5 @@
 import { appUrl, ensureBasePathTrailingSlash, normalizeBasePath } from '../../lib/basePath';
-import {
-  MINDROOM_SINGLETON_INDEXED_DB_NAMES,
-  getSessionIndexedDbNames,
-} from './sessionCleanup';
+import { MINDROOM_SINGLETON_INDEXED_DB_NAMES, getSessionIndexedDbNames } from './sessionCleanup';
 import {
   StoredSession,
   getLegacySessionRustCryptoStoreNames,
@@ -49,7 +46,8 @@ export const getStoredSessionCleanupContexts = (): SessionCleanupContext[] =>
   listSessions().map((session) => ({
     sessionId: session.sessionId,
     // The other fields name the account and device; tokens are deliberately left out.
-    baseUrl: session.baseUrl, userId: session.userId,
+    baseUrl: session.baseUrl,
+    userId: session.userId,
     deviceId: session.deviceId,
   }));
 

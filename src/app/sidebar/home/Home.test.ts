@@ -1,13 +1,35 @@
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
 
-const { homeRoomsState, navigate, screen } = vi.hoisted(() => ({
-  homeRoomsState: { roomIds: ['!room:example.org'] },
-  navigate: vi.fn(),
-  screen: { size: 'Desktop' },
-}));
+const { homeRoomsState, navigate, screen, sortState, roomsById } = vi.hoisted(() => {
+  const sort: {
+    mode: 'recent' | 'name' | 'manual';
+    showTimes: boolean;
+    savedList: string[] | undefined;
+    setMode: ReturnType<typeof vi.fn>;
+    setShowTimes: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+  } = {
+    mode: 'name',
+    showTimes: false,
+    savedList: undefined,
+    setMode: vi.fn(),
+    setShowTimes: vi.fn(),
+    save: vi.fn(),
+  };
+  return {
+    homeRoomsState: { roomIds: ['!room:example.org'] },
+    navigate: vi.fn(),
+    screen: { size: 'Desktop' },
+    sortState: sort,
+    roomsById: new Map<string, { roomId: string; name: string; lastActive: number }>([
+      ['!room:example.org', { roomId: '!room:example.org', name: 'Alpha', lastActive: 1000 }],
+      ['!beta:example.org', { roomId: '!beta:example.org', name: 'Beta', lastActive: 3000 }],
+    ]),
+  };
+});
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
@@ -30,32 +52,57 @@ vi.mock('folds', async () => {
     Icon: passthrough,
     IconButton: button,
     Icons: {
+      Check: 'Check',
       Hash: 'Hash',
       Link: 'Link',
       Plus: 'Plus',
       Search: 'Search',
+      Sort: 'Sort',
       VerticalDots: 'VerticalDots',
     },
+    Line: () => reactModule.createElement('hr'),
     Menu: React.forwardRef<HTMLDivElement, { children?: React.ReactNode }>(({ children }, ref) =>
       reactModule.createElement('div', { ref }, children)
     ),
     PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
       anchor ? reactModule.createElement('div', null, content) : null,
+    Switch: ({ value }: { value?: boolean }) =>
+      reactModule.createElement('span', { 'data-switch': String(Boolean(value)) }),
     Text: passthrough,
-    config: { space: { S100: '8px' } },
+    config: { space: { S100: '4px', S200: '8px' } },
     toRem: () => '10rem',
   };
 });
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: () => ({
-    getTotalSize: () => 0,
-    getVirtualItems: () => [],
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 36,
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 36 })),
     measureElement: vi.fn(),
     scrollOffset: 0,
     takeSnapshot: () => [],
   }),
 }));
+
+vi.mock('../../ui/glass/GlassPrimitives', async () => {
+  const reactModule = await import('react');
+  return {
+    Menu: ({ children, ...props }: { children?: React.ReactNode }) =>
+      reactModule.createElement('div', { role: 'menu', ...props }, children),
+    MenuItem: ({
+      as: As = 'button',
+      children,
+      after,
+      ...props
+    }: {
+      as?: 'button' | 'div';
+      children?: React.ReactNode;
+      after?: React.ReactNode;
+      [key: string]: unknown;
+    }) => reactModule.createElement(As, props, children, after),
+  };
+});
 
 vi.mock('../../matrix/state/archivedRooms', () => ({
   useVisibleRooms: (rooms: string[]) => rooms,
@@ -121,7 +168,25 @@ vi.mock('../../command-palette/CommandPaletteSearchField', () => ({
 vi.mock('../../command-palette/CommandPaletteSearchField.css', () => ({ NavSearchField: 'nav' }));
 vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => homeRoomsState.roomIds }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getRoom: () => null, getSafeUserId: () => '@alice:example.org' }),
+  useMatrixClient: () => ({
+    getRoom: (roomId: string) => {
+      const info = roomsById.get(roomId);
+      if (!info) return null;
+      return {
+        roomId: info.roomId,
+        name: info.name,
+        getLastActiveTimestamp: () => info.lastActive,
+        currentState: { getStateEvents: () => [] },
+        getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => [] }) }),
+        on: vi.fn(),
+        off: vi.fn(),
+        removeListener: vi.fn(),
+      };
+    },
+    getSafeUserId: () => '@alice:example.org',
+    on: vi.fn(),
+    off: vi.fn(),
+  }),
 }));
 vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: 'div' }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
@@ -133,16 +198,43 @@ vi.mock('../room-nav/RoomNavItem', () => ({
 vi.mock('../room-nav/roomOrder', () => ({
   HOME_ROOM_LIST: 'home',
   useRoomOrders: () => ({
-    orderOf: (_listId: string, roomIds: readonly string[]) => [...roomIds],
-    isManual: () => false,
-    save: vi.fn(),
-    reset: vi.fn(),
+    orderOf: (_listId: string, roomIds: readonly string[]) =>
+      sortState.savedList ? [...sortState.savedList] : [...roomIds],
+    modeOf: () => sortState.mode,
+    hasExplicitMode: () => sortState.mode !== 'name',
+    showTimesOf: () => sortState.showTimes,
+    hasSavedOrder: () => Boolean(sortState.savedList?.length),
+    save: sortState.save,
+    setMode: sortState.setMode,
+    setShowTimes: sortState.setShowTimes,
+    resetSubspaceOverride: vi.fn(),
+    appendRoom: vi.fn(),
   }),
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
-  SortableRoomList: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children),
-  SortableRoomRow: 'div',
+  SortableRoomList: ({
+    children,
+    reorderDisabled,
+  }: {
+    children?: React.ReactNode;
+    reorderDisabled?: boolean;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-sortable-list': 'home', 'data-reorder-disabled': String(Boolean(reorderDisabled)) },
+      children
+    ),
+  SortableRoomRow: ({
+    room,
+    activityTimestamp,
+  }: {
+    room: { roomId: string };
+    activityTimestamp?: number;
+  }) =>
+    React.createElement('div', {
+      'data-home-room-row': room.roomId,
+      'data-activity-ts': activityTimestamp ?? '',
+    }),
 }));
 vi.mock('../../ui/nav/closedNavCategories', () => ({
   makeNavCategoryId: () => 'home-room',
@@ -155,8 +247,13 @@ vi.mock('../../ui/page/Page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
-  const pageNavContent = ({ children }: { children?: React.ReactNode }) =>
-    reactModule.createElement('div', { 'data-page-nav-content': true }, children);
+  const pageNavContent = ({
+    header,
+    children,
+  }: {
+    header?: React.ReactNode;
+    children?: React.ReactNode;
+  }) => reactModule.createElement('div', { 'data-page-nav-content': true }, header, children);
   return { PageNav: passthrough, PageNavContent: pageNavContent, PageNavHeader: passthrough };
 });
 vi.mock('../../ui/nav/useClosedNavCategories', () => ({
@@ -222,8 +319,16 @@ describe('Home', () => {
   afterEach(() => {
     homeRoomsState.roomIds = ['!room:example.org'];
     screen.size = 'Desktop';
+    sortState.mode = 'name';
+    sortState.showTimes = false;
+    sortState.savedList = undefined;
+    sortState.setMode.mockReset();
+    sortState.setShowTimes.mockReset();
     navigate.mockReset();
   });
+
+  const textOf = (node: ReactTestInstance | string): string =>
+    typeof node === 'string' ? node : node.children.map((child) => textOf(child)).join(' ');
 
   const findFields = (renderer: ReactTestRenderer) =>
     renderer.root.findAllByProps({ 'data-find-anything': true });
@@ -272,5 +377,88 @@ describe('Home', () => {
     expectRoomActionsWork(renderer);
 
     renderer.unmount();
+  });
+
+  it('opens the header Sort rooms menu, switches sort modes, toggles activity times, and disables reorder in Recent mode', () => {
+    homeRoomsState.roomIds = ['!room:example.org', '!beta:example.org'];
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Home));
+    });
+
+    const sortTrigger = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Sort rooms'
+    );
+    expect(
+      renderer.root.findByProps({ 'data-sortable-list': 'home' }).props['data-reorder-disabled']
+    ).toBe('false');
+    expect(
+      renderer.root
+        .findAll((node) => typeof node.type === 'string' && 'data-home-room-row' in node.props)
+        .map((node) => [node.props['data-home-room-row'], node.props['data-activity-ts']])
+    ).toEqual([
+      ['!room:example.org', ''],
+      ['!beta:example.org', ''],
+    ]);
+
+    // Open Sort rooms popover and switch to Recent activity & toggle Show activity times.
+    act(() => {
+      sortTrigger.props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 24, height: 24 }) },
+      });
+    });
+    const showTimesItem = renderer.root.find((node) => node.props.role === 'menuitemcheckbox');
+    act(() => {
+      showTimesItem.props.onClick();
+    });
+    expect(sortState.setShowTimes).toHaveBeenCalledWith('home', true);
+
+    const recentItem = renderer.root.find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Recent activity')
+    );
+    act(() => {
+      recentItem.props.onClick();
+    });
+    expect(sortState.setMode).toHaveBeenCalledWith('home', 'recent', [
+      '!room:example.org',
+      '!beta:example.org',
+    ]);
+
+    // Re-render in Recent + showTimes: rows reorder by activity, timestamps pass through, reorder is disabled.
+    sortState.mode = 'recent';
+    sortState.showTimes = true;
+    act(() => {
+      renderer.update(React.createElement(Home));
+    });
+    expect(
+      renderer.root.findByProps({ 'data-sortable-list': 'home' }).props['data-reorder-disabled']
+    ).toBe('true');
+    expect(
+      renderer.root
+        .findAll((node) => typeof node.type === 'string' && 'data-home-room-row' in node.props)
+        .map((node) => [node.props['data-home-room-row'], node.props['data-activity-ts']])
+    ).toEqual([
+      ['!beta:example.org', 3000],
+      ['!room:example.org', 1000],
+    ]);
+
+    // Switching to Custom order from Recent freezes the current order.
+    act(() => {
+      sortTrigger.props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 24, height: 24 }) },
+      });
+    });
+    const customItem = renderer.root.find(
+      (node) => node.props.role === 'menuitemradio' && textOf(node).includes('Custom order')
+    );
+    act(() => {
+      customItem.props.onClick();
+    });
+    expect(sortState.setMode).toHaveBeenLastCalledWith('home', 'manual', [
+      '!beta:example.org',
+      '!room:example.org',
+    ]);
+
+    act(() => renderer.unmount());
   });
 });

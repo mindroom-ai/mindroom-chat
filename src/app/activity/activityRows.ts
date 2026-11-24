@@ -4,13 +4,7 @@ import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 
 export type ActivityKind =
-  | 'approval'
-  | 'question'
-  | 'invite'
-  | 'mention'
-  | 'stopped'
-  | 'finished'
-  | 'reply';
+  'approval' | 'question' | 'invite' | 'mention' | 'stopped' | 'finished' | 'reply';
 export type ActivityTab = 'all' | 'mentions' | 'replies' | 'needsYou';
 
 /** One thread in Activity: its most pressing news, who it is from, and whether it is unread. */
