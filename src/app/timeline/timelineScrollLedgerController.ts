@@ -446,7 +446,6 @@ export const useTimelineScrollLedgerController = ({
             ? listShrinkAfterResize(
                 virtualInnerRef.current,
                 instance.measurementsCache,
-                0,
                 item.index,
                 delta
               )

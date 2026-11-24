@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type MutableRefObject,
-  type RefObject,
 } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
@@ -14,10 +13,8 @@ import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes
 import type { TimelineEventEntry } from '../event-store/timeline/roomTimelineEvents';
 import type { TimelineRange } from '../event-store/timeline/timelinePagination';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { readTopInset } from '../ui/styles/threadHeaderInset';
 import {
   EMPTY_MEMBERSHIP_FOLD_VIEW,
-  exposedFoldRowsPx,
   foldFormedOverRows,
   loadedRangeOfRows,
   planMembershipFolds,
@@ -26,7 +23,6 @@ import {
   viewMembershipFolds,
   type MembershipFold,
   type MembershipFoldView,
-  type RenderedListPlace,
   type RenderedRoomRows,
   type RoomRowProjection,
 } from './membershipFolds';
@@ -145,24 +141,8 @@ export const NO_RENDERED_ROOM_ROWS: RenderedRoomRows = {
 type RoomList = Virtualizer<HTMLDivElement, Element>;
 type RowSizeSource = Pick<
   RoomList,
-  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement' | 'scrollElement'
+  'elementsCache' | 'itemSizeCache' | 'measurementsCache' | 'measureElement'
 > & { options: Pick<RoomList['options'], 'measureElement'> };
-
-/**
- * How far down the list the reader's view starts (`RenderedListPlace`), as the list is painted
- * now: the first row's top is the top of `inner`, the element that holds the rows, whatever leads
- * it in the scroll area and wherever the offset ledger has it, and the view starts below the bars
- * over the scroll area.
- */
-export const readReaderTop = (
-  scrollElement: Element | null | undefined,
-  inner: Element | null
-): number | undefined =>
-  scrollElement && inner?.isConnected
-    ? scrollElement.getBoundingClientRect().top +
-      readTopInset(scrollElement) -
-      inner.getBoundingClientRect().top
-    : undefined;
 
 /**
  * The room's list as it rendered: the height it gives each row of its window, and its folds.
@@ -173,26 +153,18 @@ export const readReaderTop = (
  * list notes a measured height only when it differs from the one the row had, so a fold as high
  * as the rows it replaced is noted here as measured.
  *
- * Each closed fold's row is noted with where it ends, for the day its rows come out of it above
- * the reader (`exposedFoldRowsPx`, which asks `readerTop` then).
  */
 export const readRenderedRoomRows = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[],
   view: MembershipFoldView,
-  readerTop: RenderedListPlace['readerTop'] = () => undefined,
   leadingOffset = 0
 ): RenderedRoomRows => {
   const sizes = new Map<string, number>();
-  const foldEnds = new Map<string, number>();
-  const listStart = virtualizer.measurementsCache[0]?.start ?? 0;
   windowRows.forEach((event, index) => {
     const id = event.getId();
     if (!id) return;
     const itemIndex = index + leadingOffset;
-    const end =
-      view.breaks.get(id)?.open === false && virtualizer.measurementsCache[itemIndex]?.end;
-    if (typeof end === 'number') foldEnds.set(id, end - listStart);
     let size = virtualizer.itemSizeCache.get(id);
     if (size === undefined) {
       size = virtualizer.measurementsCache[itemIndex]?.size;
@@ -211,7 +183,7 @@ export const readRenderedRoomRows = (
     }
     sizes.set(id, size);
   });
-  return { sizes, view, rows: windowRows, list: virtualizer, place: { foldEnds, readerTop } };
+  return { sizes, view, rows: windowRows, list: virtualizer };
 };
 
 /**
@@ -232,26 +204,6 @@ export const forgetFormedFoldHeights = (rendered: RenderedRoomRows, view: Member
 };
 
 /**
- * A closed fold above the reader's view can come apart into rows of its own: the run it holds
- * joins an open run when the event between them decrypts into one without a row, and the joined
- * run stays open. Those rows would push the reader's rows down by their height
- * (`exposedFoldRowsPx`), which the offset ledger takes instead, as it takes the height of the rows
- * a page of history mounts above the reader. This is that height for a render of `now.view`,
- * until the list has rendered those folds. It is the render's own (the ledger's
- * `exposedRoomRowsPx`): nothing is kept of a render that React does not commit.
- */
-export const exposedFoldRowsPxOfRender = (
-  rendered: RenderedRoomRows,
-  now: Parameters<typeof exposedFoldRowsPx>[1],
-  /** As the list prices the row at a place of `now.windowRows` that it has no measured height for. */
-  estimateSize: (index: number) => number
-): number => {
-  if (rendered.view === now.view) return 0;
-  const measured = rendered.list?.itemSizeCache;
-  return exposedFoldRowsPx(rendered, now, (id, index) => measured?.get(id) ?? estimateSize(index));
-};
-
-/**
  * A closed fold can take the place of rows the list already holds: a page of history brings
  * earlier events of the run the loaded rows start with, so its fold starts at another event, or
  * makes a fold of rows that stood alone, and an event that decrypts into one without a row joins
@@ -259,25 +211,17 @@ export const exposedFoldRowsPxOfRender = (
  * which the row estimate reads from `renderedRef`), so no row moves when it takes their place,
  * and its own height then reaches the list as any row's new size does. The list is read after
  * each commit that shows the room's rows (`windowRows`); in an open thread it lists the thread's.
- * `innerRef` is the element that holds the rows (`readReaderTop`).
  */
 export const useMembershipFoldRowSizes = (
   virtualizer: RowSizeSource,
   windowRows: readonly MatrixEvent[] | undefined,
   view: MembershipFoldView,
   renderedRef: MutableRefObject<RenderedRoomRows>,
-  innerRef: RefObject<Element | null>,
   leadingOffset = 0
 ) => {
   useLayoutEffect(() => {
     renderedRef.current = windowRows
-      ? readRenderedRoomRows(
-          virtualizer,
-          windowRows,
-          view,
-          () => readReaderTop(virtualizer.scrollElement, innerRef.current),
-          leadingOffset
-        )
+      ? readRenderedRoomRows(virtualizer, windowRows, view, leadingOffset)
       : NO_RENDERED_ROOM_ROWS;
   });
 };

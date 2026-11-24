@@ -5,11 +5,7 @@ import { type RefObject, useEffect } from 'react';
  * much more than its height on screen virtual-core counts for the newest row, which it measures
  * in whole pixels.
  */
-const listReach = (
-  inner: HTMLElement | null,
-  rows: readonly { index: number; size: number }[],
-  rowFoldPx: number
-) => {
+const listReach = (inner: HTMLElement | null, rows: readonly { index: number; size: number }[]) => {
   // Test renderers hand over stand-in nodes without the DOM's queries.
   if (typeof inner?.querySelectorAll !== 'function') return undefined;
   const tiles = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'));
@@ -29,11 +25,10 @@ const listReach = (
     const row = rows[i];
     if (row && !mounted.has(row.index)) unmountedAfter += row.size;
   }
-  const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
   const { bottom, height } = newest.getBoundingClientRect();
   const reach = inner.getBoundingClientRect().bottom - bottom;
   return {
-    px: reach - ledgerMargin - unmountedAfter,
+    px: reach - unmountedAfter,
     newest: indexOf(newest),
     mounted,
     roundingPx: Math.round(height) - height,
@@ -46,19 +41,12 @@ const listReach = (
  * the list tells: its newest mounted row with a height ends what the reader sees. Mounted rows
  * after it (hidden events) take none and keep their old places until that render; rows after it
  * that the list does not mount still hold the room that render gave them, their size in `rows`
- * (virtual-core's rows, one per index). The offset ledger places the rows its margin moves the list
- * away from, so the list ends that margin past its newest row, and rows it moves keep their places.
- * The part of the margin that rows folded above the reader brought with their own height
- * (`rowFoldPx`, the ledger's) moved the list's end with them: it is no room the list will give up.
- * Counted, a page of older replies above a reader at the newest one read as that page's height of
- * shrink, and the end clamp threw the reader to the top; so did a page of newer threads above a
- * reader near the end of a newest-first Threads view.
+ * (virtual-core's rows, one per index).
  */
 export const listShrinkNotRendered = (
   inner: HTMLElement | null,
-  rows: readonly { index: number; size: number }[],
-  rowFoldPx = 0
-): number => Math.max(0, listReach(inner, rows, rowFoldPx)?.px ?? 0);
+  rows: readonly { index: number; size: number }[]
+): number => Math.max(0, listReach(inner, rows)?.px ?? 0);
 
 /**
  * `listShrinkNotRendered` as it reads once virtual-core takes a new size for the row at `index`,
@@ -70,11 +58,10 @@ export const listShrinkNotRendered = (
 export const listShrinkAfterResize = (
   inner: HTMLElement | null,
   rows: readonly { index: number; size: number }[],
-  rowFoldPx: number,
   index: number,
   deltaPx: number
 ): number | undefined => {
-  const reach = listReach(inner, rows, rowFoldPx);
+  const reach = listReach(inner, rows);
   if (!reach || index < reach.newest) return undefined;
   const px = reach.px - reach.roundingPx;
   return reach.mounted.has(index) ? px : px - deltaPx;

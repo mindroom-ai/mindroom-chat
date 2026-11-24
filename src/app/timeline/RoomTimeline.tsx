@@ -1195,7 +1195,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     activeTimelineRange,
     activeRangeRef,
     loadedRangeOfRef,
-    threadIdRef,
     firstRoomTimelineRef,
     lastRoomTimelineRef,
     scrollRef,
@@ -1364,7 +1363,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId ? undefined : roomWindowRows,
     membershipFolds.view,
     renderedRoomRowsRef,
-    ledger.virtualInnerRef,
     roomLeadingOffset
   );
 
