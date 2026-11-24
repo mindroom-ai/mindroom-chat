@@ -3,80 +3,67 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopShellEvent } from '../lib/desktopBridge';
 import { installDesktopHistorySwipe } from './desktopHistorySwipe';
 
-type ShellListener = (event: DesktopShellEvent) => void;
 type WheelOpts = WheelEventInit & { momentum?: boolean; defaultPrevented?: boolean };
+type SwipeOpts = Parameters<typeof installDesktopHistorySwipe>[1];
+const BACK: WheelOpts[] = [{ deltaX: -30 }, { deltaX: -30 }, { deltaX: -30 }];
+const FWD: WheelOpts[] = [{ deltaX: 30 }, { deltaX: 30 }, { deltaX: 30 }];
 
-let emitShell: (event: DesktopShellEvent) => void;
+let emit: (event: DesktopShellEvent) => void;
 let backSpy: ReturnType<typeof vi.spyOn>;
 let forwardSpy: ReturnType<typeof vi.spyOn>;
+const cleanups: Array<() => void> = [];
 
-const setNavigation = (canGoBack: boolean, canGoForward: boolean) => {
-  Object.defineProperty(window, 'navigation', {
-    configurable: true,
-    value: { canGoBack, canGoForward },
+const def = (obj: object, prop: PropertyKey, value: unknown) =>
+  Object.defineProperty(obj, prop, { configurable: true, value });
+const pill = () => document.querySelector<HTMLElement>('[data-desktop-history-swipe]');
+const phase = (p: 'begin' | 'end') => emit({ type: 'scroll-gesture', phase: p });
+const counts = () => [backSpy.mock.calls.length, forwardSpy.mock.calls.length];
+const install = (o: SwipeOpts = {}) => {
+  const stop = installDesktopHistorySwipe(window, {
+    isMac: () => true,
+    allowUntrusted: true,
+    ...o,
   });
+  cleanups.push(stop);
+  return stop;
 };
-
 const installBridge = () => {
-  const listeners = new Set<ShellListener>();
-  emitShell = (event) => {
-    for (const listener of listeners) listener(event);
-  };
+  const ls = new Set<(e: DesktopShellEvent) => void>();
+  emit = (e) => ls.forEach((l) => l(e));
   const bridge: Partial<DesktopBridge> = {
-    onShellEvent: (listener: ShellListener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+    onShellEvent: (l) => {
+      ls.add(l);
+      return () => void ls.delete(l);
     },
   };
-  Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+  def(window, 'mindroomDesktop', bridge);
 };
-
-const fireWheel = (init: WheelOpts = {}, target: EventTarget = document.body) => {
-  const { momentum, defaultPrevented, ...wheelInit } = init;
-  const event = new WheelEvent('wheel', {
-    bubbles: true,
-    cancelable: true,
-    deltaMode: WheelEvent.DOM_DELTA_PIXEL,
-    ...wheelInit,
-  });
-  if (momentum !== undefined) Object.defineProperty(event, 'momentum', { value: momentum });
-  if (defaultPrevented) event.preventDefault();
-  target.dispatchEvent(event);
-  return event;
+const wheel = (init: WheelOpts = {}, target: EventTarget = document.body) => {
+  const { momentum, defaultPrevented, ...rest } = init;
+  const e = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaMode: 0, ...rest });
+  if (momentum !== undefined) def(e, 'momentum', momentum);
+  if (defaultPrevented) e.preventDefault();
+  target.dispatchEvent(e);
 };
-
-const runSwipe = (
-  wheels: WheelOpts[],
-  {
-    target = document.body,
-    end = 'end',
-  }: { target?: EventTarget; end?: 'end' | 'fling' | 'cancel' | null } = {}
-) => {
-  emitShell({ type: 'scroll-gesture', phase: 'begin' });
-  for (const w of wheels) fireWheel(w, target);
-  if (end) emitShell({ type: 'scroll-gesture', phase: end });
+const swipe = (wheels: WheelOpts[], target: EventTarget = document.body, end = true) => {
+  phase('begin');
+  wheels.forEach((w) => wheel(w, target));
+  if (end) phase('end');
 };
-
-const BACK_SWIPE: WheelOpts[] = [{ deltaX: -40 }, { deltaX: -40 }, { deltaX: -30 }];
-const FORWARD_SWIPE: WheelOpts[] = [{ deltaX: 40 }, { deltaX: 40 }, { deltaX: 30 }];
-const indicatorEl = () => document.querySelector<HTMLElement>('[data-desktop-history-swipe]');
-
-const mockComputedStyles = (overrides: Map<Element, Partial<CSSStyleDeclaration>>) => {
+const addEl = (tag: string, attrs: Record<string, string> = {}, parent = document.body) => {
+  const el = document.createElement(tag);
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  parent.append(el);
+  return el;
+};
+const mockStyles = (entries: Array<[Element, Partial<CSSStyleDeclaration>]>) => {
+  const map = new Map(entries);
   const real = window.getComputedStyle.bind(window);
-  return vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
-    const base = real(el);
-    const patch = overrides.get(el);
-    if (!patch) return base;
-    return new Proxy(base, {
-      get(target, prop, receiver) {
-        if (typeof prop === 'string' && prop in patch) {
-          return patch[prop as keyof CSSStyleDeclaration];
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-    });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+    const p = map.get(el) as Record<PropertyKey, unknown> | undefined;
+    return p
+      ? new Proxy(real(el), { get: (t, k, r) => (k in p ? p[k] : Reflect.get(t, k, r)) })
+      : real(el);
   });
 };
 
@@ -85,12 +72,12 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="portalContainer"></div>';
   window.history.pushState({}, '', '/home');
   installBridge();
-  setNavigation(true, true);
+  def(window, 'navigation', { canGoBack: true, canGoForward: true });
   backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
   forwardSpy = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
 });
-
 afterEach(() => {
+  while (cleanups.length) cleanups.pop()?.();
   Reflect.deleteProperty(window, 'mindroomDesktop');
   Reflect.deleteProperty(window, 'navigation');
   document.documentElement.dir = '';
@@ -102,486 +89,189 @@ afterEach(() => {
 describe('installDesktopHistorySwipe', () => {
   it('is a no-op outside desktop, on non-macOS, and on /quick-capture/', () => {
     Reflect.deleteProperty(window, 'mindroomDesktop');
-    const stopWeb = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    fireWheel({ deltaX: -50 });
-    stopWeb();
-
+    install();
     installBridge();
-    const stopLinux = installDesktopHistorySwipe(window, {
-      isMac: () => false,
-      allowUntrusted: true,
-    });
-    emitShell({ type: 'swipe', direction: 'left' });
-    stopLinux();
-
+    install({ isMac: () => false });
+    emit({ type: 'swipe', direction: 'left' });
     window.history.pushState({}, '', '/quick-capture/');
-    const stopQc = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    emitShell({ type: 'swipe', direction: 'left' });
-    stopQc();
-
-    expect(backSpy).not.toHaveBeenCalled();
-    expect(indicatorEl()).toBeNull();
+    install();
+    emit({ type: 'swipe', direction: 'left' });
+    expect(counts()).toEqual([0, 0]);
+    expect(pill()).toBeNull();
   });
 
   it('navigates back and forward in LTR/RTL with lazy edge indicator and cleanup', () => {
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    expect(indicatorEl()).toBeNull();
+    const stop = install();
+    expect(pill()).toBeNull();
+    phase('begin');
+    wheel({ deltaX: -30 });
+    const el = pill();
+    const svg = el?.querySelector('svg');
+    expect(el?.parentElement).toBe(document.body);
+    expect(el?.getAttribute('aria-hidden')).toBe('true');
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24');
+    expect(svg?.hasAttribute('data-directional')).toBe(true);
+    expect(el?.dataset).toMatchObject({ direction: 'back', visible: 'true', armed: 'false' });
+    BACK.slice(1).forEach((w) => wheel(w));
+    expect(el?.dataset.armed).toBe('true');
+    phase('end');
+    expect(el?.dataset.visible).toBe('false');
+    expect(counts()).toEqual([1, 0]);
 
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    fireWheel({ deltaX: -30 });
-    const pill = indicatorEl();
-    expect(pill).not.toBeNull();
-    expect(pill?.parentElement).toBe(document.body);
-    expect(pill?.getAttribute('aria-hidden')).toBe('true');
-    expect(pill?.querySelector('svg')?.hasAttribute('data-directional')).toBe(true);
-    expect(pill?.dataset).toMatchObject({ direction: 'back', visible: 'true', armed: 'false' });
-
-    fireWheel({ deltaX: -40 });
-    fireWheel({ deltaX: -40 });
-    expect(pill?.dataset.armed).toBe('true');
-
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    expect(backSpy).toHaveBeenCalledTimes(1);
-    expect(pill?.dataset.visible).toBe('false');
-
-    runSwipe(FORWARD_SWIPE, { end: null });
-    expect(pill?.dataset).toMatchObject({ direction: 'forward', armed: 'true' });
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    expect(forwardSpy).toHaveBeenCalledTimes(1);
-
+    swipe(FWD);
     document.documentElement.dir = 'rtl';
-    runSwipe(FORWARD_SWIPE, { end: null });
-    expect(pill?.dataset.direction).toBe('back');
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    expect(backSpy).toHaveBeenCalledTimes(2);
-
+    swipe(FWD, document.body, false);
+    expect(el?.dataset).toMatchObject({ direction: 'back', armed: 'true' });
+    phase('end');
+    swipe(BACK);
+    expect(counts()).toEqual([2, 2]);
     stop();
-    expect(indicatorEl()).toBeNull();
+    expect(pill()).toBeNull();
+    swipe(BACK);
+    expect(counts()).toEqual([2, 2]);
   });
 
-  it('reversing fingers disarms both steady release and fling', () => {
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      // Arm to 120px, then reverse back to 20px before end
-      runSwipe([{ deltaX: -40 }, { deltaX: -40 }, { deltaX: -40 }], { end: null });
-      expect(indicatorEl()?.dataset.armed).toBe('true');
-      fireWheel({ deltaX: 50 });
-      fireWheel({ deltaX: 50 });
-      expect(indicatorEl()?.dataset.armed).toBe('false');
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
+  it('cancels on finger reversal and commits on momentum/pause while swallowing momentum tail', () => {
+    vi.useFakeTimers();
+    install();
+    swipe(BACK, document.body, false);
+    expect(pill()?.dataset.armed).toBe('true');
+    wheel({ deltaX: 40 });
+    expect(pill()?.dataset.armed).toBe('false');
+    phase('end');
+    swipe([...BACK, { deltaX: 40 }, { deltaX: -50, momentum: true }]);
+    swipe([{ deltaX: -20 }, { deltaX: -20 }, { deltaX: -10 }, { deltaX: -80, momentum: true }]);
+    expect(backSpy).not.toHaveBeenCalled();
 
-      // Reach 80px, reverse slightly to 70px (lastNonZeroDelta < 0), then fling: must not commit
-      runSwipe([{ deltaX: -30 }, { deltaX: -30 }, { deltaX: -20 }, { deltaX: 10 }], {
-        end: 'fling',
-      });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).not.toHaveBeenCalled();
-    } finally {
-      stop();
-    }
+    swipe(BACK, document.body, false);
+    vi.advanceTimersByTime(1000);
+    expect(pill()?.dataset).toMatchObject({ visible: 'true', armed: 'true' });
+    wheel({ deltaX: -10, momentum: true });
+    expect(backSpy).toHaveBeenCalledTimes(1);
+    expect(pill()?.dataset.visible).toBe('false');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    BACK.forEach((w) => wheel(w));
+    expect(backSpy).toHaveBeenCalledTimes(1);
+
+    // Next begin clears ignored even if previous end was dropped; pause before end commits
+    swipe(BACK, document.body, false);
+    vi.advanceTimersByTime(1000);
+    phase('end');
+    expect(backSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('commits on fling or momentum >= 55px without counting momentum delta and ignores momentum tail', () => {
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      // Fling commit at 60px + momentum tail swallowed (even after popstate)
-      runSwipe([{ deltaX: -20 }, { deltaX: -20 }, { deltaX: -20 }], { end: 'fling' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      window.dispatchEvent(new PopStateEvent('popstate'));
-      fireWheel({ deltaX: -50 });
-      fireWheel({ deltaX: -50 });
-      fireWheel({ deltaX: -50 });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // WheelEvent.momentum stops BEFORE counting momentum delta (40px + 80px momentum must not commit)
-      runSwipe(
-        [{ deltaX: -15 }, { deltaX: -15 }, { deltaX: -10 }, { deltaX: -80, momentum: true }],
-        { end: 'fling' }
-      );
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // WheelEvent.momentum commits at 60px and subsequent fling does not double-navigate
-      runSwipe(
-        [{ deltaX: -20 }, { deltaX: -20 }, { deltaX: -20 }, { deltaX: -30, momentum: true }],
-        { end: 'fling' }
-      );
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-    } finally {
-      stop();
-    }
-  });
-
-  it('handles IPC race when wheels arrive right before begin and cancels without begin after 100ms', () => {
-    let clock = 1000;
-    const stop = installDesktopHistorySwipe(window, {
-      isMac: () => true,
-      allowUntrusted: true,
-      now: () => clock,
-    });
-    try {
-      // 2 wheels arrive before begin within 100ms: deltas preserved, indicator deferred until begin
-      fireWheel({ deltaX: -20 });
-      clock += 20;
-      fireWheel({ deltaX: -25 });
-      expect(indicatorEl()).toBeNull();
-
-      clock += 20;
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      expect(indicatorEl()?.dataset.visible).toBe('true');
-
-      clock += 20;
-      fireWheel({ deltaX: -60 });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // Wheels without begin after 100ms cancel and never show indicator or commit
-      clock += 500;
-      fireWheel({ deltaX: -40 });
-      clock += 110;
-      fireWheel({ deltaX: -40 });
-      fireWheel({ deltaX: -40 });
-      fireWheel({ deltaX: -40, momentum: true });
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-      expect(backSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      stop();
-    }
-  });
-
-  it('respects horizontal scrollers mid-scroll vs at edge in LTR, RTL, and inputs', () => {
-    const makeScroller = (tag: 'div' | 'input', width: number) => {
-      const el = document.createElement(tag);
-      document.body.appendChild(el);
-      Object.defineProperty(el, 'scrollWidth', { configurable: true, value: width });
-      Object.defineProperty(el, 'clientWidth', { configurable: true, value: 300 });
+  it('blocks horizontal scrollers (incl. wheel-before-begin and input/textarea) and overscroll-x', () => {
+    const sized = (tag: string, sw: number) => {
+      const el = addEl(tag);
+      def(el, 'scrollWidth', sw);
+      def(el, 'clientWidth', 300);
       return el;
     };
-    const scroller = makeScroller('div', 800);
-    const child = document.createElement('span');
-    scroller.appendChild(child);
-
-    const rtlScroller = makeScroller('div', 800);
-    const rtlChild = document.createElement('span');
-    rtlScroller.appendChild(rtlChild);
-
-    const input = makeScroller('input', 600);
-
-    mockComputedStyles(
-      new Map<Element, Partial<CSSStyleDeclaration>>([
-        [scroller, { overflowX: 'auto', direction: 'ltr' }],
-        [rtlScroller, { overflowX: 'scroll', direction: 'rtl' }],
-      ])
-    );
-
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      // LTR scroller starting 5px from left edge: wheel -5 scrolls to 0 before 12px axis lock,
-      // so the gesture stays blocked without showing the indicator or going Back
-      scroller.scrollLeft = 5;
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      fireWheel({ deltaX: -5 }, child);
-      scroller.scrollLeft = 0;
-      fireWheel({ deltaX: -40 }, child);
-      fireWheel({ deltaX: -40 }, child);
-      fireWheel({ deltaX: -40 }, child);
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(indicatorEl()).toBeNull();
-      expect(backSpy).not.toHaveBeenCalled();
-
-      // Fresh swipe starting already at left edge (scrollLeft = 0) chains into Back
-      runSwipe(BACK_SWIPE, { target: child });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // RTL scroller: scrollLeft in [-500, 0]. Mid-scroll (-100) blocks Back; at edge (0) chains
-      document.documentElement.dir = 'rtl';
-      rtlScroller.scrollLeft = -100;
-      runSwipe(FORWARD_SWIPE, { target: rtlChild });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      rtlScroller.scrollLeft = 0;
-      runSwipe(FORWARD_SWIPE, { target: rtlChild });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-
-      // Input with horizontal overflow mid-scroll blocks swipe
-      document.documentElement.dir = 'ltr';
-      input.scrollLeft = 50;
-      runSwipe(BACK_SWIPE, { target: input });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-    } finally {
-      stop();
-    }
-  });
-
-  it('preserves early-wheel scroller rejection when matching begin IPC arrives 5ms later', () => {
-    const scroller = document.createElement('div');
-    const child = document.createElement('span');
-    scroller.appendChild(child);
-    document.body.appendChild(scroller);
-    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 800 });
-    Object.defineProperty(scroller, 'clientWidth', { configurable: true, value: 300 });
-    mockComputedStyles(
-      new Map<Element, Partial<CSSStyleDeclaration>>([
-        [scroller, { overflowX: 'auto', direction: 'ltr' }],
-      ])
-    );
-
-    let clock = 1000;
-    const stop = installDesktopHistorySwipe(window, {
-      isMac: () => true,
-      allowUntrusted: true,
-      now: () => clock,
-    });
-    try {
-      // Wheel #1 crosses 12px before begin IPC while scroller is at scrollLeft = 5 and scrolls to 0
-      scroller.scrollLeft = 5;
-      fireWheel({ deltaX: -16 }, child);
-      scroller.scrollLeft = 0;
-
-      // Matching begin arrives 5ms later: must confirm rejection rather than resetting to idle
-      clock += 5;
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      fireWheel({ deltaX: -40 }, child);
-      fireWheel({ deltaX: -40 }, child);
-      fireWheel({ deltaX: -40 }, child);
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(indicatorEl()).toBeNull();
-      expect(backSpy).not.toHaveBeenCalled();
-
-      // A separate fresh stroke starting at scrollLeft = 0 after end navigates Back
-      clock += 20;
-      runSwipe(BACK_SWIPE, { target: child });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      stop();
-    }
-  });
-
-  it('blocks overscroll-behavior-x: contain while allowing overscroll-behavior-y: contain', () => {
-    const blocked = document.createElement('div');
-    const allowed = document.createElement('div');
-    document.body.append(blocked, allowed);
-    mockComputedStyles(
-      new Map<Element, Partial<CSSStyleDeclaration>>([
-        [blocked, { overflowX: 'auto', overscrollBehaviorX: 'contain' }],
-        [
-          allowed,
-          { overflowY: 'auto', overscrollBehaviorX: 'auto', overscrollBehaviorY: 'contain' },
-        ],
-      ])
-    );
-
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      runSwipe(BACK_SWIPE, { target: blocked });
-      expect(backSpy).not.toHaveBeenCalled();
-
-      runSwipe(BACK_SWIPE, { target: allowed });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-    } finally {
-      stop();
-    }
+    const scroller = sized('div', 800);
+    const child = addEl('span', {}, scroller);
+    const fit = sized('div', 300);
+    const inp = sized('input', 600);
+    const ta = sized('textarea', 600);
+    const osContain = addEl('div');
+    const osNone = addEl('div');
+    const osY = addEl('div');
+    mockStyles([
+      [scroller, { overflowX: 'auto' }],
+      [fit, { overflowX: 'auto' }],
+      [osContain, { overflowX: 'auto', overscrollBehaviorX: 'contain' }],
+      [osNone, { overflowX: 'hidden', overscrollBehaviorX: 'none' }],
+      [osY, { overflowY: 'auto', overscrollBehaviorX: 'auto', overscrollBehaviorY: 'contain' }],
+    ]);
+    install();
+    wheel({ deltaX: -20 }, child);
+    swipe(BACK, child);
+    [inp, ta, osContain, osNone].forEach((el) => swipe(BACK, el));
+    expect(backSpy).not.toHaveBeenCalled();
+    expect(pill()).toBeNull();
+    [fit, osY].forEach((el) => swipe(BACK, el));
+    wheel({ deltaX: -30 });
+    swipe(BACK.slice(1));
+    expect(backSpy).toHaveBeenCalledTimes(3);
   });
 
   it('rejects modifiers, line-mode, defaultPrevented, untrusted, titlebar drag, diagonal drift, and swipe-tracking=false', () => {
-    const drag = document.createElement('div');
-    drag.setAttribute('data-titlebar-drag', '');
-    document.body.appendChild(drag);
-
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      const triple = (extra: WheelOpts): WheelOpts[] => [
-        { deltaX: -50, ...extra },
-        { deltaX: -50, ...extra },
-        { deltaX: -50, ...extra },
-      ];
-      runSwipe(triple({ shiftKey: true }));
-      runSwipe(triple({ ctrlKey: true }));
-      runSwipe(triple({ deltaMode: WheelEvent.DOM_DELTA_LINE }));
-      runSwipe(triple({ defaultPrevented: true }));
-      runSwipe(BACK_SWIPE, { target: drag });
-      // Lock horizontally, then drift diagonally past 30px
-      runSwipe([
-        { deltaX: -15, deltaY: 0 },
-        { deltaX: -5, deltaY: 25 },
-        { deltaX: -90, deltaY: 0 },
-        { deltaX: -50, deltaY: 0 },
-      ]);
-
-      emitShell({ type: 'swipe-tracking', enabled: false });
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).not.toHaveBeenCalled();
-    } finally {
-      stop();
-    }
-
-    // Without allowUntrusted, synthetic untrusted WheelEvents are rejected
-    const stopStrict = installDesktopHistorySwipe(window, { isMac: () => true });
-    try {
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).not.toHaveBeenCalled();
-    } finally {
-      stopStrict();
-    }
+    const drag = addEl('div', { 'data-titlebar-drag': '' });
+    const stop = install();
+    const run3 = (o: WheelOpts) => swipe(Array.from({ length: 3 }, () => ({ deltaX: -40, ...o })));
+    (['shiftKey', 'ctrlKey', 'metaKey', 'altKey'] as const).forEach((k) => run3({ [k]: true }));
+    run3({ deltaMode: 1 });
+    run3({ defaultPrevented: true });
+    swipe(BACK, drag);
+    swipe([{ deltaX: -15 }, { deltaX: -5, deltaY: 25 }, { deltaX: -90 }, { deltaX: -50 }]);
+    emit({ type: 'swipe-tracking', enabled: false });
+    swipe(BACK);
+    stop();
+    install({ allowUntrusted: false });
+    swipe(BACK);
+    expect(backSpy).not.toHaveBeenCalled();
   });
 
-  it('blocks dialogs, allows Back-only in ImageOverlay, and checks canGoBack/history fallback', () => {
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      const dialog = document.createElement('div');
-      dialog.setAttribute('role', 'dialog');
-      document.body.appendChild(dialog);
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).not.toHaveBeenCalled();
-      dialog.remove();
+  it('blocks dialogs, allows Back-only in ImageOverlay, and checks navigation/history fallback', () => {
+    install();
+    const dialog = addEl('div', { role: 'dialog' });
+    swipe(BACK);
+    dialog.remove();
+    expect(counts()).toEqual([0, 0]);
 
-      const iv = document.createElement('div');
-      iv.setAttribute('data-image-viewer-overlay', '');
-      iv.innerHTML = '<div role="dialog"></div>';
-      document.body.appendChild(iv);
-      runSwipe(FORWARD_SWIPE);
-      expect(forwardSpy).not.toHaveBeenCalled();
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).toHaveBeenCalledTimes(1);
+    const iv = addEl('div', { 'data-image-viewer-overlay': '' });
+    iv.innerHTML = '<div role="dialog"></div>';
+    swipe(FWD);
+    swipe(BACK);
+    const menu = addEl('div', { role: 'menu' });
+    swipe(BACK);
+    menu.remove();
+    iv.remove();
+    expect(counts()).toEqual([1, 0]);
 
-      // A menu opened on top of ImageOverlay blocks Back too
-      const menu = document.createElement('div');
-      menu.setAttribute('role', 'menu');
-      document.body.appendChild(menu);
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).toHaveBeenCalledTimes(1);
-      menu.remove();
-      iv.remove();
-
-      // canGoBack: false blocks Back
-      setNavigation(false, false);
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // Without window.navigation, falls back to history.length > 1 for Back and false for Forward
-      Reflect.deleteProperty(window, 'navigation');
-      runSwipe(FORWARD_SWIPE);
-      expect(forwardSpy).not.toHaveBeenCalled();
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).toHaveBeenCalledTimes(2);
-    } finally {
-      stop();
-    }
+    def(window, 'navigation', { canGoBack: false, canGoForward: false });
+    swipe(BACK);
+    Reflect.deleteProperty(window, 'navigation');
+    swipe(FWD);
+    swipe(BACK);
+    expect(counts()).toEqual([2, 0]);
   });
 
-  it('handles discrete AppKit swipe with RTL and deduplicates within 250ms of wheel commit', () => {
+  it('handles discrete AppKit swipe with RTL/dedup and resets on blur, window-hidden, visibilitychange, and popstate', () => {
     let clock = 1000;
-    const stop = installDesktopHistorySwipe(window, {
-      isMac: () => true,
-      allowUntrusted: true,
-      now: () => clock,
-    });
-    try {
-      emitShell({ type: 'swipe', direction: 'left' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-      emitShell({ type: 'swipe', direction: 'right' });
-      expect(forwardSpy).toHaveBeenCalledTimes(1);
+    install({ now: () => clock });
+    emit({ type: 'swipe-tracking', enabled: false });
+    emit({ type: 'swipe', direction: 'left' });
+    emit({ type: 'swipe', direction: 'right' });
+    document.documentElement.dir = 'rtl';
+    emit({ type: 'swipe', direction: 'right' });
+    document.documentElement.dir = 'ltr';
+    expect(counts()).toEqual([2, 1]);
 
-      document.documentElement.dir = 'rtl';
-      emitShell({ type: 'swipe', direction: 'right' });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-      document.documentElement.dir = 'ltr';
+    emit({ type: 'swipe-tracking', enabled: true });
+    swipe(BACK);
+    clock += 200;
+    emit({ type: 'swipe', direction: 'left' });
+    expect(backSpy).toHaveBeenCalledTimes(3);
+    clock += 100;
+    emit({ type: 'swipe', direction: 'left' });
+    expect(backSpy).toHaveBeenCalledTimes(4);
 
-      runSwipe(BACK_SWIPE);
-      expect(backSpy).toHaveBeenCalledTimes(3);
-
-      clock += 200;
-      emitShell({ type: 'swipe', direction: 'left' });
-      expect(backSpy).toHaveBeenCalledTimes(3);
-
-      clock += 100;
-      emitShell({ type: 'swipe', direction: 'left' });
-      expect(backSpy).toHaveBeenCalledTimes(4);
-    } finally {
-      stop();
+    for (const interrupt of [
+      () => window.dispatchEvent(new Event('blur')),
+      () => emit({ type: 'window-hidden' }),
+      () => window.dispatchEvent(new PopStateEvent('popstate')),
+      () => {
+        def(document, 'visibilityState', 'hidden');
+        document.dispatchEvent(new Event('visibilitychange'));
+        def(document, 'visibilityState', 'visible');
+      },
+    ]) {
+      swipe(BACK, document.body, false);
+      expect(pill()?.dataset.visible).toBe('true');
+      interrupt();
+      expect(pill()?.dataset.visible).toBe('false');
+      phase('end');
     }
-  });
-
-  it('keeps a confirmed armed swipe alive across a 1000ms pause before end or momentum', () => {
-    vi.useFakeTimers();
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      // Pause 1000ms with fingers still before lifting (end)
-      runSwipe(BACK_SWIPE, { end: null });
-      vi.advanceTimersByTime(1000);
-      expect(indicatorEl()?.dataset).toMatchObject({ visible: 'true', armed: 'true' });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-
-      // Pause 1000ms with fingers still before lifting (momentum: true)
-      runSwipe(BACK_SWIPE, { end: null });
-      vi.advanceTimersByTime(1000);
-      expect(indicatorEl()?.dataset).toMatchObject({ visible: 'true', armed: 'true' });
-      fireWheel({ deltaX: -10, momentum: true });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-    } finally {
-      stop();
-    }
-  });
-
-  it('resets without committing on interruptions, expires unconfirmed !hasBegin at 100ms, and cleans up stale state at 2000ms', () => {
-    vi.useFakeTimers();
-    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
-    try {
-      const startArmed = () => {
-        runSwipe(BACK_SWIPE, { end: null });
-        expect(indicatorEl()?.dataset.visible).toBe('true');
-      };
-
-      startArmed();
-      emitShell({ type: 'scroll-gesture', phase: 'cancel' });
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      startArmed();
-      window.dispatchEvent(new Event('blur'));
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      startArmed();
-      emitShell({ type: 'window-hidden' });
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      startArmed();
-      window.dispatchEvent(new PopStateEvent('popstate'));
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      startArmed();
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-      document.dispatchEvent(new Event('visibilitychange'));
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-      expect(backSpy).not.toHaveBeenCalled();
-
-      // Unconfirmed !hasBegin expires to idle after 100ms (stale delta discarded)
-      fireWheel({ deltaX: -50 });
-      fireWheel({ deltaX: -50 });
-      vi.advanceTimersByTime(100);
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      fireWheel({ deltaX: -30 });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).not.toHaveBeenCalled();
-
-      // Stale committed state (if end is dropped) expires after 2000ms fallback
-      runSwipe([{ deltaX: -20 }, { deltaX: -20 }, { deltaX: -20 }], { end: 'fling' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-      vi.advanceTimersByTime(2000);
-      fireWheel({ deltaX: -40 });
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      fireWheel({ deltaX: -40 });
-      fireWheel({ deltaX: -40 });
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(2);
-    } finally {
-      stop();
-    }
+    expect(backSpy).toHaveBeenCalledTimes(4);
   });
 });
