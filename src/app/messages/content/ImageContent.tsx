@@ -12,8 +12,8 @@ import { revokeBlobUrl, useBlobUrlCleanup } from '../../lib/hooks/useBlobUrlClea
 import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
 import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
 import { revealDirectionControls } from '../../ui/directional';
-import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
-import { loadImageOriginal } from './imageOriginal';
+import { getBlobSafeMimeType, FALLBACK_MIMETYPE, isHeicMimeType } from '../../lib/mimeTypes';
+import { HeicDecodeError, loadImageOriginal } from './imageOriginal';
 import { ImageGallery } from './ImageGallery';
 import * as css from './style.css';
 
@@ -39,6 +39,7 @@ type ImageContentProps = {
   /** Load the image right away instead of on a click. */
   autoPlay?: boolean;
   markedAsSpoiler?: boolean;
+  onFallbackToFile?: () => void;
   renderImage: (props: RenderImageContentProps) => ReactNode;
 };
 
@@ -54,6 +55,7 @@ const getImageThumbnail = (info: IImageInfo | undefined): ImageThumbnail | undef
   const mxcUri = encryptedFile?.url ?? info?.thumbnail_url;
   if (typeof mxcUri !== 'string' || !mxcUri) return undefined;
   const declared = info?.thumbnail_info?.mimetype;
+  if (typeof declared === 'string' && isHeicMimeType(declared)) return undefined;
   return {
     mxcUri,
     encryptedFile,
@@ -86,6 +88,7 @@ export const ImageContent = as<'div', ImageContentProps>(
       owner,
       autoPlay = true,
       markedAsSpoiler = false,
+      onFallbackToFile,
       renderImage,
       className,
       ...props
@@ -116,17 +119,32 @@ export const ImageContent = as<'div', ImageContentProps>(
     thumbnailRef.current = thumbnail;
     const thumbnailKey = thumbnail ? `${thumbnail.mxcUri}|${thumbnail.mimeType}` : '';
 
-    const loadOriginal = useCallback(
-      () =>
-        loadImageOriginal(mx, {
+    const abortRef = useRef<AbortController>();
+    const onFallbackRef = useRef(onFallbackToFile);
+    onFallbackRef.current = onFallbackToFile;
+    useEffect(() => () => abortRef.current?.abort(), []);
+
+    const loadOriginal = useCallback(async () => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      try {
+        const { src } = await loadImageOriginal(mx, {
           owner: ownerRef.current,
           url,
           encInfo: encInfoRef.current,
           mimeType,
-        }),
+          signal: controller.signal,
+        });
+        return src;
+      } catch (error) {
+        if (error instanceof HeicDecodeError && !controller.signal.aborted) {
+          onFallbackRef.current?.();
+        }
+        throw error;
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [mx, ownerKey, url, encKey, mimeType]
-    );
+    }, [mx, ownerKey, url, encKey, mimeType]);
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
@@ -204,7 +222,10 @@ export const ImageContent = as<'div', ImageContentProps>(
               onClick: showViewer,
               onKeyDown: showViewerOnEnter,
               onLoad: () => setLoaded(true),
-              onError: () => setFailed(true),
+              onError: () =>
+                isHeicMimeType(mimeType ?? '') && onFallbackRef.current
+                  ? onFallbackRef.current()
+                  : setFailed(true),
             })}
           </Box>
         )}
