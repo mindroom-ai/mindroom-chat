@@ -1,13 +1,18 @@
 import type { CSSProperties } from 'react';
 import { createVar, globalStyle, style } from '@vanilla-extract/css';
-import { config } from 'folds';
+import { config, toRem } from 'folds';
 import { Viewport } from '../InsetScrollbar.css';
 import { glassFadeDown, glassFlat, glassFloating, glassSurface } from './Glass.css';
 import { shortViewport } from './shortViewport';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
 export const headerInset = 'var(--room-header-height, 0px)';
+export const composerInset = 'var(--room-composer-height, 0px)';
 export const footerInset = 'var(--room-footer-height, 0px)';
+// Reserves one single-row dock height (32 px bar + S200 gap) even when the dock is empty so a
+// typing strip, seen-by badge, or single-row jobs bar appearing never shifts Jump to Latest, while
+// keeping `--room-footer-height` unchanged and preserving S400 touch-target clearance.
+export const jumpToLatestBottom = `calc(max(${footerInset}, ${composerInset} + ${toRem(32)} + ${config.space.S200}) + ${config.space.S400})`;
 export const overviewInset = 'var(--room-overview-height, 0px)';
 /**
  * For the container of a room's rows or cards, which reads no inset. The room's box sets the

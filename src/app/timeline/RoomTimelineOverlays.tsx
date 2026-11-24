@@ -98,7 +98,7 @@ export function JumpToLatestAction({
   return (
     <div
       className={css.TimelineFloat({ position: 'Bottom' })}
-      style={{ bottom: `calc(${overlay.footerInset} + ${config.space.S400})` }}
+      style={{ bottom: overlay.jumpToLatestBottom }}
     >
       <FloatingAction
         icon={up ? Icons.ArrowTop : Icons.ArrowBottom}

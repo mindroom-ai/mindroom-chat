@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
-import { footerInset } from '../../ui/styles/RoomOverlay.css';
+import { jumpToLatestBottom } from '../../ui/styles/RoomOverlay.css';
 
 export const Error = style({
   color: color.Critical.Main,
@@ -37,9 +37,8 @@ export const Data = style({
 export const StickyAnswer = style({
   backgroundColor: color.Surface.Container,
   borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
-  // Above the room's composer, which floats over the end of the conversation, and above Jump to
-  // Latest, which floats S400 over the composer and is 44 px tall to a finger.
-  bottom: `calc(${footerInset} + ${config.space.S400} + 44px + ${config.space.S200})`,
+  // Above Jump to Latest (44 px tall to a finger), which floats over the composer and dock.
+  bottom: `calc(${jumpToLatestBottom} + 44px + ${config.space.S200})`,
   paddingBlock: config.space.S200,
   position: 'sticky',
   zIndex: 1,

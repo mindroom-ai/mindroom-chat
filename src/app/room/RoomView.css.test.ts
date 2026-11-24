@@ -1,23 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.unmock('../ui/styles/RoomOverlay.css');
+vi.unmock('../messages/canvas/canvasHost.css');
 
-type CssRule = { selector: string; rule?: { position?: unknown; insetInline?: unknown } };
+type CssRule = {
+  selector: string;
+  rule?: { position?: unknown; insetInline?: unknown; bottom?: unknown };
+};
+
+const withCssRules = async (run: (rules: CssRule[]) => Promise<void>) => {
+  vi.resetModules();
+  const adapter = await import('@vanilla-extract/css/adapter');
+  const rules: CssRule[] = [];
+  adapter.setAdapter({
+    appendCss: (css) => rules.push(css as CssRule),
+    registerClassName: () => undefined,
+    registerComposition: () => undefined,
+    markCompositionUsed: () => undefined,
+    onEndFileScope: () => undefined,
+    getIdentOption: () => 'debug',
+  });
+  try {
+    await run(rules);
+  } finally {
+    adapter.removeAdapter();
+  }
+};
 
 describe('the dock styles', () => {
   it('let listed jobs span the line, beside a typing strip that holds the keyboard', async () => {
-    vi.resetModules();
-    const adapter = await import('@vanilla-extract/css/adapter');
-    const rules: CssRule[] = [];
-    adapter.setAdapter({
-      appendCss: (css) => rules.push(css as CssRule),
-      registerClassName: () => undefined,
-      registerComposition: () => undefined,
-      markCompositionUsed: () => undefined,
-      onEndFileScope: () => undefined,
-      getIdentOption: () => 'debug',
-    });
-    try {
+    await withCssRules(async (rules) => {
       await import('./RoomView.css');
       const { Bar, Listed } = await import('../background-jobs/BackgroundJobsBar.css');
       const { TypingStrip } = await import('../timeline/typing/RoomViewTyping.css');
@@ -33,8 +45,22 @@ describe('the dock styles', () => {
       expect(
         position(`${DockBars}:has(> ${TypingStrip}:focus-within) > ${Listed} > ${Bar}`)
       ).toEqual({ position: 'relative' });
-    } finally {
-      adapter.removeAdapter();
-    }
+    });
+  });
+
+  it('reserve one dock row for Jump to Latest and place StickyAnswer above it', async () => {
+    await withCssRules(async (rules) => {
+      const { config, toRem } = await import('folds');
+      const { composerInset, footerInset, jumpToLatestBottom } =
+        await import('../ui/styles/RoomOverlay.css');
+      const { StickyAnswer } = await import('../messages/canvas/canvasHost.css');
+      expect(composerInset).toBe('var(--room-composer-height, 0px)');
+      expect(jumpToLatestBottom).toBe(
+        `calc(max(${footerInset}, ${composerInset} + ${toRem(32)} + ${config.space.S200}) + ${config.space.S400})`
+      );
+      expect(rules.find((css) => css.selector === StickyAnswer)?.rule?.bottom).toBe(
+        `calc(${jumpToLatestBottom} + 44px + ${config.space.S200})`
+      );
+    });
   });
 });
