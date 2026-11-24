@@ -465,7 +465,7 @@ test.describe('thread timeline jumps reproducers', () => {
         await page.waitForTimeout(250);
 
         const center = await getProbeScrollerCenter(page);
-        // Bursts pause 220 ms or 450 ms: wheel-hold flushes 100 ms after wheel and scroll events settle.
+        // Bursts pause 220 ms or 450 ms: wheel-hold flushes 150 ms after each burst ends.
         await startProbe(page, 'scrollUp');
         await page.mouse.move(center.x, center.y);
         for (let burst = 0; burst < 24; burst += 1) {

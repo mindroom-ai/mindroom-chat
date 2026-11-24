@@ -277,32 +277,25 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     });
   });
 
-  it('wheel-hold patch defers scrollTop writes during active wheel and compositor tail, flushing at rest', () => {
+  it('wheel-hold patch defers scrollTop writes during active wheel and compositor motion, flushing at rest', () => {
     vi.useFakeTimers();
     try {
       const scrollToFn = vi.fn();
-      const { virtualizer, scroll, holder } = makeVirtualizer(scrollToFn);
+      const { virtualizer, holder } = makeVirtualizer(scrollToFn);
 
       holder.element.dispatchEvent(new Event('wheel'));
       virtualizer.resizeItem(10, ROW_ACTUAL);
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
 
-      // An external scroll event from WebKit wheel momentum re-arms the 100ms hold.
-      vi.advanceTimersByTime(70);
-      scroll(START_OFFSET - 60, true);
-      vi.advanceTimersByTime(70);
-      expect(scrollToFn).not.toHaveBeenCalled();
-      expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
-
-      // Silent compositor travel observed when the timer expires also defers flush.
+      // Silent compositor travel observed when the 150ms timer expires defers flush by 50ms.
       holder.element.scrollTop = START_OFFSET - 120;
-      vi.advanceTimersByTime(30);
+      vi.advanceTimersByTime(150);
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
 
-      // Once truly still for 100ms, the hold flushes from the live scrollTop.
-      vi.advanceTimersByTime(100);
+      // Once scrollTop is still for 50ms, the hold flushes from the live offset.
+      vi.advanceTimersByTime(50);
       expect(bankedAdjustment(virtualizer)).toBe(0);
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [flushedOffset] = scrollToFn.mock.calls[0] as [number];
