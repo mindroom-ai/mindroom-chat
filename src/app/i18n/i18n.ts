@@ -125,8 +125,8 @@ const applyDocumentLanguage = (language: string): void => {
   document.documentElement.setAttribute('dir', RTL_LANGUAGES.has(base) ? 'rtl' : 'ltr');
 };
 
-// The language asked for last. This i18next version applies each change of language once its loads
-// finish, so an earlier change whose loads finish later would replace it: it is asked for again.
+// The language a change in progress asked for, so a namespace registered mid-switch can load it;
+// cleared once i18next settles the change (i18next 27 already ignores superseded language changes).
 // An empty one asks the detector, as none does.
 let requestedLanguage: string | undefined;
 
@@ -135,11 +135,9 @@ i18n.on('languageChanging', (language: string | undefined) => {
 });
 
 i18n.on('languageChanged', (language) => {
+  requestedLanguage = undefined;
   const code = syncDayjsLocale(language);
   applyDocumentLanguage(code);
-  if (requestedLanguage !== undefined && language !== requestedLanguage) {
-    void i18n.changeLanguage(requestedLanguage);
-  }
 });
 
 /**
