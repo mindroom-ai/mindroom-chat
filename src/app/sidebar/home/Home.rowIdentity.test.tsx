@@ -51,6 +51,8 @@ vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   },
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
+  SortableRoomGroup: passthrough,
+  useRoomSectionDrop: () => ({}),
   SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
   SortableRoomRow: ({

@@ -128,20 +128,20 @@ test('groups Home rooms by rail-ordered spaces, persists Home collapse, supports
   await expect
     .poll(() => decodeURIComponent(new URL(page.url()).pathname))
     .toBe(`/home/${weeklyPlanning}`);
-  await expect(weeklyRow.locator('[aria-selected="true"]')).toBeVisible();
+  await expect(weeklyRow.locator('a[aria-current="page"]')).toBeVisible();
 
   await weeklyRow.click({ button: 'right' });
-  await page.getByRole('button', { name: 'Message Search', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Message Search', exact: true }).click();
   await expect(page).toHaveURL(/\/home\/search/);
 
   // 4. Home space section options menu: no Match space / Pin on top-level, WITH Space overview; Recent + times apply.
   await homeNav(page).getByRole('button', { name: 'Work', exact: true }).hover();
   await homeNav(page).getByRole('button', { name: 'Work options' }).click();
   await expect(page.getByRole('menuitemradio', { name: /Match space/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Pin to Sidebar|Unpin from Sidebar/ })).toHaveCount(
-    0
-  );
-  await expect(page.getByRole('button', { name: 'Space overview', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('menuitem', { name: /Pin to Sidebar|Unpin from Sidebar/ })
+  ).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Space overview', exact: true })).toBeVisible();
 
   const showTimesToggle = page.getByRole('menuitemcheckbox', { name: 'Show activity times' });
   await showTimesToggle.click();
@@ -161,8 +161,8 @@ test('groups Home rooms by rail-ordered spaces, persists Home collapse, supports
     'aria-checked',
     'true'
   );
-  await expect(page.getByRole('button', { name: 'Pin to Sidebar', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Space overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Pin to Sidebar', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Space overview', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // 5. Move Personal Notes into Garden Club: zero unspaced rooms hides Rooms heading and Home Sort, never shows No Rooms.

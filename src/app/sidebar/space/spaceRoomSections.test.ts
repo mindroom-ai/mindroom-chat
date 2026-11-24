@@ -587,7 +587,7 @@ describe('getHomeSpaceSections', () => {
       {
         spaceId: '!leaf',
         parentSpaceId: '!alpha',
-        ancestorSpaceIds: ['!alpha', '!beta', '!root'],
+        ancestorSpaceIds: ['!alpha', '!root'],
         scopeRoomsByName: ['!shared-room'],
       },
       {
@@ -721,6 +721,41 @@ describe('getHomeSpaceSections', () => {
         scopeRoomsByName: [],
       },
     ]);
+    expectEveryRoomCovered(homeRooms, result);
+  });
+
+  it('tracks only the single displayed parent chain for a diamond-shared sub-space', () => {
+    const mx = makeClient({
+      '!work': { name: 'Work', space: true },
+      '!garden': { name: 'Garden', space: true },
+      '!design': { name: 'Design Team', space: true },
+      '!sketches': { name: 'Sketches' },
+      '!planning': { name: 'Weekly Planning' },
+      '!plants': { name: 'Plant Care' },
+    });
+    const joined = ['!work', '!garden', '!design', '!sketches', '!planning', '!plants'];
+    const homeRooms = ['!plants', '!sketches', '!planning'];
+    const parents = makeParents({
+      '!design': ['!work', '!garden'],
+      '!sketches': ['!design'],
+      '!planning': ['!work'],
+      '!plants': ['!garden'],
+    });
+
+    const result = getHomeSpaceSections(
+      mx,
+      ['!work', '!garden'],
+      joined,
+      joined,
+      homeRooms,
+      new Set(),
+      parents,
+      new Set()
+    );
+
+    const design = result.sections.find((section) => section.spaceId === '!design')!;
+    expect(design.parentSpaceId).toBe('!work');
+    expect(design.ancestorSpaceIds).toEqual(['!work']);
     expectEveryRoomCovered(homeRooms, result);
   });
 });

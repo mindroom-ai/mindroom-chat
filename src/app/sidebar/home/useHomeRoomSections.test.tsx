@@ -310,4 +310,42 @@ describe('useHomeRoomSections', () => {
     expect(sectionOf('!design').sort?.inherit?.overridden).toBe(false);
     expect(sectionOf('!design').orderedTop).toEqual(['!yankee', '!beta']);
   });
+
+  it('inherits sort mode only from the displayed parent branch for a diamond-shared sub-space', () => {
+    const { client } = makeRealClient({
+      '!work': { name: 'Work', space: true, createdAt: 100 },
+      '!garden': { name: 'Garden', space: true, createdAt: 200 },
+      '!design': { name: 'Design Team', space: true, createdAt: 300 },
+      '!alpha': { name: 'Alpha', lastMessageTs: 1000 },
+      '!zebra': { name: 'Zebra', lastMessageTs: 5000 },
+      '!planning': { name: 'Weekly Planning', lastMessageTs: 2000 },
+      '!plants': { name: 'Plant Care', lastMessageTs: 3000 },
+    });
+    const event = new MatrixEvent({
+      type: 'io.mindroom.room_order',
+      content: { modes: { '!garden': 'recent' } },
+    });
+    client.store.storeAccountDataEvents([event]);
+
+    const store = makeStore(
+      ['!work', '!garden', '!design', '!alpha', '!zebra', '!planning', '!plants'],
+      {
+        '!design': ['!work', '!garden'],
+        '!alpha': ['!design'],
+        '!zebra': ['!design'],
+        '!planning': ['!work'],
+        '!plants': ['!garden'],
+      }
+    );
+    store.set(spaceOrderAtomFor(ME), { type: 'REORDER', order: ['!work', '!garden'] });
+
+    const { state } = mount(client, store);
+    const design = state.sections.sections.find((section) => section.spaceId === '!design')!;
+
+    // Design Team is rendered under Work (default A to Z), so it must NOT inherit Garden's Recent mode.
+    expect(design.ancestorSpaceIds).toEqual(['!work']);
+    expect(design.mode).toBe('name');
+    expect(design.sort?.inherit?.mode).toBe('name');
+    expect(design.orderedTop).toEqual(['!alpha', '!zebra']);
+  });
 });

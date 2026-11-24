@@ -155,7 +155,11 @@ const omitRooms = (section: SpaceRoomSection, excluded: ReadonlySet<string>): Sp
   };
 };
 
-/** Joined ancestor spaces upward via `roomToParents` (cycle-safe, nearest joined parent first). */
+/**
+ * Single joined ancestor chain upward via `roomToParents` (cycle-safe, nearest joined parent
+ * first). Follows `preferredParentId` when joined, else the first joined parent sorted A to Z at
+ * each step, so diamond-shared sub-spaces inherit sort settings only from their displayed branch.
+ */
 const getJoinedAncestorSpaceIds = (
   mx: MatrixClient,
   spaceId: string,
@@ -165,23 +169,22 @@ const getJoinedAncestorSpaceIds = (
 ): string[] => {
   const ancestors: string[] = [];
   const seen = new Set<string>([spaceId]);
-  const enqueue = (id: string, firstParentId?: string) => {
+  let current = spaceId;
+  let firstParent = preferredParentId;
+  for (;;) {
     const direct = sortRoomIdsByName(
       mx,
-      [...(roomToParents.get(id) ?? [])].filter((parentId) => joinedSpaceSet.has(parentId))
+      [...(roomToParents.get(current) ?? [])].filter(
+        (parentId) => joinedSpaceSet.has(parentId) && !seen.has(parentId)
+      )
     );
-    const ordered =
-      firstParentId && direct.includes(firstParentId)
-        ? [firstParentId, ...direct.filter((parentId) => parentId !== firstParentId)]
-        : direct;
-    ordered.forEach((parentId) => {
-      if (seen.has(parentId)) return;
-      seen.add(parentId);
-      ancestors.push(parentId);
-    });
-  };
-  enqueue(spaceId, preferredParentId);
-  for (let i = 0; i < ancestors.length; i += 1) enqueue(ancestors[i]!);
+    const next = firstParent && direct.includes(firstParent) ? firstParent : direct[0];
+    firstParent = undefined;
+    if (!next) break;
+    seen.add(next);
+    ancestors.push(next);
+    current = next;
+  }
   return ancestors;
 };
 

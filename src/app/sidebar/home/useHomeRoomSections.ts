@@ -30,7 +30,7 @@ import {
   buildRenderedSpaceSections,
   toActivityTrackedSection,
   useSpaceEditPermissions,
-} from '../space/SpaceRoomSection';
+} from '../space/spaceSectionHelpers';
 import { collectShortcutRoomIds, getHomeSpaceSections } from '../space/spaceRoomSections';
 
 /**

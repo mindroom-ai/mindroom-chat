@@ -8,7 +8,7 @@ import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import type { RoomToParents } from '../../matrix/types/room';
 import { Home } from './Home';
 
-const { navigate, screen, sortState, roomsById } = vi.hoisted(() => {
+const { navigate, screen, sortState, roomsById, groupProps, sectionDropIds } = vi.hoisted(() => {
   const sort: {
     mode: 'recent' | 'name' | 'manual';
     showTimes: boolean;
@@ -28,6 +28,8 @@ const { navigate, screen, sortState, roomsById } = vi.hoisted(() => {
     navigate: vi.fn(),
     screen: { size: 'Desktop' },
     sortState: sort,
+    groupProps: [] as Array<{ canMoveRoom?: unknown; onMoveRoom?: unknown }>,
+    sectionDropIds: [] as string[],
     roomsById: new Map<
       string,
       { roomId: string; name: string; lastActive: number; space?: boolean }
@@ -243,6 +245,22 @@ vi.mock('../room-nav/roomOrder', () => ({
   }),
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
+  SortableRoomGroup: ({
+    children,
+    canMoveRoom,
+    onMoveRoom,
+  }: {
+    children?: React.ReactNode;
+    canMoveRoom?: unknown;
+    onMoveRoom?: unknown;
+  }) => {
+    groupProps.push({ canMoveRoom, onMoveRoom });
+    return React.createElement('div', { 'data-sortable-group': 'true' }, children);
+  },
+  useRoomSectionDrop: (spaceId: string) => {
+    sectionDropIds.push(spaceId);
+    return { 'data-section-drop': spaceId };
+  },
   SortableRoomList: ({
     children,
     reorderDisabled,
@@ -267,9 +285,7 @@ vi.mock('../room-nav/SortableRoomList', () => ({
       'data-activity-ts': activityTimestamp ?? '',
     }),
 }));
-vi.mock('../space/SpaceSectionHeader', () => ({ SpaceSectionHeader: () => null }));
-vi.mock('../space/SpaceRoomSection', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../space/SpaceRoomSection')>()),
+vi.mock('../space/SpaceRoomSection', () => ({
   SpaceRoomSection: ({
     section,
     roomPath,
@@ -401,6 +417,8 @@ describe('Home', () => {
     sortState.setMode.mockReset();
     sortState.setShowTimes.mockReset();
     navigate.mockReset();
+    groupProps.length = 0;
+    sectionDropIds.length = 0;
   });
 
   const textOf = (node: ReactTestInstance | string): string =>
@@ -543,6 +561,38 @@ describe('Home', () => {
         'data-mark-read-rooms': '!room:example.org,!planning:example.org',
       })
     ).toBeDefined();
+
+    act(() => renderer.unmount());
+  });
+
+  it('wraps unspaced Rooms (with HOME_ROOM_LIST section drop) and space sections in one SortableRoomGroup without cross-section moves', () => {
+    const { renderer } = renderHome(
+      ['!room:example.org', '!work:example.org', '!planning:example.org'],
+      { '!planning:example.org': ['!work:example.org'] }
+    );
+
+    const groups = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props['data-sortable-group'] === 'true'
+    );
+    expect(groups).toHaveLength(1);
+    expect(groupProps).toEqual([{ canMoveRoom: undefined, onMoveRoom: undefined }]);
+    expect(sectionDropIds).toEqual(['home']);
+
+    const group = groups[0]!;
+    expect(
+      group.findAll(
+        (node) =>
+          typeof node.type === 'string' &&
+          node.props['data-testid'] === 'room-nav-category' &&
+          node.props['data-section-drop'] === 'home'
+      )
+    ).toHaveLength(1);
+    expect(
+      group.findAll(
+        (node) =>
+          typeof node.type === 'string' && node.props['data-space-section'] === '!work:example.org'
+      )
+    ).toHaveLength(1);
 
     act(() => renderer.unmount());
   });

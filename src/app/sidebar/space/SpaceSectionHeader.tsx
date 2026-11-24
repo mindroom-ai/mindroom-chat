@@ -187,7 +187,7 @@ export type SpaceSectionHeaderProps = {
   onCategoryClick: MouseEventHandler<HTMLElement>;
   /** Per-section sort controls shown inside the space options menu. */
   sort?: SubspaceSortOptions;
-  /** Sidebar pin entry for space options menus (defaults to `'toggle'` when omitted). */
+  /** Optional sidebar pin entry for space options menus (e.g. `'toggle'` for sub-spaces). */
   pinMode?: SpaceMenuGroupsProps['pinMode'];
   /** Include a `Space overview` entry navigating directly to the space lobby. */
   showOverview?: boolean;
@@ -197,21 +197,20 @@ export type SpaceSectionHeaderProps = {
  * Collapsible Space sidebar section heading with pure-CSS hover/focus quick actions (`+` and
  * sub-space `⋮`), plus right-click and touch long-press menu support.
  */
-export function SpaceSectionHeader(props: SpaceSectionHeaderProps) {
-  const {
-    space,
-    parentSpace,
-    isRoot,
-    isEmpty,
-    categoryId,
-    closed,
-    shownRoomIds,
-    selectedRoomId,
-    onCategoryClick,
-    sort,
-    showOverview = false,
-  } = props;
-  const pinMode = 'pinMode' in props ? props.pinMode : 'toggle';
+export function SpaceSectionHeader({
+  space,
+  parentSpace,
+  isRoot,
+  isEmpty,
+  categoryId,
+  closed,
+  shownRoomIds,
+  selectedRoomId,
+  onCategoryClick,
+  sort,
+  pinMode,
+  showOverview = false,
+}: SpaceSectionHeaderProps) {
   const { t } = useTranslation();
   const spaceName = revealDirectionControls(useRoomName(space));
   const label = isRoot ? t('sharedUi.space.rooms') : spaceName;

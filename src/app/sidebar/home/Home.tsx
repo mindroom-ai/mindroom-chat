@@ -1,4 +1,10 @@
-import { useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  type MouseEventHandler,
+  type ReactNode,
+  useRef,
+  useState,
+} from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -20,9 +26,14 @@ import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, type RoomOrder } from '../room-nav/roomOrder';
 import { getRoomActivityTimestamp } from '../room-nav/roomActivity';
 import { RoomSortMenu } from '../room-nav/RoomSortMenu';
-import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import {
+  SortableRoomGroup,
+  SortableRoomList,
+  SortableRoomRow,
+  useRoomSectionDrop,
+} from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
-import { SubRoomRows } from '../room-nav/SubRoomRows';
+import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
 import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
@@ -135,6 +146,81 @@ function RoomAction({ action, icon, label, selected, onSelect, to }: RoomActionP
         </NavLink>
       )}
     </NavItem>
+  );
+}
+
+type HomeUnspacedRoomsSectionProps = {
+  roomsCategoryId: string;
+  roomsClosed: boolean;
+  listedRoomIds: string[];
+  tree: SubRoomTree;
+  roomOrder: Pick<RoomOrder, 'mode' | 'save'>;
+  virtualizer: ReturnType<typeof useNavVirtualizer<HTMLDivElement, Element>>;
+  onCategoryClick: MouseEventHandler<HTMLElement>;
+  rowProps: (room: Room) => ComponentProps<typeof SortableRoomRow>;
+  renderSubRoom: (room: Room) => ReactNode;
+};
+
+/** Home's unspaced Rooms section, registered as a droppable boundary inside Home's SortableRoomGroup. */
+function HomeUnspacedRoomsSection({
+  roomsCategoryId,
+  roomsClosed,
+  listedRoomIds,
+  tree,
+  roomOrder,
+  virtualizer,
+  onCategoryClick,
+  rowProps,
+  renderSubRoom,
+}: HomeUnspacedRoomsSectionProps) {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const sectionDrop = useRoomSectionDrop(HOME_ROOM_LIST);
+
+  return (
+    <NavCategory data-testid="room-nav-category" {...sectionDrop}>
+      <NavCategoryHeader>
+        <RoomNavCategoryButton
+          closed={roomsClosed}
+          data-category-id={roomsCategoryId}
+          onClick={onCategoryClick}
+        >
+          {t('nav.rooms')}
+        </RoomNavCategoryButton>
+      </NavCategoryHeader>
+      <SortableRoomList
+        listId={HOME_ROOM_LIST}
+        roomIds={listedRoomIds}
+        onReorder={roomOrder.save}
+        reorderDisabled={roomOrder.mode === 'recent'}
+      >
+        <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const roomId = listedRoomIds[item.index];
+            const room = client.getRoom(roomId);
+            if (!room) return null;
+            return (
+              <VirtualTile
+                // By room, so a row's open prompt stays with its room when the list shifts.
+                key={roomId}
+                virtualItem={item}
+                ref={virtualizer.measureElement}
+              >
+                <SortableRoomRow {...rowProps(room)} />
+                {!roomsClosed && (
+                  <SubRoomRows
+                    parent={room}
+                    tree={tree}
+                    renderRoom={renderSubRoom}
+                    previewPath={getHomeRoomPath}
+                  />
+                )}
+              </VirtualTile>
+            );
+          })}
+        </div>
+      </SortableRoomList>
+    </NavCategory>
   );
 }
 
@@ -253,65 +339,35 @@ export function Home() {
         ) : (
           <Box direction="Column" gap="300">
             {roomActions}
-            {unspaced.length > 0 && (
-              <NavCategory data-testid="room-nav-category">
-                <NavCategoryHeader>
-                  <RoomNavCategoryButton
-                    closed={roomsClosed}
-                    data-category-id={roomsCategoryId}
-                    onClick={onCategoryClick}
-                  >
-                    {t('nav.rooms')}
-                  </RoomNavCategoryButton>
-                </NavCategoryHeader>
-                <SortableRoomList
-                  listId={HOME_ROOM_LIST}
-                  roomIds={listedRoomIds}
-                  onReorder={roomOrder.save}
-                  reorderDisabled={roomOrder.mode === 'recent'}
-                >
-                  <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-                    {virtualizer.getVirtualItems().map((item) => {
-                      const roomId = listedRoomIds[item.index];
-                      const room = client.getRoom(roomId);
-                      if (!room) return null;
-                      return (
-                        <VirtualTile
-                          // By room, so a row's open prompt stays with its room when the list shifts.
-                          key={roomId}
-                          virtualItem={item}
-                          ref={virtualizer.measureElement}
-                        >
-                          <SortableRoomRow {...rowProps(room)} />
-                          {!roomsClosed && (
-                            <SubRoomRows
-                              parent={room}
-                              tree={tree}
-                              renderRoom={renderSubRoom}
-                              previewPath={getHomeRoomPath}
-                            />
-                          )}
-                        </VirtualTile>
-                      );
-                    })}
-                  </div>
-                </SortableRoomList>
-              </NavCategory>
-            )}
-            {sections.map((section) => (
-              <SpaceRoomSection
-                key={section.categoryId}
-                section={section}
-                spaceId={section.spaceId}
-                spaceIdOrAlias={section.spaceId}
-                selectedRoomId={selectedRoomId}
-                onCategoryClick={onCategoryClick}
-                onReorder={onReorder}
-                roomPath={getHomeRoomPath}
-                showOverview
-                pinMode={section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined}
-              />
-            ))}
+            <SortableRoomGroup>
+              {unspaced.length > 0 && (
+                <HomeUnspacedRoomsSection
+                  roomsCategoryId={roomsCategoryId}
+                  roomsClosed={roomsClosed}
+                  listedRoomIds={listedRoomIds}
+                  tree={tree}
+                  roomOrder={roomOrder}
+                  virtualizer={virtualizer}
+                  onCategoryClick={onCategoryClick}
+                  rowProps={rowProps}
+                  renderSubRoom={renderSubRoom}
+                />
+              )}
+              {sections.map((section) => (
+                <SpaceRoomSection
+                  key={section.categoryId}
+                  section={section}
+                  spaceId={section.spaceId}
+                  spaceIdOrAlias={section.spaceId}
+                  selectedRoomId={selectedRoomId}
+                  onCategoryClick={onCategoryClick}
+                  onReorder={onReorder}
+                  roomPath={getHomeRoomPath}
+                  showOverview
+                  pinMode={section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined}
+                />
+              ))}
+            </SortableRoomGroup>
             <ThreadNavCategory />
           </Box>
         )}

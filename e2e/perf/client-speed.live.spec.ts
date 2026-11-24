@@ -569,9 +569,10 @@ const profiled = async <T>(page: Page, name: string, action: () => Promise<T>): 
 const signIn = async (context: BrowserContext) => {
   const page = await context.newPage();
   await loginWithPassword(page, { homeserver, username: manifest.username, password: PASSWORD });
-  await expect(
-    page.getByRole('navigation', { name: 'Home', exact: true }).locator('[data-room-id]')
-  ).toHaveCount(homeRows(), { timeout: 60_000 });
+  await expect(page.getByTestId('room-nav-category').locator('[data-room-id]')).toHaveCount(
+    homeRows(),
+    { timeout: 60_000 }
+  );
   return page;
 };
 const skipProfile = <T>(_page: Page, _name: string, action: () => Promise<T>) => action();
