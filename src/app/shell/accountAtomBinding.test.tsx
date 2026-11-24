@@ -1,11 +1,11 @@
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
-import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
-
-enableMapSet();
+import {
+  roomIdToTypingMembersAtom,
+  useBindRoomIdToTypingMembersAtom,
+} from '../matrix/state/typingMembers';
 
 const createClient = () => ({
   getAccountData: vi.fn(() => undefined),

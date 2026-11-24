@@ -234,14 +234,7 @@ export function useMemberEventParser(): MemberEventParser {
       return {
         icon: ICONS[kind],
         body: (
-          <Trans
-            t={translate}
-            i18nKey={KEYS[kind]}
-            values={values}
-            components={{ b: <b /> }}
-            tOptions={{ interpolation: { escapeValue: true } }}
-            shouldUnescape
-          />
+          <Trans t={translate} i18nKey={KEYS[kind]} values={values} components={{ b: <b /> }} />
         ),
       };
     },
