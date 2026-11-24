@@ -1621,6 +1621,7 @@
       "needsYou": "Jij bent aan zet",
       "working": "Bezig",
       "later": "Later",
+      "quiet": "Stil",
       "done": "Klaar",
       "all": "Alle",
       "description": {
@@ -1972,6 +1973,7 @@
       "working": "Bezig",
       "later": "Later",
       "idle": "Inactief",
+      "quiet": "Stil",
       "resolved": "Opgelost"
     },
     "live": {

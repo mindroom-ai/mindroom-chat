@@ -1621,6 +1621,7 @@
       "needsYou": "Du bist gefragt",
       "working": "In Arbeit",
       "later": "Später",
+      "quiet": "Ruhig",
       "done": "Erledigt",
       "all": "Alle",
       "description": {
@@ -1972,6 +1973,7 @@
       "working": "In Arbeit",
       "later": "Später",
       "idle": "Inaktiv",
+      "quiet": "Ruhig",
       "resolved": "Gelöst"
     },
     "live": {

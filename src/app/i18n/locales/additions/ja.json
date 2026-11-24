@@ -1574,6 +1574,7 @@
       "needsYou": "あなたの対応待ち",
       "working": "作業中",
       "later": "後で",
+      "quiet": "休止中",
       "done": "完了",
       "all": "すべて",
       "description": {
@@ -1915,6 +1916,7 @@
       "working": "作業中",
       "later": "後で",
       "idle": "待機中",
+      "quiet": "休止中",
       "resolved": "解決済み"
     },
     "live": {

@@ -12,7 +12,8 @@ import {
 
 /**
  * The account's stored navigation state on this device: which sidebar categories are collapsed
- * (THREADS, its Resolved section and Recently Opened start collapsed until the person opens them)
+ * (THREADS, its Quiet and Resolved sections and Recently Opened start collapsed until the person
+ * opens them)
  * and the last page of each section.
  */
 export function ClientInitStorageAtom({ children }: { children: ReactNode }) {
@@ -23,6 +24,7 @@ export function ClientInitStorageAtom({ children }: { children: ReactNode }) {
       closedCategories: makeClosedNavCategoriesAtom(userId, [
         RECENTLY_OPENED_NAV_CATEGORY_ID,
         THREAD_NAV_CATEGORY_ID,
+        threadNavSectionCategoryId('quiet'),
         threadNavSectionCategoryId('resolved'),
       ]),
       lastPaths: makeNavToActivePathAtom(userId),

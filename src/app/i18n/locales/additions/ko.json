@@ -1574,6 +1574,7 @@
       "needsYou": "내 응답 필요",
       "working": "작업 중",
       "later": "나중에",
+      "quiet": "조용함",
       "done": "완료",
       "all": "전체",
       "description": {
@@ -1915,6 +1916,7 @@
       "working": "작업 중",
       "later": "나중에",
       "idle": "대기 중",
+      "quiet": "조용함",
       "resolved": "해결됨"
     },
     "live": {

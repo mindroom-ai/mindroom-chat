@@ -1574,6 +1574,7 @@
       "needsYou": "Perlu Anda",
       "working": "Sedang dikerjakan",
       "later": "Nanti",
+      "quiet": "Tenang",
       "done": "Selesai",
       "all": "Semua",
       "description": {
@@ -1915,6 +1916,7 @@
       "working": "Sedang berjalan",
       "later": "Nanti",
       "idle": "Tidak aktif",
+      "quiet": "Tenang",
       "resolved": "Selesai"
     },
     "live": {

@@ -1668,6 +1668,7 @@
       "needsYou": "Serve il tuo intervento",
       "working": "In corso",
       "later": "Più tardi",
+      "quiet": "Tranquilli",
       "done": "Completati",
       "all": "Tutti",
       "description": {
@@ -2029,6 +2030,7 @@
       "working": "In corso",
       "later": "Più tardi",
       "idle": "Inattivi",
+      "quiet": "Tranquilli",
       "resolved": "Risolti"
     },
     "live": {

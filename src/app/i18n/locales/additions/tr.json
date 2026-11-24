@@ -1621,6 +1621,7 @@
       "needsYou": "Sizi bekliyor",
       "working": "Çalışıyor",
       "later": "Sonra",
+      "quiet": "Sakin",
       "done": "Tamamlandı",
       "all": "Tümü",
       "description": {
@@ -1972,6 +1973,7 @@
       "working": "Çalışıyor",
       "later": "Sonra",
       "idle": "Boşta",
+      "quiet": "Sakin",
       "resolved": "Çözülenler"
     },
     "live": {
