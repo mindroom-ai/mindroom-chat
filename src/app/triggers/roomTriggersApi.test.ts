@@ -169,9 +169,9 @@ describe('room triggers HTTP requests', () => {
     );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
-    await expect(setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', true)).rejects.toBeInstanceOf(
-      RoomTriggerMutationError
-    );
+    await expect(
+      setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', true)
+    ).rejects.toBeInstanceOf(RoomTriggerMutationError);
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
     await deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123');

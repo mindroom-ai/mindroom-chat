@@ -11,12 +11,20 @@ import { RoomProvider } from '../matrix/hooks/useRoom';
 import { TriggerWakeMarker } from '../messages/TriggerWakeMarker';
 import { RoomViewHeader } from './RoomViewHeader';
 
-const mocks = vi.hoisted(() => ({
-  send: vi.fn(),
-  navigateRoomThread: vi.fn(),
-  screenSize: 'Desktop' as 'Desktop' | 'Mobile',
-  server: { apiUrl: 'https://mindroom.example.org' as string | undefined, pending: false },
-}));
+type SendFn = (path: string, init?: RequestInit) => Promise<Response>;
+const mocks = vi.hoisted(
+  (): {
+    send: ReturnType<typeof vi.fn<SendFn>>;
+    navigateRoomThread: ReturnType<typeof vi.fn>;
+    screenSize: 'Desktop' | 'Mobile';
+    server: { apiUrl: string | undefined; pending: boolean };
+  } => ({
+    send: vi.fn<SendFn>(),
+    navigateRoomThread: vi.fn(),
+    screenSize: 'Desktop',
+    server: { apiUrl: 'https://mindroom.example.org', pending: false },
+  })
+);
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-i18next')>();

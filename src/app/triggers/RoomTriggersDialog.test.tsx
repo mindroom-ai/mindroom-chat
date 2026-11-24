@@ -60,9 +60,7 @@ const makeTrigger = (overrides: Partial<RoomTrigger> = {}): RoomTrigger => ({
   ...overrides,
 });
 
-const renderDialog = (
-  props: Partial<React.ComponentProps<typeof RoomTriggersDialog>> = {}
-) => {
+const renderDialog = (props: Partial<React.ComponentProps<typeof RoomTriggersDialog>> = {}) => {
   const onClose = vi.fn();
   const onOpenThread = vi.fn();
   const onToggleTrigger = vi.fn(async () => undefined);
@@ -179,7 +177,9 @@ describe('RoomTriggersDialog', () => {
 
     // Failed toggle shows alert, then retry succeeds.
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Could not update'));
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Could not update')
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() => expect(onToggleTrigger).toHaveBeenCalledWith('tr_watch', false));
 

@@ -48,12 +48,12 @@ const KIND_ICONS: Record<TriggerKind, IconSrc> = {
   thread_tag: Icons.Bookmark,
 };
 
-const DESTINATION_KEYS: Record<TriggerThreadMode, string> = {
+const DESTINATION_KEYS = {
   room: 'roomTriggers.destinationRoom',
   thread: 'roomTriggers.destinationThread',
   new_thread: 'roomTriggers.destinationNewThread',
   origin: 'roomTriggers.destinationOrigin',
-};
+} as const satisfies Record<TriggerThreadMode, string>;
 
 const isLongPrompt = (prompt: string) =>
   prompt.length > LONG_PROMPT_CHAR_LIMIT || prompt.split('\n').length > LONG_PROMPT_LINE_LIMIT;
@@ -141,13 +141,15 @@ function TriggerRow({
   const showDeleteBar = trigger.canManage && (confirmingDelete || deleting || deleteError);
 
   const disabledReasonNode: ReactNode =
-    !trigger.enabled && trigger.disabledReason && trigger.disabledReason !== 'manual'
-      ? trigger.disabledReason === 'expired'
-        ? t('roomTriggers.disabledExpired')
-        : trigger.disabledReason === 'once_consumed'
-          ? t('roomTriggers.disabledOnceConsumed')
-          : <bdi>{revealDirectionControls(trigger.disabledReason)}</bdi>
-      : undefined;
+    !trigger.enabled && trigger.disabledReason && trigger.disabledReason !== 'manual' ? (
+      trigger.disabledReason === 'expired' ? (
+        t('roomTriggers.disabledExpired')
+      ) : trigger.disabledReason === 'once_consumed' ? (
+        t('roomTriggers.disabledOnceConsumed')
+      ) : (
+        <bdi>{revealDirectionControls(trigger.disabledReason)}</bdi>
+      )
+    ) : undefined;
 
   const lastFiredNode: ReactNode =
     trigger.lastFiredAt !== null ? (
@@ -161,13 +163,14 @@ function TriggerRow({
       t('roomTriggers.neverFired')
     );
 
-  const subtitleParts: ReactNode[] = [
+  const rawSubtitleParts: ReactNode[] = [
     hasDescription ? kindLabel : undefined,
     trigger.relation === 'watch' ? t('roomTriggers.watchingRoom') : undefined,
     t(DESTINATION_KEYS[trigger.threadMode]),
     disabledReasonNode,
     lastFiredNode,
-  ].filter(Boolean);
+  ];
+  const subtitleParts = rawSubtitleParts.filter(Boolean);
 
   const handleToggle = async () => {
     if (!trigger.canManage || busy) return;
@@ -273,7 +276,9 @@ function TriggerRow({
                 onClick={() => setPromptExpanded((value) => !value)}
               >
                 <Text as="span" size="T200">
-                  {t(promptExpanded ? 'roomTriggers.showLessPrompt' : 'roomTriggers.showFullPrompt')}
+                  {t(
+                    promptExpanded ? 'roomTriggers.showLessPrompt' : 'roomTriggers.showFullPrompt'
+                  )}
                 </Text>
               </button>
             )}
@@ -506,9 +511,9 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
     );
     const missingHighlighted = Boolean(
       highlightTriggerId &&
-        !loading &&
-        !matchedHighlighted &&
-        deletedHighlightId !== highlightTriggerId
+      !loading &&
+      !matchedHighlighted &&
+      deletedHighlightId !== highlightTriggerId
     );
 
     // Focus and scroll the row linked from a wake pill once present.

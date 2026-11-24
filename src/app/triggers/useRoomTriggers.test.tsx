@@ -3,15 +3,27 @@ import { EventEmitter } from 'node:events';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { MatrixEvent, MatrixEventEvent, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEvent,
+  MatrixEventEvent,
+  RoomEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { useRoomTriggers } from './useRoomTriggers';
 
-const mocks = vi.hoisted(() => ({
-  send: vi.fn(),
-  server: { apiUrl: 'https://mindroom.example.org' as string | undefined, pending: false },
-}));
+type SendFn = (path: string, init?: RequestInit) => Promise<Response>;
+const mocks = vi.hoisted(
+  (): {
+    send: ReturnType<typeof vi.fn<SendFn>>;
+    server: { apiUrl: string | undefined; pending: boolean };
+  } => ({
+    send: vi.fn<SendFn>(),
+    server: { apiUrl: 'https://mindroom.example.org', pending: false },
+  })
+);
 
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => mocks.server,
@@ -177,9 +189,7 @@ describe('useRoomTriggers', () => {
 
     // Toggle sends PATCH and refetches.
     mocks.send
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(makeRow('tr_a', false)), { status: 200 })
-      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeRow('tr_a', false)), { status: 200 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ triggers: [makeRow('tr_a', false)] }), { status: 200 })
       );

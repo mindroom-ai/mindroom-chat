@@ -107,7 +107,13 @@ export function useRoomTriggers(room: Room): RoomTriggersHandle {
       if (!apiUrl) throw new Error('No MindRoom server available for this room.');
       const key = roomTriggersQueryKey(apiUrl, room.roomId);
       try {
-        const updated = await setRoomTriggerEnabled(mx, apiUrl, room.roomId, triggerId, nextEnabled);
+        const updated = await setRoomTriggerEnabled(
+          mx,
+          apiUrl,
+          room.roomId,
+          triggerId,
+          nextEnabled
+        );
         if (updated) {
           queryClient.setQueryData<RoomTrigger[]>(key, (prev) =>
             prev?.map((row) => (row.triggerId === updated.triggerId ? updated : row))

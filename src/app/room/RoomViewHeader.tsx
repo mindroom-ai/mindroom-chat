@@ -318,9 +318,10 @@ export function RoomViewHeader({
       prevTriggersRoomId.current = room.roomId;
     }
   }, [room.roomId, store]);
+  const { refetch: refetchTriggers } = roomTriggers;
   useEffect(() => {
-    if (triggersOpen) void roomTriggers.refetch();
-  }, [triggersOpen, triggersDialog, roomTriggers.refetch]);
+    if (triggersOpen) void refetchTriggers();
+  }, [triggersOpen, triggersDialog, refetchTriggers]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
