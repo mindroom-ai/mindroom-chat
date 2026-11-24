@@ -1,3 +1,4 @@
+import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
 
@@ -27,4 +28,22 @@ export const RoomDropHint = recipe({
     dragged: { true: { zIndex: 2 }, false: {} },
   },
   defaultVariants: { at: 'none', dragged: false },
+});
+
+/**
+ * Highlights a sidebar room section (`NavCategory`) while an eligible room from another section is
+ * dragged over it.
+ */
+export const SectionDropTarget = style({
+  borderRadius: config.radii.R500,
+  transition: 'background-color 120ms ease-out, box-shadow 120ms ease-out',
+  selectors: {
+    '&[data-section-drop-target="true"]': {
+      backgroundColor: `color-mix(in srgb, ${color.Primary.Container} 55%, transparent)`,
+      boxShadow: `inset 0 0 0 ${config.borderWidth.B600} ${color.Primary.Main}`,
+    },
+  },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': { transition: 'none' },
+  },
 });

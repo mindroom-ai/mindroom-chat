@@ -2,6 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import { DictationCapsule } from './DictationCapsule';
 import type { DictationSnapshot } from './dictationSession';
 
@@ -59,7 +60,8 @@ afterEach(() => cleanup());
 describe('DictationCapsule', () => {
   it('renders Cancel, live waveform, timer, Pause, and Finish while recording', () => {
     const h = handlers();
-    render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
+    const { container } = render(<DictationCapsule snapshot={baseSnapshot()} {...h} />);
+    expect(container.firstElementChild?.className).toBe(voiceCss.Container);
 
     expect(screen.getByText('0:18')).toBeTruthy();
     expect(screen.queryByTestId('dictation-preview')).toBeNull();

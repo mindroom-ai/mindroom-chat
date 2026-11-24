@@ -246,7 +246,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
   );
   const pageRef = useRef<HTMLDivElement>(null);
   const searchValues = useSettingsSearchValues();
-  const enabledPlugins = useMemo(
+  const offeredPlugins = useMemo(
     () => registeredPlugins.filter((plugin) => isPluginEnabled(clientConfig, plugin.id)),
     [clientConfig]
   );
@@ -255,7 +255,7 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
     getShownSettings(context),
     (key, values) => t(key, values),
     searchValues,
-    enabledPlugins
+    offeredPlugins
   );
 
   const selectPage = useCallback((page: SettingsPageId) => {

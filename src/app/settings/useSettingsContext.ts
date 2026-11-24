@@ -26,7 +26,7 @@ export const useSettingsContext = (): SettingsContext => {
   const errorReporting = parseDsn(clientConfig.errorReporting?.dsn) !== undefined;
   const serverAdmin = isServerAdmin(useCapabilities());
   const macApp = useOffersMacApp();
-  // Check raw deployment config so turning off all plugins never hides Settings -> Plugins.
+  // Check raw deployment config so default-off or user-disabled plugins still show Settings -> Plugins.
   const hasPlugins = registeredPlugins.some((plugin) => isPluginEnabled(clientConfig, plugin.id));
   return {
     native: isBundledApp(),

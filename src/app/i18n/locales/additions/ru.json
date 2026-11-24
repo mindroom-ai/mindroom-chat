@@ -559,7 +559,6 @@
     },
     "spaceNav": {
       "options": "Параметры пространства",
-      "subspaces": "Подпространства",
       "subspaceUnread": "{{name}}, непрочитанные сообщения",
       "backToParent": "Назад в {{name}}"
     },
