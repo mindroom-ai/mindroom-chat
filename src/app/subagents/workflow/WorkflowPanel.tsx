@@ -93,7 +93,7 @@ export function WorkflowPanel({
   const staleRelative = useRelativeTime(entry?.stale ? entry.lastFrameAt : undefined);
   const agentProfile = useAgentProfile(room, entry?.agent ?? '');
   const runJob = jobs.find((job) => job.kind === 'workflow' && job.workflow === run);
-  const effectiveThreadId = entry?.threadId ?? threadId;
+  const effectiveThreadId = entry ? entry.threadId : threadId;
   const actions = useWorkflowRunActions(
     room,
     room.roomId,

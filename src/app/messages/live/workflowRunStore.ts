@@ -76,7 +76,7 @@ export const selectWorkflowRun = (
     ...summary,
     run: record?.card.run ?? live!.run,
     agent: live?.meta.agent || (record ? agentFromSender(record.sender) : ''),
-    threadId: live?.meta.threadId ?? record?.threadId ?? null,
+    threadId: live ? live.meta.threadId : record!.threadId,
     error: liveWins ? null : record.card.error,
     requester: record?.card.requester ?? live?.meta.requester,
     graph,

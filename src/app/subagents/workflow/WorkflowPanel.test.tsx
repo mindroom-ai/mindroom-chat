@@ -817,4 +817,45 @@ describe('WorkflowPanel', () => {
     );
     expect(within(details).getByText('Details are no longer available after reload.')).toBeTruthy();
   });
+
+  it('preserves explicit null threadId for room-timeline runs when clicking Run again beside another thread', async () => {
+    const { mx, room, sendEvent } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame(
+        {
+          phases: ['Audit'],
+          nodes: [makeNode('n1', { status: 'completed', endedAt: 1795389800 })],
+        },
+        { status: 'completed', endedAt: 1795389800, threadId: null, requester: VIEWER }
+      ),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel
+            room={room}
+            run={RUN}
+            threadId="$unrelated-thread"
+            onClose={() => undefined}
+          />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    });
+    expect(sendEvent).toHaveBeenCalledWith(
+      ROOM_ID,
+      'io.mindroom.workflow_control',
+      { run: RUN, action: 'resume' },
+      'txn-wf-panel'
+    );
+  });
 });
