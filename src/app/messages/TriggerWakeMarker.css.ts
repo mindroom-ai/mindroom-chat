@@ -69,7 +69,7 @@ globalStyle(`${Meta} time`, {
   opacity: 1,
 });
 
-globalStyle(`${Meta} button`, {
+export const MetaLink = style({
   padding: 0,
   border: 0,
   borderRadius: config.radii.R300,
@@ -79,11 +79,12 @@ globalStyle(`${Meta} button`, {
   textDecoration: 'underline',
   textUnderlineOffset: toRem(2),
   cursor: 'pointer',
-});
-
-globalStyle(`${Meta} button:focus-visible`, {
-  outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-  outlineOffset: toRem(1),
+  selectors: {
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
 });
 
 export const CopyButton = style({

@@ -18,7 +18,9 @@ export type RoomTrigger = {
   canManage: boolean;
 };
 
-const TIMEOUT_MS = 8_000;
+export const GET_TIMEOUT_MS = 8_000;
+export const MUTATION_TIMEOUT_MS = 30_000;
+
 const asStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const asNum = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -64,12 +66,18 @@ export const parseRoomTriggersResponse = (raw: unknown): RoomTrigger[] | null =>
     ? raw.triggers.map(parseTriggerRow).filter((row): row is RoomTrigger => row !== null)
     : null;
 
-const send = async (mx: MatrixClient, apiUrl: string, path: string, init: RequestInit = {}) => {
+const send = async (
+  mx: MatrixClient,
+  apiUrl: string,
+  path: string,
+  timeoutMs: number,
+  init: RequestInit = {}
+) => {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   if (init.signal?.aborted) controller.abort();
   else init.signal?.addEventListener('abort', onAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await clientSessions(mx, apiUrl).send(path, {
       ...init,
@@ -82,23 +90,15 @@ const send = async (mx: MatrixClient, apiUrl: string, path: string, init: Reques
   }
 };
 
-const httpError = (status: number) =>
-  Object.assign(new Error(`Request failed (${status}).`), { status });
-
-/** Returns `null` on 404/401/403/network/timeout/bad payload; rethrows only if `signal` aborted. */
+/** Returns `null` on non-OK HTTP or malformed envelope; throws on network/timeout/abort. */
 export const fetchRoomTriggers = async (
   mx: MatrixClient,
   apiUrl: string,
   roomId: string,
   signal?: AbortSignal
 ): Promise<RoomTrigger[] | null> => {
-  try {
-    const res = await send(mx, apiUrl, triggersPath(roomId), { signal });
-    return res.ok ? parseRoomTriggersResponse(await res.json()) : null;
-  } catch (error) {
-    if (signal?.aborted) throw error;
-    return null;
-  }
+  const res = await send(mx, apiUrl, triggersPath(roomId), GET_TIMEOUT_MS, { signal });
+  return res.ok ? parseRoomTriggersResponse(await res.json()) : null;
 };
 
 export const setRoomTriggerEnabled = async (
@@ -107,14 +107,13 @@ export const setRoomTriggerEnabled = async (
   roomId: string,
   triggerId: string,
   enabled: boolean
-): Promise<RoomTrigger | null> => {
-  const res = await send(mx, apiUrl, triggersPath(roomId, triggerId), {
+): Promise<void> => {
+  const res = await send(mx, apiUrl, triggersPath(roomId, triggerId), MUTATION_TIMEOUT_MS, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled }),
   });
-  if (!res.ok) throw httpError(res.status);
-  return parseTriggerRow(await res.json().catch(() => undefined));
+  if (!res.ok) throw new Error(`Request failed (${res.status}).`);
 };
 
 export const deleteRoomTrigger = async (
@@ -123,6 +122,8 @@ export const deleteRoomTrigger = async (
   roomId: string,
   triggerId: string
 ): Promise<void> => {
-  const res = await send(mx, apiUrl, triggersPath(roomId, triggerId), { method: 'DELETE' });
-  if (!res.ok) throw httpError(res.status);
+  const res = await send(mx, apiUrl, triggersPath(roomId, triggerId), MUTATION_TIMEOUT_MS, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Request failed (${res.status}).`);
 };

@@ -311,6 +311,14 @@ export function RoomViewHeader({
     store.set(roomTriggersDialogAtom, undefined);
     if (dismissed) restoreFocusAfterDismiss(triggersDialog?.opener);
   };
+  useEffect(
+    () => () => {
+      if (store.get(roomTriggersDialogAtom)?.roomId === room.roomId) {
+        store.set(roomTriggersDialogAtom, undefined);
+      }
+    },
+    [room.roomId, store]
+  );
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();

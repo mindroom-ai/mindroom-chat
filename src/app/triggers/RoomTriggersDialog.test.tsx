@@ -77,7 +77,7 @@ afterEach(() => {
 });
 
 describe('RoomTriggersDialog', () => {
-  it('renders rows with trigger IDs, unknown kind/thread_mode fallbacks, disabled reasons, and non-owner subtitle', () => {
+  it('renders rows with trigger IDs, unknown kind/thread_mode fallbacks, aria-describedby, and non-owner subtitle', () => {
     const triggers: RoomTrigger[] = [
       makeTrigger(),
       makeTrigger({
@@ -110,9 +110,19 @@ describe('RoomTriggersDialog', () => {
     const cards = screen.getAllByRole('article');
     expect(cards).toHaveLength(3);
 
-    // Described row shows description as title, trigger ID in subtitle, prompt, thread link.
+    // Focus lands on Close when opened without a matched highlighted row.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
+
+    // Described row shows description as title, trigger ID in subtitle, prompt, thread link, and aria-describedby.
     const watchCard = cards[0]!;
-    expect(within(watchCard).getByRole('heading', { name: 'Design triage' })).toBeTruthy();
+    const watchTitle = within(watchCard).getByRole('heading', { name: 'Design triage' });
+    expect(watchTitle.id).toBeTruthy();
+    expect(
+      within(watchCard).getByRole('button', { name: 'Disable' }).getAttribute('aria-describedby')
+    ).toBe(watchTitle.id);
+    expect(
+      within(watchCard).getByRole('button', { name: 'Delete' }).getAttribute('aria-describedby')
+    ).toBe(watchTitle.id);
     expect(watchCard.textContent).toContain('Room watch');
     expect(watchCard.textContent).toContain('tr_watch');
     expect(watchCard.textContent).toContain('Thread');
@@ -120,12 +130,12 @@ describe('RoomTriggersDialog', () => {
     fireEvent.click(within(watchCard).getByRole('button', { name: 'Open thread' }));
     expect(onOpenThread).toHaveBeenCalledWith('$triage-thread', ROOM_ID);
 
-    // Undescribed unknown-kind non-owner row: trigger ID as title, generic Trigger label, no dest text, Used, owner, no manage buttons.
+    // Undescribed unknown-kind non-owner row: trigger ID as title, Trigger label, no dest text, Used, owner, no manage buttons.
     const futureCard = cards[1]!;
     expect(within(futureCard).getByRole('heading', { name: 'tr_future' })).toBeTruthy();
     expect(futureCard.textContent).toContain('Trigger');
     expect(futureCard.textContent).toContain('Used');
-    expect(futureCard.textContent).toContain('Never fired');
+    expect(futureCard.textContent).toContain('No recorded firing');
     expect(futureCard.textContent).not.toContain('Room timeline');
     expect(futureCard.querySelector('[data-mention-id="@bob:example.org"]')).toBeTruthy();
     expect(within(futureCard).queryByRole('button', { name: /Enable|Disable/ })).toBeNull();
@@ -139,14 +149,14 @@ describe('RoomTriggersDialog', () => {
     expect(tagCard.textContent).toContain('Expired');
   });
 
-  it('lets the owner toggle enable/disable and confirm-delete, reporting errors cleanly', async () => {
+  it('lets the owner toggle enable/disable and confirm-delete, moving focus to Close when a deleted row unmounts', async () => {
     const onToggleTrigger = vi
       .fn<(...args: [string, boolean]) => Promise<void>>()
       .mockRejectedValueOnce(new Error('network'))
       .mockResolvedValueOnce(undefined);
     const onDeleteTrigger = vi.fn(async () => undefined);
 
-    renderDialog({ onToggleTrigger, onDeleteTrigger });
+    const { rerender } = renderDialog({ onToggleTrigger, onDeleteTrigger });
 
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() =>
@@ -162,11 +172,30 @@ describe('RoomTriggersDialog', () => {
     expect(onDeleteTrigger).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete trigger' }));
+    const confirmDeleteBtn = screen.getByRole('button', { name: 'Delete trigger' });
+    confirmDeleteBtn.focus();
+    fireEvent.click(confirmDeleteBtn);
     await waitFor(() => expect(onDeleteTrigger).toHaveBeenCalledWith('tr_watch'));
+
+    // Removing the deleted row moves lost focus back to Close.
+    rerender(
+      <MatrixClientProvider value={mx}>
+        <MemoryRouter>
+          <RoomTriggersDialog
+            roomId={ROOM_ID}
+            triggers={[]}
+            onClose={vi.fn()}
+            onOpenThread={vi.fn()}
+            onToggleTrigger={onToggleTrigger}
+            onDeleteTrigger={onDeleteTrigger}
+          />
+        </MemoryRouter>
+      </MatrixClientProvider>
+    );
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
   });
 
-  it('highlights a target row, shows missing notice on empty success, and shows loadError on failure', () => {
+  it('focuses matched target row, shows loading state, loadError on failure, and missing notice on empty success', () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
 
@@ -183,6 +212,28 @@ describe('RoomTriggersDialog', () => {
     expect(scrollIntoView).toHaveBeenCalled();
     expect(document.activeElement).toBe(targetCard);
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
+
+    // Loading with no rows yet shows Loading… with aria-busy.
+    rerender(
+      <MatrixClientProvider value={mx}>
+        <MemoryRouter>
+          <RoomTriggersDialog
+            roomId={ROOM_ID}
+            triggers={[]}
+            loading
+            highlightTriggerId="tr_gone"
+            onClose={vi.fn()}
+            onOpenThread={vi.fn()}
+            onToggleTrigger={vi.fn(async () => undefined)}
+            onDeleteTrigger={vi.fn(async () => undefined)}
+          />
+        </MemoryRouter>
+      </MatrixClientProvider>
+    );
+    const loadingStatus = screen.getByRole('status');
+    expect(loadingStatus.getAttribute('aria-busy')).toBe('true');
+    expect(loadingStatus.textContent).toBe('Loading…');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }));
 
     // Failed load: show only the single error line, not empty state or missing notice.
     rerender(
@@ -207,7 +258,7 @@ describe('RoomTriggersDialog', () => {
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
     expect(screen.queryByText('No triggers in this room.')).toBeNull();
 
-    // Successful empty load: show missing notice + empty state.
+    // Successful empty load: show missing notice + empty state, focus on Close.
     rerender(
       <MatrixClientProvider value={mx}>
         <MemoryRouter>

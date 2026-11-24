@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { RoomProvider } from '../matrix/hooks/useRoom';
 import { TriggerWakeMarker } from '../messages/TriggerWakeMarker';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { RoomViewHeader } from './RoomViewHeader';
 
 type SendFn = (path: string, init?: RequestInit) => Promise<Response>;
@@ -121,6 +122,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({
 }));
 
 const ROOM_ID = '!design:example.org';
+const OTHER_ROOM_ID = '!other:example.org';
 const box = new DOMRect(0, 0, 120, 40);
 
 const rowJson = (overrides: Record<string, unknown> = {}) => ({
@@ -140,22 +142,26 @@ const rowJson = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const renderRoomHeader = (withWakePill?: string) => {
-  const emitter = new EventEmitter();
-  const room = {
-    roomId: ROOM_ID,
-    name: 'Design',
+const makeRoom = (roomId: string) =>
+  ({
+    roomId,
+    name: roomId,
     myUserId: '@alice:example.org',
     getMyMembership: () => 'join',
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
     getMember: () => null,
     loadMembersIfNeeded: async () => true,
-  } as unknown as Room;
+  }) as unknown as Room;
+
+const renderRoomHeader = (withWakePill?: string) => {
+  const emitter = new EventEmitter();
+  const roomA = makeRoom(ROOM_ID);
+  const roomB = makeRoom(OTHER_ROOM_ID);
   const mx = Object.assign(emitter, {
     getSafeUserId: () => '@alice:example.org',
     getUserId: () => '@alice:example.org',
-    getRoom: (id: string) => (id === ROOM_ID ? room : null),
+    getRoom: (id: string) => (id === ROOM_ID ? roomA : id === OTHER_ROOM_ID ? roomB : null),
   }) as unknown as MatrixClient;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const store = createStore();
@@ -164,16 +170,16 @@ const renderRoomHeader = (withWakePill?: string) => {
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
     box,
   ] as unknown as DOMRectList);
-  return render(
+  const tree = (activeRoom: Room) => (
     <QueryClientProvider client={queryClient}>
       <JotaiProvider store={store}>
         <MatrixClientProvider value={mx}>
           <MemoryRouter>
-            <RoomProvider value={room}>
+            <RoomProvider value={activeRoom}>
               <RoomViewHeader hasMindroomAgents />
               {withWakePill && (
                 <TriggerWakeMarker
-                  roomId={ROOM_ID}
+                  roomId={activeRoom.roomId}
                   wake={{
                     sourceKind: 'reactive',
                     triggerId: withWakePill,
@@ -189,6 +195,12 @@ const renderRoomHeader = (withWakePill?: string) => {
       </JotaiProvider>
     </QueryClientProvider>
   );
+  const view = render(tree(roomA));
+  return {
+    ...view,
+    store,
+    switchRoom: (toOther: boolean) => view.rerender(tree(toOther ? roomB : roomA)),
+  };
 };
 
 afterEach(() => {
@@ -227,11 +239,11 @@ describe('RoomViewHeader triggers integration', () => {
     expect(screen.queryByText('No triggers in this room.')).toBeNull();
   });
 
-  it('shows the header button when >0, refetches on open, and closes on Escape and backdrop click via real FocusTrap', async () => {
+  it('shows the header button when >0, refetches on open, closes via real FocusTrap, and clears atom on room change', async () => {
     mocks.send.mockImplementation(
       async () => new Response(JSON.stringify({ triggers: [rowJson()] }), { status: 200 })
     );
-    renderRoomHeader();
+    const { store, switchRoom } = renderRoomHeader();
     const button = await screen.findByRole('button', { name: 'Triggers (1)' });
     fireEvent.click(button);
 
@@ -249,6 +261,15 @@ describe('RoomViewHeader triggers integration', () => {
     expect(backdrop).toBeInstanceOf(HTMLElement);
     fireEvent.mouseDown(backdrop!);
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
+
+    // Switching rooms while open clears the dialog atom so returning does not reopen it.
+    fireEvent.click(button);
+    await screen.findByRole('dialog', { name: 'Triggers' });
+    expect(store.get(roomTriggersDialogAtom)?.roomId).toBe(ROOM_ID);
+    switchRoom(true);
+    expect(store.get(roomTriggersDialogAtom)).toBeUndefined();
+    switchRoom(false);
+    expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull();
   });
 
   it('opens the dialog highlighted on the wake pill row, refetches via invalidation, and closes on Escape', async () => {

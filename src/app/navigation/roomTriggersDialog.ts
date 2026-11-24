@@ -6,12 +6,11 @@ export type RoomTriggersDialogState = {
   opener?: HTMLButtonElement;
 };
 
-export const roomTriggersDialogAtom = atom<RoomTriggersDialogState | undefined>(undefined);
+export const ROOM_TRIGGERS_QUERY_KEY = 'room-triggers';
+export const roomTriggersQueryKey = (roomId: string, apiUrl: string) =>
+  [ROOM_TRIGGERS_QUERY_KEY, roomId, apiUrl] as const;
 
-export const roomTriggersQueryKey = (roomId: string, apiUrl?: string) =>
-  apiUrl === undefined
-    ? (['room-triggers', roomId] as const)
-    : (['room-triggers', roomId, apiUrl] as const);
+export const roomTriggersDialogAtom = atom<RoomTriggersDialogState | undefined>(undefined);
 
 export const openRoomTriggersDialog = (
   store: ReturnType<typeof useStore>,

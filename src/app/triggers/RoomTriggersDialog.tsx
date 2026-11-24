@@ -1,4 +1,4 @@
-import { forwardRef, useId, useLayoutEffect, useRef } from 'react';
+import { forwardRef, useCallback, useId, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, Text } from 'folds';
 import { localDigits } from '../lib/localDigits';
@@ -39,17 +39,40 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
     const mx = useMatrixClient();
     const mentionClickHandler = useMentionClickHandler(roomId);
     const titleId = useId();
+    const modalRef = useRef<HTMLDivElement>(null);
+    const closeBtnRef = useRef<HTMLButtonElement>(null);
     const highlightedRef = useRef<HTMLElement>(null);
+    const setModalRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        modalRef.current = node;
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref]
+    );
     const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
     const matched = Boolean(
       highlightTriggerId && triggers.some((row) => row.triggerId === highlightTriggerId)
     );
 
     useLayoutEffect(() => {
-      if (!matched) return;
-      highlightedRef.current?.scrollIntoView?.({ block: 'nearest' });
-      highlightedRef.current?.focus({ preventScroll: true });
+      if (matched) {
+        highlightedRef.current?.scrollIntoView?.({ block: 'nearest' });
+        highlightedRef.current?.focus({ preventScroll: true });
+      } else {
+        const modal = modalRef.current;
+        if (!modal || !modal.contains(modal.ownerDocument.activeElement)) {
+          closeBtnRef.current?.focus({ preventScroll: true });
+        }
+      }
     }, [highlightTriggerId, matched]);
+
+    useLayoutEffect(() => {
+      const modal = modalRef.current;
+      if (modal && !modal.contains(modal.ownerDocument.activeElement)) {
+        closeBtnRef.current?.focus({ preventScroll: true });
+      }
+    }, [triggers.length]);
 
     const renderOwner = (userId: string) =>
       isUserId(userId)
@@ -61,7 +84,7 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
 
     return (
       <Modal
-        ref={ref}
+        ref={setModalRef}
         size="400"
         flexHeight
         className={s.Dialog}
@@ -83,7 +106,11 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
                   </span>
                 )}
               </Box>
-              <DialogCloseButton label={t('roomTriggers.close')} onClick={onClose} />
+              <DialogCloseButton
+                ref={closeBtnRef}
+                label={t('roomTriggers.close')}
+                onClick={onClose}
+              />
             </Header>
           }
         >
@@ -139,15 +166,25 @@ export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogP
                       />
                     ))}
                   </Box>
+                ) : loading ? (
+                  <Box
+                    direction="Column"
+                    gap="200"
+                    className={s.Empty}
+                    role="status"
+                    aria-busy="true"
+                  >
+                    <Text size="T300" priority="300">
+                      {t('roomTriggers.loading')}
+                    </Text>
+                  </Box>
                 ) : (
-                  !loading && (
-                    <Box direction="Column" gap="200" className={s.Empty}>
-                      <Text size="T400">{t('roomTriggers.empty')}</Text>
-                      <Text size="T300" priority="300">
-                        {t('roomTriggers.emptyHint')}
-                      </Text>
-                    </Box>
-                  )
+                  <Box direction="Column" gap="200" className={s.Empty}>
+                    <Text size="T400">{t('roomTriggers.empty')}</Text>
+                    <Text size="T300" priority="300">
+                      {t('roomTriggers.emptyHint')}
+                    </Text>
+                  </Box>
                 )}
               </>
             )}

@@ -49,7 +49,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from './html/react-custom-html-parser';
-import { openRoomTriggersDialog, roomTriggersQueryKey } from '../navigation/roomTriggersDialog';
+import { openRoomTriggersDialog, ROOM_TRIGGERS_QUERY_KEY } from '../navigation/roomTriggersDialog';
 import { useMentionClickHandler } from './useMentionClickHandler';
 import { Time } from './Time';
 import * as css from './TriggerWakeMarker.css';
@@ -250,11 +250,12 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
         <button
           key="trigger"
           type="button"
+          className={css.MetaLink}
           data-trigger-wake-link={wake.triggerId}
           aria-haspopup="dialog"
           aria-label={t(`${KEY}.openTriggerLabel`, { id })}
           onClick={(event) => {
-            void queryClient?.invalidateQueries({ queryKey: roomTriggersQueryKey(roomId) });
+            void queryClient?.invalidateQueries({ queryKey: [ROOM_TRIGGERS_QUERY_KEY, roomId] });
             openRoomTriggersDialog(store, roomId, {
               triggerId: wake.triggerId!,
               opener: event.currentTarget,

@@ -60,36 +60,7 @@ afterEach(() => {
 });
 
 describe('useRoomTriggers', () => {
-  it('caches per room across switches and uses staleTime on return', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const roomA = makeRoom('!roomA:example.org');
-    const roomB = makeRoom('!roomB:example.org');
-
-    mocks.send.mockImplementation(async (path: string) => {
-      const triggers = path.includes('roomA') ? [makeRow('tr_a')] : [];
-      return new Response(JSON.stringify({ triggers }), { status: 200 });
-    });
-
-    const { result, rerender } = renderHook(({ room }) => useRoomTriggers(room), {
-      initialProps: { room: roomA },
-      wrapper: makeWrapper(queryClient),
-    });
-
-    await waitFor(() => expect(result.current.triggers).toHaveLength(1));
-    expect(result.current.loadFailed).toBe(false);
-
-    rerender({ room: roomB });
-    expect(result.current.triggers).toEqual([]);
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
-    expect(result.current.loadFailed).toBe(false);
-
-    // Switch back to room A: served from cache without a redundant fetch.
-    rerender({ room: roomA });
-    expect(result.current.triggers.map((t) => t.triggerId)).toEqual(['tr_a']);
-    expect(mocks.send).toHaveBeenCalledTimes(2);
-  });
-
-  it('refetches on demand and after toggle/delete mutations', async () => {
+  it('refetches on demand, keeps last good rows on a refetch network blip, and invalidates after mutations', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const room = makeRoom('!roomA:example.org');
 
@@ -101,16 +72,17 @@ describe('useRoomTriggers', () => {
     });
     await waitFor(() => expect(result.current.triggers).toHaveLength(1));
 
-    mocks.send.mockResolvedValueOnce(
-      new Response(JSON.stringify({ triggers: [makeRow('tr_a', true)] }), { status: 200 })
-    );
+    // Refetch network blip keeps the last good rows instead of clearing them.
+    mocks.send.mockRejectedValueOnce(new Error('network blip'));
     await act(async () => {
       await result.current.refetch();
     });
-    expect(mocks.send).toHaveBeenCalledTimes(2);
+    expect(result.current.triggers.map((t) => t.triggerId)).toEqual(['tr_a']);
+    expect(result.current.loadFailed).toBe(false);
 
+    // Toggle sends PATCH and invalidates.
     mocks.send
-      .mockResolvedValueOnce(new Response(JSON.stringify(makeRow('tr_a', false)), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ triggers: [makeRow('tr_a', false)] }), { status: 200 })
       );
@@ -119,6 +91,7 @@ describe('useRoomTriggers', () => {
     });
     await waitFor(() => expect(result.current.triggers[0]?.enabled).toBe(false));
 
+    // Delete sends DELETE and invalidates.
     mocks.send
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
@@ -128,7 +101,7 @@ describe('useRoomTriggers', () => {
     await waitFor(() => expect(result.current.triggers).toEqual([]));
   });
 
-  it('marks loadFailed on no server or 404, but not on empty 200', async () => {
+  it('marks loadFailed on no server, 404, or failed first load', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const room = makeRoom('!roomA:example.org');
 
@@ -141,9 +114,17 @@ describe('useRoomTriggers', () => {
     expect(mocks.send).not.toHaveBeenCalled();
 
     mocks.server = { apiUrl: 'https://mindroom.example.org', pending: false };
-    mocks.send.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    mocks.send.mockRejectedValueOnce(new Error('offline'));
     rerender();
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.triggers).toEqual([]);
+    expect(result.current.loadFailed).toBe(true);
+
+    mocks.send.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await act(async () => {
+      await result.current.refetch();
+    });
     expect(result.current.triggers).toEqual([]);
     expect(result.current.loadFailed).toBe(true);
   });

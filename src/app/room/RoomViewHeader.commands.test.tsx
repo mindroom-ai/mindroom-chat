@@ -86,16 +86,7 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
-vi.mock('../triggers/useRoomTriggers', () => ({
-  useRoomTriggers: () => ({
-    triggers: [],
-    loading: false,
-    loadFailed: false,
-    refetch: vi.fn(async () => undefined),
-    toggleTrigger: vi.fn(async () => undefined),
-    deleteTrigger: vi.fn(async () => undefined),
-  }),
-}));
+vi.mock('../triggers/useRoomTriggers', () => import('../triggers/useRoomTriggers.test.shared'));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,

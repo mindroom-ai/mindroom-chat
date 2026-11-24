@@ -1,6 +1,8 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  GET_TIMEOUT_MS,
+  MUTATION_TIMEOUT_MS,
   deleteRoomTrigger,
   fetchRoomTriggers,
   parseRoomTriggersResponse,
@@ -94,7 +96,10 @@ describe('roomTriggersApi', () => {
     expect(parseRoomTriggersResponse({ triggers: 'bad' })).toBeNull();
   });
 
-  it('distinguishes empty 200 from 404 failure and sends PATCH/DELETE mutations', async () => {
+  it('distinguishes empty 200, 404 null, and network throw, and uses longer mutation timeout', async () => {
+    expect(MUTATION_TIMEOUT_MS).toBeGreaterThan(GET_TIMEOUT_MS);
+    expect(MUTATION_TIMEOUT_MS).toBeGreaterThanOrEqual(25_000);
+
     sendMock.mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
     expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
     expect(sendMock).toHaveBeenCalledWith(
@@ -105,12 +110,11 @@ describe('roomTriggersApi', () => {
     sendMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
     expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toBeNull();
 
-    sendMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(validRow({ enabled: false })), { status: 200 })
-    );
-    expect((await setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', false))?.enabled).toBe(
-      false
-    );
+    sendMock.mockRejectedValueOnce(new Error('offline'));
+    await expect(fetchRoomTriggers(mx, API_URL, ROOM_ID)).rejects.toThrow('offline');
+
+    sendMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
+    await setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', false);
     expect(sendMock).toHaveBeenLastCalledWith(
       '/api/rooms/!ops%3Aexample.org/triggers/tr_123',
       expect.objectContaining({
@@ -128,8 +132,6 @@ describe('roomTriggersApi', () => {
     );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
-    await expect(deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123')).rejects.toMatchObject({
-      status: 403,
-    });
+    await expect(deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123')).rejects.toThrow('403');
   });
 });

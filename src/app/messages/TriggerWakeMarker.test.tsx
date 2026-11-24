@@ -39,6 +39,7 @@ vi.mock('./TriggerWakeMarker.css', () => ({
   Panel: 'Panel',
   PanelHeader: 'PanelHeader',
   Meta: 'Meta',
+  MetaLink: 'MetaLink',
   CopyButton: 'CopyButton',
   Prompt: 'Prompt',
   InlineCode: 'InlineCode',

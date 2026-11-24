@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, type Ref, useEffect, useId, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
@@ -41,6 +41,7 @@ type Props = {
 export function RoomTriggerRow(props: Props) {
   const { trigger, highlighted, owner, articleRef, onOpenThread, onToggle, onDelete } = props;
   const { t } = useTranslation();
+  const titleId = useId();
   const [busy, setBusy] = useState<'toggle' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -131,7 +132,13 @@ export function RoomTriggerRow(props: Props) {
         </span>
         <span className={s.RowBody}>
           <span className={s.RowTopLine}>
-            <Text as="h3" size="H5" className={classNames(s.RowTitle, s.Wrap)} dir="auto">
+            <Text
+              as="h3"
+              id={titleId}
+              size="H5"
+              className={classNames(s.RowTitle, s.Wrap)}
+              dir="auto"
+            >
               {desc ? revealDirectionControls(desc) : <bdi>{idLabel}</bdi>}
             </Text>
             <span className={trigger.enabled ? s.StatusPill.success : css.StatusPillNeutral}>
@@ -159,7 +166,7 @@ export function RoomTriggerRow(props: Props) {
         <div className={css.CardBody}>
           {promptText && (
             <div className={s.PromptWell} role="region" aria-label={t('roomTriggers.prompt')}>
-              <Text as="p" size="T300" className={classNames(s.Prompt, s.PromptClamped)} dir="auto">
+              <Text as="p" size="T300" className={s.Prompt} dir="auto">
                 {renderSchedulePrompt(promptText)}
               </Text>
             </div>
@@ -177,6 +184,7 @@ export function RoomTriggerRow(props: Props) {
                 <div className={s.ActionsSecondary}>
                   <Button
                     {...COMPACT}
+                    aria-describedby={titleId}
                     disabled={Boolean(busy)}
                     onClick={() => void run('toggle', onToggle)}
                   >
@@ -188,6 +196,7 @@ export function RoomTriggerRow(props: Props) {
                     variant="Critical"
                     className={s.IconAction}
                     aria-label={t('roomTriggers.delete')}
+                    aria-describedby={titleId}
                     aria-expanded={showDeleteBar}
                     disabled={Boolean(busy)}
                     onClick={() => (showDeleteBar ? closeConfirm() : setConfirmDelete(true))}

@@ -93,16 +93,7 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => currentRoom.topic,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
-vi.mock('../triggers/useRoomTriggers', () => ({
-  useRoomTriggers: () => ({
-    triggers: [],
-    loading: false,
-    loadFailed: false,
-    refetch: vi.fn(async () => undefined),
-    toggleTrigger: vi.fn(async () => undefined),
-    deleteTrigger: vi.fn(async () => undefined),
-  }),
-}));
+vi.mock('../triggers/useRoomTriggers', () => import('../triggers/useRoomTriggers.test.shared'));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => schedules.events }));
 vi.mock('../messages/useMentionClickHandler', () => ({ useMentionClickHandler: () => vi.fn() }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
