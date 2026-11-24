@@ -1,10 +1,25 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import 'fake-indexeddb/auto';
+import { openDB } from 'idb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  beginDictationJournal,
+  clearCaptureJournal,
+  deleteCapture,
+  recoverDictationJournal,
+  releaseCapture,
+  TAIL_SEQ_OFFSET,
+  type RecoveredDictationJournal,
+} from '../capture/captureJournal';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { DictationApiError, DictationClient } from './api';
 import { createDictationRateBudget } from './dictationRefinement';
 import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE } from './dictationSegmenter';
-import { createDictationSession, type DictationCaptureFactory } from './dictationSession';
+import {
+  createDictationSession,
+  type DictationCaptureFactory,
+  type DictationTranscriber,
+} from './dictationSession';
 
 const makeFrame = (amplitude: number): Float32Array => {
   const frame = new Float32Array(DICTATION_FRAME_SAMPLES);
@@ -292,7 +307,7 @@ describe('createDictationSession', () => {
     expect(session.getSnapshot().hasPartialText).toBe(true);
     expect(session.getSnapshot().previewText).toBe('Kept text.');
 
-    expect(session.takePartialText()).toBe('Kept text.');
+    expect(session.takePartialText()).toEqual({ text: 'Kept text.' });
     expect(session.getSnapshot().phase).toBe('idle');
     expect(session.getSnapshot().previewText).toBe('');
   });
@@ -321,7 +336,7 @@ describe('createDictationSession', () => {
     await flushMicrotasks(25);
     expect(session.getSnapshot().previewText).toBe('First phrase and second phrase.');
 
-    session.discard();
+    await session.discard();
     expect(session.getSnapshot().phase).toBe('idle');
     expect(session.getSnapshot().previewText).toBe('');
     expect(session.getSnapshot().hasPartialText).toBe(false);
@@ -353,7 +368,7 @@ describe('createDictationSession', () => {
     await flushMicrotasks(15);
     expect(transcribe).toHaveBeenCalledTimes(1);
 
-    session.discard();
+    await session.discard();
     expect(capturedSignal?.aborted).toBe(true);
     expect(rig.dispose).toHaveBeenCalledTimes(1);
     expect(rig.stopAndFlush).not.toHaveBeenCalled();
@@ -545,7 +560,7 @@ describe('createDictationSession', () => {
       await addModuleStarted;
       expect(track.stop).not.toHaveBeenCalled();
 
-      session.discard();
+      await session.discard();
       expect(track.stop).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
       expect(session.getSnapshot().phase).toBe('idle');
@@ -559,7 +574,7 @@ describe('createDictationSession', () => {
   });
 
   const startTestSession = async (
-    transcribe: Parameters<typeof createDictationSession>[0]['client']['transcribe'],
+    transcribe: DictationTranscriber['transcribe'],
     extra: Partial<Parameters<typeof createDictationSession>[0]> = {}
   ) => {
     const rig = createFakeCaptureRig();
@@ -1127,5 +1142,714 @@ describe('createDictationSession', () => {
     expect(transcribe).toHaveBeenCalledTimes(8);
     expect(prompts[3]).toBe('Alpha and beta');
     expect(prompts[7]).toBe('Alpha and beta');
+  });
+});
+
+describe('createDictationSession checkpointing, recovery, and lifecycle', () => {
+  const USER = '@dictation-session-test:example.org';
+  let heldLocks: Set<string>;
+
+  const installFakeLocks = () => {
+    heldLocks = new Set<string>();
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+          if (heldLocks.has(name)) return callback(null);
+          heldLocks.add(name);
+          try {
+            return await callback({ name, mode: 'exclusive' });
+          } finally {
+            heldLocks.delete(name);
+          }
+        },
+      },
+    });
+  };
+
+  const readJournalRow = async (id: string) => {
+    const db = await openDB('mindroom-voice-journal', 1);
+    try {
+      const recording = (await db.get('recordings', id)) as Record<string, unknown> | undefined;
+      const chunks = (await db.getAll(
+        'chunks',
+        IDBKeyRange.bound([id, 0], [id, Infinity])
+      )) as Array<{
+        seq: number;
+        bytes: ArrayBuffer;
+        startFramePos?: number;
+        endFramePos?: number;
+      }>;
+      return { recording, chunks };
+    } finally {
+      db.close();
+    }
+  };
+
+  const waitForJournalSettled = async (ms = 40) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  };
+
+  const makeJournal = (originApiUrl = 'https://dictation.example', roomId = '!room:example.org') =>
+    beginDictationJournal(USER, {
+      startedAt: 1_000,
+      elapsedMs: 0,
+      capReached: false,
+      originApiUrl,
+      originRoomId: roomId,
+      segments: [],
+      groups: [],
+    })!;
+
+  beforeEach(() => {
+    installFakeLocks();
+  });
+
+  afterEach(async () => {
+    await clearCaptureJournal(USER);
+    vi.restoreAllMocks();
+  });
+
+  it('flushes ~1 s PCM tail chunks mid-utterance and recovers audio before the first segment', async () => {
+    let clock = 1_000;
+    const journal = makeJournal();
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe: vi.fn(async () => ({ text: 'Never called', seconds: 1 })) },
+      roomId: '!room:example.org',
+      originApiUrl: 'https://dictation.example',
+      journal,
+      now: () => clock,
+      // Keep VAD unresolved so frames stay buffered without cutting a segment.
+      loadVad: () => new Promise(() => undefined),
+      captureFactory: rig.captureFactory,
+    });
+
+    expect(await session.start()).toBe(true);
+    clock = 1_960;
+    for (let i = 0; i < 10; i += 1) rig.pushFrame(makeFrame(0.3));
+    await waitForJournalSettled();
+
+    const beforeCrash = await readJournalRow(journal.id);
+    expect(beforeCrash.recording).toBeDefined();
+    expect(beforeCrash.chunks).toHaveLength(1);
+    expect(beforeCrash.chunks[0]?.seq).toBe(TAIL_SEQ_OFFSET);
+    expect(beforeCrash.chunks[0]?.startFramePos).toBe(0);
+    expect(beforeCrash.chunks[0]?.endFramePos).toBe(10);
+    expect(beforeCrash.chunks[0]?.bytes.byteLength).toBe(10 * DICTATION_FRAME_SAMPLES * 2);
+
+    // Simulate reload/account-switch release: lock drops, tail chunk stays recoverable.
+    session.reset();
+    await waitForJournalSettled();
+
+    let recovered: RecoveredDictationJournal | undefined;
+    await recoverDictationJournal(USER, (item) => {
+      recovered = item;
+      return true;
+    });
+    expect(recovered?.id).toBe(journal.id);
+    expect(recovered?.meta.segments).toHaveLength(0);
+    expect(recovered?.tailChunks).toHaveLength(1);
+    expect(recovered?.tailChunks[0]?.elapsedMs).toBe(960);
+    recovered?.journal.release();
+  });
+
+  it('commits segments atomically, preserves hard-cut overlap tail, and prunes locked WAVs on completion/refinement', async () => {
+    let clock = 5_000;
+    const journal = makeJournal();
+    let callCount = 0;
+    const transcribe = vi.fn(async (_wav: Blob) => {
+      callCount += 1;
+      if (callCount === 1) return { text: 'Long utterance part one.', seconds: 25 };
+      if (callCount === 2) return { text: 'Part two.', seconds: 2 };
+      return { text: 'Part two and three.', seconds: 4 };
+    });
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      roomId: '!room:example.org',
+      originApiUrl: 'https://dictation.example',
+      journal,
+      now: () => clock,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+
+    expect(await session.start()).toBe(true);
+    await flushMicrotasks();
+
+    // Push 260 continuous speech frames to trigger a hard cut at 25 s (retaining 6 overlap frames).
+    for (let i = 0; i < 260; i += 1) {
+      clock += 96;
+      rig.pushFrame(makeFrame(0.3));
+    }
+    await waitForJournalSettled(80);
+
+    const afterHardCut = await readJournalRow(journal.id);
+    const tailAfterHard = afterHardCut.chunks.filter((c) => c.seq >= TAIL_SEQ_OFFSET);
+    // Hard cut emitted seg 0 (which completed and got pruned because hard cut sealed group 0 -> fallback).
+    expect(afterHardCut.chunks.some((c) => c.seq === 0)).toBe(false);
+    // With identical frames, hardCut selects the earliest search-window frame (250), so 6-frame
+    // overlap + post-cut frames [245, 260) remain preserved in the tail (chunk [240,250) truncated to [245,250)).
+    expect(tailAfterHard.length).toBeGreaterThan(0);
+    expect(tailAfterHard[0]?.startFramePos).toBe(245);
+    expect(tailAfterHard[tailAfterHard.length - 1]?.endFramePos).toBe(260);
+
+    // Finish the overlapped continuation (seg 1) and pause -> tail cleared, seg 1 WAV pruned after transcription.
+    for (let i = 0; i < 8; i += 1) rig.pushFrame(makeFrame(0.001));
+    await session.pause();
+    await waitForJournalSettled(60);
+
+    const afterPause = await readJournalRow(journal.id);
+    expect(afterPause.chunks.filter((c) => c.seq >= TAIL_SEQ_OFFSET)).toHaveLength(0);
+    expect(afterPause.chunks.filter((c) => c.seq < TAIL_SEQ_OFFSET)).toHaveLength(0);
+    expect(session.getSnapshot().previewText).toBe('Long utterance part one. Part two.');
+
+    // Finish returns journalId WITHOUT deleting the journal!
+    const finished = await session.finish();
+    expect(finished).toEqual({
+      status: 'completed',
+      text: 'Long utterance part one. Part two.',
+      journalId: journal.id,
+    });
+    const stillOnDisk = await readJournalRow(journal.id);
+    expect(stillOnDisk.recording).toBeDefined();
+    expect(heldLocks.has(`mindroom-voice-recording:${journal.id}`)).toBe(true);
+
+    // Caller deletes the journal only after inserting the text.
+    await deleteCapture(finished.status === 'completed' ? finished.journalId : undefined);
+    const afterDelete = await readJournalRow(journal.id);
+    expect(afterDelete.recording).toBeUndefined();
+  });
+
+  it('supports text-only offline recovery with 0 remaining WAVs and returns journalId on finish without deleting', async () => {
+    const journal = makeJournal();
+    const session = createDictationSession({
+      client: undefined,
+      journal,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 12_000,
+        capReached: false,
+        originApiUrl: 'https://dictation.example',
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 4,
+              overlapped: false,
+              cutReason: 'natural',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 8,
+              pauseBeforeMs: Infinity,
+            },
+            wav: undefined,
+            status: 'completed',
+            text: 'Already transcribed.',
+            retryable: false,
+          },
+        ],
+        groups: [
+          {
+            startIndex: 0,
+            endIndex: 0,
+            state: 'refined',
+            refinedText: 'Already transcribed.',
+            refinedEndIndex: 0,
+          },
+        ],
+        initialSegmentIndex: 1,
+        initialActiveFrames: 125,
+      },
+    });
+
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      recovered: true,
+      hasClient: false,
+      elapsedMs: 12_000,
+      previewText: 'Already transcribed.',
+      completedSegments: 1,
+      pendingUploads: 0,
+    });
+    expect(session.hasClient()).toBe(false);
+    expect(session.getJournalId()).toBe(journal.id);
+    // Resume without a client is refused.
+    expect(await session.resume()).toBe(false);
+
+    // Offline finish succeeds cleanly when 0 WAVs need transcription, returning journalId intact.
+    const result = await session.finish();
+    expect(result).toEqual({
+      status: 'completed',
+      text: 'Already transcribed.',
+      journalId: journal.id,
+    });
+    expect((await readJournalRow(journal.id)).recording).toBeDefined();
+    await deleteCapture(journal.id);
+  });
+
+  it('fails offline finish with actionable error when WAVs need a server, and recovers via attachClient + retryFailed or takePartialText', async () => {
+    const journal = makeJournal();
+    const wav = new Blob([new Uint8Array(64)], { type: 'audio/wav' });
+    const session = createDictationSession({
+      client: undefined,
+      journal,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 8_000,
+        capReached: false,
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 2,
+              overlapped: false,
+              cutReason: 'natural',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 8,
+              pauseBeforeMs: Infinity,
+            },
+            wav: undefined,
+            status: 'completed',
+            text: 'Done part.',
+            retryable: false,
+          },
+          {
+            segment: {
+              index: 1,
+              seconds: 2,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: 500,
+            },
+            wav,
+            status: 'queued',
+            retryable: true,
+          },
+        ],
+        groups: [
+          { startIndex: 0, endIndex: 0, state: 'fallback' },
+          { startIndex: 1, endIndex: 1, state: 'fallback' },
+        ],
+        initialSegmentIndex: 2,
+        initialActiveFrames: 83,
+      },
+    });
+
+    const failed = await session.finish();
+    expect(failed).toEqual({
+      status: 'failed',
+      failedSegments: 1,
+      completedSegments: 1,
+      errorMessage: 'Open a room with dictation to retry.',
+    });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'failed',
+      hasClient: false,
+      errorMessage: 'Open a room with dictation to retry.',
+    });
+    expect(session.getJournalId()).toBe(journal.id);
+
+    // Retrying while still offline keeps the actionable message and journal intact.
+    const stillFailed = await session.retryFailed();
+    expect(stillFailed).toMatchObject({
+      status: 'failed',
+      errorMessage: 'Open a room with dictation to retry.',
+    });
+
+    // Attaching a client enables retryFailed() to transcribe the remaining WAV with roomId.
+    const calls: Array<{ roomId?: string }> = [];
+    const transcribe = vi.fn(async (_blob: Blob, opts?: { roomId?: string }) => {
+      calls.push({ roomId: opts?.roomId });
+      return { text: 'Uploaded later.', seconds: 2 };
+    });
+    session.attachClient({ transcribe }, '!attached:example.org');
+    expect(session.hasClient()).toBe(true);
+    expect(session.getSnapshot().hasClient).toBe(true);
+
+    const completed = await session.retryFailed();
+    expect(completed).toEqual({
+      status: 'completed',
+      text: 'Done part. Uploaded later.',
+      journalId: journal.id,
+    });
+    expect(calls).toEqual([{ roomId: '!attached:example.org' }]);
+    await deleteCapture(journal.id);
+
+    // takePartialText() also detaches and returns journalId without deleting the journal.
+    const journal2 = makeJournal();
+    const session2 = createDictationSession({
+      client: undefined,
+      journal: journal2,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 5_000,
+        capReached: false,
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 2,
+              overlapped: false,
+              cutReason: 'natural',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 8,
+              pauseBeforeMs: Infinity,
+            },
+            wav: undefined,
+            status: 'completed',
+            text: 'Partial kept.',
+            retryable: false,
+          },
+          {
+            segment: {
+              index: 1,
+              seconds: 2,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: 500,
+            },
+            wav,
+            status: 'failed',
+            error: 'Offline',
+            retryable: true,
+          },
+        ],
+        groups: [{ startIndex: 0, endIndex: 1, state: 'fallback' }],
+        initialSegmentIndex: 2,
+        initialActiveFrames: 50,
+      },
+    });
+    await waitForJournalSettled();
+    const partial = session2.takePartialText();
+    expect(partial).toEqual({ text: 'Partial kept.', journalId: journal2.id });
+    expect(session2.getSnapshot().phase).toBe('idle');
+    expect(heldLocks.has(`mindroom-voice-recording:${journal2.id}`)).toBe(true);
+    expect((await readJournalRow(journal2.id)).recording).toBeDefined();
+    await deleteCapture(journal2.id);
+  });
+
+  it('pumps queued WAVs on attachClient while paused and clears recovered + continues indices on resume', async () => {
+    const journal = makeJournal();
+    const wav = new Blob([new Uint8Array(64)], { type: 'audio/wav' });
+    const rig = createFakeCaptureRig();
+    let calls = 0;
+    const transcribe = vi.fn(async () => {
+      calls += 1;
+      return { text: calls === 1 ? 'Recovered chunk.' : 'Resumed chunk.', seconds: 1 };
+    });
+
+    const session = createDictationSession({
+      client: undefined,
+      journal,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 4_000,
+        capReached: false,
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 1,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 2,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: Infinity,
+            },
+            wav,
+            status: 'queued',
+            retryable: true,
+          },
+        ],
+        groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+        initialSegmentIndex: 1,
+        initialActiveFrames: 42,
+      },
+    });
+
+    // Attaching a client pumps queued WAVs while staying paused (no mic started).
+    session.attachClient({ transcribe }, '!room:example.org');
+    // Second attachClient call is ignored once bound.
+    const otherTranscribe = vi.fn();
+    session.attachClient({ transcribe: otherTranscribe }, '!other:example.org');
+    await flushMicrotasks(20);
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    expect(otherTranscribe).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      recovered: true,
+      previewText: 'Recovered chunk.',
+    });
+
+    // Resume clears recovered and continues segment indices at 1 (never overwriting [id, 0]).
+    expect(await session.resume()).toBe(true);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', recovered: false });
+    await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await waitForJournalSettled();
+
+    const row = await readJournalRow(journal.id);
+    const persistedSegments = (row.recording?.segments ?? []) as Array<{ index: number }>;
+    expect(persistedSegments.map((s) => s.index)).toEqual([0, 1]);
+
+    const finished = await session.finish();
+    expect(finished).toEqual({
+      status: 'completed',
+      text: 'Recovered chunk. Resumed chunk.',
+      journalId: journal.id,
+    });
+    await deleteCapture(journal.id);
+  });
+
+  it('handles park() cleanly across initial requesting, resume requesting, recording, paused, finishing, and failed', async () => {
+    // 1. Initial requesting -> cancels to idle and deletes journal.
+    const initJournal = makeJournal();
+    let resolveMic!: (handle: {
+      readLevel: () => number;
+      stopAndFlush: () => Promise<void>;
+      dispose: () => void;
+    }) => void;
+    const lateDispose = vi.fn();
+    const initSession = createDictationSession({
+      client: { transcribe: vi.fn(async () => ({ text: '', seconds: 1 })) },
+      journal: initJournal,
+      captureFactory: () =>
+        new Promise((resolve) => {
+          resolveMic = resolve;
+        }),
+    });
+    const startPromise = initSession.start();
+    expect(initSession.getSnapshot().phase).toBe('requesting');
+    initSession.park();
+    expect(initSession.getSnapshot().phase).toBe('idle');
+    resolveMic({ readLevel: () => 0, stopAndFlush: async () => undefined, dispose: lateDispose });
+    expect(await startPromise).toBe(false);
+    expect(lateDispose).toHaveBeenCalledTimes(1);
+    await waitForJournalSettled();
+    expect((await readJournalRow(initJournal.id)).recording).toBeUndefined();
+
+    // 2. Recording -> pauses, flushes & seals to journal, keeps lock held.
+    const recJournal = makeJournal();
+    let resolveResumeMic:
+      | ((handle: {
+          readLevel: () => number;
+          stopAndFlush: () => Promise<void>;
+          dispose: () => void;
+        }) => void)
+      | undefined;
+    const rig = createFakeCaptureRig();
+    let captureCall = 0;
+    let resolveUpload!: (res: { text: string; seconds: number }) => void;
+    const transcribe = vi.fn(
+      () =>
+        new Promise<{ text: string; seconds: number }>((resolve) => {
+          resolveUpload = resolve;
+        })
+    );
+    const recSession = createDictationSession({
+      client: { transcribe },
+      journal: recJournal,
+      loadVad: async () => makeVad(),
+      captureFactory: (opts) => {
+        captureCall += 1;
+        if (captureCall === 1) return rig.captureFactory(opts);
+        return new Promise((resolve) => {
+          resolveResumeMic = resolve;
+        });
+      },
+    });
+    expect(await recSession.start()).toBe(true);
+    await flushMicrotasks();
+    for (let i = 0; i < 4; i += 1) rig.pushFrame(makeFrame(0.3));
+    recSession.park();
+    expect(recSession.getSnapshot().phase).toBe('paused');
+    await waitForJournalSettled(60);
+    expect((await readJournalRow(recJournal.id)).chunks.some((c) => c.seq === 0)).toBe(true);
+    expect(heldLocks.has(`mindroom-voice-recording:${recJournal.id}`)).toBe(true);
+
+    // 3. Paused -> no-op.
+    recSession.park();
+    expect(recSession.getSnapshot().phase).toBe('paused');
+
+    // 4. Resume-requesting -> cancels mic request, returns to paused, keeps journal & in-flight upload.
+    const resumePromise = recSession.resume();
+    await flushMicrotasks();
+    expect(recSession.getSnapshot().phase).toBe('requesting');
+    recSession.park();
+    expect(recSession.getSnapshot().phase).toBe('paused');
+    const lateResumeDispose = vi.fn();
+    resolveResumeMic?.({
+      readLevel: () => 0,
+      stopAndFlush: async () => undefined,
+      dispose: lateResumeDispose,
+    });
+    expect(await resumePromise).toBe(false);
+    expect(lateResumeDispose).toHaveBeenCalledTimes(1);
+    expect(heldLocks.has(`mindroom-voice-recording:${recJournal.id}`)).toBe(true);
+
+    // 5. Finishing -> no-op (does NOT abort in-flight finish).
+    const finishPromise = recSession.finish();
+    await flushMicrotasks();
+    expect(recSession.getSnapshot().phase).toBe('finishing');
+    recSession.park();
+    expect(recSession.getSnapshot().phase).toBe('finishing');
+    resolveUpload({ text: 'Finished safely.', seconds: 0.4 });
+    await expect(finishPromise).resolves.toEqual({
+      status: 'completed',
+      text: 'Finished safely.',
+      journalId: recJournal.id,
+    });
+    await deleteCapture(recJournal.id);
+  });
+
+  it('differentiates reset() (preserves disk rows & releases lock) from async discard() (deletes disk rows)', async () => {
+    const resetJournal = makeJournal();
+    const rigA = createFakeCaptureRig();
+    const sessA = createDictationSession({
+      client: {
+        transcribe: vi.fn(() => new Promise<{ text: string; seconds: number }>(() => undefined)),
+      },
+      journal: resetJournal,
+      loadVad: async () => makeVad(),
+      captureFactory: rigA.captureFactory,
+    });
+    expect(await sessA.start()).toBe(true);
+    await flushMicrotasks();
+    pushSpeechAndPause(rigA.pushFrame);
+    await waitForJournalSettled(60);
+
+    sessA.reset();
+    expect(sessA.getSnapshot().phase).toBe('idle');
+    expect(rigA.dispose).toHaveBeenCalledTimes(1);
+    await waitForJournalSettled();
+    // Disk row stays intact and lock is released so recovery can pick it up.
+    expect((await readJournalRow(resetJournal.id)).recording).toBeDefined();
+    expect(heldLocks.has(`mindroom-voice-recording:${resetJournal.id}`)).toBe(false);
+    await deleteCapture(resetJournal.id);
+
+    const discardJournal = makeJournal();
+    const rigB = createFakeCaptureRig();
+    const sessB = createDictationSession({
+      client: {
+        transcribe: vi.fn(() => new Promise<{ text: string; seconds: number }>(() => undefined)),
+      },
+      journal: discardJournal,
+      loadVad: async () => makeVad(),
+      captureFactory: rigB.captureFactory,
+    });
+    expect(await sessB.start()).toBe(true);
+    await flushMicrotasks();
+    pushSpeechAndPause(rigB.pushFrame);
+    await waitForJournalSettled(60);
+
+    await sessB.discard();
+    expect(sessB.getSnapshot().phase).toBe('idle');
+    expect((await readJournalRow(discardJournal.id)).recording).toBeUndefined();
+    expect(heldLocks.has(`mindroom-voice-recording:${discardJournal.id}`)).toBe(false);
+
+    // Verify helper releaseCapture cleans up cleanly if used directly.
+    const j3 = makeJournal();
+    await waitForJournalSettled();
+    releaseCapture(j3.id);
+    await waitForJournalSettled();
+    expect(heldLocks.has(`mindroom-voice-recording:${j3.id}`)).toBe(false);
+    await deleteCapture(j3.id);
+  });
+
+  it('prunes all refined group WAVs on seal while retaining uncovered failed WAVs, and preserves failed/idle on park()', async () => {
+    const journal = makeJournal();
+    let call = 0;
+    const transcribe = vi.fn(async () => {
+      call += 1;
+      if (call === 1) return { text: 'First.', seconds: 1 };
+      if (call === 2) return { text: 'First and second.', seconds: 2 };
+      throw new DictationApiError('Bad request', 400, 'invalid');
+    });
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      journal,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+
+    // park() while idle is a no-op.
+    session.park();
+    expect(session.getSnapshot().phase).toBe('idle');
+
+    expect(await session.start()).toBe(true);
+    await flushMicrotasks();
+
+    // Seg 0 + Seg 1 live-refine inside open group [0, 1] -> both WAVs stay until group seals.
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await waitForJournalSettled(60);
+    expect(session.getSnapshot().previewText).toBe('First and second.');
+    const beforeSeal = await readJournalRow(journal.id);
+    expect(beforeSeal.chunks.map((c) => c.seq).sort((a, b) => a - b)).toEqual([0, 1]);
+
+    // Pause seals group [0, 1] -> refined -> atomically prunes [0, 1] from IndexedDB!
+    await session.pause();
+    await waitForJournalSettled(60);
+    const afterSeal = await readJournalRow(journal.id);
+    expect(afterSeal.chunks.filter((c) => c.seq < TAIL_SEQ_OFFSET)).toHaveLength(0);
+
+    // Resume and record seg 2 which fails non-transiently -> seg 2 WAV stays on disk, park() is no-op in failed phase.
+    expect(await session.resume()).toBe(true);
+    await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(30);
+    const finished = await session.finish();
+    expect(finished).toMatchObject({ status: 'failed', failedSegments: 1, completedSegments: 2 });
+    await waitForJournalSettled(60);
+
+    session.park();
+    expect(session.getSnapshot().phase).toBe('failed');
+    const afterFail = await readJournalRow(journal.id);
+    expect(afterFail.chunks.map((c) => c.seq)).toEqual([2]);
+    await session.discard();
+  });
+
+  it('honors initialActiveFrames cap across resumed recovered sessions', async () => {
+    const journal = makeJournal();
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe: vi.fn(async () => ({ text: 'Capped.', seconds: 1 })) },
+      journal,
+      maxActiveFrames: 25,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 2_000,
+        capReached: false,
+        records: [],
+        groups: [],
+        initialSegmentIndex: 2,
+        initialActiveFrames: 20,
+      },
+    });
+
+    expect(await session.resume()).toBe(true);
+    await flushMicrotasks();
+    // 5 frames hit maxActiveFrames = 25 -> auto-pauses with capReached: true and refuses further resume.
+    for (let i = 0; i < 6; i += 1) rig.pushFrame(makeFrame(0.3));
+    await waitForJournalSettled(60);
+
+    expect(session.getSnapshot()).toMatchObject({ phase: 'paused', capReached: true });
+    expect(await session.resume()).toBe(false);
+    const row = await readJournalRow(journal.id);
+    expect(row.recording?.capReached).toBe(true);
+    await session.discard();
   });
 });

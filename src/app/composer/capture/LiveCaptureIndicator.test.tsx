@@ -68,10 +68,9 @@ const recordingSession = (changes: Partial<VoiceCaptureSnapshot> = {}) => {
   return { entry: { kind: 'voice' as const, session }, session, discard };
 };
 
-/** A dictation session, including optional `recovered` snapshot flag for Task 2+. */
-const dictationSession = (changes: Partial<DictationSnapshot & { recovered?: boolean }> = {}) => {
-  const snapshot = {
-    phase: 'recording' as const,
+const dictationSession = (changes: Partial<DictationSnapshot> = {}) => {
+  const snapshot: DictationSnapshot = {
+    phase: 'recording',
     elapsedMs: 45_000,
     waveform: [0, 256],
     sampleCount: 2,
@@ -82,6 +81,8 @@ const dictationSession = (changes: Partial<DictationSnapshot & { recovered?: boo
     previewText: 'Hello world',
     capReached: false,
     interrupted: false,
+    recovered: false,
+    hasClient: true,
     errorMessage: undefined,
     ...changes,
   };

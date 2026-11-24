@@ -87,6 +87,8 @@ const IDLE_SNAPSHOT: DictationSnapshot = {
   previewText: '',
   capReached: false,
   interrupted: false,
+  recovered: false,
+  hasClient: false,
   errorMessage: undefined,
 };
 
@@ -237,7 +239,7 @@ export const useRoomInputDictation = ({
       pendingButtonFocusRef.current = undefined;
       clearSelectionRef();
       if (session && !detachedSessionsRef.current.has(session)) {
-        session.discard();
+        void session.discard();
         releaseOwnership();
       }
     },
@@ -254,7 +256,7 @@ export const useRoomInputDictation = ({
     ) {
       shouldRestoreFocusRef.current = false;
       clearSelectionRef();
-      session.discard();
+      void session.discard();
     }
   }, [activeDictation, clearSelectionRef, localPhase, ownerKey, session]);
 
@@ -366,7 +368,7 @@ export const useRoomInputDictation = ({
 
   const handleInsertPartial = useCallback(() => {
     if (!session) return;
-    const text = session.takePartialText();
+    const { text } = session.takePartialText();
     insertDictatedText(editor, text, consumeSelectionRef(), {
       focus: consumeRestoreFocus(),
     });
@@ -374,7 +376,7 @@ export const useRoomInputDictation = ({
   }, [consumeRestoreFocus, consumeSelectionRef, editor, releaseOwnership, session]);
 
   const handleDiscard = useCallback(() => {
-    session?.discard();
+    void session?.discard();
     clearSelectionRef();
     releaseOwnership();
     if (consumeRestoreFocus()) {

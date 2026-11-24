@@ -337,7 +337,7 @@ export const startDetachedDictationSend = (
   const handleFinishResult = async (result: DictationFinishResult): Promise<void> => {
     if (aborted || !sameAccount()) {
       clearEnrollments();
-      session.discard();
+      void session.discard();
       restoreDocOnAccountSwitch();
       removeEntry();
       return;
@@ -465,7 +465,7 @@ export const startDetachedDictationSend = (
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
     const scratch = mergeDictatedDoc(
       input.docSnapshot,
-      session.takePartialText(),
+      session.takePartialText().text,
       input.savedSelection,
       input.pendingMarks
     );
@@ -474,14 +474,14 @@ export const startDetachedDictationSend = (
 
   function discard() {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
-    session.discard();
+    void session.discard();
     restoreDraftAndCleanup(input.docSnapshot);
   }
 
   function abort() {
     if (aborted) return;
     aborted = true;
-    session.discard();
+    void session.discard();
     clearEnrollments();
     restoreDocOnAccountSwitch();
   }

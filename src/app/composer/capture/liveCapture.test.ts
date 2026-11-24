@@ -64,6 +64,8 @@ const mockDictation = (initial: Partial<DictationSnapshot> = {}) => {
     previewText: '',
     capReached: false,
     interrupted: false,
+    recovered: false,
+    hasClient: true,
     errorMessage: undefined,
     ...initial,
   };

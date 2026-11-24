@@ -86,6 +86,8 @@ const createMockSession = () => {
     previewText: '',
     capReached: false,
     interrupted: false,
+    recovered: false,
+    hasClient: true,
     errorMessage: undefined,
   };
   const setSnap = (patch: Partial<DictationSnapshot>) => {
@@ -126,11 +128,18 @@ const createMockSession = () => {
     }),
     takePartialText: vi.fn(() => {
       setSnap({ phase: 'idle' });
-      return 'partial text';
+      return { text: 'partial text' };
     }),
-    discard: vi.fn(() => {
+    park: vi.fn(),
+    reset: vi.fn(() => {
       setSnap({ phase: 'idle' });
     }),
+    discard: vi.fn(async () => {
+      setSnap({ phase: 'idle' });
+    }),
+    attachClient: vi.fn(),
+    hasClient: vi.fn(() => true),
+    getJournalId: vi.fn(() => undefined),
     clearError: vi.fn(() => {
       setSnap({ errorMessage: undefined });
     }),

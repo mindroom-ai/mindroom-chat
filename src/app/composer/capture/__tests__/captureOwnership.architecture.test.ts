@@ -90,7 +90,11 @@ describe('shared live capture and voice ownership architecture', () => {
         .filter((path) => readSource(path).includes('beginLiveCapture'))
         .map(appRelativePath)
         .sort()
-    ).toEqual(['composer/capture/liveCapture.ts', 'composer/voice/startLiveVoiceRecording.ts']);
+    ).toEqual([
+      'composer/capture/liveCapture.ts',
+      'composer/dictation/startLiveDictation.ts',
+      'composer/voice/startLiveVoiceRecording.ts',
+    ]);
 
     // Runtime import is jotai ONLY; capture sessions are import type only so the initial shell
     // bundle loads zero MediaRecorder, AudioWorklet, Silero VAD, idb, or MatrixClient code.

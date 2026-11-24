@@ -40,6 +40,8 @@ const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnap
   previewText: '',
   capReached: false,
   interrupted: false,
+  recovered: false,
+  hasClient: true,
   errorMessage: undefined,
   ...overrides,
 });

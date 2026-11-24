@@ -36,6 +36,8 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's voice message speed and volume, saved in localStorage",
   'src/app/composer/voice/savedVoiceDraft.ts':
     'tracks restore state by user ID, so a different user never uses the previous restore',
+  'src/app/composer/dictation/startLiveDictation.ts':
+    'tracks dictation restore state by user ID, reset via account generation on account switch',
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
   'src/app/room/threadLayout.ts':

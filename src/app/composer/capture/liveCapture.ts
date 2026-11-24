@@ -29,12 +29,6 @@ export type LiveCaptureError = {
   readonly message: string;
 };
 
-/** Lifecycle methods implemented by voice capture and added to dictation in Task 2. */
-type ParkableCaptureSession = LiveCaptureSession & {
-  park?: () => void;
-  reset?: () => void;
-};
-
 /** The live capture being made. Every mounted composer shows it; none owns it before delivery. */
 export const liveCaptureAtom = atom<LiveCapture | undefined>(undefined);
 
@@ -211,15 +205,9 @@ export const discardLiveCapture = async (
 export const parkLiveCapture = (store: JotaiStore): void => {
   const live = store.get(liveCaptureAtom);
   if (!live) return;
-  (live.session as ParkableCaptureSession).park?.();
+  live.session.park();
   // One still asking for the microphone may end synchronously in that call.
   if (live.session.getSnapshot().phase === 'idle') takeLiveCapture(store, live.session);
-};
-
-const resetCapture = (session: LiveCaptureSession): void => {
-  const parkable = session as ParkableCaptureSession;
-  if (parkable.reset) parkable.reset();
-  else void parkable.discard();
 };
 
 /**
@@ -231,8 +219,8 @@ const resetCapture = (session: LiveCaptureSession): void => {
 export const endLiveCapturesOfAccount = (store: JotaiStore): void => {
   accountsLeft.set(store, (accountsLeft.get(store) ?? 0) + 1);
   const live = takeLiveCapture(store);
-  if (live) resetCapture(live.session);
-  claimedCaptures.get(store)?.forEach(resetCapture);
+  if (live) live.session.reset();
+  claimedCaptures.get(store)?.forEach((session) => session.reset());
   claimedCaptures.delete(store);
   store.set(liveCaptureErrorAtom, undefined);
 };
