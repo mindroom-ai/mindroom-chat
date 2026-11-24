@@ -13,6 +13,7 @@ import {
   DIRECTIONAL_COMPONENTS,
   LINTED_FILES,
   RESOLVER_EXTENSIONS,
+  RUNTIME_GLOBALS,
   TYPE_AWARE_RULES,
   createCommonConfigs,
   logicalSidesOverrides,
@@ -41,6 +42,36 @@ export default [
   // (including `.mindroom-chat/` and `.cache/` at any depth).
   globalIgnores(['**/node_modules/**', '**/dist/**', '**/.*/**', '**/.*']),
   ...createCommonConfigs({ resolver: pluginResolver }),
+  {
+    name: 'mindroom/plugin-node-globals',
+    files: [
+      'scripts/**/*.{js,mjs,cjs}',
+      '*.config.{js,mjs,cjs}',
+      'eslint.config*.mjs',
+      'build.{js,mjs,cjs}',
+      'e2e/helpers/**/*.{js,mjs,cjs}',
+      'e2e/rtc/**/*.{js,mjs,cjs}',
+      'e2e/fixtures/live/**/*.{js,mjs,cjs}',
+    ],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.node,
+    },
+  },
+  {
+    name: 'mindroom/plugin-browser-globals',
+    files: ['src/**/*.{js,jsx,mjs,cjs}', '*.jsx', 'index.{js,mjs}', 'e2e/fixtures/**/*.{js,jsx}'],
+    ignores: ['src/**/*Worklet.js', 'e2e/fixtures/live/**'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.browser,
+    },
+  },
+  {
+    name: 'mindroom/plugin-audioworklet-globals',
+    files: ['src/**/*Worklet.js'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.audioWorklet,
+    },
+  },
   {
     files: LINTED_FILES,
     rules: {
