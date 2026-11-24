@@ -508,7 +508,8 @@
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
-        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen"
+        "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen",
+        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Hinweise zu Drittanbietern",
         "soundsCredit": "Die Benachrichtigungs- und Einladungstöne sind Klänge, die für diese App synthetisiert wurden.",
         "debugMode": "Debug-Modus",
-        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen."
+        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen.",
+        "updatesTitle": "App-Updates",
+        "updatesDescription": "Updates werden automatisch im Hintergrund heruntergeladen.",
+        "checkForUpdates": "Nach Updates suchen",
+        "checkingForUpdates": "Suche nach Updates…",
+        "upToDate": "MindRoom ist auf dem neuesten Stand.",
+        "updateAvailable": "Ein Update ist verfügbar. Sobald es bereit ist, kannst du hier neu starten.",
+        "updateCheckFailed": "Derzeit konnte nicht nach Updates gesucht werden. Versuche es erneut.",
+        "updateReady": "Version {{version}} kann installiert werden.",
+        "restartToUpdate": "Zum Aktualisieren neu starten",
+        "updateInstallFailed": "Neustart zum Installieren des Updates fehlgeschlagen. Versuche es erneut."
       }
     },
     "createChat": {

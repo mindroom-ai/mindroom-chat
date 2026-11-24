@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopBridge, DesktopResult, DesktopShellEvent } from '../src/app/lib/desktopBridge';
+import type {
+  DesktopBridge,
+  DesktopResult,
+  DesktopShellEvent,
+  DesktopUpdateCheckResult,
+} from '../src/app/lib/desktopBridge';
 
 const externalUrlForClick = (event: MouseEvent): string | undefined => {
   if (!event.isTrusted || event.button !== (event.type === 'click' ? 0 : 1)) return undefined;
@@ -98,6 +103,12 @@ const bridge = {
               version?: string;
             }>;
             return res.ok ? res.value : {};
+          },
+          check: async () => {
+            const res = (await ipcRenderer.invoke(
+              'desktop:update-check'
+            )) as DesktopResult<DesktopUpdateCheckResult>;
+            return res.ok ? res.value : { outcome: 'error' as const };
           },
           install: () => unwrapVoid('desktop:update-install'),
         },

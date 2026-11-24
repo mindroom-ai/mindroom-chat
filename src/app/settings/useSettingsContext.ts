@@ -3,6 +3,7 @@ import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
 import { isNativeIOS } from '../native/nativeSso';
+import { isNativeUpdateAvailable } from '../native/nativeUpdate';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
 import { useClientConfig } from '../config/useClientConfig';
@@ -38,6 +39,7 @@ export const useSettingsContext = (): SettingsContext => {
     developerTools,
     errorReporting,
     railButtons,
+    nativeUpdate: isNativeUpdateAvailable(),
     macApp,
     hasPlugins,
   };

@@ -521,7 +521,8 @@
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
         "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
         "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background",
-        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni"
+        "plugins": "plugin, estensioni, componenti aggiuntivi, integrazioni",
+        "appUpdates": "aggiornamento, aggiornamenti, versione, riavvia"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avvisi di terze parti",
         "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
         "debugMode": "Modalità debug",
-        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata."
+        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata.",
+        "updatesTitle": "Aggiornamenti dell’app",
+        "updatesDescription": "Gli aggiornamenti vengono scaricati automaticamente in background.",
+        "checkForUpdates": "Verifica aggiornamenti",
+        "checkingForUpdates": "Verifica degli aggiornamenti…",
+        "upToDate": "MindRoom è aggiornato.",
+        "updateAvailable": "È disponibile un aggiornamento. Potrai riavviare qui non appena sarà pronto.",
+        "updateCheckFailed": "Impossibile verificare gli aggiornamenti in questo momento. Riprova.",
+        "updateReady": "La versione {{version}} è pronta per l’installazione.",
+        "restartToUpdate": "Riavvia per aggiornare",
+        "updateInstallFailed": "Impossibile riavviare per installare l’aggiornamento. Riprova."
       }
     },
     "createChat": {

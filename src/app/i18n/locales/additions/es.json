@@ -521,7 +521,8 @@
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
-        "plugins": "complementos, plugins, extensiones, integraciones"
+        "plugins": "complementos, plugins, extensiones, integraciones",
+        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -532,7 +533,17 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada.",
+        "updatesTitle": "Actualizaciones de la app",
+        "updatesDescription": "Las actualizaciones se descargan automáticamente en segundo plano.",
+        "checkForUpdates": "Buscar actualizaciones",
+        "checkingForUpdates": "Buscando actualizaciones…",
+        "upToDate": "MindRoom está actualizado.",
+        "updateAvailable": "Hay una actualización disponible. Podrás reiniciar desde aquí cuando esté lista.",
+        "updateCheckFailed": "No se pudieron buscar actualizaciones en este momento. Inténtalo de nuevo.",
+        "updateReady": "La versión {{version}} está lista para instalar.",
+        "restartToUpdate": "Reiniciar para actualizar",
+        "updateInstallFailed": "No se pudo reiniciar para instalar la actualización. Inténtalo de nuevo."
       }
     },
     "createChat": {

@@ -26,6 +26,11 @@ const mocks = vi.hoisted(() => ({
   getDebugModeEnabled: vi.fn(),
   setDebugModeEnabled: vi.fn(),
   isMacOS: vi.fn(() => false),
+  isNativeUpdateAvailable: vi.fn(() => false),
+  checkNativeUpdate: vi.fn(),
+  getReadyVersion: vi.fn<() => string | undefined>(() => undefined),
+  subscribeToNewVersion: vi.fn<(listener: () => void) => () => void>(() => () => undefined),
+  reloadForNewVersion: vi.fn<() => Promise<void>>(async () => undefined),
   config: {},
   copyToClipboard: vi.fn(async () => true),
 }));
@@ -49,7 +54,7 @@ vi.mock('folds', () => ({
   IconButton: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('button', props, children),
   Icon: () => null,
-  Icons: { Code: 'code', Cross: 'cross', Heart: 'heart' },
+  Icons: { Code: 'code', Cross: 'cross', Heart: 'heart', Reload: 'reload' },
   Spinner: () => React.createElement('i'),
   Switch: ({
     value,
@@ -102,13 +107,18 @@ vi.mock('../../ui/SettingTile', () => ({
   }: {
     focusId?: string;
     title: string;
-    description: string;
+    description: React.ReactNode;
     after?: React.ReactNode;
     children?: React.ReactNode;
   }) =>
     React.createElement(
       'section',
-      { 'data-setting-id': focusId, 'data-setting-title': title, 'data-description': description },
+      {
+        'data-setting-id': focusId,
+        'data-setting-title': title,
+        'data-description': typeof description === 'string' ? description : undefined,
+      },
+      React.createElement('div', { 'data-slot': 'description' }, description),
       React.createElement('div', { 'data-slot': 'after' }, after),
       React.createElement('div', { 'data-slot': 'under' }, children)
     ),
@@ -142,6 +152,17 @@ vi.mock('../../ui/branding/clientBranding', () => ({
 vi.mock('../../native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
   isNativeApp: () => false,
+}));
+
+vi.mock('../../native/nativeUpdate', () => ({
+  isNativeUpdateAvailable: mocks.isNativeUpdateAvailable,
+  checkNativeUpdate: mocks.checkNativeUpdate,
+}));
+
+vi.mock('../../config/appUpdate', () => ({
+  getReadyVersion: mocks.getReadyVersion,
+  subscribeToNewVersion: mocks.subscribeToNewVersion,
+  reloadForNewVersion: mocks.reloadForNewVersion,
 }));
 
 vi.mock('../../lib/user-agent', async (importOriginal) => ({
@@ -855,6 +876,134 @@ describe('About Mac app', () => {
     expect(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props['aria-live']).toBe(
       'polite'
     );
+    renderer.unmount();
+  });
+});
+
+describe('About app updates', () => {
+  let readyVersion: string | undefined;
+  let listeners = new Set<() => void>();
+
+  const setReady = (version: string | undefined) => {
+    readyVersion = version;
+    listeners.forEach((listener) => listener());
+  };
+
+  const updateTiles = (renderer: ReactTestRenderer) =>
+    renderer.root.findAllByProps({ 'data-setting-id': 'appUpdates' });
+
+  const updateTile = (renderer: ReactTestRenderer): ReactTestInstance =>
+    renderer.root.findByProps({ 'data-setting-id': 'appUpdates' });
+
+  const updateStatus = (renderer: ReactTestRenderer): ReactTestInstance =>
+    updateTile(renderer).findByProps({ role: 'status' });
+
+  const statusText = (renderer: ReactTestRenderer): string =>
+    updateStatus(renderer).children.join('');
+
+  const updateButton = (renderer: ReactTestRenderer): ReactTestInstance =>
+    updateTile(renderer).findByType('button');
+
+  const labelOf = (button: ReactTestInstance): string =>
+    button.findByType('span').children.join('');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeUpdateAvailable.mockReturnValue(false);
+    readyVersion = undefined;
+    listeners = new Set();
+    mocks.getReadyVersion.mockImplementation(() => readyVersion);
+    mocks.subscribeToNewVersion.mockImplementation((listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    });
+    mocks.reloadForNewVersion.mockResolvedValue(undefined);
+  });
+
+  it('is hidden when the native updater bridge is absent', () => {
+    const renderer = create(<About requestClose={vi.fn()} />);
+    expect(updateTiles(renderer)).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('checks for updates inside a status region and reflects none, found, and error outcomes', async () => {
+    mocks.isNativeUpdateAvailable.mockReturnValue(true);
+    let resolveCheck!: (result: { outcome: 'none' | 'found' | 'error'; version?: string }) => void;
+    mocks.checkNativeUpdate.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        })
+    );
+
+    const renderer = create(<About requestClose={vi.fn()} />);
+    expect(updateTile(renderer).props['data-setting-title']).toBe('App updates');
+    expect(updateStatus(renderer).props.role).toBe('status');
+    expect(statusText(renderer)).toBe('Updates download automatically in the background.');
+    expect(labelOf(updateButton(renderer))).toBe('Check for updates');
+
+    act(() => {
+      updateButton(renderer).props.onClick();
+    });
+    expect(statusText(renderer)).toBe('Checking for updates…');
+    expect(updateButton(renderer).props.disabled).toBe(true);
+    expect(mocks.checkNativeUpdate).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCheck({ outcome: 'none' });
+    });
+    expect(statusText(renderer)).toBe('MindRoom is up to date.');
+    expect(updateButton(renderer).props.disabled).toBe(false);
+
+    mocks.checkNativeUpdate.mockResolvedValueOnce({ outcome: 'found' });
+    await act(async () => {
+      updateButton(renderer).props.onClick();
+    });
+    expect(statusText(renderer)).toBe(
+      "An update is available. You can restart here once it's ready."
+    );
+
+    mocks.checkNativeUpdate.mockResolvedValueOnce({ outcome: 'error' });
+    await act(async () => {
+      updateButton(renderer).props.onClick();
+    });
+    expect(statusText(renderer)).toBe("Couldn't check for updates right now. Try again.");
+    renderer.unmount();
+  });
+
+  it('offers Restart to update when staged and reports install failures', async () => {
+    mocks.isNativeUpdateAvailable.mockReturnValue(true);
+    readyVersion = '2026.11.20';
+    let rejectInstall!: (error: Error) => void;
+    mocks.reloadForNewVersion.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectInstall = reject;
+        })
+    );
+
+    const renderer = create(<About requestClose={vi.fn()} />);
+    expect(statusText(renderer)).toBe('Version 2026.11.20 is ready to install.');
+    expect(labelOf(updateButton(renderer))).toBe('Restart to update');
+
+    act(() => {
+      updateButton(renderer).props.onClick();
+    });
+    expect(mocks.reloadForNewVersion).toHaveBeenCalledOnce();
+    expect(updateButton(renderer).props.disabled).toBe(true);
+    expect(labelOf(updateButton(renderer))).toBe('Updating…');
+
+    await act(async () => {
+      rejectInstall(new Error('install failed'));
+    });
+    expect(updateButton(renderer).props.disabled).toBe(false);
+    expect(labelOf(updateButton(renderer))).toBe('Restart to update');
+    expect(statusText(renderer)).toBe("Couldn't restart to install the update. Try again.");
+
+    act(() => setReady(undefined));
+    expect(statusText(renderer)).toBe('Updates download automatically in the background.');
+    expect(labelOf(updateButton(renderer))).toBe('Check for updates');
     renderer.unmount();
   });
 });

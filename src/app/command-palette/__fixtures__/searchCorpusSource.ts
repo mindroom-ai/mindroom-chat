@@ -73,6 +73,7 @@ const SETTINGS_CONTEXT: SettingsContext = {
   developerTools: false,
   errorReporting: true,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
 };

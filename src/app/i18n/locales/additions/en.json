@@ -508,7 +508,8 @@
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
-        "plugins": "plugins, extensions, add-ons, integrations"
+        "plugins": "plugins, extensions, add-ons, integrations",
+        "appUpdates": "update, updates, version, upgrade, restart"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -519,7 +520,17 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace."
+        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace.",
+        "updatesTitle": "App updates",
+        "updatesDescription": "Updates download automatically in the background.",
+        "checkForUpdates": "Check for updates",
+        "checkingForUpdates": "Checking for updates…",
+        "upToDate": "MindRoom is up to date.",
+        "updateAvailable": "An update is available. You can restart here once it's ready.",
+        "updateCheckFailed": "Couldn't check for updates right now. Try again.",
+        "updateReady": "Version {{version}} is ready to install.",
+        "restartToUpdate": "Restart to update",
+        "updateInstallFailed": "Couldn't restart to install the update. Try again."
       }
     },
     "createChat": {

@@ -495,7 +495,8 @@
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
         "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务",
-        "plugins": "插件, 扩展, 附加组件, 集成"
+        "plugins": "插件, 扩展, 附加组件, 集成",
+        "appUpdates": "更新, 版本, 升级, 重启"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -506,7 +507,17 @@
         "thirdPartyNotices": "第三方声明",
         "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
         "debugMode": "调试模式",
-        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。"
+        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。",
+        "updatesTitle": "应用更新",
+        "updatesDescription": "更新会在后台自动下载。",
+        "checkForUpdates": "检查更新",
+        "checkingForUpdates": "正在检查更新…",
+        "upToDate": "MindRoom 已是最新版本。",
+        "updateAvailable": "有可用更新。准备就绪后可在此处重启。",
+        "updateCheckFailed": "目前无法检查更新，请重试。",
+        "updateReady": "版本 {{version}} 已准备好安装。",
+        "restartToUpdate": "重启以更新",
+        "updateInstallFailed": "无法重启以安装更新，请重试。"
       }
     },
     "createChat": {
