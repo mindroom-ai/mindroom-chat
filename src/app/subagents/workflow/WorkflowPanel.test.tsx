@@ -954,4 +954,44 @@ describe('WorkflowPanel', () => {
       rectSpy.mockRestore();
     }
   });
+
+  it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', { label: 'Peer wait', status: 'waiting', waitingOn: 'peer' }),
+          makeNode('n2', { label: 'Approval wait', status: 'waiting', waitingOn: 'approval' }),
+          makeNode('n3', { label: 'User wait', status: 'waiting', waitingOn: 'user' }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Peer wait/ }));
+    let details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
+    expect(within(details).getByText('Waiting for a message')).toBeTruthy();
+    expect(within(details).queryByText('Waiting for you')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Approval wait/ }));
+    details = document.querySelector('[data-workflow-node-details="n2"]') as HTMLElement;
+    expect(within(details).getByText('Waiting for approval')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /User wait/ }));
+    details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
+    expect(within(details).getByText('Waiting for your answer')).toBeTruthy();
+  });
 });

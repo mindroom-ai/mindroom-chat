@@ -5,6 +5,7 @@ import type {
   WorkflowRunCounts,
   WorkflowRunStatus,
   WorkflowRunUsage,
+  WorkflowWaitingOn,
 } from '../../matrix/protocol/workflowFrame';
 import { formatCostUsd } from '../agent-run/aiRunDisplay';
 
@@ -21,8 +22,23 @@ const STATUS_KEYS = {
 export const workflowRunStatusLabel = (status: WorkflowRunStatus, t: TFunction): string =>
   t(STATUS_KEYS[status]);
 
-export const workflowNodeStatusLabel = (status: WorkflowNodeStatus, t: TFunction): string =>
-  status === 'queued'
+const WAITING_ON_KEYS = {
+  user: 'mindroomUi.workflowRun.node.waitingOn.user',
+  approval: 'mindroomUi.workflowRun.node.waitingOn.approval',
+  peer: 'mindroomUi.workflowRun.node.waitingOn.peer',
+} as const satisfies Record<WorkflowWaitingOn, string>;
+
+export const workflowNodeWaitLabel = (waitingOn: WorkflowWaitingOn, t: TFunction): string =>
+  t(WAITING_ON_KEYS[waitingOn]);
+
+export const workflowNodeStatusLabel = (
+  status: WorkflowNodeStatus,
+  t: TFunction,
+  waitingOn?: WorkflowWaitingOn | null
+): string =>
+  status === 'waiting' && waitingOn
+    ? t(WAITING_ON_KEYS[waitingOn])
+    : status === 'queued'
     ? t('mindroomUi.workflowRun.node.queued')
     : status === 'indeterminate'
     ? t('mindroomUi.workflowRun.node.mayHaveRun')

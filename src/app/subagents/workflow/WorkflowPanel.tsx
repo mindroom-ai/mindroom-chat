@@ -186,7 +186,7 @@ export function WorkflowPanel({
               {selectedNode.label}
             </Text>
             <Text size="T200" priority="300">
-              {workflowNodeStatusLabel(selectedNode.status, t)}
+              {workflowNodeStatusLabel(selectedNode.status, t, selectedNode.waitingOn)}
             </Text>
             {selectedNode.error && (
               <div>

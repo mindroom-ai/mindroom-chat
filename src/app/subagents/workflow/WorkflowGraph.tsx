@@ -13,7 +13,10 @@ import type {
 } from '../../matrix/protocol/workflowFrame';
 import { formatCostUsd } from '../../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
-import { formatWorkflowElapsed } from '../../messages/workflow-run/workflowRunLabels';
+import {
+  formatWorkflowElapsed,
+  workflowNodeWaitLabel,
+} from '../../messages/workflow-run/workflowRunLabels';
 import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
@@ -33,11 +36,6 @@ const GROUP_KIND_KEYS = new Map([
   ['run', 'mindroomUi.workflowRun.group.run'],
   ['workflow', 'mindroomUi.workflowRun.group.workflow'],
 ] as const);
-const WAITING_ON_KEYS = {
-  user: 'mindroomUi.workflowRun.node.waitingOn.user',
-  approval: 'mindroomUi.workflowRun.node.waitingOn.approval',
-  peer: 'mindroomUi.workflowRun.node.waitingOn.peer',
-} as const;
 
 export const isLiveWorkflowNodeStatus = (status: WorkflowNodeStatus): boolean =>
   status === 'queued' || status === 'running' || status === 'waiting';
@@ -92,7 +90,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
     : node.status === 'indeterminate'
     ? t('mindroomUi.workflowRun.node.mayHaveRun')
     : node.status === 'waiting' && node.waitingOn
-    ? t(WAITING_ON_KEYS[node.waitingOn])
+    ? workflowNodeWaitLabel(node.waitingOn, t)
     : undefined;
   const meta = [
     node.agent ? agentProfile.name : undefined,
