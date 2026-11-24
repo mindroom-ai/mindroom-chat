@@ -146,6 +146,7 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => 'Desktop',
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: 'compact',
     setViewMode: vi.fn(),

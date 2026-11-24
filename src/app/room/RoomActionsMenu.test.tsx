@@ -13,6 +13,7 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { registerPluginTranslations } from '../plugins/pluginTranslations';
 import type { RegisteredPlugin } from '../plugins/registry';
 import type { PluginRoomAction } from '../plugins/roomActions';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
@@ -56,7 +57,8 @@ vi.mock('../matrix/hooks/useRoomPermissions', () => ({
 vi.mock('../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => (state.encrypted ? {} : undefined),
 }));
-vi.mock('../matrix/matrix', () => ({
+vi.mock('../matrix/matrix', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/matrix')>()),
   getCanonicalAliasOrRoomId: (_client: unknown, roomId: string) => roomId,
   isRoomAlias: () => false,
 }));
@@ -210,6 +212,7 @@ describe('the shared room actions', () => {
         'newSubRoom',
         'copyLink',
         'settings',
+        'mindroomSettings',
         'search',
         'jumpToTime',
       ],
@@ -310,6 +313,52 @@ describe('the shared room actions', () => {
       <RoomActionsMenu room={space} submenuSide="Right" close={vi.fn()} showDialog={vi.fn()} />
     );
     expect(rows()).not.toContain('New Sub-room');
+  });
+
+  it('offers MindRoom Settings right after Room Settings only for non-space rooms with an agent', () => {
+    const agentRoom = {
+      roomId: '!other:example.org',
+      name: 'Workshop',
+      isSpaceRoom: () => false,
+      getMembers: () => [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+    };
+    state.rooms[agentRoom.roomId] = agentRoom;
+    const close = vi.fn();
+    render(
+      <RoomActionsMenu
+        room={agentRoom as unknown as Room}
+        submenuSide="Right"
+        close={close}
+        showDialog={vi.fn()}
+      />
+    );
+    const allRows = rows();
+    expect(allRows.indexOf('MindRoom Settings')).toBe(allRows.indexOf('Room Settings') + 1);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'MindRoom Settings' }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(state.openSettings).toHaveBeenCalledWith(
+      '!other:example.org',
+      RoomSettingsPage.MindroomPage
+    );
+
+    // Spaces omit MindRoom Settings even if they hold an agent member.
+    cleanup();
+    const agentSpace = {
+      roomId: '!agent-space:example.org',
+      isSpaceRoom: () => true,
+      getMembers: () => [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+    };
+    state.rooms[agentSpace.roomId] = agentSpace;
+    render(
+      <RoomActionsMenu
+        room={agentSpace as unknown as Room}
+        submenuSide="Right"
+        close={vi.fn()}
+        showDialog={vi.fn()}
+      />
+    );
+    expect(rows()).not.toContain('MindRoom Settings');
   });
 
   it('has no New Sub-room in the menu of a direct chat, whose partner could not find it', () => {

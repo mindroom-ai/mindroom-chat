@@ -34,6 +34,9 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
+import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
 import { useToolCallsShown } from '../messages/toolCallVisibility';
@@ -261,6 +264,7 @@ export function RoomViewHeader({
     filterBarHidden && !!threadFilterState && hasChosenThreadFilters(threadFilterState);
   const navigate = useNavigate();
   const { navigateRoomThread } = useRoomNavigate();
+  const openRoomSettings = useOpenRoomSettings();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const store = useStore();
@@ -593,6 +597,17 @@ export function RoomViewHeader({
       badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
     },
+    !mobile &&
+      !room.isSpaceRoom() &&
+      hasMindroomAgents && {
+        id: 'mindroomSettings',
+        label: t('mindroomUi.threads.mindroomRoomViewHeader.mindroomSettings'),
+        icon: MindroomIcon,
+        placement: 'row',
+        popup: 'dialog',
+        run: () => openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage),
+        marker: 'data-mindroom-settings',
+      },
     ...pluginPanels.map(
       ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction => ({
         id: `panel:${id}`,

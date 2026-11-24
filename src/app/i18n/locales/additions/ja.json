@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "コンパクト表示",
-        "threadFiltersActive": "スレッドフィルター（有効）"
+        "threadFiltersActive": "スレッドフィルター（有効）",
+        "mindroomSettings": "MindRoom設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "詳細フィルター",
@@ -1500,7 +1501,9 @@
     },
     "actions": {
       "goActivity": "アクティビティに移動",
-      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
+      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目",
+      "openCurrentRoomMindroomSettings": "MindRoomのルーム設定を開く",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}のMindRoom設定を開く"
     },
     "recentVisits": {
       "recentlyOpened": "最近開いた項目",

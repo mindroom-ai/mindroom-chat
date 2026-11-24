@@ -1233,7 +1233,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compatta",
-        "threadFiltersActive": "Filtri dei thread (attivi)"
+        "threadFiltersActive": "Filtri dei thread (attivi)",
+        "mindroomSettings": "Impostazioni MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtri avanzati",
@@ -1594,7 +1595,9 @@
     },
     "actions": {
       "goActivity": "Vai ad Attività",
-      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
+      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta",
+      "openCurrentRoomMindroomSettings": "Apri le impostazioni MindRoom della stanza",
+      "openCurrentRoomMindroomSettingsDescription": "Apri le impostazioni MindRoom di {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Elementi aperti di recente",

@@ -37,7 +37,7 @@ const getMembershipWatch = (mx: MatrixClient): RoomMembershipWatch => {
   let watch = membershipWatches.get(mx);
   if (!watch) {
     const created: RoomMembershipWatch = { listeners: new Map(), agents: new Map() };
-    mx.on(RoomMemberEvent.Membership, (_event, member) => {
+    mx.on?.(RoomMemberEvent.Membership, (_event, member) => {
       created.agents.delete(member.roomId);
       created.listeners.get(member.roomId)?.forEach((listener) => listener());
     });
@@ -58,19 +58,22 @@ const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () 
   };
 };
 
+const getDirectAccountData = (mx: MatrixClient) =>
+  typeof mx.getAccountData === 'function' ? getAccountData(mx, AccountDataEvent.Direct) : undefined;
+
 /**
  * Whether a MindRoom agent is in the room: joined or invited, or named as the room's partner in `m.direct`.
  * Members are lazy loaded, so an agent direct room may not have its agent loaded yet; only a loaded `leave` or `ban` ends the partner.
  */
 const findMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
-  const room = mx.getRoom(roomId);
-  if (hasActiveMindroomAgent(room?.getMembers() ?? [])) return true;
-  const directs = getAccountData(mx, AccountDataEvent.Direct)?.getContent<MDirectContent>() ?? {};
+  const room = mx.getRoom?.(roomId);
+  if (hasActiveMindroomAgent(room?.getMembers?.() ?? [])) return true;
+  const directs = getDirectAccountData(mx)?.getContent<MDirectContent>() ?? {};
   return Object.entries(directs).some(([userId, roomIds]) => {
     if (!isMindroomAgentUserId(userId) || !Array.isArray(roomIds) || !roomIds.includes(roomId)) {
       return false;
     }
-    const membership = room?.getMember(userId)?.membership;
+    const membership = room?.getMember?.(userId)?.membership;
     return membership !== KnownMembership.Leave && membership !== KnownMembership.Ban;
   });
 };
@@ -81,9 +84,9 @@ const findMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
  */
 const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
   const { agents } = getMembershipWatch(mx);
-  const room = mx.getRoom(roomId);
+  const room = mx.getRoom?.(roomId);
   const state = room?.currentState;
-  const directs = getAccountData(mx, AccountDataEvent.Direct);
+  const directs = getDirectAccountData(mx);
   const cached = agents.get(roomId);
   if (cached && cached.room === room && cached.state === state && cached.directs === directs) {
     return cached.value;
@@ -94,19 +97,19 @@ const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
 };
 
 /**
- * Whether a MindRoom agent is in the room, watched only while `watch` holds: in a direct room
- * (a direct room of people shows Threads), and while a room without a chosen view needs it for
- * its default and the caller does not know.
+ * Whether a MindRoom agent is in the room, watched while `watch` holds (default `true`).
+ * Re-reads partners on membership changes and `m.direct` updates.
  */
-const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {
+export const useRoomHasMindroomAgent = (roomId: string, watch = true): boolean => {
   const mx = useMatrixClient();
+  // `mDirectAtom` changes on every `m.direct` update, which re-reads the partners.
+  useAtomValue(mDirectAtom);
   const subscribe = useCallback(
     (onChange: () => void) =>
       watch ? subscribeRoomMembership(mx, roomId, onChange) : () => undefined,
     [mx, roomId, watch]
   );
 
-  // `mDirectAtom` changes on every `m.direct` update, which re-reads the partners.
   return useSyncExternalStore(subscribe, () => watch && hasMindroomAgent(mx, roomId));
 };
 

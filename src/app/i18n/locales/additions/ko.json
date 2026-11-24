@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "간결 보기",
-        "threadFiltersActive": "스레드 필터 (사용 중)"
+        "threadFiltersActive": "스레드 필터 (사용 중)",
+        "mindroomSettings": "MindRoom 설정"
       },
       "roomThreadOverview": {
         "advancedFilters": "고급 필터",
@@ -1500,7 +1501,9 @@
     },
     "actions": {
       "goActivity": "활동으로 이동",
-      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
+      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목",
+      "openCurrentRoomMindroomSettings": "MindRoom 방 설정 열기",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}의 MindRoom 설정 열기"
     },
     "recentVisits": {
       "recentlyOpened": "최근에 연 항목",

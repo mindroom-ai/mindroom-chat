@@ -1268,7 +1268,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Компактный вид",
-        "threadFiltersActive": "Фильтры веток (активны)"
+        "threadFiltersActive": "Фильтры веток (активны)",
+        "mindroomSettings": "Настройки MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Расширенные фильтры",
@@ -1641,7 +1642,9 @@
     },
     "actions": {
       "goActivity": "Перейти к активности",
-      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас"
+      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас",
+      "openCurrentRoomMindroomSettings": "Открыть настройки MindRoom комнаты",
+      "openCurrentRoomMindroomSettingsDescription": "Открыть настройки MindRoom для {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Недавно открытые",

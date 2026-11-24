@@ -24,7 +24,10 @@ import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { isInSpace } from '../matrix/state/spaceAncestors';
 import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
+import { useRoomHasMindroomAgent } from '../navigation/useRoomViewMode';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
@@ -302,6 +305,24 @@ function SettingsEntry({ room, close }: RoomActionProps) {
   );
 }
 
+function MindroomSettingsEntry({ room, close }: RoomActionProps) {
+  const { t } = useTranslation();
+  const openRoomSettings = useOpenRoomSettings();
+  const space = room.isSpaceRoom();
+  const hasMindroomAgent = useRoomHasMindroomAgent(room.roomId, !space);
+  if (space || !hasMindroomAgent) return null;
+  return (
+    <MenuEntry
+      icon={MindroomIcon}
+      label={t('mindroomUi.threads.mindroomRoomViewHeader.mindroomSettings')}
+      onSelect={() => {
+        close();
+        openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage);
+      }}
+    />
+  );
+}
+
 /** Searches the room's messages; the server cannot read an encrypted room's. */
 function SearchEntry({ room, spaceId, close }: RoomActionProps) {
   const { t } = useTranslation();
@@ -384,6 +405,7 @@ export const ROOM_ACTIONS: readonly (readonly RoomAction[])[] = [
     { id: 'newSubRoom', Entry: NewSubRoomEntry },
     { id: 'copyLink', Entry: CopyLinkEntry },
     { id: 'settings', Entry: SettingsEntry },
+    { id: 'mindroomSettings', Entry: MindroomSettingsEntry },
     { id: 'search', Entry: SearchEntry },
     { id: 'jumpToTime', Entry: JumpToTimeEntry },
   ],

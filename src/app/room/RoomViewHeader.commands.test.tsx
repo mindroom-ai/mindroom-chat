@@ -97,6 +97,7 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => screen.size,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: view.mode,
     setViewMode: view.setViewMode,
@@ -173,7 +174,7 @@ describe("the room header's commands", () => {
     expect(commandById('filterBar')?.pressed).toBe(true);
     expect(commandById('toolCalls')?.pressed).toBe(true);
     expect(commandById('members')?.shortcut).toBe('members');
-    for (const id of ['pins', 'schedules', 'canvas', 'call']) {
+    for (const id of ['pins', 'schedules', 'canvas', 'call', 'mindroomSettings']) {
       expect(ids).not.toContain(id);
     }
   });

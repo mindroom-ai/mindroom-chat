@@ -140,11 +140,27 @@ describe('room and space settings dialog', () => {
     expect(parts()).toEqual({ permissions: 'true' });
   });
 
-  it("lists a room's MindRoom page and opens it", () => {
+  it("lists a room's MindRoom page second after General with the MindRoom icon and opens it", () => {
     act(() => openSettings(ROOM));
-    act(() => menuEntry('MindRoom').click());
+
+    const navButtons = [...host.querySelectorAll('nav button')];
+    expect(navButtons.map((button) => button.textContent)).toEqual([
+      'General',
+      'MindRoom',
+      'Members',
+      'Permissions',
+      'Emojis & Stickers',
+      'Developer Tools',
+    ]);
+    // Inactive MindRoom tab renders the outline icon; selecting it switches to the filled cutout.
+    const mindroomButton = menuEntry('MindRoom');
+    expect(mindroomButton.querySelector('svg g[stroke="currentColor"]')).not.toBeNull();
+    expect(mindroomButton.querySelector('svg path[fill-rule="evenodd"]')).toBeNull();
+
+    act(() => mindroomButton.click());
 
     expect(parts()).toEqual({ mindroom: 'false' });
+    expect(menuEntry('MindRoom').querySelector('svg path[fill-rule="evenodd"]')).not.toBeNull();
   });
 
   it('leaves the MindRoom page out of a space, which opens on General when asked for it', () => {

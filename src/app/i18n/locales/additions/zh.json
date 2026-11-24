@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "紧凑视图",
-        "threadFiltersActive": "讨论串过滤器（已启用）"
+        "threadFiltersActive": "讨论串过滤器（已启用）",
+        "mindroomSettings": "MindRoom 设置"
       },
       "roomThreadOverview": {
         "advancedFilters": "高级过滤器",
@@ -1500,7 +1501,9 @@
     },
     "actions": {
       "goActivity": "前往动态",
-      "goActivityDescription": "提及、回复和等待你处理的事项"
+      "goActivityDescription": "提及、回复和等待你处理的事项",
+      "openCurrentRoomMindroomSettings": "打开 MindRoom 房间设置",
+      "openCurrentRoomMindroomSettingsDescription": "打开 {{room}} 的 MindRoom 设置"
     },
     "recentVisits": {
       "recentlyOpened": "最近打开",
