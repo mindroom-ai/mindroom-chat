@@ -281,6 +281,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'es2022',
+    // Keep esbuild for CSS minification: Vite 8's default Lightning CSS strips unprefixed
+    // backdrop-filter when -webkit-backdrop-filter follows under target es2022, breaking
+    // glass blur on Chromium, Electron, Android WebView and Firefox.
+    cssMinify: 'esbuild',
     ...(fixturePagesOnly
       ? {
           emptyOutDir: false,
