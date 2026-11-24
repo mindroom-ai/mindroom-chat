@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
@@ -42,6 +43,7 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
     vi.useRealTimers();
     document.body.replaceChildren();
     vi.unstubAllGlobals();
+    _resetIOSDetectionForTests();
   });
 
   /**
@@ -96,15 +98,11 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
 
     const patchedNodes = new WeakSet<HTMLDivElement>();
 
-    function ThreadTimeline({ events }: { events: FakeEvent[] }) {
-      const pendingRoomFoldPxRef = useRef(0);
+    const pendingRoomFoldPxRef = { current: 0 };
+    function RoomTimelineWithLedger({ events }: { events: FakeEvent[] }) {
       const roomFoldPriceRef = useRef(() => ROW_HEIGHT);
       const alive = useCallback(() => true, []);
       const getScrollElement = useCallback(() => scrollElement, []);
-      const threadEventIndexMap = useMemo(
-        () => new Map(events.map((event, index) => [event.getId(), index])),
-        [events]
-      );
       const controller = useTimelineScrollLedgerController({
         alive,
         estimateSize: () => ROW_HEIGHT,
@@ -114,10 +112,6 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
         pendingRoomFoldPxRef,
         roomFoldPriceRef,
         roomId: '!room:example.org',
-        threadEventIndexMap,
-        threadEvents: events,
-        threadId: '$root:example.org',
-        threadInitialRenderMode: 'live',
       });
       const virtualItems = controller.virtualizer.getVirtualItems();
       return (
@@ -173,26 +167,27 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
     }
 
     const initialEvents = makeEvents(Array.from({ length: 200 }, (_, i) => `$ev-${i}`));
-    flushSync(() => root.render(<ThreadTimeline events={initialEvents} />));
+    flushSync(() => root.render(<RoomTimelineWithLedger events={initialEvents} />));
     // Allow React passive effects (useEffect) to attach scroll and status-bar listeners.
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (fakeTimers) vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     scrollElement.scrollTop = 6000;
     scrollElement.dispatchEvent(new Event('scroll'));
-    flushSync(() => root.render(<ThreadTimeline events={initialEvents} />));
+    flushSync(() => root.render(<RoomTimelineWithLedger events={initialEvents} />));
 
-    // Scrolled deep into the thread: row 0 is not mounted, row 100 is mounted.
+    // Scrolled deep into the timeline: row 0 is not mounted, row 100 is mounted.
     expect(scrollElement.querySelector('[data-row-index="0"]')).toBeNull();
     const deepRow = scrollElement.querySelector('[data-row-index="100"]');
     expect(deepRow).not.toBeNull();
 
-    // Prepend 5 older events above the anchored viewport to create an unsettled positive ledger.
+    // Prepend 5 older events above the viewport to create an unsettled positive room ledger.
     const prependedEvents = makeEvents([
       ...Array.from({ length: 5 }, (_, i) => `$older-${i}`),
       ...initialEvents.map((event) => event.getId()),
     ]);
+    pendingRoomFoldPxRef.current = 5 * ROW_HEIGHT;
     const rerender = () =>
-      flushSync(() => root.render(<ThreadTimeline events={prependedEvents} />));
+      flushSync(() => root.render(<RoomTimelineWithLedger events={prependedEvents} />));
     rerender();
 
     expect(getInner()?.style.marginTop).toBe(`-${5 * ROW_HEIGHT}px`);
@@ -295,5 +290,112 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
     expect(Math.max(...rows)).toBeLessThan(firstDeepRow);
     expect(getVirtualizer().scrollOffset).toBe(0);
     expect(getVirtualizer().isScrolling).toBe(false);
+  });
+
+  it('discards a held iOS thread flick correction on status-bar tap so quiescence keeps scrollTop at 0', async () => {
+    const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const prevActEnv = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
+    reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    const { stepFrame } = stubIOSFrames();
+    _resetIOSDetectionForTests();
+    const uninstall = installStatusBarTapScroll(window);
+
+    const scrollElement = document.createElement('div');
+    scrollElement.style.overflowY = 'auto';
+    scrollElement.scrollTop = 6000;
+    Object.defineProperties(scrollElement, {
+      clientWidth: { value: 390, configurable: true },
+      offsetWidth: { value: 390, configurable: true },
+      offsetHeight: { value: VIEWPORT_HEIGHT, configurable: true },
+      clientHeight: { value: VIEWPORT_HEIGHT, configurable: true },
+      scrollHeight: { get: () => 200 * ROW_HEIGHT + 350, configurable: true },
+    });
+    scrollElement.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object' && options.top !== undefined) {
+        scrollElement.scrollTop = Math.max(0, options.top);
+      }
+    });
+    document.body.appendChild(scrollElement);
+
+    const root = createRoot(scrollElement);
+    dispose = () => {
+      uninstall();
+      flushSync(() => root.unmount());
+      reactGlobal.IS_REACT_ACT_ENVIRONMENT = prevActEnv;
+    };
+
+    const mounted: {
+      virtualizer?: ReturnType<typeof useTimelineScrollLedgerController>['virtualizer'];
+    } = {};
+    const events = makeEvents(Array.from({ length: 200 }, (_, i) => `$ev-${i}`));
+    const pendingRoomFoldPxRef = { current: 0 };
+
+    function ThreadTimeline() {
+      const roomFoldPriceRef = useRef(() => ROW_HEIGHT);
+      const alive = useCallback(() => true, []);
+      const getScrollElement = useCallback(() => scrollElement, []);
+      const controller = useTimelineScrollLedgerController({
+        alive,
+        estimateSize: () => ROW_HEIGHT,
+        getItemKey: (index) => events[index]?.getId() ?? index,
+        getScrollElement,
+        itemCount: events.length,
+        pendingRoomFoldPxRef,
+        roomFoldPriceRef,
+        roomId: '!room:example.org',
+        threadId: '$thread-1',
+      });
+      mounted.virtualizer = controller.virtualizer;
+      const virtualItems = controller.virtualizer.getVirtualItems();
+      return (
+        <div
+          ref={controller.virtualInnerRef}
+          style={{ height: controller.virtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((item) => (
+            <div key={String(item.key)} data-row-index={item.index}>
+              {String(item.key)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    const rerender = () => flushSync(() => root.render(<ThreadTimeline />));
+    rerender();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    scrollElement.scrollTop = 6000;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    rerender();
+    const deepRow = scrollElement.querySelector('[data-row-index="100"]');
+    expect(deepRow).not.toBeNull();
+
+    // Active iOS flick holds above-viewport size growth in _holdOffset.
+    scrollElement.dispatchEvent(new Event('touchstart'));
+    scrollElement.scrollTop = 5900;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    mounted.virtualizer!.resizeItem(10, ROW_HEIGHT + 350);
+    expect((mounted.virtualizer as unknown as { _holdOffset: number })._holdOffset).toBe(350);
+
+    // Tap the iOS status bar mid-flick: jump to 0 and discard the held correction.
+    document.elementFromPoint = () => deepRow;
+    window.dispatchEvent(new Event('statusTap'));
+    expect(scrollElement.scrollTop).toBe(0);
+    expect((mounted.virtualizer as unknown as { _holdOffset: number })._holdOffset).toBe(0);
+    expect(scrollElement.querySelector('[data-row-index="0"]')).not.toBeNull();
+
+    // End the touch/flick-stop and let all quiescence timers run: must stay at 0, not 350.
+    scrollElement.dispatchEvent(new Event('touchend'));
+    stepFrame();
+    stepFrame();
+    vi.advanceTimersByTime(400);
+    scrollElement.dispatchEvent(new Event('scroll'));
+    rerender();
+
+    expect(scrollElement.scrollTop).toBe(0);
+    expect(mounted.virtualizer!.scrollOffset).toBe(0);
+    expect(scrollElement.querySelector('[data-row-index="0"]')).not.toBeNull();
   });
 });

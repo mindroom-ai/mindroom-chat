@@ -76,6 +76,8 @@ export type RoomFocusScrollControllerOptions = {
   retryPagination: (opts?: RetryPaginationOptions) => void;
   roomId: string;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
+  /** When provided (open thread), routes bottom pins through virtualizer.scrollToEnd(). */
+  scrollThreadToEnd?: (smooth?: boolean) => void;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   scrollToElement: ScrollToElement;
@@ -412,6 +414,7 @@ const useThreadOpeningPin = ({
   isThreadOpenBottomPinSuppressed,
   requestThreadOpenBottomPin,
   scrollRef,
+  scrollThreadToEnd,
   setAtBottom,
   threadEventsLength,
   threadId,
@@ -425,6 +428,7 @@ const useThreadOpeningPin = ({
   | 'isThreadOpenBottomPinSuppressed'
   | 'requestThreadOpenBottomPin'
   | 'scrollRef'
+  | 'scrollThreadToEnd'
   | 'setAtBottom'
   | 'threadEventsLength'
   | 'threadId'
@@ -451,7 +455,8 @@ const useThreadOpeningPin = ({
     });
     const scrollArea = scrollRef.current;
     if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
-    scrollToBottom(scrollArea, 'instant');
+    if (scrollThreadToEnd) scrollThreadToEnd(false);
+    else scrollToBottom(scrollArea, 'instant');
     setAtBottom(true);
     pinnedInCommitRef.current = true;
     pinnedPositionRef.current = {
@@ -463,6 +468,7 @@ const useThreadOpeningPin = ({
     isThreadOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
     scrollRef,
+    scrollThreadToEnd,
     setAtBottom,
     threadEventsLength,
     threadId,
@@ -504,7 +510,8 @@ const useThreadOpeningPin = ({
       threadEventCount: threadEventsLength,
     });
     if (!pinned || !requestThreadOpenBottomPin()) return;
-    scrollToBottom(scrollArea, 'instant');
+    if (scrollThreadToEnd) scrollThreadToEnd(false);
+    else scrollToBottom(scrollArea, 'instant');
     pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
   });
 };
@@ -624,11 +631,16 @@ const finishSmoothBottomPin = (scrollArea: HTMLElement, wanted: () => boolean) =
 const useBottomPinRequests = ({
   latestAtTopRef,
   scrollRef,
+  scrollThreadToEnd,
   scrollToBottomRef,
   shouldApplyThreadBottomPin,
 }: Pick<
   Options,
-  'latestAtTopRef' | 'scrollRef' | 'scrollToBottomRef' | 'shouldApplyThreadBottomPin'
+  | 'latestAtTopRef'
+  | 'scrollRef'
+  | 'scrollThreadToEnd'
+  | 'scrollToBottomRef'
+  | 'shouldApplyThreadBottomPin'
 >) => {
   const seenCountRef = useRef(scrollToBottomRef.current.count);
   const guardRef = useLatestRef(shouldApplyThreadBottomPin);
@@ -640,6 +652,10 @@ const useBottomPinRequests = ({
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
     const latestAtTop = !!latestAtTopRef?.current;
+    if (scrollThreadToEnd && !latestAtTop) {
+      scrollThreadToEnd(smooth);
+      return;
+    }
     scrollToLatestEnd(scrollArea, latestAtTop, smooth ? 'smooth' : 'instant');
     if (smooth && !latestAtTop) {
       finishSmoothBottomPin(
