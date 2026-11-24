@@ -15,6 +15,8 @@ import {
 //    to Sub-agents on that run, panel frame passes checkPanelFrame, finished card opens graph
 //    after reload with no ephemeral history, and phone width covers conversation and Close returns.
 
+test.use({ video: 'off' });
+
 const RUN_ID = 'wf-77777777777777777777777777777777';
 const SUBAGENT_RUN = 'delegation-1';
 
@@ -301,7 +303,7 @@ test.describe('workflow graph panel fixture screenshots', () => {
 });
 
 test.describe('workflow graph panel integration', () => {
-  test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
+  test.use({ viewport: { width: 1600, height: 1000 } });
 
   test.beforeEach(async () => {
     test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver is not running');
