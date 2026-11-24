@@ -1984,7 +1984,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二欄開啟"
+    "openBeside": "在第二欄開啟",
+    "detailsSection": "詳細資料",
+    "forkAndShareSection": "分支與分享",
+    "shareSection": "分享",
+    "viewSection": "檢視"
   },
   "roomSchedules": {
     "thisThread": "此討論串",

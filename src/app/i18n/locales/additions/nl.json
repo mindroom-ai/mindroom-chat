@@ -2049,7 +2049,11 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Afsplitsen & delen",
+    "shareSection": "Delen",
+    "viewSection": "Weergave"
   },
   "roomSchedules": {
     "thisThread": "Deze thread",

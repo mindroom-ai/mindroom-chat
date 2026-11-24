@@ -1984,7 +1984,11 @@
     "done": "Selesai"
   },
   "threadActions": {
-    "openBeside": "Buka di kolom kedua"
+    "openBeside": "Buka di kolom kedua",
+    "detailsSection": "Detail",
+    "forkAndShareSection": "Cabangkan & Bagikan",
+    "shareSection": "Bagikan",
+    "viewSection": "Tampilan"
   },
   "roomSchedules": {
     "thisThread": "Utas ini",

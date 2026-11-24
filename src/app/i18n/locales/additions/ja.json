@@ -1984,7 +1984,11 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "2列目で開く"
+    "openBeside": "2列目で開く",
+    "detailsSection": "詳細",
+    "forkAndShareSection": "分岐と共有",
+    "shareSection": "共有",
+    "viewSection": "表示"
   },
   "roomSchedules": {
     "thisThread": "このスレッド",

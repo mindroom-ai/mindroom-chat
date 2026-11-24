@@ -2114,7 +2114,11 @@
     "done": "Fatti"
   },
   "threadActions": {
-    "openBeside": "Apri nella seconda colonna"
+    "openBeside": "Apri nella seconda colonna",
+    "detailsSection": "Dettagli",
+    "forkAndShareSection": "Dirama e condividi",
+    "shareSection": "Condividi",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Questo thread",

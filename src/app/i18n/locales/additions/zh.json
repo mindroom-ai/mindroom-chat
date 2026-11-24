@@ -1984,7 +1984,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二栏打开"
+    "openBeside": "在第二栏打开",
+    "detailsSection": "详情",
+    "forkAndShareSection": "分支与分享",
+    "shareSection": "分享",
+    "viewSection": "视图"
   },
   "roomSchedules": {
     "thisThread": "此讨论串",

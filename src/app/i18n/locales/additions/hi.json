@@ -2049,7 +2049,11 @@
     "done": "पूरे"
   },
   "threadActions": {
-    "openBeside": "दूसरे कॉलम में खोलें"
+    "openBeside": "दूसरे कॉलम में खोलें",
+    "detailsSection": "विवरण",
+    "forkAndShareSection": "शाखा बनाएँ और साझा करें",
+    "shareSection": "साझा करें",
+    "viewSection": "दृश्य"
   },
   "roomSchedules": {
     "thisThread": "यह थ्रेड",

@@ -2114,7 +2114,11 @@
     "done": "Concluídos"
   },
   "threadActions": {
-    "openBeside": "Abrir na segunda coluna"
+    "openBeside": "Abrir na segunda coluna",
+    "detailsSection": "Detalhes",
+    "forkAndShareSection": "Bifurcar e partilhar",
+    "shareSection": "Partilhar",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este tópico",

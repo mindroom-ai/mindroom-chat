@@ -2049,7 +2049,11 @@
     "done": "Erledigt"
   },
   "threadActions": {
-    "openBeside": "In zweiter Spalte öffnen"
+    "openBeside": "In zweiter Spalte öffnen",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Abzweigen & Teilen",
+    "shareSection": "Teilen",
+    "viewSection": "Ansicht"
   },
   "roomSchedules": {
     "thisThread": "Dieser Thread",

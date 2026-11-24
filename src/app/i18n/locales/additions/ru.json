@@ -2179,7 +2179,11 @@
     "done": "Готово"
   },
   "threadActions": {
-    "openBeside": "Открыть во второй колонке"
+    "openBeside": "Открыть во второй колонке",
+    "detailsSection": "Сведения",
+    "forkAndShareSection": "Ответвить и поделиться",
+    "shareSection": "Поделиться",
+    "viewSection": "Вид"
   },
   "roomSchedules": {
     "thisThread": "Эта ветка",

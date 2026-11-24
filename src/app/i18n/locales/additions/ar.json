@@ -2309,7 +2309,11 @@
     "done": "منتهية"
   },
   "threadActions": {
-    "openBeside": "فتح في العمود الثاني"
+    "openBeside": "فتح في العمود الثاني",
+    "detailsSection": "التفاصيل",
+    "forkAndShareSection": "التفريع والمشاركة",
+    "shareSection": "المشاركة",
+    "viewSection": "العرض"
   },
   "roomSchedules": {
     "thisThread": "سلسلة المحادثة هذه",

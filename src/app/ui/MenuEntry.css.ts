@@ -1,5 +1,4 @@
 import { style } from '@vanilla-extract/css';
-import { config } from 'folds';
 
 /**
  * A menu entry that cannot be used here and says why. folds dims a whole disabled item; this one
@@ -23,8 +22,9 @@ export const Described = style({
 /**
  * A decorative folds Switch inside a `menuitemcheckbox` row. Passing `disabled` removes the inner
  * `<button>` from focus and assistive tech (avoiding axe-core's `nested-interactive` violation);
- * this restores folds' enabled Switch opacity (`P300` = 0.75 unchecked, `P500` = 1 checked) and
- * pointer/cursor behavior over folds' `[disabled]` rule.
+ * this restores folds' enabled Switch opacity (`config.opacity.P300` = 0.75 unchecked,
+ * `config.opacity.P500` = 1 checked) and pointer/cursor behavior over folds' `[disabled]` rule.
+ * Literal values avoid importing `folds` at module evaluation time in tests that partially mock it.
  */
 export const DecorativeSwitch = style({
   pointerEvents: 'none',
@@ -33,10 +33,10 @@ export const DecorativeSwitch = style({
       cursor: 'inherit',
     },
     '&&[disabled][aria-checked="false"]': {
-      opacity: `${config.opacity.P300} !important`,
+      opacity: '0.75 !important',
     },
     '&&[disabled][aria-checked="true"]': {
-      opacity: `${config.opacity.P500} !important`,
+      opacity: '1 !important',
     },
   },
 });

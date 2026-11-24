@@ -2049,7 +2049,11 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open in second column"
+    "openBeside": "Open in second column",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Fork & Share",
+    "shareSection": "Share",
+    "viewSection": "View"
   },
   "roomSchedules": {
     "thisThread": "This thread",

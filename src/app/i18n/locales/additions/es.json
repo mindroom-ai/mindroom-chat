@@ -2114,7 +2114,11 @@
     "done": "Hechos"
   },
   "threadActions": {
-    "openBeside": "Abrir en la segunda columna"
+    "openBeside": "Abrir en la segunda columna",
+    "detailsSection": "Detalles",
+    "forkAndShareSection": "Bifurcar y compartir",
+    "shareSection": "Compartir",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Este hilo",
