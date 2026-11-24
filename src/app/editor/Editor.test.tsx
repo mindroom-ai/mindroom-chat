@@ -2,8 +2,9 @@
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Descendant } from 'slate';
-import { CustomEditor, useEditor } from './Editor';
+import { Editor, Transforms, type Descendant } from 'slate';
+import { createComposerEditor, CustomEditor, useEditor } from './Editor';
+import { toPlainText } from './output';
 import { BlockType } from './types';
 import { createMentionElement } from './utils';
 
@@ -133,5 +134,47 @@ describe('CustomEditor', () => {
       textBox({ styleMarkdown: true, initialValue: line('/plain a **b**') });
       expect(markers()).toEqual(['**', '**']);
     });
+  });
+
+  it('keeps list formatting on select-all rich fragment paste and restores the draft in one undo', () => {
+    const editor = createComposerEditor();
+    const draft: Descendant[] = [
+      { type: BlockType.Paragraph, children: [{ text: 'Intro' }] },
+      {
+        type: BlockType.OrderedList,
+        children: [
+          { type: BlockType.ListItem, children: [{ text: 'old 1' }] },
+          { type: BlockType.ListItem, children: [{ text: 'old 2' }] },
+        ],
+      },
+    ];
+    const pastedList: Descendant[] = [
+      {
+        type: BlockType.OrderedList,
+        children: [
+          { type: BlockType.ListItem, children: [{ text: 'A' }] },
+          { type: BlockType.ListItem, children: [{ text: 'B' }] },
+        ],
+      },
+    ];
+    editor.children = structuredClone(draft);
+    Transforms.select(editor, {
+      anchor: Editor.start(editor, []),
+      focus: Editor.end(editor, []),
+    });
+
+    const encoded = window.btoa(encodeURIComponent(JSON.stringify(pastedList)));
+    const data = {
+      getData: (type: string) =>
+        type === 'application/x-slate-fragment' ? encoded : type === 'text/plain' ? 'A\nB' : '',
+    } as unknown as DataTransfer;
+    editor.insertData(data);
+
+    expect(editor.children).toEqual(pastedList);
+    expect(toPlainText(editor.children, true)).toBe('1. A\n2. B');
+    expect(editor.history.undos).toHaveLength(1);
+
+    editor.undo();
+    expect(editor.children).toEqual(draft);
   });
 });
