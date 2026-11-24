@@ -128,7 +128,7 @@ function DeepTraceSetting() {
     pendingRef.current = true;
     setPending(true);
     setNotice(undefined);
-    let saved = false;
+    let saved: boolean;
     try {
       saved = await setDeepTraceEnabled(next);
     } catch {

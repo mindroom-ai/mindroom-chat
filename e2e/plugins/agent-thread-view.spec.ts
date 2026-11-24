@@ -304,7 +304,7 @@ test("the page's and the plugin's panel's typing is one notice", async ({ page, 
   // Typing in the page's composer, then in the panel's: the others see one notice throughout,
   // also past the time a single notice expires (30 s).
   const typing = watchTyping(stack, stack.rooms.lobby);
-  let started = 0;
+  let started: number;
   try {
     await pageComposer(page).click();
     await page.keyboard.type('t');

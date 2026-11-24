@@ -273,7 +273,7 @@ test.use({
 test.describe('a long room opened at its first unread message reads back to its start', () => {
   test.beforeAll(async () => {
     test.setTimeout(600_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

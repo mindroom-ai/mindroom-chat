@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Avatar, Box, Icon, Icons, Scroll, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
@@ -62,7 +62,7 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
-  const groups = useRelations(relations, useCallback(getReactionGroups, []));
+  const groups = useRelations(relations, getReactionGroups);
   const [selectedKey, setSelectedKey] = useState<string>();
 
   const selected = groups.find(([key]) => key === selectedKey) ?? groups[0];

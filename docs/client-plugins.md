@@ -567,7 +567,7 @@ a CommonJS package's `require` of a shared package still resolves in the plugin'
 Its build module's hooks run there too, so the package names its `resolveId` maps resolve in its tests as in the build.
 `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1` runs the listed plugins' tests alone, without the app's own.
 The app inside a plugin's directory, a link or a submodule at its top such as `.mindroom-chat`, lends it none of the app's tests.
-A plugin in a repository of its own typechecks and lints with configs it extends from the app ([development.md](development.md#a-client-plugin-in-its-own-repository)).
+A plugin in a repository of its own typechecks and lints with configs it extends from the app (`tsconfig.plugin.json`, `tsconfig.plugin.strict.json`, and ESLint 10 flat config `eslint.config.plugin.mjs`; see [development.md](development.md#a-client-plugin-in-its-own-repository)).
 A plugin's tests reach the app through the SDK's subpaths only, never its modules: a test that needs another answer from one of the SDK's hooks mocks that subpath (`vi.mock('@mindroom/client-sdk/matrix', ...)` with the original's exports spread in, from `importOriginal`), or gives `renderPluginComponent` its `client`.
 They render a contribution's own component, or call its `run`, directly; how the app shows it in its surfaces, such as the room header, the timeline or the composer's commands, is for the plugin's end-to-end tests.
 
