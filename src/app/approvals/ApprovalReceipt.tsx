@@ -10,6 +10,7 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
 import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
 import { IsolatedText } from '../ui/directional';
+import { useDetailsRevealOnOpen } from '../ui/disclosureReveal';
 
 export function ApprovalReceipt({
   approval,
@@ -23,7 +24,8 @@ export function ApprovalReceipt({
   /** The approval's room, for people's names; the thread's room by default. */
   roomId?: string;
 }) {
-  const glassRef = useGlassHighlight<HTMLDetailsElement>(undefined, !nested);
+  const { detailsRef, onToggle, summaryProps } = useDetailsRevealOnOpen();
+  const glassRef = useGlassHighlight<HTMLDetailsElement>(detailsRef, !nested);
   const { t } = useTranslation();
   const room = useApprovalRoom(roomId);
   const person = (userId: string) => userDisplayName(room, userId);
@@ -40,8 +42,9 @@ export function ApprovalReceipt({
       ref={glassRef}
       className={css.Receipt}
       aria-label={t('mindroomUi.messages.approvalReceipt.resolvedToolApprovalRequest')}
+      onToggle={onToggle}
     >
-      <summary className={css.ReceiptHeader}>
+      <summary className={css.ReceiptHeader} {...summaryProps}>
         <span className={css.ReceiptTool}>
           {approval.status === 'approved' ? '✓' : '–'} {getToolApprovalOperationLabel(approval)}
         </span>

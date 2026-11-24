@@ -2,7 +2,12 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveReplyStore } from '../messages/live/liveReplyStore';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
+import { isDisclosureRevealActive } from '../ui/disclosureReveal';
 import { useFollowContentGrowth } from './useFollowContentGrowth';
+
+vi.mock('../ui/disclosureReveal', () => ({
+  isDisclosureRevealActive: vi.fn(() => false),
+}));
 
 type ResizeCallback = (entries: ResizeObserverEntry[]) => void;
 
@@ -54,6 +59,7 @@ describe('useFollowContentGrowth', () => {
         disconnect = vi.fn();
       }
     );
+    vi.mocked(isDisclosureRevealActive).mockReturnValue(false);
     scroller = createScroller();
     liveReplies = new LiveReplyStore();
     seq = 0;
@@ -210,5 +216,30 @@ describe('useFollowContentGrowth', () => {
     grow(300, { frame: false });
 
     expect(scroller.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('suppresses live follow during an active disclosure reveal and refreshes pinned from bottom distance', () => {
+    vi.mocked(isDisclosureRevealActive).mockReturnValue(true);
+
+    grow(250);
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(600);
+
+    // Reveal finishes while still 250px above bottom: a later streaming frame does not yank down.
+    vi.mocked(isDisclosureRevealActive).mockReturnValue(false);
+    grow(80);
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(600);
+  });
+
+  it('refreshes pinned to false after tall non-framed growth so a later streaming frame does not yank', () => {
+    // Tall disclosure opens without a live frame, leaving the reader 300px above the bottom.
+    grow(300, { frame: false });
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+
+    // A later streaming frame arrives: pinned is now false, so the reader stays put.
+    grow(80, { frame: true });
+    expect(scroller.scrollTo).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(600);
   });
 });

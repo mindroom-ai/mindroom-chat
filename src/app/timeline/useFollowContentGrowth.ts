@@ -1,6 +1,7 @@
 import { type MutableRefObject, type RefObject, useEffect } from 'react';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import type { LiveReplyStore } from '../messages/live/liveReplyStore';
+import { isDisclosureRevealActive } from '../ui/disclosureReveal';
 import { READER_INTENT_EVENTS } from './roomTimelineScroll';
 
 /**
@@ -62,9 +63,16 @@ export const useFollowContentGrowth = (
       const framed = liveReplies.frameCount(roomId) !== framesAtGesture;
       height = entry.contentRect.height;
       seenScrollHeight = scrollElement.scrollHeight;
+      if (isDisclosureRevealActive(scrollElement)) {
+        framesAtGesture = liveReplies.frameCount(roomId);
+        pinned = isViewportAtBottomNow();
+        return;
+      }
       if (grew && framed && pinned && atLiveEndRef.current) {
         const end = scrollElement.scrollHeight - scrollElement.clientHeight - pendingListShrinkPx();
         scrollElement.scrollTo({ top: Math.max(0, end), behavior: 'instant' });
+      } else if (grew && !framed) {
+        pinned = isViewportAtBottomNow();
       }
     });
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
