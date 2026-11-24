@@ -551,6 +551,7 @@ export async function startReplayServer(options = {}) {
     };
   }
 
+  let baseUrl = '';
   const server = http.createServer(async (req, res) => {
     const cors = {
       'Access-Control-Allow-Origin': req.headers.origin ?? '*',
@@ -575,6 +576,12 @@ export async function startReplayServer(options = {}) {
       initEngine();
       notifyWaiters();
       return json(200, { ok: true, status: getStatus() });
+    }
+    if (p === '/.well-known/matrix/client') {
+      return json(200, { 'm.homeserver': { base_url: baseUrl } });
+    }
+    if (p === '/_matrix/client/v3/register') {
+      return json(403, { errcode: 'M_FORBIDDEN', error: 'Registration disabled' });
     }
     if (p === '/_matrix/client/versions') {
       return json(200, {
@@ -1005,7 +1012,7 @@ export async function startReplayServer(options = {}) {
   });
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-  const baseUrl = `http://127.0.0.1:${actualPort}`;
+  baseUrl = `http://127.0.0.1:${actualPort}`;
 
   let closed = false;
   const close = () => {
