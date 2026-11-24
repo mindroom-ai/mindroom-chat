@@ -15,6 +15,7 @@ import { handle } from './ipc';
 
 export type DesktopAccessOperations = {
   getStatus(): Promise<DesktopResult<DesktopAccessSnapshot>>;
+  beginSetup(): Promise<DesktopResult<void>>;
   login(request: DesktopAccessLoginRequest): Promise<DesktopResult<DesktopAccessSnapshot>>;
   pair(request: DesktopAccessPairRequest): Promise<DesktopResult<DesktopAccessPairResult>>;
   finishSetup(
@@ -278,6 +279,7 @@ export const registerDesktopAccessHandlers = (
   const noArgs = (args: unknown[]): true | undefined => (args.length === 0 ? true : undefined);
 
   handle('desktop:access-status', statusOwners, noArgs, () => access.getStatus());
+  handle('desktop:access-begin-setup', mainOwners, noArgs, () => access.beginSetup());
   handle(
     'desktop:access-login',
     mainOwners,

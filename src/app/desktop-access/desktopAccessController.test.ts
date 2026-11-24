@@ -100,6 +100,7 @@ const createMockBridge = (initialSnapshot: DesktopAccessSnapshot) => {
   let current = initialSnapshot;
   const listeners = new Set<(event: DesktopShellEvent) => void>();
   const desktopAccess: DesktopAccessBridge = {
+    beginSetup: vi.fn(async () => ({ ok: true as const, value: undefined })),
     status: vi.fn(async () => ({ ok: true as const, value: current })),
     login: vi.fn(async () => ({ ok: true as const, value: current })),
     pair: vi.fn(async () => ({
@@ -414,6 +415,69 @@ describe('pairAgentOnThisMac', () => {
       )
     ).rejects.toThrow('Desktop pairing is disabled by server policy.');
   });
+});
+
+describe('pairAgentOnThisMac setup authorization and offer pinning', () => {
+  const params = {
+    agentUserId: '@mindroom_general:mindroom.chat',
+    agentName: 'general',
+    mode: 'full' as const,
+  };
+
+  it('opens the setup authorization with beginSetup before it waits for the setup offer', async () => {
+    const mock = createMockBridge(makeSnapshot({ sessionState: 'ready' }));
+
+    await pairAgentOnThisMac(mockMx, params, directRunUia);
+
+    expect(mock.desktopAccess.beginSetup).toHaveBeenCalledTimes(1);
+    const [began] = vi.mocked(mock.desktopAccess.beginSetup).mock.invocationCallOrder;
+    const [offered] = olmMocks.requestAgentSetupOffer.mock.invocationCallOrder;
+    expect(began).toBeLessThan(offered ?? 0);
+  });
+
+  it('asks the agent for nothing when the click is too old to open the setup authorization', async () => {
+    const mock = createMockBridge(makeSnapshot({ sessionState: 'ready' }));
+    vi.mocked(mock.desktopAccess.beginSetup).mockResolvedValue({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+
+    await expect(pairAgentOnThisMac(mockMx, params, directRunUia)).rejects.toThrow(
+      'NO_USER_GESTURE'
+    );
+    expect(olmMocks.requestAgentSetupOffer).not.toHaveBeenCalled();
+    expect(mock.desktopAccess.pair).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['another homeserver', { homeserver: 'https://evil.example' }, /homeserver/i],
+    ['another account', { user_id: '@mallory:mindroom.chat' }, /account/i],
+  ])(
+    'rejects a setup offer that names %s before it touches the helper session',
+    async (_label, forged, message) => {
+      // The helper has no session, so an accepted offer would sign it in at the named server.
+      const mock = createMockBridge(
+        makeSnapshot({ sessionState: 'missing', homeserver: null, userId: null })
+      );
+      tokenMock.mintDesktopLoginToken.mockResolvedValue({ kind: 'unsupported' });
+      olmMocks.requestAgentSetupOffer.mockResolvedValue({
+        offer: { ...ELIGIBLE_OFFER.offer, ...forged },
+        controller: ELIGIBLE_OFFER.controller,
+      });
+      const steps: DesktopPairingStep[] = [];
+
+      await expect(
+        pairAgentOnThisMac(mockMx, params, directRunUia, (step) => steps.push(step))
+      ).rejects.toThrow(message);
+
+      expect(steps).toEqual(['requesting_offer']);
+      expect(mock.desktopAccess.status).not.toHaveBeenCalled();
+      expect(tokenMock.mintDesktopLoginToken).not.toHaveBeenCalled();
+      expect(mock.desktopAccess.login).not.toHaveBeenCalled();
+      expect(mock.desktopAccess.pair).not.toHaveBeenCalled();
+      expect(mock.desktopAccess.finishSetup).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe('disconnectAgentFromThisMac', () => {

@@ -250,7 +250,8 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     return setupAuth;
   };
 
-  const authorizePair = (): boolean => {
+  /** Sign-in and pairing ride on a fresh click, or on a setup that has not bound a controller yet. */
+  const authorizeSetupStep = (): boolean => {
     if (consumeGesture()) return true;
     const auth = activeSetupAuth();
     return auth !== undefined && auth.controllerKey === undefined;
@@ -419,8 +420,16 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       return { ok: true, value: buildSnapshot() };
     },
 
+    // The renderer calls this on the consent click, before it waits for the agent's setup offer,
+    // which may take longer than a click counts for.
+    beginSetup(): Promise<DesktopResult<void>> {
+      if (!consumeGesture()) return Promise.resolve({ ok: false, code: 'NO_USER_GESTURE' });
+      setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS };
+      return Promise.resolve({ ok: true, value: undefined });
+    },
+
     login: (req: DesktopAccessLoginRequest) =>
-      runBridge(consumeGesture, async (client) => {
+      runBridge(authorizeSetupStep, async (client) => {
         if (req.replace && isBridgeRunning(latestStatus)) await client.request('stop', {});
         await client.request(
           'login',
@@ -441,7 +450,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       }),
 
     pair: (req: DesktopAccessPairRequest) =>
-      runBridge(authorizePair, async (client): Promise<DesktopAccessPairResult> => {
+      runBridge(authorizeSetupStep, async (client): Promise<DesktopAccessPairResult> => {
         const current = latestStatus ?? (await fetchStatus(client));
         const upsertRes = await client.request<{ status?: DesktopAccessHelperStatus }>(
           'upsert_controller',

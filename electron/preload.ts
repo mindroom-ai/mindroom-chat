@@ -132,6 +132,7 @@ const bridge = {
     ? {
         desktopAccess: {
           status: () => ipcRenderer.invoke('desktop:access-status'),
+          beginSetup: () => ipcRenderer.invoke('desktop:access-begin-setup'),
           login: (request) => ipcRenderer.invoke('desktop:access-login', request),
           pair: (request) => ipcRenderer.invoke('desktop:access-pair', request),
           finishSetup: (request) => ipcRenderer.invoke('desktop:access-finish-setup', request),

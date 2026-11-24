@@ -10,8 +10,10 @@ import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { registerThisMacDevice } from './browserPairRelay';
 import {
+  beginHelperSetup,
   finishHelperSetup,
   pairHelperWithController,
+  requireOwnAccount,
   type DesktopAccessLimits,
 } from './desktopAccessController';
 import {
@@ -26,6 +28,7 @@ import {
   derivePairInviteSas,
   parseDesktopPairInvite,
   parseDesktopPairInviteConfirmed,
+  sameHomeserver,
   type DesktopPairInvite,
 } from './desktopPairingProtocol';
 
@@ -64,9 +67,9 @@ const forgetInvite = (store: Store, { invite }: IncomingPairInvite): void => {
 };
 
 /**
- * On the Mac, after the consent click: signs the helper in, has it claim the invite's code, tells
- * the browser which helper device claimed it, and applies the consented mode once the browser
- * reports that the agent confirmed the pairing.
+ * On the Mac, after the consent click: opens the setup authorization, signs the helper in, has it
+ * claim the invite's code, tells the browser which helper device claimed it, and applies the
+ * consented mode once the browser reports that the agent confirmed the pairing.
  */
 export const approveIncomingPairInvite = async (
   mx: MatrixClient,
@@ -87,6 +90,9 @@ export const approveIncomingPairInvite = async (
     cloudflareAccess: invite.cloudflare_access,
   };
   try {
+    // Checked before the click is spent: an invite for another server or account opens no setup.
+    requireOwnAccount(mx, invite.homeserver, invite.user_id);
+    await beginHelperSetup();
     const paired = await pairHelperWithController(mx, target, runUia).catch(
       async (error: unknown) => {
         // The browser waits for an answer; a failure here is one.
@@ -157,8 +163,10 @@ export function DesktopMacRelayFeature(): null {
       if (message.type !== DESKTOP_PAIR_INVITE_EVENT || !encryptionInfo) return;
       if (encryptionInfo.sender !== userId || message.sender !== userId) return;
       const invite = parseDesktopPairInvite(message.content);
-      if (!invite || invite.user_id !== userId) return;
-      if (invite.controller.user_id !== invite.agent_user_id) return;
+      if (!invite || invite.controller.user_id !== invite.agent_user_id) return;
+      // No consent sheet for an invite that would sign the helper in elsewhere or as someone else.
+      if (invite.user_id !== userId || !sameHomeserver(invite.homeserver, mx.getHomeserverUrl()))
+        return;
       void receive(invite, encryptionInfo.senderCurve25519KeyBase64).catch(() => undefined);
     };
     mx.on(ClientEvent.ReceivedToDeviceMessage, onMessage);

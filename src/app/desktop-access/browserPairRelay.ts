@@ -7,6 +7,7 @@ import {
 } from 'matrix-js-sdk';
 import { errorMessage } from '../lib/errorMessage';
 import { signedModelDevices } from '../matrix/runtimeDeviceTrust';
+import { requireOwnAccount } from './desktopAccessController';
 import {
   confirmAgentPairing,
   exchangeOverOlm,
@@ -114,6 +115,8 @@ export const relayPairToMac = async (
   onState?.({ phase: 'requesting_offer' });
   const { offer, controller } = await requestAgentSetupOffer(mx, agentUserId, agentName, signal);
   if (!offer.eligible) throw new Error(offer.error);
+  // The Mac would refuse it too; the invite never leaves with a server or account that is not ours.
+  requireOwnAccount(mx, offer.homeserver, offer.user_id);
   const nonce = createPairingNonce();
   const sasCode = await derivePairInviteSas(nonce, offer.code, ownDeviceId);
   const invite: DesktopPairInvite = {

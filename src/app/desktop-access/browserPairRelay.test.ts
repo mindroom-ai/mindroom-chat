@@ -288,6 +288,7 @@ const installMacBridge = () => {
   const snapshot = makeReadySnapshot();
   const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
   const desktopAccess: DesktopAccessBridge = {
+    beginSetup: vi.fn(async () => ({ ok: true as const, value: undefined })),
     status: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     login: vi.fn(async () => ({ ok: true as const, value: snapshot })),
     pair: vi.fn(async () => ({
@@ -360,7 +361,7 @@ describe('registerThisMacDevice and useRegisteredMacDevices', () => {
 });
 
 describe('DesktopMacRelayFeature security and Browser-to-Mac relay flows', () => {
-  it('rejects unencrypted, other-user, unsigned, and tampered-SAS pair_invite.v1 events', async () => {
+  it('rejects unencrypted, other-user, unsigned, tampered-SAS, and foreign-homeserver pair_invite.v1 events', async () => {
     const { showMainWindow } = installMacBridge();
     const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, UNSIGNED_BROWSER]);
     const mac = net.makeNode(MAC_DEVICE);
@@ -446,13 +447,33 @@ describe('DesktopMacRelayFeature security and Browser-to-Mac relay flows', () =>
       },
     });
 
+    // 5. Another homeserver or account, from the genuine browser device with a matching SAS
+    for (const forged of [
+      { homeserver: 'https://evil.example' },
+      { user_id: '@mallory:mindroom.chat' },
+    ]) {
+      mac.emitToDevice({
+        message: {
+          type: DESKTOP_PAIR_INVITE_EVENT,
+          sender: USER_ID,
+          content: { ...baseInvite, ...forged },
+        },
+        encryptionInfo: {
+          sender: USER_ID,
+          senderDevice: BROWSER_DEVICE.deviceId,
+          senderCurve25519KeyBase64: BROWSER_DEVICE.curveKey,
+          senderVerified: false,
+        },
+      });
+    }
+
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20));
     });
     expect(store.get(incomingPairInviteAtom)).toBeNull();
     expect(showMainWindow).not.toHaveBeenCalled();
 
-    // 5. Genuine Olm-encrypted invite from signed browser device with matching SAS
+    // 6. Genuine Olm-encrypted invite from signed browser device with matching SAS
     mac.emitToDevice({
       message: { type: DESKTOP_PAIR_INVITE_EVENT, sender: USER_ID, content: baseInvite },
       encryptionInfo: {
@@ -732,5 +753,275 @@ describe('DesktopMacRelayFeature security and Browser-to-Mac relay flows', () =>
         store
       )
     ).rejects.toThrow(/timed out/i);
+  });
+  it('ignores a pair_invite_result.v1 from another device of the account in the browser', async () => {
+    const otherSignedDevice: DeviceSpec = {
+      userId: USER_ID,
+      deviceId: 'OTHER_DEV',
+      curveKey: 'curve-other',
+      ed25519: 'ed-other',
+      signedByOwner: true,
+    };
+    const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, otherSignedDevice, AGENT_DEVICE]);
+    const mac = net.makeNode(MAC_DEVICE);
+    const browser = net.makeNode(BROWSER_DEVICE);
+    const agent = net.makeNode(AGENT_DEVICE);
+    const confirms: unknown[] = [];
+    agent.mx.on(ClientEvent.ReceivedToDeviceMessage, (payload: ReceivedToDeviceMessage) => {
+      if (payload.message.type === DESKTOP_PAIRING_CONFIRM_EVENT) confirms.push(payload.message);
+      if (payload.message.type !== DESKTOP_SETUP_REQUEST_EVENT) return;
+      browser.emitToDevice({
+        message: {
+          type: DESKTOP_SETUP_OFFER_EVENT,
+          sender: AGENT_USER,
+          content: {
+            v: 1,
+            nonce: payload.message.content.nonce,
+            agent_name: 'general',
+            eligible: true,
+            homeserver: 'https://mindroom.chat',
+            user_id: USER_ID,
+            code: 'spoof-code-7',
+            cloudflare_access: false,
+          },
+        },
+        encryptionInfo: {
+          sender: AGENT_USER,
+          senderDevice: AGENT_DEVICE.deviceId,
+          senderCurve25519KeyBase64: AGENT_DEVICE.curveKey,
+          senderVerified: false,
+        },
+      });
+    });
+    // The Mac app is not running its relay here; the test answers for it by hand.
+    let inviteNonce: unknown;
+    mac.mx.on(ClientEvent.ReceivedToDeviceMessage, (payload: ReceivedToDeviceMessage) => {
+      if (payload.message.type === DESKTOP_PAIR_INVITE_EVENT)
+        inviteNonce = payload.message.content.nonce;
+    });
+
+    const states: RelayPairState[] = [];
+    const relayPromise = relayPairToMac(
+      browser.mx,
+      { device_id: MAC_DEVICE.deviceId, label: 'Bas MacBook Pro', updated_at: 1_700_000_000_000 },
+      AGENT_USER,
+      'general',
+      (state) => states.push(state)
+    );
+    const settled = vi.fn();
+    relayPromise.then(settled, settled);
+    await waitFor(() => {
+      expect(inviteNonce).toBeDefined();
+    });
+
+    // Another signed device of the account names a helper of its own for the agent to trust.
+    browser.emitToDevice({
+      message: {
+        type: DESKTOP_PAIR_INVITE_RESULT_EVENT,
+        sender: USER_ID,
+        content: {
+          v: 1,
+          nonce: inviteNonce,
+          ok: true,
+          device_id: 'EVIL_HELPER',
+          device_ed25519: 'ed-evil-helper',
+          verification: 'FFFF0000FFFF0000',
+        },
+      },
+      encryptionInfo: {
+        sender: USER_ID,
+        senderDevice: otherSignedDevice.deviceId,
+        senderCurve25519KeyBase64: otherSignedDevice.curveKey,
+        senderVerified: false,
+      },
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(settled).not.toHaveBeenCalled();
+    expect(confirms).toEqual([]);
+    expect(states.map((s) => s.phase)).toEqual(['requesting_offer', 'awaiting_mac']);
+
+    // The browser still waits for the Mac it invited, and takes that Mac's answer.
+    browser.emitToDevice({
+      message: {
+        type: DESKTOP_PAIR_INVITE_RESULT_EVENT,
+        sender: USER_ID,
+        content: { v: 1, nonce: inviteNonce, ok: false, error: 'Declined on Mac.' },
+      },
+      encryptionInfo: {
+        sender: USER_ID,
+        senderDevice: MAC_DEVICE.deviceId,
+        senderCurve25519KeyBase64: MAC_DEVICE.curveKey,
+        senderVerified: false,
+      },
+    });
+    await expect(relayPromise).rejects.toThrow('Declined on Mac.');
+    expect(confirms).toEqual([]);
+  });
+
+  it.each([
+    ['another homeserver', { homeserver: 'https://evil.example' }, /homeserver/i],
+    ['another account', { user_id: '@mallory:mindroom.chat' }, /account/i],
+  ])(
+    'sends no invite from the browser when the setup offer names %s',
+    async (_label, forged, message) => {
+      const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, AGENT_DEVICE]);
+      const mac = net.makeNode(MAC_DEVICE);
+      const browser = net.makeNode(BROWSER_DEVICE);
+      const agent = net.makeNode(AGENT_DEVICE);
+      const invites: unknown[] = [];
+      mac.mx.on(ClientEvent.ReceivedToDeviceMessage, (payload: ReceivedToDeviceMessage) => {
+        invites.push(payload.message.type);
+      });
+      agent.mx.on(ClientEvent.ReceivedToDeviceMessage, (payload: ReceivedToDeviceMessage) => {
+        if (payload.message.type !== DESKTOP_SETUP_REQUEST_EVENT) return;
+        browser.emitToDevice({
+          message: {
+            type: DESKTOP_SETUP_OFFER_EVENT,
+            sender: AGENT_USER,
+            content: {
+              v: 1,
+              nonce: payload.message.content.nonce,
+              agent_name: 'general',
+              eligible: true,
+              homeserver: 'https://mindroom.chat',
+              user_id: USER_ID,
+              code: 'forged-offer-1',
+              cloudflare_access: false,
+              ...forged,
+            },
+          },
+          encryptionInfo: {
+            sender: AGENT_USER,
+            senderDevice: AGENT_DEVICE.deviceId,
+            senderCurve25519KeyBase64: AGENT_DEVICE.curveKey,
+            senderVerified: false,
+          },
+        });
+      });
+      const states: RelayPairState[] = [];
+
+      await expect(
+        relayPairToMac(
+          browser.mx,
+          { device_id: MAC_DEVICE.deviceId, label: 'Mac', updated_at: 1_700_000_000_000 },
+          AGENT_USER,
+          'general',
+          (state) => states.push(state)
+        )
+      ).rejects.toThrow(message);
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      expect(states.map((s) => s.phase)).toEqual(['requesting_offer']);
+      expect(invites).toEqual([]);
+    }
+  );
+
+  it.each([
+    ['another homeserver', { homeserver: 'https://evil.example' }, /homeserver/i],
+    ['another account', { user_id: '@mallory:mindroom.chat' }, /account/i],
+  ])(
+    'refuses to approve an invite that names %s without opening a setup or touching the helper',
+    async (_label, forged, message) => {
+      const { desktopAccess } = installMacBridge();
+      const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, AGENT_DEVICE]);
+      const mac = net.makeNode(MAC_DEVICE);
+      const store = createStore();
+      const nonce = '0123456789abcdef0123456789abcdef';
+      const incoming = {
+        invite: {
+          v: 1 as const,
+          nonce,
+          agent_name: 'general',
+          agent_user_id: AGENT_USER,
+          controller: {
+            user_id: AGENT_USER,
+            device_id: AGENT_DEVICE.deviceId,
+            ed25519: AGENT_DEVICE.ed25519,
+          },
+          homeserver: 'https://mindroom.chat',
+          user_id: USER_ID,
+          code: 'code-forged',
+          cloudflare_access: false,
+          requester_label: 'Safari',
+          sas_code: await derivePairInviteSas(nonce, 'code-forged', BROWSER_DEVICE.deviceId),
+          ...forged,
+        },
+        senderDeviceId: BROWSER_DEVICE.deviceId,
+        senderEd25519: BROWSER_DEVICE.ed25519,
+        receivedAt: Date.now(),
+      };
+      store.set(incomingPairInviteAtom, incoming);
+
+      await expect(
+        approveIncomingPairInvite(
+          mac.mx,
+          incoming,
+          directRunUia,
+          'full',
+          undefined,
+          undefined,
+          store
+        )
+      ).rejects.toThrow(message);
+
+      expect(desktopAccess.beginSetup).not.toHaveBeenCalled();
+      expect(desktopAccess.status).not.toHaveBeenCalled();
+      expect(desktopAccess.login).not.toHaveBeenCalled();
+      expect(desktopAccess.pair).not.toHaveBeenCalled();
+      expect(store.get(incomingPairInviteAtom)).toBeNull();
+    }
+  );
+
+  it('opens the setup authorization on the Mac before the helper claims the invite', async () => {
+    const { desktopAccess } = installMacBridge();
+    const net = createRelayNetwork([MAC_DEVICE, BROWSER_DEVICE, AGENT_DEVICE]);
+    const mac = net.makeNode(MAC_DEVICE);
+    net.makeNode(BROWSER_DEVICE);
+    const nonce = '00112233445566778899aabbccddeeff';
+    const incoming = {
+      invite: {
+        v: 1 as const,
+        nonce,
+        agent_name: 'general',
+        agent_user_id: AGENT_USER,
+        controller: {
+          user_id: AGENT_USER,
+          device_id: AGENT_DEVICE.deviceId,
+          ed25519: AGENT_DEVICE.ed25519,
+        },
+        homeserver: 'https://mindroom.chat',
+        user_id: USER_ID,
+        code: 'code-order',
+        cloudflare_access: false,
+        requester_label: 'Safari',
+        sas_code: await derivePairInviteSas(nonce, 'code-order', BROWSER_DEVICE.deviceId),
+      },
+      senderDeviceId: BROWSER_DEVICE.deviceId,
+      senderEd25519: BROWSER_DEVICE.ed25519,
+      receivedAt: Date.now(),
+    };
+
+    // Nobody answers for the browser, so the approval ends at the confirmation it waits for.
+    await expect(
+      approveIncomingPairInvite(
+        mac.mx,
+        incoming,
+        directRunUia,
+        'full',
+        undefined,
+        { confirmTimeoutMs: 30 },
+        createStore()
+      )
+    ).rejects.toThrow(/timed out/i);
+
+    expect(desktopAccess.beginSetup).toHaveBeenCalledTimes(1);
+    const [began] = vi.mocked(desktopAccess.beginSetup).mock.invocationCallOrder;
+    const [status] = vi.mocked(desktopAccess.status).mock.invocationCallOrder;
+    const [paired] = vi.mocked(desktopAccess.pair).mock.invocationCallOrder;
+    expect(began).toBeLessThan(status ?? 0);
+    expect(began).toBeLessThan(paired ?? 0);
   });
 });

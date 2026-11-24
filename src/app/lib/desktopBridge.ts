@@ -208,6 +208,12 @@ export type InstalledMacApp = {
 
 export type DesktopAccessBridge = {
   status: () => Promise<DesktopResult<DesktopAccessSnapshot>>;
+  /**
+   * Opens the setup authorization from the click that just happened, so `login`, `pair` and
+   * `finishSetup` still pass when the steps before them (the agent's setup offer, sign-in) outlast
+   * the few seconds a click counts for. Call it first, before any waiting.
+   */
+  beginSetup: () => Promise<DesktopResult<void>>;
   login: (request: DesktopAccessLoginRequest) => Promise<DesktopResult<DesktopAccessSnapshot>>;
   pair: (request: DesktopAccessPairRequest) => Promise<DesktopResult<DesktopAccessPairResult>>;
   finishSetup: (

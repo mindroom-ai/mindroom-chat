@@ -106,6 +106,23 @@ export const useDesktopAccessSnapshot = ({ pollAccessibility = false } = {}) => 
 };
 
 /**
+ * Refuses a setup offer or relayed invite that names another homeserver or account than this
+ * session's. The agent supplies both, and the helper would open its sign-in at whatever they name.
+ */
+export const requireOwnAccount = (mx: MatrixClient, homeserver: string, userId: string): void => {
+  if (!sameHomeserver(homeserver, mx.getHomeserverUrl()))
+    throw new Error('This pairing offer names another homeserver than the one you signed in to.');
+  if (userId !== mx.getUserId()) throw new Error('This pairing offer is for another account.');
+};
+
+/**
+ * Opens the setup authorization of the desktop app from the consent click. It has to come before
+ * any waiting: a click counts for a few seconds only, and an agent may take longer to answer.
+ */
+export const beginHelperSetup = async (): Promise<void> =>
+  unwrapDesktopResult(await requireDesktopAccess().beginSetup());
+
+/**
  * Signs the helper in as this account unless it already is: silently with a one-time login token
  * where the homeserver mints one, else through the helper's browser sign-in.
  */
@@ -156,7 +173,7 @@ export const pairHelperWithController = async (
 ): Promise<DesktopAccessPairResult> => {
   const access = requireDesktopAccess();
   const { controller, userId } = target;
-  if (userId !== mx.getUserId()) throw new Error('This pairing offer is for another account.');
+  requireOwnAccount(mx, target.homeserver, userId);
   await ensureHelperSession(mx, access, target, runUia, () => onStep?.('signing_in'));
   onStep?.('pairing');
   return unwrapDesktopResult(
@@ -184,9 +201,10 @@ export const finishHelperSetup = async (
   );
 
 /**
- * Gives one agent access to this Mac after the user's consent click: asks the agent for a setup
- * offer over Olm, signs the helper in, has it claim the offer's code, confirms the claimed helper
- * device to the agent, and applies the consented mode. A second agent pairs while the bridge runs.
+ * Gives one agent access to this Mac after the user's consent click: opens the setup authorization,
+ * asks the agent for a setup offer over Olm, signs the helper in, has it claim the offer's code,
+ * confirms the claimed helper device to the agent, and applies the consented mode. A second agent
+ * pairs while the bridge runs.
  */
 export const pairAgentOnThisMac = async (
   mx: MatrixClient,
@@ -195,10 +213,11 @@ export const pairAgentOnThisMac = async (
   onStep?: (step: DesktopPairingStep) => void,
   signal?: AbortSignal
 ): Promise<DesktopAccessSnapshot> => {
-  requireDesktopAccess();
+  await beginHelperSetup();
   onStep?.('requesting_offer');
   const { offer, controller } = await requestAgentSetupOffer(mx, agentUserId, agentName, signal);
   if (!offer.eligible) throw new Error(offer.error);
+  requireOwnAccount(mx, offer.homeserver, offer.user_id);
   const target: HelperPairingTarget = {
     controller,
     agentName,

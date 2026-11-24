@@ -961,6 +961,124 @@ describe('desktopAccess', () => {
     ).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
   });
 
+  it('opens setup authorization with beginSetup from one gesture, so login, pair, and finishSetup still pass after a slow setup offer', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    let now = 7_000_000;
+    const fake = createFakeBridgeClient(makeBaseStatus());
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      now: () => now,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+    const login = { homeserver: 'https://mindroom.chat', method: 'sso' as const, loginToken: 't' };
+    const pair = {
+      controller: { userId: '@agent:mindroom.chat', deviceId: 'AG1', ed25519: 'ed1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['general'],
+      code: 'PAIR-1',
+    };
+
+    // Without a gesture nothing opens, and login stays closed.
+    expect(await access.beginSetup()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    expect(await access.login(login)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+
+    // One click: beginSetup consumes the gesture, so nothing else rides on it.
+    access.noteGesture();
+    expect(await access.beginSetup()).toEqual({ ok: true, value: undefined });
+    expect(await access.revokeAll()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    expect(await access.beginSetup()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+
+    // The agent's setup offer takes 15 s: login, pair, and finishSetup still pass without a click.
+    now += 15_000;
+    expect((await access.login(login)).ok).toBe(true);
+    now += 15_000;
+    const paired = await access.pair(pair);
+    expect(paired.ok).toBe(true);
+    if (!paired.ok) return;
+    // Once a controller is bound, the authorization signs nobody else in.
+    expect(await access.login(login)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    now += 15_000;
+    const { controllerKey } = paired.value;
+    expect((await access.finishSetup({ controllerKey, mode: 'full' })).ok).toBe(true);
+    expect(await access.finishSetup({ controllerKey, mode: 'full' })).toEqual({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+
+    // A helper that is already signed in pairs straight after the slow offer.
+    access.noteGesture();
+    expect((await access.beginSetup()).ok).toBe(true);
+    now += 15_000;
+    const again = await access.pair(pair);
+    expect(again.ok).toBe(true);
+    expect((await access.finishSetup({ controllerKey, mode: 'restricted' })).ok).toBe(true);
+
+    // The authorization runs out after 3 minutes.
+    access.noteGesture();
+    expect((await access.beginSetup()).ok).toBe(true);
+    now += 180_001;
+    expect(await access.login(login)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    expect(await access.pair(pair)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+  });
+
+  it('takes desktop:access-begin-setup from the main window only, without arguments', async () => {
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir: makeTempDir(),
+      storagePath: makeTempDir(),
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: () => createFakeBridgeClient(makeBaseStatus()).client,
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+    const frame = { url: `${APP_ORIGIN}/`, origin: APP_ORIGIN };
+    const mainWc = {
+      mainFrame: frame,
+      isDestroyed: () => false,
+    } as unknown as Electron.WebContents;
+    const otherFrame = { url: `${APP_ORIGIN}/shell-approval/`, origin: APP_ORIGIN };
+    const otherWc = { mainFrame: otherFrame, isDestroyed: () => false };
+    registerDesktopAccessHandlers(
+      () => [mainWc],
+      () => [otherWc as unknown as Electron.WebContents],
+      access
+    );
+    const beginSetup = electronMocks.ipcHandlers.get('desktop:access-begin-setup');
+    expect(beginSetup).toBeDefined();
+
+    access.noteGesture();
+    // The shell approval window may not open a setup, and a refusal leaves the gesture unspent.
+    expect(await beginSetup?.({ sender: otherWc, senderFrame: otherFrame })).toEqual({
+      ok: false,
+      code: 'FORBIDDEN',
+    });
+    const mainEvent = { sender: mainWc, senderFrame: frame };
+    expect(await beginSetup?.(mainEvent, 'extra')).toEqual({ ok: false, code: 'BAD_ARGUMENTS' });
+    expect(await beginSetup?.(mainEvent)).toEqual({ ok: true, value: undefined });
+    expect(await beginSetup?.(mainEvent)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+  });
+
   it('revokes live grants when downgrading a Full Access controller to restricted in finishSetup and never enables Login Item if consent write fails', async () => {
     const userDataDir = makeTempDir();
     const storagePath = makeTempDir();
