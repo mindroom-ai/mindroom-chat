@@ -14,7 +14,7 @@ import type {
   VoiceCaptureSession,
   VoiceCaptureSnapshot,
 } from './voiceCaptureSession';
-import { releaseVoiceRecording } from '../capture/captureJournal';
+import { releaseCapture } from '../capture/captureJournal';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -161,7 +161,7 @@ export function useVoiceRecorder({
       }
       // Captured, but not this account's to send any more: its disk copy waits, unlocked.
       if (result.status === 'captured' && result.recording.recordingId)
-        releaseVoiceRecording(result.recording.recordingId);
+        releaseCapture(result.recording.recordingId);
       settle();
       notifySendStopFailure();
       return false;

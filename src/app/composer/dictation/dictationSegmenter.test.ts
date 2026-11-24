@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { stitchTranscript } from './stitchTranscript';
 import {
   decodePcm16Frames,
   DICTATION_FRAME_MS,
@@ -405,10 +406,8 @@ describe('DictationSegmenter', () => {
     expect(positions.slice(0, 12)).toEqual([20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
     expect(positions[12]).toBeNull();
     expect(onCapReached).toHaveBeenCalledTimes(1);
-    expect(segmenter.getActiveFrames()).toBe(32);
     expect(segments).toHaveLength(1);
     expect(segments[0]?.index).toBe(3);
-    expect(segmenter.getNextSegmentIndex()).toBe(4);
     expect(segments[0]?.wavBuffer?.byteLength).toBe(segments[0]?.wav.size);
 
     // Already at cap on construction rejects frames immediately.
@@ -488,5 +487,35 @@ describe('DictationSegmenter', () => {
     expect(decoded[1]?.length).toBe(DICTATION_FRAME_SAMPLES);
     expect(decoded[0]?.[10]).toBeCloseTo(f0[10]!, 3);
     expect(decoded[1]?.[10]).toBeCloseTo(f1[10]!, 3);
+  });
+
+  it('marks only the first replayed segment overlapped when initialOverlapped is true, deduplicating boundary words', async () => {
+    const segments: DictationSegment[] = [];
+    const segmenter = new DictationSegmenter({
+      onSegment: (seg) => segments.push(seg),
+      initialSegmentIndex: 1,
+      initialOverlapped: true,
+    });
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+
+    // First replayed utterance after a hard cut (followed by natural pause) -> overlapped: true.
+    for (let i = 0; i < 4; i += 1) segmenter.pushFrame(makeFrame(0.3));
+    for (let i = 0; i < 8; i += 1) segmenter.pushFrame(makeFrame(0.001));
+    // Second utterance in the same replay -> overlapped: false.
+    for (let i = 0; i < 4; i += 1) segmenter.pushFrame(makeFrame(0.3));
+    await segmenter.flush();
+
+    expect(segments).toHaveLength(2);
+    expect(segments[0]).toMatchObject({ index: 1, overlapped: true });
+    expect(segments[1]).toMatchObject({ index: 2, overlapped: false });
+
+    const stitched = stitchTranscript([
+      { text: 'please invite Sam', overlapped: false },
+      { text: 'Sam tomorrow', overlapped: segments[0]!.overlapped },
+      { text: 'tomorrow morning', overlapped: segments[1]!.overlapped },
+    ]);
+    expect(stitched).toBe('please invite Sam tomorrow tomorrow morning');
   });
 });

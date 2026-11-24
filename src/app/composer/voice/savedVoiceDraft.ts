@@ -12,9 +12,9 @@ import {
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
 import {
-  holdVoiceRecording,
+  holdCapture,
   recoverVoiceRecording,
-  releaseVoiceRecording,
+  releaseCapture,
 } from '../capture/captureJournal';
 
 /**
@@ -145,10 +145,10 @@ export const useSavedVoiceDraft = (
         if (
           saved &&
           room &&
-          (!id || !globalThis.navigator?.locks || (await holdVoiceRecording(id)))
+          (!id || !globalThis.navigator?.locks || (await holdCapture(id)))
         ) {
           if (slotTaken()) {
-            if (id) releaseVoiceRecording(id);
+            if (id) releaseCapture(id);
             return;
           }
           store.set(pendingVoiceSendDraftAtom, {

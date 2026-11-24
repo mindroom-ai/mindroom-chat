@@ -126,7 +126,7 @@ it('restores the failed-send copy instead of offering the same recording as reco
     );
     await settle();
     act(() => first.renderer.unmount());
-    journal.releaseVoiceRecording(recording.id);
+    journal.releaseCapture(recording.id);
 
     const store = await reloadPage(() => failedDraft().context);
     const draft = store.get(reloadedAtom());
@@ -153,7 +153,7 @@ it.each(['send', 'discard'])(
       );
       await settle();
       act(() => first.renderer.unmount());
-      journal.releaseVoiceRecording(recording.id);
+      journal.releaseCapture(recording.id);
       membership = KnownMembership.Leave; // The client still has the Room object.
 
       const newRoom = {

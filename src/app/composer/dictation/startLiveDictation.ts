@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
-import { atom, useStore, type createStore } from 'jotai';
+import { atom, type createStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { createSessionId } from '../../matrix/session/sessions';
 import { isJoined } from '../../matrix/state/roomList';
-import { useOptionalClientConfig, type ClientConfig } from '../../config/useClientConfig';
+import type { ClientConfig } from '../../config/useClientConfig';
 import { clientSessions } from '../../computer/clientSessions';
 import { resolveComputerApiUrl } from '../../computer/api';
 import { trustedServerOrigins } from '../../computer/agentServer';
@@ -20,7 +20,6 @@ import {
   beginDictationJournal,
   recoverDictationJournal,
   type DictationJournalHandle,
-  type DictationJournalMeta,
   type RecoveredDictationJournal,
 } from '../capture/captureJournal';
 import { DictationClient } from './api';
@@ -28,7 +27,6 @@ import {
   appendSegmentToGroups,
   sealRefinementGroup,
   summarizeSessionRecords,
-  type RefinementGroup,
 } from './dictationRefinement';
 import {
   decodePcm16Frames,
@@ -41,10 +39,11 @@ import {
 } from './dictationSegmenter';
 import {
   createDictationSession,
+  hydrateDictationRecords,
+  serializeDictationMeta,
   type DictationSession,
   type DictationSessionOptions,
   type DictationTranscriber,
-  type RecoveredDictationRecord,
 } from './dictationSession';
 
 type JotaiStore = ReturnType<typeof createStore>;
@@ -53,7 +52,7 @@ export type StartLiveDictationOptions = Omit<
   DictationSessionOptions,
   'journal' | 'recovered' | 'originApiUrl'
 > & {
-  userId?: string;
+  sessionId?: string;
   originApiUrl?: string;
   createSession?: (options: DictationSessionOptions) => DictationSession;
 };
@@ -63,13 +62,27 @@ export type RecoverDictationOptions = {
 };
 
 /**
- * Per-account dictation restore tracking (missing = not started, Promise = in flight, null = settled),
+ * Computes the homeserver-scoped dictation session key (`createSessionId(baseUrl, userId)`) so
+ * switching between same-MXID logins on different homeservers never cross-recovers dictation rows.
+ */
+export const getDictationSessionId = (
+  mx: Pick<MatrixClient, 'getUserId' | 'getHomeserverUrl' | 'baseUrl'> | undefined
+): string | undefined => {
+  const userId = mx?.getUserId() ?? undefined;
+  if (!mx || !userId) return undefined;
+  const baseUrl =
+    typeof mx.getHomeserverUrl === 'function' ? mx.getHomeserverUrl() : mx.baseUrl;
+  return baseUrl ? createSessionId(baseUrl, userId) : userId;
+};
+
+/**
+ * Per-session dictation restore tracking (missing = not started, Promise = in flight, null = settled),
  * mirroring `voiceDraftRestoresAtom` in `savedVoiceDraft.ts`.
  */
 export const dictationRestoresAtom = atom<ReadonlyMap<string, Promise<void> | null>>(new Map());
 
 /**
- * Tracks the `captureAccountGuard` under which each userId's restore ran in a store so switching
+ * Tracks the `captureAccountGuard` under which each session's restore ran in a store so switching
  * accounts A -> B -> A triggers a fresh recovery for A without coupling shell cleanup to this module.
  */
 const restoreGuards = new WeakMap<JotaiStore, Map<string, () => boolean>>();
@@ -84,7 +97,7 @@ export const startLiveDictation = (
   options: StartLiveDictationOptions
 ): Promise<boolean> => {
   const {
-    userId,
+    sessionId,
     originApiUrl,
     createSession = createDictationSession,
     ...sessionOptions
@@ -92,9 +105,9 @@ export const startLiveDictation = (
   return beginLiveCapture(store, 'dictation', () => {
     const startedAt = sessionOptions.now ? sessionOptions.now() : Date.now();
     let journal: DictationJournalHandle | undefined;
-    if (userId) {
+    if (sessionId) {
       try {
-        journal = beginDictationJournal(userId, {
+        journal = beginDictationJournal(sessionId, {
           startedAt,
           elapsedMs: 0,
           capReached: false,
@@ -152,37 +165,6 @@ const resolveRecoveryTranscriber = (
   };
 };
 
-const buildPersistedRecoveredMeta = (
-  startedAt: number,
-  elapsedMs: number,
-  capReached: boolean,
-  originApiUrl: string | undefined,
-  originRoomId: string | undefined,
-  records: readonly RecoveredDictationRecord[],
-  groups: readonly RefinementGroup[]
-): DictationJournalMeta => ({
-  startedAt,
-  elapsedMs,
-  capReached,
-  ...(originApiUrl !== undefined ? { originApiUrl } : {}),
-  ...(originRoomId !== undefined ? { originRoomId } : {}),
-  segments: records.map((record) => ({
-    ...record.segment,
-    status: record.status,
-    ...(record.text !== undefined ? { text: record.text } : {}),
-    ...(record.error !== undefined ? { error: record.error } : {}),
-    retryable: record.retryable,
-    hasWav: record.wav !== undefined,
-  })),
-  groups: groups.map((group) => ({
-    startIndex: group.startIndex,
-    endIndex: group.endIndex,
-    state: group.state === 'uploading' ? 'queued' : group.state,
-    ...(group.refinedText !== undefined ? { refinedText: group.refinedText } : {}),
-    ...(group.refinedEndIndex !== undefined ? { refinedEndIndex: group.refinedEndIndex } : {}),
-  })),
-});
-
 const offerRecoveredDictation = async (
   store: JotaiStore,
   mx: MatrixClient,
@@ -194,35 +176,7 @@ const offerRecoveredDictation = async (
   if (!sameAccount() || store.get(liveCaptureAtom) !== undefined) return false;
 
   const { meta, wavs, tailChunks, journal } = recovered;
-  const sortedSegments = [...meta.segments].sort((a, b) => a.index - b.index);
-  const records: RecoveredDictationRecord[] = sortedSegments.map((persisted) => {
-    const wavBytes = wavs.get(persisted.index);
-    return {
-      segment: {
-        index: persisted.index,
-        seconds: persisted.seconds,
-        overlapped: persisted.overlapped,
-        cutReason: persisted.cutReason,
-        leadingQuietFrames: persisted.leadingQuietFrames,
-        trailingQuietFrames: persisted.trailingQuietFrames,
-        pauseBeforeMs:
-          typeof persisted.pauseBeforeMs === 'number' ? persisted.pauseBeforeMs : Infinity,
-      },
-      wav: wavBytes ? new Blob([wavBytes], { type: 'audio/wav' }) : undefined,
-      status: persisted.status,
-      text: persisted.text,
-      error: persisted.error,
-      retryable: persisted.retryable,
-    };
-  });
-
-  const groups: RefinementGroup[] = meta.groups.map((group) => ({
-    startIndex: group.startIndex,
-    endIndex: group.endIndex,
-    state: group.state,
-    ...(group.refinedText !== undefined ? { refinedText: group.refinedText } : {}),
-    ...(group.refinedEndIndex !== undefined ? { refinedEndIndex: group.refinedEndIndex } : {}),
-  }));
+  const { records, groups } = hydrateDictationRecords(meta, wavs);
 
   const sortedTail = [...tailChunks].sort(
     (a, b) => a.startFramePos - b.startFramePos || a.seq - b.seq
@@ -237,21 +191,24 @@ const offerRecoveredDictation = async (
   if (sortedTail.length > 0) {
     const tailSegmenter = new DictationSegmenter({
       initialSegmentIndex: records.length,
+      initialOverlapped: records.at(-1)?.segment.cutReason === 'hard',
       maxActiveFrames: Infinity,
       onSegment: (seg) => tailSegments.push(seg),
     });
-    let lastEndPos = -Infinity;
+    let lastEndPos = meta.consumedThroughFramePos ?? 0;
     for (const chunk of sortedTail) {
-      const frames = decodePcm16Frames(chunk.bytes);
-      const skipFrames =
-        chunk.startFramePos < lastEndPos
-          ? Math.min(frames.length, lastEndPos - chunk.startFramePos)
-          : 0;
-      for (let i = skipFrames; i < frames.length; i += 1) {
-        const frame = frames[i];
-        if (frame) tailSegmenter.pushFrame(frame);
+      if (chunk.endFramePos > lastEndPos) {
+        const frames = decodePcm16Frames(chunk.bytes);
+        const skipFrames =
+          chunk.startFramePos < lastEndPos
+            ? Math.min(frames.length, lastEndPos - chunk.startFramePos)
+            : 0;
+        for (let i = skipFrames; i < frames.length; i += 1) {
+          const frame = frames[i];
+          if (frame) tailSegmenter.pushFrame(frame);
+        }
+        lastEndPos = Math.max(lastEndPos, chunk.endFramePos);
       }
-      lastEndPos = Math.max(lastEndPos, chunk.endFramePos);
     }
     await tailSegmenter.markVadFailed();
     await tailSegmenter.flush();
@@ -330,15 +287,15 @@ const offerRecoveredDictation = async (
   // Convert replayed tail PCM chunks into durable segment WAVs and clear old tail rows so a
   // subsequent Resume never collides with pre-crash tail sequence numbers.
   if (tailSegments.length > 0 || tailChunks.length > 0 || prunedOnSeal.length > 0) {
-    const recoveredMeta = buildPersistedRecoveredMeta(
-      meta.startedAt,
-      effectiveElapsedMs,
+    const recoveredMeta = serializeDictationMeta({
+      startedAt: meta.startedAt,
+      elapsedMs: effectiveElapsedMs,
       capReached,
-      sessionOriginApiUrl,
-      roomId,
+      originApiUrl: sessionOriginApiUrl,
+      originRoomId: roomId,
       records,
-      groups
-    );
+      groups,
+    });
     for (const seg of tailSegments) {
       if (seg.wavBuffer) {
         void journal.commitSegment(seg.index, seg.wavBuffer, recoveredMeta).catch(() => undefined);
@@ -353,8 +310,8 @@ const offerRecoveredDictation = async (
 };
 
 /**
- * Recovers the signed-in account's persisted dictation journal (if any) directly into
- * `liveCaptureAtom` in `paused` (`recovered: true`) state. Runs once per account lifetime and
+ * Recovers the signed-in session's persisted dictation journal (if any) directly into
+ * `liveCaptureAtom` in `paused` (`recovered: true`) state. Runs once per session lifetime and
  * resets automatically after `endLiveCapturesOfAccount` so switching A -> B -> A recovers again.
  */
 export const recoverDictationForAccount = (
@@ -363,13 +320,13 @@ export const recoverDictationForAccount = (
   clientConfig: ClientConfig,
   options?: RecoverDictationOptions
 ): Promise<void> => {
-  const userId = mx.getUserId() ?? undefined;
-  if (!userId) return Promise.resolve();
+  const sessionId = getDictationSessionId(mx);
+  if (!sessionId) return Promise.resolve();
 
   const restores = store.get(dictationRestoresAtom);
-  const existingGuard = restoreGuards.get(store)?.get(userId);
-  if (restores.has(userId) && (existingGuard === undefined || existingGuard())) {
-    return restores.get(userId) ?? Promise.resolve();
+  const existingGuard = restoreGuards.get(store)?.get(sessionId);
+  if (restores.has(sessionId) && (existingGuard === undefined || existingGuard())) {
+    return restores.get(sessionId) ?? Promise.resolve();
   }
 
   const sameAccount = captureAccountGuard(store);
@@ -378,30 +335,16 @@ export const recoverDictationForAccount = (
     guards = new Map();
     restoreGuards.set(store, guards);
   }
-  guards.set(userId, sameAccount);
+  guards.set(sessionId, sameAccount);
 
   const createSession = options?.createSession ?? createDictationSession;
-  const pending = recoverDictationJournal(userId, (recovered) =>
+  const pending = recoverDictationJournal(sessionId, (recovered) =>
     offerRecoveredDictation(store, mx, clientConfig, sameAccount, recovered, createSession)
   ).finally(() => {
-    if (store.get(dictationRestoresAtom).get(userId) === pending) {
-      store.set(dictationRestoresAtom, (prev) => new Map(prev).set(userId, null));
+    if (store.get(dictationRestoresAtom).get(sessionId) === pending) {
+      store.set(dictationRestoresAtom, (prev) => new Map(prev).set(sessionId, null));
     }
   });
-  store.set(dictationRestoresAtom, (prev) => new Map(prev).set(userId, pending));
+  store.set(dictationRestoresAtom, (prev) => new Map(prev).set(sessionId, pending));
   return pending;
-};
-
-/** React hook mounting once per account to hydrate any recovered dictation into `liveCaptureAtom`. */
-const EMPTY_CLIENT_CONFIG: ClientConfig = {};
-
-export const useRecoverDictation = (mx: MatrixClient | undefined, enabled = true): void => {
-  const store = useStore();
-  const clientConfig = useOptionalClientConfig() ?? EMPTY_CLIENT_CONFIG;
-  const userId = mx?.getUserId() ?? undefined;
-
-  useEffect(() => {
-    if (!enabled || !mx || !userId) return;
-    void recoverDictationForAccount(store, mx, clientConfig);
-  }, [clientConfig, enabled, mx, store, userId]);
 };

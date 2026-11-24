@@ -51,9 +51,9 @@ import {
   liveCaptureAtom,
 } from './capture/liveCapture';
 import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
-import { dictationRestoresAtom } from './dictation/startLiveDictation';
+import { dictationRestoresAtom, getDictationSessionId } from './dictation/startLiveDictation';
 import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
-import { releaseVoiceRecording } from './capture/captureJournal';
+import { releaseCapture } from './capture/captureJournal';
 import { hasFailedPasteMarkerInText, skipsRootModel } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -171,6 +171,7 @@ export const useRoomInputVoice = ({
   // switch in the sidebar leaves yesterday's draft visible to a new
   // account; ignore (and clean up) any draft that does not belong to us.
   const currentSessionId = mx.getUserId() ?? undefined;
+  const dictationSessionId = getDictationSessionId(mx);
   // A failed send recorded in this composer comes back in it.
   const composerContext = getContext();
   const composerKey = voiceComposerKey(composerContext);
@@ -237,7 +238,7 @@ export const useRoomInputVoice = ({
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
     if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
       if (pendingVoiceSendDraft.recordingId)
-        releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
+        releaseCapture(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
   }, [
@@ -676,8 +677,8 @@ export const useRoomInputVoice = ({
     restores = voiceDraftRestores,
     dictRestores = dictationRestores
   ): boolean =>
-    (currentSessionId !== undefined &&
-      (restores.get(currentSessionId) !== null || dictRestores.get(currentSessionId) != null)) ||
+    (currentSessionId !== undefined && restores.get(currentSessionId) !== null) ||
+    (dictationSessionId !== undefined && dictRestores.get(dictationSessionId) != null) ||
     store.get(liveCaptureAtom) !== undefined ||
     liveCapture !== undefined ||
     store.get(voiceAutoSendPendingAtom) ||

@@ -14,7 +14,7 @@ import {
 import type { ClientSessions } from '../../computer/clientSessions';
 import { DictationApiError, DictationClient } from './api';
 import { createDictationRateBudget } from './dictationRefinement';
-import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE } from './dictationSegmenter';
+import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE, encodePcm16Wav } from './dictationSegmenter';
 import {
   createDictationSession,
   type DictationCaptureFactory,
@@ -1290,10 +1290,12 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     const tailAfterHard = afterHardCut.chunks.filter((c) => c.seq >= TAIL_SEQ_OFFSET);
     // Hard cut emitted seg 0 (which completed and got pruned because hard cut sealed group 0 -> fallback).
     expect(afterHardCut.chunks.some((c) => c.seq === 0)).toBe(false);
-    // With identical frames, hardCut selects the earliest search-window frame (250), so 6-frame
-    // overlap + post-cut frames [245, 260) remain preserved in the tail (chunk [240,250) truncated to [245,250)).
+    // With identical frames, hardCut selects the earliest search-window frame (250), so
+    // consumedThroughFramePos=245 is stored in metadata, fully consumed chunks (end <= 245) are
+    // dropped, and partial chunk [240, 250) + [250, 260) remain intact for recovery slicing.
+    expect(afterHardCut.recording?.consumedThroughFramePos).toBe(245);
     expect(tailAfterHard.length).toBeGreaterThan(0);
-    expect(tailAfterHard[0]?.startFramePos).toBe(245);
+    expect(tailAfterHard[0]?.startFramePos).toBe(240);
     expect(tailAfterHard[tailAfterHard.length - 1]?.endFramePos).toBe(260);
 
     // Finish the overlapped continuation (seg 1) and pause -> tail cleared, seg 1 WAV pruned after transcription.
@@ -1852,5 +1854,74 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     const row = await readJournalRow(journal.id);
     expect(row.recording?.capReached).toBe(true);
     await session.discard();
+  });
+
+  it('preserves queued refinement group across offline finish so attaching a client refines all segments', async () => {
+    const journal = makeJournal();
+    const wav0 = encodePcm16Wav([makeFrame(0.3), makeFrame(0.3), makeFrame(0.3)]);
+    const wav1 = encodePcm16Wav([makeFrame(0.3), makeFrame(0.3), makeFrame(0.3)]);
+    const session = createDictationSession({
+      client: undefined,
+      journal,
+      recovered: {
+        startedAt: 1_000,
+        elapsedMs: 6_000,
+        capReached: false,
+        records: [
+          {
+            segment: {
+              index: 0,
+              seconds: 0.288,
+              overlapped: false,
+              cutReason: 'natural',
+              leadingQuietFrames: 0,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: Infinity,
+            },
+            wav: wav0,
+            status: 'completed',
+            text: 'first rough',
+            retryable: false,
+          },
+          {
+            segment: {
+              index: 1,
+              seconds: 0.288,
+              overlapped: false,
+              cutReason: 'flush',
+              leadingQuietFrames: 0,
+              trailingQuietFrames: 0,
+              pauseBeforeMs: 300,
+            },
+            wav: wav1,
+            status: 'queued',
+            retryable: true,
+          },
+        ],
+        groups: [{ startIndex: 0, endIndex: 1, state: 'queued' }],
+        initialSegmentIndex: 2,
+        initialActiveFrames: 60,
+      },
+    });
+
+    const failed = await session.finish();
+    expect(failed).toMatchObject({
+      status: 'failed',
+      failedSegments: 1,
+      completedSegments: 1,
+      errorMessage: 'Open a room with dictation to retry.',
+    });
+
+    // Attaching a client and retrying runs the queued multi-segment refinement (single merged upload).
+    const transcribe = vi.fn(async () => ({ text: 'First and second, polished.', seconds: 0.6 }));
+    session.attachClient({ transcribe }, '!room:example.org');
+    const completed = await session.retryFailed();
+    expect(completed).toEqual({
+      status: 'completed',
+      text: 'First and second, polished.',
+      journalId: journal.id,
+    });
+    expect(transcribe).toHaveBeenCalledTimes(1);
+    await deleteCapture(journal.id);
   });
 });

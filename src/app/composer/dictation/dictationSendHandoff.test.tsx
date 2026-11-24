@@ -11,7 +11,7 @@ import { threadModelContent } from '../../matrix/protocol/threadModel';
 import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { SlashCommand } from '../commands/useCommands';
 import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
-import type { StartRoomInputSendSessionOptions } from '../useRoomInputSendSessionController';
+import { useRoomInputSendSessionController, type StartRoomInputSendSessionOptions } from '../useRoomInputSendSessionController';
 import { liveCaptureAtom } from '../capture/liveCapture';
 import {
   detachedDictationErrorAtom,
@@ -19,6 +19,7 @@ import {
   forgetComposerStateOfSession,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
+  roomUploadAtomFamily,
   type IReplyDraft,
 } from '../roomInputDrafts';
 import { createBrowserCaptureFactory } from './dictationAudioCapture';
@@ -638,7 +639,6 @@ describe('dictationSendHandoff', () => {
     forgetComposerStateOfSession(store);
     expect(s.session.reset).toHaveBeenCalledTimes(1);
     expect(s.session.discard).not.toHaveBeenCalled();
-    expect(mocks.releaseCapture).toHaveBeenCalledWith('journal-switch');
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
     expect(store.get(detachedDictationSendsAtom).size).toBe(0);
     expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(makeDoc('Saved before switch'));
@@ -653,6 +653,7 @@ describe('dictationSendHandoff', () => {
     });
     expect(startSendSession).not.toHaveBeenCalled();
     expect(s.session.discard).not.toHaveBeenCalled();
+    expect(mocks.releaseCapture).toHaveBeenCalledWith('journal-switch');
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
   });
 
@@ -1158,9 +1159,12 @@ describe('dictationSendHandoff', () => {
     const room = makeRoom('!r1:example.org', 'Ops');
     const key = getRoomInputDraftKey('@alice:example.org', room.roomId, '$thread1');
 
-    // 1. Journal stays intact across failure + retry AND while startSendSession is pending, deleted only after send completes.
-    const sendDef = deferred<void>();
-    const startSendSession = vi.fn(() => sendDef.promise);
+    // 1. Journal stays intact across failure + retry AND even after startSendSession resolves early
+    // (pending attachment / queued send), deleting only when onTextConsumed fires.
+    let capturedOnTextConsumed: (() => void) | undefined;
+    const startSendSession = vi.fn(async (opts?: StartRoomInputSendSessionOptions) => {
+      capturedOnTextConsumed = opts?.onTextConsumed;
+    });
     const sSend = makeMockSession('recording', 'journal-send');
     const entry = startDetachedDictationSend(
       makeStartInput({
@@ -1191,15 +1195,14 @@ describe('dictationSendHandoff', () => {
         journalId: 'journal-send',
       });
       await Promise.resolve();
-    });
-    expect(startSendSession).toHaveBeenCalledTimes(1);
-    expect(mocks.deleteCapture).not.toHaveBeenCalled();
-
-    await act(async () => {
-      sendDef.resolve();
       await Promise.resolve();
     });
-    expect(mocks.deleteCapture).toHaveBeenCalledWith('journal-send');
+    expect(startSendSession).toHaveBeenCalledTimes(1);
+    // startSendSession already resolved, yet journal MUST stay alive until onTextConsumed fires!
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    capturedOnTextConsumed?.();
+    expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-send');
 
     // 2. If startSendSession throws before send, fallback draft is restored BEFORE journal deletion.
     mocks.deleteCapture.mockClear();
@@ -1261,5 +1264,210 @@ describe('dictationSendHandoff', () => {
     expect(mocks.deleteCapture).not.toHaveBeenCalled();
     store.get(detachedDictationSendsAtom).get(partialEntry.ownerKey)!.insertPartial();
     expect(mocks.deleteCapture).toHaveBeenCalledWith('journal-partial');
+  });
+
+  it('keeps dictation journal alive through real useRoomInputSendSessionController pending upload until text sends or fallback restores', async () => {
+    const store = createStore();
+    const roomId = '!attach:example.org';
+    const sendMessage = vi.fn(async (_r: string, _c: unknown, txnId: string) => ({
+      event_id: `$ev-${txnId}`,
+    }));
+    const room = {
+      roomId,
+      name: 'Attach Room',
+      hasEncryptionStateEvent: () => false,
+      getEventForTxnId: () => undefined,
+      getMembers: () => [],
+      currentState: { getStateEvents: () => [] },
+    } as unknown as Room;
+    let txnCounter = 0;
+    const mx = {
+      getRoom: (id: string) => (id === roomId ? room : null),
+      makeTxnId: () => `txn-${(txnCounter += 1)}`,
+      sendMessage,
+    } as unknown as MatrixClient;
+
+    const file = new File(['pdf'], 'spec.pdf', { type: 'application/pdf' });
+    const fileItem: TUploadItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    let currentUploads = [
+      {
+        file,
+        status: UploadStatus.Loading,
+        promise: new Promise<{ content_uri: string }>(() => undefined),
+        progress: { loaded: 0, total: file.size },
+      },
+    ];
+    let staged: TUploadItem[] = [fileItem];
+    let enrolled: TUploadItem[] = [];
+    const listeners = new Set<() => void>();
+    const access: RoomInputAttachmentAccess = {
+      snapshot: () => ({
+        staged: [...staged],
+        enrolled: [...enrolled],
+        uploads: currentUploads as never,
+      }),
+      enroll: (items) => {
+        const next = items.filter((item) => !enrolled.some((e) => e.file === item.file));
+        enrolled = [...enrolled, ...next];
+        staged = staged.filter((item) => !next.some((e) => e.file === item.file));
+      },
+      clearEnrollment: (files) => {
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+      },
+      append: (_r, items) => {
+        staged = [...staged, ...items];
+      },
+      remove: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+        enrolled = enrolled.filter((item) => !files.includes(item.file));
+      },
+      release: (_r, files) => {
+        staged = staged.filter((item) => !files.includes(item.file));
+      },
+      protectPasteItems: () => () => undefined,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+
+    const editor = withInlineElements(createEditor());
+    editor.children = makeDoc();
+    let controller!: ReturnType<typeof useRoomInputSendSessionController>;
+    const restoreFallbackForRoom = vi.fn();
+
+    function SendControllerHost() {
+      controller = useRoomInputSendSessionController({
+        mx,
+        room,
+        roomId,
+        clearReplyDraft: vi.fn(),
+        editor,
+        sendTypingStatus: vi.fn(),
+        attachments: access,
+        buildUploadMessageContent: async (item, mxc) => ({
+          msgtype: 'm.file',
+          body: item.file.name,
+          url: mxc,
+        }),
+        restoreComposerFallbackForRoom: restoreFallbackForRoom,
+      });
+      return null;
+    }
+
+    const view = render(
+      <Provider store={store}>
+        <SendControllerHost />
+      </Provider>
+    );
+
+    const key = getRoomInputDraftKey('@alice:example.org', roomId);
+    const sAttach = makeMockSession('recording', 'journal-pending-upload');
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        mx,
+        room,
+        session: sAttach.session,
+        ownerKey: key,
+        composerContext: { roomId, threadId: undefined },
+        sendContext: {
+          roomId,
+          room,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        stagedSnapshot: [fileItem],
+        tracksEnrollment: true,
+        attachments: access,
+        sessions: {
+          startSendSession: controller.startSendSession,
+          restoreText: controller.restoreText,
+        },
+      })
+    );
+    access.enroll([fileItem]);
+
+    await act(async () => {
+      sAttach.resolveFinish({
+        status: 'completed',
+        text: 'Caption waiting for PDF',
+        journalId: 'journal-pending-upload',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // startSendSession resolved while upload is still loading -> journal MUST NOT be deleted yet!
+    expect(controller.hasActiveSendSession()).toBe(true);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(mocks.deleteCapture).not.toHaveBeenCalled();
+
+    // Finish upload -> Matrix receives file then caption -> journal IS deleted!
+    currentUploads = [
+      { file, status: UploadStatus.Success, mxc: 'mxc://mindroom/spec.pdf' } as never,
+    ];
+    await act(async () => {
+      store.set(roomUploadAtomFamily(file), {
+        status: UploadStatus.Success,
+        mxc: 'mxc://mindroom/spec.pdf',
+      } as never);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'Caption waiting for PDF' });
+    expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-pending-upload');
+
+    // Second send where Matrix sendMessage rejects without local echo -> fallback restored AND journal deleted!
+    mocks.deleteCapture.mockClear();
+    sendMessage.mockRejectedValueOnce(new Error('network down'));
+    const sFailText = makeMockSession('recording', 'journal-fallback-restore');
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        mx,
+        room,
+        session: sFailText.session,
+        ownerKey: key,
+        composerContext: { roomId, threadId: undefined },
+        sendContext: {
+          roomId,
+          room,
+          threadId: undefined,
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        stagedSnapshot: [],
+        tracksEnrollment: false,
+        attachments: access,
+        sessions: {
+          startSendSession: controller.startSendSession,
+          restoreText: controller.restoreText,
+        },
+      })
+    );
+    await act(async () => {
+      sFailText.resolveFinish({
+        status: 'completed',
+        text: 'Must survive failed send',
+        journalId: 'journal-fallback-restore',
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() =>
+      expect(mocks.deleteCapture).toHaveBeenCalledExactlyOnceWith('journal-fallback-restore')
+    );
+    expect(editor.children.map((n) => Node.string(n)).join('\n')).toBe('Must survive failed send');
+    view.unmount();
   });
 });

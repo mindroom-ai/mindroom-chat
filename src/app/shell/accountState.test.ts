@@ -36,8 +36,6 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's voice message speed and volume, saved in localStorage",
   'src/app/composer/voice/savedVoiceDraft.ts':
     'tracks restore state by user ID, so a different user never uses the previous restore',
-  'src/app/composer/dictation/startLiveDictation.ts':
-    'tracks dictation restore state by user ID, reset via account generation on account switch',
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
   'src/app/room/threadLayout.ts':
@@ -82,6 +80,7 @@ type Loaded = {
   state: typeof import('./accountState');
   drafts: typeof import('../composer/roomInputDrafts');
   liveCapture: typeof import('../composer/capture/liveCapture');
+  startLiveDictation: typeof import('../composer/dictation/startLiveDictation');
   typing: typeof import('../matrix/state/typingMembers');
   calls: typeof import('../calls/callStore');
   agentCaller: typeof import('../calls/agent/agentCaller');
@@ -119,6 +118,7 @@ beforeAll(async () => {
     state: await import('./accountState'),
     drafts: await import('../composer/roomInputDrafts'),
     liveCapture: await import('../composer/capture/liveCapture'),
+    startLiveDictation: await import('../composer/dictation/startLiveDictation'),
     typing: await import('../matrix/state/typingMembers'),
     calls: await import('../calls/callStore'),
     agentCaller: await import('../calls/agent/agentCaller'),
@@ -150,6 +150,10 @@ const keptAtoms = (): Map<object, string> =>
     [
       loaded.liveCapture.captureDiscardsInFlightAtom,
       'counts the Discards still deleting a disk copy, each taken out as its deletion settles',
+    ],
+    [
+      loaded.startLiveDictation.dictationRestoresAtom,
+      'keyed by session ID: tracks dictation restore state and resets via account guard on switch',
     ],
     [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
     [

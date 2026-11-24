@@ -9,6 +9,8 @@ import { KnownMembership } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { createSessionId, putSession, SESSION_STORE_KEY } from '../../matrix/session/sessions';
+import { removeStoredSession } from '../../account/lifecycle/sessionLifecycle';
 import { DictationRecoveryFeature } from '../../shell/ClientNonUIFeatures';
 import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
 import {
@@ -34,11 +36,15 @@ import {
   dictationRestoresAtom,
   recoverDictationForAccount,
   startLiveDictation,
-  useRecoverDictation,
 } from './startLiveDictation';
 
+const HS_A = 'https://hs-a.example.org';
+const HS_B = 'https://hs-b.example.org';
 const USER_A = '@alice-dictation:example.org';
 const USER_B = '@bob-dictation:example.org';
+const SESSION_A = createSessionId(HS_A, USER_A);
+const SESSION_B = createSessionId(HS_A, USER_B);
+const SESSION_A_OTHER_HS = createSessionId(HS_B, USER_A);
 
 const makeFrame = (amplitude: number): Float32Array => {
   const frame = new Float32Array(DICTATION_FRAME_SAMPLES);
@@ -54,8 +60,14 @@ const makeRoom = (roomId: string, membership: KnownMembership): Room =>
     getMyMembership: () => membership,
   } as unknown as Room);
 
-const makeMatrixClient = (userId: string, rooms: Record<string, Room> = {}): MatrixClient =>
+const makeMatrixClient = (
+  userId: string,
+  rooms: Record<string, Room> = {},
+  baseUrl = HS_A
+): MatrixClient =>
   ({
+    baseUrl,
+    getHomeserverUrl: () => baseUrl,
     getUserId: () => userId,
     getRoom: (roomId: string) => rooms[roomId] ?? null,
     getOpenIdToken: vi.fn(async () => ({
@@ -119,8 +131,12 @@ describe('startLiveDictation and recovery', () => {
   });
 
   afterEach(async () => {
+    await clearCaptureJournal(SESSION_A);
+    await clearCaptureJournal(SESSION_B);
+    await clearCaptureJournal(SESSION_A_OTHER_HS);
     await clearCaptureJournal(USER_A);
     await clearCaptureJournal(USER_B);
+    localStorage.removeItem(SESSION_STORE_KEY);
     vi.restoreAllMocks();
   });
 
@@ -129,7 +145,7 @@ describe('startLiveDictation and recovery', () => {
     const transcribe = vi.fn(async () => ({ text: 'ok', seconds: 1 }));
 
     const started = await startLiveDictation(store, {
-      userId: USER_A,
+      sessionId: SESSION_A,
       client: { transcribe },
       roomId: '!room:example.org',
       originApiUrl: 'https://trusted.example',
@@ -142,11 +158,11 @@ describe('startLiveDictation and recovery', () => {
     const journalId = live?.kind === 'dictation' ? live.session.getJournalId() : undefined;
     expect(journalId).toBeDefined();
     await waitForJournalSettled();
-    expect(await hasDictationJournalRecord(USER_A)).toBe(true);
+    expect(await hasDictationJournalRecord(SESSION_A)).toBe(true);
 
     // Concurrent start while occupied is rejected without touching the active slot.
     const second = await startLiveDictation(store, {
-      userId: USER_A,
+      sessionId: SESSION_A,
       client: { transcribe },
       captureFactory: makeFakeCapture(),
     });
@@ -157,7 +173,7 @@ describe('startLiveDictation and recovery', () => {
   });
 
   it('recovers mid-utterance PCM tail chunks via RMS fallback into liveCaptureAtom (paused, recovered: true)', async () => {
-    const journal = beginDictationJournal(USER_A, {
+    const journal = beginDictationJournal(SESSION_A, {
       startedAt: 10_000,
       elapsedMs: 0,
       capReached: false,
@@ -195,7 +211,7 @@ describe('startLiveDictation and recovery', () => {
     await deleteCapture(journal.id);
 
     // End-to-end hydration with real createDictationSession, IDB tail conversion, and attachClient upload.
-    const journal2 = beginDictationJournal(USER_A, {
+    const journal2 = beginDictationJournal(SESSION_A, {
       startedAt: 20_000,
       elapsedMs: 0,
       capReached: false,
@@ -236,7 +252,7 @@ describe('startLiveDictation and recovery', () => {
 
   it('recovers text-only records with 0 remaining WAVs and deletes truly empty records', async () => {
     // 1. Truly empty record (no segments, only silent tail) -> dropped & deleted.
-    const emptyJournal = beginDictationJournal(USER_A, {
+    const emptyJournal = beginDictationJournal(SESSION_A, {
       startedAt: 1_000,
       elapsedMs: 500,
       capReached: false,
@@ -248,7 +264,7 @@ describe('startLiveDictation and recovery', () => {
     emptyJournal.release();
 
     // 2. Newer text-only record with 0 WAVs on disk -> MUST recover!
-    const textOnlyJournal = beginDictationJournal(USER_A, {
+    const textOnlyJournal = beginDictationJournal(SESSION_A, {
       startedAt: 2_000,
       elapsedMs: 6_000,
       capReached: false,
@@ -264,7 +280,6 @@ describe('startLiveDictation and recovery', () => {
           status: 'completed',
           text: 'Preserved text without wav.',
           retryable: false,
-          hasWav: false,
         },
       ],
       groups: [
@@ -319,12 +334,11 @@ describe('startLiveDictation and recovery', () => {
             status: 'completed' as const,
             text: 'Hello.',
             retryable: false,
-            hasWav: true,
           },
         ],
         groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' as const }],
       };
-      const j = beginDictationJournal(USER_A, { ...baseMeta, segments: [], groups: [] })!;
+      const j = beginDictationJournal(SESSION_A, { ...baseMeta, segments: [], groups: [] })!;
       await j.commitSegment(0, encodePcm16WavBuffer([makeFrame(0.3), makeFrame(0.3)]), baseMeta);
       j.release();
       await waitForJournalSettled();
@@ -402,7 +416,7 @@ describe('startLiveDictation and recovery', () => {
   });
 
   it('rejects late recovery after account switch and re-recovers cleanly on A -> B -> A switch-back', async () => {
-    const journal = beginDictationJournal(USER_A, {
+    const journal = beginDictationJournal(SESSION_A, {
       startedAt: 3_000,
       elapsedMs: 4_000,
       capReached: false,
@@ -418,7 +432,6 @@ describe('startLiveDictation and recovery', () => {
           status: 'completed',
           text: 'Alice dictation.',
           retryable: false,
-          hasWav: false,
         },
       ],
       groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
@@ -467,10 +480,33 @@ describe('startLiveDictation and recovery', () => {
     if (liveA2?.kind === 'dictation') await liveA2.session.discard();
   });
 
-  it('does not clobber an occupied liveCaptureAtom slot and supports useRecoverDictation hook', async () => {
-    const journal = beginDictationJournal(USER_A, {
-      startedAt: 4_000,
+  it('isolates same-MXID sessions on different homeservers across recovery and single-session sign-out', async () => {
+    const journalA = beginDictationJournal(SESSION_A, {
+      startedAt: 5_000,
       elapsedMs: 3_000,
+      capReached: false,
+      originApiUrl: 'https://deploy.example',
+      segments: [
+        {
+          index: 0,
+          seconds: 2,
+          overlapped: false,
+          cutReason: 'natural',
+          leadingQuietFrames: 1,
+          trailingQuietFrames: 4,
+          pauseBeforeMs: Infinity,
+          status: 'completed',
+          text: 'Homeserver A secret transcript.',
+          retryable: false,
+        },
+      ],
+      groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+    })!;
+    journalA.release();
+
+    const journalB = beginDictationJournal(SESSION_A_OTHER_HS, {
+      startedAt: 6_000,
+      elapsedMs: 2_000,
       capReached: false,
       segments: [
         {
@@ -479,59 +515,138 @@ describe('startLiveDictation and recovery', () => {
           overlapped: false,
           cutReason: 'natural',
           leadingQuietFrames: 1,
-          trailingQuietFrames: 8,
+          trailingQuietFrames: 4,
           pauseBeforeMs: Infinity,
           status: 'completed',
-          text: 'Hook recovered.',
+          text: 'Homeserver B transcript.',
           retryable: false,
-          hasWav: false,
         },
       ],
       groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
     })!;
-    journal.release();
+    journalB.release();
     await waitForJournalSettled();
 
-    // Occupied slot rejects recovery while leaving disk rows unlocked & untouched.
-    const occupiedStore = createStore();
-    restoreLiveCapture(occupiedStore, { kind: 'voice', session: makePausedStubSession() });
-    await recoverDictationForAccount(occupiedStore, makeMatrixClient(USER_A), {});
-    expect(occupiedStore.get(liveCaptureAtom)?.kind).toBe('voice');
-    expect(heldLocks.has(`mindroom-voice-recording:${journal.id}`)).toBe(false);
+    // Switching from HS_A to HS_B with the exact same MXID recovers only HS_B (or nothing if HS_B has none).
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+    const mxOtherHs = makeMatrixClient(USER_A, {}, HS_B);
+    await clearCaptureJournal(SESSION_A_OTHER_HS);
+    expect(await hasDictationJournalRecord(SESSION_A)).toBe(true);
+    expect(await hasDictationJournalRecord(SESSION_A_OTHER_HS)).toBe(false);
 
-    // React hook respects enabled=false, then hydrates once when enabled=true.
-    const hookStore = createStore();
-    hookStore.set(computerServicePreferenceAtom, '');
-    const mx = makeMatrixClient(USER_A);
+    await recoverDictationForAccount(store, mxOtherHs, {});
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+    expect(store.get(dictationRestoresAtom).get(SESSION_A_OTHER_HS)).toBeNull();
 
-    function Harness({ enabled }: { enabled: boolean }) {
-      useRecoverDictation(mx, enabled);
-      return null;
-    }
-
-    const renderTree = (enabled: boolean) =>
-      createElement(
-        Provider,
-        { store: hookStore },
-        createElement(ClientConfigProvider, { value: {} }, createElement(Harness, { enabled }))
-      );
-
-    const view = render(renderTree(false));
+    // Re-seed HS_B, register both sessions, then sign out HS_A: HS_A rows are deleted while HS_B survives.
+    const journalB2 = beginDictationJournal(SESSION_A_OTHER_HS, {
+      startedAt: 7_000,
+      elapsedMs: 2_000,
+      capReached: false,
+      segments: [
+        {
+          index: 0,
+          seconds: 1,
+          overlapped: false,
+          cutReason: 'natural',
+          leadingQuietFrames: 1,
+          trailingQuietFrames: 4,
+          pauseBeforeMs: Infinity,
+          status: 'completed',
+          text: 'Homeserver B survives sign-out of A.',
+          retryable: false,
+        },
+      ],
+      groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+    })!;
+    journalB2.release();
     await waitForJournalSettled();
-    expect(hookStore.get(dictationRestoresAtom).has(USER_A)).toBe(false);
-    expect(hookStore.get(liveCaptureAtom)).toBeUndefined();
 
-    view.rerender(renderTree(true));
-    await waitFor(() => {
-      expect(hookStore.get(liveCaptureAtom)?.kind).toBe('dictation');
-    });
-    expect(hookStore.get(dictationRestoresAtom).get(USER_A)).toBeNull();
-    const live = hookStore.get(liveCaptureAtom);
-    if (live?.kind === 'dictation') await live.session.discard();
-    view.unmount();
+    const storedA = putSession({ baseUrl: HS_A, userId: USER_A, deviceId: 'DEV_A', accessToken: 'a' });
+    putSession({ baseUrl: HS_B, userId: USER_A, deviceId: 'DEV_B', accessToken: 'b' });
+    await removeStoredSession(storedA);
+
+    expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
+    expect(await hasDictationJournalRecord(SESSION_A_OTHER_HS)).toBe(true);
+
+    // Recover HS_B and verify its transcript survived intact.
+    const storeB = createStore();
+    storeB.set(computerServicePreferenceAtom, '');
+    await recoverDictationForAccount(storeB, mxOtherHs, {});
+    const liveB = storeB.get(liveCaptureAtom);
+    expect(liveB?.kind).toBe('dictation');
+    if (liveB?.kind !== 'dictation') throw new Error('expected dictation');
+    expect(liveB.session.getSnapshot().previewText).toBe('Homeserver B survives sign-out of A.');
+    await liveB.session.discard();
   });
 
-  it('surfaces recovered dictation in Settings via DictationRecoveryFeature only when a journal record exists', async () => {
+  it('deduplicates boundary words across real DictationSegmenter + stitchTranscript after hard-cut crash recovery', async () => {
+    let pushFrame!: (frame: Float32Array) => void;
+    const captureFactory: DictationCaptureFactory = async ({ onFrame }) => {
+      pushFrame = onFrame;
+      return {
+        readLevel: () => 0.3,
+        stopAndFlush: async () => undefined,
+        dispose: () => undefined,
+      };
+    };
+
+    const store = createStore();
+    let transcribeCalls = 0;
+    const initialTranscribe = vi.fn(async () => {
+      transcribeCalls += 1;
+      return { text: 'please invite Sam', seconds: 25 };
+    });
+
+    const started = await startLiveDictation(store, {
+      sessionId: SESSION_A,
+      client: { transcribe: initialTranscribe },
+      roomId: '!room:example.org',
+      captureFactory,
+      loadVad: async () => ({
+        score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+        reset: () => undefined,
+        release: async () => undefined,
+      }),
+    });
+    expect(started).toBe(true);
+    await waitForJournalSettled(20);
+
+    // Push 260 speech frames -> real DictationSegmenter emits a hard cut at frame 250 with
+    // consumedThroughFramePos=245, keeping partial tail chunk [240, 250) + [250, 260) on disk.
+    for (let i = 0; i < 260; i += 1) pushFrame(makeFrame(0.3));
+    await waitFor(() => expect(transcribeCalls).toBe(1));
+    await waitForJournalSettled(80);
+
+    // Crash / reload: release session lock without discarding journal.
+    endLiveCapturesOfAccount(store);
+    await waitForJournalSettled(40);
+
+    // Recover via recoverDictationForAccount -> replays frames [245, 260) with initialOverlapped: true!
+    const recoveredStore = createStore();
+    recoveredStore.set(computerServicePreferenceAtom, '');
+    await recoverDictationForAccount(recoveredStore, makeMatrixClient(USER_A), {});
+    await waitForJournalSettled(60);
+
+    const live = recoveredStore.get(liveCaptureAtom);
+    expect(live?.kind).toBe('dictation');
+    if (live?.kind !== 'dictation') throw new Error('expected dictation');
+
+    // Attach client for the replayed overlap segment which starts with the boundary word "Sam".
+    const recoveryTranscribe = vi.fn(async () => ({ text: 'Sam tomorrow', seconds: 1.44 }));
+    live.session.attachClient({ transcribe: recoveryTranscribe }, '!room:example.org');
+    await waitFor(() => expect(recoveryTranscribe).toHaveBeenCalledTimes(1));
+
+    const finished = await live.session.finish();
+    expect(finished).toMatchObject({
+      status: 'completed',
+      text: 'please invite Sam tomorrow',
+    });
+    if (finished.status === 'completed') await deleteCapture(finished.journalId);
+  });
+
+  it('does not clobber an occupied liveCaptureAtom slot and surfaces recovered dictation via DictationRecoveryFeature', async () => {
     const mx = makeMatrixClient(USER_A, {
       '!room:example.org': makeRoom('!room:example.org', KnownMembership.Join),
     });
@@ -558,11 +673,11 @@ describe('startLiveDictation and recovery', () => {
     );
     await waitForJournalSettled();
     expect(emptyStore.get(liveCaptureAtom)).toBeUndefined();
-    expect(emptyStore.get(dictationRestoresAtom).has(USER_A)).toBe(false);
+    expect(emptyStore.get(dictationRestoresAtom).has(SESSION_A)).toBe(false);
     emptyView.unmount();
 
     // Seed a persisted dictation journal, simulating a crash before reloading straight into Settings.
-    const journal = beginDictationJournal(USER_A, {
+    const journal = beginDictationJournal(SESSION_A, {
       startedAt: 4_000,
       elapsedMs: 7_500,
       capReached: false,
@@ -580,7 +695,6 @@ describe('startLiveDictation and recovery', () => {
           status: 'completed',
           text: 'Recovered in settings.',
           retryable: false,
-          hasWav: false,
         },
       ],
       groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
@@ -588,6 +702,14 @@ describe('startLiveDictation and recovery', () => {
     journal.release();
     await waitForJournalSettled();
 
+    // Occupied slot rejects recovery while leaving disk rows unlocked & untouched.
+    const occupiedStore = createStore();
+    restoreLiveCapture(occupiedStore, { kind: 'voice', session: makePausedStubSession() });
+    await recoverDictationForAccount(occupiedStore, mx, config);
+    expect(occupiedStore.get(liveCaptureAtom)?.kind).toBe('voice');
+    expect(heldLocks.has(`mindroom-voice-recording:${journal.id}`)).toBe(false);
+
+    // DictationRecoveryFeature hydrates directly into liveCaptureAtom.
     const settingsStore = createStore();
     const settingsView = render(
       createElement(

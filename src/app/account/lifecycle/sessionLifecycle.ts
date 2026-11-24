@@ -34,6 +34,7 @@ import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
 import { forgetAccountInPlugins } from '../../plugins/forgetAccountInPlugins';
 import { revokeClientSessions } from '../../computer/clientSessions';
 import { clearFetchedAvatars } from '../../avatars/avatarMedia';
+import { clearCaptureJournal } from '../../composer/capture/captureJournal';
 import {
   SessionCleanupContext,
   clearAppScopedCacheStorage,
@@ -100,6 +101,7 @@ const clearSessionScopedUiState = async (
   }
   try {
     clearSessionUiState(sessionId);
+    await clearCaptureJournal(sessionId);
   } catch {
     // Continue with Matrix stores and credential removal.
   }

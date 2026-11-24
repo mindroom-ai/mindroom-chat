@@ -61,8 +61,8 @@ import type {
 import { insertDictatedText } from './insertDictatedText';
 import {
   dictationRestoresAtom,
+  getDictationSessionId,
   startLiveDictation,
-  useRecoverDictation,
 } from './startLiveDictation';
 import { useDictationServer } from './useDictationServer';
 
@@ -136,7 +136,6 @@ const noopSubscribe = () => () => undefined;
 const keepTextFocus = (event: MouseEvent) => event.preventDefault();
 
 const mountedComposers = new Set<DictationComposerEntry>();
-const inFlightFinishSessions = new WeakSet<DictationSession>();
 
 /** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
 const shown = (root: HTMLElement | null | undefined): boolean =>
@@ -239,6 +238,7 @@ export const useRoomInputDictation = ({
   const store = useStore();
   const mx = useOptionalMatrixClient();
   const userId = mx?.getUserId() ?? undefined;
+  const sessionId = getDictationSessionId(mx);
   const { available, confirmed, apiUrl, sessions } = useDictationServer(roomId);
   const detachedSends = useAtomValue(detachedDictationSendsAtom);
   const detachedEntry = detachedSends.get(sendKey);
@@ -252,8 +252,6 @@ export const useRoomInputDictation = ({
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget>();
   const discardDialogWasMountedRef = useRef(false);
   const discardTargetRef = useLatestRef(discardTarget);
-
-  useRecoverDictation(mx);
 
   const selectionRef = useRef<RangeRef | null>(null);
   const pendingButtonFocusRef = useRef<boolean | undefined>(undefined);
@@ -310,9 +308,9 @@ export const useRoomInputDictation = ({
 
   const restoresPending = useCallback(
     (dictRestores = dictationRestores, voiceRestores = voiceDraftRestores): boolean =>
-      userId !== undefined &&
-      (dictRestores.get(userId) !== null || voiceRestores.get(userId) != null),
-    [dictationRestores, userId, voiceDraftRestores]
+      (sessionId !== undefined && dictRestores.get(sessionId) != null) ||
+      (userId !== undefined && voiceRestores.get(userId) != null),
+    [dictationRestores, sessionId, userId, voiceDraftRestores]
   );
 
   // Lazy client binding for recovered sessions whose server matches (or had no fixed origin).
@@ -329,7 +327,8 @@ export const useRoomInputDictation = ({
       store.set(detachedDictationErrorAtom, undefined);
     }
     const unregister = registerMountedDictationOwner(store, sendKey, {
-      insertDictatedText: (text, savedSelection, focus) => {
+      insertDictatedText: (text, focus) => {
+        const savedSelection = consumeSelectionRef();
         const canFocus =
           focus &&
           (!document.activeElement ||
@@ -361,7 +360,7 @@ export const useRoomInputDictation = ({
       pendingButtonFocusRef.current = undefined;
       clearSelectionRef();
     };
-  }, [callbacksRef, clearSelectionRef, editor, rootRef, sendKey, store]);
+  }, [callbacksRef, clearSelectionRef, consumeSelectionRef, editor, rootRef, sendKey, store]);
 
   const start = useCallback((): boolean => {
     const pendingFocus = pendingButtonFocusRef.current;
@@ -385,7 +384,7 @@ export const useRoomInputDictation = ({
       client: new DictationClient(sessions),
       roomId,
       originApiUrl: apiUrl,
-      userId,
+      sessionId,
       createSession: callbacksRef.current.createSession,
     }).then((started) => {
       if (!started) {
@@ -404,9 +403,9 @@ export const useRoomInputDictation = ({
     roomId,
     rootRef,
     sendKey,
+    sessionId,
     sessions,
     store,
-    userId,
   ]);
 
   const getLiveStatus = useCallback((): 'idle' | 'sendable' | 'blocked' => {
@@ -440,48 +439,45 @@ export const useRoomInputDictation = ({
 
   const completeLiveDictation = useCallback(
     (session: DictationSession, action: 'finish' | 'retry') => {
-      if (inFlightFinishSessions.has(session)) return;
-      inFlightFinishSessions.add(session);
-      const savedSelection =
-        consumeSelectionRef() ?? (editor.selection ? structuredClone(editor.selection) : null);
+      if (!selectionRef.current && editor.selection) {
+        selectionRef.current = SlateEditor.rangeRef(editor, editor.selection);
+      }
       const wantedFocus = shouldRestoreFocusRef.current;
       shouldRestoreFocusRef.current = false;
       const sameAccount = captureAccountGuard(store);
       const targetSendKey = sendKey;
       const targetDraftKey = draftKey;
       const promise = action === 'finish' ? session.finish() : session.retryFailed();
-      void promise
-        .then((result) => {
-          if (result.status === 'completed') {
-            if (!sameAccount()) {
-              if (result.journalId) releaseCapture(result.journalId);
-              return;
-            }
-            if (result.text.trim().length > 0) {
-              const owner = getMountedOwner(store, targetSendKey);
-              if (owner) {
-                owner.insertDictatedText(result.text, savedSelection, wantedFocus);
-              } else {
-                const draftAtom = roomIdToMsgDraftAtomFamily(targetDraftKey);
-                const currentDraft = store.get(draftAtom);
-                const merged = mergeDictatedDoc(currentDraft, result.text, savedSelection, null);
-                store.set(draftAtom, merged.children);
-              }
-            }
-            if (result.journalId) void deleteCapture(result.journalId).catch(() => undefined);
-            clearLiveCapture(store, session);
-          } else if (result.status === 'cancelled') {
-            if (!sameAccount()) return;
-            shouldRestoreFocusRef.current = false;
-            clearSelectionRef();
-            clearLiveCapture(store, session);
+      void promise.then((result) => {
+        if (result.status === 'completed') {
+          if (!sameAccount()) {
+            if (result.journalId) releaseCapture(result.journalId);
+            return;
           }
-        })
-        .finally(() => {
-          inFlightFinishSessions.delete(session);
-        });
+          if (result.text.trim().length > 0) {
+            const owner = getMountedOwner(store, targetSendKey);
+            if (owner) {
+              owner.insertDictatedText(result.text, wantedFocus);
+            } else {
+              const draftAtom = roomIdToMsgDraftAtomFamily(targetDraftKey);
+              const currentDraft = store.get(draftAtom);
+              const merged = mergeDictatedDoc(currentDraft, result.text, null, null);
+              store.set(draftAtom, merged.children);
+            }
+          } else {
+            clearSelectionRef();
+          }
+          if (result.journalId) void deleteCapture(result.journalId).catch(() => undefined);
+          clearLiveCapture(store, session);
+        } else if (result.status === 'cancelled') {
+          if (!sameAccount()) return;
+          shouldRestoreFocusRef.current = false;
+          clearSelectionRef();
+          clearLiveCapture(store, session);
+        }
+      });
     },
-    [clearSelectionRef, consumeSelectionRef, draftKey, editor, sendKey, store]
+    [clearSelectionRef, draftKey, editor, sendKey, store]
   );
 
   const getLiveDictationSession = useCallback((): DictationSession | undefined => {
@@ -592,35 +588,23 @@ export const useRoomInputDictation = ({
   }, [liveSession]);
 
   // Register this composer for single-winner Mod+Shift+D resolution.
-  const composerEntryRef = useRef<DictationComposerEntry | null>(null);
-  if (!composerEntryRef.current) {
-    composerEntryRef.current = {
-      store,
-      root: () => rootRef.current,
-      thread,
-      confirmed: () => confirmed,
-      showingLive: () => showingLive,
-      startFromShortcut: () => {
-        pendingButtonFocusRef.current = undefined;
-        start();
-      },
-      finish: handleFinish,
-    };
-  }
-  composerEntryRef.current.store = store;
-  composerEntryRef.current.root = () => rootRef.current;
-  composerEntryRef.current.thread = thread;
-  composerEntryRef.current.confirmed = () => confirmed;
-  composerEntryRef.current.showingLive = () =>
-    !store.get(detachedDictationSendsAtom).has(sendKey) &&
-    store.get(liveCaptureAtom)?.kind === 'dictation';
-  composerEntryRef.current.startFromShortcut = () => {
-    pendingButtonFocusRef.current = undefined;
-    start();
-  };
-  composerEntryRef.current.finish = handleFinish;
+  const composerEntryRef = useRef<DictationComposerEntry>({} as DictationComposerEntry);
+  Object.assign(composerEntryRef.current, {
+    store,
+    root: () => rootRef.current,
+    thread,
+    confirmed: () => confirmed,
+    showingLive: () =>
+      !store.get(detachedDictationSendsAtom).has(sendKey) &&
+      store.get(liveCaptureAtom)?.kind === 'dictation',
+    startFromShortcut: () => {
+      pendingButtonFocusRef.current = undefined;
+      start();
+    },
+    finish: handleFinish,
+  });
 
-  useEffect(() => registerDictationComposer(composerEntryRef.current!), []);
+  useEffect(() => registerDictationComposer(composerEntryRef.current), []);
 
   // Escape in a focused composer opens DiscardCaptureDialog (or cancels initial 0-audio
   // requesting directly), even in rooms where dictation cannot be started.

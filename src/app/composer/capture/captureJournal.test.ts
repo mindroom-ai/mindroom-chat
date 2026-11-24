@@ -9,13 +9,14 @@ import {
   recoverDictationJournal,
   recoverVoiceRecording,
   releaseCapture,
-  releaseVoiceRecording,
   type DictationJournalMeta,
   type PersistedDictationSegment,
 } from './captureJournal';
 
 const USER = '@capture-journal:example.org';
 const OTHER = '@capture-other:example.org';
+const SESSION_A = 'https%3A%2F%2Fhs-a.example.org::%40capture-journal%3Aexample.org';
+const SESSION_B = 'https%3A%2F%2Fhs-b.example.org::%40capture-journal%3Aexample.org';
 
 beforeEach(() => {
   const held = new Set<string>();
@@ -38,6 +39,8 @@ beforeEach(() => {
 afterEach(async () => {
   await clearCaptureJournal(USER);
   await clearCaptureJournal(OTHER);
+  await clearCaptureJournal(SESSION_A);
+  await clearCaptureJournal(SESSION_B);
   vi.unstubAllGlobals();
 });
 
@@ -56,7 +59,6 @@ const makeSegment = (
   pauseBeforeMs: 0,
   status: 'queued',
   retryable: true,
-  hasWav: true,
   ...overrides,
 });
 
@@ -72,7 +74,6 @@ const makeMeta = (overrides: Partial<DictationJournalMeta> = {}): DictationJourn
 });
 
 const pcmFrames = (frameCount: number, tag: number): ArrayBuffer => {
-  // 4 bytes per frame (2 Int16 samples) is enough to test exact frame slicing math.
   const samples = new Int16Array(frameCount * 2);
   for (let frame = 0; frame < frameCount; frame += 1) {
     samples[frame * 2] = tag;
@@ -102,7 +103,7 @@ it('writes voice chunks in sequence despite out-of-order byte conversion, using 
   await Promise.all([a, b]);
   expect(put.mock.calls.map(([chunk]) => (chunk as { seq: number }).seq)).toEqual([0, 1]);
   put.mockRestore();
-  releaseVoiceRecording(recording.id);
+  releaseCapture(recording.id);
 
   const offer = vi.fn((_draft: { file: File; duration: number }) => true);
   await recoverVoiceRecording(USER, undefined, offer);
@@ -147,7 +148,7 @@ it('recovers legacy v1 voice rows that lack a kind field and ignores them in dic
   expect(recovered.recordingId).toBe(legacyId);
   expect(await recovered.file.text()).toBe('legacy-voice');
   expect(recovered.duration).toBe(3_500);
-  releaseVoiceRecording(legacyId);
+  releaseCapture(legacyId);
 });
 
 it('offers only unlocked voice records, and releases one the draft slot cannot take', async () => {
@@ -157,7 +158,7 @@ it('offers only unlocked voice records, and releases one the draft slot cannot t
     active.append(0, new Blob(['active']), 1_000),
     orphan.append(0, new Blob(['orphan']), 1_000),
   ]);
-  releaseVoiceRecording(orphan.id);
+  releaseCapture(orphan.id);
   const busy = vi.fn(() => false);
   await recoverVoiceRecording(USER, undefined, busy);
   expect(busy).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ recordingId: orphan.id }));
@@ -170,8 +171,8 @@ it('offers only unlocked voice records, and releases one the draft slot cannot t
   expect(again).not.toHaveBeenCalled();
 });
 
-it('persists dictation tail chunks, trims partially consumed tails on hard cut, and prunes locked WAVs', async () => {
-  const journal = beginDictationJournal(USER, makeMeta())!;
+it('persists dictation tail chunks, drops fully-consumed chunks via consumedThroughFramePos, and prunes locked WAVs', async () => {
+  const journal = beginDictationJournal(SESSION_A, makeMeta())!;
   expect(journal).toBeDefined();
 
   // Append 3 tail chunks covering frames [0, 10), [10, 20), [20, 26).
@@ -179,21 +180,24 @@ it('persists dictation tail chunks, trims partially consumed tails on hard cut, 
   await journal.appendTail(1, pcmFrames(10, 2), 1_920, 10, 20);
   await journal.appendTail(2, pcmFrames(6, 3), 2_496, 20, 26);
 
-  // Hard cut emits segment 0 and consumes frames < 18, retaining [18, 20) from chunk 1 and [20, 26) from chunk 2.
+  // Hard cut emits segment 0 with consumedThroughFramePos = 18:
+  // chunk 0 [0, 10) is fully consumed and deleted; chunks 1 [10, 20) and 2 [20, 26) stay intact.
   const wav0 = new Uint8Array([1, 2, 3, 4]).buffer;
   const metaAfterSeg0 = makeMeta({
     elapsedMs: 2_496,
+    consumedThroughFramePos: 18,
     segments: [makeSegment(0)],
     groups: [{ startIndex: 0, endIndex: 0, state: 'open' }],
   });
-  await journal.commitSegment(0, wav0, metaAfterSeg0, 18);
+  await journal.commitSegment(0, wav0, metaAfterSeg0);
 
-  // Emit segment 1 with no further tail clearing, then lock segment 0 and prune its WAV.
+  // Emit segment 1, then lock segment 0 and prune its WAV.
   const wav1 = new Uint8Array([5, 6, 7, 8]).buffer;
   const metaAfterSeg1 = makeMeta({
     elapsedMs: 3_500,
+    consumedThroughFramePos: 18,
     segments: [
-      makeSegment(0, { status: 'completed', text: 'hello', hasWav: true }),
+      makeSegment(0, { status: 'completed', text: 'hello' }),
       makeSegment(1, { overlapped: true, cutReason: 'hard' }),
     ],
     groups: [{ startIndex: 0, endIndex: 1, state: 'open' }],
@@ -202,8 +206,9 @@ it('persists dictation tail chunks, trims partially consumed tails on hard cut, 
 
   const metaPruned = makeMeta({
     elapsedMs: 3_500,
+    consumedThroughFramePos: 18,
     segments: [
-      makeSegment(0, { status: 'completed', text: 'hello', hasWav: false }),
+      makeSegment(0, { status: 'completed', text: 'hello' }),
       makeSegment(1, { overlapped: true, cutReason: 'hard' }),
     ],
     groups: [
@@ -212,63 +217,62 @@ it('persists dictation tail chunks, trims partially consumed tails on hard cut, 
   });
   await journal.updateState(metaPruned, [0]);
 
-  expect(await hasDictationJournalRecord(USER)).toBe(true);
+  expect(await hasDictationJournalRecord(SESSION_A)).toBe(true);
+  expect(await hasDictationJournalRecord(SESSION_B)).toBe(false);
   // Locked while active, so recovery skips it and voice recovery never sees it.
   const lockedOffer = vi.fn(() => true);
-  await recoverDictationJournal(USER, lockedOffer);
+  await recoverDictationJournal(SESSION_A, lockedOffer);
   expect(lockedOffer).not.toHaveBeenCalled();
   const voiceOffer = vi.fn(() => true);
-  await recoverVoiceRecording(USER, undefined, voiceOffer);
+  await recoverVoiceRecording(SESSION_A, undefined, voiceOffer);
   expect(voiceOffer).not.toHaveBeenCalled();
 
   journal.release();
   await Promise.resolve();
 
-  // Recovery delivers segment 1 WAV (segment 0 was pruned), trimmed tail chunk 1 [18, 20), and chunk 2 [20, 26).
+  // Recovery delivers segment 1 WAV (segment 0 was pruned), consumedThroughFramePos=18, and intact chunks 1 & 2.
   let recovered: Parameters<Parameters<typeof recoverDictationJournal>[1]>[0] | undefined;
-  await recoverDictationJournal(USER, (entry) => {
+  await recoverDictationJournal(SESSION_A, (entry) => {
     recovered = entry;
     return true;
   });
 
   expect(recovered).toBeDefined();
   expect(recovered!.id).toBe(journal.id);
+  expect(recovered!.meta.consumedThroughFramePos).toBe(18);
   expect(recovered!.meta.segments).toHaveLength(2);
   expect(recovered!.meta.segments[0]?.text).toBe('hello');
-  expect(recovered!.meta.segments[0]?.hasWav).toBe(false);
   expect([...recovered!.wavs.keys()]).toEqual([1]);
   expect(new Uint8Array(recovered!.wavs.get(1)!)).toEqual(new Uint8Array([5, 6, 7, 8]));
   expect(recovered!.tailChunks).toHaveLength(2);
-  expect(recovered!.tailChunks[0]).toMatchObject({ seq: 1, startFramePos: 18, endFramePos: 20 });
-  expect(new Int16Array(recovered!.tailChunks[0]!.bytes)).toEqual(new Int16Array([2, 8, 2, 9]));
+  expect(recovered!.tailChunks[0]).toMatchObject({ seq: 1, startFramePos: 10, endFramePos: 20 });
   expect(recovered!.tailChunks[1]).toMatchObject({ seq: 2, startFramePos: 20, endFramePos: 26 });
 
-  // The recovered handle can clear all tail chunks and remove the record.
+  // Clearing all tail chunks also clears consumedThroughFramePos.
   await recovered!.journal.updateState(metaPruned, undefined, true);
   recovered!.journal.release();
   await Promise.resolve();
 
   let afterClearTail: Parameters<Parameters<typeof recoverDictationJournal>[1]>[0] | undefined;
-  await recoverDictationJournal(USER, (entry) => {
+  await recoverDictationJournal(SESSION_A, (entry) => {
     afterClearTail = entry;
     return false;
   });
   expect(afterClearTail?.tailChunks).toEqual([]);
+  expect(afterClearTail?.meta.consumedThroughFramePos).toBeUndefined();
   // Rejected recovery unlocked it, so remove cleans it up cleanly.
   await afterClearTail!.journal.remove();
-  expect(await hasDictationJournalRecord(USER)).toBe(false);
+  expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
 });
 
 it('recovers dictation records oldest-first and retains text-only records with zero WAVs', async () => {
-  const newer = beginDictationJournal(USER, makeMeta({ startedAt: 2_000 }))!;
-  const older = beginDictationJournal(USER, makeMeta({ startedAt: 1_000 }))!;
+  const newer = beginDictationJournal(SESSION_A, makeMeta({ startedAt: 2_000 }))!;
+  const older = beginDictationJournal(SESSION_A, makeMeta({ startedAt: 1_000 }))!;
   await older.updateState(
     makeMeta({
       startedAt: 1_000,
       elapsedMs: 4_000,
-      segments: [
-        makeSegment(0, { status: 'completed', text: 'already transcribed', hasWav: false }),
-      ],
+      segments: [makeSegment(0, { status: 'completed', text: 'already transcribed' })],
     })
   );
   await newer.updateState(makeMeta({ startedAt: 2_000, elapsedMs: 1_000 }));
@@ -277,7 +281,7 @@ it('recovers dictation records oldest-first and retains text-only records with z
   await Promise.resolve();
 
   const seen: string[] = [];
-  await recoverDictationJournal(USER, (entry) => {
+  await recoverDictationJournal(SESSION_A, (entry) => {
     seen.push(entry.id);
     if (entry.id === older.id) {
       expect(entry.wavs.size).toBe(0);
@@ -291,41 +295,52 @@ it('recovers dictation records oldest-first and retains text-only records with z
   releaseCapture(older.id);
 });
 
-it('sign-out removes both voice and dictation records for that account only', async () => {
+it('sign-out removes only rows for the cleared owner key (session-scoped dictation vs user-scoped voice)', async () => {
   const activeVoice = beginVoice();
-  const activeDictation = beginDictationJournal(USER, makeMeta())!;
+  const sessionADictation = beginDictationJournal(SESSION_A, makeMeta())!;
+  const sessionBDictation = beginDictationJournal(SESSION_B, makeMeta())!;
   const otherVoice = beginVoice(OTHER);
-  const otherDictation = beginDictationJournal(OTHER, makeMeta())!;
 
   const writingVoice = activeVoice.append(0, new Blob(['active']), 1_000);
-  const writingDictation = activeDictation.appendTail(0, pcmFrames(2, 9), 200, 0, 2);
+  const writingDictation = sessionADictation.appendTail(0, pcmFrames(2, 9), 200, 0, 2);
   await otherVoice.append(0, new Blob(['other']), 1_000);
-  await otherDictation.appendTail(0, pcmFrames(2, 7), 200, 0, 2);
+  await sessionBDictation.appendTail(0, pcmFrames(2, 7), 200, 0, 2);
 
-  const clearing = clearCaptureJournal(USER);
-  await Promise.all([writingVoice, writingDictation, clearing]);
-  releaseVoiceRecording(activeVoice.id);
-  activeDictation.release();
-  releaseVoiceRecording(otherVoice.id);
-  otherDictation.release();
+  // Signing out SESSION_A clears SESSION_A dictation without touching SESSION_B dictation or USER voice.
+  const clearingSessionA = clearCaptureJournal(SESSION_A);
+  await Promise.all([writingVoice, writingDictation, clearingSessionA]);
+  releaseCapture(activeVoice.id);
+  sessionADictation.release();
+  sessionBDictation.release();
+  releaseCapture(otherVoice.id);
   await Promise.resolve();
 
-  expect(await hasDictationJournalRecord(USER)).toBe(false);
-  expect(await hasDictationJournalRecord(OTHER)).toBe(true);
+  expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
+  expect(await hasDictationJournalRecord(SESSION_B)).toBe(true);
 
   const voiceOffer = vi.fn(() => true);
+  await recoverVoiceRecording(USER, undefined, voiceOffer);
+  expect(voiceOffer).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ recordingId: activeVoice.id })
+  );
+  releaseCapture(activeVoice.id);
+
+  // Clearing USER removes USER voice without touching OTHER voice or SESSION_B dictation.
+  await clearCaptureJournal(USER);
+  voiceOffer.mockClear();
   await recoverVoiceRecording(USER, undefined, voiceOffer);
   expect(voiceOffer).not.toHaveBeenCalled();
   await recoverVoiceRecording(OTHER, undefined, voiceOffer);
   expect(voiceOffer).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ recordingId: otherVoice.id })
   );
+  expect(await hasDictationJournalRecord(SESSION_B)).toBe(true);
 });
 
 it('keeps a chunk still being written when the lock is given up', async () => {
   const recording = beginVoice();
   const written = recording.append(0, new Blob(['queued']), 1_000);
-  releaseVoiceRecording(recording.id);
+  releaseCapture(recording.id);
   await written;
   const offer = vi.fn((_draft: { file: File }) => true);
   await recoverVoiceRecording(USER, undefined, offer);
@@ -335,6 +350,6 @@ it('keeps a chunk still being written when the lock is given up', async () => {
 it('does not journal on browsers without Web Locks', async () => {
   vi.stubGlobal('navigator', {});
   expect(beginVoiceRecording(USER, Date.now(), 'audio/ogg')).toBeUndefined();
-  expect(beginDictationJournal(USER, makeMeta())).toBeUndefined();
-  expect(await hasDictationJournalRecord(USER)).toBe(false);
+  expect(beginDictationJournal(SESSION_A, makeMeta())).toBeUndefined();
+  expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
 });

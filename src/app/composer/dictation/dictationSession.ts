@@ -197,6 +197,74 @@ const describeUploadError = (error: unknown): string =>
     ? error.message.trim()
     : 'Could not transcribe dictation audio.';
 
+export type SerializableDictationState = {
+  startedAt: number;
+  elapsedMs: number;
+  capReached: boolean;
+  consumedThroughFramePos?: number;
+  originApiUrl?: string;
+  originRoomId?: string;
+  records: readonly (Pick<RefinementSegmentRecord, 'segment' | 'status' | 'text'> & {
+    error?: string;
+    retryable: boolean;
+  })[];
+  groups: readonly RefinementGroup[];
+};
+
+export const serializeDictationMeta = (state: SerializableDictationState): DictationJournalMeta => ({
+  startedAt: state.startedAt,
+  elapsedMs: state.elapsedMs,
+  capReached: state.capReached,
+  ...(state.consumedThroughFramePos !== undefined
+    ? { consumedThroughFramePos: state.consumedThroughFramePos }
+    : {}),
+  ...(state.originApiUrl !== undefined ? { originApiUrl: state.originApiUrl } : {}),
+  ...(state.originRoomId !== undefined ? { originRoomId: state.originRoomId } : {}),
+  segments: state.records.map((record) => ({
+    ...record.segment,
+    status: record.status === 'uploading' ? 'queued' : record.status,
+    ...(record.text !== undefined ? { text: record.text } : {}),
+    ...(record.error !== undefined ? { error: record.error } : {}),
+    retryable: record.retryable,
+  })),
+  groups: state.groups.map((group) => ({
+    startIndex: group.startIndex,
+    endIndex: group.endIndex,
+    state: group.state === 'uploading' ? 'queued' : group.state,
+    ...(group.refinedText !== undefined ? { refinedText: group.refinedText } : {}),
+    ...(group.refinedEndIndex !== undefined ? { refinedEndIndex: group.refinedEndIndex } : {}),
+  })),
+});
+
+export const hydrateDictationRecords = (
+  meta: DictationJournalMeta,
+  wavs: ReadonlyMap<number, ArrayBuffer>
+): { records: RecoveredDictationRecord[]; groups: RefinementGroup[] } => ({
+  records: [...meta.segments]
+    .sort((a, b) => a.index - b.index)
+    .map((persisted) => {
+      const wavBytes = wavs.get(persisted.index);
+      return {
+        segment: {
+          index: persisted.index,
+          seconds: persisted.seconds,
+          overlapped: persisted.overlapped,
+          cutReason: persisted.cutReason,
+          leadingQuietFrames: persisted.leadingQuietFrames,
+          trailingQuietFrames: persisted.trailingQuietFrames,
+          pauseBeforeMs:
+            typeof persisted.pauseBeforeMs === 'number' ? persisted.pauseBeforeMs : Infinity,
+        },
+        wav: wavBytes ? new Blob([wavBytes], { type: 'audio/wav' }) : undefined,
+        status: persisted.status,
+        text: persisted.text,
+        error: persisted.error,
+        retryable: persisted.retryable,
+      };
+    }),
+  groups: meta.groups.map((group) => ({ ...group })),
+});
+
 export const createDictationSession = (options: DictationSessionOptions): DictationSession => {
   const {
     loadVad = loadSileroVad,
@@ -252,6 +320,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   let tailStartPos: number | undefined;
   let tailEndPos = 0;
   let tailSeq = 0;
+  let lastConsumedFramePos: number | undefined;
   let queuePromise: Promise<void> | undefined;
   let deferQueuePumpDepth = 0;
 
@@ -296,28 +365,17 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       ? accumulatedMs
       : Math.max(0, Math.round(accumulatedMs + (now() - recordingStartedAt)));
 
-  const buildJournalMeta = (): DictationJournalMeta => ({
-    startedAt,
-    elapsedMs: currentElapsedMs(),
-    capReached: snapshot.capReached,
-    ...(activeOriginApiUrl !== undefined ? { originApiUrl: activeOriginApiUrl } : {}),
-    ...(activeRoomId !== undefined ? { originRoomId: activeRoomId } : {}),
-    segments: records.map((record) => ({
-      ...record.segment,
-      status: record.status === 'uploading' ? 'queued' : record.status,
-      ...(record.text !== undefined ? { text: record.text } : {}),
-      ...(record.error !== undefined ? { error: record.error } : {}),
-      retryable: record.retryable,
-      hasWav: record.wav !== undefined,
-    })),
-    groups: groups.map((group) => ({
-      startIndex: group.startIndex,
-      endIndex: group.endIndex,
-      state: group.state === 'uploading' ? 'queued' : group.state,
-      ...(group.refinedText !== undefined ? { refinedText: group.refinedText } : {}),
-      ...(group.refinedEndIndex !== undefined ? { refinedEndIndex: group.refinedEndIndex } : {}),
-    })),
-  });
+  const buildJournalMeta = (): DictationJournalMeta =>
+    serializeDictationMeta({
+      startedAt,
+      elapsedMs: currentElapsedMs(),
+      capReached: snapshot.capReached,
+      consumedThroughFramePos: lastConsumedFramePos,
+      originApiUrl: activeOriginApiUrl,
+      originRoomId: activeRoomId,
+      records,
+      groups,
+    });
 
   const checkpointState = (pruned?: readonly number[], clearAllTail?: boolean): Promise<void> => {
     if (!journal) return Promise.resolve();
@@ -417,6 +475,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     tailStartPos = undefined;
     tailEndPos = 0;
     tailSeq = 0;
+    lastConsumedFramePos = undefined;
     queuePromise = undefined;
     deferQueuePumpDepth = 0;
   };
@@ -652,11 +711,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     appendSegmentToGroups(groups, records, pruned);
     publishRecords();
     pruneTailBufferThrough(consumedThroughFramePos);
+    if (consumedThroughFramePos !== undefined) {
+      lastConsumedFramePos = consumedThroughFramePos;
+    }
     if (journal && wavBuffer) {
       const journalMeta = buildJournalMeta();
-      void journal
-        .commitSegment(meta.index, wavBuffer, journalMeta, consumedThroughFramePos)
-        .catch(() => undefined);
+      void journal.commitSegment(meta.index, wavBuffer, journalMeta).catch(() => undefined);
       if (pruned.length > 0) {
         void journal.updateState(journalMeta, pruned).catch(() => undefined);
       }
@@ -700,6 +760,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     }
     tailFrames = [];
     tailStartPos = undefined;
+    lastConsumedFramePos = undefined;
     const pruned: number[] = [];
     sealOpenGroup(pruned);
     publishRecords();
@@ -827,30 +888,20 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   };
 
   const settleOffline = () => {
-    const pruned: number[] = [];
-    for (const group of groups) {
-      if (group.state === 'refined') continue;
-      const coveredEnd =
-        group.refinedText && group.refinedEndIndex !== undefined
-          ? group.refinedEndIndex
-          : group.startIndex - 1;
-      for (let i = Math.max(group.startIndex, coveredEnd + 1); i <= group.endIndex; i += 1) {
-        const record = records[i];
-        if (record && (record.status === 'queued' || record.status === 'failed')) {
-          record.status = 'failed';
-          record.retryable = true;
-          record.error = NO_CLIENT_RETRY_MESSAGE;
-        }
-      }
-      if (group.state === 'queued' || group.state === 'open') {
-        group.mergedWav = undefined;
-        group.mergedSeconds = undefined;
-        group.state = 'fallback';
-        pruned.push(...releaseGroupWavs(group, records));
+    for (let i = 0; i < records.length; i += 1) {
+      const record = records[i];
+      if (
+        record &&
+        (record.status === 'queued' || record.status === 'failed') &&
+        !isRecordCoveredByRefinement(groups, i)
+      ) {
+        record.status = 'failed';
+        record.retryable = true;
+        record.error = NO_CLIENT_RETRY_MESSAGE;
       }
     }
     publishRecords();
-    void checkpointState(pruned);
+    void checkpointState();
   };
 
   const settleFinishOrRetry = async (activeGen: number): Promise<DictationFinishResult> => {

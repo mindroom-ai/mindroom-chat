@@ -18,6 +18,7 @@ import { JoinedRoomThreadListsFeature } from '../threads/page/JoinedRoomThreadLi
 import { ErrorReportingClientFeature } from '../bug-reports/error-reporting/errorReporting';
 import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { createSessionId } from '../matrix/session/sessions';
 import { hasDictationJournalRecord } from '../composer/capture/captureJournal';
 import { captureAccountGuard } from '../composer/capture/liveCapture';
 import { keepEncryptedRoomTextOffDisk } from '../matrix/client/encryptedRoomTextOffDisk';
@@ -51,12 +52,14 @@ export function DictationRecoveryFeature() {
   const store = useStore();
   const clientConfig = useOptionalClientConfig() ?? EMPTY_CLIENT_CONFIG;
   const userId = mx.getUserId() ?? undefined;
+  const baseUrl = typeof mx.getHomeserverUrl === 'function' ? mx.getHomeserverUrl() : mx.baseUrl;
+  const sessionId = userId && baseUrl ? createSessionId(baseUrl, userId) : userId;
 
   useEffect(() => {
-    if (!userId) return undefined;
+    if (!sessionId) return undefined;
     let cancelled = false;
     const sameAccount = captureAccountGuard(store);
-    void hasDictationJournalRecord(userId)
+    void hasDictationJournalRecord(sessionId)
       .then((hasRecord) => {
         if (cancelled || !hasRecord || !sameAccount()) return undefined;
         return import('../composer/dictation/startLiveDictation').then(
@@ -70,7 +73,7 @@ export function DictationRecoveryFeature() {
     return () => {
       cancelled = true;
     };
-  }, [clientConfig, mx, store, userId]);
+  }, [clientConfig, mx, sessionId, store]);
 
   return null;
 }

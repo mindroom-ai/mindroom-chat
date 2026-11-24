@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { DictationSegmentCutReason } from '../dictation/dictationSegmenter';
+import type { DictationSegmentMeta } from '../dictation/dictationRefinement';
 import { getAudioFileExtension } from '../voice/voiceRecorderMime';
 
 /**
@@ -11,19 +11,11 @@ export const TAIL_SEQ_OFFSET = 1_000_000;
 
 const DICTATION_TAIL_MIME = 'audio/pcm;encoding=s16le;rate=16000';
 
-export type PersistedDictationSegment = {
-  index: number;
-  seconds: number;
-  overlapped: boolean;
-  cutReason: DictationSegmentCutReason;
-  leadingQuietFrames: number;
-  trailingQuietFrames: number;
-  pauseBeforeMs: number;
+export type PersistedDictationSegment = DictationSegmentMeta & {
   status: 'queued' | 'completed' | 'failed';
   text?: string;
   error?: string;
   retryable: boolean;
-  hasWav: boolean;
 };
 
 export type PersistedRefinementGroup = {
@@ -38,6 +30,7 @@ export type DictationJournalMeta = {
   startedAt: number;
   elapsedMs: number;
   capReached: boolean;
+  consumedThroughFramePos?: number;
   originApiUrl?: string;
   originRoomId?: string;
   segments: PersistedDictationSegment[];
@@ -68,8 +61,7 @@ export type DictationJournalHandle = {
   commitSegment: (
     segmentIndex: number,
     wav: ArrayBuffer,
-    meta: DictationJournalMeta,
-    clearTailThroughFramePos?: number
+    meta: DictationJournalMeta
   ) => Promise<void>;
   updateState: (
     meta: DictationJournalMeta,
@@ -99,6 +91,7 @@ type VoiceRecordingRow = {
 type DictationRecordingRow = DictationJournalMeta & {
   id: string;
   kind: 'dictation';
+  /** Stores sessionId (`createSessionId(baseUrl, userId)`) in the existing v1 `'userId'` index. */
   userId: string;
 };
 
@@ -185,8 +178,6 @@ export const holdCapture = (id: string): Promise<boolean> =>
       .catch(() => resolve(false));
   }).catch(() => false);
 
-export const holdVoiceRecording = holdCapture;
-
 const unlock = (id: string): void => {
   held.get(id)?.();
   held.delete(id);
@@ -197,8 +188,6 @@ const unlock = (id: string): void => {
 export const releaseCapture = (id: string): void => {
   void Promise.resolve(tails.get(id)?.()).then(() => unlock(id));
 };
-
-export const releaseVoiceRecording = releaseCapture;
 
 const chunksOf = (id: string) => IDBKeyRange.bound([id, 0], [id, Infinity]);
 const tailChunksOf = (id: string) => IDBKeyRange.bound([id, TAIL_SEQ_OFFSET], [id, Infinity]);
@@ -216,107 +205,20 @@ const deleteRows = (tx: WriteTx, id: string) =>
     tx.objectStore('chunks').delete(chunksOf(id)),
   ]);
 
-export const deleteCapture = async (id?: string): Promise<void> => {
-  if (!id) return;
-  await starts.get(id);
-  const deleted = await withDb((db) => change(db, (tx) => deleteRows(tx, id)));
-  if (deleted) unlock(id);
-};
+/** Runs a transaction only if the recording row still exists (sign-out in another tab may delete it). */
+const guardedWrite = (id: string, work: (tx: WriteTx) => Promise<unknown>) =>
+  withDb((db) =>
+    change(db, async (tx) => {
+      if (await tx.objectStore('recordings').getKey(id)) await work(tx);
+    })
+  );
 
-export const deleteVoiceRecording = deleteCapture;
+type WriteEnqueue = (work: () => Promise<void>) => Promise<void>;
 
-export const beginVoiceRecording = (userId: string, startedAt: number, mimeType: string) => {
-  if (!globalThis.navigator?.locks) return undefined;
-  const id = crypto.randomUUID();
-  const start = holdCapture(id).then(async (locked) => {
-    if (!locked) return false;
-    const stored = await withDb((db) =>
-      db.add('recordings', { id, kind: 'voice', userId, startedAt, mimeType })
-    );
-    if (!stored) unlock(id);
-    return !!stored;
-  });
-  starts.set(id, start);
-  void start.then(() => starts.delete(id));
-  let tail: Promise<unknown> = start;
-  tails.set(id, () => tail);
-  return {
-    id,
-    remove: () => deleteCapture(id),
-    release: () => releaseCapture(id),
-    append: async (seq: number, data: Blob, elapsedMs: number) => {
-      const bytes = data.arrayBuffer().catch(() => undefined);
-      const next = tail.then(async () => {
-        if (!(await start) || !held.has(id)) return;
-        const buffer = await bytes;
-        if (!buffer) return;
-        await withDb((db) =>
-          change(db, async (tx) => {
-            // Sign-out can delete the meta in another tab. Do not recreate its chunks.
-            if (await tx.objectStore('recordings').getKey(id)) {
-              await tx
-                .objectStore('chunks')
-                .put({ id, seq, bytes: buffer, elapsedMs, type: data.type });
-            }
-          })
-        );
-      });
-      tail = next;
-      return next;
-    },
-  };
-};
-
-type RecoveredVoice = { recordingId: string; file: File; duration: number };
-
-export const recoverVoiceRecording = async (
-  userId: string,
-  skipId: string | undefined,
-  offer: (recording: RecoveredVoice) => boolean | Promise<boolean>
-): Promise<void> => {
-  if (!globalThis.navigator?.locks) return;
-  await withDb(async (db) => {
-    const records = (await db.getAllFromIndex('recordings', 'userId', userId)).filter(isVoiceRow);
-    records.sort((a, b) => a.startedAt - b.startedAt);
-    /* eslint-disable no-await-in-loop, no-continue */
-    for (const { id, startedAt, mimeType } of records) {
-      if (id === skipId || !(await holdCapture(id))) continue;
-      let accepted = false;
-      try {
-        const chunks = await db.getAll('chunks', chunksOf(id));
-        const last = chunks.at(-1);
-        if (!last) {
-          await deleteCapture(id);
-          continue;
-        }
-        const type = chunks[0]?.type || mimeType;
-        accepted = await offer({
-          recordingId: id,
-          file: new File(
-            chunks.map((c) => c.bytes),
-            `voice-message-${startedAt}.${getAudioFileExtension(type)}`,
-            { type }
-          ),
-          duration: Math.max(1, Math.round(last.elapsedMs)),
-        });
-        if (accepted) return;
-      } finally {
-        if (!accepted) unlock(id);
-      }
-    }
-    /* eslint-enable no-await-in-loop, no-continue */
-  });
-};
-
-const createDictationJournalHandle = (
-  id: string,
-  userId: string,
-  ready: Promise<boolean>
-): DictationJournalHandle => {
+const createWriteQueue = (id: string, ready: Promise<boolean>): WriteEnqueue => {
   let tail: Promise<unknown> = ready;
   tails.set(id, () => tail);
-
-  const enqueue = (work: () => Promise<void>): Promise<void> => {
+  return (work) => {
     const next = tail.then(async () => {
       if (!(await ready) || !held.has(id)) return;
       await work();
@@ -324,190 +226,244 @@ const createDictationJournalHandle = (
     tail = next;
     return next;
   };
-
-  return {
-    id,
-    remove: () => deleteCapture(id),
-    release: () => releaseCapture(id),
-    appendTail: (seq, pcm16, elapsedMs, startFramePos, endFramePos) =>
-      enqueue(async () => {
-        await withDb((db) =>
-          change(db, async (tx) => {
-            if (await tx.objectStore('recordings').getKey(id)) {
-              await tx.objectStore('chunks').put({
-                id,
-                seq: TAIL_SEQ_OFFSET + seq,
-                bytes: pcm16,
-                type: DICTATION_TAIL_MIME,
-                elapsedMs,
-                startFramePos,
-                endFramePos,
-              });
-            }
-          })
-        );
-      }),
-    commitSegment: (segmentIndex, wav, meta, clearTailThroughFramePos) => {
-      const snapshot = cloneDictationMeta(meta);
-      return enqueue(async () => {
-        await withDb((db) =>
-          change(db, async (tx) => {
-            if (!(await tx.objectStore('recordings').getKey(id))) return;
-            const chunksStore = tx.objectStore('chunks');
-            await chunksStore.put({
-              id,
-              seq: segmentIndex,
-              bytes: wav,
-              type: 'audio/wav',
-              elapsedMs: snapshot.elapsedMs,
-            });
-            if (clearTailThroughFramePos !== undefined) {
-              const tailRows = await chunksStore.getAll(tailChunksOf(id));
-              const ops: Promise<unknown>[] = [];
-              for (const row of tailRows) {
-                if (isDictationTailChunkRow(row)) {
-                  if (row.endFramePos <= clearTailThroughFramePos) {
-                    ops.push(chunksStore.delete([id, row.seq]));
-                  } else if (row.startFramePos < clearTailThroughFramePos) {
-                    const totalFrames = row.endFramePos - row.startFramePos;
-                    const dropFrames = clearTailThroughFramePos - row.startFramePos;
-                    if (totalFrames > 0 && row.bytes.byteLength % totalFrames === 0) {
-                      const bytesPerFrame = row.bytes.byteLength / totalFrames;
-                      ops.push(
-                        chunksStore.put({
-                          ...row,
-                          bytes: row.bytes.slice(dropFrames * bytesPerFrame),
-                          startFramePos: clearTailThroughFramePos,
-                        })
-                      );
-                    } else {
-                      ops.push(chunksStore.delete([id, row.seq]));
-                    }
-                  }
-                }
-              }
-              await Promise.all(ops);
-            }
-            await tx.objectStore('recordings').put({
-              id,
-              kind: 'dictation',
-              userId,
-              ...snapshot,
-            });
-          })
-        );
-      });
-    },
-    updateState: (meta, pruneSegmentIndices, clearAllTail) => {
-      const snapshot = cloneDictationMeta(meta);
-      const prune = pruneSegmentIndices ? [...pruneSegmentIndices] : undefined;
-      return enqueue(async () => {
-        await withDb((db) =>
-          change(db, async (tx) => {
-            if (!(await tx.objectStore('recordings').getKey(id))) return;
-            const chunksStore = tx.objectStore('chunks');
-            const ops: Promise<unknown>[] = [
-              tx.objectStore('recordings').put({
-                id,
-                kind: 'dictation',
-                userId,
-                ...snapshot,
-              }),
-            ];
-            if (prune && prune.length > 0) {
-              prune.forEach((segIdx) => ops.push(chunksStore.delete([id, segIdx])));
-            }
-            if (clearAllTail) {
-              ops.push(chunksStore.delete(tailChunksOf(id)));
-            }
-            await Promise.all(ops);
-          })
-        );
-      });
-    },
-  };
 };
 
-export const beginDictationJournal = (
-  userId: string,
-  meta: DictationJournalMeta
-): DictationJournalHandle | undefined => {
-  if (!globalThis.navigator?.locks) return undefined;
-  const id = crypto.randomUUID();
-  const initial = cloneDictationMeta(meta);
+const openLockedRecord = (row: RecordingRow): WriteEnqueue => {
+  const { id } = row;
   const start = holdCapture(id).then(async (locked) => {
     if (!locked) return false;
-    const stored = await withDb((db) =>
-      db.add('recordings', { id, kind: 'dictation', userId, ...initial })
-    );
+    const stored = await withDb((db) => db.add('recordings', row));
     if (!stored) unlock(id);
     return !!stored;
   });
   starts.set(id, start);
   void start.then(() => starts.delete(id));
-  return createDictationJournalHandle(id, userId, start);
+  return createWriteQueue(id, start);
 };
 
-export const recoverDictationJournal = async (
-  userId: string,
-  offer: (recovered: RecoveredDictationJournal) => boolean | Promise<boolean>
+const recoverLockedRecords = async <R extends RecordingRow>(
+  ownerKey: string,
+  filter: (row: RecordingRow) => row is R,
+  offer: (row: R, chunks: ChunkRow[]) => boolean | Promise<boolean>,
+  skipId?: string
 ): Promise<void> => {
   if (!globalThis.navigator?.locks) return;
   await withDb(async (db) => {
-    const records = (await db.getAllFromIndex('recordings', 'userId', userId)).filter(
-      isDictationRow
-    );
+    const records = (await db.getAllFromIndex('recordings', 'userId', ownerKey)).filter(filter);
     records.sort((a, b) => a.startedAt - b.startedAt);
     /* eslint-disable no-await-in-loop, no-continue */
     for (const row of records) {
-      const { id } = row;
-      if (!(await holdCapture(id))) continue;
+      if (row.id === skipId || !(await holdCapture(row.id))) continue;
       let accepted = false;
       try {
-        const chunks = await db.getAll('chunks', chunksOf(id));
-        const wavs = new Map<number, ArrayBuffer>();
-        const tailChunks: DictationTailChunk[] = [];
-        for (const chunk of chunks) {
-          if (chunk.seq < TAIL_SEQ_OFFSET) {
-            wavs.set(chunk.seq, chunk.bytes);
-          } else if (isDictationTailChunkRow(chunk)) {
-            tailChunks.push({
-              seq: chunk.seq - TAIL_SEQ_OFFSET,
-              bytes: chunk.bytes,
-              elapsedMs: chunk.elapsedMs,
-              startFramePos: chunk.startFramePos,
-              endFramePos: chunk.endFramePos,
-            });
-          }
-        }
-        const { id: _id, kind: _kind, userId: _userId, ...meta } = row;
-        const journal = createDictationJournalHandle(id, userId, Promise.resolve(true));
-        accepted = await offer({ id, meta, wavs, tailChunks, journal });
+        const chunks = await db.getAll('chunks', chunksOf(row.id));
+        accepted = await offer(row, chunks);
         if (accepted) return;
       } finally {
-        if (!accepted) unlock(id);
+        if (!accepted) unlock(row.id);
       }
     }
     /* eslint-enable no-await-in-loop, no-continue */
   });
 };
 
-/** Cheap read-only check for whether the account has any dictation record on disk (no locks). */
-export const hasDictationJournalRecord = async (userId: string): Promise<boolean> => {
+export const deleteCapture = async (id?: string): Promise<void> => {
+  if (!id) return;
+  await starts.get(id);
+  const deleted = await withDb((db) => change(db, (tx) => deleteRows(tx, id)));
+  if (deleted) unlock(id);
+};
+
+export const beginVoiceRecording = (userId: string, startedAt: number, mimeType: string) => {
+  if (!globalThis.navigator?.locks) return undefined;
+  const id = crypto.randomUUID();
+  const enqueue = openLockedRecord({ id, kind: 'voice', userId, startedAt, mimeType });
+  return {
+    id,
+    remove: () => deleteCapture(id),
+    release: () => releaseCapture(id),
+    append: (seq: number, data: Blob, elapsedMs: number) => {
+      const bytes = data.arrayBuffer().catch(() => undefined);
+      return enqueue(async () => {
+        const buffer = await bytes;
+        if (!buffer) return;
+        await guardedWrite(id, (tx) =>
+          tx.objectStore('chunks').put({ id, seq, bytes: buffer, elapsedMs, type: data.type })
+        );
+      });
+    },
+  };
+};
+
+type RecoveredVoice = { recordingId: string; file: File; duration: number };
+
+export const recoverVoiceRecording = (
+  userId: string,
+  skipId: string | undefined,
+  offer: (recording: RecoveredVoice) => boolean | Promise<boolean>
+): Promise<void> =>
+  recoverLockedRecords(
+    userId,
+    isVoiceRow,
+    async ({ id, startedAt, mimeType }, chunks) => {
+      const last = chunks.at(-1);
+      if (!last) {
+        await deleteCapture(id);
+        return false;
+      }
+      const type = chunks[0]?.type || mimeType;
+      return offer({
+        recordingId: id,
+        file: new File(
+          chunks.map((c) => c.bytes),
+          `voice-message-${startedAt}.${getAudioFileExtension(type)}`,
+          { type }
+        ),
+        duration: Math.max(1, Math.round(last.elapsedMs)),
+      });
+    },
+    skipId
+  );
+
+const createDictationJournalHandle = (
+  id: string,
+  sessionId: string,
+  enqueue: WriteEnqueue
+): DictationJournalHandle => ({
+  id,
+  remove: () => deleteCapture(id),
+  release: () => releaseCapture(id),
+  appendTail: (seq, pcm16, elapsedMs, startFramePos, endFramePos) =>
+    enqueue(async () => {
+      await guardedWrite(id, (tx) =>
+        tx.objectStore('chunks').put({
+          id,
+          seq: TAIL_SEQ_OFFSET + seq,
+          bytes: pcm16,
+          type: DICTATION_TAIL_MIME,
+          elapsedMs,
+          startFramePos,
+          endFramePos,
+        })
+      );
+    }),
+  commitSegment: (segmentIndex, wav, meta) => {
+    const snapshot = cloneDictationMeta(meta);
+    return enqueue(async () => {
+      await guardedWrite(id, async (tx) => {
+        const chunksStore = tx.objectStore('chunks');
+        const ops: Promise<unknown>[] = [
+          chunksStore.put({
+            id,
+            seq: segmentIndex,
+            bytes: wav,
+            type: 'audio/wav',
+            elapsedMs: snapshot.elapsedMs,
+          }),
+          tx.objectStore('recordings').put({
+            id,
+            kind: 'dictation',
+            userId: sessionId,
+            ...snapshot,
+          }),
+        ];
+        if (snapshot.consumedThroughFramePos !== undefined) {
+          const cutoff = snapshot.consumedThroughFramePos;
+          const tailRows = await chunksStore.getAll(tailChunksOf(id));
+          for (const row of tailRows) {
+            if (isDictationTailChunkRow(row) && row.endFramePos <= cutoff) {
+              ops.push(chunksStore.delete([id, row.seq]));
+            }
+          }
+        }
+        await Promise.all(ops);
+      });
+    });
+  },
+  updateState: (meta, pruneSegmentIndices, clearAllTail) => {
+    const snapshot = cloneDictationMeta(meta);
+    if (clearAllTail) delete snapshot.consumedThroughFramePos;
+    const prune = pruneSegmentIndices ? [...pruneSegmentIndices] : undefined;
+    return enqueue(async () => {
+      await guardedWrite(id, async (tx) => {
+        const chunksStore = tx.objectStore('chunks');
+        const ops: Promise<unknown>[] = [
+          tx.objectStore('recordings').put({
+            id,
+            kind: 'dictation',
+            userId: sessionId,
+            ...snapshot,
+          }),
+        ];
+        if (prune && prune.length > 0) {
+          prune.forEach((segIdx) => ops.push(chunksStore.delete([id, segIdx])));
+        }
+        if (clearAllTail) ops.push(chunksStore.delete(tailChunksOf(id)));
+        await Promise.all(ops);
+      });
+    });
+  },
+});
+
+export const beginDictationJournal = (
+  sessionId: string,
+  meta: DictationJournalMeta
+): DictationJournalHandle | undefined => {
+  if (!globalThis.navigator?.locks) return undefined;
+  const id = crypto.randomUUID();
+  const enqueue = openLockedRecord({
+    id,
+    kind: 'dictation',
+    userId: sessionId,
+    ...cloneDictationMeta(meta),
+  });
+  return createDictationJournalHandle(id, sessionId, enqueue);
+};
+
+export const recoverDictationJournal = (
+  sessionId: string,
+  offer: (recovered: RecoveredDictationJournal) => boolean | Promise<boolean>
+): Promise<void> =>
+  recoverLockedRecords(sessionId, isDictationRow, (row, chunks) => {
+    const { id, kind: _kind, userId: _userId, ...meta } = row;
+    const wavs = new Map<number, ArrayBuffer>();
+    const tailChunks: DictationTailChunk[] = [];
+    for (const chunk of chunks) {
+      if (chunk.seq < TAIL_SEQ_OFFSET) wavs.set(chunk.seq, chunk.bytes);
+      else if (isDictationTailChunkRow(chunk)) {
+        tailChunks.push({
+          seq: chunk.seq - TAIL_SEQ_OFFSET,
+          bytes: chunk.bytes,
+          elapsedMs: chunk.elapsedMs,
+          startFramePos: chunk.startFramePos,
+          endFramePos: chunk.endFramePos,
+        });
+      }
+    }
+    const journal = createDictationJournalHandle(
+      id,
+      sessionId,
+      createWriteQueue(id, Promise.resolve(true))
+    );
+    return offer({ id, meta, wavs, tailChunks, journal });
+  });
+
+/** Cheap read-only check for whether the session has any dictation record on disk (no locks). */
+export const hasDictationJournalRecord = async (sessionId: string): Promise<boolean> => {
   if (!globalThis.navigator?.locks) return false;
   const found = await withDb(async (db) => {
-    const records = await db.getAllFromIndex('recordings', 'userId', userId);
+    const records = await db.getAllFromIndex('recordings', 'userId', sessionId);
     return records.some(isDictationRow);
   });
   return found === true;
 };
 
-/** Removes all persisted voice and dictation journal rows for `userId` (sign-out). */
-export const clearCaptureJournal = async (userId: string): Promise<void> => {
+/** Removes all persisted journal rows indexed under `ownerKey` (`userId` for voice, `sessionId` for dictation). */
+export const clearCaptureJournal = async (ownerKey: string): Promise<void> => {
   await Promise.all(starts.values());
   const deleted = await withDb((db) =>
     change(db, async (tx) => {
-      const ids = await tx.objectStore('recordings').index('userId').getAllKeys(userId);
+      const ids = await tx.objectStore('recordings').index('userId').getAllKeys(ownerKey);
       await Promise.all(ids.map((id) => deleteRows(tx, id)));
       return ids;
     })

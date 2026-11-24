@@ -623,11 +623,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     });
 
     const submit = useCallback(
-      async (explicitMode: MidTurnMode | undefined, waited: boolean) => {
-        const liveDictation = dictation.getLiveStatus();
-        if (liveDictation === 'blocked') return;
+      async (
+        explicitMode: MidTurnMode | undefined,
+        waited: boolean,
+        options?: { voiceOnly?: boolean }
+      ) => {
+        const voiceOnly = options?.voiceOnly === true;
         if (voiceActive && voice.blocksSubmit()) return;
         const mode = explicitMode ?? midTurnSend;
+        const liveDictation = voiceOnly ? 'idle' : dictation.getLiveStatus();
+        if (liveDictation === 'blocked') return;
         if (!waited && liveDictation === 'sendable') {
           const startKey = dictationHandoffRef.current.composerKey;
           const settled = ask ? true : settlePastes();
@@ -716,6 +721,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           });
           return;
         }
+        if (voiceOnly) return;
         if (settled !== true && !(await settled)) return;
         if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
         const textContent = takeText();
@@ -773,9 +779,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
-      (explicitMode?: MidTurnMode, waited = false) => {
+      (explicitMode?: MidTurnMode, waited = false, options?: { voiceOnly?: boolean }) => {
         if (ask && !ask.canSend()) return Promise.resolve();
-        const sending = submit(explicitMode, waited);
+        const sending = submit(explicitMode, waited, options);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
@@ -906,7 +912,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
     const hasVoice = voiceActive && voice.hasVoice;
-    const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
+    const recorder = voiceActive
+      ? voice.renderRecorder(() => void handleSend(undefined, false, { voiceOnly: true }))
+      : null;
     // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);

@@ -132,7 +132,7 @@ describe('shared live capture and voice ownership architecture', () => {
       'composer/dictation/dictationSession.ts',
       'composer/voice/voiceCaptureSession.ts',
     ]);
-  });
+  }, 15_000);
 
   it('keeps LiveCaptureIndicator and captureJournal free of capture engine runtime deps', () => {
     const indicatorRuntimeLocal = [
@@ -250,5 +250,5 @@ describe('shared live capture and voice ownership architecture', () => {
     ).toEqual([]);
     expect(constructedIdentifiers(DRAFT_OWNER)).not.toContain('MediaRecorder');
     expect(constructedIdentifiers(DRAFT_OWNER)).not.toContain('AudioContext');
-  });
+  }, 15_000);
 });

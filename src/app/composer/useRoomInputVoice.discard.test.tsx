@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { composersHoldUnsavedWork } from './roomInputDrafts';
 import { useRoomInputVoice } from './useRoomInputVoice';
 import { liveCaptureAtom } from './capture/liveCapture';
+import { createSessionId } from '../matrix/session/sessions';
 import { dictationRestoresAtom } from './dictation/startLiveDictation';
 import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
@@ -18,8 +19,10 @@ vi.mock('../matrix/hooks/useMediaConfig', () => ({ useMediaConfig: () => ({}) })
 
 const ROOM_ID = '!example:example.org';
 const room = { roomId: ROOM_ID, name: 'Example room' } as unknown as Room;
+const HOMESERVER = 'https://example.org';
 const mx = {
   getUserId: () => '@me:example.org',
+  getHomeserverUrl: () => HOMESERVER,
   getRoom: () => room,
 } as unknown as MatrixClient;
 
@@ -117,8 +120,9 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
 it('keeps voice microphone disabled while dictationRestoresAtom is still in flight', () => {
   const store = createStore();
   const userId = '@me:example.org';
+  const sessionId = createSessionId(HOMESERVER, userId);
   store.set(voiceDraftRestoresAtom, new Map([[userId, null]]));
-  store.set(dictationRestoresAtom, new Map([[userId, new Promise<void>(() => undefined)]]));
+  store.set(dictationRestoresAtom, new Map([[sessionId, new Promise<void>(() => undefined)]]));
 
   render(
     <Provider store={store}>
@@ -130,7 +134,7 @@ it('keeps voice microphone disabled while dictationRestoresAtom is still in flig
   expect(mic.disabled).toBe(true);
 
   act(() => {
-    store.set(dictationRestoresAtom, new Map([[userId, null]]));
+    store.set(dictationRestoresAtom, new Map([[sessionId, null]]));
   });
   expect(mic.disabled).toBe(false);
 });

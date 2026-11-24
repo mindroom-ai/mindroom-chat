@@ -52,6 +52,7 @@ export type DictationSegmenterOptions = {
   longSilenceFrames?: number;
   initialSegmentIndex?: number;
   initialActiveFrames?: number;
+  initialOverlapped?: boolean;
 };
 
 type PendingFrame = {
@@ -210,6 +211,7 @@ export class DictationSegmenter {
     this.pushedFramePos = this.activeFrames;
     this.scoredFramePos = this.activeFrames;
     this.capReached = this.activeFrames >= this.maxActiveFrames;
+    this.nextSegmentOverlapped = Boolean(options.initialOverlapped);
   }
 
   /** Pushes one PCM frame and returns its monotonic frame position, or null when ignored. */
@@ -237,14 +239,6 @@ export class DictationSegmenter {
     const firstPadPos = this.preSpeechPad[0]?.pos;
     if (firstPadPos !== undefined) return firstPadPos;
     return this.scoredFramePos;
-  }
-
-  getActiveFrames(): number {
-    return this.activeFrames;
-  }
-
-  getNextSegmentIndex(): number {
-    return this.segmentIndex;
   }
 
   attachVad(scorer: VadScorer): Promise<void> {

@@ -65,6 +65,7 @@ const {
   modelPickerState,
   typingState,
   voiceRecorderState,
+  dictationState,
 } = vi.hoisted(() => ({
   editorMocks: {
     insertNode: vi.fn(),
@@ -171,6 +172,7 @@ const {
           sendDisabled?: boolean;
           onSendStopRequest?: () => boolean | void;
           onSendStopFailure?: () => void;
+          onRetryRequest?: () => void;
           // The mock auto-injects context from getSendContext() when callers
           // don't pass one, so existing unit tests of handleVoiceSend keep
           // their (file, duration, waveform?) call shape.
@@ -185,6 +187,11 @@ const {
       | undefined,
     // The mounted recorders, by the conversation view of their composer (none: the room page's).
     byView: new Map<string | undefined, any>(),
+  },
+  dictationState: {
+    canSend: false,
+    getLiveStatus: vi.fn<() => 'idle' | 'sendable' | 'blocked'>(() => 'idle'),
+    detachForSend: vi.fn<() => { session: any; savedSelection: null } | undefined>(() => undefined),
   },
 }));
 
@@ -419,15 +426,15 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
   useRoomInputDictation: () => ({
     available: false,
     blocksSubmit: false,
-    canSend: false,
-    active: false,
+    canSend: dictationState.canSend,
+    active: dictationState.canSend,
     disabled: true,
     label: 'Dictate',
     button: null,
     capsule: null,
     start: () => false,
-    getLiveStatus: () => 'idle',
-    detachForSend: () => undefined,
+    getLiveStatus: () => dictationState.getLiveStatus(),
+    detachForSend: () => dictationState.detachForSend(),
   }),
 }));
 
@@ -706,6 +713,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
           sendDisabled?: boolean;
           onSendStopRequest?: () => boolean | void;
           onSendStopFailure?: () => void;
+          onRetryRequest?: () => void;
           onSendRecording: (
             file: File,
             duration: number,
@@ -1044,6 +1052,11 @@ afterEach(() => {
   voiceRecorderState.byView.clear();
   voiceRecorderState.send.mockReset();
   voiceRecorderState.send.mockResolvedValue(false);
+  dictationState.canSend = false;
+  dictationState.getLiveStatus.mockReset();
+  dictationState.getLiveStatus.mockReturnValue('idle');
+  dictationState.detachForSend.mockReset();
+  dictationState.detachForSend.mockReturnValue(undefined);
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
@@ -5149,6 +5162,64 @@ describe('RoomInput main-room next-thread model pick', () => {
     } finally {
       forgetSpy.mockRestore();
     }
+  });
+
+  it('retries a parked voice draft via voice error Retry even while live dictation exists, without claiming dictation', async () => {
+    const store = createStore();
+    const voiceFile = new File(['voice'], 'failed-voice.ogg', { type: 'audio/ogg' });
+    store.set(pendingVoiceSendDraftAtom, {
+      file: voiceFile,
+      duration: 2400,
+      waveform: [100, 400],
+      errorMessage: 'Upload failed',
+      context: {
+        ownerSessionId: '@me:example.org',
+        roomId: ROOM_ID,
+        room: mxState.getRoom(ROOM_ID)!,
+        threadId: undefined,
+        replyDraft: undefined,
+        threadingEnabled: true,
+        signalBridgedRoom: false,
+      },
+    });
+    dictationState.canSend = true;
+    dictationState.getLiveStatus.mockReturnValue('sendable');
+
+    const { renderer } = await renderRoomInput(store);
+    expect(voiceRecorderState.props?.onRetryRequest).toBeTypeOf('function');
+
+    // Voice error Retry invokes the voice-only path and skips dictation handoff.
+    voiceRecorderState.send.mockResolvedValueOnce(true);
+    await act(async () => {
+      voiceRecorderState.props!.onRetryRequest!();
+      await Promise.resolve();
+    });
+    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
+    expect(dictationState.detachForSend).not.toHaveBeenCalled();
+
+    // Even when live dictation is blocked (e.g. requesting/finishing), voice error Retry still retries voice.
+    voiceRecorderState.send.mockClear();
+    dictationState.getLiveStatus.mockReturnValue('blocked');
+    voiceRecorderState.send.mockResolvedValueOnce(true);
+    await act(async () => {
+      voiceRecorderState.props!.onRetryRequest!();
+      await Promise.resolve();
+    });
+    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
+    expect(dictationState.detachForSend).not.toHaveBeenCalled();
+
+    // Ordinary primary Send still performs Finish & Send on the live dictation.
+    voiceRecorderState.send.mockClear();
+    dictationState.getLiveStatus.mockReturnValue('sendable');
+    const finishAndSendButton = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Finish and send'
+    );
+    await act(async () => {
+      await finishAndSendButton.props.onClick();
+    });
+    expect(dictationState.detachForSend).toHaveBeenCalledTimes(1);
+    expect(voiceRecorderState.send).not.toHaveBeenCalled();
+    renderer.unmount();
   });
 });
 

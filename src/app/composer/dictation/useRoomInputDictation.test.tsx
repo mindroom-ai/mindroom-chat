@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { useRef } from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { createEditor, Editor, Node, Transforms, type Descendant } from 'slate';
 import { HistoryEditor, withHistory } from 'slate-history';
@@ -9,6 +9,7 @@ import { ReactEditor, withReact } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { createSessionId } from '../../matrix/session/sessions';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
 import { pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { LiveCaptureIndicator } from '../capture/LiveCaptureIndicator';
@@ -620,9 +621,11 @@ describe('useRoomInputDictation', () => {
     focusSpy.mockRestore();
 
     // Start again and finish via Ctrl+Shift+D.
+    input.focus();
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
     });
+    await waitFor(() => expect(session.start).toHaveBeenCalledTimes(2));
     await act(async () => {
       fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
     });
@@ -649,6 +652,40 @@ describe('useRoomInputDictation', () => {
       fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
     });
     expect(readText(editor)).toBe('Hey Hello dictated words world');
+  });
+
+  it('keeps RangeRef live during Finish so editing before the selection while finishing still replaces the right word', async () => {
+    const editor = makeSlateEditor('red blue');
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 4 },
+      focus: { path: [0, 0], offset: 8 },
+    });
+    const store = createStore();
+    let resolveFinish!: (res: DictationFinishResult) => void;
+    const mock = createMockSession({ journalId: 'j-live-range' });
+    mock.setFinishPromise(
+      new Promise<DictationFinishResult>((resolve) => {
+        resolveFinish = resolve;
+      })
+    );
+
+    renderHarness(editor, store, mock.session);
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('composer.dictation.label'));
+    });
+
+    // Press Finish while "blue" is selected, then prepend "very " BEFORE transcription finishes.
+    fireEvent.click(screen.getByLabelText('composer.dictation.finish'));
+    Transforms.insertText(editor, 'very ', { at: { path: [0, 0], offset: 0 } });
+    expect(readText(editor)).toBe('very red blue');
+
+    await act(async () => {
+      resolveFinish({ status: 'completed', text: 'green', journalId: 'j-live-range' });
+      await Promise.resolve();
+    });
+    // Live RangeRef tracked the prepend -> replaced "blue", NOT " red"!
+    expect(readText(editor)).toBe('very red green');
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-live-range');
   });
 
   it('lets an inline AutocompleteMenu listbox consume Escape before dictation', async () => {
@@ -1351,14 +1388,22 @@ describe('useRoomInputDictation', () => {
     view.unmount();
   });
 
-  it('gates Mic button and start() until dictationRestoresAtom and voiceDraftRestoresAtom settle', () => {
+  it('gates Mic button and start() while session-scoped dictationRestoresAtom or voiceDraftRestoresAtom is in flight', () => {
     const store = createStore();
     const editor = makeSlateEditor();
     const userId = '@alice:example.org';
-    const mx = { getUserId: () => userId, getRoom: () => null } as unknown as MatrixClient;
+    const baseUrl = 'https://hs-a.example.org';
+    const sessionId = createSessionId(baseUrl, userId);
+    const otherSessionId = createSessionId('https://hs-b.example.org', userId);
+    const mx = {
+      baseUrl,
+      getHomeserverUrl: () => baseUrl,
+      getUserId: () => userId,
+      getRoom: () => null,
+    } as unknown as MatrixClient;
     const pendingDict = new Promise<void>(() => undefined);
     const pendingVoice = new Promise<void>(() => undefined);
-    store.set(dictationRestoresAtom, new Map([[userId, pendingDict]]));
+    store.set(dictationRestoresAtom, new Map([[sessionId, pendingDict]]));
 
     let latest!: RoomInputDictationFeature;
     function Harness() {
@@ -1385,9 +1430,15 @@ describe('useRoomInputDictation', () => {
     expect(btn.disabled).toBe(true);
     expect(latest.start()).toBe(false);
 
-    // Dictation restore settles, but voice restore is still in flight -> still disabled.
+    // A pending dictation restore for the same MXID on another homeserver does not block this session.
     act(() => {
-      store.set(dictationRestoresAtom, new Map([[userId, null]]));
+      store.set(dictationRestoresAtom, new Map([[otherSessionId, pendingDict]]));
+    });
+    expect(btn.disabled).toBe(false);
+
+    // Dictation restore settled, but voice restore is still in flight -> disabled.
+    act(() => {
+      store.set(dictationRestoresAtom, new Map([[sessionId, null]]));
       store.set(voiceDraftRestoresAtom, new Map([[userId, pendingVoice]]));
     });
     expect(btn.disabled).toBe(true);
