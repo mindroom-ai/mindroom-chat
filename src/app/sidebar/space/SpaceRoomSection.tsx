@@ -216,7 +216,7 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
   };
 }
 
-const EMPTY_UNREAD_ATOM = atom<CollapsedSectionUnread | undefined>(undefined);
+const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
 
 type SectionHeaderButtonProps = {
   label: string;
