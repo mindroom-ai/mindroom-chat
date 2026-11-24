@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Membership } from '../../matrix/types/room';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import type { LocalRoomSummary } from '../../rooms/useLocalRoomSummary';
 import type { HierarchyItem } from '../useSpaceHierarchy';
 import { SpaceItemCard } from './SpaceItem';
@@ -95,6 +96,29 @@ vi.mock('./SpaceItem.css', () => ({
 vi.mock('./style.css', () => ({
   AvatarPlaceholder: 'AvatarPlaceholder',
   LinePlaceholder: 'LinePlaceholder',
+}));
+
+vi.mock('../../ui/ScrollableMenu.css', () => ({
+  ScrollableMenu: 'ScrollableMenu',
+  ScrollableMenuRows: 'ScrollableMenuRows',
+}));
+
+vi.mock('../../ui/directional', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../ui/directional')>()),
+  PopOut: ({
+    anchor,
+    content,
+    children,
+  }: {
+    anchor?: unknown;
+    content?: React.ReactNode;
+    children?: React.ReactNode;
+  }) => (
+    <>
+      {children}
+      {anchor ? <div data-popout>{content}</div> : null}
+    </>
+  ),
 }));
 
 const roomId = '!private-space:example.org';
@@ -418,5 +442,138 @@ describe('SpaceItemCard room access', () => {
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
+  });
+
+  it('renders a reactive parent prefix for joined parents, falls back to summary name when unjoined, and opens SpaceAddMenuEntries from one Add chip', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      roomId,
+      getMyMembership: () => Membership.Join,
+      getJoinRule: () => JoinRule.Public,
+    } as Room);
+    let onNameChange: ((renamed: Room) => void) | undefined;
+    const joinedParent = {
+      roomId: '!ops:example.org',
+      name: 'Operations',
+      on: vi.fn((_event: string, listener: (renamed: Room) => void) => {
+        onNameChange = listener;
+      }),
+      removeListener: vi.fn(),
+    } as unknown as Room;
+    const renderer = create(<></>);
+    const renderedTexts = () =>
+      renderer.root
+        .findAll(
+          (node) => typeof node.props.children === 'string' || Array.isArray(node.props.children)
+        )
+        .map((node) =>
+          Array.isArray(node.props.children)
+            ? node.props.children.filter((child: unknown) => typeof child === 'string').join('')
+            : String(node.props.children)
+        );
+
+    act(() => {
+      renderer.update(
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <MatrixClientProvider value={mx}>
+            <SpaceItemCard
+              item={{ ...item, depth: 2 }}
+              parentSpace={joinedParent}
+              parentSummaryName="Stale Summary"
+              summary={summary}
+              joined
+              closed={false}
+              canEditChild
+              getRoom={() => undefined}
+            />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      );
+    });
+
+    // Joined parentSpace drives the breadcrumb reactively (overriding summary name on live rename).
+    expect(renderedTexts()).toContain('Operations /');
+    expect(renderedTexts()).toContain('Private space');
+    act(() => {
+      joinedParent.name = 'Ops Team';
+      onNameChange?.(joinedParent);
+    });
+    expect(renderedTexts()).toContain('Ops Team /');
+
+    // Unjoined parentSpace falls back to parentSummaryName.
+    act(() => {
+      renderer.update(
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <MatrixClientProvider value={mx}>
+            <SpaceItemCard
+              item={{ ...item, depth: 2 }}
+              parentSummaryName="Archive Ops"
+              summary={summary}
+              joined
+              closed={false}
+              canEditChild
+              getRoom={() => undefined}
+            />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      );
+    });
+    expect(renderedTexts()).toContain('Archive Ops /');
+
+    // Only one Add chip is rendered (replacing separate Add Room / Add Space chips).
+    const addButtons = renderer.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-haspopup'] === 'menu'
+    );
+    expect(addButtons).toHaveLength(1);
+    expect(addButtons[0]!.findAll((node) => node.children.includes('Add'))).toHaveLength(1);
+
+    // Clicking the Add chip opens the shared 4-entry SpaceAddMenuEntries menu.
+    act(() => {
+      addButtons[0]!.props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({ x: 0, y: 0, width: 48, height: 24 }) },
+      });
+    });
+    const popout = renderer.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const menuItems = popout
+      .findAll((node) => node.type === 'button')
+      .map((node) =>
+        node
+          .findAll(
+            (child) => typeof child.type === 'string' && typeof child.props.children === 'string'
+          )
+          .map((child) => child.props.children)
+          .join('')
+      );
+    expect(menuItems).toEqual([
+      'New Room',
+      'Add Existing Room',
+      'New Sub-space',
+      'Add Existing Sub-space',
+    ]);
+
+    // Compact mobile Add chip keeps the accessible label.
+    act(() => {
+      renderer.update(
+        <ScreenSizeProvider value={ScreenSize.Mobile}>
+          <MatrixClientProvider value={mx}>
+            <SpaceItemCard
+              item={{ ...item, depth: 2 }}
+              parentSummaryName="Archive Ops"
+              summary={summary}
+              joined
+              closed={false}
+              canEditChild
+              getRoom={() => undefined}
+            />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      );
+    });
+    const mobileAddButtons = renderer.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-haspopup'] === 'menu'
+    );
+    expect(mobileAddButtons).toHaveLength(1);
+    expect(mobileAddButtons[0]!.props['aria-label']).toBe('Add');
   });
 });

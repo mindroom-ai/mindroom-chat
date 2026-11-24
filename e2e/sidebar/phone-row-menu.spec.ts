@@ -321,7 +321,11 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
         const rows = sortable ? await rowOrder(nav) : [data.direct];
         const [, , third] = rows;
         const entries =
-          key === 'direct' ? ENTRIES.filter((entry) => entry !== 'New Sub-room') : ENTRIES;
+          key === 'direct'
+            ? ENTRIES.filter((entry) => entry !== 'New Sub-room')
+            : key === 'space'
+            ? [...ENTRIES.slice(0, -2), 'Remove from Field Team', ...ENTRIES.slice(-2)]
+            : ENTRIES;
         // eslint-disable-next-line no-await-in-loop
         await checkLongPress(page, nav, rows[0]!, entries, tag);
         if (sortable) {

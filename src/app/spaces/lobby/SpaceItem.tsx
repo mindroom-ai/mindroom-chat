@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Avatar, Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
+import { Avatar, Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
-import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { Menu } from '../../ui/glass/GlassPrimitives';
+import { MenuGroup } from '../../ui/MenuEntry';
+import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
@@ -11,11 +13,10 @@ import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { LocalRoomSummaryLoader } from '../../rooms/RoomSummaryLoader';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
+import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import type { HierarchyItem } from '../useSpaceHierarchy';
 import type { LocalRoomSummary } from '../../rooms/useLocalRoomSummary';
-import { useOpenCreateRoomModal } from '../../navigation/useCreateRoomModal';
-import { useOpenCreateSpaceModal } from '../../navigation/useCreateSpaceModal';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
@@ -24,12 +25,17 @@ import { LobbyAccessButton } from './LobbyAccessButton';
 import { JoinFailure } from '../../rooms/JoinFailure';
 import { pressCardAction } from '../../lib/cardAction';
 import { AddExistingModal } from '../AddExistingModal';
+import { SpaceAddMenuEntries } from '../SpaceActions';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 type SpaceItemCardProps = {
   item: HierarchyItem;
+  /** Joined immediate parent sub-space for nested (depth >= 2) headings (tracks live renames). */
+  parentSpace?: Room;
+  /** Fallback hierarchy summary name for an unjoined nested (depth >= 2) parent sub-space. */
+  parentSummaryName?: string;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
   /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
@@ -46,23 +52,24 @@ type SpaceItemCardProps = {
   options?: React.ReactNode;
 };
 
-type AddChoice = { label: string; pick: () => void };
-
-type AddChoiceChipProps = {
-  label: string;
-  choices: AddChoice[];
-  /** Only the plus shows, for narrow headings; the label still names it. */
-  compact?: boolean;
-};
-
-/** A chip that opens a short menu of ways to add something to a space. */
-function AddChoiceChip({ label, choices, compact = false }: AddChoiceChipProps) {
+/**
+ * Compact `+ Add` chip (icon-only on phones) opening the shared add menu for a joined editable
+ * space: new room, existing room, new sub-space, or existing sub-space.
+ */
+export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
+  const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
+  const [picking, setPicking] = useState<'rooms' | 'spaces'>();
+  // Phones keep the heading's name readable: icon-only plus with the same accessible label.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const label = t('featureUi.spaceNav.add');
+
   // Also the trap's answer to Escape and outside clicks: dismiss, and let them through.
   const dismiss = () => {
     setAnchor(undefined);
     return true;
   };
+
   const menu = (
     <FocusTrap
       focusTrapOptions={{
@@ -72,82 +79,42 @@ function AddChoiceChip({ label, choices, compact = false }: AddChoiceChipProps) 
         escapeDeactivates: dismiss,
       }}
     >
-      <Menu style={{ padding: config.space.S100, minWidth: toRem(168) }}>
-        <Box direction="Column" gap="100">
-          {choices.map((choice) => (
-            <MenuItem
-              key={choice.label}
-              size="300"
-              radii="300"
-              onClick={() => {
-                dismiss();
-                choice.pick();
-              }}
-            >
-              <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
-                {choice.label}
-              </Text>
-            </MenuItem>
-          ))}
-        </Box>
+      <Menu
+        className={scrollableMenuCss.ScrollableMenu}
+        style={{ width: '100vw', maxWidth: toRem(220) }}
+      >
+        <div className={scrollableMenuCss.ScrollableMenuRows}>
+          <MenuGroup>
+            <SpaceAddMenuEntries
+              spaceId={spaceId}
+              onClose={dismiss}
+              onAddRooms={() => setPicking('rooms')}
+              onAddSpaces={() => setPicking('spaces')}
+            />
+          </MenuGroup>
+        </div>
       </Menu>
     </FocusTrap>
   );
-  return (
-    <PopOut anchor={anchor} align="End" position="Bottom" offset={4} content={menu}>
-      <Chip
-        variant="SurfaceVariant"
-        radii="Pill"
-        className={LoneTouchTarget}
-        aria-haspopup="menu"
-        aria-expanded={!!anchor}
-        aria-label={compact ? label : undefined}
-        before={compact ? undefined : <Icon size="50" src={Icons.Plus} />}
-        onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-          setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
-        }
-      >
-        {compact ? <Icon size="50" src={Icons.Plus} /> : <Text size="T200">{label}</Text>}
-      </Chip>
-    </PopOut>
-  );
-}
-
-/**
- * Ways to fill a joined space the user may edit: a new chat room or one of theirs, a new
- * subspace or one of their spaces.
- */
-export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
-  const { t } = useTranslation();
-  const openCreateRoom = useOpenCreateRoomModal();
-  const openCreateSpace = useOpenCreateSpaceModal();
-  const [picking, setPicking] = useState<'rooms' | 'spaces'>();
-  // Phones keep the heading's name readable: one plus holds all four ways in.
-  const phone = useScreenSizeContext() === ScreenSize.Mobile;
-
-  const roomChoices: AddChoice[] = [
-    { label: t('featureUi.lobby.spaceItem.chatRoom'), pick: () => openCreateRoom(spaceId) },
-    { label: t('featureUi.lobby.spaceItem.existingRoom'), pick: () => setPicking('rooms') },
-  ];
-  const spaceChoices: AddChoice[] = [
-    { label: t('featureUi.lobby.spaceItem.newSpace'), pick: () => openCreateSpace(spaceId) },
-    { label: t('featureUi.lobby.spaceItem.existingSpace'), pick: () => setPicking('spaces') },
-  ];
 
   return (
-    <Box gap="200" alignItems="Center" shrink="No">
-      {phone ? (
-        <AddChoiceChip
-          compact
-          label={t('featureUi.lobby.spaceItem.addRoom')}
-          choices={[...roomChoices, ...spaceChoices]}
-        />
-      ) : (
-        <>
-          <AddChoiceChip label={t('featureUi.lobby.spaceItem.addRoom')} choices={roomChoices} />
-          <AddChoiceChip label={t('featureUi.lobby.spaceItem.addSpace')} choices={spaceChoices} />
-        </>
-      )}
+    <Box alignItems="Center" shrink="No">
+      <PopOut anchor={anchor} align="End" position="Bottom" offset={4} content={menu}>
+        <Chip
+          variant="SurfaceVariant"
+          radii="Pill"
+          className={LoneTouchTarget}
+          aria-haspopup="menu"
+          aria-expanded={!!anchor}
+          aria-label={phone ? label : undefined}
+          before={phone ? undefined : <Icon size="50" src={Icons.Plus} />}
+          onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+            setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
+          }
+        >
+          {phone ? <Icon size="50" src={Icons.Plus} /> : <Text size="T200">{label}</Text>}
+        </Chip>
+      </PopOut>
       {picking && (
         <AddExistingModal
           kind={picking}
@@ -159,9 +126,35 @@ export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
   );
 }
 
+function ParentPrefixText({ name }: { name: string }) {
+  if (!name) return null;
+  return (
+    <Text as="span" size="T300" priority="300" truncate {...ownDirectionLine}>
+      {revealDirectionControls(name)} /
+    </Text>
+  );
+}
+
+function JoinedParentPrefix({ parentSpace }: { parentSpace: Room }) {
+  return <ParentPrefixText name={useRoomName(parentSpace)} />;
+}
+
+function ParentPrefix({
+  parentSpace,
+  parentSummaryName,
+}: {
+  parentSpace?: Room;
+  parentSummaryName?: string;
+}) {
+  if (parentSpace) return <JoinedParentPrefix parentSpace={parentSpace} />;
+  return parentSummaryName ? <ParentPrefixText name={parentSummaryName} /> : null;
+}
+
 /** A space heading in a lobby: its name opens or collapses it, or offers a way in. */
 export function SpaceItemCard({
   item,
+  parentSpace,
+  parentSummaryName,
   summary,
   loading = false,
   joined,
@@ -189,9 +182,10 @@ export function SpaceItemCard({
             <Chip
               className={css.HeaderChip}
               variant="Background"
-              radii="Pill"
+              fill="None"
+              radii="300"
               onClick={() => handleClose?.(roomId)}
-              after={
+              before={
                 <Icon
                   size="50"
                   src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
@@ -199,6 +193,7 @@ export function SpaceItemCard({
                 />
               }
             >
+              <ParentPrefix parentSpace={parentSpace} parentSummaryName={parentSummaryName} />
               <Text size="H4" truncate {...ownDirectionLine}>
                 {revealDirectionControls(localSummary.name)}
               </Text>
@@ -243,6 +238,7 @@ export function SpaceItemCard({
                 renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
               />
             </Avatar>
+            <ParentPrefix parentSpace={parentSpace} parentSummaryName={parentSummaryName} />
             <Text size="H4" truncate {...ownDirectionLine}>
               {spaceName}
             </Text>
