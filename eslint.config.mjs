@@ -5,6 +5,7 @@ import { globalIgnores } from 'eslint/config';
 
 import {
   DIRECTIONAL_COMPONENTS,
+  LINTED_FILES,
   TYPE_AWARE_RULES,
   createCommonConfigs,
   logicalSidesOverrides,
@@ -160,9 +161,9 @@ export default [
   // Match .eslintrc.cjs: explicit file/lintText checks on .jsx (e.g. surfaceImports.test.ts)
   // still receive app rules, while package.json "lint" limits directory linting to
   // .ts,.tsx,.js,.mjs,.cjs (matching scripts/push-gate.sh).
-  ...createCommonConfigs({ files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'] }),
+  ...createCommonConfigs(),
   {
-    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
+    files: LINTED_FILES,
     rules: {
       'no-restricted-imports': ['error', IMPORT_RESTRICTIONS],
     },

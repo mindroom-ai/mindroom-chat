@@ -12,7 +12,7 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
-export const LINTED_FILES = ['**/*.{ts,tsx,js,mjs,cjs}'];
+export const LINTED_FILES = ['**/*.{ts,tsx,js,jsx,mjs,cjs}'];
 export const RESOLVER_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
 // eslint-plugin-react 7.37.5 still calls RuleContext/SourceCode methods removed in ESLint 10.
@@ -64,21 +64,20 @@ export const COMMON_RULES = {
 /** Flat config entries for the parser, plugins, presets and base rules of every linted file. */
 export const createCommonConfigs = ({
   resolver = createNodeResolver({ extensions: RESOLVER_EXTENSIONS }),
-  files = LINTED_FILES,
 } = {}) => [
   {
     ...js.configs.recommended,
-    files,
+    files: LINTED_FILES,
   },
   ...tsPlugin.configs['flat/recommended'].map((config) => ({
     ...config,
     files: config.files
       ? config.files.filter((pattern) => /\.(ts|tsx|js|mjs|cjs)$/.test(pattern))
-      : files,
+      : LINTED_FILES,
   })),
   {
     name: 'react/recommended-and-jsx-runtime',
-    files,
+    files: LINTED_FILES,
     plugins: { react: compatReactPlugin },
     languageOptions: {
       parserOptions: {
@@ -93,19 +92,19 @@ export const createCommonConfigs = ({
   },
   {
     ...reactHooksPlugin.configs.flat.recommended,
-    files,
+    files: LINTED_FILES,
   },
   {
     ...jsxA11yPlugin.flatConfigs.recommended,
-    files,
+    files: LINTED_FILES,
   },
   {
     ...eslintConfigPrettier,
-    files,
+    files: LINTED_FILES,
   },
   {
     name: 'mindroom/base',
-    files,
+    files: LINTED_FILES,
     // Keep ESLint 8's default: older files carry disable comments for rules that are off.
     linterOptions: { reportUnusedDisableDirectives: 'off' },
     languageOptions: {

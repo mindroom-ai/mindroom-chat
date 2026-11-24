@@ -21,7 +21,7 @@
     "appstore:screenshots": "scripts/appstore-screenshots.sh",
     "typecheck": "tsc --noEmit -p config/tsconfig.app.json",
     "test": "vitest run",
-    "lint": "eslint 'src/**/*.{ts,tsx,js,mjs,cjs}' 'e2e/**/*.{ts,tsx,js,mjs,cjs}' 'scripts/**/*.{ts,tsx,js,mjs,cjs}' 'electron/**/*.{ts,tsx,js,mjs,cjs}' vite.config.js vitest.config.ts eslint.config.mjs eslint.config.plugin.mjs playwright.electron.config.ts",
+    "lint": "eslint \"src/**/*.{ts,tsx,js,mjs,cjs}\" \"e2e/**/*.{ts,tsx,js,mjs,cjs}\" \"scripts/**/*.{ts,tsx,js,mjs,cjs}\" \"electron/**/*.{ts,tsx,js,mjs,cjs}\" vite.config.js vitest.config.ts eslint.config.mjs eslint.config.plugin.mjs playwright.electron.config.ts",
     "postinstall": "patch-package --error-on-fail",
     "build:desktop": "npm run build:ios && node electron/build.mjs",
     "desktop": "electron .",
