@@ -43,6 +43,13 @@ export const providerAccentColor = (provider?: string): string => {
   return PROVIDER_ACCENTS[key] ?? color.Primary.Main;
 };
 
+const quotaFillColor = (tone: QuotaTone, provider?: string): string =>
+  tone === 'critical'
+    ? color.Critical.Main
+    : tone === 'warning'
+    ? color.Warning.Main
+    : providerAccentColor(provider);
+
 export const accountChartColor = (
   account: Pick<ProviderAccountUsage, 'provider'>,
   index: number,
@@ -203,12 +210,7 @@ export function QuotaBar({
   const remaining = clampPercent(window.remaining_percent);
   const rounded = Math.round(remaining);
   const tone = quotaTone(remaining);
-  const fillColor =
-    tone === 'critical'
-      ? color.Critical.Main
-      : tone === 'warning'
-      ? color.Warning.Main
-      : providerAccentColor(provider);
+  const fillColor = quotaFillColor(tone, provider);
   const pacePercent = computePacePercent(window.resets_at, window.window_duration_mins, now);
   const resetText = formatResetCountdown(window.resets_at, now, language, (key, options) =>
     t(key, options)
@@ -266,13 +268,7 @@ export function InlineQuotaSummary({
 
   const shown = account.windows.slice(0, 2);
   const tightestRemaining = Math.min(...shown.map((w) => clampPercent(w.remaining_percent)));
-  const barTone = quotaTone(tightestRemaining);
-  const barColor =
-    barTone === 'critical'
-      ? color.Critical.Main
-      : barTone === 'warning'
-      ? color.Warning.Main
-      : providerAccentColor(account.provider);
+  const barColor = quotaFillColor(quotaTone(tightestRemaining), account.provider);
   const accessibleLabel = shown
     .map((window) =>
       t('mindroomUi.usage.quotaAria', {
@@ -282,36 +278,6 @@ export function InlineQuotaSummary({
     )
     .join(', ');
 
-  const meterBar = (
-    <span className={css.InlineBarTrack} data-inline-quota-bar="" aria-hidden="true">
-      <span
-        className={css.InlineBarFill}
-        style={{ inlineSize: `${tightestRemaining}%`, backgroundColor: barColor }}
-      />
-    </span>
-  );
-
-  if (shown.length === 1) {
-    const [single] = shown;
-    if (!single) return null;
-    const remaining = clampPercent(single.remaining_percent);
-    const rounded = Math.round(remaining);
-    return (
-      <span
-        id={id}
-        role="img"
-        aria-label={accessibleLabel}
-        className={css.InlineRoot}
-        data-inline-quota={account.id}
-      >
-        {meterBar}
-        <span className={css.InlineItem} data-tone={quotaTone(remaining)} aria-hidden="true">
-          {t('mindroomUi.usage.percentLeft', { percent: rounded })}
-        </span>
-      </span>
-    );
-  }
-
   return (
     <span
       id={id}
@@ -320,7 +286,12 @@ export function InlineQuotaSummary({
       className={css.InlineRoot}
       data-inline-quota={account.id}
     >
-      {meterBar}
+      <span className={css.InlineBarTrack} data-inline-quota-bar="" aria-hidden="true">
+        <span
+          className={css.InlineBarFill}
+          style={{ inlineSize: `${tightestRemaining}%`, backgroundColor: barColor }}
+        />
+      </span>
       {shown.map((window, index) => {
         const remaining = clampPercent(window.remaining_percent);
         return (
@@ -331,7 +302,9 @@ export function InlineQuotaSummary({
               </span>
             )}
             <span className={css.InlineItem} data-tone={quotaTone(remaining)} aria-hidden="true">
-              {shortWindowTag(window, language)} {formatWholePercent(remaining, language)}
+              {shown.length === 1
+                ? t('mindroomUi.usage.percentLeft', { percent: Math.round(remaining) })
+                : `${shortWindowTag(window, language)} ${formatWholePercent(remaining, language)}`}
             </span>
           </Fragment>
         );

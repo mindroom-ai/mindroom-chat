@@ -49,11 +49,9 @@ export function UsageTokensView({
     snapshot.accounts.reduce((sum, account) => sum + account.tokens_7d, 0) +
     snapshot.unattributed_tokens_7d;
   const knownCosts = [
-    ...snapshot.accounts
-      .map((account) => account.cost_usd_7d)
-      .filter((cost): cost is number => cost !== null),
-    ...(snapshot.unattributed_cost_usd_7d !== null ? [snapshot.unattributed_cost_usd_7d] : []),
-  ];
+    ...snapshot.accounts.map((account) => account.cost_usd_7d),
+    snapshot.unattributed_cost_usd_7d,
+  ].filter((cost): cost is number => cost !== null);
   const totalCost = knownCosts.length > 0 ? knownCosts.reduce((sum, v) => sum + v, 0) : null;
   const dayTotals = snapshot.daily_7d.map(
     (day) => Object.values(day.by_account).reduce((sum, v) => sum + v, 0) + day.unattributed_tokens

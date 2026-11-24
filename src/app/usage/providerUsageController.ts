@@ -51,6 +51,7 @@ type ProbeRun = {
   timer?: ReturnType<typeof setTimeout>;
 };
 type ActiveQuery = { run: ProbeRun; roomId: string; devices: ModelRuntime[]; answered: boolean };
+type RuntimeEntry = { runtime: ProviderUsageRuntime; snapshot: ProviderUsageSnapshot };
 
 const MAX_PROBE_PLANS = 16;
 const MAX_ROOMS_TO_SCAN = 200;
@@ -70,23 +71,18 @@ const INITIAL_STATE: ProviderUsageState = Object.freeze({
 
 const runtimeKeyOf = (d: Pick<ModelRuntime, 'userId' | 'deviceId'>): string =>
   `${d.userId}:${d.deviceId}`;
-const isSyncReady = (s: SyncState | null | undefined): boolean =>
-  s === SyncState.Prepared || s === SyncState.Syncing;
-const hasLoadedMembers = (room: Room): boolean =>
-  typeof room.membersLoaded !== 'function' || room.membersLoaded();
-const cohortKey = (users: readonly string[]): string => [...users].sort().join('\0');
+const hasLoadedMembers = (room: Room): boolean => !room.membersLoaded || room.membersLoaded();
+const isJoinedRoom = (room: Room, userId: string | null): boolean =>
+  room.getMyMembership
+    ? room.getMyMembership() === 'join'
+    : !userId || room.getMember(userId)?.membership === 'join';
 
-const signedDevicesByUser = async (
-  mx: MatrixClient,
-  uniqueUsers: readonly string[]
-): Promise<Map<string, ModelRuntime[]>> => {
+const signedDevicesByUser = async (mx: MatrixClient, users: string[]) => {
   const byUser = new Map<string, ModelRuntime[]>();
   try {
-    for (let i = 0; i < uniqueUsers.length; i += BATCH_SIZE) {
-      for (const d of await signedModelDevices(mx, uniqueUsers.slice(i, i + BATCH_SIZE))) {
-        const list = byUser.get(d.userId);
-        if (list) list.push(d);
-        else byUser.set(d.userId, [d]);
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
+      for (const d of await signedModelDevices(mx, users.slice(i, i + BATCH_SIZE))) {
+        byUser.set(d.userId, [...(byUser.get(d.userId) ?? []), d]);
       }
     }
   } catch {
@@ -120,23 +116,19 @@ export class ProviderUsageController {
   private readonly userId: string | null;
   private owners = 0;
   private phase: 'idle' | 'active' | 'disposed' = 'idle';
+  private discovery: 'idle' | 'partial' | 'full' = 'idle';
   private startupScheduled = false;
-  private hasProbedWithDevices = false;
-  private fullDiscoveryDone = false;
   private lastAnsweringRoomId?: string;
   private selectedRuntimeId?: string;
   private readonly probedRooms = new Set<string>();
-  private readonly runtimes = new Map<
-    string,
-    { runtime: ProviderUsageRuntime; snapshot: ProviderUsageSnapshot }
-  >();
+  private readonly runtimes = new Map<string, RuntimeEntry>();
   private readonly runs = new Set<ProbeRun>();
   private readonly queries = new Map<string, ActiveQuery>();
   private readonly listeners = new Set<() => void>();
   private state: ProviderUsageState = INITIAL_STATE;
 
   constructor(private readonly mx: MatrixClient) {
-    this.userId = typeof mx.getUserId === 'function' ? mx.getUserId() : null;
+    this.userId = mx.getUserId?.() ?? null;
   }
 
   retain = (): (() => void) => {
@@ -146,8 +138,7 @@ export class ProviderUsageController {
     return () => {
       if (released) return;
       released = true;
-      this.owners -= 1;
-      if (this.owners === 0) this.dispose();
+      if ((this.owners -= 1) === 0) this.dispose();
     };
   };
 
@@ -171,215 +162,147 @@ export class ProviderUsageController {
   ensureLoaded = (roomId?: string): void => {
     if (!this.active()) return;
     if (roomId) {
-      if (
+      const busy =
         this.probedRooms.has(roomId) ||
         [...this.runs].some((r) => r.roomId === roomId) ||
-        [...this.queries.values()].some((q) => q.roomId === roomId)
-      )
-        return;
-      const room = typeof this.mx.getRoom === 'function' ? this.mx.getRoom(roomId) : null;
-      if (room && this.isJoinedRoom(room)) this.runProbe('room', [room], false, false, roomId);
+        [...this.queries.values()].some((q) => q.roomId === roomId);
+      const room = !busy ? this.mx.getRoom?.(roomId) : null;
+      if (room && isJoinedRoom(room, this.userId)) void this.probe('room', [room]);
       return;
     }
-    if (this.fullDiscoveryDone || [...this.runs].some((r) => r.kind === 'full')) return;
-    for (const run of [...this.runs]) if (run.kind === 'startup') this.cancelRun(run);
-    this.runProbe('full', this.orderedJoinedRooms(), false, false);
+    if (this.discovery === 'full' || [...this.runs].some((r) => r.kind === 'full')) return;
+    this.stopRuns((r) => r.kind === 'startup');
+    void this.probe('full', this.orderedJoinedRooms());
   };
 
   refresh = (force = false): void => {
     if (!this.active()) return;
-    for (const run of [...this.runs]) this.cancelRun(run);
+    this.stopRuns();
     this.probedRooms.clear();
-    this.fullDiscoveryDone = false;
-    this.runProbe(
-      'full',
-      this.orderedJoinedRooms(this.lastAnsweringRoomId),
-      force,
-      this.runtimes.size > 0
-    );
+    if (this.discovery === 'full') this.discovery = 'partial';
+    void this.probe('full', this.orderedJoinedRooms(), force);
   };
 
+  private sameUser = () => !this.mx.getUserId || this.mx.getUserId() === this.userId;
+  private active = () => this.phase === 'active' && this.sameUser();
+  private isLive = (run: ProbeRun) => this.active() && this.runs.has(run);
+  private canAutoProbe = () =>
+    this.active() && this.discovery === 'idle' && !this.runs.size && !this.runtimes.size;
+
+  private bindEvents(bind: boolean): void {
+    const fn = (bind ? this.mx.on : this.mx.removeListener)?.bind(this.mx) as
+      | typeof this.mx.on
+      | undefined;
+    if (!fn) return;
+    fn(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
+    fn(ClientEvent.Sync, this.onSync);
+    fn(CryptoEvent.DevicesUpdated, this.onDevices);
+    fn(RoomMemberEvent.Membership, this.onMembership);
+  }
+
   private start(): void {
-    if (
-      this.phase === 'active' ||
-      typeof this.mx.on !== 'function' ||
-      this.mx.getSyncState?.() === SyncState.Stopped ||
-      (typeof this.mx.getUserId === 'function' && this.mx.getUserId() !== this.userId)
-    )
+    const sync = this.mx.getSyncState?.();
+    if (this.phase === 'active' || !this.mx.on || sync === SyncState.Stopped || !this.sameUser())
       return;
     this.phase = 'active';
-    this.mx.on(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
-    this.mx.on(ClientEvent.Sync, this.onSync);
-    this.mx.on(CryptoEvent.DevicesUpdated, this.onDevices);
-    this.mx.on(RoomMemberEvent.Membership, this.onMembership);
-    if (isSyncReady(this.mx.getSyncState?.())) this.scheduleStartupProbe();
+    this.bindEvents(true);
+    if (sync) this.onSync(sync);
   }
 
-  private active(): boolean {
-    return (
-      this.phase === 'active' &&
-      (typeof this.mx.getUserId !== 'function' || this.mx.getUserId() === this.userId)
-    );
-  }
-
-  private canAutoProbe(): boolean {
-    return (
-      this.active() &&
-      !this.hasProbedWithDevices &&
-      !this.fullDiscoveryDone &&
-      this.runs.size === 0 &&
-      this.runtimes.size === 0
-    );
-  }
-
-  private scheduleStartupProbe(): void {
-    if (this.startupScheduled || !this.active()) return;
-    this.startupScheduled = true;
-    void Promise.resolve().then(() => {
-      if (this.canAutoProbe()) this.runProbe('startup', this.orderedJoinedRooms(), false, false);
-    });
-  }
-
-  private cancelRun(run: ProbeRun): void {
-    clearTimeout(run.timer);
-    run.abort.abort();
-    this.runs.delete(run);
-    for (const [id, q] of this.queries) if (q.run === run) this.queries.delete(id);
-  }
-
-  private finishRun(run: ProbeRun): void {
-    if (!this.active() || !this.runs.has(run)) return;
-    this.cancelRun(run);
-    this.publish();
-  }
-
-  private isJoinedRoom(room: Room): boolean {
-    return typeof room.getMyMembership === 'function'
-      ? room.getMyMembership() === 'join'
-      : !this.userId || room.getMember(this.userId)?.membership === 'join';
-  }
-
-  private orderedJoinedRooms(preferredRoomId?: string): Room[] {
-    const rooms = typeof this.mx.getRooms === 'function' ? this.mx.getRooms() : [];
-    const byId = new Map(rooms.filter((r) => this.isJoinedRoom(r)).map((r) => [r.roomId, r]));
-    const ordered: Room[] = [];
-    for (const id of [preferredRoomId, this.lastAnsweringRoomId]) {
-      const room = id ? byId.get(id) : undefined;
-      if (room && id) {
-        byId.delete(id);
-        ordered.push(room);
-      }
+  private stopRuns(match?: (run: ProbeRun) => boolean, publish = false): void {
+    let stopped = false;
+    for (const run of this.runs) {
+      if (match && !match(run)) continue;
+      stopped = true;
+      this.runs.delete(run);
+      clearTimeout(run.timer);
+      run.abort.abort();
+      for (const [id, q] of this.queries) if (q.run === run) this.queries.delete(id);
     }
-    for (const room of byId.values()) {
-      if (ordered.length >= MAX_ROOMS_TO_SCAN) break;
-      ordered.push(room);
-    }
-    return ordered;
+    if (stopped && publish && this.active()) this.publish();
   }
 
-  private runProbe(
-    kind: ProbeRun['kind'],
-    rooms: readonly Room[],
-    forceRefresh: boolean,
-    refreshing: boolean,
-    roomId?: string
-  ): void {
-    const run: ProbeRun = { kind, roomId, refreshing, abort: new AbortController() };
+  private orderedJoinedRooms(preferred?: string): Room[] {
+    const joined = (this.mx.getRooms?.() ?? []).filter((r) => isJoinedRoom(r, this.userId));
+    const rank = (r: Room) =>
+      r.roomId === preferred ? 0 : r.roomId === this.lastAnsweringRoomId ? 1 : 2;
+    return joined.sort((a, b) => rank(a) - rank(b)).slice(0, MAX_ROOMS_TO_SCAN);
+  }
+
+  private async probe(kind: ProbeRun['kind'], rooms: readonly Room[], force?: boolean) {
+    const run: ProbeRun = {
+      kind,
+      roomId: kind === 'room' ? rooms[0]?.roomId : undefined,
+      refreshing: force !== undefined && this.runtimes.size > 0,
+      abort: new AbortController(),
+    };
     this.runs.add(run);
     this.publish();
-    void this.probeRooms(run, rooms, forceRefresh);
-  }
+    const finish = () => this.stopRuns((r) => r === run, true);
 
-  private async probeRooms(
-    run: ProbeRun,
-    rooms: readonly Room[],
-    forceRefresh: boolean
-  ): Promise<void> {
-    const hydrate = run.kind !== 'startup';
-    const seenCohorts = new Set<string>();
-    const candidates: Array<{ roomId: string; users: string[]; loaded: boolean }> = [];
+    const cohorts = new Map<string, { room: Room; users: string[] }>();
     let sawUnloaded = false;
-
-    for (
-      let i = 0;
-      i < rooms.length && candidates.length < MAX_PROBE_PLANS;
-      i += HYDRATE_CONCURRENCY
-    ) {
+    for (let i = 0; i < rooms.length && cohorts.size < MAX_PROBE_PLANS; i += HYDRATE_CONCURRENCY) {
       const batch = rooms.slice(i, i + HYDRATE_CONCURRENCY);
-      if (hydrate) {
-        const unloaded = batch.filter(
-          (r) => !hasLoadedMembers(r) && typeof r.loadMembersIfNeeded === 'function'
-        );
-        if (unloaded.length > 0) {
+      if (kind !== 'startup') {
+        const unloaded = batch.filter((r) => !hasLoadedMembers(r) && r.loadMembersIfNeeded);
+        if (unloaded.length) {
           await Promise.allSettled(unloaded.map((r) => r.loadMembersIfNeeded()));
-          if (!this.active() || !this.runs.has(run)) return;
+          if (!this.isLive(run)) return;
         }
       }
       for (const room of batch) {
         const loaded = hasLoadedMembers(room);
         if (!loaded) sawUnloaded = true;
         const users = joinedModelCandidates(this.mx, room);
-        if (users.length === 0) {
+        if (!users.length) {
           if (loaded) this.probedRooms.add(room.roomId);
           continue;
         }
-        const cohort = cohortKey(users);
-        if (seenCohorts.has(cohort)) continue;
-        seenCohorts.add(cohort);
-        candidates.push({ roomId: room.roomId, users, loaded });
-        if (candidates.length >= MAX_PROBE_PLANS) break;
+        const key = [...users].sort().join('\0');
+        if (!cohorts.has(key)) cohorts.set(key, { room, users });
+        if (cohorts.size >= MAX_PROBE_PLANS) break;
       }
     }
 
-    const uniqueUsers = [...new Set(candidates.flatMap((c) => c.users))];
-    if (uniqueUsers.length === 0) {
-      if (run.kind === 'full' && rooms.length > 0) this.fullDiscoveryDone = true;
-      return this.finishRun(run);
+    const uniqueUsers = [...new Set([...cohorts.values()].flatMap((c) => c.users))];
+    if (!uniqueUsers.length) {
+      if (kind === 'full' && rooms.length) this.discovery = 'full';
+      return finish();
     }
-
     const byUser = await signedDevicesByUser(this.mx, uniqueUsers);
-    if (!this.active() || !this.runs.has(run)) return;
-    if (run.kind === 'full' && byUser.size > 0) this.fullDiscoveryDone = true;
-
-    const plans: Array<{ roomId: string; devices: ModelRuntime[] }> = [];
-    for (const { roomId, users, loaded } of candidates) {
-      const devices = users.flatMap((u) => byUser.get(u) ?? []);
-      if (devices.length === 0) continue;
-      const covered =
-        !run.refreshing &&
-        !forceRefresh &&
-        devices.every((d) => this.runtimes.has(runtimeKeyOf(d)));
-      if (loaded) this.probedRooms.add(roomId);
-      if (!covered) plans.push({ roomId, devices });
+    if (!this.isLive(run)) return;
+    if (byUser.size && (kind === 'full' || (kind === 'startup' && !sawUnloaded))) {
+      this.discovery = 'full';
     }
-    if (plans.length === 0) return this.finishRun(run);
 
-    if (run.kind !== 'room' && !sawUnloaded) this.fullDiscoveryDone = true;
-    this.hasProbedWithDevices = true;
-    run.timer = setTimeout(() => this.finishRun(run), USAGE_TIMEOUT);
-    for (const { roomId, devices } of plans) {
+    let dispatched = false;
+    for (const { room, users } of cohorts.values()) {
+      const devices = users.flatMap((u) => byUser.get(u) ?? []);
+      if (!devices.length) continue;
+      if (hasLoadedMembers(room)) this.probedRooms.add(room.roomId);
+      if (!run.refreshing && devices.every((d) => this.runtimes.has(runtimeKeyOf(d)))) continue;
+      if (!dispatched) {
+        dispatched = true;
+        if (this.discovery === 'idle') this.discovery = 'partial';
+        run.timer = setTimeout(finish, USAGE_TIMEOUT);
+      }
       const requestId = randomUuid();
-      const query: ActiveQuery = { run, roomId, devices, answered: false };
+      const query: ActiveQuery = { run, roomId: room.roomId, devices, answered: false };
       this.queries.set(requestId, query);
       void sendEncryptedToDeviceRequest(
         this.mx,
         USAGE_REQUEST,
         devices,
-        { version: 1, request_id: requestId, room_id: roomId, force_refresh: forceRefresh },
+        { version: 1, request_id: requestId, room_id: room.roomId, force_refresh: Boolean(force) },
         run.abort.signal,
         () => query.answered
       );
     }
+    if (!dispatched) finish();
   }
 
-  private onResponse = (payload: ReceivedToDeviceMessage): void => {
-    void this.receiveResponse(payload).catch(() => undefined);
-  };
-
-  private async receiveResponse({
-    message,
-    encryptionInfo,
-  }: ReceivedToDeviceMessage): Promise<void> {
+  private onResponse = ({ message, encryptionInfo }: ReceivedToDeviceMessage): void => {
     if (
       !this.active() ||
       message.type !== USAGE_RESPONSE ||
@@ -388,110 +311,101 @@ export class ProviderUsageController {
     )
       return;
     const snapshot = parseProviderUsageResponse(message.content);
-    const query = snapshot ? this.queries.get(snapshot.request_id) : undefined;
+    const query = snapshot && this.queries.get(snapshot.request_id);
     const device = query?.devices.find(
       (d) => d.userId === message.sender && d.curveKey === encryptionInfo.senderCurve25519KeyBase64
     );
-    if (
-      !snapshot ||
-      !query ||
-      !device ||
-      !(await isCurrentModelRuntime(this.mx, device)) ||
-      !this.active() ||
-      !this.runs.has(query.run)
-    )
-      return;
-
-    const runtimeId = runtimeKeyOf(device);
-    query.answered = true;
-    this.lastAnsweringRoomId = query.roomId;
-    this.runtimes.set(runtimeId, { runtime: { ...device, id: runtimeId }, snapshot });
-    if (!this.selectedRuntimeId || !this.runtimes.has(this.selectedRuntimeId))
-      this.selectedRuntimeId = runtimeId;
-    if (query.run.refreshing && this.selectedRuntimeId === runtimeId) query.run.refreshing = false;
-    this.publish();
-  }
+    if (!snapshot || !query || !device) return;
+    void isCurrentModelRuntime(this.mx, device)
+      .then((ok) => {
+        if (!ok || !this.isLive(query.run)) return;
+        const runtimeId = runtimeKeyOf(device);
+        for (const q of this.queries.values()) {
+          if (q.devices.some((d) => d.id === device.id)) q.answered = true;
+        }
+        this.lastAnsweringRoomId = query.roomId;
+        this.runtimes.set(runtimeId, { runtime: { ...device, id: runtimeId }, snapshot });
+        this.selectedRuntimeId ??= runtimeId;
+        if (query.run.refreshing && this.selectedRuntimeId === runtimeId)
+          query.run.refreshing = false;
+        this.publish();
+      })
+      .catch(() => undefined);
+  };
 
   private onSync = (state: SyncState): void => {
-    if (state === SyncState.Stopped) this.dispose();
-    else if (isSyncReady(state)) this.scheduleStartupProbe();
+    if (state === SyncState.Stopped) return this.dispose();
+    if (state !== SyncState.Prepared && state !== SyncState.Syncing) return;
+    if (this.startupScheduled || !this.active()) return;
+    this.startupScheduled = true;
+    void Promise.resolve().then(() => {
+      if (this.canAutoProbe()) void this.probe('startup', this.orderedJoinedRooms());
+    });
   };
 
   private onDevices = (users: string[]): void => {
     if (!this.canAutoProbe()) return;
+    const updated = new Set(users);
     const rooms = this.orderedJoinedRooms();
-    const candidates = new Set(rooms.flatMap((r) => joinedModelCandidates(this.mx, r)));
-    if (users.some((id) => candidates.has(id))) this.runProbe('startup', rooms, false, false);
+    if (rooms.some((r) => joinedModelCandidates(this.mx, r).some((id) => updated.has(id)))) {
+      void this.probe('startup', rooms);
+    }
   };
 
   private onMembership = (_event: unknown, member: RoomMember): void => {
-    if (member.membership !== 'join' || !this.active()) return;
-    const viewer = this.userId;
     if (
-      !viewer ||
-      member.userId === viewer ||
-      !isMindroomAgentUserIdForViewer(member.userId, viewer)
+      member.membership !== 'join' ||
+      !this.active() ||
+      !this.userId ||
+      member.userId === this.userId ||
+      !isMindroomAgentUserIdForViewer(member.userId, this.userId)
     )
       return;
-    const room = typeof this.mx.getRoom === 'function' ? this.mx.getRoom(member.roomId) : null;
-    if (!room || !this.isJoinedRoom(room)) return;
+    const room = this.mx.getRoom?.(member.roomId);
+    if (!room || !isJoinedRoom(room, this.userId)) return;
     this.probedRooms.delete(room.roomId);
-    this.fullDiscoveryDone = false;
-    if (this.canAutoProbe())
-      this.runProbe('startup', this.orderedJoinedRooms(room.roomId), false, false);
+    if (this.discovery === 'full') this.discovery = 'partial';
+    if (this.canAutoProbe()) void this.probe('startup', this.orderedJoinedRooms(room.roomId));
   };
 
   private publish(): void {
     const entries = [...this.runtimes.values()];
-    const available = entries.length > 0;
-    const loading = !available && [...this.runs].some((r) => r.kind !== 'startup');
-    const refreshing = available && [...this.runs].some((r) => r.refreshing);
-    const selected =
-      (this.selectedRuntimeId ? this.runtimes.get(this.selectedRuntimeId) : undefined) ??
-      entries[0];
-    this.selectedRuntimeId = selected?.runtime.id;
-    const status: ProviderUsageStatus = available
-      ? 'ready'
-      : loading
-      ? 'loading'
-      : this.hasProbedWithDevices
-      ? 'unavailable'
-      : 'idle';
-    this.state = {
-      status,
-      available,
-      hasLowQuota: entries.some((e) => hasLowQuotaInSnapshot(e.snapshot)),
-      loading,
-      refreshing,
-      runtimes: available ? entries.map((e) => e.runtime) : INITIAL_STATE.runtimes,
-      selectedRuntimeId: this.selectedRuntimeId,
-      snapshot: selected?.snapshot,
-      snapshotsByRuntime: available
-        ? Object.fromEntries(entries.map((e) => [e.runtime.id, e.snapshot]))
-        : INITIAL_STATE.snapshotsByRuntime,
-    };
-    this.listeners.forEach((listener) => listener());
+    if (!entries.length) {
+      const loading = [...this.runs].some((r) => r.kind !== 'startup');
+      const status: ProviderUsageStatus = loading
+        ? 'loading'
+        : this.discovery === 'idle'
+        ? 'idle'
+        : 'unavailable';
+      this.state = { ...INITIAL_STATE, status, loading };
+    } else {
+      this.state = {
+        status: 'ready',
+        available: true,
+        hasLowQuota: entries.some((e) => hasLowQuotaInSnapshot(e.snapshot)),
+        loading: false,
+        refreshing: [...this.runs].some((r) => r.refreshing),
+        runtimes: entries.map((e) => e.runtime),
+        selectedRuntimeId: this.selectedRuntimeId,
+        snapshot: this.runtimes.get(this.selectedRuntimeId ?? '')?.snapshot,
+        snapshotsByRuntime: Object.fromEntries(entries.map((e) => [e.runtime.id, e.snapshot])),
+      };
+    }
+    this.listeners.forEach((fn) => fn());
   }
 
   dispose = (): void => {
     if (this.phase === 'disposed') return;
     this.phase = 'disposed';
     this.startupScheduled = false;
-    for (const run of [...this.runs]) this.cancelRun(run);
-    if (typeof this.mx.removeListener === 'function') {
-      this.mx.removeListener(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
-      this.mx.removeListener(ClientEvent.Sync, this.onSync);
-      this.mx.removeListener(CryptoEvent.DevicesUpdated, this.onDevices);
-      this.mx.removeListener(RoomMemberEvent.Membership, this.onMembership);
-    }
+    this.stopRuns();
+    this.bindEvents(false);
   };
 }
 
 export const getProviderUsageController = (mx: MatrixClient): ProviderUsageController => {
-  const existing = controllers.get(mx);
-  if (existing) return existing;
-  const controller = new ProviderUsageController(mx);
-  controllers.set(mx, controller);
+  let controller = controllers.get(mx);
+  if (!controller) controllers.set(mx, (controller = new ProviderUsageController(mx)));
   return controller;
 };
 
