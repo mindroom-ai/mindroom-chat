@@ -7,6 +7,7 @@ import { createEditor, Node, Transforms, type Descendant, type Editor } from 'sl
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
+import { createPasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
 import { threadModelContent } from '../../matrix/protocol/threadModel';
 import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { SlashCommand } from '../commands/useCommands';
@@ -873,6 +874,90 @@ describe('dictationSendHandoff', () => {
     });
     expect(startSendSession.mock.calls[1]![0]!.textContent).toBeUndefined();
     expect(startSendSession.mock.calls[1]![0]!.batch?.fileItems).toEqual([askItem]);
+
+    // Home Finish & Send: when a large-paste file fails upload, do not send text with a dangling marker.
+    const pasteMeta = {
+      id: 'paste-a3f19c',
+      chars: 20_000,
+      fileName: 'mindroom-paste-a3f19c.txt',
+    };
+    const pasteMarker = createPasteMarker(pasteMeta);
+    const pasteFile = new File(['x'.repeat(100)], pasteMeta.fileName, { type: 'text/plain' });
+    const pasteItem: TUploadItem = {
+      file: pasteFile,
+      originalFile: pasteFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false, mindroomPasteAttachment: pasteMeta },
+    };
+    const { access: pasteAttachments, getEnrolled: getPasteEnrolled } = makeAttachmentAccess([
+      pasteItem,
+    ]);
+    const pasteRestoreText = vi.fn();
+    const pasteOnSendingChange = vi.fn();
+    const pasteUploadItem = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const pastePrepareForSend = vi.fn(async (_r: Room, items: TUploadItem[]) => items);
+    const pasteStartSendSession = vi.fn(async () => undefined);
+    const sAskPasteFail = makeMockSession();
+    const pasteEditor = withInlineElements(createEditor());
+    pasteEditor.children = [
+      {
+        type: 'paragraph',
+        children: [
+          { text: '' },
+          {
+            type: 'paste-marker',
+            id: pasteMeta.id,
+            chars: pasteMeta.chars,
+            fileName: pasteMeta.fileName,
+            marker: pasteMarker,
+            children: [{ text: '' }],
+          },
+          { text: ' ' },
+        ],
+      } as unknown as Descendant,
+    ];
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room,
+        session: sAskPasteFail.session,
+        ownerKey: `${key}:paste-fail`,
+        parseCommands: false,
+        ask: {
+          agentUserId: '@mindroom_helper:example.org',
+          canSend: () => true,
+          onSendingChange: pasteOnSendingChange,
+        },
+        attachments: pasteAttachments,
+        sessions: { startSendSession: pasteStartSendSession, restoreText: pasteRestoreText },
+        prepareAttachmentsForSend: pastePrepareForSend,
+      }),
+      editor: pasteEditor,
+      room,
+      roomId: room.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: vi.fn(() => undefined),
+      uploadItem: pasteUploadItem,
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+    await act(async () => {
+      sAskPasteFail.resolveFinish({ status: 'completed', text: 'summarize this paste' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(pasteUploadItem).toHaveBeenCalledWith(pasteItem);
+    expect(pasteStartSendSession).not.toHaveBeenCalled();
+    expect(pasteRestoreText).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(pasteRestoreText.mock.calls[0]![1])).toContain('summarize this paste');
+    expect(JSON.stringify(pasteRestoreText.mock.calls[0]![1])).toContain(pasteMeta.fileName);
+    expect(getPasteEnrolled()).toEqual([]);
+    expect(pasteOnSendingChange).toHaveBeenLastCalledWith(false);
 
     // Non-collapsed selection replacement off-DOM does not apply pending marks.
     const merged = mergeDictatedDoc(

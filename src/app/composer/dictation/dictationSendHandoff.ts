@@ -17,7 +17,11 @@ import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
-import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
+import {
+  hasMissingPasteAttachmentForText,
+  prepareAndUploadDeferredAttachments,
+  type RoomInputAttachmentAccess,
+} from '../roomInputAttachmentAccess';
 import {
   detachedDictationErrorAtom,
   detachedDictationSendsAtom,
@@ -434,46 +438,51 @@ export const startDetachedDictationSend = (
 
     let sendStaged = activeStaged;
     if (activeStaged.length > 0 && input.prepareAttachmentsForSend) {
-      const prepared = await input.prepareAttachmentsForSend(liveRoom, activeStaged);
-      prepared.forEach((item) => enrolledFileRefs.add(item.file));
-      if (aborted || !sameAccount()) {
+      const result = await prepareAndUploadDeferredAttachments({
+        room: liveRoom,
+        items: activeStaged,
+        batchItems: activeStaged,
+        textContent,
+        prepareForSend: (targetRoom, items) =>
+          input.prepareAttachmentsForSend!(targetRoom, items ?? activeStaged),
+        uploadItem: input.uploadItem
+          ? (item) =>
+              input.uploadItem!(item).then(
+                () =>
+                  attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
+                    ? item
+                    : undefined,
+                () => undefined
+              )
+          : undefined,
+        onPrepared: (prepared) => {
+          prepared.forEach((item) => enrolledFileRefs.add(item.file));
+        },
+        isAborted: () => aborted || !sameAccount(),
+      });
+      if (result.aborted) {
         clearEnrollments();
         if (journalId) releaseCapture(journalId);
         restoreDocOnAccountSwitch();
         removeEntry();
         return;
       }
-      if (input.uploadItem) {
-        const uploaded = await Promise.all(
-          prepared.map((item) =>
-            input.uploadItem!(item).then(
-              () =>
-                attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
-                  ? item
-                  : undefined,
-              () => undefined
-            )
-          )
-        );
-        sendStaged = uploaded.filter((item): item is TUploadItem => item !== undefined);
-      } else {
-        sendStaged = prepared;
-      }
-      if (aborted || !sameAccount()) {
-        clearEnrollments();
-        if (journalId) releaseCapture(journalId);
-        restoreDocOnAccountSwitch();
-        removeEntry();
-        return;
-      }
+      sendStaged = result.uploadedItems;
       const sendSet = new Set(sendStaged.map((item) => item.file));
       const dropped = [...enrolledFileRefs].filter((file) => !sendSet.has(file));
       if (dropped.length > 0) attachments.clearEnrollment(dropped);
-      if (!textContent && sendStaged.length === 0) {
-        restoreDraftAndCleanup(input.docSnapshot);
+      if (result.missingPasteMarker || (!textContent && sendStaged.length === 0)) {
+        restoreDraftAndCleanup(result.missingPasteMarker ? mergedFallback : input.docSnapshot);
         deleteJournal();
         return;
       }
+    } else if (
+      input.prepareAttachmentsForSend &&
+      hasMissingPasteAttachmentForText(textContent, attachments.snapshot(roomId).staged, [])
+    ) {
+      restoreDraftAndCleanup(mergedFallback);
+      deleteJournal();
+      return;
     }
 
     const effectiveRootModel =

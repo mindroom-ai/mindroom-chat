@@ -97,6 +97,10 @@ import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { hasSendableStagedFiles } from './roomInputAttachmentAccess';
+import {
+  hasMissingPasteAttachmentForText,
+  prepareAndUploadDeferredAttachments,
+} from './roomInputAttachmentAccess';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
@@ -727,6 +731,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const textContent = takeText();
         // With nothing to send on Home, there is no send to track.
         if (ask && !textContent && !attachments.hasSendableFiles) return;
+        const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
+        if (
+          ask &&
+          !attachments.hasSendableFiles &&
+          hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
+        ) {
+          return;
+        }
         setSubmitPending(true);
         ask?.onSendingChange?.(true);
         let releaseInitialLeases: (() => void) | undefined;
@@ -734,44 +746,57 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         let pendingFallback: Descendant[] | undefined;
         try {
           if (ask && attachments.hasSendableFiles) {
-            releaseInitialLeases = attachments.access.protectPasteItems(
-              attachments.access.snapshot().staged
+            const enrolledFiles = new Set(initialSnapshot!.enrolled.map((entry) => entry.file));
+            const hasUnenrolledCandidates = initialSnapshot!.staged.some(
+              (item) => !item.prepError && !enrolledFiles.has(item.file)
             );
-            if (textContent) {
-              pendingFallback = composer.snapshotText();
-              composer.resetText();
-              sendTypingStatus(false);
-            }
-            const prepared = await attachments.prepareForSend(room);
-            releasePreparedLeases = attachments.access.protectPasteItems(prepared);
-            const uploaded = await Promise.all(
-              prepared.map((item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item))
-            );
-            const uploadedItems = uploaded.filter(
-              (item): item is TUploadItem => item !== undefined
-            );
-            if (!ask.canSend(room) || (!textContent && uploadedItems.length === 0)) {
-              if (pendingFallback) {
-                sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-                pendingFallback = undefined;
+            if (hasUnenrolledCandidates) {
+              releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
+              if (textContent) {
+                pendingFallback = composer.snapshotText();
+                composer.resetText();
+                sendTypingStatus(false);
               }
+              const { uploadedItems, missingPasteMarker } =
+                await prepareAndUploadDeferredAttachments({
+                  room,
+                  batchItems: initialSnapshot!.staged,
+                  textContent,
+                  prepareForSend: attachments.prepareForSend,
+                  uploadItem: (item) =>
+                    transport.uploadItemWhileStaged(attachments.itemsAtom, item),
+                  onPrepared: (prepared) => {
+                    releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+                  },
+                });
+              const hasEnrolled = attachments.access.snapshot().enrolled.length > 0;
+              if (
+                !ask.canSend(room) ||
+                missingPasteMarker ||
+                (!textContent && uploadedItems.length === 0 && !hasEnrolled)
+              ) {
+                if (pendingFallback) {
+                  sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
+                  pendingFallback = undefined;
+                }
+                return;
+              }
+              const fallbackForSession = pendingFallback;
+              pendingFallback = undefined;
+              const sending = sessions.startSendSession({
+                textContent,
+                midTurnMode: mode,
+                explicitMidTurnMode: explicitMode !== undefined,
+                batch: { fileItems: uploadedItems },
+                composerFallback: fallbackForSession,
+                composerAlreadyReset: Boolean(textContent),
+                beforeSend: (sentTo) => ask.canSend(sentTo),
+                onLocalEchoCreated: ask.onLocalEcho,
+              });
+              sendTypingStatus(false);
+              await sending;
               return;
             }
-            const fallbackForSession = pendingFallback;
-            pendingFallback = undefined;
-            const sending = sessions.startSendSession({
-              textContent,
-              midTurnMode: mode,
-              explicitMidTurnMode: explicitMode !== undefined,
-              batch: { fileItems: uploadedItems },
-              composerFallback: fallbackForSession,
-              composerAlreadyReset: Boolean(textContent),
-              beforeSend: (sentTo) => ask.canSend(sentTo),
-              onLocalEchoCreated: ask.onLocalEcho,
-            });
-            sendTypingStatus(false);
-            await sending;
-            return;
           }
           const sending = sessions.startSendSession({
             textContent,

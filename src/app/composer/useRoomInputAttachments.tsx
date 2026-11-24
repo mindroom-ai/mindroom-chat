@@ -444,7 +444,9 @@ export const useRoomInputAttachments = ({
       const texts = await readKeptPasteTexts(
         userId,
         wanted,
-        restoreDraftKey ?? getRoomInputDraftKey(userId, restoreRoomId)
+        stagedListKey !== undefined
+          ? (restoreDraftKey ?? getRoomInputDraftKey(userId, restoreRoomId))
+          : undefined
       );
       const items = await prepareLocalItems(
         [...texts].map(([fileName, text]) => new File([text], fileName, { type: 'text/plain' })),
@@ -545,19 +547,19 @@ export const useRoomInputAttachments = ({
           store.set(roomUploadAtomFamily(replacement.file), { status: UploadStatus.Idle });
         }
         store.set(targetAtom, { type: 'REPLACE', item: liveAfter, replacement });
-        enrolled.current = enrolled.current.map((entry) =>
-          entry.file === liveAfter.file ? replacement : entry
-        );
+        const preparedTooLarge = !replacement.prepError
+          ? getTooLargeError(replacement.file.size, maxUploadSize)
+          : undefined;
+        if (preparedTooLarge) {
+          store.set(roomUploadAtomFamily(replacement.file), { error: preparedTooLarge });
+        }
+        const isReady = !replacement.prepError && !preparedTooLarge;
+        enrolled.current = isReady
+          ? enrolled.current.map((entry) => (entry.file === liveAfter.file ? replacement : entry))
+          : enrolled.current.filter((entry) => entry.file !== liveAfter.file);
         syncUploadWatches();
         notify();
-        if (!replacement.prepError) {
-          const preparedTooLarge = getTooLargeError(replacement.file.size, maxUploadSize);
-          if (preparedTooLarge) {
-            store.set(roomUploadAtomFamily(replacement.file), { error: preparedTooLarge });
-            continue;
-          }
-          ready.push(replacement);
-        }
+        if (isReady) ready.push(replacement);
       }
       return ready;
     },

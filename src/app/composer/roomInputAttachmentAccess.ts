@@ -1,13 +1,14 @@
-import type { MatrixError } from 'matrix-js-sdk';
+import type { IContent, MatrixError, Room } from 'matrix-js-sdk';
+import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { UploadStatus, type TUploadItem, type Upload } from '../matrix/state/upload';
 import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
+
+export const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size' as const;
 
 /**
  * An error that blocks the upload before it starts: the file is larger than the server accepts.
  * The message names both sizes.
  */
-export const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size' as const;
-
 export const getTooLargeError = (
   fileSize: number,
   maxUploadSize: number | undefined
@@ -46,4 +47,95 @@ export type RoomInputAttachmentAccess = {
   clearEnrollment: (files: TUploadContent[]) => void;
   protectPasteItems: (items: TUploadItem[]) => () => void;
   subscribe: (listener: () => void) => () => void;
+};
+
+/**
+ * Whether `textContent` references a large-paste marker whose file was in `batchItems` (staged
+ * or prepared for this send) but is not among `uploadedItems` ready to send.
+ */
+export const hasMissingPasteAttachmentForText = (
+  textContent: IContent | undefined,
+  batchItems: readonly TUploadItem[],
+  uploadedItems: readonly TUploadItem[]
+): boolean => {
+  if (!textContent) return false;
+  const textValues = [textContent.body, textContent.formatted_body].filter(
+    (value): value is string => typeof value === 'string'
+  );
+  if (textValues.length === 0) return false;
+
+  const uploadedPasteFiles = new Set(
+    uploadedItems
+      .filter((item) => !item.prepError)
+      .map((item) => item.metadata.mindroomPasteAttachment?.fileName)
+      .filter((name): name is string => name !== undefined)
+  );
+  return batchItems.some((item) => {
+    const paste = item.metadata.mindroomPasteAttachment;
+    if (!paste || uploadedPasteFiles.has(paste.fileName)) return false;
+    let marker: string;
+    try {
+      marker = createPasteMarker({
+        id: paste.id,
+        chars: paste.chars,
+        fileName: paste.fileName,
+      });
+    } catch {
+      return false;
+    }
+    return textValues.some((text) => text.includes(marker));
+  });
+};
+
+export type DeferredAttachmentSendResult = {
+  aborted: boolean;
+  prepared: TUploadItem[];
+  uploadedItems: TUploadItem[];
+  missingPasteMarker: boolean;
+};
+
+/**
+ * Commits deferred staged attachments for `room` at Send time: prepares/encrypts them, uploads
+ * each prepared item in parallel, and checks whether `textContent` still references any paste
+ * marker whose attachment failed preparation or upload.
+ */
+export const prepareAndUploadDeferredAttachments = async ({
+  room,
+  items,
+  batchItems,
+  textContent,
+  prepareForSend,
+  uploadItem,
+  onPrepared,
+  isAborted,
+}: {
+  room: Room;
+  items?: TUploadItem[];
+  batchItems: readonly TUploadItem[];
+  textContent: IContent | undefined;
+  prepareForSend: (room: Room, items?: TUploadItem[]) => Promise<TUploadItem[]>;
+  uploadItem?: (item: TUploadItem) => Promise<TUploadItem | undefined>;
+  onPrepared?: (prepared: TUploadItem[]) => void;
+  isAborted?: () => boolean;
+}): Promise<DeferredAttachmentSendResult> => {
+  const prepared = await prepareForSend(room, items);
+  onPrepared?.(prepared);
+  if (isAborted?.()) {
+    return { aborted: true, prepared, uploadedItems: [], missingPasteMarker: false };
+  }
+  const uploaded = uploadItem
+    ? await Promise.all(prepared.map((item) => uploadItem(item)))
+    : prepared;
+  const uploadedItems = uploaded.filter(
+    (item): item is TUploadItem => item !== undefined && !item.prepError
+  );
+  if (isAborted?.()) {
+    return { aborted: true, prepared, uploadedItems, missingPasteMarker: false };
+  }
+  const missingPasteMarker = hasMissingPasteAttachmentForText(
+    textContent,
+    [...batchItems, ...prepared],
+    uploadedItems
+  );
+  return { aborted: false, prepared, uploadedItems, missingPasteMarker };
 };

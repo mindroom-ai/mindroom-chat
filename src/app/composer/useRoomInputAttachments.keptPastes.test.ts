@@ -227,4 +227,17 @@ describe('large pastes in a draft restored after a reload', () => {
     expect(feature.lostPastes).toBe(true);
     expect(getRoomInputPasteMarkerFileNames(editor.children).size).toBe(0);
   });
+
+  it('still restores a room paste kept under another draft key (such as a moved thread draft)', async () => {
+    await keepPasteText(
+      USER,
+      getRoomInputDraftKey(USER, ROOM_ID, '$unsent-root'),
+      marker.fileName,
+      LOG
+    );
+    const composer = await openRestoredDraft();
+    expect(composer.feature.lostPastes).toBe(false);
+    expect(composer.feature.access.snapshot().staged).toHaveLength(1);
+    expect(await composer.feature.access.snapshot().staged[0]!.file.text()).toBe(LOG);
+  });
 });
