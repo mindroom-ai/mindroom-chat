@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { ClientEvent, MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
@@ -15,12 +15,12 @@ import * as questionCss from '../question/QuestionCard.css';
 import * as css from './WorkflowRunCard.css';
 
 const ANSWER_TIMEOUT_MS = 15_000;
-const REJECTION_KEYS = {
-  already_answered: 'mindroomUi.workflowRun.question.rejected.alreadyAnswered',
-  no_longer_open: 'mindroomUi.workflowRun.question.rejected.noLongerOpen',
-  not_an_option: 'mindroomUi.workflowRun.question.rejected.notAnOption',
-  not_for_you: 'mindroomUi.workflowRun.question.rejected.notForYou',
-} as const;
+const REJECTION_KEYS = new Map([
+  ['already_answered', 'mindroomUi.workflowRun.question.rejected.alreadyAnswered'],
+  ['no_longer_open', 'mindroomUi.workflowRun.question.rejected.noLongerOpen'],
+  ['not_an_option', 'mindroomUi.workflowRun.question.rejected.notAnOption'],
+  ['not_for_you', 'mindroomUi.workflowRun.question.rejected.notForYou'],
+] as const);
 
 export type WorkflowQuestionCardProps = {
   question: WorkflowRunQuestion;
@@ -71,9 +71,8 @@ export function WorkflowQuestionCard({
       if (rejection?.answerEventId === sent)
         fail(
           t(
-            Object.prototype.hasOwnProperty.call(REJECTION_KEYS, rejection.reason)
-              ? REJECTION_KEYS[rejection.reason as keyof typeof REJECTION_KEYS]
-              : REJECTION_KEYS.no_longer_open
+            REJECTION_KEYS.get(rejection.reason as never) ??
+              'mindroomUi.workflowRun.question.rejected.noLongerOpen'
           )
         );
     };
@@ -95,12 +94,6 @@ export function WorkflowQuestionCard({
     } catch {
       fail(t('activity.actions.failed'));
     }
-  };
-
-  const onFormSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = draft.trim();
-    if (trimmed) void submitAnswer({ text: trimmed });
   };
 
   const requesterName =
@@ -164,7 +157,13 @@ export function WorkflowQuestionCard({
             </div>
           )}
           {question.freeText && (
-            <form className={css.Row} onSubmit={onFormSubmit}>
+            <form
+              className={css.Row}
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (draft.trim()) void submitAnswer({ text: draft.trim() });
+              }}
+            >
               <Input
                 size="300"
                 variant="Surface"
@@ -178,7 +177,7 @@ export function WorkflowQuestionCard({
                 type="submit"
                 size="300"
                 variant="Primary"
-                disabled={disabled || draft.trim().length === 0}
+                disabled={disabled || !draft.trim()}
               >
                 <Text size="B300">{t('mindroomUi.workflowRun.question.send')}</Text>
               </Button>

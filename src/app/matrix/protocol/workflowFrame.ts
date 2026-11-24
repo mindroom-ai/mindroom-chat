@@ -7,25 +7,7 @@ export const WORKFLOW_FRAME_EVENT_TYPE = 'io.mindroom.workflow';
 export const WORKFLOW_RUN_ID_PATTERN = /^wf-[0-9a-f]{32}$/;
 const MAX_LOG_LINES = 20;
 
-export type WorkflowRunStatus =
-  | 'starting'
-  | 'running'
-  | 'waiting'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'interrupted';
-export type WorkflowNodeStatus =
-  | 'queued'
-  | 'running'
-  | 'waiting'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'indeterminate';
-export type WorkflowWaitingOn = 'user' | 'approval' | 'peer';
-
-const RUN_STATUSES: ReadonlySet<string> = new Set([
+const RUN_STATUSES = [
   'starting',
   'running',
   'waiting',
@@ -33,8 +15,8 @@ const RUN_STATUSES: ReadonlySet<string> = new Set([
   'failed',
   'cancelled',
   'interrupted',
-]);
-const NODE_STATUSES: ReadonlySet<string> = new Set([
+] as const;
+const NODE_STATUSES = [
   'queued',
   'running',
   'waiting',
@@ -42,8 +24,8 @@ const NODE_STATUSES: ReadonlySet<string> = new Set([
   'failed',
   'cancelled',
   'indeterminate',
-]);
-const WAITING_REASONS: ReadonlySet<string> = new Set(['user', 'approval', 'peer']);
+] as const;
+const WAITING_REASONS = ['user', 'approval', 'peer'] as const;
 const COUNT_KEYS = [
   'queued',
   'running',
@@ -65,10 +47,17 @@ const OMITTED_KEYS = [
   'log',
 ] as const;
 
+export type WorkflowRunStatus = (typeof RUN_STATUSES)[number];
+export type WorkflowNodeStatus = (typeof NODE_STATUSES)[number];
+export type WorkflowWaitingOn = (typeof WAITING_REASONS)[number];
 export type WorkflowRunCounts = Record<(typeof COUNT_KEYS)[number], number>;
 export type WorkflowRunOmitted = Record<(typeof OMITTED_KEYS)[number], number>;
 export type WorkflowNodeUsage = SubagentUsage;
 export type WorkflowRunUsage = SubagentUsage & { projectedCostUsd?: number; costUnknown: boolean };
+
+const RUN_STATUS_SET: ReadonlySet<string> = new Set(RUN_STATUSES);
+const NODE_STATUS_SET: ReadonlySet<string> = new Set(NODE_STATUSES);
+const WAITING_SET: ReadonlySet<string> = new Set(WAITING_REASONS);
 
 const isNonNegInt = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
@@ -138,7 +127,7 @@ export const parseRunSummary = (v: Record<string, unknown>, requireStartedAt: bo
   const usage = parseUsage(v.usage);
   if (
     typeof status !== 'string' ||
-    !RUN_STATUSES.has(status) ||
+    !RUN_STATUS_SET.has(status) ||
     !isNonNegInt(attempt) ||
     !counts ||
     !usage
@@ -167,14 +156,21 @@ const readRows = <T>(raw: unknown, parse: (item: unknown) => T | null): T[] =>
 const parseNode = (v: unknown) => {
   if (!isRecord(v)) return null;
   const id = optStr(v.id);
-  const label = typeof v.label === 'string' ? v.label : undefined;
-  if (!id || label === undefined || typeof v.status !== 'string' || !NODE_STATUSES.has(v.status))
+  const { label, status } = v;
+  if (
+    !id ||
+    typeof label !== 'string' ||
+    typeof status !== 'string' ||
+    !NODE_STATUS_SET.has(status)
+  )
     return null;
-  const agent = optStr(v.agent);
-  const model = optStr(v.model);
-  const run = optStr(v.run);
-  const job = optStr(v.job);
-  const usage = parseCoreUsage(v.usage);
+  const [agent, model, run, job, usage] = [
+    optStr(v.agent),
+    optStr(v.model),
+    optStr(v.run),
+    optStr(v.job),
+    parseCoreUsage(v.usage),
+  ];
   return {
     id,
     kind: optStr(v.kind) ?? 'agent',
@@ -182,9 +178,9 @@ const parseNode = (v: unknown) => {
     name: nullStr(v.name),
     phase: isNonNegInt(v.phase) ? v.phase : null,
     group: optStr(v.group) ?? null,
-    status: v.status as WorkflowNodeStatus,
+    status: status as WorkflowNodeStatus,
     waitingOn:
-      typeof v.waiting_on === 'string' && WAITING_REASONS.has(v.waiting_on)
+      typeof v.waiting_on === 'string' && WAITING_SET.has(v.waiting_on)
         ? (v.waiting_on as WorkflowWaitingOn)
         : null,
     ...(agent ? { agent } : {}),
@@ -204,8 +200,7 @@ export type WorkflowRunNode = NonNullable<ReturnType<typeof parseNode>>;
 
 const parseGroup = (v: unknown) => {
   if (!isRecord(v)) return null;
-  const id = optStr(v.id);
-  const kind = optStr(v.kind);
+  const [id, kind] = [optStr(v.id), optStr(v.kind)];
   if (!id || !kind) return null;
   return {
     id,
@@ -221,8 +216,7 @@ export type WorkflowRunGroup = NonNullable<ReturnType<typeof parseGroup>>;
 
 const parseEdge = (v: unknown) => {
   if (!isRecord(v)) return null;
-  const from = optStr(v.from);
-  const to = optStr(v.to);
+  const [from, to] = [optStr(v.from), optStr(v.to)];
   return from && to && isNonNegInt(v.count) && v.count >= 1 ? { from, to, count: v.count } : null;
 };
 export type WorkflowRunEdge = NonNullable<ReturnType<typeof parseEdge>>;
@@ -274,23 +268,19 @@ export type WorkflowFrame = { run: string; meta: WorkflowRunMeta } & LiveOrder &
 /** Parses an `io.mindroom.workflow` ephemeral frame, or returns null when invalid. */
 export const parseWorkflowFrame = (content: unknown): WorkflowFrame | null => {
   if (!isRecord(content) || content.v !== 1) return null;
-  const { run, sid, seq } = content;
-  if (
-    typeof run !== 'string' ||
-    !WORKFLOW_RUN_ID_PATTERN.test(run) ||
-    !optStr(sid) ||
-    !isNonNegInt(seq)
-  )
+  const { run, seq } = content;
+  const sid = optStr(content.sid);
+  if (typeof run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(run) || !sid || !isNonNegInt(seq))
     return null;
   const meta = parseMeta(content.meta);
   const hasSnap = content.snapshot !== undefined;
   if (!meta || hasSnap === (content.delta !== undefined)) return null;
   if (hasSnap) {
     const snapshot = parseWorkflowRunGraph(content.snapshot);
-    return snapshot ? { run, sid: sid as string, seq, meta, snapshot } : null;
+    return snapshot ? { run, sid, seq, meta, snapshot } : null;
   }
   const delta = parseDelta(content.delta);
-  return delta ? { run, sid: sid as string, seq, meta, delta } : null;
+  return delta ? { run, sid, seq, meta, delta } : null;
 };
 
 const upsertBy = <T>(

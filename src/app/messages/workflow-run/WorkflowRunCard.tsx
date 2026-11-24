@@ -54,18 +54,15 @@ export function WorkflowRunCard({
   const isLive = isLiveWorkflowRunStatus(view.status);
   const heading = workflowRunHeading(view, t);
   const phases = view.graph?.phases.length ? view.graph.phases : card.phases;
-  const showGraph = !!view.graph;
-  const actions = useWorkflowRunActions({
+  const actions = useWorkflowRunActions(
     room,
     roomId,
-    run: card.run,
-    jobId: card.jobId,
-    requester: card.requester,
-    status: view.status,
-    attempt: view.attempt,
+    card.run,
+    view,
+    card.jobId,
     threadId,
-    readOnly,
-  });
+    readOnly
+  );
 
   return (
     <section
@@ -75,14 +72,7 @@ export function WorkflowRunCard({
       data-workflow-run-status={view.status}
     >
       <div className={css.Row} style={{ gap: '4px' }}>
-        <WorkflowRunTitleBadges
-          heading={heading}
-          name={view.name}
-          title={view.title}
-          status={view.status}
-          attempt={view.attempt}
-          large={view.large}
-        />
+        <WorkflowRunTitleBadges heading={heading} view={view} showRunBadges />
       </div>
       {phases.length > 0 && (
         <ul className={css.Phases} aria-label={t('mindroomUi.workflowRun.title')}>
@@ -93,31 +83,21 @@ export function WorkflowRunCard({
           ))}
         </ul>
       )}
-      <WorkflowRunMetrics
-        counts={view.counts}
-        usage={view.usage}
-        startedAt={view.startedAt}
-        endedAt={view.endedAt}
-        isLive={isLive}
-        showFailed
-      />
+      <WorkflowRunMetrics view={view} isLive={isLive} showFailed />
       {!isLive && view.error && (
         <Text size="T200" className={css.ErrorLine} {...ownDirectionBlock}>
           {view.error}
         </Text>
       )}
-      {(showGraph || actions.showStop || actions.showResume || actions.showRunAgain) && (
+      {(view.graph || actions.hasActions) && (
         <div className={css.Row}>
-          {showGraph && (
+          {view.graph && (
             <Button
               type="button"
               size="300"
               variant="Secondary"
               fill="Soft"
-              onClick={() => {
-                getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
-                openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
-              }}
+              onClick={() => openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId)}
             >
               <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
             </Button>

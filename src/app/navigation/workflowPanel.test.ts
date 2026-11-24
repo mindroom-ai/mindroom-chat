@@ -1,10 +1,6 @@
 import { createStore } from 'jotai';
 import { describe, expect, it } from 'vitest';
-import {
-  closeWorkflowRunPanel,
-  openWorkflowRunPanel,
-  workflowRunPanelAtom,
-} from './workflowPanel';
+import { closeWorkflowRunPanel, openWorkflowRunPanel, workflowRunPanelAtom } from './workflowPanel';
 
 const ROOM = '!room:example.org';
 const OTHER_ROOM = '!other:example.org';

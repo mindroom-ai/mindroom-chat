@@ -19,10 +19,7 @@ function WorkflowPanelUnavailable({
   );
 }
 
-/**
- * Lazy-loaded workflow graph side panel, kept out of the initial entry chunk until a user opens a
- * run's graph from a card or the jobs bar.
- */
+/** Lazy-loaded workflow graph side panel, kept out of the initial entry bundle. */
 export const WorkflowPanelPart = lazyPart(
   () => import('./WorkflowPanel').then((module) => ({ default: module.WorkflowPanel })),
   WorkflowPanelUnavailable

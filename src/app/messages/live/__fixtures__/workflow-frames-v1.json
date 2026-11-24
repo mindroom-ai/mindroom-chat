@@ -35,9 +35,7 @@
       }
     },
     "snapshot": {
-      "phases": [
-        "Audit"
-      ],
+      "phases": ["Audit"],
       "groups": [
         {
           "id": "n1",
@@ -234,9 +232,7 @@
       }
     },
     "delta": {
-      "log_append": [
-        "Round 1: 1 checked, 0 failed"
-      ]
+      "log_append": ["Round 1: 1 checked, 0 failed"]
     }
   },
   {
@@ -275,9 +271,7 @@
       }
     },
     "snapshot": {
-      "phases": [
-        "Audit"
-      ],
+      "phases": ["Audit"],
       "groups": [
         {
           "id": "n1",
@@ -330,9 +324,7 @@
         "phases": 0,
         "log": 0
       },
-      "log": [
-        "Large run: 426 agents, about $17.89 projected."
-      ]
+      "log": ["Large run: 426 agents, about $17.89 projected."]
     }
   }
 ]

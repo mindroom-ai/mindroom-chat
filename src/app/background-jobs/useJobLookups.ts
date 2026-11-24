@@ -70,25 +70,21 @@ const shownOfRun = (subagentRun: SubagentRun, listed: boolean) => {
     : [subagentRun.run, rest];
 };
 
-/** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
-const useJobRuns = (
+const shownOfWorkflowRun = (entry: WorkflowRunEntry, listed: boolean) => {
+  const { title, name, status, counts, usage, endedAt } = entry.meta;
+  const waits = entry.graph.nodes.filter((n) => n.status === 'waiting').map((n) => n.waitingOn);
+  return [entry.run, title, name, status, waits, ...(listed ? [counts, usage, endedAt] : [])];
+};
+
+const useRoomSelection = <T>(
+  store: { subscribe: (roomId: string, onChange: () => void) => () => void },
   roomId: string,
-  jobs: readonly BackgroundJob[],
+  pick: () => T,
+  snapshot: (picked: T) => unknown,
   listed: boolean
-): readonly SubagentRun[] => {
-  const store = getSubagentRunStore(useMatrixClient());
-  const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
-    [roomId, store]
-  );
-  const pick = useCallback(() => {
-    const runs = store.runs(roomId);
-    return [...new Set(jobs.flatMap((job) => runOfJob(runs, job) ?? []))];
-  }, [jobs, roomId, store]);
-  const shown = useSyncExternalStore(subscribe, () =>
-    JSON.stringify(pick().map((run) => shownOfRun(run, listed)))
-  );
-  // Rows that start to say the calls or the usage take the runs anew, whose held ones may be older.
+): T => {
+  const subscribe = useCallback((fn: () => void) => store.subscribe(roomId, fn), [roomId, store]);
+  const shown = useSyncExternalStore(subscribe, () => JSON.stringify(snapshot(pick())));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(pick, [pick, shown, listed]);
 };
@@ -123,45 +119,42 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
  * What the jobs bar joins its jobs to (`presentBackgroundJobs`): `listed` when the visible
  * rows show both usage and current calls.
  */
-const shownOfWorkflowRun = (entry: WorkflowRunEntry, listed: boolean) => {
-  const { title, name, status, counts, usage, endedAt } = entry.meta;
-  const waits = entry.graph.nodes.filter((n) => n.status === 'waiting').map((n) => n.waitingOn);
-  return [entry.run, title, name, status, waits, ...(listed ? [counts, usage, endedAt] : [])];
-};
-
-const useJobWorkflowRuns = (
-  roomId: string,
-  jobs: readonly BackgroundJob[],
-  listed: boolean
-): ReadonlyMap<string, WorkflowRunEntry> => {
-  const store = getWorkflowRunStore(useMatrixClient());
-  const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
-    [roomId, store]
-  );
-  const pick = useCallback(() => {
-    const map = new Map<string, WorkflowRunEntry>();
-    jobs.forEach((job) => {
-      if (job.kind !== 'workflow' || !job.workflow) return;
-      const entry = store.get(roomId, job.workflow);
-      if (entry) map.set(job.workflow, entry);
-    });
-    return map;
-  }, [jobs, roomId, store]);
-  const shown = useSyncExternalStore(subscribe, () =>
-    JSON.stringify([...pick().values()].map((entry) => shownOfWorkflowRun(entry, listed)))
-  );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(pick, [pick, shown, listed]);
-};
-
 export const useJobLookups = (
   room: Room,
   jobs: readonly BackgroundJob[],
   listed: boolean
 ): BackgroundJobLookups => {
-  const runs = useJobRuns(room.roomId, jobs, listed);
+  const mx = useMatrixClient();
+  const [subStore, wfStore] = [getSubagentRunStore(mx), getWorkflowRunStore(mx)];
+  const pickRuns = useCallback(() => {
+    const all = subStore.runs(room.roomId);
+    return [...new Set(jobs.flatMap((job) => runOfJob(all, job) ?? []))];
+  }, [jobs, room.roomId, subStore]);
+  const pickWf = useCallback(
+    () =>
+      new Map(
+        jobs.flatMap((j) => {
+          const e =
+            j.kind === 'workflow' && j.workflow ? wfStore.get(room.roomId, j.workflow) : undefined;
+          return e && j.workflow ? [[j.workflow, e] as const] : [];
+        })
+      ),
+    [jobs, room.roomId, wfStore]
+  );
+  const runs = useRoomSelection(
+    subStore,
+    room.roomId,
+    pickRuns,
+    (p) => p.map((r) => shownOfRun(r, listed)),
+    listed
+  );
+  const workflowRuns = useRoomSelection(
+    wfStore,
+    room.roomId,
+    pickWf,
+    (p) => [...p.values()].map((e) => shownOfWorkflowRun(e, listed)),
+    listed
+  );
   const toolCallFor = useJobToolCalls(room, jobs, listed);
-  const workflowRuns = useJobWorkflowRuns(room.roomId, jobs, listed);
   return useMemo(() => ({ runs, toolCallFor, workflowRuns }), [runs, toolCallFor, workflowRuns]);
 };

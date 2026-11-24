@@ -64,18 +64,6 @@ export const InsetBox = style([
   },
 ]);
 export const GroupBox = style([InsetBox, { gridColumn: '1 / -1' }]);
-export const ProgressTrack = style({
-  blockSize: toRem(4),
-  inlineSize: '100%',
-  borderRadius: radii.Pill,
-  backgroundColor: color.Surface.ContainerLine,
-  overflow: 'hidden',
-});
-export const ProgressFill = style({
-  blockSize: '100%',
-  backgroundColor: color.Primary.Main,
-  borderRadius: radii.Pill,
-});
 export const Chip = style([
   Stack,
   {

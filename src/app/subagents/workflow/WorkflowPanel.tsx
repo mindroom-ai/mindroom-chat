@@ -1,13 +1,13 @@
-import { type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
-import { subscribeRelativeTimeClock, useRelativeTime } from '../../i18n/useRelativeTime';
+import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
-import { isLiveWorkflowRunStatus, type WorkflowRunNode } from '../../matrix/protocol/workflowFrame';
+import { isLiveWorkflowRunStatus } from '../../matrix/protocol/workflowFrame';
 import { stopBackgroundJobs } from '../../matrix/send/cancelBackgroundJob';
 import { type SubagentRun, useRoomSubagentRuns } from '../../messages/live/subagentRunStore';
 import { useWorkflowRun } from '../../messages/live/workflowRunStore';
@@ -17,6 +17,7 @@ import {
 } from '../../messages/workflow-run/workflowRunLabels';
 import {
   useCanCancelBackgroundJob,
+  useLiveClock,
   useWorkflowRunActions,
   WorkflowRunActionButtons,
   WorkflowRunMetrics,
@@ -71,12 +72,7 @@ export function WorkflowPanel({
   useEdgeSwipeBack(onClose, mobile && !swipeHandledByRoom, { priority: SWIPE_PRIORITY.PANEL });
 
   const isLive = entry ? isLiveWorkflowRunStatus(entry.status) : false;
-  const [now, setNow] = useState(Date.now);
-  useEffect(
-    () => (isLive ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
-    [isLive]
-  );
-
+  const now = useLiveClock(isLive);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nodeStopError, setNodeStopError] = useState<string | null>(null);
   useEffect(() => {
@@ -98,17 +94,15 @@ export function WorkflowPanel({
   const agentProfile = useAgentProfile(room, entry?.agent ?? '');
   const runJob = jobs.find((job) => job.kind === 'workflow' && job.workflow === run);
   const effectiveThreadId = entry?.threadId ?? threadId;
-  const actions = useWorkflowRunActions({
+  const actions = useWorkflowRunActions(
     room,
-    roomId: room.roomId,
+    room.roomId,
     run,
-    jobId: runJob?.jobId ?? null,
-    requester: entry?.requester,
-    status: entry?.status ?? 'starting',
-    attempt: entry?.attempt ?? 1,
-    threadId: effectiveThreadId,
-    readOnly: readOnly || !entry,
-  });
+    entry,
+    runJob?.jobId ?? null,
+    effectiveThreadId,
+    readOnly
+  );
 
   const nodesById = useMemo(
     () => new Map(graph?.nodes.map((n) => [n.id, n]) ?? []),
@@ -121,74 +115,29 @@ export function WorkflowPanel({
     () => (selectedNode && graph ? graph.edges.filter((e) => e.from === selectedNode.id) : []),
     [graph, selectedNode]
   );
-
-  const handleStopNode = async (node: WorkflowRunNode) => {
-    if (!node.job) return;
+  const canStopNode = !!(
+    selectedNode?.job &&
+    isLiveWorkflowNodeStatus(selectedNode.status) &&
+    canCancel
+  );
+  const stopNode = async (jobId: string) => {
     setNodeStopError(null);
-    if (!(await stopBackgroundJobs(mx, room, effectiveThreadId, { jobId: node.job }, [node.job])))
+    if (!(await stopBackgroundJobs(mx, room, effectiveThreadId, { jobId }, [jobId])))
       setNodeStopError(t('activity.actions.failed'));
   };
 
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
   const errorBanner = actions.actionError ?? nodeStopError;
-  const sections: { label: string; body: ReactNode }[] = [];
-  if (selectedNode?.error) {
-    sections.push({
-      label: t('mindroomUi.workflowRun.node.error'),
-      body: (
-        <Text size="T200" className={Failure} {...ownDirectionBlock}>
-          {selectedNode.error}
-        </Text>
-      ),
-    });
-  }
-  if (selectedPreview) {
-    sections.push({
-      label: t('mindroomUi.workflowRun.node.result'),
-      body: (
-        <Text size="T200" {...ownDirectionBlock}>
-          {selectedPreview}
-        </Text>
-      ),
-    });
-  }
-  if (selectedEdges.length > 0) {
-    sections.push({
-      label: t('mindroomUi.workflowRun.node.messages'),
-      body: selectedEdges.map((e) => (
-        <Text key={`${e.from}->${e.to}`} size="T200">
-          {t('mindroomUi.workflowRun.node.messagesTo', {
-            name: nodesById.get(e.to)?.name ?? nodesById.get(e.to)?.label ?? e.to,
-            count: e.count,
-          })}
-        </Text>
-      )),
-    });
-  }
 
   return (
     <section tabIndex={-1} className={css.Panel} aria-label={heading} data-testid="workflow-panel">
       <header className={SidePanelHeader}>
         <Box direction="Column" gap="100" grow="Yes" style={{ minInlineSize: 0 }}>
           <div className={cardCss.Row} style={{ gap: '4px' }}>
-            <WorkflowRunTitleBadges
-              heading={heading}
-              name={entry?.name}
-              title={entry?.title}
-              status={entry?.status}
-              asHeading
-            />
+            <WorkflowRunTitleBadges heading={heading} view={entry} asHeading />
           </div>
-          {entry && (
-            <WorkflowRunMetrics
-              counts={entry.counts}
-              usage={entry.usage}
-              startedAt={entry.startedAt}
-              endedAt={entry.endedAt}
-              isLive={isLive}
-            />
-          )}
+          {entry && <WorkflowRunMetrics view={entry} isLive={isLive} now={now} />}
         </Box>
         <Box alignItems="Center" gap="100" shrink="No">
           <WorkflowRunActionButtons room={room} actions={actions} />
@@ -238,16 +187,42 @@ export function WorkflowPanel({
             <Text size="T200" priority="300">
               {workflowNodeStatusLabel(selectedNode.status, t)}
             </Text>
-            {sections.map(({ label, body }) => (
-              <div key={label}>
+            {selectedNode.error && (
+              <div>
                 <Text size="T200" className={css.StrongText}>
-                  {label}
+                  {t('mindroomUi.workflowRun.node.error')}
                 </Text>
-                {body}
+                <Text size="T200" className={Failure} {...ownDirectionBlock}>
+                  {selectedNode.error}
+                </Text>
               </div>
-            ))}
-            {(selectedNode.run ||
-              (selectedNode.job && isLiveWorkflowNodeStatus(selectedNode.status) && canCancel)) && (
+            )}
+            {selectedPreview && (
+              <div>
+                <Text size="T200" className={css.StrongText}>
+                  {t('mindroomUi.workflowRun.node.result')}
+                </Text>
+                <Text size="T200" {...ownDirectionBlock}>
+                  {selectedPreview}
+                </Text>
+              </div>
+            )}
+            {selectedEdges.length > 0 && (
+              <div>
+                <Text size="T200" className={css.StrongText}>
+                  {t('mindroomUi.workflowRun.node.messages')}
+                </Text>
+                {selectedEdges.map((e) => (
+                  <Text key={`${e.from}->${e.to}`} size="T200">
+                    {t('mindroomUi.workflowRun.node.messagesTo', {
+                      name: nodesById.get(e.to)?.name ?? nodesById.get(e.to)?.label ?? e.to,
+                      count: e.count,
+                    })}
+                  </Text>
+                ))}
+              </div>
+            )}
+            {(selectedNode.run || canStopNode) && (
               <div className={cardCss.Row}>
                 {selectedNode.run && (
                   <Button
@@ -268,13 +243,13 @@ export function WorkflowPanel({
                     <Text size="B300">{t('mindroomUi.workflowRun.node.open')}</Text>
                   </Button>
                 )}
-                {selectedNode.job && isLiveWorkflowNodeStatus(selectedNode.status) && canCancel && (
+                {canStopNode && selectedNode.job && (
                   <Button
                     type="button"
                     size="300"
                     variant="Critical"
                     fill="Soft"
-                    onClick={() => void handleStopNode(selectedNode)}
+                    onClick={() => void stopNode(selectedNode.job!)}
                   >
                     <Text size="B300">{t('mindroomUi.workflowRun.node.stop')}</Text>
                   </Button>

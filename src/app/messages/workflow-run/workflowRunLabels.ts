@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { formatWorkDuration } from '../../lib/time';
 import type {
   WorkflowNodeStatus,
   WorkflowRunCounts,
@@ -17,21 +18,15 @@ const STATUS_KEYS = {
   interrupted: 'mindroomUi.workflowRun.status.interrupted',
 } as const satisfies Record<WorkflowRunStatus, string>;
 
-const NODE_STATUS_KEYS = {
-  queued: 'mindroomUi.workflowRun.node.queued',
-  running: 'mindroomUi.workflowRun.status.running',
-  waiting: 'mindroomUi.workflowRun.status.waiting',
-  completed: 'mindroomUi.workflowRun.status.completed',
-  failed: 'mindroomUi.workflowRun.status.failed',
-  cancelled: 'mindroomUi.workflowRun.status.cancelled',
-  indeterminate: 'mindroomUi.workflowRun.node.mayHaveRun',
-} as const satisfies Record<WorkflowNodeStatus, string>;
-
 export const workflowRunStatusLabel = (status: WorkflowRunStatus, t: TFunction): string =>
   t(STATUS_KEYS[status]);
 
 export const workflowNodeStatusLabel = (status: WorkflowNodeStatus, t: TFunction): string =>
-  t(NODE_STATUS_KEYS[status]);
+  status === 'queued'
+    ? t('mindroomUi.workflowRun.node.queued')
+    : status === 'indeterminate'
+    ? t('mindroomUi.workflowRun.node.mayHaveRun')
+    : t(STATUS_KEYS[status]);
 
 export const workflowRunHeading = (
   meta: { title: string | null; name?: string | null },
@@ -60,4 +55,18 @@ export const workflowRunCostLine = (
     });
   }
   return usage.costUsd > 0 || usage.inputTokens + usage.outputTokens > 0 ? spent : undefined;
+};
+
+export const formatWorkflowElapsed = (
+  startedAt: number | null,
+  endedAt: number | null,
+  liveNow: number | null,
+  language: string
+): string | undefined => {
+  if (startedAt === null) return undefined;
+  if (liveNow !== null && liveNow > 0)
+    return formatWorkDuration(Math.max(0, liveNow - startedAt * 1000), language);
+  return endedAt !== null
+    ? formatWorkDuration(Math.max(0, (endedAt - startedAt) * 1000), language)
+    : undefined;
 };

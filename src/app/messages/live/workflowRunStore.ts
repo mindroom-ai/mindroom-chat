@@ -89,10 +89,10 @@ export class WorkflowRunStore {
   private readonly listeners = new Map<string, Set<() => void>>();
 
   private slot(roomId: string, run: string): RunSlot {
-    const runs = this.rooms.get(roomId) ?? new Map<string, RunSlot>();
-    this.rooms.set(roomId, runs);
-    const s = runs.get(run) ?? {};
-    runs.set(run, s);
+    let runs = this.rooms.get(roomId);
+    if (!runs) this.rooms.set(roomId, (runs = new Map()));
+    let s = runs.get(run);
+    if (!s) runs.set(run, (s = {}));
     return s;
   }
 
@@ -106,16 +106,13 @@ export class WorkflowRunStore {
       applyWorkflowRunDelta
     );
     if (!stream) return;
+    const { docs: graph, ...rest } = stream;
     const entry: WorkflowRunEntry = {
+      ...rest,
       roomId,
-      sender: stream.sender,
       run: frame.run,
-      sid: stream.sid,
-      seq: stream.seq,
       meta: stream.stale && held ? held.meta : frame.meta,
-      graph: stream.docs,
-      lastFrameAt: stream.lastFrameAt,
-      stale: stream.stale,
+      graph,
     };
     const s = this.slot(roomId, frame.run);
     s.live = entry;
@@ -212,10 +209,7 @@ export class WorkflowRunStore {
 const stores = new WeakMap<MatrixClient, WorkflowRunStore>();
 export const getWorkflowRunStore = (mx: MatrixClient) => {
   let store = stores.get(mx);
-  if (!store) {
-    store = new WorkflowRunStore();
-    stores.set(mx, store);
-  }
+  if (!store) stores.set(mx, (store = new WorkflowRunStore()));
   return store;
 };
 

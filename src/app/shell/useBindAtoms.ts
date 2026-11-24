@@ -12,7 +12,10 @@ import { allInvitesAtom, useBindAllInvitesAtom } from '../matrix/state/inviteLis
 import { allRoomsAtom, useBindAllRoomsAtom } from '../matrix/state/roomList';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom, useBindRoomToUnreadAtom } from '../matrix/state/roomToUnread';
-import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
+import {
+  roomIdToTypingMembersAtom,
+  useBindRoomIdToTypingMembersAtom,
+} from '../matrix/state/typingMembers';
 
 /** Connects the account-wide atoms to the Matrix client; each resets for a new client. */
 export function useBindAtoms(client: MatrixClient): void {

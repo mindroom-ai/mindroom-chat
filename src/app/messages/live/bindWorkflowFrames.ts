@@ -1,9 +1,6 @@
 import { useEffect } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import {
-  parseWorkflowFrame,
-  WORKFLOW_FRAME_EVENT_TYPE,
-} from '../../matrix/protocol/workflowFrame';
+import { parseWorkflowFrame, WORKFLOW_FRAME_EVENT_TYPE } from '../../matrix/protocol/workflowFrame';
 import { bindLiveFrames, SYNTHETIC_EVENT_ID_PREFIX } from './bindLiveReplyFrames';
 import { getWorkflowRunStore, type WorkflowRunStore } from './workflowRunStore';
 

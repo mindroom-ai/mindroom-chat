@@ -2,9 +2,8 @@ import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Button, Text } from 'folds';
+import { Button, ProgressBar, Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { formatWorkDuration } from '../../lib/time';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 import type {
   WorkflowNodeStatus,
@@ -14,6 +13,7 @@ import type {
 } from '../../matrix/protocol/workflowFrame';
 import { formatCostUsd } from '../../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
+import { formatWorkflowElapsed } from '../../messages/workflow-run/workflowRunLabels';
 import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
@@ -27,12 +27,12 @@ import {
 } from './workflowGraphModel';
 import * as css from './workflowPanel.css';
 
-const GROUP_KIND_KEYS = {
-  foreach: 'mindroomUi.workflowRun.group.foreach',
-  parallel: 'mindroomUi.workflowRun.group.parallel',
-  run: 'mindroomUi.workflowRun.group.run',
-  workflow: 'mindroomUi.workflowRun.group.workflow',
-} as const;
+const GROUP_KIND_KEYS = new Map([
+  ['foreach', 'mindroomUi.workflowRun.group.foreach'],
+  ['parallel', 'mindroomUi.workflowRun.group.parallel'],
+  ['run', 'mindroomUi.workflowRun.group.run'],
+  ['workflow', 'mindroomUi.workflowRun.group.workflow'],
+] as const);
 const WAITING_ON_KEYS = {
   user: 'mindroomUi.workflowRun.node.waitingOn.user',
   approval: 'mindroomUi.workflowRun.node.waitingOn.approval',
@@ -51,6 +51,11 @@ type RenderCtx = {
   language: string;
   onSelect: (id: string) => void;
 };
+type ChipProps = Omit<RenderCtx, 'subagentsByRun' | 'selectedId'> & {
+  node: WorkflowRunNode;
+  subagentRun?: SubagentRun;
+  selected: boolean;
+};
 
 /** Leaf chip memoized by shallow props so deltas re-render only the nodes they update. */
 const WorkflowNodeChip = memo(function WorkflowNodeChip({
@@ -62,16 +67,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
   t,
   language,
   onSelect,
-}: {
-  node: WorkflowRunNode;
-  subagentRun?: SubagentRun;
-  room: Room;
-  selected: boolean;
-  now: number;
-  t: TFunction;
-  language: string;
-  onSelect: (id: string) => void;
-}) {
+}: ChipProps) {
   const agentProfile = useAgentProfile(room, node.agent ?? '');
   const model = subagentRun?.meta.model
     ? getAiRunCompactModelLabel(subagentRun.meta.model)
@@ -82,14 +78,12 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
     usage?.costUsd !== undefined && (usage.costUsd > 0 || tokens > 0)
       ? formatCostUsd(usage.costUsd, language)
       : undefined;
-  const elapsed =
-    node.startedAt === null
-      ? undefined
-      : isLiveWorkflowNodeStatus(node.status) && now > 0
-      ? formatWorkDuration(Math.max(0, now - node.startedAt * 1000), language)
-      : node.endedAt !== null
-      ? formatWorkDuration(Math.max(0, (node.endedAt - node.startedAt) * 1000), language)
-      : undefined;
+  const elapsed = formatWorkflowElapsed(
+    node.startedAt,
+    node.endedAt,
+    isLiveWorkflowNodeStatus(node.status) ? now : null,
+    language
+  );
   const note = node.cached
     ? t('mindroomUi.workflowRun.node.reused')
     : node.status === 'queued'
@@ -99,6 +93,16 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
     : node.status === 'waiting' && node.waitingOn
     ? t(WAITING_ON_KEYS[node.waitingOn])
     : undefined;
+  const meta = [
+    node.agent ? agentProfile.name : undefined,
+    model,
+    node.kind === 'session' && node.turns > 0
+      ? t('mindroomUi.workflowRun.node.sessionTurns', { count: node.turns })
+      : undefined,
+    tokens > 0 ? formatTokens(tokens, language) : undefined,
+    cost,
+    elapsed,
+  ].filter(Boolean);
 
   return (
     <button
@@ -117,14 +121,11 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
         </span>
       </span>
       <span className={css.ChipMeta}>
-        {node.agent && <span>{agentProfile.name}</span>}
-        {model && <span>{model}</span>}
-        {node.kind === 'session' && node.turns > 0 && (
-          <span>{t('mindroomUi.workflowRun.node.sessionTurns', { count: node.turns })}</span>
-        )}
-        {tokens > 0 && <span>{formatTokens(tokens, language)}</span>}
-        {cost && <span>{cost}</span>}
-        {elapsed && <span>{elapsed}</span>}
+        {meta.map((part, i) => (
+          // Metadata fragments are static positional badges per chip.
+          // eslint-disable-next-line react/no-array-index-key
+          <span key={i}>{part}</span>
+        ))}
       </span>
       {note && <span className={css.ChipNote}>{note}</span>}
     </button>
@@ -142,14 +143,12 @@ function WorkflowGroupBox({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { shown, more } = expanded ? { shown: items, more: 0 } : foldGroupItems(items);
-  const pct = group.total > 0 ? Math.min(100, Math.round((group.done / group.total) * 100)) : 0;
+  const kindKey = GROUP_KIND_KEYS.get(group.kind as never);
   return (
     <div className={css.GroupBox} data-workflow-group-id={group.id}>
       <div className={cardCss.Row} style={{ justifyContent: 'space-between' }}>
         <Text as="span" size="T300" className={css.StrongText}>
-          {Object.prototype.hasOwnProperty.call(GROUP_KIND_KEYS, group.kind)
-            ? ctx.t(GROUP_KIND_KEYS[group.kind as keyof typeof GROUP_KIND_KEYS])
-            : group.kind}
+          {kindKey ? ctx.t(kindKey) : group.kind}
         </Text>
         <Text as="span" size="T200" priority="300">
           {ctx.t('mindroomUi.workflowRun.group.progress', { done: group.done, total: group.total })}
@@ -160,15 +159,13 @@ function WorkflowGroupBox({
           </Text>
         )}
       </div>
-      <div
-        className={css.ProgressTrack}
-        role="progressbar"
-        aria-valuenow={group.done}
-        aria-valuemin={0}
-        aria-valuemax={group.total}
-      >
-        <div className={css.ProgressFill} style={{ inlineSize: `${pct}%` }} />
-      </div>
+      <ProgressBar
+        variant="Primary"
+        size="300"
+        min={0}
+        max={Math.max(1, group.total)}
+        value={Math.min(group.done, group.total)}
+      />
       <WorkflowItemsList items={shown} ctx={ctx} />
       {more > 0 && (
         <div>

@@ -13,13 +13,19 @@ import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 
 vi.mock('../matrix/state/mDirectList', () => ({ mDirectAtom: {}, useBindMDirectAtom: vi.fn() }));
-vi.mock('../matrix/state/inviteList', () => ({ allInvitesAtom: {}, useBindAllInvitesAtom: vi.fn() }));
+vi.mock('../matrix/state/inviteList', () => ({
+  allInvitesAtom: {},
+  useBindAllInvitesAtom: vi.fn(),
+}));
 vi.mock('../matrix/state/roomList', () => ({ allRoomsAtom: {}, useBindAllRoomsAtom: vi.fn() }));
 vi.mock('../matrix/state/roomToParents', () => ({
   roomToParentsAtom: {},
   useBindRoomToParentsAtom: vi.fn(),
 }));
-vi.mock('../matrix/state/roomToUnread', () => ({ roomToUnreadAtom: {}, useBindRoomToUnreadAtom: vi.fn() }));
+vi.mock('../matrix/state/roomToUnread', () => ({
+  roomToUnreadAtom: {},
+  useBindRoomToUnreadAtom: vi.fn(),
+}));
 vi.mock('../matrix/state/typingMembers', () => ({
   roomIdToTypingMembersAtom: {},
   useBindRoomIdToTypingMembersAtom: vi.fn(),
