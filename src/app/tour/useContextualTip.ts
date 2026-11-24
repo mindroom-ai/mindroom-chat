@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
-import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
+import { isThreadResolved, MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
 import { matchesEnum } from '../lib/matchesEnum';
 import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useSetAccountSettings } from '../matrix/hooks/useAccountSettings';
@@ -14,7 +14,8 @@ import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useStateEventCallback } from '../matrix/hooks/useStateEventCallback';
 import { getStateEvent } from '../matrix/room';
 import { createSessionId } from '../matrix/session/sessions';
-import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
+import { archivedRoomsAtom, isRoomVisible } from '../matrix/state/archivedRooms';
+import { allRoomsAtom } from '../matrix/state/roomList';
 import { StateEvent } from '../matrix/types/room';
 import { dismissedTipsSessionAtom, tourAtom } from '../navigation/tourState';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
@@ -23,7 +24,13 @@ import {
   sanitizeAccountSettings,
 } from '../preferences/accountSettings';
 import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
-import { evaluateContextualTip, type ContextualTip, type ContextualTipId } from './contextualTips';
+import { getRoomThreadTagSnapshotMap } from '../threads/tags/threadTagSnapshots';
+import {
+  evaluateContextualTip,
+  RESOLVE_TIP_ID,
+  type ContextualTip,
+  type ContextualTipId,
+} from './contextualTips';
 
 export type ContextualTipState = {
   tip: ContextualTip | undefined;
@@ -42,6 +49,7 @@ export function useContextualTip(): ContextualTipState {
   const sessionId = createSessionId(mx.getHomeserverUrl(), myUserId);
   const synced = useServerSyncApplied(mx);
   const index = useAtomValue(crossRoomThreadIndexAtom);
+  const allRooms = useAtomValue(allRoomsAtom);
   const selectedRoomId = useSelectedRoom();
   const archivedRooms = useAtomValue(archivedRoomsAtom);
   const accountSettingsEvent = useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE);
@@ -55,7 +63,8 @@ export function useContextualTip(): ContextualTipState {
     if (
       matchesEnum(type, StateEvent.RoomPowerLevels) ||
       matchesEnum(type, StateEvent.RoomCreate) ||
-      matchesEnum(type, StateEvent.RoomPinnedEvents)
+      matchesEnum(type, StateEvent.RoomPinnedEvents) ||
+      type === MINDROOM_THREAD_TAGS_EVENT
     ) {
       setRoomStateVersion((version) => version + 1);
     }
@@ -99,7 +108,25 @@ export function useContextualTip(): ContextualTipState {
 
   const tip = useMemo(() => {
     void roomStateVersion;
-    if (!synced || !index.bootstrapped) return undefined;
+    if (!synced || !index.bootstrapped || dismissedTips.has(RESOLVE_TIP_ID)) return undefined;
+
+    // Room state holds com.mindroom.thread.tags for older resolved threads whose root events have
+    // not been loaded into the timeline index yet (for example on a fresh sign-in).
+    const visibleRoomIds = new Set<string>(allRooms);
+    for (const entry of index.entries.values()) {
+      visibleRoomIds.add(entry.roomId);
+    }
+    for (const roomId of visibleRoomIds) {
+      if (!isRoomVisible(roomId, archivedRooms)) continue;
+      const room = mx.getRoom(roomId);
+      if (!room) continue;
+      for (const [threadRootId, snapshot] of getRoomThreadTagSnapshotMap(room)) {
+        if (isThreadResolved(snapshot.content, isThreadPinned(room, threadRootId))) {
+          return undefined;
+        }
+      }
+    }
+
     return evaluateContextualTip({
       entries: index.entries.values(),
       selectedRoomId,
@@ -110,8 +137,10 @@ export function useContextualTip(): ContextualTipState {
       isPinnedThread,
     });
   }, [
+    mx,
     synced,
     index,
+    allRooms,
     selectedRoomId,
     archivedRooms,
     dismissedTips,

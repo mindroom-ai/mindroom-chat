@@ -1,8 +1,8 @@
-import { useCallback, useState, type MouseEvent, type RefCallback } from 'react';
+import { Suspense, useCallback, useState, type MouseEvent, type RefCallback } from 'react';
 import { IconButton } from 'folds';
 import { IconHelpCircle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { HelpMenu } from '../../tour/HelpMenu';
+import { lazyPart } from '../../lib/lazyPart';
 import { useContextualTip } from '../../tour/useContextualTip';
 import {
   SidebarAvatar,
@@ -11,6 +11,10 @@ import {
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
 import * as css from './HelpTab.css';
+
+const HelpMenu = lazyPart(() =>
+  import('../../tour/HelpMenu').then((module) => ({ default: module.HelpMenu }))
+);
 
 type HelpTabProps = {
   /** In a phone's top bar rather than the icon rail: opens the menu below the button. */
@@ -36,7 +40,9 @@ export function HelpTab({ inTopBar = false, className }: HelpTabProps) {
   const hasDot = tip !== undefined && !menuButton;
   const label = tip ? t('tour.help.buttonWithTip') : t('tour.help.button');
   const helpMenu = menuButton && (
-    <HelpMenu anchor={menuButton} below={inTopBar} onClose={closeMenu} />
+    <Suspense fallback={null}>
+      <HelpMenu anchor={menuButton} below={inTopBar} onClose={closeMenu} />
+    </Suspense>
   );
 
   if (inTopBar) {

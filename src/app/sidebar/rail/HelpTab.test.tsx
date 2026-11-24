@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe('HelpTab', () => {
-  it('renders cleanly without a dot when no tip applies and toggles HelpMenu beside the rail', () => {
+  it('renders cleanly without a dot when no tip applies and toggles HelpMenu beside the rail', async () => {
     mockTip(undefined);
     render(<HelpTab />);
 
@@ -44,14 +44,16 @@ describe('HelpTab', () => {
 
     fireEvent.click(button);
     expect(button.getAttribute('aria-expanded')).toBe('true');
-    expect(document.querySelector('[data-help-menu-mock="beside"]')).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-help-menu-mock="beside"]')).toBeTruthy()
+    );
 
     fireEvent.click(button);
     expect(document.querySelector('[data-help-menu-mock]')).toBeNull();
   });
 
-  it('shows the accent dot for an active tip, hides it while open, and opens below in top bar', () => {
-    mockTip({ id: RESOLVE_TIP_ID, tourStep: 'resolve', scope: 'all', openCount: 5 });
+  it('shows the accent dot for an active tip, hides it while open, and opens below in top bar', async () => {
+    mockTip({ id: RESOLVE_TIP_ID, tourStep: 'resolve', scope: 'all', openCount: 8 });
     render(<HelpTab inTopBar />);
 
     const button = screen.getByRole('button', { name: 'Help & guides (1 tip)' });
@@ -59,7 +61,9 @@ describe('HelpTab', () => {
 
     fireEvent.click(button);
     expect(document.querySelector('[data-help-tip-dot]')).toBeNull();
-    expect(document.querySelector('[data-help-menu-mock="below"]')).toBeTruthy();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-help-menu-mock="below"]')).toBeTruthy()
+    );
 
     fireEvent.click(screen.getByRole('button', { name: 'Close mock' }));
     expect(document.querySelector('[data-help-tip-dot]')).toBeTruthy();

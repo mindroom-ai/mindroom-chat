@@ -10,6 +10,7 @@ import { StateEvent } from '../matrix/types/room';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
+import { allRoomsAtom } from '../matrix/state/roomList';
 import { tourAtom } from '../navigation/tourState';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../preferences/accountSettings';
@@ -338,7 +339,17 @@ type StubRoomOptions = {
   roomVersion?: string;
   creator?: string;
   pinned?: string[];
+  resolvedThreadIds?: string[];
 };
+
+const makeResolvedTagEvent = (threadRootId: string) => ({
+  getType: () => MINDROOM_THREAD_TAGS_EVENT,
+  getStateKey: () => JSON.stringify([threadRootId, 'resolved']),
+  getSender: () => '@alice:example.org',
+  getContent: () => ({ set_by: '@alice:example.org', set_at: '2026-11-23T00:00:00Z' }),
+  getTs: () => 1_700_000_000_000,
+  isRedacted: () => false,
+});
 
 const makeRoom = ({
   powerLevels = {
@@ -349,6 +360,7 @@ const makeRoom = ({
   roomVersion = '11',
   creator = '@creator:example.org',
   pinned,
+  resolvedThreadIds = [],
 }: StubRoomOptions = {}) => {
   const createEvent = {
     getType: () => StateEvent.RoomCreate,
@@ -369,12 +381,16 @@ const makeRoom = ({
           getType: () => StateEvent.RoomPinnedEvents,
           getContent: () => ({ pinned }),
         };
+  let tagEvents = resolvedThreadIds.map(makeResolvedTagEvent);
   const room = {
     getLiveTimeline: () => ({
       getState: (direction: Direction) =>
         direction === EventTimeline.FORWARDS
           ? {
               getStateEvents: (type: string, stateKey?: string) => {
+                if (stateKey === undefined) {
+                  return type === MINDROOM_THREAD_TAGS_EVENT ? [...tagEvents] : [];
+                }
                 if (stateKey !== '') return null;
                 if (matchesEnum(type, StateEvent.RoomCreate)) return createEvent;
                 if (matchesEnum(type, StateEvent.RoomPowerLevels)) return powerLevelsEvent;
@@ -403,6 +419,11 @@ const makeRoom = ({
         getContent: () => ({ pinned: next }),
       };
       return pinnedEvent;
+    },
+    addResolvedThreadTag: (threadRootId: string) => {
+      const event = makeResolvedTagEvent(threadRootId);
+      tagEvents = [...tagEvents, event];
+      return event;
     },
   };
 };
@@ -635,5 +656,49 @@ describe('useContextualTip', () => {
       scope: 'all',
       openCount: RESOLVE_TIP_MIN_OLD,
     });
+  });
+
+  it('suppresses the tip when an unloaded older thread is already resolved in visible room state', () => {
+    const activeRoom = makeRoom();
+    const otherRoom = makeRoom({ resolvedThreadIds: ['$old-done'] });
+    const rooms = new Map([
+      ['!room-a:example.org', activeRoom.room],
+      ['!room-b:example.org', otherRoom.room],
+    ]);
+    const alice = makeClient('@alice:example.org', {}, true, rooms);
+    vi.mocked(useMatrixClient).mockReturnValue(
+      alice.client as unknown as ReturnType<typeof useMatrixClient>
+    );
+
+    const store = createStore();
+    const entries = Array.from({ length: RESOLVE_TIP_MIN_OPEN }, (_, i) =>
+      makeEntry(`t-${i}`, { roomId: '!room-a:example.org' })
+    );
+    store.set(crossRoomThreadIndexAtom, indexWith(entries, true));
+    store.set(allRoomsAtom, {
+      type: 'INITIALIZE',
+      rooms: ['!room-a:example.org', '!room-b:example.org'],
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(Provider, { store }, children);
+    const view = renderHook(() => useContextualTip(), { wrapper });
+    expect(view.result.current.tip).toBeUndefined();
+
+    // Archiving the room with the older resolved thread lets the tip show for activeRoom.
+    act(() => store.set(archivedRoomsAtom, new Set(['!room-b:example.org'])));
+    expect(view.result.current.tip).toEqual({
+      id: RESOLVE_TIP_ID,
+      tourStep: 'resolve',
+      scope: 'all',
+      openCount: RESOLVE_TIP_MIN_OPEN,
+    });
+
+    // A live com.mindroom.thread.tags resolved event on an unloaded thread in activeRoom suppresses it.
+    const resolvedEvent = activeRoom.addResolvedThreadTag('$unloaded-done');
+    act(() => {
+      alice.client.emit(RoomStateEvent.Events, resolvedEvent, {}, null);
+    });
+    expect(view.result.current.tip).toBeUndefined();
   });
 });
