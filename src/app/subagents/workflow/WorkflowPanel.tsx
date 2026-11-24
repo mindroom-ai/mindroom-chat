@@ -18,8 +18,7 @@ import {
 import {
   useCanCancelBackgroundJob,
   useLiveClock,
-  useWorkflowRunActions,
-  WorkflowRunActionButtons,
+  WorkflowRunControls,
   WorkflowRunMetrics,
   WorkflowRunTitleBadges,
 } from '../../messages/workflow-run/WorkflowRunSummary';
@@ -75,10 +74,10 @@ export function WorkflowPanel({
   const isLive = entry ? isLiveWorkflowRunStatus(entry.status) : false;
   const now = useLiveClock(isLive);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [nodeStopError, setNodeStopError] = useState<string | null>(null);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
   useEffect(() => {
     setSelectedId(null);
-    setNodeStopError(null);
+    setErrorBanner(null);
   }, [room.roomId, run]);
   const handleSelect = useCallback(
     (id: string) => setSelectedId((cur) => (cur === id ? null : id)),
@@ -95,15 +94,6 @@ export function WorkflowPanel({
   const agentProfile = useAgentProfile(room, entry?.agent ?? '');
   const runJob = jobs.find((job) => job.kind === 'workflow' && job.workflow === run);
   const effectiveThreadId = entry ? entry.threadId : threadId;
-  const actions = useWorkflowRunActions(
-    room,
-    room.roomId,
-    run,
-    entry,
-    runJob?.jobId ?? null,
-    effectiveThreadId,
-    readOnly
-  );
 
   const nodesById = useMemo(
     () => new Map(graph?.nodes.map((n) => [n.id, n]) ?? []),
@@ -122,14 +112,13 @@ export function WorkflowPanel({
     canCancel
   );
   const stopNode = async (jobId: string) => {
-    setNodeStopError(null);
+    setErrorBanner(null);
     if (!(await stopBackgroundJobs(mx, room, effectiveThreadId, { jobId }, [jobId])))
-      setNodeStopError(t('activity.actions.failed'));
+      setErrorBanner(t('activity.actions.failed'));
   };
 
   const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
   const omitted = graph?.omitted;
-  const errorBanner = actions.actionError ?? nodeStopError;
 
   return (
     <section tabIndex={-1} className={css.Panel} aria-label={heading} data-testid="workflow-panel">
@@ -141,7 +130,15 @@ export function WorkflowPanel({
           {entry && <WorkflowRunMetrics view={entry} isLive={isLive} now={now} />}
         </Box>
         <Box alignItems="Center" gap="100" shrink="No">
-          <WorkflowRunActionButtons room={room} actions={actions} />
+          <WorkflowRunControls
+            room={room}
+            run={run}
+            view={entry}
+            jobId={runJob?.jobId ?? null}
+            threadId={effectiveThreadId}
+            readOnly={readOnly}
+            onError={setErrorBanner}
+          />
           <IconButton
             size="300"
             radii="300"

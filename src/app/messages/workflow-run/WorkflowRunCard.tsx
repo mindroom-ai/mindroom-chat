@@ -8,11 +8,9 @@ import type { WorkflowRunCard as WorkflowRunCardData } from '../../matrix/protoc
 import { openWorkflowRunPanel } from '../../navigation/workflowPanel';
 import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
 import { getWorkflowRunStore, selectWorkflowRun, useWorkflowRun } from '../live/workflowRunStore';
-import * as questionCss from '../question/QuestionCard.css';
 import { workflowRunHeading } from './workflowRunLabels';
 import {
-  useWorkflowRunActions,
-  WorkflowRunActionButtons,
+  WorkflowRunControls,
   WorkflowRunMetrics,
   WorkflowRunTitleBadges,
 } from './WorkflowRunSummary';
@@ -65,15 +63,20 @@ export function WorkflowRunCard({
   const isLive = isLiveWorkflowRunStatus(view.status);
   const heading = workflowRunHeading(view, t);
   const phases = view.graph?.phases.length ? view.graph.phases : card.phases;
-  const actions = useWorkflowRunActions(
-    room,
-    roomId,
-    card.run,
-    view,
-    card.jobId,
-    threadId,
-    readOnly
-  );
+  const graphButton = view.graph ? (
+    <Button
+      type="button"
+      size="300"
+      variant="Secondary"
+      fill="Soft"
+      onClick={() => {
+        getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, cardObservedAt, threadId);
+        openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
+      }}
+    >
+      <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
+    </Button>
+  ) : null;
 
   return (
     <section
@@ -100,35 +103,18 @@ export function WorkflowRunCard({
           {view.error}
         </Text>
       )}
-      {(view.graph || actions.hasActions) && (
-        <div className={css.Row}>
-          {view.graph && (
-            <Button
-              type="button"
-              size="300"
-              variant="Secondary"
-              fill="Soft"
-              onClick={() => {
-                getWorkflowRunStore(mx).showCard(
-                  roomId,
-                  sender ?? '',
-                  card,
-                  cardObservedAt,
-                  threadId
-                );
-                openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
-              }}
-            >
-              <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
-            </Button>
-          )}
-          <WorkflowRunActionButtons room={room} actions={actions} />
-        </div>
-      )}
-      {actions.actionError && (
-        <Text role="alert" size="T200" className={questionCss.Failed}>
-          {actions.actionError}
-        </Text>
+      {room ? (
+        <WorkflowRunControls
+          room={room}
+          run={card.run}
+          view={view}
+          jobId={card.jobId}
+          threadId={threadId}
+          readOnly={readOnly}
+          leading={graphButton}
+        />
+      ) : (
+        graphButton && <div className={css.Row}>{graphButton}</div>
       )}
     </section>
   );

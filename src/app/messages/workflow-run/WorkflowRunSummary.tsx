@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Button, Text } from 'folds';
@@ -15,6 +15,7 @@ import { stopBackgroundJobs } from '../../matrix/send/cancelBackgroundJob';
 import { useSentCancels } from '../../matrix/state/sentCancels';
 import { ownDirectionLine } from '../../ui/directional';
 import type { WorkflowRunView } from '../live/workflowRunStore';
+import * as questionCss from '../question/QuestionCard.css';
 import {
   formatWorkflowElapsed,
   workflowRunCostLine,
@@ -42,19 +43,31 @@ export const useCanCancelBackgroundJob = (room: Room, readOnly = false): boolean
   );
 };
 
-export const useWorkflowRunActions = (
-  room: Room | null,
-  roomId: string,
-  run: string,
-  view: Pick<WorkflowRunView, 'status' | 'attempt' | 'requester'> | undefined,
-  jobId: string | null,
-  threadId: string | null,
-  readOnly = false
-) => {
+/** Stop and Resume/Run again controls shared by the workflow run card and side panel. */
+export function WorkflowRunControls({
+  room,
+  run,
+  view,
+  jobId,
+  threadId,
+  readOnly = false,
+  leading,
+  onError,
+}: {
+  room: Room;
+  run: string;
+  view?: Pick<WorkflowRunView, 'status' | 'attempt' | 'requester'>;
+  jobId: string | null;
+  threadId: string | null;
+  readOnly?: boolean;
+  leading?: ReactNode;
+  onError?: (error: string | null) => void;
+}) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const viewerId = mx.getUserId();
-  const sentCancels = useSentCancels(roomId);
+  const canCancel = useCanCancelBackgroundJob(room, readOnly);
+  const sentCancels = useSentCancels(room.roomId);
   const [resumingAt, setResumingAt] = useState<{ status: string; attempt: number } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -71,10 +84,15 @@ export const useWorkflowRunActions = (
     return () => window.clearTimeout(timer);
   }, [resuming]);
 
-  const active = !readOnly && !!room && !!view;
+  const setError = (message: string | null) => {
+    if (onError) onError(message);
+    else setActionError(message);
+  };
+
+  const active = !readOnly && !!view;
+  const showStop = active && isLive && !!jobId && canCancel;
   const canResume =
     active && !isLive && view.requester != null && !!viewerId && viewerId === view.requester;
-  const showStop = active && isLive && !!jobId;
   const resumeMode = !canResume
     ? null
     : status === 'completed'
@@ -84,92 +102,69 @@ export const useWorkflowRunActions = (
     : null;
 
   const stop = async () => {
-    if (!room || !jobId || stopping) return;
-    setActionError(null);
+    if (!jobId || stopping) return;
+    setError(null);
     if (!(await stopBackgroundJobs(mx, room, threadId, { jobId }, [jobId])))
-      setActionError(t('activity.actions.failed'));
+      setError(t('activity.actions.failed'));
   };
   const resume = async () => {
-    if (!room || resuming) return;
-    setActionError(null);
+    if (resuming) return;
+    setError(null);
     setResumingAt({ status, attempt });
     try {
       await sendWorkflowRunResume(mx, room, threadId, run);
     } catch {
       setResumingAt(null);
-      setActionError(t('activity.actions.failed'));
+      setError(t('activity.actions.failed'));
     }
   };
 
-  return {
-    showStop,
-    stopping,
-    stop,
-    resumeMode,
-    hasActions: showStop || resumeMode !== null,
-    resuming,
-    resume,
-    actionError,
-  };
-};
-
-function StopButton({
-  room,
-  stopping,
-  onStop,
-}: {
-  room: Room;
-  stopping: boolean;
-  onStop: () => void;
-}) {
-  const { t } = useTranslation();
-  if (!useCanCancelBackgroundJob(room)) return null;
-  return (
-    <Button
-      type="button"
-      size="300"
-      variant="Critical"
-      fill="Soft"
-      disabled={stopping}
-      onClick={onStop}
-    >
-      <Text size="B300">
-        {stopping ? t('mindroomUi.workflowRun.stopping') : t('mindroomUi.workflowRun.stop')}
-      </Text>
-    </Button>
-  );
-}
-
-export function WorkflowRunActionButtons({
-  room,
-  actions,
-}: {
-  room: Room | null;
-  actions: ReturnType<typeof useWorkflowRunActions>;
-}) {
-  const { t } = useTranslation();
-  return (
+  const buttons = (
     <>
-      {actions.showStop && room && (
-        <StopButton room={room} stopping={actions.stopping} onStop={() => void actions.stop()} />
+      {leading}
+      {showStop && (
+        <Button
+          type="button"
+          size="300"
+          variant="Critical"
+          fill="Soft"
+          disabled={stopping}
+          onClick={() => void stop()}
+        >
+          <Text size="B300">
+            {stopping ? t('mindroomUi.workflowRun.stopping') : t('mindroomUi.workflowRun.stop')}
+          </Text>
+        </Button>
       )}
-      {actions.resumeMode && (
+      {resumeMode && (
         <Button
           type="button"
           size="300"
           variant="Primary"
           fill="Soft"
-          disabled={actions.resuming}
-          onClick={() => void actions.resume()}
+          disabled={resuming}
+          onClick={() => void resume()}
         >
           <Text size="B300">
-            {actions.resuming
+            {resuming
               ? t('mindroomUi.workflowRun.starting')
-              : actions.resumeMode === 'runAgain'
+              : resumeMode === 'runAgain'
               ? t('mindroomUi.workflowRun.runAgain')
               : t('mindroomUi.workflowRun.resume')}
           </Text>
         </Button>
+      )}
+    </>
+  );
+
+  if (onError) return buttons;
+  return (
+    <>
+      {(leading || showStop || resumeMode) && <div className={css.Row}>{buttons}</div>}
+      {actionError && (
+        <Text role="alert" size="T200" className={questionCss.Failed}>
+          {actionError}
+        </Text>
       )}
     </>
   );
@@ -187,22 +182,6 @@ export function WorkflowRunTitleBadges({
   asHeading?: boolean;
 }) {
   const { t } = useTranslation();
-  const badges: [string, string][] = [
-    ...(view?.name && view.title && view.name !== view.title
-      ? [['name', view.name] as [string, string]]
-      : []),
-    ...(showRunBadges && view && view.attempt > 1
-      ? [
-          ['attempt', t('mindroomUi.workflowRun.attempt', { number: view.attempt })] as [
-            string,
-            string
-          ],
-        ]
-      : []),
-    ...(showRunBadges && view?.large
-      ? [['large', t('mindroomUi.workflowRun.largeRun')] as [string, string]]
-      : []),
-  ];
   return (
     <>
       {asHeading ? (
@@ -214,11 +193,19 @@ export function WorkflowRunTitleBadges({
           {heading}
         </Text>
       )}
-      {badges.map(([key, badge]) => (
-        <span key={key} className={css.Pill} {...ownDirectionLine}>
-          {badge}
+      {view?.name && view.title && view.name !== view.title && (
+        <span className={css.Pill} {...ownDirectionLine}>
+          {view.name}
         </span>
-      ))}
+      )}
+      {showRunBadges && view && view.attempt > 1 && (
+        <span className={css.Pill}>
+          {t('mindroomUi.workflowRun.attempt', { number: view.attempt })}
+        </span>
+      )}
+      {showRunBadges && view?.large && (
+        <span className={css.Pill}>{t('mindroomUi.workflowRun.largeRun')}</span>
+      )}
       {view && (
         <span className={css.StatusPill[view.status]}>
           {workflowRunStatusLabel(view.status, t)}
