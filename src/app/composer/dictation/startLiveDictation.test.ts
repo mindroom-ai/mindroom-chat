@@ -956,4 +956,97 @@ describe('startLiveDictation and recovery', () => {
     expect((await readJournalRow(floorJournal.id)).recording).toBeUndefined();
     expect(await hasDictationJournalRecord(SESSION_A)).toBe(false);
   });
+
+  it('preserves full mixed-volume speech tail when Silero VAD load fails instead of dropping quieter portions', async () => {
+    // 30 quiet speech frames (RMS ~0.010, below 0.015 RMS fallback threshold) + 10 louder frames
+    // (RMS ~0.030). Without preserving the full tail on VAD failure, RMS would keep only ~0.96s.
+    const quietFrame = makeFrame(0.01 * Math.SQRT2);
+    const loudFrame = makeFrame(0.03 * Math.SQRT2);
+    const frames = [
+      ...Array.from({ length: 20 }, () => quietFrame),
+      ...Array.from({ length: 10 }, () => loudFrame),
+      ...Array.from({ length: 10 }, () => quietFrame),
+    ];
+
+    const journal = beginDictationJournal(SESSION_A, {
+      startedAt: 60_000,
+      elapsedMs: 0,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    await journal.appendTail(0, encodePcm16Frames(frames), 3_840, 0, frames.length);
+    journal.release();
+    await waitForJournalSettled();
+
+    const failingVad = vi.fn(async () => {
+      throw new Error('WASM unavailable');
+    });
+    const store = createStore();
+    store.set(computerServicePreferenceAtom, '');
+    const capturedOpts: DictationSessionOptions[] = [];
+    await recoverDictationForAccount(
+      store,
+      makeMatrixClient(USER_A),
+      {},
+      {
+        loadVad: failingVad,
+        createSession: (opts) => {
+          capturedOpts.push(opts);
+          return makePausedStubSession();
+        },
+      }
+    );
+    const recoveredRecords = capturedOpts[0]?.recovered?.records ?? [];
+    expect(recoveredRecords).toHaveLength(1);
+    expect(recoveredRecords[0]?.segment.seconds).toBeCloseTo(3.84, 2);
+    await deleteCapture(journal.id);
+  });
+
+  it('keeps original PCM tail recoverable if IndexedDB rejects the replacement WAV write', async () => {
+    const frames = Array.from({ length: 12 }, () => makeFrame(0.2));
+    const journal = beginDictationJournal(SESSION_A, {
+      startedAt: 61_000,
+      elapsedMs: 0,
+      capReached: false,
+      segments: [],
+      groups: [],
+    })!;
+    await journal.appendTail(0, encodePcm16Frames(frames), 1_152, 0, frames.length);
+    journal.release();
+    await waitForJournalSettled();
+
+    // Force only the replacement WAV put (type === 'audio/wav') to fail with QuotaExceededError.
+    const origPut = IDBObjectStore.prototype.put;
+    const putSpy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (
+      this: IDBObjectStore,
+      value: unknown,
+      key?: IDBValidKey
+    ) {
+      if (value && typeof value === 'object' && (value as { type?: unknown }).type === 'audio/wav') {
+        throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      }
+      return origPut.call(this, value, key);
+    });
+
+    try {
+      const store = createStore();
+      store.set(computerServicePreferenceAtom, '');
+      await recoverDictationForAccount(
+        store,
+        makeMatrixClient(USER_A),
+        {},
+        { loadVad: async () => { throw new Error('WASM unavailable'); } }
+      );
+      await waitForJournalSettled();
+
+      // Transaction rolled back atomically: original PCM tail chunk is still on disk.
+      const row = await readJournalRow(journal.id);
+      expect(row.recording).toBeDefined();
+      expect(row.chunks.some((c) => c.seq >= TAIL_SEQ_OFFSET)).toBe(true);
+    } finally {
+      putSpy.mockRestore();
+      await deleteCapture(journal.id);
+    }
+  });
 });

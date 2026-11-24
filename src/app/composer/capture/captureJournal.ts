@@ -66,7 +66,8 @@ export type DictationJournalHandle = {
   updateState: (
     meta: DictationJournalMeta,
     pruneSegmentIndices?: readonly number[],
-    clearAllTail?: boolean
+    clearAllTail?: boolean,
+    putSegments?: readonly { index: number; wav: ArrayBuffer }[]
   ) => Promise<void>;
   remove: () => Promise<void>;
   release: () => void;
@@ -380,10 +381,11 @@ const createDictationJournalHandle = (
       });
     });
   },
-  updateState: (meta, pruneSegmentIndices, clearAllTail) => {
+  updateState: (meta, pruneSegmentIndices, clearAllTail, putSegments) => {
     const snapshot = cloneDictationMeta(meta);
     if (clearAllTail) delete snapshot.consumedThroughFramePos;
     const prune = pruneSegmentIndices ? [...pruneSegmentIndices] : undefined;
+    const segments = putSegments ? putSegments.map((seg) => ({ ...seg })) : undefined;
     return enqueue(async () => {
       await guardedWrite(id, async (tx) => {
         const chunksStore = tx.objectStore('chunks');
@@ -395,6 +397,19 @@ const createDictationJournalHandle = (
             ...snapshot,
           }),
         ];
+        if (segments && segments.length > 0) {
+          segments.forEach((seg) =>
+            ops.push(
+              chunksStore.put({
+                id,
+                seq: seg.index,
+                bytes: seg.wav,
+                type: 'audio/wav',
+                elapsedMs: snapshot.elapsedMs,
+              })
+            )
+          );
+        }
         if (prune && prune.length > 0) {
           prune.forEach((segIdx) => ops.push(chunksStore.delete([id, segIdx])));
         }

@@ -32,6 +32,8 @@ import { loadSileroVad, type SileroVadInstance } from './sileroVad';
 
 /** Flush delta PCM tail chunks roughly once per second (~10 * 96 ms = 960 ms). */
 const TAIL_CHECKPOINT_FRAMES = 10;
+/** Upper bound on waiting for Silero VAD during reload recovery before falling back to raw WAVs. */
+const RECOVERY_VAD_TIMEOUT_MS = 8_000;
 const MAX_FALLBACK_PCM_SAMPLES = Math.floor(
   (DICTATION_MAX_SEGMENT_BYTES - DICTATION_WAV_HEADER_BYTES) / 2
 );
@@ -379,34 +381,36 @@ export const replayDictationTail = async ({
   });
   for (const frame of replayedFrames) tailSegmenter.pushFrame(frame);
 
-  let usedRmsFallback = false;
+  let vadFailed = false;
   let vad: SileroVadInstance | undefined;
+  const vadAbort = new AbortController();
+  const vadTimer = setTimeout(() => vadAbort.abort(), RECOVERY_VAD_TIMEOUT_MS);
   try {
-    vad = await loadVad();
+    vad = await loadVad(vadAbort.signal);
     const activeVad = vad;
     await tailSegmenter.attachVad({
       score: async (frame) => {
         try {
           return await activeVad.score(frame);
         } catch (error) {
-          usedRmsFallback = true;
+          vadFailed = true;
           throw error;
         }
       },
     });
     await tailSegmenter.flush();
   } catch {
-    usedRmsFallback = true;
-    await tailSegmenter.markVadFailed();
-    await tailSegmenter.flush();
+    vadFailed = true;
   } finally {
+    clearTimeout(vadTimer);
     if (vad) await vad.release().catch(() => undefined);
   }
 
-  if (usedRmsFallback && segments.length === 0) {
-    segments.push(
-      ...buildBoundedFallbackSegments(replayedFrames, initialSegmentIndex, initialOverlapped)
-    );
+  if (vadFailed) {
+    return {
+      segments: buildBoundedFallbackSegments(replayedFrames, initialSegmentIndex, initialOverlapped),
+      effectiveElapsedMs,
+    };
   }
 
   return { segments, effectiveElapsedMs };
@@ -474,12 +478,15 @@ export const persistRecoveredTail = (
 ): void => {
   if (tailSegments.length === 0 && tailChunkCount === 0 && prunedOnSeal.length === 0) return;
   const recoveredMeta = serializeDictationMeta(state);
-  for (const seg of tailSegments) {
-    if (seg.wavBuffer) {
-      void journal.commitSegment(seg.index, seg.wavBuffer, recoveredMeta).catch(() => undefined);
-    }
-  }
+  const putSegments = tailSegments
+    .filter((seg): seg is DictationSegment & { wavBuffer: ArrayBuffer } => Boolean(seg.wavBuffer))
+    .map((seg) => ({ index: seg.index, wav: seg.wavBuffer }));
   void journal
-    .updateState(recoveredMeta, prunedOnSeal.length > 0 ? prunedOnSeal : undefined, true)
+    .updateState(
+      recoveredMeta,
+      prunedOnSeal.length > 0 ? prunedOnSeal : undefined,
+      true,
+      putSegments.length > 0 ? putSegments : undefined
+    )
     .catch(() => undefined);
 };
