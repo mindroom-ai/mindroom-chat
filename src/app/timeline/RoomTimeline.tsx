@@ -92,6 +92,7 @@ import { useRoomTimelineNavigationController } from './roomTimelineNavigationCon
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import {
   clearVirtualizerHoldOffset,
+  hasPendingVirtualizerAnchor,
   readVirtualizerHoldOffset,
   useTimelineScrollLedgerController,
 } from './timelineScrollLedgerController';
@@ -1323,27 +1324,30 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // list's bottom edge where it is and the next one takes the new height: moving it there would
   // resize the scroll content, which the scrollbar, the minimap and the follow-growth observer
   // watch, after the rows inside it were reported, and WebKit then reports "ResizeObserver loop
-  // completed with undelivered notifications". A correction the ledger took in the same pass moves
-  // the list's top (its negative top margin) in that render, so the held height takes the
-  // difference; the rows paint where they belong either way.
+  // completed with undelivered notifications".
   // A row that changed size in place renders the rows after it the same way.
   // That render keeps the rows it had, too, and the next one mounts the rows the window gained:
   // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
   // depth of the rows just reported, and the browser skips it and reports the loop (closing the
   // message editor shrank its row, and the window gained a row above). Those rows are overscan.
   // Rows that wrapped anew with the scroll area's width take the new height (`unrenderedRewrap`).
-  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`): a
-  // list held over them ends below or above its newest row for a frame, where a thread that
-  // opens pinned and showed its rows, and the next render moved them.
+  // So do rows sized outside of that loop, measured as they mount (`unrenderedInRowReport`), and
+  // renders that change itemCount or carry an upstream `pendingScrollAnchor` (otherwise holding the
+  // old list height clamps `_willUpdate()`'s anchor scrollTop write against the shorter box).
+  const prevItemCountRef = useRef(itemCount);
+  const itemCountChanged = prevItemCountRef.current !== itemCount;
+  useLayoutEffect(() => {
+    prevItemCountRef.current = itemCount;
+  });
   const renderedList = ledger.virtualInnerRef.current?.style;
   const beforePaint = ledger.unrenderedRowMove();
-  const heldList =
+  const deferRowReport =
+    !itemCountChanged &&
+    !hasPendingVirtualizerAnchor(virtualizer) &&
     beforePaint &&
-    ledger.unrenderedInRowReport() &&
-    !ledger.unrenderedRewrap() &&
-    renderedList?.height
-      ? renderedList
-      : undefined;
+    ledger.unrenderedInRowReport();
+  const heldList =
+    deferRowReport && !ledger.unrenderedRewrap() && renderedList?.height ? renderedList : undefined;
   const listHeight = heldList ? Number.parseFloat(heldList.height) : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
@@ -1850,7 +1854,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>(undefined);
   const mountedRowKeys = mountedRowKeysRef.current;
   const virtualItems =
-    beforePaint && ledger.unrenderedInRowReport() && mountedRowKeys
+    deferRowReport && mountedRowKeys
       ? windowItems.filter((item) => mountedRowKeys.has(item.key))
       : windowItems;
   useLayoutEffect(() => {

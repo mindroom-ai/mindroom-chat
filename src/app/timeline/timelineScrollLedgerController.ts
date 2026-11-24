@@ -84,6 +84,11 @@ export type TimelineScrollLedgerController = {
 export const readVirtualizerHoldOffset = (virtualizer: unknown): number =>
   (virtualizer as { _holdOffset?: number } | null | undefined)?._holdOffset ?? 0;
 
+export const hasPendingVirtualizerAnchor = (virtualizer: unknown): boolean =>
+  Boolean(
+    (virtualizer as { pendingScrollAnchor?: unknown } | null | undefined)?.pendingScrollAnchor
+  );
+
 export const clearVirtualizerHoldOffset = (virtualizer: {
   cancelScroll: () => void;
   scrollElement?: { scrollTop: number } | null;
