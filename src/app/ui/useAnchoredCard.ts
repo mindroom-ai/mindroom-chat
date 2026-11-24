@@ -26,27 +26,26 @@ const getMutationRoot = (trigger: HTMLElement | null | undefined): Node | null =
   return typeof document !== 'undefined' ? (document.body ?? document.documentElement) : null;
 };
 
-const observeMutations = (
-  observer: MutationObserver,
+const isPopupOwnMutation = (
+  record: MutationRecord,
+  root: Node | null,
+  content: HTMLElement | null | undefined,
   trigger: HTMLElement | null | undefined
-): void => {
-  const root = getMutationRoot(trigger);
-  if (root) {
-    observer.observe(root, { childList: true, subtree: true });
+): boolean => {
+  if (record.type !== 'attributes') return false;
+  const { target } = record;
+  if (target === root) return false;
+  if (trigger instanceof Node && (target === trigger || target.contains(trigger))) return false;
+  if (content instanceof Node && (content.contains(target) || target.contains(content))) {
+    return true;
   }
-  let current: Element | null = trigger instanceof Element ? trigger : null;
-  while (current && current !== root) {
-    observer.observe(current, {
-      attributes: true,
-      attributeFilter: ['style', 'class', 'hidden'],
-    });
-    current = current.parentElement;
-  }
+  return target instanceof Element && target.closest('[data-popout]') !== null;
 };
 
 /**
  * Follow a popup through layout changes without polling while idle. A getter is re-read on
- * scroll, viewport resize, element resize, and DOM mutations so remounted triggers stay tracked.
+ * scroll, viewport resize, element resize, resource load, and DOM mutations so remounted triggers
+ * stay tracked.
  */
 export function useLiveAnchor(
   opener: HTMLElement | (() => HTMLElement | null) | undefined,
@@ -70,8 +69,8 @@ export function useLiveAnchor(
     let rect: RectCords | undefined;
     let contentSize: string | undefined;
     let trackedTrigger: HTMLElement | null | undefined;
-    let observingMutations = false;
-    const observed = new Set<Element>();
+    let trackedContent: HTMLElement | null | undefined;
+    let mutationRoot: Node | null = null;
 
     const cancelFrame = () => {
       if (frame !== 0) {
@@ -82,55 +81,77 @@ export function useLiveAnchor(
 
     const resizeObserver =
       typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => schedule());
+    if (resizeObserver && document.documentElement instanceof Element) {
+      resizeObserver.observe(document.documentElement);
+    }
+
     const mutationObserver =
       typeof MutationObserver === 'undefined'
         ? undefined
-        : new MutationObserver(() => schedule());
+        : new MutationObserver((records) => {
+            const trigger = getTrigger();
+            const content = contentRef?.current;
+            if (
+              records.some((record) => !isPopupOwnMutation(record, mutationRoot, content, trigger))
+            ) {
+              schedule();
+            }
+          });
+
+    const swapObserved = (
+      prev: HTMLElement | null | undefined,
+      next: HTMLElement | null | undefined,
+      other: HTMLElement | null | undefined
+    ) => {
+      if (!resizeObserver || prev === next) return;
+      if (
+        prev instanceof Element &&
+        prev !== other &&
+        prev !== document.documentElement &&
+        typeof resizeObserver.unobserve === 'function'
+      ) {
+        resizeObserver.unobserve(prev);
+      }
+      if (next instanceof Element) {
+        resizeObserver.observe(next);
+      }
+    };
 
     const syncObserved = (scheduleOnTriggerChange: boolean) => {
       const trigger = getTrigger();
-      const triggerChanged = trigger !== trackedTrigger;
-      trackedTrigger = trigger;
-
       const content = contentRef?.current;
+      const triggerChanged = trigger !== trackedTrigger;
+      const contentChanged = content !== trackedContent;
+
       if (contentSize === undefined && content) {
         const box = content.getBoundingClientRect();
         contentSize = `${box.width}x${box.height}`;
       }
 
-      if (mutationObserver && (!observingMutations || triggerChanged)) {
-        observingMutations = true;
-        mutationObserver.disconnect();
-        observeMutations(mutationObserver, trigger);
+      if (mutationObserver && (!mutationRoot || triggerChanged)) {
+        const nextRoot = getMutationRoot(trigger);
+        if (nextRoot !== mutationRoot) {
+          mutationObserver.disconnect();
+          mutationRoot = nextRoot;
+          if (mutationRoot) {
+            mutationObserver.observe(mutationRoot, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class', 'hidden'],
+              characterData: true,
+            });
+          }
+        }
       }
 
-      if (resizeObserver) {
-        const desired = new Set<Element>();
-        if (document.documentElement instanceof Element) desired.add(document.documentElement);
-        if (trigger instanceof Element) desired.add(trigger);
-        if (trigger instanceof HTMLElement && trigger.offsetParent instanceof Element) {
-          desired.add(trigger.offsetParent);
-        }
-        if (content instanceof Element) desired.add(content);
-
-        for (const el of observed) {
-          if (!desired.has(el)) {
-            if (typeof resizeObserver.unobserve === 'function') {
-              resizeObserver.unobserve(el);
-              observed.delete(el);
-            } else {
-              resizeObserver.disconnect();
-              observed.clear();
-              break;
-            }
-          }
-        }
-        for (const el of desired) {
-          if (!observed.has(el)) {
-            resizeObserver.observe(el);
-            observed.add(el);
-          }
-        }
+      if (triggerChanged) {
+        swapObserved(trackedTrigger, trigger, trackedContent);
+        trackedTrigger = trigger;
+      }
+      if (contentChanged) {
+        swapObserved(trackedContent, content, trackedTrigger);
+        trackedContent = content;
       }
 
       if (scheduleOnTriggerChange && triggerChanged) {
@@ -179,6 +200,7 @@ export function useLiveAnchor(
     };
 
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
+    window.addEventListener('load', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', schedule, { passive: true });
@@ -192,12 +214,12 @@ export function useLiveAnchor(
       syncObservedRef.current = undefined;
       cancelFrame();
       window.removeEventListener('scroll', schedule, { capture: true });
+      window.removeEventListener('load', schedule, { capture: true });
       window.removeEventListener('resize', schedule);
       viewport?.removeEventListener('resize', schedule);
       viewport?.removeEventListener('scroll', schedule);
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
-      observed.clear();
     };
   }, [opener, onGone, contentRef]);
 

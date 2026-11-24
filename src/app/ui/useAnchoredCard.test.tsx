@@ -204,6 +204,70 @@ describe('useAnchoredCard', () => {
     expect(disconnect).toHaveBeenCalled();
   });
 
+  it('re-anchors on image load and text edits and ignores popup style writes', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    const img = document.createElement('img');
+    const above = document.createElement('p');
+    const textNode = document.createTextNode('Before');
+    above.append(textNode);
+    document.body.prepend(above, img);
+    try {
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame');
+      render(<Harness />);
+      const trigger = screen.getByText('Example trigger');
+      fireEvent.click(trigger);
+      await act(async () => {
+        await Promise.resolve();
+        vi.advanceTimersToNextFrame();
+      });
+      rafSpy.mockClear();
+
+      // Non-bubbling resource load above the trigger re-anchors without scroll or resize.
+      rect = { ...rect, y: 120 };
+      act(() => {
+        img.dispatchEvent(new Event('load'));
+      });
+      expect(rafSpy).toHaveBeenCalledTimes(1);
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(card()?.dataset.top).toBe('120');
+
+      // In-place characterData edit above the trigger re-anchors without scroll or resize.
+      rafSpy.mockClear();
+      rect = { ...rect, y: 160 };
+      await act(async () => {
+        textNode.data = 'Before with much longer wrapped text';
+        await Promise.resolve();
+      });
+      expect(rafSpy).toHaveBeenCalledTimes(1);
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+      expect(card()?.dataset.top).toBe('160');
+
+      // Attribute writes on the popup itself do not schedule a re-anchor loop.
+      rafSpy.mockClear();
+      await act(async () => {
+        card()!.style.transform = 'translate3d(0, 160px, 0)';
+        await Promise.resolve();
+      });
+      expect(rafSpy).not.toHaveBeenCalled();
+
+      // Closing tears down the capture-phase load listener.
+      fireEvent.click(trigger);
+      expect(card()).toBeNull();
+      rafSpy.mockClear();
+      act(() => {
+        img.dispatchEvent(new Event('load'));
+      });
+      expect(rafSpy).not.toHaveBeenCalled();
+    } finally {
+      img.remove();
+      above.remove();
+    }
+  });
+
   it('keeps the card open and follows a trigger remounted under the same ref', () => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const { rerender } = render(<Harness triggerKey="original" />);

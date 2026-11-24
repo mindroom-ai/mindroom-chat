@@ -69,6 +69,15 @@ const matchField = (value: string, query: string): FieldMatch => {
  */
 const NO_MATCH_TIER = 8;
 
+const MIN_SUBSTITUTION_LENGTH = 3;
+// Below every weighted matchWord score (minimum is 30 * 0.1 = 3.0 on non-name fields and
+// 16 * 0.25 = 4.0 on name fields) so exact, transposition, typo, initials, and abbreviation
+// matches always outrank a single-character substitution fallback.
+const SUBSTITUTION_FALLBACK_SCORE = 4;
+const SUBSTITUTION_TOKEN_PENALTY = -0.5;
+const SUBSTITUTION_TOKEN_PENALTY_CAP = 4;
+const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
+
 const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): number => {
   const localpart = getUserLocalpart(user.userId);
   const postPrefixLocalpart = getPostPrefixLocalpart(localpart);
@@ -144,9 +153,41 @@ const getPreparedUsers = (users: readonly ServerUserDirectoryUser[]): PreparedUs
   return prepared;
 };
 
+const hasSingleCharSubstitution = (left: string, right: string): boolean => {
+  if (left.length !== right.length) return false;
+  let diffs = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left.charCodeAt(index) !== right.charCodeAt(index)) {
+      diffs += 1;
+      if (diffs > 1) return false;
+    }
+  }
+  return diffs === 1;
+};
+
+const matchSingleCharSubstitution = (
+  word: string,
+  prepared: PreparedText
+): { score: number; detail: number } | undefined => {
+  if (word.length < MIN_SUBSTITUTION_LENGTH) return undefined;
+  let tokenIndex = 0;
+  for (const token of prepared.text.split(TOKEN_SEPARATOR)) {
+    if (token.length === 0) continue;
+    if (hasSingleCharSubstitution(word, token)) {
+      return {
+        score: SUBSTITUTION_FALLBACK_SCORE,
+        detail: Math.min(tokenIndex, SUBSTITUTION_TOKEN_PENALTY_CAP) * SUBSTITUTION_TOKEN_PENALTY,
+      };
+    }
+    tokenIndex += 1;
+  }
+  return undefined;
+};
+
 const scorePreparedUser = (
   fields: readonly PreparedField[],
-  words: readonly string[]
+  words: readonly string[],
+  allowSubstitution = false
 ): { score: number; detail: number } | undefined => {
   if (words.length === 0) return undefined;
   let scoreSum = 0;
@@ -155,7 +196,11 @@ const scorePreparedUser = (
     let bestScore = -1;
     let bestDetail = -Infinity;
     for (const field of fields) {
-      const match = matchWord(word, field.prepared, field.name);
+      const match =
+        matchWord(word, field.prepared, field.name) ??
+        (allowSubstitution && field.name
+          ? matchSingleCharSubstitution(word, field.prepared)
+          : undefined);
       if (!match) continue;
       const score = match.score * field.weight;
       const detail = match.detail * field.weight;
@@ -273,7 +318,7 @@ export const rankUsers = (
   const fuzzyByUserId = new Map<string, UserDirectorySearchResult>();
   for (const preparedUser of preparedUsers) {
     for (const { words } of queryVariants) {
-      const fuzzy = scorePreparedUser(preparedUser.fields, words);
+      const fuzzy = scorePreparedUser(preparedUser.fields, words, true);
       if (!fuzzy) continue;
       keepBestResult(fuzzyByUserId, {
         user: preparedUser.user,

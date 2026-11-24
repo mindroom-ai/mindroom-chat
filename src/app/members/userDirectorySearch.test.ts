@@ -74,6 +74,37 @@ describe('rankUsers', () => {
     expect(rankUsers(users, 'alcie').map((user) => user.userId)).toContain('@alice:example.org');
   });
 
+  it('matches a single-character substitution in a 4-letter name in the directory fallback', () => {
+    const john: ServerUserDirectoryUser = { userId: '@john:example.org', displayName: 'John' };
+    expect(rankUsers([...users, john], 'jphn').map((user) => user.userId)).toEqual([
+      '@john:example.org',
+    ]);
+
+    // Stronger fuzzy matches (e.g. a transposition) rank above a single-character substitution,
+    // and display-name substitutions outrank localpart-token substitutions.
+    expect(
+      rankUsers(
+        [
+          john,
+          { userId: '@john_doe:example.org', displayName: 'Unrelated' },
+          { userId: '@jpnh:example.org', displayName: 'Jpnh' },
+        ],
+        'jphn'
+      ).map((user) => user.userId)
+    ).toEqual(['@jpnh:example.org', '@john:example.org', '@john_doe:example.org']);
+
+    // Literal hits still suppress substitution fallback matches.
+    expect(
+      rankUsers([john, { userId: '@jphn:example.org', displayName: 'Jphn' }], 'jphn').map(
+        (user) => user.userId
+      )
+    ).toEqual(['@jphn:example.org']);
+
+    // Substitutions require length >= 3 and never match the homeserver domain.
+    expect(rankUsers([{ userId: '@bo:example.org', displayName: 'Bo' }], 'bp')).toEqual([]);
+    expect(rankUsers([john], 'orb')).toEqual([]);
+  });
+
   it('ranks exact localpart and MXID matches above weak display-name matches', () => {
     const exactUser = { userId: '@casey:example.org', displayName: 'Unrelated' };
     const weakDisplayMatch = {
