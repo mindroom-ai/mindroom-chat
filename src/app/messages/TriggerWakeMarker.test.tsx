@@ -8,6 +8,7 @@ import ar from '../i18n/locales/additions/ar.json';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
 import { userRoomProfileAtom } from '../navigation/userRoomProfile';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { getHomeRoomPath } from '../routes/pathUtils';
 import { TriggerWakeMarker } from './TriggerWakeMarker';
 
@@ -31,7 +32,9 @@ vi.mock('../lib/dom', async () => {
 });
 vi.mock('./TriggerWakeMarker.css', () => ({
   Marker: 'Marker',
+  TriggerRow: 'TriggerRow',
   Trigger: 'Trigger',
+  TriggerLink: 'TriggerLink',
   Title: 'Title',
   Summary: 'Summary',
   Panel: 'Panel',
@@ -272,7 +275,7 @@ describe('TriggerWakeMarker', () => {
       </JotaiProvider>
     );
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
 
     const mdPermalink = screen.getByRole('link', { name: 'thread' });
     expect(mdPermalink.getAttribute('data-mention-id')).toBe(ROOM_ID);
@@ -303,5 +306,27 @@ describe('TriggerWakeMarker', () => {
 
     const payload = screen.getByRole('region', { name: 'Event payload JSON' });
     expect(payload.querySelector('a')).toBeNull();
+  });
+
+  it('links to its trigger row in RoomTriggersDialog when roomId and triggerId are present', () => {
+    const store = createStore();
+    render(
+      <JotaiProvider store={store}>
+        <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+      </JotaiProvider>
+    );
+
+    const expandButton = screen.getByRole('button', { expanded: false });
+    expect(expandButton.textContent).toBe('Triggeredpr.opened');
+
+    const linkButton = screen.getByRole('button', { name: 'View trigger tr_demo_watch' });
+    expect(linkButton.getAttribute('aria-haspopup')).toBe('dialog');
+    fireEvent.click(linkButton);
+
+    expect(store.get(roomTriggersDialogAtom)).toEqual({
+      roomId: '!ops:example.org',
+      triggerId: 'tr_demo_watch',
+      opener: linkButton,
+    });
   });
 });

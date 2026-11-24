@@ -53,6 +53,17 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
+import {
+  RoomTriggersButton,
+  RoomTriggersMenuEntry,
+  RoomTriggersOverlay,
+} from '../triggers/RoomTriggersButton';
+import { useRoomTriggers } from '../triggers/useRoomTriggers';
+import {
+  closeRoomTriggersDialog,
+  openRoomTriggersDialog,
+  roomTriggersDialogAtom,
+} from '../navigation/roomTriggersDialog';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
@@ -295,6 +306,21 @@ export function RoomViewHeader({
   useEffect(() => {
     if (!schedulesOpen && schedules) setSchedules(undefined);
   }, [schedulesOpen, schedules]);
+  const roomTriggers = useRoomTriggers(room);
+  const triggersDialog = useAtomValue(roomTriggersDialogAtom);
+  const triggersOpen = triggersDialog?.roomId === room.roomId;
+  const openTriggers = (opener?: HTMLButtonElement) =>
+    openRoomTriggersDialog(store, room.roomId, { opener });
+  const prevTriggersRoomId = useRef(room.roomId);
+  useEffect(() => {
+    if (prevTriggersRoomId.current !== room.roomId) {
+      closeRoomTriggersDialog(store, prevTriggersRoomId.current);
+      prevTriggersRoomId.current = room.roomId;
+    }
+  }, [room.roomId, store]);
+  useEffect(() => {
+    if (triggersOpen) void roomTriggers.refetch();
+  }, [triggersOpen, triggersDialog, roomTriggers.refetch]);
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -416,6 +442,8 @@ export function RoomViewHeader({
   }
   const openScheduledThread = (scheduledThreadId: string) =>
     navigateRoomThread(room.roomId, scheduledThreadId);
+  const openTriggerThread = (targetThreadId: string, targetRoomId?: string) =>
+    navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId);
   const cancelScheduledTask = useCallback(
     (task: ParsedScheduledTask) => sendCancelScheduledTask(mx, room, task),
     [mx, room]
@@ -498,6 +526,31 @@ export function RoomViewHeader({
         <RoomSchedulesMenuEntry
           total={pendingSchedules.length}
           onSelect={fromMenu(openSchedules)}
+        />
+      ),
+    },
+    roomTriggers.triggers.length > 0 && {
+      id: 'triggers',
+      placement: 'auto',
+      row: (
+        <RoomTriggersButton
+          total={roomTriggers.triggers.length}
+          open={
+            triggersOpen &&
+            triggersDialog?.triggerId === undefined &&
+            openedFromRow(
+              triggersDialog?.opener instanceof HTMLButtonElement
+                ? triggersDialog.opener
+                : undefined
+            )
+          }
+          onOpen={openTriggers}
+        />
+      ),
+      menu: (
+        <RoomTriggersMenuEntry
+          total={roomTriggers.triggers.length}
+          onSelect={fromMenu(openTriggers)}
         />
       ),
     },
@@ -817,6 +870,26 @@ export function RoomViewHeader({
           onOpenThread={openScheduledThread}
           onCancelTask={canManageSchedules ? cancelScheduledTask : undefined}
           onEditTask={canManageSchedules && canEditSchedule ? editScheduledTask : undefined}
+        />
+      )}
+      {triggersOpen && (
+        <RoomTriggersOverlay
+          roomId={room.roomId}
+          headerRef={headerRef}
+          triggers={roomTriggers.triggers}
+          loading={roomTriggers.isFetching}
+          highlightTriggerId={triggersDialog?.triggerId}
+          highlightRequest={triggersDialog}
+          onClose={(dismissed) => {
+            const opener = triggersDialog?.opener;
+            closeRoomTriggersDialog(store, room.roomId);
+            if (dismissed || (dismissed === false && !opener?.isConnected)) {
+              restoreFocusAfterDismiss(opener);
+            }
+          }}
+          onOpenThread={openTriggerThread}
+          onToggleTrigger={roomTriggers.toggleTrigger}
+          onDeleteTrigger={roomTriggers.deleteTrigger}
         />
       )}
       {dialog}

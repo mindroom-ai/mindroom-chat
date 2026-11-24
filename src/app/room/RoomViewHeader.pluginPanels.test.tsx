@@ -47,6 +47,15 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomTopic: () => undefined,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
+vi.mock('../triggers/useRoomTriggers', () => ({
+  useRoomTriggers: () => ({
+    triggers: [],
+    isFetching: false,
+    refetch: vi.fn(async () => undefined),
+    toggleTrigger: vi.fn(async () => undefined),
+    deleteTrigger: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => [] }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
   usePowerLevels: () => ({}),

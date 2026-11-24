@@ -42,6 +42,46 @@ export const Trigger = style({
 
 globalStyle(`${Trigger} > svg`, { flexShrink: 0 });
 
+export const TriggerRow = style({
+  display: 'inline-flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  columnGap: config.space.S100,
+  rowGap: 0,
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+});
+
+export const TriggerLink = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+  border: 0,
+  borderRadius: config.radii.R300,
+  paddingBlock: toRem(1),
+  paddingInline: config.space.S100,
+  background: 'transparent',
+  color: 'inherit',
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
+  transition: 'opacity 120ms ease, color 120ms ease, background-color 120ms ease',
+  opacity: config.opacity.P400,
+  font: 'inherit',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover, &:focus-visible': {
+      opacity: 1,
+      color: color.Primary.OnContainer,
+      background: color.Primary.Container,
+    },
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
+});
+
 export const Panel = style([
   modelCss.Panel,
   {

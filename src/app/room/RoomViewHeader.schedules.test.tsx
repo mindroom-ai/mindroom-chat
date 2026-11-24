@@ -129,6 +129,15 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
+vi.mock('../triggers/useRoomTriggers', () => ({
+  useRoomTriggers: () => ({
+    triggers: [],
+    isFetching: false,
+    refetch: vi.fn(async () => undefined),
+    toggleTrigger: vi.fn(async () => undefined),
+    deleteTrigger: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: ({ onOpen }: { onOpen: () => void }) => {
     overlayCapture.openTrigger = onOpen;
