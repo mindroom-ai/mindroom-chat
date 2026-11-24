@@ -41,20 +41,21 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  * Retry only saves again. The state belongs to the picture it was for: another picture starts
  * at a plain Download.
  */
-const useSaveMedia = (src: string, fileName: string, downloadBlob?: Blob) => {
-  const [saved, setSaved] = useState<{ src: string; state: DownloadState }>();
-  const blobRef = useRef<{ src: string; blob: Blob }>();
-  const state = saved?.src === src ? saved.state : 'idle';
+const useSaveMedia = (src: string | undefined, fileName: string, downloadBlob?: Blob) => {
+  const mediaKey: string | Blob | undefined = src || downloadBlob;
+  const [saved, setSaved] = useState<{ key: string | Blob; state: DownloadState }>();
+  const blobRef = useRef<{ key: string | Blob; blob: Blob }>();
+  const state = mediaKey !== undefined && saved?.key === mediaKey ? saved.state : 'idle';
 
   const save = async () => {
-    if (state === 'saving') return;
+    if (!mediaKey || state === 'saving') return;
     // A save that ends after another picture's started leaves that one's state alone.
     const finish = (next: DownloadState) =>
-      setSaved((prev) => (prev?.src === src ? { src, state: next } : prev));
-    setSaved({ src, state: 'saving' });
+      setSaved((prev) => (prev?.key === mediaKey ? { key: mediaKey, state: next } : prev));
+    setSaved({ key: mediaKey, state: 'saving' });
     try {
-      if (blobRef.current?.src !== src) {
-        blobRef.current = { src, blob: downloadBlob ?? (await downloadMedia(src)) };
+      if (blobRef.current?.key !== mediaKey) {
+        blobRef.current = { key: mediaKey, blob: downloadBlob ?? (await downloadMedia(src ?? '')) };
       }
       await saveFile(new Blob([blobRef.current.blob], { type: DOWNLOAD_MIME_TYPE }), fileName);
       finish('idle');
@@ -191,7 +192,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     ref
   ) => {
     const { t } = useTranslation();
-    const [downloadState, download] = useSaveMedia(src ?? '', alt, downloadBlob);
+    const [downloadState, download] = useSaveMedia(src, alt, downloadBlob);
     // The name shows its direction controls; the download keeps it as it is.
     const shownAlt = revealDirectionControls(alt);
     const imageRef = useRef<HTMLImageElement>(null);
@@ -401,7 +402,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             <Button
               type="button"
               before={downloadIcon}
-              disabled={saving || !src}
+              disabled={saving || (!src && !downloadBlob)}
               onClick={() => void download()}
               variant={downloadState === 'failed' ? 'Critical' : 'Primary'}
               fill="Solid"

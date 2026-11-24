@@ -457,19 +457,25 @@ describe('ImageViewer download', () => {
     expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
   });
 
-  it('saves downloadBlob instead of fetching src when a converted display copy is shown', async () => {
+  it.each([
+    ['converted display copy', 'blob:converted-jpeg', undefined],
+    ['failed display decode', undefined, vi.fn()],
+  ])('saves original downloadBlob bytes for %s', async (_label, src, onRetry) => {
     saveFile.mockClear();
     saveFile.mockResolvedValueOnce(true);
     const originalHeic = new Blob(['raw-heic-bytes'], { type: 'image/heic' });
     render(
       <ImageViewer
-        src="blob:converted-jpeg"
+        src={src}
         downloadBlob={originalHeic}
+        onRetry={onRetry}
         alt="photo.heic"
         requestClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    const button = screen.getByRole('button', { name: 'Download' });
+    expect(button.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(button);
     await waitFor(() => expect(saveFile).toHaveBeenCalledOnce());
     const [savedBlob, savedName] = saveFile.mock.calls[0] ?? [];
     expect(savedName).toBe('photo.heic');

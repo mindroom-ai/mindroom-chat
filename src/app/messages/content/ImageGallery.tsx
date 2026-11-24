@@ -4,7 +4,7 @@ import { revokeBlobUrl } from '../../lib/hooks/useBlobUrlCleanup';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ImageOverlay } from './ImageOverlay';
 import { ImageSlidesContext, type ImageSlide } from './imageSlides';
-import { loadImageOriginalForViewer } from './imageOriginal';
+import { HeicDecodeError, loadImageOriginal } from './imageOriginal';
 
 type ImageGalleryProps = {
   /** The picture the viewer opens on. */
@@ -56,9 +56,10 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
   useEffect(() => {
     const target = currentRef.current;
     if (!target) return undefined;
+    const controller = new AbortController();
     let live = true;
     let objectUrl: string | undefined;
-    loadImageOriginalForViewer(mx, target).then(
+    loadImageOriginal(mx, { ...target, signal: controller.signal }).then(
       ({ src, downloadBlob }) => {
         if (!live) {
           revokeBlobUrl(src);
@@ -67,12 +68,15 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
         objectUrl = src;
         setOriginal({ key, src, downloadBlob });
       },
-      () => {
-        if (live) setOriginal({ key, failed: true });
+      (error: unknown) => {
+        if (!live) return;
+        const downloadBlob = error instanceof HeicDecodeError ? error.originalBlob : undefined;
+        setOriginal({ key, downloadBlob, failed: true });
       }
     );
     return () => {
       live = false;
+      controller.abort();
       if (objectUrl) revokeBlobUrl(objectUrl);
       // Coming back to this picture loads it again rather than show the revoked URL.
       setOriginal(undefined);

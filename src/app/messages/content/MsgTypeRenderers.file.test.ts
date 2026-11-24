@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
@@ -33,9 +33,7 @@ vi.mock('./FileRow.css', () => ({
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
 vi.mock('../layout/layout', () => ({ MessageTextBody: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 
 describe('file renderers', () => {
   it('render events whose file name or MIME type is not a string', () => {
@@ -174,6 +172,29 @@ describe('MImage', () => {
 
     expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"${renderedAs}"`);
 
+    renderer.unmount();
+  });
+
+  it('falls back to the file row when onFallbackToFile is triggered', () => {
+    let fallback: (() => void) | undefined;
+    const renderer = create(
+      React.createElement(MImage, {
+        content: {
+          msgtype: MsgType.Image,
+          body: 'photo.heic',
+          url: 'mxc://example.org/photo',
+          info: { mimetype: 'image/heic' },
+        },
+        renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
+        renderImageContent: ({ onFallbackToFile }) => {
+          fallback = onFallbackToFile;
+          return React.createElement('div', { 'data-renderer': 'image' });
+        },
+      })
+    );
+    expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"image"`);
+    act(() => fallback?.());
+    expect(JSON.stringify(renderer.toJSON())).toContain(`"data-renderer":"file"`);
     renderer.unmount();
   });
 });

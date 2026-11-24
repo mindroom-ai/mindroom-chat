@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadImageOriginal, loadImageOriginalForViewer } from './imageOriginal';
+import {
+  HeicDecodeError,
+  loadImageOriginal,
+  MAX_HEIC_BYTES,
+  resetHeicDecodeStateForTests,
+} from './imageOriginal';
 
 const mocks = vi.hoisted(() => ({
   downloadCachedAttachment: vi.fn(),
@@ -24,6 +29,7 @@ describe('imageOriginal', () => {
 
   beforeEach(() => {
     createdBlobs = [];
+    resetHeicDecodeStateForTests();
     mocks.downloadCachedAttachment.mockReset();
     mocks.decodeHeicBlob.mockReset();
     URL.createObjectURL = vi.fn((blob: Blob | MediaSource) => {
@@ -43,7 +49,7 @@ describe('imageOriginal', () => {
     globalThis.createImageBitmap = probe;
     mocks.downloadCachedAttachment.mockResolvedValue(png);
 
-    const loaded = await loadImageOriginalForViewer(mx, {
+    const loaded = await loadImageOriginal(mx, {
       url: 'mxc://example.org/png-1',
       mimeType: 'image/png',
     });
@@ -54,49 +60,50 @@ describe('imageOriginal', () => {
     expect(mocks.decodeHeicBlob).not.toHaveBeenCalled();
   });
 
-  it('uses the original HEIC bytes without invoking the fallback decoder when native decode succeeds', async () => {
-    const heic = new Blob(['heic-native'], { type: 'image/heic' });
+  it('probes native HEIC once per session and skips the fallback decoder when supported', async () => {
+    const first = new Blob(['heic-1'], { type: 'image/heic' });
+    const second = new Blob(['heic-2'], { type: 'image/heic' });
     const close = vi.fn();
-    globalThis.createImageBitmap = vi.fn().mockResolvedValue({ close });
-    mocks.downloadCachedAttachment.mockResolvedValue(heic);
+    const probe = vi.fn().mockResolvedValue({ close });
+    globalThis.createImageBitmap = probe;
+    mocks.downloadCachedAttachment.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
 
-    const loaded = await loadImageOriginalForViewer(mx, {
-      url: 'mxc://example.org/heic-native',
-      mimeType: 'image/heic',
+    expect(await loadImageOriginal(mx, { url: 'mxc://ex/h1', mimeType: 'image/heic' })).toEqual({
+      src: 'blob:img-1',
+    });
+    expect(await loadImageOriginal(mx, { url: 'mxc://ex/h2', mimeType: 'image/heic' })).toEqual({
+      src: 'blob:img-2',
     });
 
-    expect(loaded).toEqual({ src: 'blob:img-1' });
-    expect(createdBlobs).toEqual([heic]);
+    expect(createdBlobs).toEqual([first, second]);
+    expect(probe).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
     expect(mocks.decodeHeicBlob).not.toHaveBeenCalled();
   });
 
-  it('converts HEIC when native decode fails, keeps original bytes for download, and reuses the cached copy', async () => {
+  it('converts HEIC when native decode fails, keeps original bytes, and reuses the cached copy', async () => {
     const heic = new Blob(['heic-raw'], { type: 'image/heic' });
     const jpeg = new Blob(['jpeg-converted'], { type: 'image/jpeg' });
     globalThis.createImageBitmap = vi.fn().mockRejectedValue(new Error('unsupported'));
     mocks.downloadCachedAttachment.mockResolvedValue(heic);
     mocks.decodeHeicBlob.mockResolvedValue(jpeg);
 
-    const timelineUrl = await loadImageOriginal(mx, {
-      url: 'mxc://example.org/heic-fallback',
+    const timeline = await loadImageOriginal(mx, {
+      url: 'mxc://ex/h-fallback',
       mimeType: 'image/heic',
     });
-    expect(timelineUrl).toBe('blob:img-1');
+    expect(timeline).toEqual({ src: 'blob:img-1', downloadBlob: heic });
     expect(createdBlobs[0]).toBe(jpeg);
-    expect(mocks.decodeHeicBlob).toHaveBeenCalledOnce();
 
-    // Opening the viewer reuses the converted display blob while keeping the original HEIC for saving.
-    const viewerLoaded = await loadImageOriginalForViewer(mx, {
-      url: 'mxc://example.org/heic-fallback',
+    const viewer = await loadImageOriginal(mx, {
+      url: 'mxc://ex/h-fallback',
       mimeType: 'image/heic',
     });
-    expect(viewerLoaded).toEqual({ src: 'blob:img-2', downloadBlob: heic });
-    expect(createdBlobs[1]).toBe(jpeg);
+    expect(viewer).toEqual({ src: 'blob:img-2', downloadBlob: heic });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledOnce();
   });
 
-  it('propagates decode errors without caching them so retry decodes again', async () => {
+  it('throws HeicDecodeError with originalBlob on decode failure and evicts failed cache entries', async () => {
     const corrupt = new Blob(['not-heic'], { type: 'image/heif' });
     const recovered = new Blob(['jpeg-ok'], { type: 'image/jpeg' });
     globalThis.createImageBitmap = vi.fn().mockRejectedValue(new Error('unsupported'));
@@ -105,16 +112,40 @@ describe('imageOriginal', () => {
       .mockRejectedValueOnce(new Error('Invalid HEIF box'))
       .mockResolvedValueOnce(recovered);
 
-    await expect(
-      loadImageOriginal(mx, { url: 'mxc://example.org/heic-bad', mimeType: 'image/heif' })
-    ).rejects.toThrow('Invalid HEIF box');
+    let caught: unknown;
+    try {
+      await loadImageOriginal(mx, { url: 'mxc://ex/h-bad', mimeType: 'image/heif' });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(HeicDecodeError);
+    expect((caught as HeicDecodeError).originalBlob).toBe(corrupt);
 
     const retried = await loadImageOriginal(mx, {
-      url: 'mxc://example.org/heic-bad',
+      url: 'mxc://ex/h-bad',
       mimeType: 'image/heif',
     });
-    expect(retried).toBe('blob:img-1');
-    expect(createdBlobs[0]).toBe(recovered);
+    expect(retried).toEqual({ src: 'blob:img-1', downloadBlob: corrupt });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws HeicDecodeError when over the byte budget and leaves plain network errors untouched', async () => {
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(
+      new Error(`Attachment exceeds the ${MAX_HEIC_BYTES} byte limit`)
+    );
+    await expect(
+      loadImageOriginal(mx, { url: 'mxc://ex/huge', mimeType: 'image/heic' })
+    ).rejects.toBeInstanceOf(HeicDecodeError);
+
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('offline'));
+    let networkErr: unknown;
+    try {
+      await loadImageOriginal(mx, { url: 'mxc://ex/net', mimeType: 'image/heic' });
+    } catch (error) {
+      networkErr = error;
+    }
+    expect(networkErr).toBeInstanceOf(Error);
+    expect(networkErr).not.toBeInstanceOf(HeicDecodeError);
+    expect(mocks.decodeHeicBlob).not.toHaveBeenCalled();
   });
 });

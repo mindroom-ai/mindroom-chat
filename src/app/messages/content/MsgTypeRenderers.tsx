@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode } from 'react';
+import { CSSProperties, ReactNode, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
@@ -180,6 +180,8 @@ export type RenderImageContentArgs = {
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
+  /** Switches the timeline tile to a file row when the picture cannot be decoded. */
+  onFallbackToFile?: () => void;
 };
 
 /**
@@ -251,14 +253,16 @@ export const readImageAttachment = (
   };
 };
 
-/** An image, or a file row for image types a browser should not render (SVG). */
+/** An image, or a file row for types a browser should not render (SVG) or fails to decode. */
 export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
   const image = readImageAttachment(content);
+  const [failedKey, setFailedKey] = useState<string>();
   if (!image) return <BrokenContent />;
-  if (image === 'file') return <>{renderAsFile()}</>;
+  const sourceKey = image === 'file' ? undefined : `${image.url}|${image.mimeType}`;
+  if (image === 'file' || failedKey === sourceKey) return <>{renderAsFile()}</>;
   return (
     <Box style={{ ...mediaBoxStyle(image.info), ...outlineStyle(outlined, toRem(12)) }}>
-      {renderImageContent(image)}
+      {renderImageContent({ ...image, onFallbackToFile: () => setFailedKey(sourceKey) })}
     </Box>
   );
 }

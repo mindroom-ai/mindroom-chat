@@ -136,7 +136,13 @@ const FILE = {
 describe('ImageContent', () => {
   let renderer: ReactTestRenderer | undefined;
 
-  const renderImageContent = ({ mimeType }: { mimeType?: string }) => {
+  const renderImageContent = ({
+    mimeType,
+    onFallbackToFile,
+  }: {
+    mimeType?: string;
+    onFallbackToFile?: () => void;
+  }) => {
     act(() => {
       renderer = create(
         React.createElement(ImageContent, {
@@ -146,6 +152,7 @@ describe('ImageContent', () => {
           info: { w: 4, h: 3 },
           encInfo: FILE,
           owner: OWNER,
+          onFallbackToFile,
           renderImage: ({ onClick, ...props }) =>
             React.createElement('button', { ...props, 'data-role': 'image', onClick }),
         })
@@ -222,5 +229,20 @@ describe('ImageContent', () => {
     });
     expect(preventDefault).toHaveBeenCalled();
     expect(tree.root.findAllByType(ImageGallery)).toHaveLength(1);
+  });
+
+  it('falls back to a file row on HEIC budget/decode failure but keeps Retry on network errors', async () => {
+    const onFallbackToFile = vi.fn();
+    renderImageContent({ mimeType: 'image/heic', onFallbackToFile });
+
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(new Error('offline'));
+    await expect(mocks.loadSrcCallback?.()).rejects.toThrow('offline');
+    expect(onFallbackToFile).not.toHaveBeenCalled();
+
+    mocks.downloadCachedAttachment.mockRejectedValueOnce(
+      new Error('Attachment exceeds the 31457280 byte limit')
+    );
+    await expect(mocks.loadSrcCallback?.()).rejects.toThrow(/exceeds/);
+    expect(onFallbackToFile).toHaveBeenCalledOnce();
   });
 });
