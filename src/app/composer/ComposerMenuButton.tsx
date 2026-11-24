@@ -8,11 +8,11 @@ import {
 } from 'react';
 import { FocusTrap } from 'focus-trap-react';
 import { isHotkey } from 'is-hotkey';
-import { Icon, toRem, type IconSrc, type RectCords } from 'folds';
+import { Box, Icon, Icons, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
-import { MenuGroup } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { useConversationHidden } from '../navigation/conversationView';
 import * as css from './RoomInput.css';
 
@@ -151,5 +151,44 @@ export function ComposerMenuButton({
         )}
       </IconTooltip>
     </PopOut>
+  );
+}
+
+export type ComposerRadioMenuEntryProps = {
+  label: string;
+  checked: boolean;
+  badge: ReactNode;
+  before?: ReactNode;
+  description?: string;
+  onSelect: () => void;
+};
+
+/** A radio-selection entry in a composer picker menu, with checkmark and trailing badge. */
+export function ComposerRadioMenuEntry({
+  label,
+  checked,
+  badge,
+  before,
+  description,
+  onSelect,
+}: ComposerRadioMenuEntryProps) {
+  return (
+    <MenuEntry
+      role="menuitemradio"
+      aria-checked={checked}
+      fill={checked ? 'Soft' : 'None'}
+      className={css.ComposerMenuItem}
+      label={label}
+      description={description}
+      icon={Icons.Check}
+      before={before}
+      after={
+        <Box as="span" alignItems="Center" gap="200">
+          {checked && <Icon size="50" src={Icons.Check} aria-hidden="true" />}
+          {badge}
+        </Box>
+      }
+      onSelect={onSelect}
+    />
   );
 }

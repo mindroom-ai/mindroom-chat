@@ -161,6 +161,7 @@ test.beforeAll(async () => {
     'com.example.greeting': { text: CARD_GREETING },
   });
   await send(person, { body: 'Thanks for the greeting', ...reply(cardRoot) });
+  await send(other, { body: 'Glad to see it', ...reply(cardRoot) });
 });
 
 test.afterAll(() => {

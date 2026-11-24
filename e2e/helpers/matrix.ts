@@ -240,33 +240,13 @@ export const createPrivateSpace = async (
     },
   });
 
-export const createThreadFixture = async (
+export const sendThreadInRoom = async (
   homeserver: string,
   accessToken: string,
-  options: CreateThreadFixtureOptions
+  roomId: string,
+  options: { rootBody: string; replyBody: string; txnPrefix?: string }
 ): Promise<ThreadFixture> => {
-  const roomId = await createPrivateRoom(homeserver, accessToken, {
-    name: options.name,
-    topic: options.topic,
-    preset: options.preset,
-    invite: options.invite,
-    isDirect: options.isDirect,
-  });
   const txnPrefix = options.txnPrefix ?? 'mindroom-e2e';
-
-  if (options.fillerBody) {
-    await sendRoomMessage(
-      homeserver,
-      accessToken,
-      roomId,
-      {
-        msgtype: 'm.text',
-        body: options.fillerBody,
-      },
-      txnPrefix
-    );
-  }
-
   const rootId = await sendRoomMessage(
     homeserver,
     accessToken,
@@ -302,6 +282,40 @@ export const createThreadFixture = async (
     rootBody: options.rootBody,
     replyBody: options.replyBody,
   };
+};
+
+export const createThreadFixture = async (
+  homeserver: string,
+  accessToken: string,
+  options: CreateThreadFixtureOptions
+): Promise<ThreadFixture> => {
+  const roomId = await createPrivateRoom(homeserver, accessToken, {
+    name: options.name,
+    topic: options.topic,
+    preset: options.preset,
+    invite: options.invite,
+    isDirect: options.isDirect,
+  });
+  const txnPrefix = options.txnPrefix ?? 'mindroom-e2e';
+
+  if (options.fillerBody) {
+    await sendRoomMessage(
+      homeserver,
+      accessToken,
+      roomId,
+      {
+        msgtype: 'm.text',
+        body: options.fillerBody,
+      },
+      txnPrefix
+    );
+  }
+
+  return sendThreadInRoom(homeserver, accessToken, roomId, {
+    rootBody: options.rootBody,
+    replyBody: options.replyBody,
+    txnPrefix,
+  });
 };
 
 export const joinRoom = async (
