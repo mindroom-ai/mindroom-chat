@@ -6,8 +6,8 @@ import {
   HTMLReactParserOptions,
   Text as DOMText,
   domToReact,
-  htmlToDOM,
 } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
@@ -974,7 +974,7 @@ const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
 
 /** The HTML's top-level nodes, as the renderer parses it. */
 export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): DOMNode[] =>
-  htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+  parseHtmlToDom(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
 
 type RenderedToolCalls = {
   /** The calls drawn as tool blocks, by index, in the order they are drawn. */

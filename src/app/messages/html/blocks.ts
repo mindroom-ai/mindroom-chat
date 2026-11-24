@@ -1,4 +1,5 @@
-import { Element, htmlToDOM } from 'html-react-parser';
+import { Element } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { isText, type ChildNode } from 'domhandler';
 import { parseInlineMD } from '../../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../../rich-text/markdown/block/parser';
@@ -162,7 +163,7 @@ const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
 
   const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
   let flattenedInline = '';
-  for (const node of htmlToDOM(parsedInline)) {
+  for (const node of parseHtmlToDom(parsedInline)) {
     if (isText(node)) {
       flattenedInline += node.data;
     } else if (isDomElementNode(node) && node.name === 'code') {

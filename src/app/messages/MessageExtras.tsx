@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useMemo, useRef } from 'react';
-import parse, {
+import {
   attributesToProps,
   domToReact,
   type DOMNode,
@@ -11,6 +11,7 @@ import { isDesktopApp } from '../lib/nativeShell';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
+import { parseHtml } from '../rich-text/parseHtml';
 import { sanitizeCustomHtml, sanitizeText } from '../rich-text/sanitize';
 import {
   type HtmlReactParserOptionsSource,
@@ -80,7 +81,7 @@ const desktopExtraHtmlParserOptions = createExtraHtmlParserOptions(true);
 
 const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParserOptionsSource) => {
   const markdownHtml = parseBlockMD(sanitizeText(content), parseInlineMD);
-  return parse(
+  return parseHtml(
     sanitizeCustomHtml(markdownHtml),
     resolveHtmlReactParserOptions(htmlReactParserOptions)
   );
@@ -104,7 +105,7 @@ const renderSectionContent = (
       const sanitizedHtml = sanitizeMessageExtraHtml(content);
       return (
         <div className={css.Html}>
-          {parse(
+          {parseHtml(
             sanitizedHtml,
             isDesktopApp() ? desktopExtraHtmlParserOptions : webExtraHtmlParserOptions
           )}

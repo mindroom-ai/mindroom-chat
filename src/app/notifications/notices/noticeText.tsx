@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import parse, {
+import {
   type DOMNode,
   Element,
   HTMLReactParserOptions,
@@ -14,6 +14,7 @@ import {
   StrikeRule,
 } from '../../rich-text/markdown/inline/rules';
 import { InlineMDRule } from '../../rich-text/markdown/inline/type';
+import { parseHtml } from '../../rich-text/parseHtml';
 import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
 import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { toHttpsUrl } from './notices';
@@ -87,7 +88,7 @@ const noticeHtmlOptions: HTMLReactParserOptions = {
  */
 export const renderNoticeText = (text: string): ReactNode => {
   try {
-    return parse(
+    return parseHtml(
       sanitizeCustomHtml(parseInlineMDWithRules(sanitizeText(text), NOTICE_INLINE_RULES)),
       noticeHtmlOptions
     );

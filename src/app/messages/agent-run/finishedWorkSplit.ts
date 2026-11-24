@@ -1,4 +1,5 @@
-import { htmlToDOM, type HTMLReactParserOptions } from 'html-react-parser';
+import { type HTMLReactParserOptions } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_HTML_REG_G, MINDROOM_TOOL_REF_ICON } from '../html/blocks';
 import {
@@ -69,7 +70,7 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
   });
 
 /** Whether the sanitized HTML shows anything. */
-const rendersVisibleContent = (html: string): boolean => hasVisibleContent(htmlToDOM(html));
+const rendersVisibleContent = (html: string): boolean => hasVisibleContent(parseHtmlToDom(html));
 
 // A marker the renderer draws from the start of a paragraph, after line breaks or the markers
 // before it (`takeLeadingToolRefs`), and the breaks that follow the last one.

@@ -1,4 +1,4 @@
-import parse from 'html-dom-parser';
+import { parseHtmlToDom } from '../rich-text/parseHtml';
 import { ChildNode, Element as DomElement, isTag, isText } from 'domhandler';
 import { Descendant } from 'slate';
 import { escapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
@@ -408,6 +408,6 @@ function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
  * sender recorded it), so the composer shows editable source text.
  */
 export const htmlToEditorInput = (unsafeHtml: string, markdown?: boolean): Descendant[] => {
-  const blocks = dropTrailingEmptyLine(parseBlocks(parse(unsafeHtml), !!markdown));
+  const blocks = dropTrailingEmptyLine(parseBlocks(parseHtmlToDom(unsafeHtml), !!markdown));
   return blocks.length > 0 ? blocks : [paragraph([])];
 };

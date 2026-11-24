@@ -1,6 +1,7 @@
 import { useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import parse, { type HTMLReactParserOptions } from 'html-react-parser';
+import { type HTMLReactParserOptions } from 'html-react-parser';
+import { parseHtml } from '../../rich-text/parseHtml';
 import { Icon, Icons } from 'folds';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -27,7 +28,7 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
   const html = useMemo(() => (ready ? renderLiveMarkdown(text) : undefined), [ready, text]);
   const rendered = useMemo(
     () =>
-      html === undefined ? undefined : parse(sanitizeCustomHtml(html), htmlReactParserOptions),
+      html === undefined ? undefined : parseHtml(sanitizeCustomHtml(html), htmlReactParserOptions),
     [html, htmlReactParserOptions]
   );
 
