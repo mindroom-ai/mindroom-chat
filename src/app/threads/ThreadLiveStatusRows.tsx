@@ -5,6 +5,7 @@ import { Text } from 'folds';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { subscribeLongTextHydration } from '../matrix/protocol/longText';
 import { runningToolCalls } from '../matrix/protocol/toolTrace';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { getThreadStreamingReplies } from '../event-store/threads/useThreadStreamingState';
@@ -42,19 +43,21 @@ const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomC
 
   const store = getLiveReplyStore(mx);
   useEffect(() => {
-    const unsubscribes = replies.map((reply) =>
-      store.subscribe(room.roomId, reply.getId() ?? '', framed)
-    );
+    if (replies.length === 0) return undefined;
+    const unsubscribes = [
+      ...replies.map((reply) => store.subscribe(room.roomId, reply.getId() ?? '', framed)),
+      subscribeLongTextHydration(mx, framed),
+    ];
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
-  }, [framed, replies, room.roomId, store]);
+  }, [framed, mx, replies, room.roomId, store]);
 
   return useMemo(() => {
     void frames;
     const now = Date.now();
     // The reply's row shows its frames only while they are newer than what it wrote.
-    const events = replies.flatMap((reply) => getShownToolCalls(room, reply, store, now));
+    const events = replies.flatMap((reply) => getShownToolCalls(room, reply, store, now, mx));
     return runningToolCalls(events, replies.length > 0);
-  }, [frames, replies, room, store]);
+  }, [frames, mx, replies, room, store]);
 };
 
 type ThreadLiveStatusRowsProps = {
