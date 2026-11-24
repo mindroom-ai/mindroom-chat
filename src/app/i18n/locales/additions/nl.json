@@ -1933,6 +1933,42 @@
       "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
       "howThreadsWork": "Hoe threads werken",
       "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
+    },
+    "help": {
+      "button": "Hulp & gidsen",
+      "buttonWithTip": "Hulp & gidsen (1 tip)",
+      "title": "Hulp & gidsen",
+      "subtitle": "Snelle gidsen",
+      "oneTip": "1 tip",
+      "suggested": "Aanbevolen voor jou",
+      "showHow": "Bekijk hoe",
+      "dismissTip": "Tip sluiten",
+      "guidesHeading": "UI-gidsen",
+      "guides": {
+        "conversation": "Hoe threads werken",
+        "resolve": "Los op wat klaar is",
+        "filters": "Opgeloste threads vinden",
+        "snooze": "Snoozen voor later",
+        "pinAndTag": "Threads vastmaken & taggen",
+        "views": "Compact vs. Threads-weergave",
+        "activity": "Activiteit & goedkeuringen"
+      },
+      "fullTour": "Volledige rondleiding",
+      "shortcuts": "Sneltoetsen"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Los afgeronde threads op",
+        "cardTitle": "Los afgeronde threads op",
+        "roomSummary_one": "{{count}} open thread hier, nog geen opgelost",
+        "roomSummary_other": "{{count}} open threads hier, nog geen opgelost",
+        "allSummary_one": "{{count}} open thread, nog geen opgelost",
+        "allSummary_other": "{{count}} open threads, nog geen opgelost",
+        "cardTextRoom_one": "{{count}} open thread hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextRoom_other": "{{count}} open threads hier, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_one": "{{count}} open thread, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden.",
+        "cardTextAll_other": "{{count}} open threads, nog geen opgelost. Los afgeronde threads op om je lijst overzichtelijk te houden."
+      }
     }
   },
   "threadNav": {

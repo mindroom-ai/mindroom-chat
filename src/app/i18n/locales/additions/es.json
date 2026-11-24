@@ -1989,6 +1989,46 @@
       "settingsKeywords": "recorrido, tour, tutorial, guía, ayuda, introducción, hilos",
       "howThreadsWork": "Cómo funcionan los hilos",
       "noThreadsHint": "Envía un mensaje abajo para empezar uno."
+    },
+    "help": {
+      "button": "Ayuda y guías",
+      "buttonWithTip": "Ayuda y guías (1 consejo)",
+      "title": "Ayuda y guías",
+      "subtitle": "Guías rápidas",
+      "oneTip": "1 consejo",
+      "suggested": "Sugerido para ti",
+      "showHow": "Ver cómo",
+      "dismissTip": "Descartar consejo",
+      "guidesHeading": "Guías de la interfaz",
+      "guides": {
+        "conversation": "Cómo funcionan los hilos",
+        "resolve": "Resuelve lo que está terminado",
+        "filters": "Encontrar hilos resueltos",
+        "snooze": "Posponer para más tarde",
+        "pinAndTag": "Fijar y etiquetar hilos",
+        "views": "Vista Compacto frente a Hilos",
+        "activity": "Actividad y aprobaciones"
+      },
+      "fullTour": "Recorrido completo",
+      "shortcuts": "Atajos"
+    },
+    "tips": {
+      "resolve": {
+        "title": "Resuelve los hilos terminados",
+        "cardTitle": "Resuelve los hilos terminados",
+        "roomSummary_one": "{{count}} hilo abierto aquí, ninguno resuelto aún",
+        "roomSummary_many": "{{count}} hilos abiertos aquí, ninguno resuelto aún",
+        "roomSummary_other": "{{count}} hilos abiertos aquí, ninguno resuelto aún",
+        "allSummary_one": "{{count}} hilo abierto, ninguno resuelto aún",
+        "allSummary_many": "{{count}} hilos abiertos, ninguno resuelto aún",
+        "allSummary_other": "{{count}} hilos abiertos, ninguno resuelto aún",
+        "cardTextRoom_one": "{{count}} hilo abierto aquí, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada.",
+        "cardTextRoom_many": "{{count}} hilos abiertos aquí, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada.",
+        "cardTextRoom_other": "{{count}} hilos abiertos aquí, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada.",
+        "cardTextAll_one": "{{count}} hilo abierto, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada.",
+        "cardTextAll_many": "{{count}} hilos abiertos, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada.",
+        "cardTextAll_other": "{{count}} hilos abiertos, ninguno resuelto aún. Resuelve los terminados para mantener la lista ordenada."
+      }
     }
   },
   "threadNav": {
