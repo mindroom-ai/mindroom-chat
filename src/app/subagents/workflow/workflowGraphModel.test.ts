@@ -59,7 +59,6 @@ const makeGroup = (id: string, overrides: Partial<WorkflowRunGroup> = {}): Workf
 const makeEdge = (from: string, to: string, count = 1): WorkflowRunEdge => ({
   from,
   to,
-  kind: 'message',
   count,
 });
 
@@ -105,7 +104,9 @@ describe('workflowGraphModel', () => {
     expect(withEmptyPhase.bands.map((band) => band.phase)).toEqual(['Audit', 'Verify']);
     expect(withEmptyPhase.bands[1]!.items).toEqual([]);
 
-    const countsOnly = layoutWorkflowRunGraph(makeGraph({ omitted: { ...emptyOmitted, queued: 1000 } }));
+    const countsOnly = layoutWorkflowRunGraph(
+      makeGraph({ omitted: { ...emptyOmitted, queued: 1000 } })
+    );
     expect(countsOnly.bands).toEqual([]);
     expect(countsOnly.omitted.queued).toBe(1000);
   });
@@ -118,10 +119,7 @@ describe('workflowGraphModel', () => {
   it('returns cleanly for groups that name each other as parent, showing each once', () => {
     const layout = layoutWorkflowRunGraph(
       makeGraph({
-        groups: [
-          makeGroup('n1', { parent: 'n2' }),
-          makeGroup('n2', { parent: 'n1' }),
-        ],
+        groups: [makeGroup('n1', { parent: 'n2' }), makeGroup('n2', { parent: 'n1' })],
       })
     );
     const collectGroupIds = (items: readonly WorkflowGraphItem[]): string[] =>
@@ -174,14 +172,15 @@ describe('workflowGraphModel', () => {
     const { shown, more } = foldGroupItems(items);
     expect(shown).toHaveLength(24);
     expect(
-      shown
-        .slice(0, 20)
-        .every((item) => item.type === 'node' && item.node.status !== 'completed')
+      shown.slice(0, 20).every((item) => item.type === 'node' && item.node.status !== 'completed')
     ).toBe(true);
     // Remaining 4 slots hold the newest completed nodes (n280..n277).
-    expect(
-      shown.slice(20).map((item) => (item.type === 'node' ? item.node.id : ''))
-    ).toEqual(['n280', 'n279', 'n278', 'n277']);
+    expect(shown.slice(20).map((item) => (item.type === 'node' ? item.node.id : ''))).toEqual([
+      'n280',
+      'n279',
+      'n278',
+      'n277',
+    ]);
     expect(more).toBe(276);
   });
 
@@ -202,30 +201,29 @@ describe('workflowGraphModel', () => {
 
   it('previews the subagent run result, else the last non-empty line written, cut to 300 chars', () => {
     const node = makeNode('n1');
-    const makeSubagent = (result: string | undefined, md: string): SubagentRun =>
-      ({
-        roomId: '!r:example',
-        sender: '@mindroom_panels:example',
-        run: 'del-1',
-        sid: '1795389735000-a1b2c3d4',
-        seq: 1,
-        lastFrameAt: 1,
-        stale: false,
-        meta: {
-          agent: 'panels',
-          subagent: 'del-1',
-          caller: 'panels',
-          root: 'panels',
-          parent: null,
-          threadId: null,
-          source: 'workflow',
-          status: 'completed',
-          startedAt: 1,
-          endedAt: 2,
-          ...(result !== undefined ? { result } : {}),
-        },
-        docs: { md, reasoning: '', tools: [], status: 'completed', activity: '', segments: [] },
-      });
+    const makeSubagent = (result: string | undefined, md: string): SubagentRun => ({
+      roomId: '!r:example',
+      sender: '@mindroom_panels:example',
+      run: 'del-1',
+      sid: '1795389735000-a1b2c3d4',
+      seq: 1,
+      lastFrameAt: 1,
+      stale: false,
+      meta: {
+        agent: 'panels',
+        subagent: 'del-1',
+        caller: 'panels',
+        root: 'panels',
+        parent: null,
+        threadId: null,
+        source: 'workflow',
+        status: 'completed',
+        startedAt: 1,
+        endedAt: 2,
+        ...(result !== undefined ? { result } : {}),
+      },
+      docs: { md, reasoning: '', tools: [], status: 'completed', activity: '', segments: [] },
+    });
 
     expect(nodeResultPreview(node, undefined)).toBeUndefined();
     expect(nodeResultPreview(node, makeSubagent('Summary ready.', 'Earlier line\nLast line'))).toBe(

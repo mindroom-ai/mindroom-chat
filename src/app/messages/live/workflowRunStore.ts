@@ -62,8 +62,7 @@ export class WorkflowRunStore {
     }
 
     if ('snapshot' in frame) {
-      const requester =
-        frame.meta.requester !== undefined ? frame.meta.requester : held?.requester;
+      const requester = frame.meta.requester !== undefined ? frame.meta.requester : held?.requester;
       const entry: WorkflowRunEntry = {
         roomId,
         sender,
@@ -96,8 +95,7 @@ export class WorkflowRunStore {
       return;
     }
 
-    const requester =
-      frame.meta.requester !== undefined ? frame.meta.requester : held.requester;
+    const requester = frame.meta.requester !== undefined ? frame.meta.requester : held.requester;
     const entry: WorkflowRunEntry = {
       roomId,
       sender,
@@ -167,8 +165,6 @@ export class WorkflowRunStore {
         attempt: card.attempt,
         startedAt: card.startedAt ?? Math.floor(receivedAt / 1000),
         endedAt: card.endedAt,
-        maxConcurrent: 0,
-        maxCostUsd: null,
         large: card.large,
         counts: card.counts,
         usage: card.usage,

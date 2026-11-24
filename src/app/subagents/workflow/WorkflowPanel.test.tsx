@@ -63,16 +63,21 @@ const makeMeta = (overrides: Partial<WorkflowRunMeta> = {}): WorkflowRunMeta => 
   attempt: 1,
   startedAt: 1795389735,
   endedAt: null,
-  maxConcurrent: 16,
-  maxCostUsd: null,
   large: false,
-  counts: { queued: 0, running: 2, waiting: 0, completed: 28, failed: 0, indeterminate: 0, cached: 0 },
+  counts: {
+    queued: 0,
+    running: 2,
+    waiting: 0,
+    completed: 28,
+    failed: 0,
+    indeterminate: 0,
+    cached: 0,
+  },
   usage: {
     inputTokens: 20000,
     outputTokens: 1500,
     toolCalls: 10,
     costUsd: 0.42,
-    attemptCostUsd: 0.42,
     projectedCostUsd: 0.65,
     costUnknown: false,
   },
@@ -143,10 +148,22 @@ const makeClient = ({
       getMxcAvatarUrl: () => undefined,
     }),
     getMembers: () => [
-      { userId: AGENT, name: 'panels', rawDisplayName: 'panels', membership: 'join', getMxcAvatarUrl: () => undefined },
+      {
+        userId: AGENT,
+        name: 'panels',
+        rawDisplayName: 'panels',
+        membership: 'join',
+        getMxcAvatarUrl: () => undefined,
+      },
     ],
     getJoinedMembers: () => [
-      { userId: AGENT, name: 'panels', rawDisplayName: 'panels', membership: 'join', getMxcAvatarUrl: () => undefined },
+      {
+        userId: AGENT,
+        name: 'panels',
+        rawDisplayName: 'panels',
+        membership: 'join',
+        getMxcAvatarUrl: () => undefined,
+      },
     ],
     getEventForTxnId: () => undefined,
   }) as unknown as Room;
@@ -179,13 +196,14 @@ describe('WorkflowPanel', () => {
       AGENT,
       makeSnapshotFrame({
         phases: ['Audit'],
-        groups: [{ id: 'n3', kind: 'foreach', phase: 0, parent: null, total: 40, done: 28, failed: 0 }],
+        groups: [
+          { id: 'n3', kind: 'foreach', phase: 0, parent: null, total: 40, done: 28, failed: 0 },
+        ],
         nodes: [
           makeNode('n4', {
             label: 'Audit auth/session.py',
             group: 'n3',
             run: 'delegation-1',
-            subagent: 'delegation-1',
             model: 'fallback-model',
           }),
         ],
@@ -217,7 +235,14 @@ describe('WorkflowPanel', () => {
             modelId: 'claude-fable-5.2',
           },
         },
-        snapshot: { md: 'Checking tokens.', reasoning: '', tools: [], status: 'streaming', activity: '', segments: [] },
+        snapshot: {
+          md: 'Checking tokens.',
+          reasoning: '',
+          tools: [],
+          status: 'streaming',
+          activity: '',
+          segments: [],
+        },
       },
       Date.now()
     );
@@ -253,7 +278,9 @@ describe('WorkflowPanel', () => {
       AGENT,
       makeSnapshotFrame({
         phases: ['Audit'],
-        groups: [{ id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 300, done: 280, failed: 5 }],
+        groups: [
+          { id: 'n1', kind: 'foreach', phase: 0, parent: null, total: 300, done: 280, failed: 5 },
+        ],
         nodes,
         omitted: { ...emptyOmitted, queued: 412, failed: 30 },
       }),
@@ -293,7 +320,17 @@ describe('WorkflowPanel', () => {
           edges: [],
           omitted: { ...emptyOmitted, queued: 1000 },
         },
-        { counts: { queued: 1000, running: 0, waiting: 0, completed: 0, failed: 0, indeterminate: 0, cached: 0 } }
+        {
+          counts: {
+            queued: 1000,
+            running: 0,
+            waiting: 0,
+            completed: 0,
+            failed: 0,
+            indeterminate: 0,
+            cached: 0,
+          },
+        }
       ),
       Date.now()
     );
@@ -330,7 +367,7 @@ describe('WorkflowPanel', () => {
           }),
           makeNode('n5', { label: 'Frontend reviewer', name: 'frontend' }),
         ],
-        edges: [{ from: 'n4', to: 'n5', kind: 'message', count: 2 }],
+        edges: [{ from: 'n4', to: 'n5', count: 2 }],
       }),
       Date.now()
     );
@@ -376,7 +413,12 @@ describe('WorkflowPanel', () => {
 
     const node4 = makeNode('n4', { label: 'Node Four', status: 'running' });
     const node5 = makeNode('n5', { label: 'Node Five', status: 'completed', endedAt: 1795389790 });
-    wfStore.ingest(ROOM_ID, AGENT, makeSnapshotFrame({ phases: ['Audit'], nodes: [node4, node5] }), Date.now());
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({ phases: ['Audit'], nodes: [node4, node5] }),
+      Date.now()
+    );
 
     render(
       <JotaiProvider store={store}>
@@ -402,7 +444,17 @@ describe('WorkflowPanel', () => {
           run: RUN,
           sid: '1795389735000-a1b2c3d4',
           seq: 2,
-          meta: makeMeta({ counts: { queued: 0, running: 0, waiting: 0, completed: 2, failed: 0, indeterminate: 0, cached: 0 } }),
+          meta: makeMeta({
+            counts: {
+              queued: 0,
+              running: 0,
+              waiting: 0,
+              completed: 2,
+              failed: 0,
+              indeterminate: 0,
+              cached: 0,
+            },
+          }),
           delta: {
             nodes: [{ ...node4, status: 'completed', endedAt: 1795389800 }],
           },
@@ -428,8 +480,19 @@ describe('WorkflowPanel', () => {
           makeNode('n1', { label: 'Ask user node', status: 'waiting', waitingOn: 'user' }),
           makeNode('n2', { label: 'Peer wait node', status: 'waiting', waitingOn: 'peer' }),
           makeNode('n3', { label: 'Uncertain write', status: 'indeterminate' }),
-          makeNode('n4', { kind: 'session', label: 'Reviewer session', turns: 2, status: 'running' }),
-          makeNode('n5', { kind: 'turn', label: 'First review pass', session: 'n4', turns: 1, status: 'completed' }),
+          makeNode('n4', {
+            kind: 'session',
+            label: 'Reviewer session',
+            turns: 2,
+            status: 'running',
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'First review pass',
+            session: 'n4',
+            turns: 1,
+            status: 'completed',
+          }),
         ],
       }),
       Date.now()
@@ -469,8 +532,22 @@ describe('WorkflowPanel', () => {
       requester: VIEWER,
       title: 'Audit the sample module',
       status: 'completed',
-      counts: { queued: 0, running: 0, waiting: 0, completed: 1, failed: 1, indeterminate: 0, cached: 0 },
-      usage: { inputTokens: 1000, outputTokens: 100, toolCalls: 2, costUsd: 0.03, costUnknown: false },
+      counts: {
+        queued: 0,
+        running: 0,
+        waiting: 0,
+        completed: 1,
+        failed: 1,
+        indeterminate: 0,
+        cached: 0,
+      },
+      usage: {
+        inputTokens: 1000,
+        outputTokens: 100,
+        toolCalls: 2,
+        costUsd: 0.03,
+        costUnknown: false,
+      },
       phases: ['Verify'],
       attempt: 1,
       startedAt: 1795389735,
@@ -512,8 +589,22 @@ describe('WorkflowPanel', () => {
       requester: '@someone-else:example.org',
       title: 'Audit the sample module',
       status: 'interrupted',
-      counts: { queued: 0, running: 0, waiting: 0, completed: 1, failed: 0, indeterminate: 0, cached: 0 },
-      usage: { inputTokens: 500, outputTokens: 50, toolCalls: 1, costUsd: 0.02, costUnknown: false },
+      counts: {
+        queued: 0,
+        running: 0,
+        waiting: 0,
+        completed: 1,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+      usage: {
+        inputTokens: 500,
+        outputTokens: 50,
+        toolCalls: 1,
+        costUsd: 0.02,
+        costUnknown: false,
+      },
       phases: ['Audit'],
       attempt: 1,
       startedAt: 1795389735,
@@ -546,7 +637,11 @@ describe('WorkflowPanel', () => {
       wfStore.ingest(
         ROOM_ID,
         AGENT,
-        makeSnapshotFrame({ phases: ['Audit'], nodes: [makeNode('n1', { label: 'Audit auth' })] }, { attempt: 2 }, 1),
+        makeSnapshotFrame(
+          { phases: ['Audit'], nodes: [makeNode('n1', { label: 'Audit auth' })] },
+          { attempt: 2 },
+          1
+        ),
         Date.now()
       );
       wfStore.ingest(

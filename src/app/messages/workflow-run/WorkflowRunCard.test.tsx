@@ -33,13 +33,20 @@ const makeCard = (overrides: Partial<WorkflowRunCardData> = {}): WorkflowRunCard
   requester: VIEWER,
   title: 'Audit the sample module',
   status: 'running',
-  counts: { queued: 0, running: 2, waiting: 0, completed: 0, failed: 0, indeterminate: 0, cached: 0 },
+  counts: {
+    queued: 0,
+    running: 2,
+    waiting: 0,
+    completed: 0,
+    failed: 0,
+    indeterminate: 0,
+    cached: 0,
+  },
   usage: {
     inputTokens: 1000,
     outputTokens: 200,
     toolCalls: 4,
     costUsd: 0.12,
-    attemptCostUsd: 0.12,
     projectedCostUsd: 0.45,
     costUnknown: false,
   },
@@ -127,14 +134,26 @@ describe('WorkflowRunCard', () => {
       meta: {
         ...firstFrame.meta,
         status: 'waiting',
-        counts: { queued: 0, running: 8, waiting: 1, completed: 12, failed: 0, indeterminate: 0, cached: 0 },
+        counts: {
+          queued: 0,
+          running: 8,
+          waiting: 1,
+          completed: 12,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
       },
     })!;
     store.ingest(ROOM_ID, AGENT, liveFrame, Date.now());
 
     render(
       <MatrixClientProvider value={mx}>
-        <WorkflowRunCard card={makeCard({ status: 'running' })} roomId={ROOM_ID} threadId={THREAD_ID} />
+        <WorkflowRunCard
+          card={makeCard({ status: 'running' })}
+          roomId={ROOM_ID}
+          threadId={THREAD_ID}
+        />
       </MatrixClientProvider>
     );
 
@@ -225,7 +244,15 @@ describe('WorkflowRunCard', () => {
             status: 'failed',
             endedAt: 1795389800,
             error: 'RuntimeError: checks failed',
-            counts: { queued: 0, running: 0, waiting: 0, completed: 5, failed: 2, indeterminate: 1, cached: 0 },
+            counts: {
+              queued: 0,
+              running: 0,
+              waiting: 0,
+              completed: 5,
+              failed: 2,
+              indeterminate: 1,
+              cached: 0,
+            },
           })}
           roomId={ROOM_ID}
           threadId={THREAD_ID}
@@ -242,7 +269,11 @@ describe('WorkflowRunCard', () => {
     const restricted = makeClient({ canCancel: false });
     const { rerender } = render(
       <MatrixClientProvider value={restricted.mx}>
-        <WorkflowRunCard card={makeCard({ status: 'running' })} roomId={ROOM_ID} threadId={THREAD_ID} />
+        <WorkflowRunCard
+          card={makeCard({ status: 'running' })}
+          roomId={ROOM_ID}
+          threadId={THREAD_ID}
+        />
       </MatrixClientProvider>
     );
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
@@ -271,8 +302,22 @@ describe('WorkflowRunCard', () => {
         requester: VIEWER,
         title: 'Spoofed workflow',
         status: 'running',
-        counts: { queued: 0, running: 1, waiting: 0, completed: 0, failed: 0, indeterminate: 0, cached: 0 },
-        usage: { input_tokens: 0, output_tokens: 0, tool_calls: 0, cost_usd: '0', cost_unknown: false },
+        counts: {
+          queued: 0,
+          running: 1,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+          tool_calls: 0,
+          cost_usd: '0',
+          cost_unknown: false,
+        },
         phases: [],
         attempt: 1,
         started_at: 1795389735,
@@ -320,7 +365,11 @@ describe('WorkflowRunCard', () => {
     const { rerender } = render(
       <JotaiProvider store={jotaiStore}>
         <MatrixClientProvider value={mx}>
-          <WorkflowRunCard card={makeCard({ graph: undefined })} roomId={ROOM_ID} threadId={THREAD_ID} />
+          <WorkflowRunCard
+            card={makeCard({ graph: undefined })}
+            roomId={ROOM_ID}
+            threadId={THREAD_ID}
+          />
         </MatrixClientProvider>
       </JotaiProvider>
     );
@@ -335,7 +384,17 @@ describe('WorkflowRunCard', () => {
         nodes: [],
         edges: [],
         log: [],
-        omitted: { queued: 0, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 0, phases: 0, log: 0 },
+        omitted: {
+          queued: 0,
+          running: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          edges: 0,
+          groups: 0,
+          phases: 0,
+          log: 0,
+        },
       },
     });
     rerender(

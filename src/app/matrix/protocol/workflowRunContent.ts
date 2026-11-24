@@ -1,16 +1,8 @@
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { isRecord } from '../../lib/isRecord';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { discardFailedLocalEcho } from './pendingLocalEcho';
-import {
-  parseWorkflowRunCounts,
-  parseWorkflowRunGraph,
-  parseWorkflowRunUsage,
-  WORKFLOW_RUN_ID_PATTERN,
-  type WorkflowRunCounts,
-  type WorkflowRunGraph,
-  type WorkflowRunStatus,
-  type WorkflowRunUsage,
-} from './workflowFrame';
+import { parseRunSummary, parseWorkflowRunGraph, WORKFLOW_RUN_ID_PATTERN } from './workflowFrame';
 
 export const WORKFLOW_RUN_CONTENT_KEY = 'io.mindroom.workflow_run';
 export const WORKFLOW_QUESTION_CONTENT_KEY = 'io.mindroom.workflow_question';
@@ -18,226 +10,113 @@ export const WORKFLOW_ANSWER_EVENT_TYPE = 'io.mindroom.workflow_answer';
 export const WORKFLOW_ANSWER_REJECTED_EVENT_TYPE = 'io.mindroom.workflow_answer_rejected';
 export const WORKFLOW_CONTROL_EVENT_TYPE = 'io.mindroom.workflow_control';
 
-const RUN_STATUSES: ReadonlySet<string> = new Set<WorkflowRunStatus>([
-  'starting',
-  'running',
-  'waiting',
-  'completed',
-  'failed',
-  'cancelled',
-  'interrupted',
-]);
+export type WorkflowQuestionStatus = 'open' | 'answered' | 'cancelled';
 
-const QUESTION_STATUSES = ['open', 'answered', 'cancelled'] as const;
-export type WorkflowQuestionStatus = (typeof QUESTION_STATUSES)[number];
+const QUESTION_STATUSES: ReadonlySet<string> = new Set(['open', 'answered', 'cancelled']);
 
-export type WorkflowRunCard = {
-  run: string;
-  jobId: string | null;
-  requester: string | null;
-  title: string | null;
-  name?: string | null;
-  status: WorkflowRunStatus;
-  counts: WorkflowRunCounts;
-  usage: WorkflowRunUsage;
-  phases: string[];
-  attempt: number;
-  startedAt: number | null;
-  endedAt: number | null;
-  error: string | null;
-  large: boolean;
-  graph?: WorkflowRunGraph;
-};
-
-export type WorkflowRunQuestion = {
-  run: string;
-  node: string;
-  questionId: string;
-  requester: string | null;
-  text: string;
-  options: string[];
-  freeText: boolean;
-  status: WorkflowQuestionStatus;
-  answer: string | null;
-};
-
-export type WorkflowAnswerRejection = {
-  answerEventId: string;
-  reason: string;
-  run?: string;
-  node?: string;
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-const isNullableString = (value: unknown): value is string | null =>
-  value === null || typeof value === 'string';
-
-const isNullableFinite = (value: unknown): value is number | null =>
-  value === null || (typeof value === 'number' && Number.isFinite(value));
-
-const unwrapContent = (content: unknown): Record<string, unknown> | null => {
+const readKey = (content: unknown, key: string): Record<string, unknown> | null => {
   if (!isRecord(content)) return null;
-  const edited = content['m.new_content'];
-  return isRecord(edited) ? edited : content;
+  const root = isRecord(content['m.new_content']) ? content['m.new_content'] : content;
+  const inner = root[key];
+  return isRecord(inner) ? inner : null;
 };
+const nonEmptyStr = (v: unknown): string | null =>
+  typeof v === 'string' && v.length > 0 ? v : null;
 
-/** Reads `io.mindroom.workflow_run` from a Matrix message content (or its edited replacement). */
-export const parseWorkflowRunCard = (content: unknown): WorkflowRunCard | null => {
-  const source = unwrapContent(content);
-  const raw = source?.[WORKFLOW_RUN_CONTENT_KEY];
-  if (!isRecord(raw)) return null;
-  const {
-    run,
-    job_id: jobId = null,
-    requester = null,
-    title = null,
-    name,
-    status,
-    phases,
-    attempt,
-    started_at: startedAt = null,
-    ended_at: endedAt = null,
-    error = null,
-    large = false,
-  } = raw;
-  const counts = parseWorkflowRunCounts(raw.counts);
-  const usage = parseWorkflowRunUsage(raw.usage);
-  if (
-    typeof run !== 'string' ||
-    !WORKFLOW_RUN_ID_PATTERN.test(run) ||
-    !isNullableString(jobId) ||
-    !isNullableString(requester) ||
-    !isNullableString(title) ||
-    typeof status !== 'string' ||
-    !RUN_STATUSES.has(status) ||
-    typeof attempt !== 'number' ||
-    !Number.isSafeInteger(attempt) ||
-    attempt < 0 ||
-    !isNullableFinite(startedAt) ||
-    !isNullableFinite(endedAt) ||
-    !isNullableString(error) ||
-    typeof large !== 'boolean' ||
-    !counts ||
-    !usage
-  ) {
-    return null;
-  }
-  const graph = raw.graph === undefined || raw.graph === null ? undefined : parseWorkflowRunGraph(raw.graph);
+/** Parses `io.mindroom.workflow_run` from a Matrix message content object, or returns null. */
+export const parseWorkflowRunCard = (content: unknown) => {
+  const raw = readKey(content, WORKFLOW_RUN_CONTENT_KEY);
+  if (!raw || typeof raw.run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(raw.run)) return null;
+  const summary = parseRunSummary(raw, false);
+  if (!summary) return null;
+  const graph = raw.graph !== undefined ? parseWorkflowRunGraph(raw.graph) ?? undefined : undefined;
   return {
-    run,
-    jobId,
-    requester,
-    title,
-    ...(typeof name === 'string' && name.length > 0 ? { name } : {}),
-    status: status as WorkflowRunStatus,
-    counts,
-    usage,
-    phases: Array.isArray(phases)
-      ? phases.filter((phase): phase is string => typeof phase === 'string')
+    ...summary,
+    run: raw.run,
+    jobId: nonEmptyStr(raw.job_id),
+    requester: nonEmptyStr(raw.requester),
+    phases: Array.isArray(raw.phases)
+      ? raw.phases.filter((p): p is string => typeof p === 'string')
       : [],
-    attempt,
-    startedAt,
-    endedAt,
-    error,
-    large,
+    error: typeof raw.error === 'string' ? raw.error : null,
     ...(graph ? { graph } : {}),
   };
 };
+export type WorkflowRunCard = NonNullable<ReturnType<typeof parseWorkflowRunCard>>;
 
-/** Reads `io.mindroom.workflow_question` from a Matrix message content (or its edited replacement). */
-export const parseWorkflowRunQuestion = (content: unknown): WorkflowRunQuestion | null => {
-  const source = unwrapContent(content);
-  const raw = source?.[WORKFLOW_QUESTION_CONTENT_KEY];
-  if (!isRecord(raw)) return null;
-  const {
-    run,
-    node,
-    question_id: questionId,
-    requester = null,
-    text,
-    options: rawOptions,
-    free_text: rawFreeText,
-    status,
-    answer = null,
-  } = raw;
+/** Parses `io.mindroom.workflow_question` from a Matrix message content object, or returns null. */
+export const parseWorkflowRunQuestion = (content: unknown) => {
+  const raw = readKey(content, WORKFLOW_QUESTION_CONTENT_KEY);
+  if (!raw || typeof raw.run !== 'string' || !WORKFLOW_RUN_ID_PATTERN.test(raw.run)) return null;
+  const node = nonEmptyStr(raw.node);
+  const questionId = nonEmptyStr(raw.question_id);
+  const { text, status } = raw;
   if (
-    typeof run !== 'string' ||
-    !WORKFLOW_RUN_ID_PATTERN.test(run) ||
-    typeof node !== 'string' ||
-    node.length === 0 ||
-    typeof questionId !== 'string' ||
-    questionId.length === 0 ||
-    !isNullableString(requester) ||
+    !node ||
+    !questionId ||
     typeof text !== 'string' ||
     typeof status !== 'string' ||
-    !(QUESTION_STATUSES as readonly string[]).includes(status) ||
-    !isNullableString(answer)
+    !QUESTION_STATUSES.has(status)
   ) {
     return null;
   }
-  const options = Array.isArray(rawOptions)
-    ? rawOptions.filter((option): option is string => typeof option === 'string')
+  const options = Array.isArray(raw.options)
+    ? raw.options.filter((o): o is string => typeof o === 'string')
     : [];
-  const freeText = typeof rawFreeText === 'boolean' ? rawFreeText : options.length === 0;
   return {
-    run,
+    run: raw.run,
     node,
     questionId,
-    requester,
+    requester: nonEmptyStr(raw.requester),
     text,
     options,
-    freeText,
+    freeText: typeof raw.free_text === 'boolean' ? raw.free_text : options.length === 0,
     status: status as WorkflowQuestionStatus,
-    answer,
+    answer: typeof raw.answer === 'string' ? raw.answer : null,
   };
 };
+export type WorkflowRunQuestion = NonNullable<ReturnType<typeof parseWorkflowRunQuestion>>;
 
-/**
- * Sends a viewer's answer to a workflow question card, related to the card in its thread,
- * discarding any failed local echo, and resolving to the sent answer event's ID.
- */
-export const sendWorkflowRunAnswer = async (
+const sendWorkflowEvent = async (
   mx: MatrixClient,
   room: Room,
-  threadId: string | null,
-  cardEventId: string,
-  question: Pick<WorkflowRunQuestion, 'run' | 'node'>,
-  answer: { option: string } | { text: string }
+  eventType: string,
+  content: Record<string, unknown>
 ): Promise<string> => {
-  const relatesTo: Record<string, unknown> = threadId
-    ? {
-        rel_type: 'm.thread',
-        event_id: threadId,
-        'm.in_reply_to': { event_id: cardEventId },
-      }
-    : { 'm.in_reply_to': { event_id: cardEventId } };
-  const content: Record<string, unknown> = {
-    run: question.run,
-    node: question.node,
-    ...answer,
-    'm.relates_to': relatesTo,
-  };
   const txnId = mx.makeTxnId();
   try {
-    const response = await mx.sendEvent(
-      room.roomId,
-      WORKFLOW_ANSWER_EVENT_TYPE as never,
-      content as never,
-      txnId
-    );
-    return response.event_id;
+    const send = mx.sendEvent.bind(mx) as (
+      roomId: string,
+      type: string,
+      body: Record<string, unknown>,
+      txn: string
+    ) => Promise<{ event_id: string }>;
+    return (await send(room.roomId, eventType, content, txnId)).event_id;
   } catch (error) {
     discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
     throw error;
   }
 };
 
-/**
- * Sends an `io.mindroom.workflow_control` resume event in the run's thread, optionally raising
- * `max_cost_usd` (a bare resume raises by one more allowance on the backend).
- */
+/** Sends an `io.mindroom.workflow_answer` event related to the question card and thread. */
+export const sendWorkflowRunAnswer = (
+  mx: MatrixClient,
+  room: Room,
+  threadId: string | null,
+  cardEventId: string,
+  question: WorkflowRunQuestion,
+  answer: { option: string } | { text: string }
+): Promise<string> =>
+  sendWorkflowEvent(mx, room, WORKFLOW_ANSWER_EVENT_TYPE, {
+    run: question.run,
+    node: question.node,
+    ...answer,
+    'm.relates_to': threadId
+      ? { rel_type: 'm.thread', event_id: threadId, 'm.in_reply_to': { event_id: cardEventId } }
+      : { 'm.in_reply_to': { event_id: cardEventId } },
+  });
+
+/** Sends an `io.mindroom.workflow_control` resume event (with optional `max_cost_usd`). */
 export const sendWorkflowRunResume = async (
   mx: MatrixClient,
   room: Room,
@@ -245,50 +124,35 @@ export const sendWorkflowRunResume = async (
   run: string,
   options?: { maxCostUsd?: number }
 ): Promise<void> => {
-  const content: Record<string, unknown> = {
+  await sendWorkflowEvent(mx, room, WORKFLOW_CONTROL_EVENT_TYPE, {
     run,
     action: 'resume',
     ...(options?.maxCostUsd !== undefined ? { max_cost_usd: options.maxCostUsd } : {}),
-  };
-  if (threadId) content['m.relates_to'] = { rel_type: 'm.thread', event_id: threadId };
-  const txnId = mx.makeTxnId();
-  try {
-    await mx.sendEvent(
-      room.roomId,
-      WORKFLOW_CONTROL_EVENT_TYPE as never,
-      content as never,
-      txnId
-    );
-  } catch (error) {
-    discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
-    throw error;
-  }
+    ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
+  });
 };
 
-/**
- * Reads an `io.mindroom.workflow_answer_rejected` event when sent by a MindRoom agent on the
- * viewer's homeserver; returns null for any other sender or malformed payload.
- */
+const replyEventIdOf = (content: unknown): string | undefined => {
+  if (!isRecord(content)) return undefined;
+  const relates = content['m.relates_to'];
+  if (!isRecord(relates)) return undefined;
+  const reply = relates['m.in_reply_to'];
+  return isRecord(reply) ? nonEmptyStr(reply.event_id) ?? undefined : undefined;
+};
+
+export type WorkflowAnswerRejection = { answerEventId: string; reason: string };
+
+/** Parses `io.mindroom.workflow_answer_rejected` from a MindRoom agent, checking clear and wire relations. */
 export const parseWorkflowAnswerRejection = (
   event: MatrixEvent,
-  viewerUserId?: string | null
+  viewerUserId: string | null | undefined
 ): WorkflowAnswerRejection | null => {
   if (event.getType() !== WORKFLOW_ANSWER_REJECTED_EVENT_TYPE) return null;
   const sender = event.getSender();
-  if (!isMindroomAgentUserIdForViewer(sender, viewerUserId ?? undefined)) return null;
+  if (!sender || !isMindroomAgentUserIdForViewer(sender, viewerUserId ?? undefined)) return null;
   const content = event.getContent();
-  if (!isRecord(content)) return null;
-  const { reason, run, node } = content;
-  const relatesTo = content['m.relates_to'];
-  const inReplyTo = isRecord(relatesTo) ? relatesTo['m.in_reply_to'] : undefined;
-  const answerEventId = isRecord(inReplyTo) ? inReplyTo.event_id : undefined;
-  if (typeof answerEventId !== 'string' || answerEventId.length === 0 || typeof reason !== 'string') {
-    return null;
-  }
-  return {
-    answerEventId,
-    reason,
-    ...(typeof run === 'string' ? { run } : {}),
-    ...(typeof node === 'string' ? { node } : {}),
-  };
+  const reason = isRecord(content) ? nonEmptyStr(content.reason) : null;
+  if (!reason) return null;
+  const answerEventId = replyEventIdOf(content) ?? replyEventIdOf(event.getWireContent());
+  return answerEventId ? { answerEventId, reason } : null;
 };

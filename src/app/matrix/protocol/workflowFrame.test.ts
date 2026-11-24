@@ -10,7 +10,6 @@ import {
 
 const firstFrame = frames[0]!;
 const secondFrame = frames[1]!;
-const thirdFrame = frames[2]!;
 const fourthFrame = frames[3]!;
 
 const withNodes = (frame: (typeof frames)[number], nodes: unknown[]) => ({
@@ -32,8 +31,6 @@ describe('workflowFrame', () => {
       title: 'Audit the sample module',
       status: 'running',
       attempt: 1,
-      maxConcurrent: 16,
-      maxCostUsd: null,
       large: false,
     });
     expect(frame && 'snapshot' in frame && frame.snapshot.nodes[0]).toMatchObject({
@@ -76,7 +73,7 @@ describe('workflowFrame', () => {
     expect(frame?.meta.name).toBe('audit-module');
     expect(frame && 'snapshot' in frame && frame.snapshot.nodes[1]?.session).toBe('n10');
     expect(frame && 'snapshot' in frame && frame.snapshot.edges).toEqual([
-      { from: 'n10', to: 'n11', kind: 'message', count: 3 },
+      { from: 'n10', to: 'n11', count: 3 },
     ]);
   });
 
@@ -101,7 +98,10 @@ describe('workflowFrame', () => {
         ...firstFrame.snapshot,
         nodes: [{ id: 7 }, validNode],
         groups: [{ id: 9 }, ...firstFrame.snapshot!.groups],
-        edges: [{ from: 'n1', to: 2, count: 1 }, { from: 'n2', to: 'n3', kind: 'message', count: 2 }],
+        edges: [
+          { from: 'n1', to: 2, count: 1 },
+          { from: 'n2', to: 'n3', kind: 'message', count: 2 },
+        ],
       },
     });
     expect(frame && 'snapshot' in frame && frame.snapshot.nodes).toHaveLength(1);
@@ -119,7 +119,17 @@ describe('workflowFrame', () => {
         groups: [],
         nodes: [],
         edges: [],
-        omitted: { queued: 1000, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 2, phases: 1, log: 3 },
+        omitted: {
+          queued: 1000,
+          running: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          edges: 0,
+          groups: 2,
+          phases: 1,
+          log: 3,
+        },
         log: [],
       },
     });
@@ -136,23 +146,28 @@ describe('workflowFrame', () => {
     expect(parseWorkflowFrame(content)).toBeNull();
   });
 
-  it('applies deltas keeping untouched node references and bounding log to 50 lines', () => {
-    const snap = parseWorkflowFrame(firstFrame);
-    const delta1 = parseWorkflowFrame(secondFrame);
-    const delta2 = parseWorkflowFrame(thirdFrame);
-    if (!snap || !('snapshot' in snap) || !delta1 || !('delta' in delta1) || !delta2 || !('delta' in delta2)) {
+  it('applies deltas keeping untouched node references and capping log at 20 lines', () => {
+    const snap = parseWorkflowFrame({
+      ...firstFrame,
+      snapshot: {
+        ...firstFrame.snapshot,
+        log: Array.from({ length: 20 }, (_, i) => `seed-${i}`),
+      },
+    });
+    const delta1 = parseWorkflowFrame({
+      ...secondFrame,
+      delta: { ...secondFrame.delta, log_append: ['extra-20'] },
+    });
+    if (!snap || !('snapshot' in snap) || !delta1 || !('delta' in delta1)) {
       throw new Error('Expected fixture frames to parse');
     }
     const after1 = applyWorkflowRunDelta(snap.snapshot, delta1.delta);
     expect(after1.nodes[0]?.status).toBe('completed');
     expect(after1.nodes[1]).toBe(snap.snapshot.nodes[1]);
     expect(after1.groups[0]?.done).toBe(1);
-
-    const many = Array.from({ length: 60 }, (_, index) => `line-${index}`);
-    const after2 = applyWorkflowRunDelta(after1, { ...delta2.delta, logAppend: many });
-    expect(after2.log).toHaveLength(50);
-    expect(after2.log[0]).toBe('line-10');
-    expect(after2.log[49]).toBe('line-59');
+    expect(after1.log).toHaveLength(20);
+    expect(after1.log[0]).toBe('seed-1');
+    expect(after1.log[19]).toBe('extra-20');
   });
 
   it('identifies live workflow run statuses', () => {

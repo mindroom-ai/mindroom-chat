@@ -141,16 +141,21 @@ const createFixtureClient = () => {
         attempt: 1,
         startedAt: nowSec - 95,
         endedAt: null,
-        maxConcurrent: 16,
-        maxCostUsd: 5,
         large: false,
-        counts: { queued: 4, running: 8, waiting: 0, completed: 12, failed: 0, indeterminate: 0, cached: 2 },
+        counts: {
+          queued: 4,
+          running: 8,
+          waiting: 0,
+          completed: 12,
+          failed: 0,
+          indeterminate: 0,
+          cached: 2,
+        },
         usage: {
           inputTokens: 48200,
           outputTokens: 3120,
           toolCalls: 19,
           costUsd: 0.42,
-          attemptCostUsd: 0.42,
           projectedCostUsd: 0.89,
           costUnknown: false,
         },
@@ -181,7 +186,6 @@ const createFixtureClient = () => {
             agent: 'panels',
             model: 'Fable 5.2',
             run: 'delegation-1',
-            subagent: 'delegation-1',
             job: 'job-agent-4',
             session: null,
             turns: 1,
@@ -320,13 +324,10 @@ const createFixtureClient = () => {
           },
         ],
         edges: [
-          { from: 'n4', to: 'n5', kind: 'message', count: 2 },
-          { from: 'n5', to: 'n8', kind: 'message', count: 1 },
+          { from: 'n4', to: 'n5', count: 2 },
+          { from: 'n5', to: 'n8', count: 1 },
         ],
-        log: [
-          'Round 1: 12 done, 8 running',
-          'Large run: 40 agents, about $0.89 projected.',
-        ],
+        log: ['Round 1: 12 done, 8 running', 'Large run: 40 agents, about $0.89 projected.'],
         omitted: {
           queued: 4,
           running: 0,
@@ -392,13 +393,20 @@ const cards: WorkflowRunCardData[] = [
     title: 'Audit the sample module',
     name: 'audit-module',
     status: 'running',
-    counts: { queued: 4, running: 8, waiting: 0, completed: 12, failed: 0, indeterminate: 0, cached: 2 },
+    counts: {
+      queued: 4,
+      running: 8,
+      waiting: 0,
+      completed: 12,
+      failed: 0,
+      indeterminate: 0,
+      cached: 2,
+    },
     usage: {
       inputTokens: 48200,
       outputTokens: 3120,
       toolCalls: 19,
       costUsd: 0.42,
-      attemptCostUsd: 0.42,
       projectedCostUsd: 0.89,
       costUnknown: false,
     },
@@ -415,13 +423,20 @@ const cards: WorkflowRunCardData[] = [
     requester: VIEWER,
     title: 'Prepare release checklist',
     status: 'waiting',
-    counts: { queued: 2, running: 1, waiting: 1, completed: 6, failed: 0, indeterminate: 0, cached: 0 },
+    counts: {
+      queued: 2,
+      running: 1,
+      waiting: 1,
+      completed: 6,
+      failed: 0,
+      indeterminate: 0,
+      cached: 0,
+    },
     usage: {
       inputTokens: 21000,
       outputTokens: 1500,
       toolCalls: 8,
       costUsd: 0.19,
-      attemptCostUsd: 0.19,
       projectedCostUsd: 0.31,
       costUnknown: false,
     },
@@ -438,13 +453,20 @@ const cards: WorkflowRunCardData[] = [
     requester: VIEWER,
     title: 'Review API contract changes',
     status: 'completed',
-    counts: { queued: 0, running: 0, waiting: 0, completed: 24, failed: 2, indeterminate: 0, cached: 6 },
+    counts: {
+      queued: 0,
+      running: 0,
+      waiting: 0,
+      completed: 24,
+      failed: 2,
+      indeterminate: 0,
+      cached: 6,
+    },
     usage: {
       inputTokens: 140000,
       outputTokens: 8900,
       toolCalls: 42,
       costUsd: 1.24,
-      attemptCostUsd: 0.52,
       projectedCostUsd: 1.24,
       costUnknown: false,
     },
@@ -461,13 +483,20 @@ const cards: WorkflowRunCardData[] = [
     requester: VIEWER,
     title: 'Full repository audit',
     status: 'interrupted',
-    counts: { queued: 18, running: 0, waiting: 0, completed: 30, failed: 0, indeterminate: 0, cached: 0 },
+    counts: {
+      queued: 18,
+      running: 0,
+      waiting: 0,
+      completed: 30,
+      failed: 0,
+      indeterminate: 0,
+      cached: 0,
+    },
     usage: {
       inputTokens: 220000,
       outputTokens: 14000,
       toolCalls: 64,
       costUsd: 2.0,
-      attemptCostUsd: 2.0,
       projectedCostUsd: 3.2,
       costUnknown: false,
     },
@@ -554,56 +583,59 @@ function Fixture() {
           dir={rtl ? 'rtl' : 'ltr'}
           style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: 20, maxWidth: 720 }}
         >
-        <section aria-label="Run cards">
-          {cards.map((card) => (
-            <WorkflowRunCard
-              key={card.run}
-              card={card}
-              roomId={ROOM_ID}
-              threadId={THREAD_ID}
-              sender={AGENT}
-            />
-          ))}
-        </section>
+          <section aria-label="Run cards">
+            {cards.map((card) => (
+              <WorkflowRunCard
+                key={card.run}
+                card={card}
+                roomId={ROOM_ID}
+                threadId={THREAD_ID}
+                sender={AGENT}
+              />
+            ))}
+          </section>
 
-        <section aria-label="Question cards" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {questions.map((question) => (
-            <WorkflowQuestionCard
-              key={question.questionId}
-              question={question}
-              roomId={ROOM_ID}
-              threadId={THREAD_ID}
-              eventId={`$card-${question.questionId}`}
-            />
-          ))}
-        </section>
+          <section
+            aria-label="Question cards"
+            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          >
+            {questions.map((question) => (
+              <WorkflowQuestionCard
+                key={question.questionId}
+                question={question}
+                roomId={ROOM_ID}
+                threadId={THREAD_ID}
+                eventId={`$card-${question.questionId}`}
+              />
+            ))}
+          </section>
 
-        <section aria-label="Jobs bar row">
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            <BackgroundJobRow
-              room={room}
-              viewThreadId={THREAD_ID}
-              item={{
-                jobId: 'job-wf-running',
-                name: 'Audit the sample module',
-                waiting: false,
-                stopping: false,
-                finished: false,
-                subagent: false,
-                workflow: true,
-                workflowRun: workflowEntry,
-                agent: 'panels',
-                threadId: THREAD_ID,
-                state: 'running',
-                startedAt: (nowSec - 95) * 1000,
-                depth: 0,
-              }}
-              onOpen={() => undefined}
-              stop={null}
-            />
-          </ul>
-        </section>
-      </main>
+          <section aria-label="Jobs bar row">
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <BackgroundJobRow
+                room={room}
+                viewThreadId={THREAD_ID}
+                item={{
+                  jobId: 'job-wf-running',
+                  name: 'Audit the sample module',
+                  waiting: false,
+                  stopping: false,
+                  finished: false,
+                  subagent: false,
+                  workflow: true,
+                  workflowRun: workflowEntry,
+                  agent: 'panels',
+                  threadId: THREAD_ID,
+                  state: 'running',
+                  startedAt: (nowSec - 95) * 1000,
+                  depth: 0,
+                }}
+                onOpen={() => undefined}
+                stop={null}
+              />
+            </ul>
+          </section>
+        </main>
       </MatrixClientProvider>
     </JotaiProvider>
   );

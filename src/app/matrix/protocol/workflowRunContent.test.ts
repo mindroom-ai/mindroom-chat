@@ -27,7 +27,15 @@ const cardPayload = {
   title: 'Audit the sample module',
   name: 'audit-module',
   status: 'completed',
-  counts: { queued: 0, running: 0, waiting: 0, completed: 2, failed: 0, indeterminate: 0, cached: 0 },
+  counts: {
+    queued: 0,
+    running: 0,
+    waiting: 0,
+    completed: 2,
+    failed: 0,
+    indeterminate: 0,
+    cached: 0,
+  },
   usage: {
     input_tokens: 17678,
     output_tokens: 280,
@@ -77,7 +85,13 @@ describe('workflowRunContent', () => {
   it('reads an edited card from m.new_content', () => {
     const parsed = parseWorkflowRunCard({
       [WORKFLOW_RUN_CONTENT_KEY]: { ...cardPayload, status: 'running' },
-      'm.new_content': { [WORKFLOW_RUN_CONTENT_KEY]: { ...cardPayload, status: 'interrupted', error: 'Stopped at the cost limit ($1.00 of $1.00).' } },
+      'm.new_content': {
+        [WORKFLOW_RUN_CONTENT_KEY]: {
+          ...cardPayload,
+          status: 'interrupted',
+          error: 'Stopped at the cost limit ($1.00 of $1.00).',
+        },
+      },
     });
     expect(parsed?.status).toBe('interrupted');
     expect(parsed?.error).toBe('Stopped at the cost limit ($1.00 of $1.00).');
@@ -122,7 +136,12 @@ describe('workflowRunContent', () => {
         },
       },
     });
-    expect(answered).toMatchObject({ status: 'answered', answer: 'Yes', freeText: false, options: ['Yes', 'No'] });
+    expect(answered).toMatchObject({
+      status: 'answered',
+      answer: 'Yes',
+      freeText: false,
+      options: ['Yes', 'No'],
+    });
   });
 
   it('sends an answer related to the card in its thread and returns the event id', async () => {
@@ -131,7 +150,10 @@ describe('workflowRunContent', () => {
       makeTxnId: () => 'txn-1',
       sendEvent,
     } as unknown as MatrixClient;
-    const room = { roomId: '!room:example.org', getEventForTxnId: () => undefined } as unknown as Room;
+    const room = {
+      roomId: '!room:example.org',
+      getEventForTxnId: () => undefined,
+    } as unknown as Room;
     const question = {
       run: RUN,
       node: 'n5',
@@ -144,7 +166,9 @@ describe('workflowRunContent', () => {
       answer: null,
     };
 
-    const id = await sendWorkflowRunAnswer(mx, room, '$thread-1', '$card-1', question, { option: 'Yes' });
+    const id = await sendWorkflowRunAnswer(mx, room, '$thread-1', '$card-1', question, {
+      option: 'Yes',
+    });
     expect(id).toBe('$ans-1');
     expect(sendEvent).toHaveBeenCalledWith(
       '!room:example.org',
@@ -169,7 +193,10 @@ describe('workflowRunContent', () => {
       makeTxnId: () => 'txn-2',
       sendEvent,
     } as unknown as MatrixClient;
-    const room = { roomId: '!room:example.org', getEventForTxnId: () => undefined } as unknown as Room;
+    const room = {
+      roomId: '!room:example.org',
+      getEventForTxnId: () => undefined,
+    } as unknown as Room;
 
     await sendWorkflowRunResume(mx, room, '$thread-1', RUN);
     expect(sendEvent).toHaveBeenCalledWith(
@@ -219,10 +246,30 @@ describe('workflowRunContent', () => {
     expect(parseWorkflowAnswerRejection(rejectionFrom(AGENT), VIEWER)).toEqual({
       answerEventId: '$ans-1',
       reason: 'already_answered',
-      run: RUN,
-      node: 'n5',
+    });
+    // Encrypted events may keep m.relates_to on the wire envelope rather than inside clear content.
+    const wireRelEvent = new MatrixEvent({
+      type: 'm.room.encrypted',
+      event_id: '$rej-enc',
+      room_id: '!room:example.org',
+      sender: AGENT,
+      origin_server_ts: 2,
+      content: {
+        'm.relates_to': { 'm.in_reply_to': { event_id: '$ans-enc' } },
+      },
+    });
+    wireRelEvent.makeEncrypted('m.room.encrypted', wireRelEvent.getWireContent(), '', '');
+    (wireRelEvent as unknown as { clearEvent: Record<string, unknown> }).clearEvent = {
+      type: WORKFLOW_ANSWER_REJECTED_EVENT_TYPE,
+      content: { reason: 'no_longer_open' },
+    };
+    expect(parseWorkflowAnswerRejection(wireRelEvent, VIEWER)).toEqual({
+      answerEventId: '$ans-enc',
+      reason: 'no_longer_open',
     });
     expect(parseWorkflowAnswerRejection(rejectionFrom('@mallory:example.org'), VIEWER)).toBeNull();
-    expect(parseWorkflowAnswerRejection(rejectionFrom('@mindroom_panels:other.org'), VIEWER)).toBeNull();
+    expect(
+      parseWorkflowAnswerRejection(rejectionFrom('@mindroom_panels:other.org'), VIEWER)
+    ).toBeNull();
   });
 });
