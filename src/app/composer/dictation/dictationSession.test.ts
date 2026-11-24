@@ -1228,11 +1228,12 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     expect(await session.start()).toBe(true);
     clock = 1_960;
     for (let i = 0; i < 10; i += 1) rig.pushFrame(makeFrame(0.3));
-    await waitForJournalSettled();
-
-    const beforeCrash = await readJournalRow(journal.id);
+    let beforeCrash = await readJournalRow(journal.id);
+    await vi.waitFor(async () => {
+      beforeCrash = await readJournalRow(journal.id);
+      expect(beforeCrash.chunks).toHaveLength(1);
+    });
     expect(beforeCrash.recording).toBeDefined();
-    expect(beforeCrash.chunks).toHaveLength(1);
     expect(beforeCrash.chunks[0]?.seq).toBe(TAIL_SEQ_OFFSET);
     expect(beforeCrash.chunks[0]?.startFramePos).toBe(0);
     expect(beforeCrash.chunks[0]?.endFramePos).toBe(10);

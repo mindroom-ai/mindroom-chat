@@ -300,17 +300,20 @@ const offerRecoveredDictation = async (
     meta.originApiUrl,
     meta.originRoomId
   );
+  // Preserve the original originApiUrl even when no recovery client was bound so lazy room-level
+  // client attachment never silently uploads leftover audio to a different room's server.
+  const sessionOriginApiUrl = originApiUrl ?? meta.originApiUrl;
 
   const session = createSession({
     client,
     roomId,
-    originApiUrl,
+    originApiUrl: sessionOriginApiUrl,
     journal,
     recovered: {
       startedAt: meta.startedAt,
       elapsedMs: effectiveElapsedMs,
       capReached,
-      originApiUrl,
+      originApiUrl: sessionOriginApiUrl,
       originRoomId: roomId,
       records,
       groups,
@@ -331,7 +334,7 @@ const offerRecoveredDictation = async (
       meta.startedAt,
       effectiveElapsedMs,
       capReached,
-      originApiUrl,
+      sessionOriginApiUrl,
       roomId,
       records,
       groups
@@ -392,13 +395,13 @@ export const recoverDictationForAccount = (
 /** React hook mounting once per account to hydrate any recovered dictation into `liveCaptureAtom`. */
 const EMPTY_CLIENT_CONFIG: ClientConfig = {};
 
-export const useRecoverDictation = (mx: MatrixClient, enabled = true): void => {
+export const useRecoverDictation = (mx: MatrixClient | undefined, enabled = true): void => {
   const store = useStore();
   const clientConfig = useOptionalClientConfig() ?? EMPTY_CLIENT_CONFIG;
-  const userId = mx.getUserId() ?? undefined;
+  const userId = mx?.getUserId() ?? undefined;
 
   useEffect(() => {
-    if (!enabled || !userId) return;
+    if (!enabled || !mx || !userId) return;
     void recoverDictationForAccount(store, mx, clientConfig);
   }, [clientConfig, enabled, mx, store, userId]);
 };

@@ -139,8 +139,9 @@ export type DictationSession = {
   park: () => void;
   reset: () => void;
   discard: () => Promise<void>;
-  attachClient: (client: DictationTranscriber, roomId?: string) => void;
+  attachClient: (client: DictationTranscriber, roomId?: string, originApiUrl?: string) => void;
   hasClient: () => boolean;
+  getOriginApiUrl: () => string | undefined;
   getJournalId: () => string | undefined;
   clearError: () => void;
 };
@@ -208,7 +209,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const captureFactory = options.captureFactory ?? createBrowserCaptureFactory(options);
   let activeClient: DictationTranscriber | undefined = options.client;
   let activeRoomId: string | undefined = options.roomId;
-  const activeOriginApiUrl: string | undefined = options.originApiUrl ?? recovered?.originApiUrl;
+  let activeOriginApiUrl: string | undefined = options.originApiUrl ?? recovered?.originApiUrl;
   let journal: DictationJournalHandle | undefined = options.journal;
   let rateBudget = options.rateBudget ?? options.client?.rateBudget ?? createDictationRateBudget();
 
@@ -1006,10 +1007,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       releaseAll();
       if (toRemove) await toRemove.remove();
     },
-    attachClient: (nextClient, nextRoomId) => {
+    attachClient: (nextClient, nextRoomId, nextOriginApiUrl) => {
       if (snapshot.phase === 'idle' || activeClient !== undefined) return;
       activeClient = nextClient;
       if (nextRoomId !== undefined) activeRoomId = nextRoomId;
+      if (activeOriginApiUrl === undefined && nextOriginApiUrl !== undefined) {
+        activeOriginApiUrl = nextOriginApiUrl;
+      }
       if (!options.rateBudget && nextClient.rateBudget) {
         rateBudget = nextClient.rateBudget;
       }
@@ -1019,6 +1023,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       }
     },
     hasClient: () => activeClient !== undefined,
+    getOriginApiUrl: () => activeOriginApiUrl,
     getJournalId: () => journal?.id,
     clearError: () => {
       if (snapshot.phase === 'idle' && snapshot.errorMessage !== undefined) {

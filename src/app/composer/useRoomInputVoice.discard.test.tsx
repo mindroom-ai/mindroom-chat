@@ -6,6 +6,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { composersHoldUnsavedWork } from './roomInputDrafts';
 import { useRoomInputVoice } from './useRoomInputVoice';
 import { liveCaptureAtom } from './capture/liveCapture';
+import { dictationRestoresAtom } from './dictation/startLiveDictation';
+import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
 
 // A composer's own Discard, through the real recorder and question: confirmed, the recording ends
@@ -41,7 +43,12 @@ function Composer() {
     transport: {} as never,
     sessions: {} as never,
   });
-  return <>{voice.renderRecorder(vi.fn())}</>;
+  return (
+    <>
+      {voice.renderRecorder(vi.fn())}
+      {voice.microphone}
+    </>
+  );
 }
 
 const question = () => screen.queryByRole('dialog', { name: 'Discard voice recording?' });
@@ -105,4 +112,25 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
   expect(question()).toBeNull();
   expect(screen.queryByRole('button', { name: 'Discard voice recording' })).toBeNull();
   expect(composersHoldUnsavedWork(store)).toBe(false);
+});
+
+it('keeps voice microphone disabled while dictationRestoresAtom is still in flight', () => {
+  const store = createStore();
+  const userId = '@me:example.org';
+  store.set(voiceDraftRestoresAtom, new Map([[userId, null]]));
+  store.set(dictationRestoresAtom, new Map([[userId, new Promise<void>(() => undefined)]]));
+
+  render(
+    <Provider store={store}>
+      <Composer />
+    </Provider>
+  );
+
+  const mic = screen.getByRole<HTMLButtonElement>('button', { name: 'Record voice message' });
+  expect(mic.disabled).toBe(true);
+
+  act(() => {
+    store.set(dictationRestoresAtom, new Map([[userId, null]]));
+  });
+  expect(mic.disabled).toBe(false);
 });

@@ -476,9 +476,6 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
-/** Unique owner key while a composer has an active streaming dictation session. */
-export const activeDictationAtom = atom<string | undefined>(undefined);
-
 /** A dictation session detached from its composer to finish and send in the background. */
 export type DetachedDictationSend = {
   readonly ownerKey: string;
@@ -488,7 +485,7 @@ export type DetachedDictationSend = {
   readonly session: DictationSession;
   readonly retryAndSend: () => void;
   readonly insertPartial: () => void;
-  readonly discard: () => void;
+  readonly discard: () => Promise<void>;
   readonly abort: () => void;
 };
 
@@ -572,7 +569,6 @@ export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
   store.get(pendingVoiceSendDraftAtom) !== undefined ||
   store.get(captureDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
-  store.get(activeDictationAtom) !== undefined ||
   store.get(detachedDictationSendsAtom).size > 0 ||
   familyKeys(roomIdToUploadItemsAtomFamily).some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
@@ -602,7 +598,6 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   dropEveryEntry(homeAskPendingAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
-  store.set(activeDictationAtom, undefined);
   endLiveCapturesOfAccount(store);
   store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());
   store.set(detachedDictationSendsAtom, new Map());

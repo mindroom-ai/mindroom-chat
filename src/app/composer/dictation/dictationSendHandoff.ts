@@ -8,7 +8,7 @@ import {
   type Descendant,
   type Editor,
 } from 'slate';
-import { isEmptyEditor, withInlineElements } from '../../editor/utils';
+import { createParagraphElement, isEmptyEditor, withInlineElements } from '../../editor/utils';
 import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
@@ -19,7 +19,6 @@ import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
 import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
 import {
-  activeDictationAtom,
   detachedDictationErrorAtom,
   detachedDictationSendsAtom,
   restoreTextToDraft,
@@ -34,6 +33,7 @@ import {
   type RoomInputSendContext,
   type StartRoomInputSendSessionOptions,
 } from '../useRoomInputSendSessionController';
+import { deleteCapture, releaseCapture } from '../capture/captureJournal';
 import { captureAccountGuard } from '../capture/liveCapture';
 import type { DictationFinishResult, DictationSession } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
@@ -49,6 +49,7 @@ type JotaiStore = ReturnType<typeof createStore>;
 type ComposerContext = { roomId: string; threadId: string | undefined };
 
 export type MountedDictationOwner = {
+  insertDictatedText: (text: string, savedSelection: BaseRange | null, focus: boolean) => void;
   restoreText: (fragment: Descendant[]) => void;
   restoreReplyDraft: (replyDraft: IReplyDraft) => void;
   restoreAttachments: (roomId: string, items: TUploadItem[]) => void;
@@ -81,7 +82,10 @@ export const registerMountedDictationOwner = (
   };
 };
 
-const getMountedOwner = (store: JotaiStore, sendKey: string): MountedDictationOwner | undefined => {
+export const getMountedOwner = (
+  store: JotaiStore,
+  sendKey: string
+): MountedDictationOwner | undefined => {
   const set = mountedOwnersByStore.get(store)?.get(sendKey);
   return set && set.size > 0 ? [...set][set.size - 1] : undefined;
 };
@@ -101,7 +105,8 @@ export const mergeDictatedDoc = (
   pendingMarks: Record<string, unknown> | null
 ): Editor => {
   const scratch = withInlineElements(createEditor());
-  scratch.children = structuredClone(docSnapshot);
+  scratch.children =
+    docSnapshot.length > 0 ? structuredClone(docSnapshot) : [createParagraphElement()];
   if (pendingMarks && (!savedSelection || SlateRange.isCollapsed(savedSelection))) {
     if (savedSelection) {
       try {
@@ -128,7 +133,6 @@ export type StartDetachedDictationSendInput = {
   store: JotaiStore;
   mx: MatrixClient;
   ownerKey: string;
-  ownershipKey?: string;
   draftKey: string;
   roomName: string;
   sendContext: RoomInputSendContext;
@@ -250,13 +254,33 @@ export const startDetachedDictationSend = (
   input: StartDetachedDictationSendInput
 ): DetachedDictationSend => {
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
-  const ownershipKey = input.ownershipKey ?? ownerKey;
   const { roomId, replyDraft } = sendContext;
   const sameAccount = captureAccountGuard(store);
   const stagedFiles = input.stagedSnapshot.map((item) => item.file);
   let aborted = false;
   let accountRestored = false;
+  let latestJournalId: string | undefined = session.getJournalId();
   let currentEntry!: DetachedDictationSend;
+
+  const updateJournalId = (next?: string) => {
+    if (next !== undefined) latestJournalId = next;
+  };
+
+  const takeJournalId = (): string | undefined => {
+    const id = latestJournalId ?? session.getJournalId();
+    latestJournalId = undefined;
+    return id;
+  };
+
+  const deleteTrackedJournal = (): void => {
+    const id = takeJournalId();
+    if (id) void deleteCapture(id).catch(() => undefined);
+  };
+
+  const releaseTrackedJournal = (): void => {
+    const id = takeJournalId();
+    if (id) releaseCapture(id);
+  };
 
   const getActiveStaged = (): TUploadItem[] => {
     if (ask || input.stagedSnapshot.length === 0) return [];
@@ -335,15 +359,18 @@ export const startDetachedDictationSend = (
   };
 
   const handleFinishResult = async (result: DictationFinishResult): Promise<void> => {
+    if (result.status === 'completed') updateJournalId(result.journalId);
     if (aborted || !sameAccount()) {
       clearEnrollments();
-      void session.discard();
+      session.reset();
+      releaseTrackedJournal();
       restoreDocOnAccountSwitch();
       removeEntry();
       return;
     }
     if (result.status === 'cancelled') {
       restoreDraftAndCleanup(input.docSnapshot);
+      releaseTrackedJournal();
       return;
     }
     if (result.status === 'failed') {
@@ -369,11 +396,13 @@ export const startDetachedDictationSend = (
       const unknownCommand = readUnknownCommand(scratch.children, input.commandsSnapshot);
       if (unknownCommand !== undefined) {
         restoreDraftAndCleanup(mergedFallback);
+        deleteTrackedJournal();
         getMountedOwner(store, ownerKey)?.onCommandProblem(unknownCommand);
         return;
       }
       if (readActingCommand(scratch.children, input.commandsSnapshot)) {
         restoreDraftAndCleanup(mergedFallback);
+        deleteTrackedJournal();
         return;
       }
     }
@@ -394,6 +423,7 @@ export const startDetachedDictationSend = (
     const activeStaged = getActiveStaged();
     if (!textContent && (ask || activeStaged.length === 0)) {
       restoreDraftAndCleanup(input.docSnapshot);
+      deleteTrackedJournal();
       const mountedOwner = getMountedOwner(store, ownerKey);
       if (mountedOwner) {
         mountedOwner.onNoSpeech();
@@ -410,6 +440,7 @@ export const startDetachedDictationSend = (
     const liveRoom = mx.getRoom(roomId);
     if (!liveRoom) {
       restoreDraftAndCleanup(mergedFallback);
+      deleteTrackedJournal();
       return;
     }
 
@@ -444,9 +475,20 @@ export const startDetachedDictationSend = (
             }
           : undefined,
       });
+      if (sameAccount() && !aborted) {
+        deleteTrackedJournal();
+      } else {
+        releaseTrackedJournal();
+      }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[dictation-send] could not send dictated message', error);
+      if (sameAccount() && !aborted) {
+        restoreDraftAndCleanup(mergedFallback);
+        deleteTrackedJournal();
+      } else {
+        releaseTrackedJournal();
+      }
     } finally {
       if (sameAccount()) ask?.onSendingChange?.(false);
     }
@@ -463,33 +505,38 @@ export const startDetachedDictationSend = (
 
   function insertPartial() {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
+    const { text, journalId } = session.takePartialText();
+    updateJournalId(journalId);
     const scratch = mergeDictatedDoc(
       input.docSnapshot,
-      session.takePartialText().text,
+      text,
       input.savedSelection,
       input.pendingMarks
     );
     restoreDraftAndCleanup(structuredClone(scratch.children));
+    deleteTrackedJournal();
   }
 
-  function discard() {
+  async function discard(): Promise<void> {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
-    void session.discard();
+    if (store.get(detachedDictationSendsAtom).get(ownerKey) !== currentEntry) return;
+    const journalId = takeJournalId();
     restoreDraftAndCleanup(input.docSnapshot);
+    await session.discard();
+    if (journalId) await deleteCapture(journalId).catch(() => undefined);
   }
 
   function abort() {
     if (aborted) return;
     aborted = true;
-    void session.discard();
+    session.reset();
+    releaseTrackedJournal();
     clearEnrollments();
     restoreDocOnAccountSwitch();
   }
 
-  // Register entry before releasing activeDictationAtom so reload protection never flickers false.
   const entry = setEntryStatus('sending');
   const finishPromise = session.finish();
-  if (store.get(activeDictationAtom) === ownershipKey) store.set(activeDictationAtom, undefined);
   void finishPromise.then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
   return entry;
 };

@@ -8,6 +8,8 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { KnownMembership } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { DictationRecoveryFeature } from '../../shell/ClientNonUIFeatures';
 import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
 import {
   beginDictationJournal,
@@ -352,6 +354,7 @@ describe('startLiveDictation and recovery', () => {
     if (live1?.kind !== 'dictation') throw new Error('expected dictation');
     expect(live1.session.hasClient()).toBe(false);
     expect(live1.session.getSnapshot().hasClient).toBe(false);
+    expect(live1.session.getOriginApiUrl()).toBe('https://evil.example');
     await live1.session.discard();
     await deleteCapture(untrustedId);
 
@@ -526,5 +529,97 @@ describe('startLiveDictation and recovery', () => {
     const live = hookStore.get(liveCaptureAtom);
     if (live?.kind === 'dictation') await live.session.discard();
     view.unmount();
+  });
+
+  it('surfaces recovered dictation in Settings via DictationRecoveryFeature only when a journal record exists', async () => {
+    const mx = makeMatrixClient(USER_A, {
+      '!room:example.org': makeRoom('!room:example.org', KnownMembership.Join),
+    });
+    const config: ClientConfig = {
+      mindroom: { computers: { apiUrl: 'https://deploy.example' } },
+    };
+
+    // Without a journal record, DictationRecoveryFeature skips loading/running recovery.
+    const emptyStore = createStore();
+    const emptyView = render(
+      createElement(
+        Provider,
+        { store: emptyStore },
+        createElement(
+          ClientConfigProvider,
+          { value: config },
+          createElement(
+            MatrixClientProvider,
+            { value: mx },
+            createElement(DictationRecoveryFeature)
+          )
+        )
+      )
+    );
+    await waitForJournalSettled();
+    expect(emptyStore.get(liveCaptureAtom)).toBeUndefined();
+    expect(emptyStore.get(dictationRestoresAtom).has(USER_A)).toBe(false);
+    emptyView.unmount();
+
+    // Seed a persisted dictation journal, simulating a crash before reloading straight into Settings.
+    const journal = beginDictationJournal(USER_A, {
+      startedAt: 4_000,
+      elapsedMs: 7_500,
+      capReached: false,
+      originApiUrl: 'https://deploy.example',
+      originRoomId: '!room:example.org',
+      segments: [
+        {
+          index: 0,
+          seconds: 2,
+          overlapped: false,
+          cutReason: 'natural',
+          leadingQuietFrames: 1,
+          trailingQuietFrames: 4,
+          pauseBeforeMs: Infinity,
+          status: 'completed',
+          text: 'Recovered in settings.',
+          retryable: false,
+          hasWav: false,
+        },
+      ],
+      groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+    })!;
+    journal.release();
+    await waitForJournalSettled();
+
+    const settingsStore = createStore();
+    const settingsView = render(
+      createElement(
+        Provider,
+        { store: settingsStore },
+        createElement(
+          ClientConfigProvider,
+          { value: config },
+          createElement(
+            MatrixClientProvider,
+            { value: mx },
+            createElement(DictationRecoveryFeature)
+          )
+        )
+      )
+    );
+
+    await waitFor(() => {
+      expect(settingsStore.get(liveCaptureAtom)?.kind).toBe('dictation');
+    });
+    const live = settingsStore.get(liveCaptureAtom);
+    expect(live?.kind).toBe('dictation');
+    if (live?.kind !== 'dictation') throw new Error('expected dictation');
+    expect(live.session.getSnapshot()).toMatchObject({
+      phase: 'paused',
+      recovered: true,
+      hasClient: true,
+      elapsedMs: 7_500,
+      previewText: 'Recovered in settings.',
+    });
+
+    await live.session.discard();
+    settingsView.unmount();
   });
 });

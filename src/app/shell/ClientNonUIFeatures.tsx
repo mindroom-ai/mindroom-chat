@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useStore } from 'jotai';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
 import { ActivityRowsFeature } from '../activity/ActivityRowsFeature';
@@ -15,7 +16,10 @@ import { MessageNotificationsFeature } from '../notifications/MessageNotificatio
 import { UnreadTitleFeature } from '../notifications/UnreadTitle';
 import { JoinedRoomThreadListsFeature } from '../threads/page/JoinedRoomThreadListsFeature';
 import { ErrorReportingClientFeature } from '../bug-reports/error-reporting/errorReporting';
+import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { hasDictationJournalRecord } from '../composer/capture/captureJournal';
+import { captureAccountGuard } from '../composer/capture/liveCapture';
 import { keepEncryptedRoomTextOffDisk } from '../matrix/client/encryptedRoomTextOffDisk';
 import { forgetEncryptedRecentThreadText } from '../event-store/threads/recentThreads';
 import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
@@ -31,6 +35,43 @@ function EncryptedRoomTextOffDiskFeature() {
       keepEncryptedRoomTextOffDisk(mx, [forgetEncryptedRecentThreadText, forgetEncryptedReplyText]),
     [mx]
   );
+  return null;
+}
+
+const EMPTY_CLIENT_CONFIG: ClientConfig = {};
+
+/**
+ * Checks whether the signed-in account has a persisted dictation journal and lazily imports
+ * dictation recovery only when one exists, surfacing a recovered dictation pill/capsule even when
+ * reloading directly into Settings, Threads, or Home without pulling capture/VAD code into the
+ * shell bundle.
+ */
+export function DictationRecoveryFeature() {
+  const mx = useMatrixClient();
+  const store = useStore();
+  const clientConfig = useOptionalClientConfig() ?? EMPTY_CLIENT_CONFIG;
+  const userId = mx.getUserId() ?? undefined;
+
+  useEffect(() => {
+    if (!userId) return undefined;
+    let cancelled = false;
+    const sameAccount = captureAccountGuard(store);
+    void hasDictationJournalRecord(userId)
+      .then((hasRecord) => {
+        if (cancelled || !hasRecord || !sameAccount()) return undefined;
+        return import('../composer/dictation/startLiveDictation').then(
+          ({ recoverDictationForAccount }) => {
+            if (cancelled || !sameAccount()) return undefined;
+            return recoverDictationForAccount(store, mx, clientConfig);
+          }
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [clientConfig, mx, store, userId]);
+
   return null;
 }
 
@@ -64,6 +105,7 @@ export function ClientNonUIFeatures() {
       <ErrorReportingClientFeature />
       <EncryptedRoomTextOffDiskFeature />
       <UnconfirmedRootsFeature />
+      <DictationRecoveryFeature />
       <QuickCaptureHost />
       <WatchHandoffFeature />
     </>

@@ -534,10 +534,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       editor,
       roomId,
       threadId,
+      thread: threadId !== undefined,
       ownerKey: dictationOwnerKey,
       sendKey: textKey,
+      draftKey: textKey,
       rootRef,
-      conversationHidden,
       onCommandProblem: setCommandProblem,
       restoreAttachments: restoreDictationAttachments,
       restoreReplyDraft,
@@ -601,8 +602,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const dictationHandoffRef = useLatestRef({
+      composerKey: dictationOwnerKey,
       ownerKey: textKey,
-      ownershipKey: dictationOwnerKey,
       draftKey: textKey,
       room,
       roomId,
@@ -628,20 +629,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (voiceActive && voice.blocksSubmit()) return;
         const mode = explicitMode ?? midTurnSend;
         if (!waited && liveDictation === 'sendable') {
-          const startKey = dictationHandoffRef.current.ownershipKey;
+          const startKey = dictationHandoffRef.current.composerKey;
           const settled = ask ? true : settlePastes();
           if (settled !== true) {
             const ok = await settled.catch(() => false);
             if (
               !ok ||
               !mountedRef.current ||
-              dictationHandoffRef.current.ownershipKey !== startKey
+              dictationHandoffRef.current.composerKey !== startKey
             ) {
               return;
             }
             if (settlePastes() !== true) return;
           }
-          const live = dictationHandoffRef.current;
+          const { composerKey: _composerKey, ...live } = dictationHandoffRef.current;
           if (isLocalEchoEventId(live.threadId) || (live.ask && !live.ask.canSend())) return;
           const detached = dictation.detachForSend();
           if (!detached) return;
