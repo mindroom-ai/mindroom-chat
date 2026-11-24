@@ -988,6 +988,14 @@
         "scopeOwn": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat Anda sapa.",
         "scopeOther": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat disapa {{name}}."
       },
+      "triggerWakeMarker": {
+        "triggered": "Dipicu",
+        "webhook": "Webhook",
+        "triggerLabel": "Pemicu {{id}}",
+        "sourceLabel": "Sumber {{source}}",
+        "triageLabel": "Triase: {{reason}}",
+        "payloadLabel": "Payload acara JSON"
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"

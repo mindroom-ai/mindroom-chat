@@ -1026,6 +1026,14 @@
         "scopeOwn": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui puoi rivolgerti.",
         "scopeOther": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui {{name}} può rivolgersi."
       },
+      "triggerWakeMarker": {
+        "triggered": "Attivato",
+        "webhook": "Webhook",
+        "triggerLabel": "Trigger {{id}}",
+        "sourceLabel": "Origine {{source}}",
+        "triageLabel": "Triage: {{reason}}",
+        "payloadLabel": "Payload dell’evento JSON"
+      },
       "finishedWork": {
         "workedFor": "Ha lavorato per {{duration}}",
         "worked": "Ha lavorato"

@@ -1026,6 +1026,14 @@
         "scopeOwn": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que puedes dirigirte.",
         "scopeOther": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que {{name}} puede dirigirse."
       },
+      "triggerWakeMarker": {
+        "triggered": "Activado",
+        "webhook": "Webhook",
+        "triggerLabel": "Activador {{id}}",
+        "sourceLabel": "Origen {{source}}",
+        "triageLabel": "Triaje: {{reason}}",
+        "payloadLabel": "Carga del evento JSON"
+      },
       "finishedWork": {
         "workedFor": "Trabajó durante {{duration}}",
         "worked": "Trabajó"

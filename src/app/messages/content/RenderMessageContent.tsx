@@ -42,7 +42,9 @@ import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { readCallRow } from '../../matrix/protocol/callRow';
+import { readTriggerWake } from '../../matrix/protocol/triggerWake';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
+import { TriggerWakeMarker } from '../TriggerWakeMarker';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import {
   useMessageRenderer,
@@ -168,6 +170,11 @@ function CoreMessageContent({
   // in the call, Join and Transcript while live; how long it lasted once over.
   const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
   if (callRow && mEvent) return <LazyCallRow mEvent={mEvent} row={callRow} body={content.body} />;
+
+  // Outside an open thread (room timeline, thread roots), a trigger wake still shows as its
+  // collapsed marker instead of raw markdown/HTML or wrapped tool/transcript chrome.
+  const triggerWake = fromMindroomAgent ? readTriggerWake(content) : null;
+  if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={ts} />;
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />

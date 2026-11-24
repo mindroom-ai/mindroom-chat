@@ -988,6 +988,14 @@
         "scopeOwn": "このスレッドで、あなたが呼びかけられるエージェントとチームの今後の返信に適用されます。",
         "scopeOther": "このスレッドで、{{name}} が呼びかけられるエージェントとチームの今後の返信に適用されます。"
       },
+      "triggerWakeMarker": {
+        "triggered": "トリガー起動",
+        "webhook": "Webhook",
+        "triggerLabel": "トリガー {{id}}",
+        "sourceLabel": "ソース {{source}}",
+        "triageLabel": "トリアージ：{{reason}}",
+        "payloadLabel": "イベントペイロード JSON"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"

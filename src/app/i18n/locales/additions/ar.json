@@ -1083,6 +1083,14 @@
         "scopeOwn": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكنك مخاطبتهم.",
         "scopeOther": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكن لـ ⁨{{name}}⁩ مخاطبتهم."
       },
+      "triggerWakeMarker": {
+        "triggered": "تم التشغيل",
+        "webhook": "Webhook",
+        "triggerLabel": "المشغّل ⁨{{id}}⁩",
+        "sourceLabel": "المصدر ⁨{{source}}⁩",
+        "triageLabel": "الفرز: ⁨{{reason}}⁩",
+        "payloadLabel": "حمولة الحدث JSON"
+      },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"

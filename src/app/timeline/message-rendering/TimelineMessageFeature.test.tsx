@@ -70,6 +70,7 @@ const forkChips = async (renderer: ReturnType<typeof create>) => {
 const openRoomSettings = vi.hoisted(() => vi.fn());
 // Its own test draws it; here only which row shows it counts.
 vi.mock('../../messages/ModelChangeMarker', () => ({ ModelChangeMarker: () => null }));
+vi.mock('../../messages/TriggerWakeMarker', () => ({ TriggerWakeMarker: () => null }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => openRoomSettings,
 }));
@@ -750,6 +751,69 @@ describe('timeline message feature', () => {
     roomView.update();
     expect(roomView.renderer.root.findAllByType(ModelChangeMarker)).toHaveLength(0);
     expect(renderedContent(roomView.renderer)).toHaveLength(1);
+  });
+
+  it("draws an agent trigger wake as its own quiet marker row in a thread, and ignores a person's lookalike", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { TriggerWakeMarker } = await import('../../messages/TriggerWakeMarker');
+    const reactive = makeEvent('$reactive', {
+      sender: '@mindroom_helper:example.org',
+      threadRootId: '$thread',
+      ts: 7_000,
+      content: {
+        msgtype: 'm.text',
+        body: '@mindroom_helper:example.org Check PR\n\nReactive trigger context: trigger=tr_demo_watch, source=github, kind=pr.opened',
+        'com.mindroom.source_kind': 'reactive_trigger',
+        'io.mindroom.reactive_trigger.id': 'tr_demo_watch',
+      },
+    }) as unknown as MatrixEvent;
+    const external = makeEvent('$external', {
+      sender: '@mindroom_router:example.org',
+      threadRootId: '$thread',
+      ts: 8_000,
+      content: {
+        msgtype: 'm.text',
+        body: '@mindroom_helper:example.org Deploy done',
+        'com.mindroom.source_kind': 'external_trigger',
+        'io.mindroom.external_trigger.id': 'deploy-hook',
+        'io.mindroom.external_trigger.kind': 'deploy.finished',
+      },
+    }) as unknown as MatrixEvent;
+    const spoof = makeEvent('$spoof', {
+      sender: '@bob:example.org',
+      threadRootId: '$thread',
+      ts: 9_000,
+      content: {
+        msgtype: 'm.text',
+        body: '@mindroom_helper:example.org Spoofed wake',
+        'com.mindroom.source_kind': 'reactive_trigger',
+        'io.mindroom.reactive_trigger.id': 'tr_spoof',
+      },
+    }) as unknown as MatrixEvent;
+    const noSet = {} as EventTimelineSet;
+
+    const { renderer, feature, data } = await mountFeature(
+      [rowFor(reactive, 0), rowFor(external, 1), rowFor(spoof, 2)],
+      '$thread'
+    );
+
+    const markers = renderer.root.findAllByType(TriggerWakeMarker);
+    expect(markers).toHaveLength(2);
+    expect(markers[0]?.props).toMatchObject({
+      wake: { sourceKind: 'reactive', triggerId: 'tr_demo_watch', kind: 'pr.opened' },
+      ts: 7_000,
+    });
+    expect(markers[1]?.props).toMatchObject({
+      wake: { sourceKind: 'external', triggerId: 'deploy-hook', kind: 'deploy.finished' },
+      ts: 8_000,
+    });
+    expect(renderer.root.findAllByType(Message)).toHaveLength(1);
+    expect(renderedContent(renderer)).toHaveLength(1);
+    expect(feature().isQuietMarkerRow(reactive, data as never, noSet)).toBe(true);
+    expect(feature().joinsQuietMarkerRun(reactive, data as never, noSet)).toBe(false);
+    expect(feature().isQuietMarkerRow(external, data as never, noSet)).toBe(true);
+    expect(feature().joinsQuietMarkerRun(external, data as never, noSet)).toBe(false);
+    expect(feature().isQuietMarkerRow(spoof, data as never, noSet)).toBe(false);
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

@@ -1007,6 +1007,14 @@
         "scopeOwn": "এই থ্রেডে আপনি যেসব এজেন্ট ও দলকে সম্বোধন করতে পারেন, তাদের পরবর্তী উত্তরে প্রযোজ্য।",
         "scopeOther": "এই থ্রেডে {{name}} যেসব এজেন্ট ও দলকে সম্বোধন করতে পারেন, তাদের পরবর্তী উত্তরে প্রযোজ্য।"
       },
+      "triggerWakeMarker": {
+        "triggered": "ট্রিগার হয়েছে",
+        "webhook": "ওয়েবহুক",
+        "triggerLabel": "ট্রিগার {{id}}",
+        "sourceLabel": "উৎস {{source}}",
+        "triageLabel": "ট্রায়াজ: {{reason}}",
+        "payloadLabel": "ইভেন্ট পেলোড JSON"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} কাজ করেছে",
         "worked": "কাজ করেছে"

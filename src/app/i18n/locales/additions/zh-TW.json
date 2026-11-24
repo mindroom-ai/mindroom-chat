@@ -988,6 +988,14 @@
         "scopeOwn": "適用於此討論串中你可以對話的代理程式和團隊日後的回覆。",
         "scopeOther": "適用於此討論串中 {{name}} 可以對話的代理程式和團隊日後的回覆。"
       },
+      "triggerWakeMarker": {
+        "triggered": "已觸發",
+        "webhook": "Webhook",
+        "triggerLabel": "觸發器 {{id}}",
+        "sourceLabel": "來源 {{source}}",
+        "triageLabel": "分流：{{reason}}",
+        "payloadLabel": "事件酬載 JSON"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"

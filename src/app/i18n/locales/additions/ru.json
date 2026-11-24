@@ -1045,6 +1045,14 @@
         "scopeOwn": "Действует для будущих ответов в этой ветке от агентов и команд, к которым вы можете обращаться.",
         "scopeOther": "Действует для будущих ответов в этой ветке от агентов и команд, к которым может обращаться {{name}}."
       },
+      "triggerWakeMarker": {
+        "triggered": "Сработал триггер",
+        "webhook": "Вебхук",
+        "triggerLabel": "Триггер {{id}}",
+        "sourceLabel": "Источник {{source}}",
+        "triageLabel": "Триаж: {{reason}}",
+        "payloadLabel": "Полезная нагрузка события JSON"
+      },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
