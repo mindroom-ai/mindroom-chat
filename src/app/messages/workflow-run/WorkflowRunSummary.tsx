@@ -255,6 +255,11 @@ export function WorkflowRunMetrics({
       <Text as="span" size="T200" priority="300">
         {workflowRunCountsLine(view.counts, t)}
       </Text>
+      {view.counts.cached > 0 && (
+        <Text as="span" size="T200" priority="300">
+          {t('mindroomUi.workflowRun.reused', { count: view.counts.cached })}
+        </Text>
+      )}
       {showFailed && failedTotal > 0 && (
         <Text as="span" size="T200" className={css.CriticalText}>
           {t('mindroomUi.workflowRun.failedCount', { count: failedTotal })}

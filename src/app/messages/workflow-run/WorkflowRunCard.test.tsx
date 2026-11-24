@@ -602,4 +602,28 @@ describe('WorkflowRunCard', () => {
     });
     expect(screen.getByText('45 done, 1 running, 0 waiting')).toBeTruthy();
   });
+
+  it('shows the Reused count when a resumed run reuses cached nodes', () => {
+    const { mx } = makeClient();
+    const card = makeCard({
+      attempt: 2,
+      counts: {
+        queued: 0,
+        running: 1,
+        waiting: 0,
+        completed: 6,
+        failed: 0,
+        indeterminate: 0,
+        cached: 6,
+      },
+    });
+    render(
+      <JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <WorkflowRunCard card={card} roomId={ROOM_ID} threadId={THREAD_ID} sender={AGENT} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    expect(screen.getByText('Reused: 6')).toBeTruthy();
+  });
 });
