@@ -6,7 +6,7 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 
 type TrapOptions = NonNullable<ComponentProps<typeof FocusTrap>['focusTrapOptions']>;

@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
 import { Box, Icon, IconButton, Icons, RectCords, Scroll, Text, Tooltip, config } from 'folds';
 import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';

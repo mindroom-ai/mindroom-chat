@@ -117,7 +117,7 @@ vi.mock('folds', async (importOriginal) => {
 vi.mock('focus-trap-react', async () => {
   const reactModule = await import('react');
   return {
-    default: ({ children }: { children: React.ReactNode }) =>
+    FocusTrap: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement(reactModule.Fragment, null, children),
   };
 });

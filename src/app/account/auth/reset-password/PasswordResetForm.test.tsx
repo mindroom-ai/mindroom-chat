@@ -28,7 +28,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 const resetError = vi.hoisted(() => ({ errcode: 'M_UNKNOWN' }));
 const requestEmail = vi.hoisted(() => ({ fn: (): Promise<unknown> => Promise.resolve() }));

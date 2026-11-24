@@ -57,7 +57,7 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 

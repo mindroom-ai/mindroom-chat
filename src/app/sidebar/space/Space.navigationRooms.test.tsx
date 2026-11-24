@@ -138,7 +138,7 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
   useMatch: () => null,
 }));
-vi.mock('focus-trap-react', () => ({ default: passthrough }));
+vi.mock('focus-trap-react', () => ({ FocusTrap: passthrough }));
 vi.mock('../../ui/page/Page', () => ({
   PageNav: passthrough,
   PageNavContent: ({

@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
 import { useTranslation } from 'react-i18next';
 import { RoomType, type Room } from 'matrix-js-sdk';

@@ -2,7 +2,7 @@ import React, { ReactNode, useCallback, useState } from 'react';
 import { toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { stopPropagation } from '../../lib/keyboard';

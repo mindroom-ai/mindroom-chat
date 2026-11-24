@@ -13,7 +13,7 @@ const mx = vi.hoisted(() => ({ getRoom: vi.fn() }));
 const none = vi.hoisted(() => []);
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('./components/styles.css', () =>
   Object.fromEntries(

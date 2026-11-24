@@ -187,7 +187,7 @@ vi.mock('./style.css', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
 describe('Explore room access wiring', () => {
