@@ -1,4 +1,4 @@
-import { FormEventHandler, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { Avatar, Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type MatrixClient, User, UserEvent } from 'matrix-js-sdk';
@@ -186,11 +186,8 @@ function AvatarTile() {
 function DisplayNameTile() {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const alive = useAlive();
   const { displayName: savedName } = useUserProfile(client.getSafeUserId());
   const [draft, setDraft] = useState(savedName ?? '');
-  const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(false);
 
   // A new name from the server (or another device) replaces the draft.
   useEffect(() => setDraft(savedName ?? ''), [savedName]);
@@ -199,23 +196,22 @@ function DisplayNameTile() {
   const nextName = draft.trim();
   const canSave = !locked && nextName !== '' && nextName !== savedName;
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
-    event.preventDefault();
-    if (!canSave) return;
-    setFailed(false);
-    setSaving(true);
-    client
-      .setDisplayName(nextName)
-      .then(() => announceOwnProfile(client, { displayName: nextName }))
-      .catch(() => alive() && setFailed(true))
-      .finally(() => alive() && setSaving(false));
-  };
+  const [failed, saveAction, saving] = useActionState(async (previous: boolean) => {
+    if (!canSave) return previous;
+    try {
+      await client.setDisplayName(nextName);
+      announceOwnProfile(client, { displayName: nextName });
+      return false;
+    } catch {
+      return true;
+    }
+  }, false);
 
   const label = t('featureUi.settings.account.profile.displayName');
 
   return (
     <SettingTile focusId="displayName" title={label}>
-      <Box as="form" alignItems="Center" gap="200" onSubmit={handleSubmit}>
+      <Box as="form" alignItems="Center" gap="200" action={saveAction}>
         <Box grow="Yes" direction="Column">
           <Input
             aria-label={label}
@@ -239,7 +235,7 @@ function DisplayNameTile() {
           <Text size="B400">{t('featureUi.settings.account.profile.save')}</Text>
         </Button>
       </Box>
-      <FailureNote shown={failed} />
+      <FailureNote shown={!saving && failed} />
     </SettingTile>
   );
 }

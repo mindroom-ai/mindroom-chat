@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from 'react';
+import { useActionState, useId, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -39,8 +39,6 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
   // Who may no longer list rooms in the parent, since the menu offered this, gets the reason.
   const refusal = useListRoomsRefusal(parent);
   const [name, setName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<{ reason: unknown }>();
 
   const open = (roomId: string) => {
     if (!spaceId) navigateRoom(roomId);
@@ -54,34 +52,31 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
     }
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed || refusal) return;
-    setError(undefined);
-    setCreating(true);
-    try {
-      const roomId = await createSubRoom(parent, trimmed, policy);
-      requestClose();
-      waitForJoinedRoom(client, roomId).then(
-        () => open(roomId),
-        () => open(roomId)
-      );
-    } catch (reason) {
-      setError({ reason });
-      setCreating(false);
-    }
-  };
+  const [outcome, createAction, creating] = useActionState(
+    async (
+      previous: 'done' | { reason: unknown } | undefined
+    ): Promise<'done' | { reason: unknown } | undefined> => {
+      const trimmed = name.trim();
+      if (previous === 'done' || !trimmed || refusal) return previous;
+      try {
+        const roomId = await createSubRoom(parent, trimmed, policy);
+        requestClose();
+        waitForJoinedRoom(client, roomId).then(
+          () => open(roomId),
+          () => open(roomId)
+        );
+        return 'done';
+      } catch (reason) {
+        return { reason };
+      }
+    },
+    undefined
+  );
+  const error = !creating && outcome && outcome !== 'done' ? outcome : undefined;
 
   return (
     <CreateDialogFrame title={t('featureUi.subRooms.newSubRoom')} requestClose={requestClose}>
-      <Box
-        as="form"
-        grow="Yes"
-        direction="Column"
-        gap="500"
-        onSubmit={(event: FormEvent<HTMLFormElement>) => void submit(event)}
-      >
+      <Box as="form" grow="Yes" direction="Column" gap="500" action={createAction}>
         <Text size="T300">{t('featureUi.subRooms.description', { name: parentName })}</Text>
         <Box direction="Column" gap="100">
           <Text as="label" htmlFor={nameId} size="L400">

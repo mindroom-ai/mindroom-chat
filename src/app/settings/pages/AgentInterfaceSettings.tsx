@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { startTransition, useActionState, useOptimistic } from 'react';
 import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../ui/SequenceCard';
@@ -27,24 +27,26 @@ function AccountSettingSwitch({ focusId, setting, title, description }: AccountS
   // setAccountData only resolves once the change echoes back over sync, so
   // show the requested value immediately and hand back to the store when the
   // write settles (echo arrived, or failed and the stored value still rules).
-  const [pending, setPending] = useState<boolean>();
+  const [shown, setOptimistic] = useOptimistic(settings[setting]);
   // A failed write snaps the switch back to the stored value; explain why
   // instead of failing silently.
-  const [saveFailed, setSaveFailed] = useState(false);
-  const requestGeneration = useRef(0);
+  const [saveFailed, saveSetting, saving] = useActionState(
+    async (_previous: boolean, next: boolean) => {
+      try {
+        await setAccountSettings({ [setting]: next });
+        return false;
+      } catch {
+        return true;
+      }
+    },
+    false
+  );
 
   const handleChange = (next: boolean) => {
-    requestGeneration.current += 1;
-    const generation = requestGeneration.current;
-    setPending(next);
-    setSaveFailed(false);
-    setAccountSettings({ [setting]: next })
-      .catch(() => {
-        if (requestGeneration.current === generation) setSaveFailed(true);
-      })
-      .finally(() => {
-        if (requestGeneration.current === generation) setPending(undefined);
-      });
+    startTransition(() => {
+      setOptimistic(next);
+      saveSetting(next);
+    });
   };
 
   return (
@@ -52,11 +54,9 @@ function AccountSettingSwitch({ focusId, setting, title, description }: AccountS
       focusId={focusId}
       title={title}
       description={description}
-      after={
-        <Switch variant="Primary" value={pending ?? settings[setting]} onChange={handleChange} />
-      }
+      after={<Switch variant="Primary" value={shown} onChange={handleChange} />}
     >
-      {saveFailed && (
+      {!saving && saveFailed && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
           {t('settings.general.interface.saveFailed')}
         </Text>

@@ -1,4 +1,4 @@
-import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import React, { useActionState, useCallback, useEffect, useState } from 'react';
 import { Badge, Box, Button, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { IMyDevice } from 'matrix-js-sdk';
@@ -87,27 +87,25 @@ function RenameForm({ device, onDone }: RenameFormProps) {
   const client = useMatrixClient();
   const alive = useAlive();
   const [draft, setDraft] = useState(device.display_name ?? '');
-  const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(false);
   const name = draft.trim();
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!name || name === device.display_name) return;
-    setSaving(true);
-    setFailed(false);
-    client
-      .setDeviceDetails(device.device_id, { display_name: name })
-      .then(() => alive() && onDone(true))
-      .catch(() => {
-        if (!alive()) return;
-        setFailed(true);
-        setSaving(false);
-      });
-  };
+  const [outcome, renameAction, saving] = useActionState(
+    async (previous: 'idle' | 'done' | 'failed') => {
+      if (previous === 'done' || !name || name === device.display_name) return previous;
+      try {
+        await client.setDeviceDetails(device.device_id, { display_name: name });
+        if (alive()) onDone(true);
+        return 'done';
+      } catch {
+        return 'failed';
+      }
+    },
+    'idle'
+  );
+  const failed = !saving && outcome === 'failed';
 
   return (
-    <Box as="form" direction="Column" gap="100" onSubmit={submit}>
+    <Box as="form" direction="Column" gap="100" action={renameAction}>
       <Box gap="200" alignItems="Center">
         <Box grow="Yes" direction="Column">
           <Input

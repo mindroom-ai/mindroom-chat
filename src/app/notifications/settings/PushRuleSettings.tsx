@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { startTransition, useActionState, useOptimistic, useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type IPushRule, type IPushRules, PushRuleKind } from 'matrix-js-sdk';
@@ -23,26 +23,31 @@ type RuleRef = { kind: PushRuleKind; rule: IPushRule; highlight: boolean };
 /** Changes one rule's loudness, showing the new choice while the server takes it. */
 function useLoudnessSetter({ kind, rule, highlight }: RuleRef) {
   const client = useMatrixClient();
-  const alive = useAlive();
-  const [pending, setPending] = useState<Loudness>();
-  const [failed, setFailed] = useState(false);
+  const [shown, setOptimistic] = useOptimistic(loudnessOf(rule));
+  const [failed, applyLoudness, saving] = useActionState(
+    async (_previous: boolean, next: Loudness) => {
+      try {
+        await client.setPushRuleActions('global', kind, rule.rule_id, actionsFor(next, highlight));
+        // A disabled default rule only notifies again once it is enabled.
+        if (!rule.enabled && next !== 'off') {
+          await client.setPushRuleEnabled('global', kind, rule.rule_id, true);
+        }
+        return false;
+      } catch {
+        return true;
+      }
+    },
+    false
+  );
 
   const choose = (next: Loudness) => {
-    setPending(next);
-    setFailed(false);
-    const steps = async () => {
-      await client.setPushRuleActions('global', kind, rule.rule_id, actionsFor(next, highlight));
-      // A disabled default rule only notifies again once it is enabled.
-      if (!rule.enabled && next !== 'off') {
-        await client.setPushRuleEnabled('global', kind, rule.rule_id, true);
-      }
-    };
-    steps()
-      .catch(() => alive() && setFailed(true))
-      .finally(() => alive() && setPending(undefined));
+    startTransition(() => {
+      setOptimistic(next);
+      applyLoudness(next);
+    });
   };
 
-  return { shown: pending ?? loudnessOf(rule), choose, failed };
+  return { shown, choose, failed: !saving && failed };
 }
 
 function LoudnessChoice({
@@ -259,31 +264,27 @@ function KeywordTile({ rule }: { rule: IPushRule }) {
 export function KeywordNotifications() {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const alive = useAlive();
   const global = useGlobalPushRules();
   const [draft, setDraft] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [failed, setFailed] = useState(false);
   const key = `${NOTIFY}.keywordMessages`;
   // Server default rules start with a dot; the rest are the person's keywords.
   const keywords = (global?.content ?? []).filter((rule) => !rule.rule_id.startsWith('.'));
   const keyword = draft.trim();
   const canAdd = keyword !== '' && !keywords.some((rule) => rule.rule_id === keyword);
 
-  const add = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canAdd) return;
-    setAdding(true);
-    setFailed(false);
-    client
-      .addPushRule('global', PushRuleKind.ContentSpecific, keyword, {
+  const [failed, addAction, adding] = useActionState(async (previous: boolean) => {
+    if (!canAdd) return previous;
+    try {
+      await client.addPushRule('global', PushRuleKind.ContentSpecific, keyword, {
         pattern: keyword,
         actions: actionsFor('loud', true),
-      })
-      .then(() => alive() && setDraft(''))
-      .catch(() => alive() && setFailed(true))
-      .finally(() => alive() && setAdding(false));
-  };
+      });
+      setDraft('');
+      return false;
+    } catch {
+      return true;
+    }
+  }, false);
 
   return (
     <Box direction="Column" gap="100">
@@ -296,7 +297,7 @@ export function KeywordNotifications() {
           title={t(`${key}.selectKeyword`)}
           description={t(`${key}.setANotificationPreferenceForMessageContaining`)}
         >
-          <Box as="form" gap="200" alignItems="Center" onSubmit={add}>
+          <Box as="form" gap="200" alignItems="Center" action={addAction}>
             <Box grow="Yes" direction="Column">
               <Input
                 aria-label={t(`${key}.selectKeyword`)}
@@ -320,7 +321,7 @@ export function KeywordNotifications() {
               <Text size="B300">{t(`${key}.save`)}</Text>
             </Button>
           </Box>
-          <FailedNote shown={failed} />
+          <FailedNote shown={!adding && failed} />
         </SettingTile>
         {keywords.map((rule) => (
           <KeywordTile key={rule.rule_id} rule={rule} />

@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { useActionState, useState } from 'react';
 import { Box, Button, Input, Spinner, Text, TextArea, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAlive } from '../../../lib/hooks/useAlive';
@@ -49,28 +49,27 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
   const [type, setType] = useState(initial?.type ?? '');
   const [stateKey, setStateKey] = useState(initial?.stateKey ?? '');
   const [json, setJson] = useState(() => JSON.stringify(initial?.content ?? {}, null, 2));
-  const [busy, setBusy] = useState(false);
-  // Invalid JSON is caught here; anything else is what the server answered.
-  const [problem, setProblem] = useState<'invalidJson' | { error: unknown }>();
   const fixed = initial !== undefined;
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const content = parseObject(json);
-    if (!type.trim() || !content) {
-      setProblem('invalidJson');
-      return;
-    }
-    setBusy(true);
-    setProblem(undefined);
-    onSubmit({ type: type.trim(), stateKey, content })
-      .then(() => alive() && onDone())
-      .catch((error: unknown) => {
-        if (!alive()) return;
-        setProblem({ error });
-      })
-      .finally(() => alive() && setBusy(false));
-  };
+  // Invalid JSON is caught here; anything else is what the server answered.
+  const [outcome, saveAction, busy] = useActionState(
+    async (
+      previous: 'done' | 'invalidJson' | { error: unknown } | undefined
+    ): Promise<'done' | 'invalidJson' | { error: unknown } | undefined> => {
+      if (previous === 'done') return previous;
+      const content = parseObject(json);
+      if (!type.trim() || !content) return 'invalidJson';
+      try {
+        await onSubmit({ type: type.trim(), stateKey, content });
+        if (alive()) onDone();
+        return 'done';
+      } catch (error) {
+        return { error };
+      }
+    },
+    undefined
+  );
+  const problem = !busy && outcome && outcome !== 'done' ? outcome : undefined;
 
   const field = (label: string, value: string, onChange: (next: string) => void) => (
     <Box direction="Column" gap="100">
@@ -95,7 +94,7 @@ export function JsonEventEditor({ kind, initial, onSubmit, onDone }: JsonEventEd
       as="form"
       direction="Column"
       gap="300"
-      onSubmit={submit}
+      action={saveAction}
       style={{ paddingTop: config.space.S200 }}
     >
       {field(t(TYPE_LABEL[kind] as never), type, setType)}

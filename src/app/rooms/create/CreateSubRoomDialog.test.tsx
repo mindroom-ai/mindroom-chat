@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import {
   MatrixClient,
   MatrixError,
@@ -87,17 +88,14 @@ const setup = (myLevel = 100) => {
   return { mx, parent, createRoom, sendStateEvent };
 };
 
-let renderer: ReactTestRenderer | undefined;
-
 afterEach(() => {
-  act(() => renderer?.unmount());
-  renderer = undefined;
+  cleanup();
   vi.clearAllMocks();
 });
 
 /**
  * Renders New Sub-room for `parent` under `config`, signed in to the parent's client, and submits it
- * with the name `name`; returns the rendered tree.
+ * with the name `name`; returns the rendered container.
  */
 const submitDialog = async (
   parent: Room,
@@ -105,21 +103,20 @@ const submitDialog = async (
   name: string,
   requestClose = vi.fn()
 ) => {
-  act(() => {
-    renderer = create(
-      <ClientConfigProvider value={config}>
-        <MatrixClientProvider value={parent.client}>
-          <CreateSubRoomDialog parent={parent} requestClose={requestClose} />
-        </MatrixClientProvider>
-      </ClientConfigProvider>
-    );
+  const view = render(
+    <ClientConfigProvider value={config}>
+      <MatrixClientProvider value={parent.client}>
+        <CreateSubRoomDialog parent={parent} requestClose={requestClose} />
+      </MatrixClientProvider>
+    </ClientConfigProvider>
+  );
+  const input = view.container.querySelector('input')!;
+  fireEvent.change(input, { target: { value: name } });
+  const form = view.container.querySelector('form')!;
+  await act(async () => {
+    form.requestSubmit();
   });
-  const root = renderer!.root;
-  act(() => {
-    root.findByType('input').props.onChange({ currentTarget: { value: name } });
-  });
-  await act(async () => root.findByType('form').props.onSubmit({ preventDefault: vi.fn() }));
-  return renderer!;
+  return view;
 };
 
 describe('CreateSubRoomDialog', () => {
@@ -162,13 +159,103 @@ describe('CreateSubRoomDialog', () => {
 
   it('refuses, with the reason, someone who may not list rooms in the parent', async () => {
     const { parent, createRoom } = setup(0);
-    const rendered = await submitDialog(parent, {}, 'Ideas');
+    const view = await submitDialog(parent, {}, 'Ideas');
 
     expect(createRoom).not.toHaveBeenCalled();
-    expect(rendered.root.findByProps({ type: 'submit' }).props.disabled).toBe(true);
-    expect(JSON.stringify(rendered.toJSON())).toContain(
+    const submit = view.container.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    expect(submit.disabled).toBe(true);
+    expect(view.container.textContent).toContain(
       "You can't change the rooms listed under !parent:example.org"
     );
+  });
+
+  it('disables controls while pending, keeps the typed name on error, and hides the error on retry', async () => {
+    const { parent, createRoom } = setup();
+    let rejectFirst!: (reason: unknown) => void;
+    let resolveSecond!: (value: { room_id: string }) => void;
+    createRoom
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          })
+      );
+
+    const requestClose = vi.fn();
+    const view = render(
+      <ClientConfigProvider value={{}}>
+        <MatrixClientProvider value={parent.client}>
+          <CreateSubRoomDialog parent={parent} requestClose={requestClose} />
+        </MatrixClientProvider>
+      </ClientConfigProvider>
+    );
+    const input = view.container.querySelector('input')!;
+    const form = view.container.querySelector('form')!;
+    const submit = view.container.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+    fireEvent.change(input, { target: { value: 'Ideas' } });
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(input.disabled).toBe(true);
+    expect(submit.disabled).toBe(true);
+
+    await act(async () => {
+      rejectFirst(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403));
+    });
+    expect(input.disabled).toBe(false);
+    expect(input.value).toBe('Ideas');
+    expect(view.container.querySelector('[role="alert"]')?.textContent).toContain('M_FORBIDDEN');
+
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(view.container.querySelector('[role="alert"]')).toBeNull();
+    expect(submit.disabled).toBe(true);
+
+    await act(async () => {
+      resolveSecond({ room_id: NEW_ROOM });
+    });
+    expect(requestClose).toHaveBeenCalledTimes(1);
+    expect(createRoom).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a second submit queued before the dialog closes', async () => {
+    const { parent, createRoom } = setup();
+    let resolveCreate!: (value: { room_id: string }) => void;
+    createRoom.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        })
+    );
+    const requestClose = vi.fn();
+    const view = render(
+      <ClientConfigProvider value={{}}>
+        <MatrixClientProvider value={parent.client}>
+          <CreateSubRoomDialog parent={parent} requestClose={requestClose} />
+        </MatrixClientProvider>
+      </ClientConfigProvider>
+    );
+    const input = view.container.querySelector('input')!;
+    const form = view.container.querySelector('form')!;
+    fireEvent.change(input, { target: { value: 'Ideas' } });
+
+    await act(async () => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    await act(async () => {
+      resolveCreate({ room_id: NEW_ROOM });
+    });
+    expect(createRoom).toHaveBeenCalledTimes(1);
+    expect(requestClose).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -201,11 +288,9 @@ describe("the client SDK's createSubRoom", () => {
   it('reads the policy of the configuration the app provides as it is called', async () => {
     const { parent, createRoom } = setup();
     const provide = (config: ClientConfig) => <ClientConfigProvider value={config} />;
-    act(() => {
-      renderer = create(provide({}));
-    });
+    const view = render(provide({}));
     await createSubRoom(parent, { name: 'Ideas' });
-    act(() => renderer!.update(provide({ createRoom: { defaultFederation: false } })));
+    view.rerender(provide({ createRoom: { defaultFederation: false } }));
     await createSubRoom(parent, { name: 'Ideas' });
 
     expect(createRoom.mock.calls.map(([request]) => request.creation_content)).toEqual([
@@ -215,9 +300,7 @@ describe("the client SDK's createSubRoom", () => {
   });
 
   it('refuses, creating nothing, a parent where the user may not list rooms, and a blank name', async () => {
-    act(() => {
-      renderer = create(<ClientConfigProvider value={{}} />);
-    });
+    render(<ClientConfigProvider value={{}} />);
     const refused = setup(0);
     await expect(createSubRoom(refused.parent, { name: 'Ideas' })).rejects.toThrow(
       "You can't change the rooms listed under !parent:example.org"

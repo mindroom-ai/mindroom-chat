@@ -99,4 +99,56 @@ describe('AgentInterfaceSettings', () => {
     });
     expect(state.setAccountSettings).toHaveBeenCalledWith({ showCanvasesInSidebar: false });
   });
+
+  it('shows the toggled state optimistically, reverts with an error on failure, and hides the error on retry', async () => {
+    let rejectFirst!: (error: unknown) => void;
+    let resolveSecond!: () => void;
+    state.setAccountSettings
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = reject;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSecond = resolve;
+          })
+      );
+
+    const { AgentInterfaceSettings } = await import('./AgentInterfaceSettings');
+    const title = { 'data-title': 'Show Canvases in the sidebar' };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(AgentInterfaceSettings));
+    });
+    const tile = () => renderer.root.findByProps(title);
+    const toggle = () => tile().findByType('button');
+
+    await act(async () => {
+      toggle().props.onClick();
+    });
+    expect(toggle().props['aria-pressed']).toBe(false);
+
+    await act(async () => {
+      rejectFirst(new Error('offline'));
+    });
+    expect(toggle().props['aria-pressed']).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      'Could not save the change. Check your connection and try again.'
+    );
+
+    await act(async () => {
+      toggle().props.onClick();
+    });
+    expect(toggle().props['aria-pressed']).toBe(false);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Could not save the change.');
+
+    await act(async () => {
+      state.settings.showCanvasesInSidebar = false;
+      resolveSecond();
+    });
+    expect(toggle().props['aria-pressed']).toBe(false);
+  });
 });

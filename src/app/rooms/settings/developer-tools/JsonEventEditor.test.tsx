@@ -64,4 +64,60 @@ describe('JsonEventEditor failures', () => {
     expect(alert?.firstChild?.textContent).toBe('Something went wrong.');
     expect(alert?.querySelector('bdi')?.textContent).toBe('Event too old to replace');
   });
+
+  it('rejects invalid JSON, disables controls while pending, and ignores a queued double-submit', async () => {
+    let resolveSubmit!: () => void;
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        })
+    );
+    const onDone = vi.fn();
+    act(() =>
+      root.render(
+        <JsonEventEditor
+          kind="state"
+          initial={{ type: 'm.room.topic', stateKey: '', content: { topic: 'Hello' } }}
+          onSubmit={onSubmit}
+          onDone={onDone}
+        />
+      )
+    );
+    const form = host.querySelector('form')!;
+    const textarea = host.querySelector('textarea')!;
+    const submit = host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    act(() => {
+      setValue.call(textarea, '{bad');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      'Give the event a type and content that is a JSON object.'
+    );
+    expect(textarea.value).toBe('{bad');
+
+    act(() => {
+      setValue.call(textarea, '{"topic":"Next"}');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    expect(submit.disabled).toBe(true);
+    expect(textarea.disabled).toBe(true);
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+
+    await act(async () => {
+      resolveSubmit();
+    });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
 });
