@@ -168,7 +168,6 @@ function Thread({ events, shown }: { events: MatrixEvent[]; shown: Record<string
     isQuietMarkerRow: () => false,
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
-    ledgerPxAtRender: 0,
   });
   return (
     <ClientConfigProvider value={{}}>

@@ -6,7 +6,6 @@ import {
   createScrollMountMeasurement,
   measureMountedRows,
 } from './batchedMeasurementRef';
-import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -239,27 +238,6 @@ describe('batched virtualizer measurement ref', () => {
     row.remove();
     await Promise.resolve();
     expect(virtualizer.itemSizeCache.has(0)).toBe(false);
-    dispose();
-  });
-
-  it('folds an iOS correction above the viewport into the ledger without a scroll write', async () => {
-    const { virtualizer, mount, scrollToFn, dispose } = setup();
-    const onDroppedCorrection = vi.fn();
-    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
-      isIOSWebKitDevice: () => true,
-      onDroppedCorrection,
-    });
-    virtualizer.scrollElement!.scrollTop = 1_000;
-    virtualizer.scrollOffset = 1_000;
-    // Desktop applies a forward correction as a scroll write; only iOS folds it.
-    virtualizer.scrollDirection = 'forward';
-    virtualizer.isScrolling = true;
-    scrollToFn.mockClear();
-
-    mount(0, createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)));
-    await Promise.resolve();
-    expect(onDroppedCorrection).toHaveBeenCalledWith(30);
-    expect(scrollToFn).not.toHaveBeenCalled();
     dispose();
   });
 });

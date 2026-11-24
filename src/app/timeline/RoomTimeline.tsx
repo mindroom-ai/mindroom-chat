@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -89,7 +90,10 @@ import {
 } from './roomEventOpenController';
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
-import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import {
+  clearVirtualizerHoldOffset,
+  useTimelineScrollLedgerController,
+} from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
@@ -165,13 +169,11 @@ import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
-  heldListHeight,
   isNearLatestEnd,
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
-  useRowsGeneration,
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
@@ -203,7 +205,6 @@ import { loadedRangeOfRows, rowIndexOfLoaded, type RenderedRoomRows } from './me
 import {
   NO_RENDERED_ROOM_ROWS,
   forgetFormedFoldHeights,
-  exposedFoldRowsPxOfRender,
   useMembershipFoldRowSizes,
   useMembershipFolds,
   useRoomRowWindow,
@@ -1183,14 +1184,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadIdRef,
     timeline,
   });
-  const {
-    paginator,
-    pendingRoomFoldPxRef,
-    roomFoldWindowRef,
-    roomFoldPriceRef,
-    settledRoomPage,
-    getRoomRowElement,
-  } = useRoomWindowPaginator({
+  const { paginator, settledRoomPage, getRoomRowElement } = useRoomWindowPaginator({
     alive,
     roomRows,
     roomRowsRef,
@@ -1283,23 +1277,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     membershipFoldsRef,
     renderedRoomRowsRef,
   });
-  // For the ledger to take with this render: the rows of a closed fold that came apart above the
-  // reader's view.
-  const exposedRoomRowsPx = exposedFoldRowsPxOfRender(
-    renderedRoomRowsRef.current,
-    {
-      view: membershipFolds.view,
-      foldedRows: roomProjection.foldedRows,
-      windowRows: roomWindowRows,
-      pinnedIds: membershipPinnedIds,
-    },
-    (index) => estimateSize(index + roomLeadingOffset)
-  );
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
-  // Replaced room rows (not added ones) start the ledger over, as another room does.
-  const rowsGeneration = useRowsGeneration(timeline.linkedTimelines);
   // The Threads view, newest first, keeps a reader who scrolled down where they are while rows land
   // above them: threads that arrive at its top, and in a message link's window (where leaving a
   // thread opened from a link comes back) pages of newer history. A reader at the top sees them
@@ -1311,26 +1291,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   }, [getScrollElement]);
   const latestPinAsked = useLatestPinAsked(scrollToBottomRef);
   const ledger = useTimelineScrollLedgerController({
-    alive,
     anchorRoomRows: latestAtTop && !latestPinAsked ? anchorBelowLatestEnd : undefined,
     estimateSize,
     getItemKey,
     getScrollElement,
     itemCount,
-    pendingRoomFoldPxRef,
-    exposedRoomRowsPx,
-    // virtual-core renders at once when the reader scrolls, which can come before the update of
-    // a window widened over older rows: that render keeps the window the fold was priced for.
-    roomFoldHeld: activeTimelineRange === roomFoldWindowRef.current,
-    roomFoldPriceRef,
+    latestAtTop,
     roomId: room.roomId,
-    rowsKey: threadId ? undefined : rowsGeneration,
     threadId,
     pinThreadLeadingItem: showThreadLoadOlder,
-    hasRoomIntro: hasRoomLeadingIntro,
-    automaticFill: roomSurfaceShown
-      ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
-      : undefined,
+    automaticFill: roomSurfaceShown ? { geometryReader: automaticFill.geometryReader } : undefined,
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
@@ -1338,15 +1308,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ? () => virtualizerRef.current.cancelScroll()
     : undefined;
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
-  const { virtualInnerRef, readRowFoldPx } = ledger;
+  const { virtualInnerRef } = ledger;
   const pendingListShrinkPx = useCallback(
-    () =>
-      listShrinkNotRendered(
-        virtualInnerRef.current,
-        virtualizerRef.current.measurementsCache,
-        readRowFoldPx()
-      ),
-    [readRowFoldPx, virtualInnerRef, virtualizerRef]
+    () => listShrinkNotRendered(virtualInnerRef.current, virtualizerRef.current.measurementsCache),
+    [virtualInnerRef, virtualizerRef]
   );
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
@@ -1366,7 +1331,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // list held over them ends below or above its newest row for a frame, where a thread that
   // opens pinned and showed its rows, and the next render moved them.
   const renderedList = ledger.virtualInnerRef.current?.style;
-  const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
+  const beforePaint = ledger.unrenderedRowMove();
   const heldList =
     beforePaint &&
     ledger.unrenderedInRowReport() &&
@@ -1374,9 +1339,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     renderedList?.height
       ? renderedList
       : undefined;
-  const listHeight = heldList
-    ? heldListHeight(heldList, ledger.ledgerPxAtRender)
-    : virtualizer.getTotalSize();
+  const listHeight = heldList ? Number.parseFloat(heldList.height) : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
     threadEvents,
@@ -1416,7 +1379,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadEventIndexMapRef,
     threadLeadingOffsetRef,
     roomLeadingOffsetRef,
-    onJump: ledger.endSettleDiscardWatch,
     rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
   const cancelThreadBottomSettle = useCallback(
@@ -1434,11 +1396,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     onFirstGesture: forceRender,
     onThreadTakeover: onPrependBegin,
   });
+  const clearHoldOffset = useCallback(
+    () => clearVirtualizerHoldOffset(virtualizerRef.current),
+    [virtualizerRef]
+  );
   const scrollThreadToEnd = useCallback(
     (smooth = false) => {
+      clearHoldOffset();
       virtualizerRef.current.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
     },
-    [virtualizerRef]
+    [clearHoldOffset, virtualizerRef]
   );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
@@ -1509,6 +1476,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     retryPagination,
     roomId: room.roomId,
     scrollRef,
+    onBottomPin: clearHoldOffset,
     scrollThreadToEnd: threadId ? scrollThreadToEnd : undefined,
     scrollThreadEventIntoView,
     scrollToBottomRef,
@@ -1878,12 +1846,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>(undefined);
   const mountedRowKeys = mountedRowKeysRef.current;
   const virtualItems =
-    beforePaint && mountedRowKeys
+    beforePaint && ledger.unrenderedInRowReport() && mountedRowKeys
       ? windowItems.filter((item) => mountedRowKeys.has(item.key))
       : windowItems;
   useLayoutEffect(() => {
     mountedRowKeysRef.current = new Set(virtualItems.map((item) => item.key));
   });
+  const deferredRowReportRender = !!heldList || virtualItems.length !== windowItems.length;
+  useEffect(() => {
+    if (deferredRowReportRender) forceRender();
+  }, [deferredRowReportRender, forceRender]);
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
@@ -1937,7 +1909,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,
-    takeSettledScrollTop: ledger.takeSettledScrollTop,
   });
 
   const minimap = useRoomTimelineMinimap({
@@ -2161,7 +2132,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     membershipFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
-    ledgerPxAtRender: ledger.ledgerPxAtRender,
   });
 
   // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.

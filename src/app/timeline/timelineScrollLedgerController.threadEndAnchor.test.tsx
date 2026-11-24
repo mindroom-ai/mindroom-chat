@@ -91,8 +91,6 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     }) {
       void tick;
       const scrollRef = useRef<HTMLDivElement | null>(scrollElement);
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef(() => ROW_HEIGHT);
       const alive = useCallback(() => true, []);
       const getScrollElement = useCallback(() => scrollElement, []);
       const backController = useThreadBackPaginationController();
@@ -103,13 +101,10 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
       useEffect(() => startOpen(), [startOpen]);
 
       const controller = useTimelineScrollLedgerController({
-        alive,
         estimateSize: () => ROW_HEIGHT,
         getItemKey: (index) => keys[index] ?? index,
         getScrollElement,
         itemCount: keys.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
         roomId: '!room:example.org',
         threadId: '$thread-1',
       });

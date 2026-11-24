@@ -76,6 +76,8 @@ export type RoomFocusScrollControllerOptions = {
   retryPagination: (opts?: RetryPaginationOptions) => void;
   roomId: string;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
+  /** Runs before an explicit bottom/top pin writes scrollTop (clears held virtualizer offset). */
+  onBottomPin?: () => void;
   /** When provided (open thread), routes bottom pins through virtualizer.scrollToEnd(). */
   scrollThreadToEnd?: (smooth?: boolean) => void;
   scrollThreadEventIntoView?: (eventId: string) => boolean;
@@ -630,6 +632,7 @@ const finishSmoothBottomPin = (scrollArea: HTMLElement, wanted: () => boolean) =
  */
 const useBottomPinRequests = ({
   latestAtTopRef,
+  onBottomPin,
   scrollRef,
   scrollThreadToEnd,
   scrollToBottomRef,
@@ -637,6 +640,7 @@ const useBottomPinRequests = ({
 }: Pick<
   Options,
   | 'latestAtTopRef'
+  | 'onBottomPin'
   | 'scrollRef'
   | 'scrollThreadToEnd'
   | 'scrollToBottomRef'
@@ -652,6 +656,7 @@ const useBottomPinRequests = ({
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
     const latestAtTop = !!latestAtTopRef?.current;
+    onBottomPin?.();
     if (scrollThreadToEnd && !latestAtTop) {
       scrollThreadToEnd(smooth);
       return;

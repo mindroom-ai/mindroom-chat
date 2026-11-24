@@ -417,7 +417,6 @@ export const renderTimelineTiles = ({
   roomIntroNode,
   unreadMarkerRef,
   measureElement,
-  ledgerPxAtRender,
 }: {
   virtualItems: VirtualItem[];
   threadId: string | undefined;
@@ -463,7 +462,6 @@ export const renderTimelineTiles = ({
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
-  ledgerPxAtRender: number;
 }): ReactNode[] => {
   const leadingNode = threadId ? threadLoadOlderNode : roomIntroNode;
   const leadingOffset = leadingNode ? 1 : 0;
@@ -515,7 +513,7 @@ export const renderTimelineTiles = ({
           key={item.key}
           ref={measureElement}
           virtualItem={item}
-          style={{ top: item.start + ledgerPxAtRender }}
+          style={{ top: item.start }}
         >
           {leadingNode}
         </VirtualTile>
@@ -611,7 +609,7 @@ export const renderTimelineTiles = ({
         key={item.key}
         ref={measureElement}
         virtualItem={item}
-        style={{ top: item.start + ledgerPxAtRender }}
+        style={{ top: item.start }}
       >
         <div data-room-row-index={threadId ? undefined : eventIndex}>
           {foldClosed && context?.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}

@@ -2,7 +2,6 @@
 import { Virtualizer } from '@tanstack/react-virtual';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 import { getRangeWithoutRow, type TimelineRange } from '../event-store/timeline/timelinePagination';
 import {
   planMembershipFolds,
@@ -149,12 +148,10 @@ const roomList = (initial: {
       return () => {};
     },
   });
-  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
-    isIOSWebKitDevice: () => false,
-    onDroppedCorrection: () => {
-      throw new Error('a correction above the top of the list');
-    },
-  });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+    const offset = instance.scrollOffset ?? 0;
+    return instance.itemSizeCache?.has(item.key) ? item.end <= offset : item.start < offset;
+  };
 
   const render = (exposing = true) => {
     view ??= viewMembershipFolds(
