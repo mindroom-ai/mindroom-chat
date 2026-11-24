@@ -431,6 +431,47 @@ describe('the shared room actions', () => {
       render(<Harness removeFromSpaceId={spaceId} />);
       expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
     });
+
+    it('resolves the unique nested sub-space from room header spaceId and omits when ambiguous', () => {
+      const rootId = '!root:example.org';
+      const opsId = '!ops:example.org';
+      state.removeSpaceChild.mockClear();
+      state.rooms[rootId] = makeJoinedSpace({ roomId: rootId, name: 'Field Notes' });
+      state.rooms[spaceId] = makeJoinedSpace();
+      state.rooms[opsId] = makeJoinedSpace({ roomId: opsId, name: 'Operations' });
+
+      // Root -> Design Team -> room, with only spaceId={rootId} (open room header route).
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([
+          [room.roomId, new Set([spaceId])],
+          [spaceId, new Set([rootId])],
+        ]),
+      });
+      const close = vi.fn();
+      render(<Harness spaceId={rootId} close={close} />);
+      const entry = screen.getByRole('menuitem', { name: 'Remove from Design Team' });
+      fireEvent.click(entry);
+      expect(close).toHaveBeenCalledOnce();
+      expect(state.removeSpaceChild).toHaveBeenCalledWith(
+        expect.anything(),
+        spaceId,
+        '!room:example.org'
+      );
+
+      // Ambiguous multi-parent under Root (both Design Team and Operations) omits Remove from.
+      cleanup();
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([
+          [room.roomId, new Set([spaceId, opsId])],
+          [spaceId, new Set([rootId])],
+          [opsId, new Set([rootId])],
+        ]),
+      });
+      render(<Harness spaceId={rootId} />);
+      expect(screen.queryByRole('menuitem', { name: /^Remove from / })).toBeNull();
+    });
   });
 });
 

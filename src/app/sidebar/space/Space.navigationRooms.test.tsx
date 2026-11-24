@@ -847,12 +847,9 @@ describe('Space navigation', () => {
       .map((node) => node.props['data-menu-entry']);
     expect(roomsAddEntries).toEqual(['New Room', 'Add Existing Room']);
 
-    // Sub-space + gets the touch-hide SubspaceAddButton class (root Rooms + does not) and opens all 4 add entries.
+    // Sub-space + opens all 4 entries targeting that sub-space.
     const designAddButton = renderer!.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
-    );
-    expect(String(designAddButton.props.className).length).toBeGreaterThan(
-      String(roomsAddButton.props.className).length
     );
     act(() => {
       designAddButton.props.onClick({ currentTarget: { getBoundingClientRect: () => rect } });

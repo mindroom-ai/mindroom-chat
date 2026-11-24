@@ -2,7 +2,7 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { KnownMembership, type Room } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -213,22 +213,70 @@ function RemoveFromSpaceEntry({
   );
 }
 
+const isJoinedSpaceRoom = (room: Room | null): room is Room =>
+  Boolean(room && room.isSpaceRoom() && matchesEnum(room.getMyMembership(), KnownMembership.Join));
+
+const reachesAncestorSpace = (
+  startId: string,
+  ancestorId: string,
+  roomToParents: ReadonlyMap<string, ReadonlySet<string>>
+): boolean => {
+  const visited = new Set<string>([startId]);
+  const queue = [startId];
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (current === undefined) continue;
+    for (const parentId of roomToParents.get(current) ?? []) {
+      if (parentId === ancestorId) return true;
+      if (!visited.has(parentId)) {
+        visited.add(parentId);
+        queue.push(parentId);
+      }
+    }
+  }
+  return false;
+};
+
+/**
+ * Resolves the immediate joined space `roomId` may be unlinked from: explicit `removeFromSpaceId`
+ * (sidebar row section) when it is a direct parent, else `spaceId` (room header) when direct, or
+ * the unique direct joined sub-space reaching `spaceId` upward.
+ */
+const resolveRemoveFromSpaceId = (
+  client: MatrixClient,
+  roomId: string,
+  roomToParents: ReadonlyMap<string, ReadonlySet<string>>,
+  removeFromSpaceId: string | undefined,
+  spaceId: string | undefined
+): string | undefined => {
+  const directParents = roomToParents.get(roomId);
+  if (!directParents || directParents.size === 0) return undefined;
+  if (removeFromSpaceId)
+    return directParents.has(removeFromSpaceId) ? removeFromSpaceId : undefined;
+  if (!spaceId) return undefined;
+  if (directParents.has(spaceId)) return spaceId;
+  const matches = [...directParents].filter(
+    (parentId) =>
+      isJoinedSpaceRoom(client.getRoom(parentId)) &&
+      reachesAncestorSpace(parentId, spaceId, roomToParents)
+  );
+  return matches.length === 1 ? matches[0] : undefined;
+};
+
 /** Remove from, for each chat room the room is a sub-room of and the space listing it directly. */
 function TakeOffEntry({ room, spaceId, removeFromSpaceId, close }: RoomActionProps) {
   const client = useMatrixClient();
   const parentRooms = useParentRooms(room);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const targetSpaceId = removeFromSpaceId ?? spaceId;
-  const candidateSpace =
-    targetSpaceId && roomToParents.get(room.roomId)?.has(targetSpaceId)
-      ? client.getRoom(targetSpaceId)
-      : null;
-  const parentSpace =
-    candidateSpace &&
-    candidateSpace.isSpaceRoom() &&
-    matchesEnum(candidateSpace.getMyMembership(), KnownMembership.Join)
-      ? candidateSpace
-      : undefined;
+  const targetSpaceId = resolveRemoveFromSpaceId(
+    client,
+    room.roomId,
+    roomToParents,
+    removeFromSpaceId,
+    spaceId
+  );
+  const candidateSpace = targetSpaceId ? client.getRoom(targetSpaceId) : null;
+  const parentSpace = isJoinedSpaceRoom(candidateSpace) ? candidateSpace : undefined;
   return (
     <>
       {parentRooms.map((parent) => (
