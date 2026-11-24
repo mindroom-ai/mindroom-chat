@@ -62,6 +62,8 @@ describe('settings registry', () => {
     expect(resolveSettingsPageId('general')).toBe('appearance');
     expect(resolveSettingsPageId('devices')).toBe('privacy');
     expect(resolveSettingsPageId('emojis-stickers')).toBe('chats');
+    expect(resolveSettingsPageId('connections')).toBe('mindroom');
+    expect(resolveSettingsPageId('computers')).toBe('mindroom');
     expect(resolveSettingsPageId('developer')).toBe('developer-tools');
     expect(resolveSettingsPageId('local-mindroom')).toBe('mindroom.local-mindroom');
     ['account', 'notifications', 'developer-tools', 'about', 'archived-rooms'].forEach((id) =>
@@ -89,9 +91,10 @@ describe('settings registry', () => {
     const app = { ...WEB, native: true, nativeIOS: true, localMindroom: false };
     const webPages = getShownSettingsPages(WEB).map((page) => page.id);
     const appPages = getShownSettingsPages(app).map((page) => page.id);
-    expect(webPages).toContain('connections');
+    expect(webPages).toContain('mindroom');
+    expect(appPages).toContain('mindroom');
+    expect(webPages.indexOf('archived-rooms')).toBe(webPages.indexOf('chats') + 1);
     expect(webPages).toContain('mindroom.local-mindroom');
-    expect(appPages).not.toContain('connections');
     expect(appPages).not.toContain('mindroom.local-mindroom');
     // The Apple Watch only in the iOS app.
     expect(appPages).toContain('apple-watch');
@@ -113,6 +116,8 @@ describe('settings registry', () => {
 
     const webSettings = getShownSettings(WEB).map((setting) => setting.id);
     const appSettings = getShownSettings(app).map((setting) => setting.id);
+    expect(webSettings).toContain('connectedAccounts');
+    expect(appSettings).not.toContain('connectedAccounts');
     expect(webSettings).not.toContain('pushNotifications');
     expect(appSettings).toContain('pushNotifications');
     expect(webSettings).toContain('sidebarThreads');

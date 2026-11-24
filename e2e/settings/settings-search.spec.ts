@@ -13,18 +13,17 @@ import {
 const PASSWORD = 'settings-search-spec-password';
 const SHOTS = process.env.SETTINGS_SHOTS;
 
-const GROUPS = ['You', 'This app', 'Agents & connections', 'Rooms', 'Help & advanced'];
+const GROUPS = ['You', 'App', 'MindRoom', 'System'];
 const PAGES = [
   'Account',
   'Notifications',
   'Privacy & security',
   'Appearance',
   'Chats',
+  'Archived Rooms',
   'Sidebar',
   'Language & region',
-  'Connected accounts',
-  'Computers',
-  'Archived Rooms',
+  'Agents & servers',
   'Storage & offline',
   'Developer Tools',
   'About',
@@ -163,6 +162,16 @@ test('a deep link with an earlier page id opens the page that took it over', asy
 
   await page.goto('/settings/general');
   await expect(menuButton(dialog, 'Appearance')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await page.goto('/settings/computers');
+  await expect(menuButton(dialog, 'Agents & servers')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  await page.goto('/settings/connections');
+  await expect(menuButton(dialog, 'Agents & servers')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('on a phone the menu comes first, a page covers it, and Back returns to it', async ({

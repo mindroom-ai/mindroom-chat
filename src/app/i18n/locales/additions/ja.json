@@ -408,6 +408,7 @@
       },
       "sidebar": {
         "title": "サイドバー",
+        "navigation": "ナビゲーション",
         "threads": "サイドバーにスレッドを表示する",
         "threadsDescription": "すべてのルームのスレッドを1つのリストで表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
         "canvasesDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
@@ -437,14 +438,15 @@
       "menu": {
         "groups": {
           "you": "あなた",
-          "app": "このアプリ",
-          "agents": "エージェントと接続",
-          "help": "ヘルプと詳細設定"
+          "app": "アプリ",
+          "mindroom": "MindRoom",
+          "system": "システム"
         },
         "pages": {
           "privacy": "プライバシーとセキュリティ",
           "language": "言語と地域",
-          "storage": "ストレージとオフライン"
+          "storage": "ストレージとオフライン",
+          "agentsServers": "エージェントとサーバー"
         }
       },
       "search": {
@@ -459,7 +461,9 @@
       "advanced": "詳細設定",
       "sections": {
         "display": "表示",
-        "privacy": "プライバシー"
+        "privacy": "プライバシー",
+        "replying": "返信",
+        "connectionsComputers": "接続とコンピューター"
       },
       "computers": {
         "inUse": "使用中のサーバー",

@@ -503,7 +503,7 @@ const walkSettings = async (
       });
     };
     const rowCount = await menuRows(dialog).count();
-    expect(rowCount, 'the menu, Local MindRoom included').toBe(14);
+    expect(rowCount, 'the menu, Local MindRoom included').toBe(13);
     if (phone) {
       out.push({ state: `${tag} menu`, measures: await measure(dialog) });
       await shot('menu');
