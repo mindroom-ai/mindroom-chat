@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import i18n from '../../src/app/i18n/i18n';
 import { LightTheme, DarkTheme } from '../../src/app/theme/useTheme';
