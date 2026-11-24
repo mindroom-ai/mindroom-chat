@@ -1,7 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace } from '../helpers/matrix';
@@ -32,6 +39,12 @@ import {
 // spec sends the touch events itself (`e2e/helpers/touch.ts`). Set RAIL_LONG_PRESS_SHOTS to save
 // the screenshots.
 const SHOTS = process.env.RAIL_LONG_PRESS_SHOTS;
+/** iPhone in landscape with browser bars: tall menus must scroll inside the viewport. */
+const LANDSCAPE_PHONE: BrowserContextOptions = {
+  viewport: { width: 874, height: 330 },
+  hasTouch: true,
+  isMobile: true,
+};
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
 /** The entries of a space's menu for its creator, who may add rooms/sub-spaces and invite. */
@@ -238,10 +251,10 @@ const checkTap = async (page: Page, spaceId: string, tag: string) => {
  * A phone page. Chromium on macOS now and then starts a touch context without its touch emulation
  * (a pointer that hovers); such a context is replaced, twice at most.
  */
-const phonePage = async (owner: Browser) => {
+const phonePage = async (owner: Browser, options: BrowserContextOptions = PHONE) => {
   for (let attempt = 1; ; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const context = await owner.newContext(PHONE);
+    const context = await owner.newContext(options);
     // eslint-disable-next-line no-await-in-loop
     const page = await context.newPage();
     const touchScreen = () =>
@@ -302,4 +315,62 @@ test('a long press opens a space menu in the rail on a phone (WebKit)', async ({
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await run(browser, 'webkit');
+});
+
+test('on a landscape phone the editable rail menu stays in the viewport and Leave Space is reachable', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const data = await seed('chromium_landscape');
+  const { context, page, touchScreen } = await phonePage(browser, LANDSCAPE_PHONE);
+  try {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: data.tester.username,
+      password: PASSWORD,
+    });
+    await expect.poll(touchScreen).toBe(true);
+    await page.goto('/home/');
+    await expect.poll(async () => (await railOrder(page)).length, { timeout: 60_000 }).toBe(3);
+    const [first] = (await railOrder(page)) as [string];
+    const firstTab = tab(page, first);
+    await firstTab.scrollIntoViewIfNeeded();
+    await touch(firstTab, [{ type: 'start' }, { type: 'wait', ms: HOLD_MS }, { type: 'end' }]);
+
+    const menu = spaceMenu(page);
+    await expect(menu, 'landscape rail menu opens on long press').toBeVisible();
+    expect(await menuEntries(menu)).toEqual(ENTRIES);
+
+    const viewportHeight = LANDSCAPE_PHONE.viewport!.height;
+    const menuBox = (await menu.boundingBox())!;
+    expect(menuBox.y, 'landscape rail menu stays below top edge').toBeGreaterThanOrEqual(0);
+    expect(
+      menuBox.y + menuBox.height,
+      'landscape rail menu stays within viewport height'
+    ).toBeLessThanOrEqual(viewportHeight);
+
+    const scroller = menu.locator('> div').first();
+    const scrollMetrics = await scroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      overflowY: getComputedStyle(el).overflowY,
+    }));
+    expect(scrollMetrics.overflowY).toBe('auto');
+    expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
+
+    const leaveItem = menu.getByRole('menuitem', { name: 'Leave Space', exact: true });
+    await leaveItem.scrollIntoViewIfNeeded();
+    const leaveBox = (await leaveItem.boundingBox())!;
+    expect(leaveBox.y).toBeGreaterThanOrEqual(menuBox.y - 1);
+    expect(leaveBox.y + leaveBox.height).toBeLessThanOrEqual(menuBox.y + menuBox.height + 1);
+    expect(leaveBox.y + leaveBox.height).toBeLessThanOrEqual(viewportHeight);
+
+    await leaveItem.tap();
+    const leaveDialog = page.getByRole('alertdialog', { name: 'Leave Space' });
+    await expect(leaveDialog, 'tapping Leave Space opens confirmation dialog').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(leaveDialog).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });

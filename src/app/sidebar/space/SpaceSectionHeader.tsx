@@ -19,6 +19,7 @@ import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../../ui/MenuEntry';
+import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
 import { stopPropagation } from '../../lib/keyboard';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
@@ -115,7 +116,7 @@ function SubspaceOptionsWithParent({
   dialogs: SpaceQuickDialogHandlers;
   onClose: () => void;
 }) {
-  const parentName = revealDirectionControls(useRoomName(parentSpace));
+  const parentName = useRoomName(parentSpace);
   const { canAdd: canEditParent } = useSpaceQuickPermissions(parentSpace);
   return (
     <SpaceMenuGroups
@@ -219,10 +220,7 @@ export function SpaceSectionHeader({
     });
   }, [contextKind]);
 
-  const longPress = useLongPress(
-    openAtHeader,
-    (evt) => canOpenContextMenu && evt.currentTarget.contains(evt.target as Node)
-  );
+  const longPress = useLongPress(openAtHeader, () => canOpenContextMenu);
 
   const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -334,34 +332,39 @@ export function SpaceSectionHeader({
                 onDeactivate: closeMenu,
               }}
             >
-              <Menu style={{ width: '100vw', maxWidth: toRem(210) }}>
-                {menu.kind === 'add' ? (
-                  <MenuGroup>
-                    <SpaceAddMenuEntries
-                      spaceId={space.roomId}
-                      roomsOnly={isRoot}
+              <Menu
+                className={scrollableMenuCss.ScrollableMenu}
+                style={{ width: '100vw', maxWidth: toRem(210) }}
+              >
+                <div className={scrollableMenuCss.ScrollableMenuRows}>
+                  {menu.kind === 'add' ? (
+                    <MenuGroup>
+                      <SpaceAddMenuEntries
+                        spaceId={space.roomId}
+                        roomsOnly={isRoot}
+                        onClose={closeMenu}
+                        onAddRooms={dialogs.openAddRooms}
+                        onAddSpaces={dialogs.openAddSpaces}
+                      />
+                    </MenuGroup>
+                  ) : parentSpace ? (
+                    <SubspaceOptionsWithParent
+                      subspace={space}
+                      parentSpace={parentSpace}
+                      permissions={permissions}
+                      dialogs={dialogs}
                       onClose={closeMenu}
-                      onAddRooms={dialogs.openAddRooms}
-                      onAddSpaces={dialogs.openAddSpaces}
                     />
-                  </MenuGroup>
-                ) : parentSpace ? (
-                  <SubspaceOptionsWithParent
-                    subspace={space}
-                    parentSpace={parentSpace}
-                    permissions={permissions}
-                    dialogs={dialogs}
-                    onClose={closeMenu}
-                  />
-                ) : (
-                  <SpaceMenuGroups
-                    space={space}
-                    permissions={permissions}
-                    dialogs={dialogs}
-                    onClose={closeMenu}
-                    pinMode="toggle"
-                  />
-                )}
+                  ) : (
+                    <SpaceMenuGroups
+                      space={space}
+                      permissions={permissions}
+                      dialogs={dialogs}
+                      onClose={closeMenu}
+                      pinMode="toggle"
+                    />
+                  )}
+                </div>
               </Menu>
             </FocusTrap>
           }

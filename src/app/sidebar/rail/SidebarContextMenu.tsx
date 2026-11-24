@@ -4,6 +4,7 @@ import { PopOut } from '../../ui/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../ui/glass/GlassPrimitives';
+import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
 import { stopPropagation } from '../../lib/keyboard';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 
@@ -38,7 +39,12 @@ export function SidebarContextMenu({
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Menu style={{ width: '100vw', maxWidth: toRem(width) }}>{children}</Menu>
+          <Menu
+            className={scrollableMenuCss.ScrollableMenu}
+            style={{ width: '100vw', maxWidth: toRem(width) }}
+          >
+            <div className={scrollableMenuCss.ScrollableMenuRows}>{children}</div>
+          </Menu>
         </FocusTrap>
       }
     />

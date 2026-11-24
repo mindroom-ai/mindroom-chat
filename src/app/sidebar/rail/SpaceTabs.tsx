@@ -224,38 +224,42 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
     </SidebarItemBadge>
   ) : null;
 
+  // The menu and dialogs sit outside the sortable wrapper so pointer/touch interactions inside
+  // their portals never bubble into dnd-kit's rail drag listeners.
   return (
-    <div {...sortable.props}>
-      <SidebarItem active={selected}>
-        <SidebarItemTooltip tooltip={shownName}>
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              ref={triggerRef}
-              size="400"
-              data-id={roomId}
-              onClick={handleClick}
-              onKeyDown={moveKeyHandler(onMove)}
-              {...buttonProps}
-            >
-              <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
-              <span className={css.HiddenName}>{label}</span>
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
-        {unreadBadge}
-        <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu} width={220}>
-          <SpaceTabMenu
-            space={space}
-            spaceRooms={spaceRooms}
-            pinned={pinned}
-            dialogs={dialogs}
-            onClose={closeMenu}
-          />
-        </SidebarContextMenu>
-        {dialogs.dialog}
-      </SidebarItem>
-    </div>
+    <>
+      <div {...sortable.props}>
+        <SidebarItem active={selected}>
+          <SidebarItemTooltip tooltip={shownName}>
+            {(triggerRef) => (
+              <SidebarAvatar
+                as="button"
+                ref={triggerRef}
+                size="400"
+                data-id={roomId}
+                onClick={handleClick}
+                onKeyDown={moveKeyHandler(onMove)}
+                {...buttonProps}
+              >
+                <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
+                <span className={css.HiddenName}>{label}</span>
+              </SidebarAvatar>
+            )}
+          </SidebarItemTooltip>
+          {unreadBadge}
+        </SidebarItem>
+      </div>
+      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu} width={220}>
+        <SpaceTabMenu
+          space={space}
+          spaceRooms={spaceRooms}
+          pinned={pinned}
+          dialogs={dialogs}
+          onClose={closeMenu}
+        />
+      </SidebarContextMenu>
+      {dialogs.dialog}
+    </>
   );
 }
 

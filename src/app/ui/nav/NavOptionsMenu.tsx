@@ -3,6 +3,7 @@ import { Icon, IconButton, Icons, toRem, type IconSrc, type RectCords } from 'fo
 import FocusTrap from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
+import * as scrollableMenuCss from '../ScrollableMenu.css';
 import { stopPropagation } from '../../lib/keyboard';
 import { LoneTouchTarget } from '../styles/TouchTarget.css';
 
@@ -61,7 +62,12 @@ export function NavOptionsMenu({
         returnFocusOnDeactivate: false,
       }}
     >
-      <Menu style={{ width: '100vw', maxWidth: toRem(width) }}>{children(close)}</Menu>
+      <Menu
+        className={scrollableMenuCss.ScrollableMenu}
+        style={{ width: '100vw', maxWidth: toRem(width) }}
+      >
+        <div className={scrollableMenuCss.ScrollableMenuRows}>{children(close)}</div>
+      </Menu>
     </FocusTrap>
   );
 
