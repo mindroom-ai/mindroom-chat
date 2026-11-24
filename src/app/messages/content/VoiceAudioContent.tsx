@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Icon, IconButton, Icons, RectCords, Spinner, Text } from 'folds';
 import { PopOut, revealDirectionControls } from '../../ui/directional';

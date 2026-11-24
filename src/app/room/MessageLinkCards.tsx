@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { config, toRem } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';

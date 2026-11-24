@@ -148,7 +148,7 @@ vi.mock('../MessageLinkCards', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));

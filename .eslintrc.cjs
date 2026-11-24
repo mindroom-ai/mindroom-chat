@@ -198,11 +198,7 @@ module.exports = {
       excludedFiles: ['src/app/lib/nativeShell.ts'],
       rules: {
         'no-restricted-properties': ['error', ...DESKTOP_BRIDGE_PROPERTIES],
-        'no-restricted-syntax': [
-          'error',
-          ...COMMON.rules['no-restricted-syntax'].slice(1),
-          ...DESKTOP_BRIDGE_SYNTAX,
-        ],
+        'no-restricted-syntax': ['error', ...DESKTOP_BRIDGE_SYNTAX],
       },
     },
     // Physical sides in styles (scripts/eslint-shared.cjs), keeping the bridge syntax checks.

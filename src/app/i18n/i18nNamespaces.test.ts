@@ -141,6 +141,24 @@ describe('registered i18n namespaces', () => {
     expect(load.mock.calls).toEqual([['de'], ['fr']]);
   });
 
+  it('settles a regional language tag once and still registers namespaces', async () => {
+    stubCatalogs();
+    const changing = vi.fn();
+    const changed = vi.fn();
+    i18n.on('languageChanging', changing);
+    i18n.on('languageChanged', changed);
+
+    await i18n.changeLanguage('en-US');
+
+    expect(i18n.language).toBe('en');
+    expect(changing.mock.calls).toEqual([['en-US']]);
+    expect(changed.mock.calls).toEqual([['en']]);
+
+    await registerNamespace(NAMESPACE, ENGLISH, async () => ({ greeting: 'Hallo' }));
+    expect(translate('greeting')).toBe('Hello');
+    expect(changing.mock.calls).toEqual([['en-US']]);
+  });
+
   it('detects the language again for an empty pick', async () => {
     stubCatalogs();
     await i18n.changeLanguage('de');

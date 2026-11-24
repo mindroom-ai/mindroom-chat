@@ -1,7 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   KnownMembership,
@@ -13,8 +12,6 @@ import {
   RoomStateEvent,
 } from 'matrix-js-sdk';
 import { chatRoomParentsAtom, roomToParentsAtom, useBindRoomToParentsAtom } from './roomToParents';
-
-enableMapSet();
 
 const ME = '@me:example.org';
 let renderer: ReactTestRenderer | undefined;

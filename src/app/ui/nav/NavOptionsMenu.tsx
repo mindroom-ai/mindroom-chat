@@ -1,6 +1,6 @@
 import { type MouseEvent, type ReactNode, useCallback, useRef, useState } from 'react';
 import { Icon, IconButton, Icons, toRem, type IconSrc, type RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
 import * as scrollableMenuCss from '../ScrollableMenu.css';

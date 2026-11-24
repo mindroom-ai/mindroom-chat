@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { FocusScope, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { Overlay, OverlayBackdrop, OverlayCenter, config } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';

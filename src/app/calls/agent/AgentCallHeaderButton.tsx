@@ -1,6 +1,6 @@
 import { forwardRef, useContext, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem } from 'folds';
 import { PopOut, TooltipProvider } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';

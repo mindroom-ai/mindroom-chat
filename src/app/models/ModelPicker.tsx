@@ -1,4 +1,4 @@
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Scroll, Spinner, config, toRem } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Room } from 'matrix-js-sdk';

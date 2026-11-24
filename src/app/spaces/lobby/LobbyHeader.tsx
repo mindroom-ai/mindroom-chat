@@ -21,7 +21,7 @@ import {
 } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../ui/page/Page';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';

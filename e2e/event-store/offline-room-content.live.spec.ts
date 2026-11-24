@@ -48,7 +48,7 @@ const uploadMedia = async (
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': contentType,
     },
-    body: bytes,
+    body: new Uint8Array(bytes),
   });
   expect(response.status).toBe(200);
   const content = (await response.json()) as { content_uri?: string };

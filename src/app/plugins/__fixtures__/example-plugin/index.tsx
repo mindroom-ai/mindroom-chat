@@ -96,7 +96,7 @@ import {
   type MouseEvent,
   type RefObject,
 } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import {
   Avatar,
   Box,

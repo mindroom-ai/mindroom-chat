@@ -263,7 +263,7 @@ const buildSource = (language: CorpusLanguage): CorpusSource => {
   // A room and a thread are open, so every action the palette can offer is listed.
   const quickActions = getCommandPaletteQuickActions(
     { currentRoomName: 'General', currentThreadId: '$login', isCurrentThreadResolved: false },
-    translate as TFunction
+    translate as unknown as TFunction
   );
   const callRows = ['code', 'research'].map(
     (agent): CommandPaletteActionItem => ({

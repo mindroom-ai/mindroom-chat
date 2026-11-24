@@ -33,7 +33,7 @@ vi.mock('../../../ui/glass/GlassPrimitives', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
 vi.mock('react-range', () => ({

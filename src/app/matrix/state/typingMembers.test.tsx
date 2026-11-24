@@ -1,6 +1,5 @@
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   KnownMembership,
@@ -16,8 +15,6 @@ import {
   roomIdToTypingMembersAtom,
   useBindRoomIdToTypingMembersAtom,
 } from './typingMembers';
-
-enableMapSet();
 
 const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_agent:example.org';
@@ -187,7 +184,10 @@ it('drops a person’s notice when their message arrives, but not an agent’s',
   serverTyping([AGENT, PERSON]);
 
   // An agent keeps one notice for all its replies in the room, also through its other messages.
-  await message(AGENT, '$placeholder', { body: 'Thinking...', 'io.mindroom.stream_status': 'pending' });
+  await message(AGENT, '$placeholder', {
+    body: 'Thinking...',
+    'io.mindroom.stream_status': 'pending',
+  });
   await message(AGENT, '$title', { msgtype: 'm.notice', body: 'Harbor report' });
   expect(shown()).toEqual([AGENT, PERSON]);
 

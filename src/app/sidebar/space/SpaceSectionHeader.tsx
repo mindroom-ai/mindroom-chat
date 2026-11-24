@@ -9,7 +9,7 @@ import {
 } from 'react';
 import classNames from 'classnames';
 import { Icon, IconButton, Icons, toRem, type RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';

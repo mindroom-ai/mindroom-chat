@@ -80,7 +80,8 @@ describe('settings search', () => {
       resources: { nl: { translation: mergeLocaleTrees(nl, nlAdditions) } },
       interpolation: { escapeValue: false },
     });
-    const dutch: SettingsTranslate = (key: ParseKeys, values) => instance.t(key, values);
+    const dutch: SettingsTranslate = (key: ParseKeys, values) =>
+      instance.t(key, { ...values, defaultValue: key });
 
     const [clock] = searchSettings('24-uurs', getShownSettings(WEB), dutch, VALUES);
     expect(clock?.setting.id).toBe('hour24Clock');

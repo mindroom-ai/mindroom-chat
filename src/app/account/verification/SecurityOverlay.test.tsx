@@ -11,7 +11,7 @@ const trap = vi.hoisted(() => ({ pressOutside: undefined as PressOutside | undef
 
 // jsdom lays nothing out, so focus-trap finds no tabbable node; the options it is given are tested.
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

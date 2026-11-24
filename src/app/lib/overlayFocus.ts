@@ -53,7 +53,7 @@ const isTextEntry = (element: HTMLElement): boolean =>
   element.matches('textarea, [contenteditable="true"]') ||
   (element.matches('input') &&
     !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'].includes(
-      (element as HTMLInputElement).type
+      element.type
     ));
 
 type Doc = Document & { defaultView: (Window & typeof globalThis) | null };

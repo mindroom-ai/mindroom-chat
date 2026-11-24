@@ -53,7 +53,7 @@ const thread = (
     tokens.map((reply, index) => {
       counts = { ...counts };
       AI_RUN_TOKEN_KINDS.forEach((kind) => {
-        if (reply[kind]) counts[kind] = (counts[kind] ?? 0) + reply[kind]!;
+        if (reply[kind]) counts[kind] = (counts[kind] ?? 0) + reply[kind];
       });
       return [`$r${index + 1}`, { counts, replyCount: index + 1 }] as const;
     })

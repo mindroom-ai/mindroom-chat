@@ -739,7 +739,7 @@ describe('crossRoomThreadIndex', () => {
     });
     const roomRemoved = removeRoomCrossRoomThreadIndexEntries(roomA, '!room:example.org');
     expect(roomRemoved.entries.size).toBe(1);
-    expect(roomRemoved.entries.values().next().value.roomId).toBe('!other:example.org');
+    expect(roomRemoved.entries.values().next().value?.roomId).toBe('!other:example.org');
   });
 
   it('indexes thread roots by root and visible reply event ids', () => {
