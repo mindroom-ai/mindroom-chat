@@ -1038,6 +1038,67 @@ describe('desktopAccess', () => {
     expect(await access.pair(pair)).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
   });
 
+  it('moves the setup authorization forward only: one sign-in per click, then pair, then finishSetup', async () => {
+    const fake = createFakeBridgeClient(makeBaseStatus());
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir: makeTempDir(),
+      storagePath: makeTempDir(),
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+    const login = { homeserver: 'https://mindroom.chat', method: 'sso' as const, loginToken: 't' };
+    const pair = {
+      controller: { userId: '@agent:mindroom.chat', deviceId: 'AG1', ed25519: 'ed1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['general'],
+      code: 'PAIR-1',
+    };
+    const refused = { ok: false, code: 'NO_USER_GESTURE' };
+    const loginCalls = (): number => fake.calls.filter((call) => call.action === 'login').length;
+
+    // One click signs the helper in once: a second sign-in is refused, pairing goes on.
+    access.noteGesture();
+    expect((await access.beginSetup()).ok).toBe(true);
+    expect((await access.login(login)).ok).toBe(true);
+    expect(await access.login({ ...login, replace: true })).toEqual(refused);
+    expect(loginCalls()).toBe(1);
+    const paired = await access.pair(pair);
+    expect(paired.ok).toBe(true);
+    if (!paired.ok) return;
+    const { controllerKey } = paired.value;
+
+    // After pairing only finishSetup for that controller is left.
+    expect(await access.login(login)).toEqual(refused);
+    expect(await access.pair(pair)).toEqual(refused);
+    expect(await access.finishSetup({ controllerKey: 'another-key', mode: 'full' })).toEqual(
+      refused
+    );
+    expect((await access.finishSetup({ controllerKey, mode: 'full' })).ok).toBe(true);
+    expect(await access.finishSetup({ controllerKey, mode: 'full' })).toEqual(refused);
+    expect(loginCalls()).toBe(1);
+
+    // A sign-in that fails spends the authorization: nothing is left to retry on.
+    access.noteGesture();
+    expect((await access.beginSetup()).ok).toBe(true);
+    vi.mocked(fake.client.request).mockRejectedValueOnce(new Error('sign-in refused'));
+    expect(await access.login(login)).toMatchObject({ ok: false, message: 'sign-in refused' });
+    expect(await access.login(login)).toEqual(refused);
+    expect(await access.pair(pair)).toEqual(refused);
+  });
+
   it('takes desktop:access-begin-setup from the main window only, without arguments', async () => {
     const access = createDesktopAccess({
       platform: 'darwin',

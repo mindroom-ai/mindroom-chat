@@ -56,6 +56,14 @@ const ACCESSIBILITY_SETTINGS_URL =
 const SCREEN_RECORDING_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
+/**
+ * What one consent click still authorizes, in the order a setup runs. It only moves forward:
+ * a sign-in or a pairing, then a pairing, then finishing the setup of the controller that paired.
+ */
+type SetupAuth = { expiresAt: number } & (
+  { stage: 'login_or_pair' | 'pair_only' } | { stage: 'finish'; controllerKey: string }
+);
+
 export type DesktopAccessOptions = {
   platform?: NodeJS.Platform;
   arch?: string;
@@ -123,7 +131,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
   let gestureAt = -Infinity;
   let shellGestureAt = -Infinity;
-  let setupAuth: { expiresAt: number; controllerKey?: string } | undefined;
+  let setupAuth: SetupAuth | undefined;
   let helperError: string | null = null;
   let latestStatus: DesktopAccessHelperStatus | null = null;
   let screenRecordingRequested = false;
@@ -245,22 +253,30 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     return consumeGesture();
   };
 
-  const activeSetupAuth = (): { expiresAt: number; controllerKey?: string } | undefined => {
+  const activeSetupAuth = (): SetupAuth | undefined => {
     if (setupAuth && now() > setupAuth.expiresAt) setupAuth = undefined;
     return setupAuth;
   };
 
-  /** Sign-in and pairing ride on a fresh click, or on a setup that has not bound a controller yet. */
-  const authorizeSetupStep = (): boolean => {
+  /** A sign-in rides on a fresh click or on a setup that has not signed in yet, and spends it. */
+  const authorizeLogin = (): boolean => {
+    const staged = activeSetupAuth()?.stage === 'login_or_pair';
+    if (!consumeGesture() && !staged) return false;
+    // Spent here, not on success, so a sign-in that fails leaves nothing to try again on.
+    setupAuth = undefined;
+    return true;
+  };
+
+  const authorizePair = (): boolean => {
     if (consumeGesture()) return true;
-    const auth = activeSetupAuth();
-    return auth !== undefined && auth.controllerKey === undefined;
+    const stage = activeSetupAuth()?.stage;
+    return stage === 'login_or_pair' || stage === 'pair_only';
   };
 
   const authorizeFinishSetup = (controllerKey: string): boolean => {
     if (consumeGesture()) return true;
     const auth = activeSetupAuth();
-    return auth !== undefined && auth.controllerKey === controllerKey;
+    return auth?.stage === 'finish' && auth.controllerKey === controllerKey;
   };
 
   const requireBridge = async (): Promise<DesktopBridgeClient> => {
@@ -424,12 +440,12 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     // which may take longer than a click counts for.
     beginSetup(): Promise<DesktopResult<void>> {
       if (!consumeGesture()) return Promise.resolve({ ok: false, code: 'NO_USER_GESTURE' });
-      setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS };
+      setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS, stage: 'login_or_pair' };
       return Promise.resolve({ ok: true, value: undefined });
     },
 
     login: (req: DesktopAccessLoginRequest) =>
-      runBridge(authorizeSetupStep, async (client) => {
+      runBridge(authorizeLogin, async (client) => {
         if (req.replace && isBridgeRunning(latestStatus)) await client.request('stop', {});
         await client.request(
           'login',
@@ -445,12 +461,12 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           },
           LOGIN_TIMEOUT_MS
         );
-        setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS };
+        setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS, stage: 'pair_only' };
         return syncUi();
       }),
 
     pair: (req: DesktopAccessPairRequest) =>
-      runBridge(authorizeSetupStep, async (client): Promise<DesktopAccessPairResult> => {
+      runBridge(authorizePair, async (client): Promise<DesktopAccessPairResult> => {
         const current = latestStatus ?? (await fetchStatus(client));
         const upsertRes = await client.request<{ status?: DesktopAccessHelperStatus }>(
           'upsert_controller',
@@ -488,7 +504,11 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
             ? { cloudflare_access: req.cloudflareAccess }
             : {}),
         });
-        setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS, controllerKey: matched.controller_key };
+        setupAuth = {
+          expiresAt: now() + SETUP_AUTH_TTL_MS,
+          stage: 'finish',
+          controllerKey: matched.controller_key,
+        };
         return {
           controllerKey: matched.controller_key,
           deviceId: res.device_id ?? after.pairing.device_id ?? '',
