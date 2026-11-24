@@ -37,7 +37,9 @@ const pluginResolver = createNodeResolver({
 });
 
 export default [
-  globalIgnores(['node_modules/', 'dist/']),
+  // Match ESLint 8's recursive directory ignores and default dotfile/dot-directory ignores
+  // (including `.mindroom-chat/` and `.cache/` at any depth).
+  globalIgnores(['**/node_modules/**', '**/dist/**', '**/.*/**', '**/.*']),
   ...createCommonConfigs({ resolver: pluginResolver }),
   {
     files: LINTED_FILES,

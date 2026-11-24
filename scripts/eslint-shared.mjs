@@ -12,7 +12,7 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 
-export const LINTED_FILES = ['**/*.{ts,tsx,js,jsx,mjs,cjs}'];
+export const LINTED_FILES = ['**/*.{ts,tsx,js,mjs,cjs}'];
 export const RESOLVER_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
 // eslint-plugin-react 7.37.5 still calls RuleContext/SourceCode methods removed in ESLint 10.
@@ -43,6 +43,9 @@ export const COMMON_RULES = {
   ],
   '@typescript-eslint/no-explicit-any': 'warn',
   'prefer-const': 'warn',
+  // Restore ESLint 8 eslint:recommended defaults that ESLint 9/10 removed or relaxed.
+  'no-inner-declarations': ['error', 'functions', { blockScopedFunctions: 'disallow' }],
+  'no-constant-condition': ['error', { checkLoops: 'all' }],
   // eslint-plugin-react-hooks 7 React Compiler rules: rules-of-hooks and exhaustive-deps stay as
   // before; real-bug rules with few violations stay errors (set-state-in-render, error-boundaries,
   // static-components, use-memo); the rest stay off with their repo-wide violation counts.
@@ -61,18 +64,21 @@ export const COMMON_RULES = {
 /** Flat config entries for the parser, plugins, presets and base rules of every linted file. */
 export const createCommonConfigs = ({
   resolver = createNodeResolver({ extensions: RESOLVER_EXTENSIONS }),
+  files = LINTED_FILES,
 } = {}) => [
   {
     ...js.configs.recommended,
-    files: LINTED_FILES,
+    files,
   },
   ...tsPlugin.configs['flat/recommended'].map((config) => ({
     ...config,
-    files: config.files ?? LINTED_FILES,
+    files: config.files
+      ? config.files.filter((pattern) => /\.(ts|tsx|js|mjs|cjs)$/.test(pattern))
+      : files,
   })),
   {
     name: 'react/recommended-and-jsx-runtime',
-    files: LINTED_FILES,
+    files,
     plugins: { react: compatReactPlugin },
     languageOptions: {
       parserOptions: {
@@ -87,19 +93,19 @@ export const createCommonConfigs = ({
   },
   {
     ...reactHooksPlugin.configs.flat.recommended,
-    files: LINTED_FILES,
+    files,
   },
   {
     ...jsxA11yPlugin.flatConfigs.recommended,
-    files: LINTED_FILES,
+    files,
   },
   {
     ...eslintConfigPrettier,
-    files: LINTED_FILES,
+    files,
   },
   {
     name: 'mindroom/base',
-    files: LINTED_FILES,
+    files,
     // Keep ESLint 8's default: older files carry disable comments for rules that are off.
     linterOptions: { reportUnusedDisableDirectives: 'off' },
     languageOptions: {

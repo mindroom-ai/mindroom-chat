@@ -5,7 +5,6 @@ import { globalIgnores } from 'eslint/config';
 
 import {
   DIRECTIONAL_COMPONENTS,
-  LINTED_FILES,
   TYPE_AWARE_RULES,
   createCommonConfigs,
   logicalSidesOverrides,
@@ -148,10 +147,22 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
 const LAYERS_EXEMPT = [...TESTS, '**/*.test.shared.ts', '**/test-utils/**', '**/testUtils.ts'];
 
 export default [
-  globalIgnores(['node_modules/', 'dist/', 'test-results/', 'playwright-report/', '.baspowers/']),
-  ...createCommonConfigs(),
+  // Match ESLint 8's recursive directory ignores and default dotfile/dot-directory ignores
+  // (including `.baspowers/` and `.cache/` at any depth).
+  globalIgnores([
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/test-results/**',
+    '**/playwright-report/**',
+    '**/.*/**',
+    '**/.*',
+  ]),
+  // Match .eslintrc.cjs: explicit file/lintText checks on .jsx (e.g. surfaceImports.test.ts)
+  // still receive app rules, while package.json "lint" limits directory linting to
+  // .ts,.tsx,.js,.mjs,.cjs (matching scripts/push-gate.sh).
+  ...createCommonConfigs({ files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'] }),
   {
-    files: LINTED_FILES,
+    files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
     rules: {
       'no-restricted-imports': ['error', IMPORT_RESTRICTIONS],
     },
