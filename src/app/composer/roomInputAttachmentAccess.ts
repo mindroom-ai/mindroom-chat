@@ -49,14 +49,10 @@ export type RoomInputAttachmentAccess = {
   subscribe: (listener: () => void) => () => void;
 };
 
-/**
- * Whether `textContent` references a large-paste marker whose file was in `batchItems` (staged
- * or prepared for this send) but is not among `uploadedItems` ready to send.
- */
-export const hasMissingPasteAttachmentForText = (
+/** Whether `textContent` references a large-paste marker belonging to any item in `items`. */
+export const hasPasteMarkerInText = (
   textContent: IContent | undefined,
-  batchItems: readonly TUploadItem[],
-  uploadedItems: readonly TUploadItem[]
+  items: readonly TUploadItem[]
 ): boolean => {
   if (!textContent) return false;
   const textValues = [textContent.body, textContent.formatted_body].filter(
@@ -64,15 +60,9 @@ export const hasMissingPasteAttachmentForText = (
   );
   if (textValues.length === 0) return false;
 
-  const uploadedPasteFiles = new Set(
-    uploadedItems
-      .filter((item) => !item.prepError)
-      .map((item) => item.metadata.mindroomPasteAttachment?.fileName)
-      .filter((name): name is string => name !== undefined)
-  );
-  return batchItems.some((item) => {
+  return items.some((item) => {
     const paste = item.metadata.mindroomPasteAttachment;
-    if (!paste || uploadedPasteFiles.has(paste.fileName)) return false;
+    if (!paste) return false;
     let marker: string;
     try {
       marker = createPasteMarker({
@@ -85,6 +75,30 @@ export const hasMissingPasteAttachmentForText = (
     }
     return textValues.some((text) => text.includes(marker));
   });
+};
+
+/**
+ * Whether `textContent` references a large-paste marker whose file was in `batchItems` (staged
+ * or prepared for this send) but is not among `uploadedItems` ready to send.
+ */
+export const hasMissingPasteAttachmentForText = (
+  textContent: IContent | undefined,
+  batchItems: readonly TUploadItem[],
+  uploadedItems: readonly TUploadItem[]
+): boolean => {
+  const uploadedPasteFiles = new Set(
+    uploadedItems
+      .filter((item) => !item.prepError)
+      .map((item) => item.metadata.mindroomPasteAttachment?.fileName)
+      .filter((name): name is string => name !== undefined)
+  );
+  return hasPasteMarkerInText(
+    textContent,
+    batchItems.filter((item) => {
+      const fileName = item.metadata.mindroomPasteAttachment?.fileName;
+      return fileName !== undefined && !uploadedPasteFiles.has(fileName);
+    })
+  );
 };
 
 export type DeferredAttachmentSendResult = {

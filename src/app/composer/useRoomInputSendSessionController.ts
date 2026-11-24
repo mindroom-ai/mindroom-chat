@@ -21,7 +21,7 @@ import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRoute
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { TUploadItem, Upload } from '../matrix/state/upload';
-import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
+import { hasPasteMarkerInText, type RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
@@ -30,7 +30,6 @@ import {
   MAX_EVENT_CONTENT_BYTES,
 } from '../matrix/protocol/longText';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
-import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
@@ -264,40 +263,14 @@ type UseRoomInputSendSessionControllerOptions = {
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
 };
 
-const getTextContentStrings = (content: IContent | undefined): string[] => {
-  if (!content) return [];
-
-  return [content.body, content.formatted_body].filter(
-    (value): value is string => typeof value === 'string'
-  );
-};
-
 export const hasFailedPasteMarkerInText = (
   textContent: IContent | undefined,
   fileItems: TUploadItem[]
-): boolean => {
-  const textValues = getTextContentStrings(textContent);
-  if (textValues.length === 0) return false;
-
-  return fileItems.some((fileItem) => {
-    const pasteMetadata = fileItem.prepError
-      ? fileItem.metadata.mindroomPasteAttachment
-      : undefined;
-    if (!pasteMetadata) return false;
-
-    let marker: string;
-    try {
-      marker = createPasteMarker({
-        id: pasteMetadata.id,
-        chars: pasteMetadata.chars,
-        fileName: pasteMetadata.fileName,
-      });
-    } catch {
-      return false;
-    }
-    return textValues.some((text) => text.includes(marker));
-  });
-};
+): boolean =>
+  hasPasteMarkerInText(
+    textContent,
+    fileItems.filter((fileItem) => Boolean(fileItem.prepError))
+  );
 
 const readMidTurnMode = (content?: IContent): MidTurnMode | undefined => {
   const mode = content?.[MID_TURN_MODE_KEY];
