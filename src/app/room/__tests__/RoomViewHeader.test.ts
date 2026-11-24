@@ -434,15 +434,16 @@ afterEach(() => {
 importBeforeTests(() => import('../RoomViewHeader'));
 
 describe('RoomViewHeader', () => {
-  it('shows MindRoom Settings in the desktop header for agent rooms and avoids mobile duplication', async () => {
+  it('shows MindRoom Settings only in the room menu for agent rooms (not as a header button)', async () => {
+    hasMindroomAgentState.value = true;
     const { renderer } = await renderHeader(0, { hasMindroomAgents: true });
-    const button = renderer.root.findByProps({ 'aria-label': 'MindRoom Settings' });
-    expect(button.props['data-mindroom-settings']).toBe('');
-    expect(button.props['aria-haspopup']).toBe('dialog');
-    expect(button.findByProps({ 'data-icon': MindroomIcon })).toBeTruthy();
-
+    expect(renderer.root.findAllByProps({ 'aria-label': 'MindRoom Settings' })).toHaveLength(0);
+    await openRoomMenu(renderer);
+    const desktopEntries = findMenuEntries(renderer, 'MindRoom Settings');
+    expect(desktopEntries).toHaveLength(1);
+    expect(desktopEntries[0].findByProps({ 'data-icon': MindroomIcon })).toBeTruthy();
     act(() => {
-      button.props.onClick({ currentTarget: {} });
+      desktopEntries[0].props.onClick();
     });
     expect(openRoomSettingsSpy).toHaveBeenCalledWith(
       '!room:example.org',
@@ -451,13 +452,16 @@ describe('RoomViewHeader', () => {
     act(() => renderer.unmount());
 
     // Hidden without agents.
+    hasMindroomAgentState.value = false;
     const noAgents = await renderHeader(0, { hasMindroomAgents: false });
     expect(
       noAgents.renderer.root.findAllByProps({ 'aria-label': 'MindRoom Settings' })
     ).toHaveLength(0);
+    await openRoomMenu(noAgents.renderer);
+    expect(findMenuEntries(noAgents.renderer, 'MindRoom Settings')).toHaveLength(0);
     act(() => noAgents.renderer.unmount());
 
-    // On mobile: not in the header row, and exactly once in the room menu (from ROOM_ACTIONS).
+    // On mobile: not in the header row, and once in the room menu.
     screenSizeState.value = 'Mobile';
     hasMindroomAgentState.value = true;
     const mobile = await renderHeader(0, { hasMindroomAgents: true });

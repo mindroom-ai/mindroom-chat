@@ -175,7 +175,7 @@ describe("the room header's commands", () => {
     expect(commandById('filterBar')?.pressed).toBe(true);
     expect(commandById('toolCalls')?.pressed).toBe(true);
     expect(commandById('members')?.shortcut).toBe('members');
-    for (const id of ['pins', 'schedules', 'canvas', 'call', 'mindroomSettings']) {
+    for (const id of ['pins', 'schedules', 'canvas', 'call']) {
       expect(ids).not.toContain(id);
     }
   });

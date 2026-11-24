@@ -495,7 +495,6 @@ describe("the room header's actions", () => {
       'Start a call',
       'Pinned Messages',
       'Show Members',
-      'MindRoom Settings',
       'More Options',
     ]);
     openMenu();
