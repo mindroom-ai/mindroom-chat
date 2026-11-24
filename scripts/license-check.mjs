@@ -27,6 +27,7 @@ const ALLOWED = new Set(
     'OFL-1.1',
     'MPL-2.0',
     'Python-2.0',
+    'PSF-2.0',
     // Public-domain dedication (big-integer, stream-buffers under @capacitor/cli).
     'Unlicense',
   ].map((id) => id.toLowerCase())
