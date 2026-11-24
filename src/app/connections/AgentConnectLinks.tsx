@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { isBundledApp } from '../lib/nativeShell';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useOpenConnectionsPortal } from './useOpenConnectionsPortal';
@@ -33,25 +33,23 @@ export function agentLinkBackend(href: string, backendUrls: string[]): string | 
 export function AgentConnectLinkFeature() {
   const { urls, discovered } = useComputerApiUrls();
   const openPortal = useOpenConnectionsPortal(discovered);
-  const latest = useRef({ urls, openPortal });
-  latest.current = { urls, openPortal };
+  const onClick = useEffectEvent((event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    const backendUrl = agentLinkBackend(anchor.href, urls);
+    if (!backendUrl) return;
+    const link = new URL(anchor.href);
+    // A blocked window leaves the click to the browser, which opens the link itself.
+    if (openPortal(backendUrl, `${link.pathname}${link.search}`) === 'opened') {
+      event.preventDefault();
+    }
+  });
 
   useEffect(() => {
     // The native shells have no pop-up window to hand a token to.
     if (isBundledApp()) return undefined;
-    const onClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(anchor instanceof HTMLAnchorElement)) return;
-      const backendUrl = agentLinkBackend(anchor.href, latest.current.urls);
-      if (!backendUrl) return;
-      const link = new URL(anchor.href);
-      // A blocked window leaves the click to the browser, which opens the link itself.
-      if (latest.current.openPortal(backendUrl, `${link.pathname}${link.search}`) === 'opened') {
-        event.preventDefault();
-      }
-    };
     // Capture runs before message renderers, which may stop the click from bubbling.
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);

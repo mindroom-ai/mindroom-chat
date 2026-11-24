@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getDeviceDisplayName } from '../authUi';
@@ -42,8 +42,10 @@ export function TokenLogin({ baseUrl, token, onFailure }: TokenLoginProps) {
   const [result, setResult] = useState<CustomLoginResponse>();
   const [error, setError] = useState<LoginError>();
   const storeFailed = useLoginComplete(result);
-  const failureRef = useRef(onFailure);
-  failureRef.current = onFailure;
+  const handleFailure = useEffectEvent((code: LoginError) => {
+    if (onFailure) onFailure(code);
+    else setError(code);
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -59,8 +61,7 @@ export function TokenLogin({ baseUrl, token, onFailure }: TokenLoginProps) {
       .catch((loginError: unknown) => {
         if (cancelled) return;
         const code = loginError instanceof LoginFailure ? loginError.code : LoginError.Unknown;
-        if (failureRef.current) failureRef.current(code);
-        else setError(code);
+        handleFailure(code);
       });
     return () => {
       cancelled = true;

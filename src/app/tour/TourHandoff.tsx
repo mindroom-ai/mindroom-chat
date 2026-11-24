@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useEffectEvent, useState, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { Editor } from '../editor/Editor.css';
 import { hasOpenOverlay } from '../lib/openOverlay';
@@ -42,13 +42,12 @@ const cardOf = (composer: HTMLElement): HTMLElement => {
  */
 export function TourHandoff({ onEnd }: { onEnd: () => void }): JSX.Element | null {
   const [box, setBox] = useState<Box>();
-  const end = useRef(onEnd);
-  end.current = onEnd;
+  const handleEnd = useEffectEvent(onEnd);
 
   useEffect(() => {
     const composer = roomComposer();
     if (!composer) {
-      end.current();
+      handleEnd();
       return undefined;
     }
     const pulses = !prefersReducedMotion();
@@ -56,14 +55,14 @@ export function TourHandoff({ onEnd }: { onEnd: () => void }): JSX.Element | nul
     // composer takes it after that. A touch screen would raise its keyboard, so it is left alone.
     const focusTimer = setTimeout(() => {
       if (!hasCoarsePointer()) composer.focus();
-      if (!pulses) end.current();
+      if (!pulses) handleEnd();
     }, 0);
     if (!pulses) return () => clearTimeout(focusTimer);
 
     const { left, top, width, height } = cardOf(composer).getBoundingClientRect();
     setBox({ x: left, y: top, width, height });
     // The pulse says when it ends; a page that plays no animation ends here.
-    const endTimer = setTimeout(() => end.current(), HANDOFF_LENGTH_MS);
+    const endTimer = setTimeout(() => handleEnd(), HANDOFF_LENGTH_MS);
     return () => {
       clearTimeout(focusTimer);
       clearTimeout(endTimer);

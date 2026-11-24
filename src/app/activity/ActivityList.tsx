@@ -2,6 +2,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -158,8 +159,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     }
     setPaged({ filterKey, limit: visibleRest.length + PAGE_SIZE });
   };
-  const appendRef = useRef(appendPage);
-  appendRef.current = appendPage;
+  const onAppendPage = useEffectEvent(appendPage);
   // An update can take away what has focus: Show more when a live one shows the last rows, a
   // row when one moves it past the window while the index loads. The other of the two gets it.
   const active = document.activeElement;
@@ -205,7 +205,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     let live = true;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (live && entries.some((entry) => entry.isIntersecting)) appendRef.current();
+        if (live && entries.some((entry) => entry.isIntersecting)) onAppendPage();
       },
       { root: findScrollParent(target), rootMargin: SENTINEL_MARGIN }
     );

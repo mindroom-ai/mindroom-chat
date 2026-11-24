@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import { type RefObject, useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react';
 import { touchDistance } from '../lib/hooks/useZoom';
 import { sanitizeZoom } from '../preferences/settings';
 
@@ -138,7 +138,7 @@ export const usePinchToZoom = (
   enabled = true
 ): void => {
   const pageZoomRef = useRef(pageZoom);
-  const setPageZoomRef = useRef(setPageZoom);
+  const onSetPageZoom = useEffectEvent(setPageZoom);
   const pendingZoomRef = useRef<number | null>(null);
   const rafIdRef = useRef<number | undefined>(undefined);
   const wheelDeltaRef = useRef(0);
@@ -151,10 +151,6 @@ export const usePinchToZoom = (
     // A zoom the fingers reached while this one was being stored still waits for its frame.
     if (pendingZoomRef.current === pageZoom) pendingZoomRef.current = null;
   }, [pageZoom]);
-
-  useEffect(() => {
-    setPageZoomRef.current = setPageZoom;
-  }, [setPageZoom]);
 
   useEffect(() => {
     if (!enabled || typeof window === 'undefined' || typeof document === 'undefined') {
@@ -293,7 +289,7 @@ export const usePinchToZoom = (
       pendingZoomRef.current = null;
       if (pendingZoom === null || pendingZoom === pageZoomRef.current) return;
       pageZoomRef.current = pendingZoom;
-      setPageZoomRef.current(pendingZoom);
+      onSetPageZoom(pendingZoom);
     };
 
     const queueZoom = (nextZoom: number) => {

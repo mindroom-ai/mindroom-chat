@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 
 /**
  * Observes the element(s) `getElement` returns and calls `onResize` with each batch of entries.
@@ -8,8 +8,7 @@ export const useResizeObserver = (
   onResize: (entries: ResizeObserverEntry[]) => void,
   getElement: () => Element | Element[] | null | undefined
 ): void => {
-  const onResizeRef = useRef(onResize);
-  onResizeRef.current = onResize;
+  const handleResize = useEffectEvent(onResize);
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
@@ -18,7 +17,7 @@ export const useResizeObserver = (
       (element): element is Element => !!element
     );
     if (elements.length === 0) return undefined;
-    const observer = new ResizeObserver((entries) => onResizeRef.current(entries));
+    const observer = new ResizeObserver((entries) => handleResize(entries));
     elements.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
   }, [getElement]);

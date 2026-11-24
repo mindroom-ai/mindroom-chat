@@ -1,13 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 
 /** Calls `callback` every `ms` milliseconds; a negative `ms` pauses the interval. */
 export const useInterval = (callback: () => void, ms: number): void => {
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  const onTick = useEffectEvent(callback);
 
   useEffect(() => {
     if (ms < 0) return undefined;
-    const id = setInterval(() => callbackRef.current(), ms);
+    const id = setInterval(() => onTick(), ms);
     return () => clearInterval(id);
   }, [ms]);
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 
 /** The newest report for `target` in a batch, which can include several layout passes. */
 export function getIntersectionObserverEntry(
@@ -19,14 +19,13 @@ export const useIntersectionObserver = (
   getOptions?: () => IntersectionObserverInit | undefined,
   getElement?: () => Element | Element[] | null | undefined
 ): IntersectionObserver | undefined => {
-  const onIntersectionRef = useRef(onIntersection);
-  onIntersectionRef.current = onIntersection;
+  const handleIntersection = useEffectEvent(onIntersection);
   const [observer, setObserver] = useState<IntersectionObserver>();
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return undefined;
     const nextObserver = new IntersectionObserver(
-      (entries) => onIntersectionRef.current(entries),
+      (entries) => handleIntersection(entries),
       getOptions?.()
     );
     const target = getElement?.();

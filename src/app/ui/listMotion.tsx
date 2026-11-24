@@ -3,6 +3,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -280,8 +281,9 @@ export const useListMotion = (
 ) => {
   const beforeRef = useRef<Before>(undefined);
   const runningRef = useRef<Animation[]>([]);
-  const offWindowRef = useRef(offWindow);
-  offWindowRef.current = offWindow;
+  const playMotion = useEffectEvent((list: HTMLElement, before: Before) =>
+    play(list, before, offWindow)
+  );
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
   const pressRef = useRef<{ id: number; at: number; up?: boolean; held: Animation[] }>(undefined);
   const read = useCallback(
@@ -325,7 +327,7 @@ export const useListMotion = (
       animation.cancel();
       return false;
     });
-    const started = play(list, before, offWindowRef.current);
+    const started = playMotion(list, before);
     runningRef.current = [...kept, ...started];
     const press = pressRef.current;
     if (press && !press.up && performance.now() - press.at < LONGEST_PLAY_MS) {

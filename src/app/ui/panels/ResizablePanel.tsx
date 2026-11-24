@@ -1,4 +1,12 @@
-import React, { CSSProperties, ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  CSSProperties,
+  ReactNode,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import {
@@ -159,7 +167,9 @@ export function ResizablePanel({
   const phaseSeen = useRef<PanelPhase>('shown');
   /** The width a released drag left on screen, which the next commit moves from. */
   const releasedAt = useRef<number>(undefined);
-  const movesRef = useRef(moves);
+  const readLeavingWidth = useEffectEvent((panel: HTMLElement) =>
+    moves ? panel.getBoundingClientRect().width : undefined
+  );
   const maxWidth = Math.max(
     Math.min(smallest, availableWidth),
     Math.min(maxPanelWidth, availableWidth - minContentWidth)
@@ -220,7 +230,6 @@ export function ResizablePanel({
     const panel = panelRef.current;
     const released = releasedAt.current;
     releasedAt.current = undefined;
-    movesRef.current = moves;
     if (panel && released !== undefined && moves && released !== width) {
       motionRef.current?.cancel();
       const from = { width: released, gap: 0 };
@@ -239,7 +248,7 @@ export function ResizablePanel({
     return () => {
       own?.();
       if (lastWidth && panel) {
-        lastWidth.current = movesRef.current ? panel.getBoundingClientRect().width : undefined;
+        lastWidth.current = readLeavingWidth(panel);
       }
     };
   }, [lastWidth, register]);
