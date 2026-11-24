@@ -38,6 +38,7 @@ const getMembershipWatch = (mx: MatrixClient): RoomMembershipWatch => {
   if (!watch) {
     const created: RoomMembershipWatch = { listeners: new Map(), agents: new Map() };
     mx.on?.(RoomMemberEvent.Membership, (_event, member) => {
+      if (!isMindroomAgentUserId(member.userId)) return;
       created.agents.delete(member.roomId);
       created.listeners.get(member.roomId)?.forEach((listener) => listener());
     });

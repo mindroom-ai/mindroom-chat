@@ -373,51 +373,69 @@ describe('the shared room actions', () => {
     expect(rows()).not.toContain('MindRoom Settings');
   });
 
-  it('loads lazy room members while the menu is open so MindRoom Settings appears, and skips loading when unnecessary', async () => {
+  it('loads lazy room members on menu open (even across early close) and skips when unnecessary', async () => {
+    const openMenu = (target: Record<string, unknown>) =>
+      render(
+        <RoomActionsMenu
+          room={target as unknown as Room}
+          submenuSide="Right"
+          close={vi.fn()}
+          showDialog={vi.fn()}
+        />
+      );
+
     let loaded = false;
     let resolveLoad!: (value: boolean) => void;
     const members: Array<{ userId: string; membership: string }> = [];
-    const currentState = {};
-    const loadMembersIfNeeded = vi.fn(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveLoad = resolve;
-        })
-    );
+    const loadMembersIfNeeded = vi.fn(() => new Promise<boolean>((r) => (resolveLoad = r)));
     const lazyRoom = {
       roomId: '!lazy:example.org',
-      name: 'Archive Desk',
       isSpaceRoom: () => false,
-      currentState,
+      currentState: {},
       membersLoaded: () => loaded,
       getMembers: () => members,
       loadMembersIfNeeded,
     };
     state.rooms[lazyRoom.roomId] = lazyRoom;
 
-    render(
-      <RoomActionsMenu
-        room={lazyRoom as unknown as Room}
-        submenuSide="Right"
-        close={vi.fn()}
-        showDialog={vi.fn()}
-      />
-    );
+    openMenu(lazyRoom);
     expect(loadMembersIfNeeded).toHaveBeenCalledOnce();
     expect(rows()).not.toContain('MindRoom Settings');
 
-    // Resolve with the same currentState object and no membership event, matching lazy-load hydration.
+    // Hydrates without replacing currentState or emitting membership events.
     members.push({ userId: '@mindroom_helper:example.org', membership: 'join' });
     loaded = true;
     resolveLoad(true);
-
     await screen.findByRole('menuitem', { name: 'MindRoom Settings' });
-    const allRows = rows();
-    expect(allRows.indexOf('MindRoom Settings')).toBe(allRows.indexOf('Room Settings') + 1);
-    expect(loadMembersIfNeeded).toHaveBeenCalledOnce();
+    expect(rows().indexOf('MindRoom Settings')).toBe(rows().indexOf('Room Settings') + 1);
 
-    // Never loads when members are already loaded, an agent is already known, or the room is a space.
-    for (const [id, isSpace, membersLoaded, initialMembers] of [
+    // Closing before hydration finishes still invalidates the cached false on resolution.
+    cleanup();
+    let earlyLoaded = false;
+    let resolveEarly!: (value: boolean) => void;
+    const earlyMembers: Array<{ userId: string; membership: string }> = [];
+    const earlyLoad = vi.fn(() => new Promise<boolean>((r) => (resolveEarly = r)));
+    const earlyRoom = {
+      roomId: '!early-close:example.org',
+      isSpaceRoom: () => false,
+      currentState: {},
+      membersLoaded: () => earlyLoaded,
+      getMembers: () => earlyMembers,
+      loadMembersIfNeeded: earlyLoad,
+    };
+    state.rooms[earlyRoom.roomId] = earlyRoom;
+    const view = openMenu(earlyRoom);
+    view.unmount();
+    earlyMembers.push({ userId: '@mindroom_helper:example.org', membership: 'join' });
+    earlyLoaded = true;
+    resolveEarly(true);
+    await Promise.resolve();
+    openMenu(earlyRoom);
+    expect(rows()).toContain('MindRoom Settings');
+    expect(earlyLoad).toHaveBeenCalledOnce();
+
+    // Skips loading when members are loaded, an agent is already known, or the room is a space.
+    for (const [id, isSpace, membersLoaded, initial] of [
       ['!loaded:example.org', false, true, []],
       [
         '!known-agent:example.org',
@@ -433,18 +451,11 @@ describe('the shared room actions', () => {
         roomId: id,
         isSpaceRoom: () => isSpace,
         membersLoaded: () => membersLoaded,
-        getMembers: () => [...initialMembers],
+        getMembers: () => [...initial],
         loadMembersIfNeeded: skipLoad,
       };
       state.rooms[id] = candidate;
-      render(
-        <RoomActionsMenu
-          room={candidate as unknown as Room}
-          submenuSide="Right"
-          close={vi.fn()}
-          showDialog={vi.fn()}
-        />
-      );
+      openMenu(candidate);
       expect(skipLoad).not.toHaveBeenCalled();
     }
   });

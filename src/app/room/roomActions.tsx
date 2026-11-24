@@ -329,7 +329,7 @@ function MindroomSettingsEntry({ room, close }: RoomActionProps) {
     void room
       .loadMembersIfNeeded()
       .then(() => {
-        if (!disposed) invalidateRoomMindroomAgent(client, room.roomId);
+        invalidateRoomMindroomAgent(client, room.roomId);
       })
       .catch((error: unknown) => {
         if (!disposed) {
