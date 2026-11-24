@@ -18,7 +18,7 @@ Operational reference for the performance tools under `scripts/perf/` and the te
 
 #### Privacy and safety
 
-- **Local-only captures outside git:** store captures outside any git repository or worktree (for example `/tmp` or `~/.cache`). `capture.mjs` refuses paths inside a git repo, sets `chmod 0700` on capture directories and `0600` on files (`manifest.json`, `snapshot.json`, `live.jsonl`, `blobs/*`). Never commit, upload, or share captures.
+- **Local-only captures outside git:** pass a fresh private subdirectory outside any git repository or worktree (for example `/tmp/mindroom-replay-capture` or `~/.cache/mindroom-replay/<name>`, never a shared parent like `/tmp` or `~/.cache` itself). `capture.mjs` refuses paths inside a git repo, runs `chmod 0700` on `--out` (and creates `blobs/` with mode `0700`), and passes creation mode `0600` when writing files (`manifest.json`, `snapshot.json`, `live.jsonl`, `blobs/*`; pre-existing files are not re-permissioned). Never commit, upload, or share captures.
 - **Dedicated temporary capture device:** live capture (`--duration > 0`) calls `GET /_matrix/client/v3/sync?since=...`, which advances the homeserver's sync cursor and acknowledges to-device messages on that device. Always create a fresh temporary login/device, pass `--device-id <id>` matching `/_matrix/client/v3/account/whoami`, never reuse an active MindRoom Chat session token, and log out or delete the capture device afterwards (or pass `--duration 0` for a snapshot-only capture).
 - **Personal machines only:** never capture real data or run real-data replay benchmarks on shared runners (`gce`) or work machines (`mw`).
 - **Read-only capture and loopback isolation:** `capture.mjs` issues `GET` requests only with `set_presence=offline` (no filter creation, posts, receipts, or presence flips). `server.mjs` binds strictly to `127.0.0.1`, generates a per-run random password and bearer token, restricts CORS to loopback origins, and rejects non-loopback `Host` headers (`403`). Playwright external mode runs in Chromium only and blocks non-loopback HTTP, WebSockets, redirects (via a closed loopback proxy), and non-proxied WebRTC UDP.
@@ -34,18 +34,18 @@ MINDROOM_CAPTURE_TOKEN="<temp-device-token>" \
   --duration 60
 ```
 
-| Option                 | Default                      | Description                                                                                                     |
-| ---------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `--homeserver <url>`   | required                     | Matrix homeserver base URL                                                                                      |
-| `--token-file <path>`  | `$MINDROOM_CAPTURE_TOKEN`    | File containing bearer token (alternative to env var)                                                           |
-| `--device-id <id>`     | required if `--duration > 0` | Must match `device_id` returned by `/_matrix/client/v3/account/whoami`                                          |
-| `--out <dir>`          | required                     | Output directory outside any git repo (`0700`, files `0600`)                                                    |
-| `--rooms <id1,id2>`    | all joined non-space rooms   | Comma-separated room IDs to paginate threads, relations, and history for                                        |
-| `--duration <sec>`     | `60`                         | Live `/v3/sync` long-poll duration in seconds (`0` for snapshot-only)                                           |
-| `--max-threads <n>`    | `600`                        | Maximum thread roots paginated per focused room via `/v1/rooms/{r}/threads`                                     |
-| `--heavy-threads <n>`  | `25`                         | Top threads per focused room backfilled via `/v1/rooms/{r}/relations/{root}/m.thread` (up to 1000 replies each) |
-| `--max-blobs <n>`      | `500`                        | Max referenced `mxc://` blobs downloaded (prioritizing `io.mindroom.long_text` sidecars)                        |
-| `--max-blob-bytes <n>` | `2097152` (2 MiB)            | Per-blob size limit; oversized responses abort before buffering                                                 |
+| Option                 | Default                      | Description                                                                                                                                                                                     |
+| ---------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--homeserver <url>`   | required                     | Matrix homeserver base URL                                                                                                                                                                      |
+| `--token-file <path>`  | `$MINDROOM_CAPTURE_TOKEN`    | File containing bearer token (alternative to env var)                                                                                                                                           |
+| `--device-id <id>`     | required if `--duration > 0` | Must match `device_id` returned by `/_matrix/client/v3/account/whoami`                                                                                                                          |
+| `--out <dir>`          | required                     | Fresh private directory outside any git repo (`chmod 0700` on `--out`, creation mode `0700` for `blobs/` and `0600` for files)                                                                  |
+| `--rooms <id1,id2>`    | all joined non-space rooms   | Comma-separated room IDs limiting per-room backfill (`threads`, `threadRelations`, `messagesTail`, `members`); `/v3/sync` still captures state, timeline, and live data from other joined rooms |
+| `--duration <sec>`     | `60`                         | Live `/v3/sync` long-poll duration in seconds (`0` for snapshot-only)                                                                                                                           |
+| `--max-threads <n>`    | `600`                        | Maximum thread roots paginated per focused room via `/v1/rooms/{r}/threads`                                                                                                                     |
+| `--heavy-threads <n>`  | `25`                         | Top threads per focused room backfilled via `/v1/rooms/{r}/relations/{root}/m.thread` (up to 1000 replies each)                                                                                 |
+| `--max-blobs <n>`      | `500`                        | Max referenced `mxc://` blobs downloaded (prioritizing `io.mindroom.long_text` sidecars)                                                                                                        |
+| `--max-blob-bytes <n>` | `2097152` (2 MiB)            | Per-blob size limit; oversized responses abort before buffering                                                                                                                                 |
 
 Bundle layout written to `--out`: `manifest.json` (metadata, viewer MXID, `primaryRoomId`, stats, `blobIndex`), `snapshot.json` (`initialSync` plus per-room `threads`, `threadRelations`, `messagesTail`, `members`), `live.jsonl` (`{ tauMs, response }` incremental sync entries), and `blobs/<sha256>`.
 
@@ -63,7 +63,7 @@ PERF_REAL_WORK=1 PERF_TARGET=external \
 
 - **Replay env vars:** `PERF_REPLAY_CAPTURE` (bundle directory), `PERF_MULTIPLY_THREADS` (default `1`), `PERF_MULTIPLY_ROOMS` (default `1`), `PERF_REPLAY_SPEED` (default `1`, minimum `0.01`).
 - **Spec knobs:** `PERF_CPU_THROTTLE` (comma-separated rates, default `1,4`), `PERF_SCENARIOS` (comma-separated subset, default all), `PERF_VIEWPORT` (`phone` for 390x844 touch, default 1440x900), `PERF_PROFILE=1` (writes `<label>.cpuprofile`), `PERF_TRACE=1` (writes `<label>.trace.json`), `PERF_SOAK=1` (adds `soak` alternating 60s Compact / 60s thread; fails if heap grows > 50 MB), `PERF_SOAK_MINUTES` (default `20`), `PERF_SOAK_GC=1` (forces GC before each 5s soak sample).
-- **Results and comparison:** results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<suffix>.json`, where `<suffix>` is `replay-<K>x` (plus `-<R>r` if `R > 1` and `-speed<S>` if `S != 1`). Replay results record 5s telemetry in `achieved` with `target: null`, so `scripts/perf/real-work/compare.mjs` compares medians across runs without applying the synthetic fixed-stream 80% shortfall exclusion (failed or crashed runs are still excluded).
+- **Results and comparison:** results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<suffix>.json`, where `<suffix>` is `replay-<K>x` (plus `-<R>r` if `R > 1` and `-speed<S>` if `S != 1`). Replay results store a per-scenario aggregate derived from overlapping 5s telemetry windows in `achieved` with `target: null`, so `scripts/perf/real-work/compare.mjs` compares medians across runs without applying the synthetic fixed-stream 80% shortfall exclusion. `compare.mjs` excludes only results with `driverExit`, `failed`, or synthetic shortfall (`achieved.streaming < 0.8 * target`); note that a replay `soak` failure on the 50 MB heap assertion happens after writing its JSON, so `compare.mjs` does not auto-exclude it.
 
 #### Standalone replay server and multiplier (`server.mjs`, `multiplier.mjs`)
 
@@ -77,7 +77,7 @@ node scripts/perf/replay/server.mjs --capture /tmp/mindroom-replay-capture \
 - **CLI options:** `--capture <dir>` (required), `--port <n>` (default `0`, ephemeral on `127.0.0.1`), `--multiply-threads <K>` (default `1`), `--multiply-rooms <R>` (default `1`), `--speed <S>` (default `1`), `--stats-file <path>` (5s JSONL telemetry matching `driver.py`), `--target-room <roomId>` (primary room override), `--print-ready` (prints one JSON handshake line on stdout with `url`, `userId`, `username`, `password`, `accessToken`, `roomId`, `roomName`).
 - **Control routes** (require `Authorization: Bearer <accessToken>`): `GET /__replay/status` returns replay state and counters; `POST /__replay/reset` resets the replay timeline while keeping `syncSeq` monotonic.
 - **How `multiplier.mjs` works:**
-  - Staggers `K` in-room thread copies deterministically across `durationMs` (`offsetMs = floor((k / K) * durationMs)`) and clones non-space rooms `R`x (`!local__r{r}:domain`, duplicating `m.space.child` links in parent spaces), interleaving cloned timeline history in ascending `origin_server_ts` order.
+  - Staggers `K` in-room thread copies deterministically across `durationMs` (`offsetMs = floor((k / K) * durationMs)`) in the primary/target room (and its `R` room copies), and clones non-space rooms `R`x (`!local__r{r}:domain`, duplicating `m.space.child` links in parent spaces), interleaving cloned timeline history in ascending `origin_server_ts` order.
   - Mints generation-scoped IDs for live-created events (`$id__r{r}_k{k}_g{gen}`) so looped playback never emits duplicate `event_id`s, while snapshot-era events use `$id__r{r}_k{k}` (copy `(0, 0)` keeps original IDs).
   - Remaps pointers copy-on-write (sharing heavy bodies/tool traces by reference): Matrix relations/summaries (`m.relates_to`, `m.replace`, `m.thread`, `redacts`, `m.room.pinned_events`), MindRoom content/state (`io.mindroom.fork`, `io.mindroom.ui_action`, `io.mindroom.tool_approval`, `com.mindroom.voice_source_event_id`, `io.mindroom.pinned_canvases`, `com.mindroom.thread.tags`, `io.mindroom.thread_summary`, `com.mindroom.scheduled.task`), and `m.receipt`.
   - Merges agent-keyed room state (`io.mindroom.background_jobs` and `io.mindroom.active_runs`, in both `state.events` and timeline state events) across copies `k = 0..K-1` per `(roomId, agentUserId)`, summing totals, unioning `threads[]`, and re-stamping timestamps so active runs never TTL-expire.
@@ -141,7 +141,7 @@ npx vitest run scripts/perf/replay/sdk-integration.test.ts  # also run by `just 
   ```bash
   scripts/e2e-slot.sh <n> python3 scripts/perf/seed-large-room.py /tmp/large-room.json [threads] [replies] [edits]
   ```
-- **WebKit insertion probe (`scripts/perf/webkit-insert-probe.mjs`)**: benchmarks and bisects row-insertion and style-invalidation cost without a homeserver. Pair with an HTML snapshot from `PERF_WEBKIT_SNAPSHOT=/tmp/thread.html scripts/e2e-slot.sh <n> --preview npx playwright test e2e/perf/webkit-insert-snapshot.live.spec.ts`:
+- **WebKit insertion probe (`scripts/perf/webkit-insert-probe.mjs`)**: benchmarks and bisects row-insertion and style-invalidation cost without a homeserver. Pair with an HTML snapshot from `PERF_WEBKIT_SNAPSHOT=/tmp/thread.html scripts/e2e-slot.sh <n> --preview npx playwright test e2e/perf/webkit-insert-snapshot.live.spec.ts` (run only against a disposable e2e slot and write the HTML outside the repository, because the saved page includes the sidebar):
   ```bash
   node scripts/perf/webkit-insert-probe.mjs [--page <file>] [--dist dist] [--rows 1000] \
     [--runs 7] [--engines chromium,webkit] [--bisect] [--top 15] [--floor <ms>] [--json <file>]
@@ -172,7 +172,7 @@ just e2e-slot 3 down   # stop homeserver, agent stack, and call service; delete 
 
 - **Ports (`slot 0-99`):** slot `n` (`1-99`) uses homeserver `28100+n` and app `4300+n`; slot `0` is `just hs-up` (`28008` / `4200`).
 - **Options (before `<command>`):** `--snapshot[=<rev>]` runs in a clean archive copy (`$E2E_SNAPSHOT_ROOT/slot-<n>`, default `/tmp/mindroom-client-e2e`, implies `--fresh`); `--preview` builds and serves via `vite preview` (implies `--snapshot`; specs importing `/src/` need the dev server); `--fresh` starts an empty homeserver and deletes it on exit; `--rtc` starts/stops `scripts/e2e-rtc.sh` around the homeserver.
-- **Concurrency and live-slot contract:** `E2E_MAX_CONCURRENT` (default `6`, `0` disables) caps concurrent runs via `flock` lock files in `$E2E_SNAPSHOT_ROOT/tokens` (`up` and `down` take none). `/tmp/mindroom-slots/<n>.live.json` (fixed path regardless of `E2E_SNAPSHOT_ROOT`) reserves slot `n` for throwaway live deployments (`live.py` in `mindroom-ai/dev`); slot runs refuse any slot with that file.
+- **Concurrency and live-slot contract:** `E2E_MAX_CONCURRENT` (default `6`, `0` disables) caps concurrent runs via `flock` lock files in `$E2E_SNAPSHOT_ROOT/tokens` (`up` and `down` take none). `/tmp/mindroom-slots/<n>.live.json` (fixed path regardless of `E2E_SNAPSHOT_ROOT`) reserves slot `n` for throwaway live deployments (`live.py` in `mindroom-ai/dev`): ordinary `e2e-slot.sh <n> <cmd>` runs refuse a reserved slot, whereas `up` and `down` run before that check (do not run `up` or `down` on a slot reserved by a live deployment).
 
 ### Multi-slot suite and TSV reports (`scripts/e2e-suite.sh`, `scripts/e2e-results-tsv.mjs`)
 
@@ -182,7 +182,7 @@ just e2e-suite --resume /tmp/mindroom-client-e2e/suite-<sha>-<ts> --slots 25-28
 ```
 
 - Runs each spec in its own `e2e-slot --snapshot=<rev> --preview` run (excluding `e2e/electron/` by default; specs importing `/src/` or all non-plugin specs under `--dev` use the dev server; call specs automatically add `--rtc`). Playwright options default to `--retries 1`.
-- Records the 1-minute load average at each spec start via `node:os` `loadavg()` (note: `e2e-suite.sh` and `e2e-slot.sh` require `flock` and Bash 4+ `mapfile`, standard on Linux).
+- Records the 1-minute load average at each spec start via `node:os` `loadavg()` (note: `e2e-suite.sh` and `e2e-slot.sh` require `flock` and Bash 4.4+ for `mapfile -d`, standard on Linux).
 - `scripts/e2e-results-tsv.mjs` (`--manifest <manifest.tsv>` or `<report.json>...`) emits columns: `spec`, `passed`, `failed`, `skipped`, `first error`, `flaky`, `seconds`, `server`, `load`, `skipped (no service)`. Skips caused by a missing service, fixture, account, or setting are broken out into `skipped (no service)` rather than `skipped`.
 
 ### Homeserver and RTC helpers
@@ -200,7 +200,7 @@ just agent-stack <slot> status | usage | down
 
 - **Ports (`slot 0-99`):** MindRoom API `29600+n`, stub model `29700+n`, plugin origins `29800+n`, sandbox runner `29900+n` (against slot homeserver `28100+n`, or `28008` on slot `0`).
 - **Key flags:** `--model stub|real|live` (default `$E2E_AGENT_MODEL` or `stub`), `--agents N` (stub only, adds `worker1..workerN`, default `0`), `--calls SERVICE_URL` (`--calls-profile realtime|live`), `--client-sessions`, `--terminals` (implies `--client-sessions`; incompatible with `--computers`), `--computers` (`--computer-image`, `--computer-tools`, implies `--client-sessions`), `--transcription stub|real`.
-- **Exit codes:** `3` no MindRoom checkout, `4` no homeserver, `5` missing provider keys, `6` `--terminals` unsupported by backend ref, `1` other error.
+- **Exit codes:** `2` invalid CLI arguments (via `argparse`, including incompatible flags such as `--terminals --computers`), `3` no MindRoom checkout, `4` no homeserver, `5` missing provider keys, `6` `--terminals` unsupported by backend ref, `1` other errors.
 
 ### Pre-push gate (`scripts/push-gate.sh`)
 
@@ -212,15 +212,15 @@ Runs all checks in parallel against a clean archive of `--rev` (default `HEAD`, 
 
 - `build`: `e2e-slot --preview` production build plus `bundle-report.mjs --budget scripts/perf/bundle-budget.json`.
 - `tsc` and `strict`: `config/tsconfig.app.json` and `config/tsconfig.strict.json`.
-- `lint`: ESLint on changed files in `base...rev` (or full `npm run lint` when ESLint or tsconfig files change).
+- `lint`: ESLint on changed files in `base...rev` (or full `npm run lint` when `eslint.config.mjs`, `scripts/eslint-shared.mjs`, `tsconfig.json`, or `config/tsconfig.strict.json` changed).
 - `vitest`: full unit suite with one automatic rerun of failed test files.
 - `keys`: scans new git objects in `base..rev` against values in `$PUSH_GATE_KEY_FILE` (default `~/.config/mindroom-chat/llm.env`), printing key names only.
 - `e2e`: runs 15 smoke specs via `e2e-suite.sh` after `build` and `vitest` finish. Logs stay in `$PUSH_GATE_ROOT` (default `/tmp/mindroom-client-push-gate`).
 
 ### Convenience wrappers and verification pointers
 
-- **`scripts/test-e2e-docker-matrix.sh`**: starts standalone Docker Tuwunel (`e2e-matrix-up.sh`), registers 4 disposable accounts, seeds the fixture room, optionally builds and serves `dist/` on port `28090` (`E2E_ENABLE_DEPLOYED_FIXTURE=1`), and runs Playwright.
-- **`scripts/test-e2e-mindroom.sh`**: provisions disposable accounts via `$MINDROOM_SSH_HOST` (default `mindroom`), opens a tunnel via `scripts/with-mindroom-tunnel.sh`, seeds the fixture room, and runs Playwright.
+- **`scripts/test-e2e-docker-matrix.sh`**: starts standalone Docker Tuwunel (`e2e-matrix-up.sh`), registers 4 disposable accounts, seeds the fixture room, builds and serves `dist/` on port `28090` by default (`E2E_ENABLE_DEPLOYED_FIXTURE=1`; set `0` to skip), and runs Playwright.
+- **`scripts/test-e2e-mindroom.sh`**: legacy wrapper targeting lab (`mindroom.lab.mindroom.chat`) by default via SSH (`$MINDROOM_SSH_HOST`, default `mindroom`) and `scripts/with-mindroom-tunnel.sh` using disposable accounts on lab (not a disposable deployment); do not use for routine live testing (use `live.py` per `AGENTS.md`).
 - **`scripts/license-check.mjs`**: checks installed npm packages (including `MINDROOM_CLIENT_PLUGINS` directories) against the SPDX allowlist and named exceptions (`just license-check`).
 - **`scripts/watch/check_sdk_licenses.py`**: checks linked Rust crates in a `matrix-rust-sdk` checkout for `aarch64-apple-watchos` (called by `just watch-sdk`).
 - **`scripts/watch/e2e.py`**: runs DEBUG Apple Watch app scenarios (`voice`, `approve`, `ask`, `listen`, `resolve`, `long_thread`) in a watchOS simulator on macOS against an agent stack.
