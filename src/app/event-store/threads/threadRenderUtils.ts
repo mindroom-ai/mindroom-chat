@@ -202,6 +202,12 @@ const VIRTUAL_CORE_WRITE_TOLERANCE_PX = 1.5;
 // scroll contract test (virtualizerIOSScrollContract.test.ts) exercises the
 // production closure against the real, unmocked virtual-core — not a
 // re-implementation that could drift.
+const hasWritableScrollAdjustments = (instance: object): boolean => {
+  const proto = Object.getPrototypeOf(instance) as object | null;
+  const desc = proto ? Object.getOwnPropertyDescriptor(proto, 'scrollAdjustments') : undefined;
+  return !desc || desc.writable === true || typeof desc.set === 'function';
+};
+
 export const buildMeasurementScrollCorrectionHook =
   ({
     isIOSWebKitDevice,
@@ -233,7 +239,7 @@ export const buildMeasurementScrollCorrectionHook =
     // correction now would fold that move away before its event.
     const cachedOffset = instance.scrollOffset ?? 0;
     const liveOffset = instance.scrollElement?.scrollTop;
-    if (typeof liveOffset === 'number') {
+    if (typeof liveOffset === 'number' && hasWritableScrollAdjustments(instance)) {
       (instance as unknown as { scrollAdjustments: number }).scrollAdjustments =
         liveOffset - cachedOffset;
     }
@@ -281,7 +287,9 @@ export const buildMeasurementScrollCorrectionHook =
     }
     if (!apply) return false;
     // virtual-core adds the delta to its pending adjustments and writes the offset plus those.
-    (instance as unknown as { scrollAdjustments: number }).scrollAdjustments += correction - delta;
+    if (hasWritableScrollAdjustments(instance)) {
+      (instance as unknown as { scrollAdjustments: number }).scrollAdjustments += correction - delta;
+    }
     onAppliedCorrection?.(correction, !above && shownPx !== undefined);
     return true;
   };

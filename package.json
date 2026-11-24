@@ -50,7 +50,7 @@
     "@ricky0123/vad-web": "0.0.31",
     "@tabler/icons-react": "3.52.0",
     "@tanstack/react-query": "5.108.1",
-    "@tanstack/react-virtual": "3.14.26",
+    "@tanstack/react-virtual": "3.14.28",
     "@vanilla-extract/css": "1.21.3",
     "@vanilla-extract/recipes": "0.3.0",
     "await-to-js": "3.0.0",
@@ -148,7 +148,7 @@
   },
   "overrides": {
     "scheduler": "0.23.2",
-    "@tanstack/virtual-core": "3.17.3",
+    "@tanstack/virtual-core": "3.19.13",
     "mermaid": {
       "katex": "$katex"
     },

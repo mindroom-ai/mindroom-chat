@@ -275,7 +275,10 @@ export const useTimelineScrollLedgerController = ({
   );
   // Thread prepend planning is pure. Its mutations are applied only after
   // React commits the render that consumed this plan.
-  const threadLedgerRenderPlan = planThreadLedgerRender({
+  const useUpstreamThreadAnchor = Boolean(threadId);
+  const threadLedgerRenderPlan = useUpstreamThreadAnchor
+    ? { foldPx: 0 }
+    : planThreadLedgerRender({
     anchor: resettingLedgerView ? undefined : threadLedgerAnchorRef.current,
     eventIndexMap: threadEventIndexMap,
     priceRow: priceThreadRowForLedger,
@@ -299,9 +302,9 @@ export const useTimelineScrollLedgerController = ({
   const roomLeadingAboveViewRef = useRef(false);
   const leadingHeld =
     !resettingLedgerView &&
-    (threadId
-      ? threadLedgerAnchorRef.current?.threadId === threadId
-      : !!leadingKey && roomLeadingAboveViewRef.current);
+    !useUpstreamThreadAnchor &&
+    !!leadingKey &&
+    roomLeadingAboveViewRef.current;
   const leadingFoldPx = leadingHeld ? leadingRenderPx - committedLeading.px : 0;
   // Anchored room rows: rows a render puts above the reader's first visible row are folded,
   // whatever put them there (a new thread at the top, a page that widened the window).
@@ -327,7 +330,7 @@ export const useTimelineScrollLedgerController = ({
       : pendingRoomFoldPxRef.current + exposedRoomRowsPx;
   // One immutable snapshot feeds virtualizer.scrollMargin, the inner margin,
   // and every tile top for this paint.
-  const ledgerPxAtRender = resettingLedgerView
+  const ledgerPxAtRender = resettingLedgerView || useUpstreamThreadAnchor
     ? 0
     : scrollCompensationPxRef.current +
       threadLedgerRenderPlan.foldPx +
@@ -486,11 +489,11 @@ export const useTimelineScrollLedgerController = ({
     getScrollElement,
     estimateSize,
     overscan: 10,
-    ...(threadId ? { rangeExtractor } : {}),
+    ...(useUpstreamThreadAnchor ? { anchorTo: 'end' as const, rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
     observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
-    scrollMargin: -ledgerPxAtRender,
+    scrollMargin: useUpstreamThreadAnchor ? 0 : -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
     getItemKey,
@@ -621,7 +624,8 @@ export const useTimelineScrollLedgerController = ({
     // without the margin that pairs it, and a reader at the end was clamped by its height, which
     // the fold took again.
     const heldPx = `${leadingPx}px`;
-    if (leading && threadId && leading.style.minHeight !== heldPx) leading.style.minHeight = heldPx;
+    if (leading && threadId && !useUpstreamThreadAnchor && leading.style.minHeight !== heldPx)
+      leading.style.minHeight = heldPx;
     leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
     if (leadingHeld && leadingPx !== leadingRenderPx) {
       // Applied by a synchronous re-render, before this commit paints.
@@ -1191,12 +1195,15 @@ export const useTimelineScrollLedgerController = ({
       settledScrollTopRef.current = undefined;
       settleDiscardWatchRef.current = undefined;
     }
-    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = useUpstreamThreadAnchor
+      ? undefined
+      : measurementScrollCorrectionHook;
   }, [
     ledgerViewKey,
     measurementScrollCorrectionHook,
     pendingRoomFoldPxRef,
     resettingLedgerView,
+    useUpstreamThreadAnchor,
     virtualizer,
   ]);
 

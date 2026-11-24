@@ -50,6 +50,7 @@ const OPEN_SETUPS: Setup[] = [
 const SCROLL_SETUPS: Setup[] = [
   { engine: 'chromium', viewport: 'desktop' },
   { engine: 'webkit', viewport: 'desktop' },
+  { engine: 'webkit', viewport: 'phone' },
 ];
 const VIEWPORTS: Record<Setup['viewport'], BrowserContextOptions> = {
   desktop: { viewport: { width: 1440, height: 900 } },
@@ -459,10 +460,6 @@ test.describe('thread timeline jumps reproducers', () => {
     test(`${setup.engine} ${setup.viewport}: fast upward wheel scrolling through realistic history does not jump`, async ({
       baseURL,
     }) => {
-      test.fixme(
-        setup.engine === 'webkit',
-        'Follow-up: WebKit settle discard/replay under fast wheel scrolling'
-      );
       const fixture = requireFixture(setup);
       await openAndRun(setup, baseURL, fixture, async (page) => {
         await delayMediaAndRelations(page, 350, 650);
