@@ -648,9 +648,14 @@ describe('desktopAccess', () => {
       senderFrame: panel.webContents.mainFrame,
     };
 
-    // Shell approval window can read status and decide shell, but cannot revokeAll.
+    // Shell approval window can read status and decide shell (only after a user gesture), but cannot revokeAll.
     expect(await statusHandler?.(shellEvent)).toMatchObject({ ok: true });
     expect(await revokeHandler?.(shellEvent)).toEqual({ ok: false, code: 'FORBIDDEN' });
+    expect(await decideHandler?.(shellEvent, { commandId: 'cmd-1', approved: true })).toEqual({
+      ok: false,
+      code: 'NO_USER_GESTURE',
+    });
+    panel.webContents.emit('input-event', {}, { type: 'mouseUp' });
     expect(await decideHandler?.(shellEvent, { commandId: 'cmd-1', approved: true })).toMatchObject(
       { ok: true }
     );
@@ -880,5 +885,182 @@ describe('desktopAccess', () => {
     expect(await access.relaunch()).toEqual({ ok: true, value: undefined });
     expect(electronMocks.app.relaunch).toHaveBeenCalledTimes(1);
     expect(electronMocks.app.exit).toHaveBeenCalledWith(0);
+  });
+  it('authorizes single-click login -> pair -> finishSetup across >10s within 3m, scoped strictly to paired controllerKey', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    let now = 5_000_000;
+    const fake = createFakeBridgeClient(makeBaseStatus());
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      now: () => now,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    // Single click on Allow Full Access opens setup authorization across login -> pair -> finishSetup.
+    access.noteGesture();
+    const loginRes = await access.login({
+      homeserver: 'https://mindroom.chat',
+      method: 'sso',
+      loginToken: 'tok-1',
+    });
+    expect(loginRes.ok).toBe(true);
+
+    // Other sensitive actions still strictly require a fresh gesture even while setupAuth is active.
+    expect(await access.revokeAll()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+    expect(await access.pickFolder()).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+
+    // >10s later (e.g. after SSO/UIA), pair succeeds without another click and binds controllerKey.
+    now += 45_000;
+    const pairRes = await access.pair({
+      controller: { userId: '@agent:mindroom.chat', deviceId: 'AG1', ed25519: 'ed1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['general'],
+      code: 'PAIR-1',
+    });
+    expect(pairRes.ok).toBe(true);
+    if (!pairRes.ok) return;
+
+    // Wrong controllerKey is rejected even while setupAuth is active.
+    now += 45_000;
+    expect(
+      await access.finishSetup({
+        controllerKey: '@other:mindroom.chat:EVIL',
+        mode: 'full',
+      })
+    ).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+
+    // Matching controllerKey succeeds and consumes setupAuth so a replay fails.
+    const finishRes = await access.finishSetup({
+      controllerKey: pairRes.value.controllerKey,
+      agentName: 'General',
+      mode: 'full',
+    });
+    expect(finishRes.ok).toBe(true);
+    expect(
+      await access.finishSetup({
+        controllerKey: pairRes.value.controllerKey,
+        mode: 'full',
+      })
+    ).toEqual({ ok: false, code: 'NO_USER_GESTURE' });
+  });
+
+  it('revokes live grants when downgrading a Full Access controller to restricted in finishSetup and never enables Login Item if consent write fails', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    setControllerFullAccess(userDataDir, 'ctrl-full', { agentName: 'General' });
+
+    const initial = makeBaseStatus({
+      config: {
+        state: 'ready',
+        revision: 3,
+        enabled: true,
+        controllers: [
+          {
+            controller_key: 'ctrl-full',
+            user_id: '@agent:mindroom.chat',
+            device_id: 'D1',
+            ed25519: 'k1',
+            allowed_requester_ids: ['@bas:mindroom.chat'],
+            allowed_agent_names: ['general'],
+          },
+        ],
+        allowed_app_ids: ['primary-screen'],
+        file_roots: [],
+        shell_enabled: true,
+      },
+      bridge: { state: 'control', active_action: null, last_error: null },
+    });
+    const fake = createFakeBridgeClient(initial);
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    await access.start();
+    fake.calls.length = 0;
+
+    access.noteGesture();
+    const downgraded = await access.finishSetup({
+      controllerKey: 'ctrl-full',
+      mode: 'restricted',
+      allowedAppIds: ['primary-screen'],
+      shellEnabled: true,
+      controlDurationSeconds: 180,
+    });
+    expect(downgraded.ok).toBe(true);
+    expect(loadConsent(userDataDir).controllers).toEqual({});
+    expect(fake.calls).toEqual([
+      { action: 'revoke_control', parameters: { controller_key: 'ctrl-full' } },
+      { action: 'revoke_shell', parameters: { controller_key: 'ctrl-full' } },
+      {
+        action: 'grant_control',
+        parameters: { duration_seconds: 180, controller_key: 'ctrl-full' },
+      },
+    ]);
+
+    // If writing desktop-access-consent.json fails, Login Item must never be turned on unrecorded.
+    const brokenUserData = makeTempDir();
+    fs.mkdirSync(path.join(brokenUserData, 'desktop-access-consent.json'));
+    electronMocks.app.getLoginItemSettings.mockReturnValue({ openAtLogin: false });
+    const fake2 = createFakeBridgeClient(initial);
+    const brokenAccess = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir: brokenUserData,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      enableLoginItem: true,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake2.setOnStatus(onStatus);
+        return fake2.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    brokenAccess.noteGesture();
+    const failed = await brokenAccess.finishSetup({
+      controllerKey: 'ctrl-full',
+      agentName: 'General',
+      mode: 'full',
+    });
+    expect(failed.ok).toBe(false);
+    expect(electronMocks.app.setLoginItemSettings).not.toHaveBeenCalled();
   });
 });

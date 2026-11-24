@@ -187,6 +187,7 @@ export const applyFinishSetup = async (
     return;
   }
 
+  const hadFullConsent = isControllerFullAccess(ctx.loadConsent(), req.controllerKey);
   ctx.clearConsent(req.controllerKey);
   const keepOther = current.config.controllers.some((c) => c.controller_key !== req.controllerKey);
   const apps = keepOther
@@ -213,6 +214,9 @@ export const applyFinishSetup = async (
       start: true,
     });
     await reapplyConsentedGrants(ctx.client, started, ctx.loadConsent());
+  } else if (hadFullConsent) {
+    await ctx.client.request('revoke_control', { controller_key: req.controllerKey });
+    await ctx.client.request('revoke_shell', { controller_key: req.controllerKey });
   }
   if (isBridgeRunning(ctx.getLatest())) {
     await applyBoundedGrants(ctx.client, req.controllerKey, req);

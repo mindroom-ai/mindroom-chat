@@ -105,7 +105,6 @@ export class DesktopBridgeProcess {
   private startPromise: Promise<void> | undefined;
   private ready = false;
   private stopping = false;
-  private seq = 0;
   private cachedStatus: DesktopAccessHelperStatus | null = null;
   private readonly pending = new Map<string, PendingRequest>();
 
@@ -228,7 +227,7 @@ export class DesktopBridgeProcess {
         new DesktopHelperError('helper_not_running', 'Desktop helper is not running.')
       );
     }
-    const requestId = `req-${++this.seq}-${crypto.randomBytes(4).toString('hex')}`;
+    const requestId = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
@@ -239,7 +238,7 @@ export class DesktopBridgeProcess {
         reject,
         timer,
       });
-      const payload = `${JSON.stringify({ request_id: requestId, action, parameters })}\n`;
+      const payload = `${JSON.stringify({ v: 1, request_id: requestId, action, parameters })}\n`;
       child.stdin.write(payload, 'utf8', (error) => {
         if (!error) return;
         const entry = this.pending.get(requestId);

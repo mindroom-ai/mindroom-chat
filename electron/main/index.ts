@@ -422,12 +422,15 @@ void app.whenReady().then(() => {
       forget();
       clearMainBadge();
     });
-    // Sensitive desktop actions start only after a click or key press in the main window.
+    // Sensitive desktop actions start only after a click or key press in an authorized window.
     wc.on('input-event', (_event, { type }) => {
       const gesture = type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown';
-      if (gesture && wc === getMainWindow()?.webContents) {
+      if (!gesture) return;
+      if (wc === getMainWindow()?.webContents) {
         authCallback.noteGesture();
         activeDesktopAccess.noteGesture();
+      } else if (wc === activeDesktopAccess.shellApprovalContents()) {
+        activeDesktopAccess.noteShellApprovalGesture();
       }
     });
   });

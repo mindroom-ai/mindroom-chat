@@ -57,12 +57,38 @@ const baseStatus = {
 write({ v: 1, type: 'hello', helper_version: '2026.11.568' });
 write({ v: 1, type: 'status', sequence: 1, status: baseStatus });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALLOWED_KEYS = new Set(['v', 'request_id', 'action', 'parameters']);
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 rl.on('line', (line) => {
   if (!line.trim()) return;
   const req = JSON.parse(line);
+  const keys = Object.keys(req);
+  if (
+    keys.some((k) => !ALLOWED_KEYS.has(k)) ||
+    req.v !== 1 ||
+    typeof req.request_id !== 'string' ||
+    !UUID_RE.test(req.request_id) ||
+    typeof req.action !== 'string' ||
+    typeof req.parameters !== 'object' ||
+    req.parameters === null ||
+    Array.isArray(req.parameters)
+  ) {
+    write({
+      v: 1,
+      type: 'response',
+      request_id: typeof req.request_id === 'string' ? req.request_id : null,
+      ok: false,
+      error: { code: 'invalid_request', message: 'Expected strict v1 UUID request frame.' },
+    });
+    return;
+  }
   if (req.action === 'echo_args') {
-    write({ request_id: req.request_id, ok: true, result: { args, parameters: req.parameters } });
+    write({
+      request_id: req.request_id,
+      ok: true,
+      result: { args, v: req.v, request_id: req.request_id, parameters: req.parameters },
+    });
     return;
   }
   if (req.action === 'delayed') {
@@ -202,11 +228,17 @@ describe('DesktopBridgeProcess', () => {
     await proc.start();
     expect(proc.isRunning()).toBe(true);
 
-    const echoed = await proc.request<{ args: string[]; parameters: Record<string, unknown> }>(
-      'echo_args',
-      { probe: true }
-    );
+    const echoed = await proc.request<{
+      args: string[];
+      v: number;
+      request_id: string;
+      parameters: Record<string, unknown>;
+    }>('echo_args', { probe: true });
     expect(echoed.args).toEqual(['--config', configPath, '--storage-path', storagePath]);
+    expect(echoed.v).toBe(1);
+    expect(echoed.request_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
     expect(echoed.parameters).toEqual({ probe: true });
 
     // Status push normalized Python's object-shaped permissions into flat permission states.

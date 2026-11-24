@@ -11,6 +11,7 @@ export type ShellApprovalWindowOptions = {
   preload: string;
   isQuitting: () => boolean;
   url?: string;
+  onGesture?: () => void;
 };
 
 export type ShellApprovalWindowHandle = {
@@ -84,6 +85,11 @@ export const createShellApprovalWindow = (
       skipTransformProcessType: true,
     });
     guardWebContents(panel.webContents, isShellApprovalUrl);
+    panel.webContents.on('input-event', (_event, { type }) => {
+      if (type === 'mouseUp' || type === 'keyDown' || type === 'rawKeyDown') {
+        options.onGesture?.();
+      }
+    });
 
     panel.once('ready-to-show', () => {
       ready = true;

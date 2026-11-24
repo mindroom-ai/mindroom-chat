@@ -49,6 +49,7 @@ export { MINDROOM_APP_IDS, registerDesktopAccessHandlers };
 export type { DesktopBridgeClient };
 
 const GESTURE_WINDOW_MS = 10_000;
+const SETUP_AUTH_TTL_MS = 180_000;
 const LOGIN_TIMEOUT_MS = 120_000;
 const ACCESSIBILITY_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility';
@@ -88,6 +89,7 @@ export type DesktopAccessOptions = {
 export type DesktopAccessHandle = DesktopAccessOperations & {
   isAvailable(): boolean;
   noteGesture(): void;
+  noteShellApprovalGesture(): void;
   start(): Promise<void>;
   stop(): Promise<void>;
   shellApprovalContents(): Electron.WebContents | undefined;
@@ -120,13 +122,20 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     (() => (platform === 'darwin' ? scanInstalledMacApps() : Promise.resolve([])));
 
   let gestureAt = -Infinity;
+  let shellGestureAt = -Infinity;
+  let setupAuth: { expiresAt: number; controllerKey?: string } | undefined;
   let helperError: string | null = null;
   let latestStatus: DesktopAccessHelperStatus | null = null;
   let screenRecordingRequested = false;
 
+  const noteShellApprovalGesture = (): void => {
+    shellGestureAt = now();
+  };
+
   const shellWindow = createShellApprovalWindow({
     preload: options.preload,
     isQuitting: options.isQuitting,
+    onGesture: noteShellApprovalGesture,
   });
   const tray = createDesktopAccessTray(
     {
@@ -228,6 +237,31 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     return true;
   };
 
+  const consumeDecisionGesture = (): boolean => {
+    if (now() - shellGestureAt <= GESTURE_WINDOW_MS) {
+      shellGestureAt = -Infinity;
+      return true;
+    }
+    return consumeGesture();
+  };
+
+  const activeSetupAuth = (): { expiresAt: number; controllerKey?: string } | undefined => {
+    if (setupAuth && now() > setupAuth.expiresAt) setupAuth = undefined;
+    return setupAuth;
+  };
+
+  const authorizePair = (): boolean => {
+    if (consumeGesture()) return true;
+    const auth = activeSetupAuth();
+    return auth !== undefined && auth.controllerKey === undefined;
+  };
+
+  const authorizeFinishSetup = (controllerKey: string): boolean => {
+    if (consumeGesture()) return true;
+    const auth = activeSetupAuth();
+    return auth !== undefined && auth.controllerKey === controllerKey;
+  };
+
   const requireBridge = async (): Promise<DesktopBridgeClient> => {
     if (!bridge) throw new DesktopHelperError('UNAVAILABLE', 'Desktop helper is not available.');
     if (!bridge.isRunning()) {
@@ -238,10 +272,10 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
   };
 
   const runBridge = async <T>(
-    requireGesture: boolean,
+    authorize: () => boolean,
     fn: (client: DesktopBridgeClient) => Promise<T>
   ): Promise<DesktopResult<T>> => {
-    if (requireGesture && !consumeGesture()) return { ok: false, code: 'NO_USER_GESTURE' };
+    if (!authorize()) return { ok: false, code: 'NO_USER_GESTURE' };
     try {
       return { ok: true, value: await fn(await requireBridge()) };
     } catch (error) {
@@ -270,21 +304,34 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
 
   const saveFullConsent = (controllerKey: string, agentName?: string): void => {
     const current = loadConsent(options.userDataDir);
-    let managed = current.managedLoginItem;
-    if (enableLoginItem && platform === 'darwin' && !managed) {
+    let shouldEnableLoginItem = false;
+    if (enableLoginItem && platform === 'darwin' && !current.managedLoginItem) {
       try {
-        if (!app.getLoginItemSettings().openAtLogin) {
-          app.setLoginItemSettings({ openAtLogin: true });
-          managed = true;
-        }
+        shouldEnableLoginItem = !app.getLoginItemSettings().openAtLogin;
       } catch {
-        // Ignore login item failures on unsupported environments.
+        shouldEnableLoginItem = false;
       }
     }
     setControllerFullAccess(options.userDataDir, controllerKey, {
       agentName,
-      managedLoginItem: managed,
+      managedLoginItem: current.managedLoginItem,
     });
+    if (!shouldEnableLoginItem) return;
+    try {
+      app.setLoginItemSettings({ openAtLogin: true });
+    } catch {
+      return;
+    }
+    try {
+      setManagedLoginItem(options.userDataDir, true);
+    } catch (error) {
+      try {
+        app.setLoginItemSettings({ openAtLogin: false });
+      } catch {
+        // Ignore rollback errors if macOS rejects the login item update.
+      }
+      throw error;
+    }
   };
 
   const clearConsent = (controllerKey: string): void => {
@@ -308,6 +355,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     fs.existsSync(path.join(storagePath, 'desktop_bridge', 'matrix_session.json'));
 
   const revokeAllInternal = async (): Promise<DesktopResult<DesktopAccessSnapshot>> => {
+    setupAuth = undefined;
     const { previous } = clearAllConsent(options.userDataDir);
     restoreLoginItemIfUnused(previous.managedLoginItem);
     if (bridge?.isRunning()) {
@@ -323,6 +371,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     noteGesture: () => {
       gestureAt = now();
     },
+    noteShellApprovalGesture,
     shellApprovalContents: () => shellWindow.contents(),
 
     async start(): Promise<void> {
@@ -352,6 +401,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     },
 
     async stop(): Promise<void> {
+      setupAuth = undefined;
       tray.destroy();
       shellWindow.destroy();
       await bridge?.stop().catch(() => undefined);
@@ -370,7 +420,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     },
 
     login: (req: DesktopAccessLoginRequest) =>
-      runBridge(true, async (client) => {
+      runBridge(consumeGesture, async (client) => {
         if (req.replace && isBridgeRunning(latestStatus)) await client.request('stop', {});
         await client.request(
           'login',
@@ -386,11 +436,12 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           },
           LOGIN_TIMEOUT_MS
         );
+        setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS };
         return syncUi();
       }),
 
     pair: (req: DesktopAccessPairRequest) =>
-      runBridge(true, async (client): Promise<DesktopAccessPairResult> => {
+      runBridge(authorizePair, async (client): Promise<DesktopAccessPairResult> => {
         const current = latestStatus ?? (await fetchStatus(client));
         const upsertRes = await client.request<{ status?: DesktopAccessHelperStatus }>(
           'upsert_controller',
@@ -428,6 +479,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
             ? { cloudflare_access: req.cloudflareAccess }
             : {}),
         });
+        setupAuth = { expiresAt: now() + SETUP_AUTH_TTL_MS, controllerKey: matched.controller_key };
         return {
           controllerKey: matched.controller_key,
           deviceId: res.device_id ?? after.pairing.device_id ?? '',
@@ -442,19 +494,23 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       }),
 
     finishSetup: (req: DesktopAccessFinishSetupRequest) =>
-      runBridge(true, async (client) => {
-        await applyFinishSetup(policyContext(client), req);
-        return syncUi();
-      }),
+      runBridge(
+        () => authorizeFinishSetup(req.controllerKey),
+        async (client) => {
+          await applyFinishSetup(policyContext(client), req);
+          setupAuth = undefined;
+          return syncUi();
+        }
+      ),
 
     updateLimits: (req: DesktopAccessUpdateLimitsRequest) =>
-      runBridge(true, async (client) => {
+      runBridge(consumeGesture, async (client) => {
         await applyUpdateLimits(policyContext(client), req);
         return syncUi();
       }),
 
     removeController: (controllerKey: string) =>
-      runBridge(true, async (client) => {
+      runBridge(consumeGesture, async (client) => {
         clearConsent(controllerKey);
         if (isBridgeRunning(latestStatus)) {
           await client
@@ -476,7 +532,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       consumeGesture() ? revokeAllInternal() : { ok: false, code: 'NO_USER_GESTURE' },
 
     requestPermission: (permission: 'accessibility' | 'screen_recording') =>
-      runBridge(true, async (client) => {
+      runBridge(consumeGesture, async (client) => {
         if (
           permission === 'screen_recording' &&
           readPermissions(latestStatus).permissions.screen_recording !== 'granted'
@@ -524,7 +580,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     },
 
     decideShell: (req: DesktopShellDecisionRequest) =>
-      runBridge(false, async (client) => {
+      runBridge(consumeDecisionGesture, async (client) => {
         await client.request('decide_shell', {
           command_id: req.commandId,
           approved: req.approved,
@@ -535,7 +591,7 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
       }),
 
     killShellHandle: (handleId: string) =>
-      runBridge(true, async (client) => {
+      runBridge(consumeGesture, async (client) => {
         await client.request('kill_shell_handle', { handle: handleId });
         return syncUi();
       }),
