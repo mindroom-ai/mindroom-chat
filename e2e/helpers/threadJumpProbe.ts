@@ -148,7 +148,11 @@ export const installThreadJumpProbe = () => {
       return cleared;
     },
     findScroller(): HTMLElement | null {
-      const inner = document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]');
+      const inner =
+        document.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ??
+        document.querySelector<HTMLElement>(
+          '[data-timeline-rows][data-testid="room-virtual-inner"]'
+        );
       if (!inner) return null;
       let node = inner.parentElement;
       while (node) {
@@ -289,7 +293,11 @@ export const installThreadJumpProbe = () => {
       if (!probe.scroller || !probe.scroller.isConnected) probe.scroller = probe.findScroller();
       const scroller = probe.scroller;
       const inner =
-        scroller?.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ?? null;
+        scroller?.querySelector<HTMLElement>('[data-timeline-rows][data-thread-count]') ??
+        scroller?.querySelector<HTMLElement>(
+          '[data-timeline-rows][data-testid="room-virtual-inner"]'
+        ) ??
+        null;
       if (scroller && inner && getComputedStyle(inner).visibility !== 'hidden') {
         probe.visibleFrames += 1;
         const threadCount = Number(inner.dataset.threadCount ?? -1);
