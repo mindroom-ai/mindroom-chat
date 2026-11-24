@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appendSegmentToGroups,
   buildMergedGroupWav,
   canAffordRefinement,
-  chooseGroupSplitIndex,
   computeSegmentSliceFrames,
   estimateMergedGroupSeconds,
+  isRecordCoveredByRefinement,
   REFINEMENT_MAX_AUDIO_SECONDS_PER_MINUTE,
   REFINEMENT_MAX_REQUESTS_PER_MINUTE,
   REFINEMENT_RATE_WINDOW_MS,
+  releaseGroupWavs,
+  sealRefinementGroup,
   selectNextUpload,
   stitchRefinedSegments,
+  summarizeSessionRecords,
   type DictationUploadSample,
   type RefinementGroup,
+  type RefinementSegmentRecord,
   type StitchableSegmentRecord,
 } from './dictationRefinement';
 import {
@@ -162,10 +167,11 @@ describe('dictationRefinement', () => {
     expect(paddedSamples).toHaveLength(7); // 2 voiced + 3 zero pad + 2 voiced
     expect(paddedSamples.slice(2, 5)).toEqual([0, 0, 0]);
 
-    // Rejects < 2 segments, > 22 s duration, > 1 MB payload, and non-frame-aligned WAV sizes.
+    // Rejects < 2 segments, > 4 segments, > 16 s duration, > 1 MB payload, and unaligned WAVs.
     expect(buildMergedGroupWav([seg0])).toBeNull();
-    const long12s = makeSegment({ leading: 0, voiced: 125, trailing: 0 });
-    expect(buildMergedGroupWav([long12s, long12s])).toBeNull();
+    expect(buildMergedGroupWav([seg0, seg0, seg0, seg0, seg0])).toBeNull();
+    const long9s = makeSegment({ leading: 0, voiced: 94, trailing: 0 });
+    expect(buildMergedGroupWav([long9s, long9s])).toBeNull();
     const huge17s = makeSegment({ leading: 0, voiced: 180, trailing: 0 });
     expect(buildMergedGroupWav([huge17s, huge17s])).toBeNull();
     const partialFrameWav = new Blob(
@@ -177,29 +183,71 @@ describe('dictationRefinement', () => {
     expect(estimateMergedGroupSeconds([seg0, malformed])).toBe(Infinity);
   });
 
-  it('chooses split index at the longest pause once prefix >= 10 s, honoring Infinity and ties', () => {
-    // 6 s each (62 voiced frames ~5.95 s). Prefix [0..1] ~12.2 s >= 10 s.
-    const s0 = makeSegment({ leading: 2, voiced: 62, trailing: 2, pauseBeforeMs: Infinity });
-    const s1 = makeSegment({ leading: 2, voiced: 62, trailing: 2, pauseBeforeMs: 900 });
-    const s2 = makeSegment({ leading: 2, voiced: 62, trailing: 2, pauseBeforeMs: 3_500 });
-    const s3 = makeSegment({ leading: 2, voiced: 32, trailing: 2, pauseBeforeMs: 900 });
-    const next = makeSegment({ leading: 2, voiced: 45, trailing: 2, pauseBeforeMs: 900 });
-    expect(chooseGroupSplitIndex([s0, s1, s2, s3], next)).toBe(2);
+  it('enforces 4-segment and 16 s caps, seals in-flight/already-refined groups, and releases locked WAVs', () => {
+    const toRecord = (
+      seg: DictationSegment,
+      status: RefinementSegmentRecord['status'] = 'queued'
+    ): RefinementSegmentRecord => {
+      const { wav, ...meta } = seg;
+      return { segment: meta, wav, status };
+    };
 
-    // Infinity pause boundary beats any finite pause; ties break toward larger splitIdx (seal more).
-    const s2Inf = makeSegment({ leading: 2, voiced: 62, trailing: 2, pauseBeforeMs: Infinity });
-    const s3Tie = makeSegment({ leading: 2, voiced: 32, trailing: 2, pauseBeforeMs: 3_500 });
-    expect(chooseGroupSplitIndex([s0, s1, s2Inf, s3Tie], next)).toBe(2);
+    // 4-segment cap seals [0..3] straight to refined (zero extra upload) and releases its WAVs.
+    const records: RefinementSegmentRecord[] = [];
+    const groups: RefinementGroup[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      records.push(toRecord(makeSegment({ voiced: 10 }), i === 0 ? 'completed' : 'queued'));
+      appendSegmentToGroups(groups, records);
+    }
+    expect(groups).toHaveLength(1);
+    groups[0]!.refinedText = 'Zero one two three.';
+    groups[0]!.refinedEndIndex = 3;
 
-    const s2Tie = makeSegment({ leading: 2, voiced: 62, trailing: 2, pauseBeforeMs: 2_000 });
-    const s3Same = makeSegment({ leading: 2, voiced: 32, trailing: 2, pauseBeforeMs: 2_000 });
-    expect(chooseGroupSplitIndex([s0, s1, s2Tie, s3Same], next)).toBe(3);
+    records.push(toRecord(makeSegment({ voiced: 10 }), 'queued'));
+    appendSegmentToGroups(groups, records);
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.state).toBe('refined');
+    expect(records.slice(0, 4).every((r) => r.wav === undefined)).toBe(true);
+    expect(records[4]!.wav).toBeDefined();
 
-    // Falls back to openSegments.length when no candidate satisfies the 10 s prefix threshold.
-    const shortA = makeSegment({ leading: 1, voiced: 40, trailing: 1, pauseBeforeMs: 1_000 });
-    const shortB = makeSegment({ leading: 1, voiced: 40, trailing: 1, pauseBeforeMs: 4_000 });
-    const longNext = makeSegment({ leading: 1, voiced: 160, trailing: 1, pauseBeforeMs: 1_000 });
-    expect(chooseGroupSplitIndex([shortA, shortB], longNext)).toBe(2);
+    // 16 s cap seals open group as-is (even if uploading) and opens a fresh group.
+    const longRecs = [65, 65, 65].map((voiced) => toRecord(makeSegment({ voiced }), 'completed'));
+    const longGroups: RefinementGroup[] = [];
+    appendSegmentToGroups(longGroups, longRecs.slice(0, 1));
+    appendSegmentToGroups(longGroups, longRecs.slice(0, 2));
+    longGroups[0]!.uploadingEndIndex = 1;
+    appendSegmentToGroups(longGroups, longRecs);
+    expect(longGroups).toHaveLength(2);
+    expect(longGroups[0]!.state).toBe('uploading');
+    expect(longRecs[0]!.wav).toBeDefined();
+    expect(longRecs[1]!.wav).toBeDefined();
+
+    // Fallback group releases covered and completed WAVs while retaining uncovered queued/failed WAVs.
+    const fbRecords: RefinementSegmentRecord[] = [
+      toRecord(makeSegment({ voiced: 5 }), 'completed'),
+      toRecord(makeSegment({ voiced: 5 }), 'queued'),
+      toRecord(makeSegment({ voiced: 5 }), 'completed'),
+      toRecord(makeSegment({ voiced: 5 }), 'failed'),
+    ];
+    const fbGroup: RefinementGroup = {
+      startIndex: 0,
+      endIndex: 3,
+      state: 'fallback',
+      refinedText: 'Zero and one',
+      refinedEndIndex: 1,
+    };
+    releaseGroupWavs(fbGroup, fbRecords);
+    expect(fbRecords[0]!.wav).toBeUndefined();
+    expect(fbRecords[1]!.wav).toBeUndefined();
+    expect(fbRecords[2]!.wav).toBeUndefined();
+    expect(fbRecords[3]!.wav).toBeDefined();
+
+    // Sealing an already-completed singleton transitions to fallback and releases its WAV.
+    const singleRecs = [toRecord(makeSegment({ voiced: 5 }), 'completed')];
+    const singleGroup: RefinementGroup = { startIndex: 0, endIndex: 0, state: 'open' };
+    expect(sealRefinementGroup(singleGroup, singleRecs)).toBe(true);
+    expect(singleGroup.state).toBe('fallback');
+    expect(singleRecs[0]!.wav).toBeUndefined();
   });
 
   it('enforces 24 RPM and 150 s/min rolling-window budget and prunes expired entries', () => {
@@ -239,6 +287,7 @@ describe('dictationRefinement', () => {
         endIndex: 2,
         state: 'refined',
         refinedText: 'alpha beta clause one and clause two.',
+        refinedEndIndex: 2,
       },
       { startIndex: 3, endIndex: 3, state: 'open' },
     ];
@@ -258,23 +307,39 @@ describe('dictationRefinement', () => {
       'Hard cut ends with alpha beta clause one.'
     );
 
-    // Uploading / fallback group displays completed primaries cleanly.
-    const uploadingGroups: RefinementGroup[] = [
+    // Unrefined uploading group displays completed primaries; partially refined open group keeps prefix.
+    const unrefinedUploading: RefinementGroup[] = [
       groups[0]!,
-      { ...groups[1]!, state: 'uploading' },
+      { startIndex: 1, endIndex: 2, state: 'uploading' },
       groups[2]!,
     ];
-    expect(stitchRefinedSegments(records, uploadingGroups)).toBe(
+    expect(stitchRefinedSegments(records, unrefinedUploading)).toBe(
       'Hard cut ends with alpha beta clause one. Clause two. Tail clause.'
     );
+    const partialOpen: RefinementGroup[] = [
+      groups[0]!,
+      {
+        startIndex: 1,
+        endIndex: 3,
+        state: 'open',
+        refinedText: 'alpha beta clause one and clause two.',
+        refinedEndIndex: 2,
+      },
+    ];
+    expect(stitchRefinedSegments(records, partialOpen)).toBe(
+      'Hard cut ends with alpha beta clause one and clause two. Tail clause.'
+    );
+    expect(isRecordCoveredByRefinement(partialOpen, 1)).toBe(true);
+    expect(isRecordCoveredByRefinement(partialOpen, 2)).toBe(true);
+    expect(isRecordCoveredByRefinement(partialOpen, 3)).toBe(false);
   });
 
-  it('selects uploads chronologically so fallen-back earlier primaries precede later refinements', () => {
-    const records: Array<Pick<StitchableSegmentRecord, 'status'>> = [
-      { status: 'completed' },
-      { status: 'queued' },
-      { status: 'completed' },
-      { status: 'queued' },
+  it('selects live rolling or queued refinements chronologically and summarizes progressive coverage', () => {
+    const records: StitchableSegmentRecord[] = [
+      { segment: { overlapped: false }, status: 'completed', text: 'Zero.' },
+      { segment: { overlapped: false }, status: 'queued' },
+      { segment: { overlapped: false }, status: 'completed', text: 'Two.' },
+      { segment: { overlapped: false }, status: 'queued' },
     ];
     const groups: RefinementGroup[] = [
       { startIndex: 0, endIndex: 1, state: 'fallback' },
@@ -284,17 +349,51 @@ describe('dictationRefinement', () => {
     expect(selectNextUpload(records, groups)).toEqual({ kind: 'primary', index: 1 });
 
     // Once earlier primary completes, the refinement runs (skipping index 3 inside the queued group).
-    records[1] = { status: 'completed' };
-    expect(selectNextUpload(records, groups)).toEqual({ kind: 'refinement', group: groups[1] });
-
-    // Tie-breaking favors refinement when group.startIndex <= open primary index (overflow prefix).
-    const overflowGroups: RefinementGroup[] = [
-      { startIndex: 0, endIndex: 1, state: 'queued' },
-      { startIndex: 2, endIndex: 3, state: 'open' },
-    ];
-    expect(selectNextUpload(records, overflowGroups)).toEqual({
+    records[1] = { segment: { overlapped: false }, status: 'completed', text: 'One.' };
+    expect(selectNextUpload(records, groups)).toEqual({
       kind: 'refinement',
-      group: overflowGroups[0],
+      group: groups[1],
+      endIndex: 3,
+    });
+
+    // Open multi-segment group prefers live rolling merge over isolated primary unless deferred or failed.
+    const liveGroup: RefinementGroup = { startIndex: 0, endIndex: 1, state: 'open' };
+    const liveRecords: StitchableSegmentRecord[] = [
+      { segment: { overlapped: false }, status: 'completed', text: 'Zero.' },
+      { segment: { overlapped: false }, status: 'queued' },
+    ];
+    expect(selectNextUpload(liveRecords, [liveGroup])).toEqual({
+      kind: 'refinement',
+      group: liveGroup,
+      endIndex: 1,
+    });
+    expect(selectNextUpload(liveRecords, [liveGroup], true)).toBeNull();
+    expect(summarizeSessionRecords(liveRecords, [liveGroup])).toMatchObject({
+      pendingUploads: 1,
+      completedSegments: 1,
+      failedSegments: 0,
+    });
+
+    // Live failure at endIndex fails open to uncovered primary, skipping already-covered indices.
+    liveGroup.refinedText = 'Zero and one';
+    liveGroup.refinedEndIndex = 1;
+    liveGroup.endIndex = 2;
+    liveGroup.liveFailedEndIndex = 2;
+    liveRecords.push({ segment: { overlapped: false }, status: 'queued' });
+    expect(selectNextUpload(liveRecords, [liveGroup])).toEqual({ kind: 'primary', index: 2 });
+    expect(summarizeSessionRecords(liveRecords, [liveGroup])).toMatchObject({
+      pendingUploads: 1,
+      completedSegments: 2,
+      failedSegments: 0,
+      previewText: 'Zero and one',
+    });
+    // A subsequent segment (endIndex > liveFailedEndIndex) re-enables live rolling merge.
+    liveGroup.endIndex = 3;
+    liveRecords.push({ segment: { overlapped: false }, status: 'queued' });
+    expect(selectNextUpload(liveRecords, [liveGroup])).toEqual({
+      kind: 'refinement',
+      group: liveGroup,
+      endIndex: 3,
     });
   });
 });
