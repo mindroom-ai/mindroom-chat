@@ -1,4 +1,4 @@
-import { Box, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
+import { Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
@@ -6,11 +6,10 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { getSpaceLobbyPath, getSpacePath } from '../../routes/pathUtils';
 import * as overviewCss from '../../threads/overview/RoomThreadOverview.css';
-import { TooltipProvider, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { PageHeader } from '../../ui/page/Page';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
-import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
-import { SpaceAvatar, useSpaceAvatarSrc } from '../lobby/LobbyHeader';
+import { SpaceAvatar, SpaceHeaderIconLink, useSpaceAvatarSrc } from '../lobby/LobbyHeader';
 import * as css from './SpaceThreads.css';
 
 export type SpaceThreadsHeaderProps = {
@@ -55,26 +54,7 @@ export function SpaceThreadsHeader({
           )}
         </Box>
         {screenSize === ScreenSize.Mobile ? (
-          <TooltipProvider
-            position="Bottom"
-            offset={4}
-            tooltip={
-              <Tooltip>
-                <Text>{overviewLabel}</Text>
-              </Tooltip>
-            }
-          >
-            {(ref) => (
-              <IconButton
-                ref={ref}
-                className={LoneTouchTarget}
-                aria-label={overviewLabel}
-                onClick={() => void navigate(overviewPath)}
-              >
-                <Icon size="400" src={Icons.Category} />
-              </IconButton>
-            )}
-          </TooltipProvider>
+          <SpaceHeaderIconLink label={overviewLabel} icon={Icons.Category} to={overviewPath} />
         ) : (
           <button
             type="button"

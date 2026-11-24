@@ -2,15 +2,13 @@ import { matchPath } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../routes/paths';
+import { isRoomIdOrAliasSegment } from '../routes/pathUtils';
 import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
 /** The room and thread the window shows, read from the app's address. */
 export type ViewedPlace = { roomId?: string; threadId?: string };
 
 const ROOM_ROUTES = [HOME_ROOM_PATH, DIRECT_ROOM_PATH, SPACE_ROOM_PATH];
-
-/** Room IDs start with `!` and aliases with `#`; reserved sub-segments like `lobby` or `threads` do not. */
-const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /** The room (by ID) and thread a location shows; aliases resolve through the joined rooms. */
 export const getViewedPlace = (

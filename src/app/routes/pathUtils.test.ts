@@ -7,6 +7,7 @@ import {
   getThreadsRoomPath,
   getUsagePath,
   isQuickCapturePath,
+  isRoomIdOrAliasSegment,
 } from './pathUtils';
 
 describe('Activity and Threads paths', () => {
@@ -44,5 +45,15 @@ describe('isQuickCapturePath', () => {
     expect(isQuickCapturePath('/quick-captured/', '/')).toBe(false);
     expect(isQuickCapturePath('/quick-capture/', '/chat')).toBe(false);
     expect(isQuickCapturePath('/chatter/quick-capture/', '/chat')).toBe(false);
+  });
+});
+
+describe('isRoomIdOrAliasSegment', () => {
+  it('recognizes Matrix room ID and alias prefixes and rejects reserved segments', () => {
+    expect(isRoomIdOrAliasSegment('!room:example.org')).toBe(true);
+    expect(isRoomIdOrAliasSegment('#alias:example.org')).toBe(true);
+    expect(isRoomIdOrAliasSegment('lobby')).toBe(false);
+    expect(isRoomIdOrAliasSegment('threads')).toBe(false);
+    expect(isRoomIdOrAliasSegment('')).toBe(false);
   });
 });

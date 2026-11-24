@@ -8,18 +8,14 @@ import { reportBoundaryError } from '../../bug-reports/error-reporting/errorRepo
 import {
   addTagFilter,
   applyFrozenThreadOrder,
+  applyThreadSearchQuery,
   createDefaultThreadFilterState,
-  hasActiveThreadFilters,
-  normalizeThreadSearchText as normalizeOverviewSearchText,
   removeTagFilter,
   resetThreadFilterState,
   selectThreadWorkflowTab,
+  showsFilteredEmptyState,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
-import {
-  applyParsedThreadFilterQuery,
-  parseThreadFilterQuery,
-} from '../../event-store/threads/threadFilterDsl';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
@@ -206,10 +202,11 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       : undefined;
   const showLoading =
     (!indexSnapshot.bootstrapped || !threadListsSettled) && allSpaceEntries.length === 0;
-  const overviewShowsFilteredEmpty =
-    result.scopedTotalCount > 0 &&
-    displayEntries.length === 0 &&
-    hasActiveThreadFilters(result.effectiveFilterState);
+  const overviewShowsFilteredEmpty = showsFilteredEmptyState(
+    displayEntries.length,
+    result.scopedTotalCount,
+    result.effectiveFilterState
+  );
   const emptyKey: SpaceThreadsEmptyKey | undefined = showLoading
     ? undefined
     : spaceRooms.length === 0
@@ -290,15 +287,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
               onRemoveTag={(tag) => updateFilter((prev) => removeTagFilter(prev, tag))}
               onClearTags={() => updateFilter((prev) => ({ ...prev, tags: new Map() }))}
               onSearchQueryChange={(query) =>
-                updateFilter((prev) =>
-                  hasMindroomAgents
-                    ? applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(query))
-                    : {
-                        ...prev,
-                        freeText: normalizeOverviewSearchText(query),
-                        unsupportedQuery: '',
-                      }
-                )
+                updateFilter((prev) => applyThreadSearchQuery(prev, query, hasMindroomAgents))
               }
               threadSections={sectionsEnabled}
               onToggleThreadSections={

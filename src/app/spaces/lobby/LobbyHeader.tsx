@@ -20,7 +20,7 @@ import {
   revealDirectionControls,
 } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
-import type { RectCords } from 'folds';
+import type { IconSrc, RectCords } from 'folds';
 import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../ui/page/Page';
@@ -85,18 +85,38 @@ export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarPro
   );
 }
 
-/** Asks before leaving the space, then goes Home, since the space's pages close with it. */
-function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
+/** A Space header icon button with tooltip that navigates to `to`. */
+export function SpaceHeaderIconLink({
+  label,
+  icon,
+  to,
+}: {
+  label: string;
+  icon: IconSrc;
+  to: string;
+}) {
   const navigate = useNavigate();
   return (
-    <LeaveRoomPrompt
-      roomId={spaceId}
-      requestClose={onClose}
-      onLeft={() => {
-        onClose();
-        void navigate(getHomePath());
-      }}
-    />
+    <TooltipProvider
+      position="Bottom"
+      offset={4}
+      tooltip={
+        <Tooltip>
+          <Text>{label}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          className={LoneTouchTarget}
+          aria-label={label}
+          onClick={() => void navigate(to)}
+        >
+          <Icon size="400" src={icon} />
+        </IconButton>
+      )}
+    </TooltipProvider>
   );
 }
 
@@ -183,26 +203,7 @@ export function LobbyHeader({
           )}
         </Box>
         {screenSize !== ScreenSize.Mobile && (
-          <TooltipProvider
-            position="Bottom"
-            offset={4}
-            tooltip={
-              <Tooltip>
-                <Text>{allThreadsLabel}</Text>
-              </Tooltip>
-            }
-          >
-            {(triggerRef) => (
-              <IconButton
-                ref={triggerRef}
-                className={LoneTouchTarget}
-                aria-label={allThreadsLabel}
-                onClick={() => void navigate(allThreadsPath)}
-              >
-                <Icon size="400" src={Icons.Thread} />
-              </IconButton>
-            )}
-          </TooltipProvider>
+          <SpaceHeaderIconLink label={allThreadsLabel} icon={Icons.Thread} to={allThreadsPath} />
         )}
         <TooltipProvider
           position="Bottom"
@@ -299,7 +300,16 @@ export function LobbyHeader({
           <InviteUserPrompt room={space} requestClose={() => setInviteOpen(false)} />
         </Suspense>
       )}
-      {leaving && <LeaveSpaceDialog spaceId={space.roomId} onClose={() => setLeaving(false)} />}
+      {leaving && (
+        <LeaveRoomPrompt
+          roomId={space.roomId}
+          requestClose={() => setLeaving(false)}
+          onLeft={() => {
+            setLeaving(false);
+            void navigate(getHomePath());
+          }}
+        />
+      )}
     </PageHeader>
   );
 }

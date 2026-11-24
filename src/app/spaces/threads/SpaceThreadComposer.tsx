@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useState, type RefObject } from 'react';
-import { Box, Icon, Icons, Text } from 'folds';
+import { Icons, Text } from 'folds';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { EventTimeline, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { ComposerMenuButton } from '../../composer/ComposerMenuButton';
+import { ComposerMenuButton, ComposerRadioMenuEntry } from '../../composer/ComposerMenuButton';
 import { RoomInput } from '../../composer/RoomInput';
-import * as composerCss from '../../composer/RoomInput.css';
 import {
   composerUploadItemsAtom,
   getRoomInputDraftKey,
@@ -21,14 +20,11 @@ import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
-import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
+import { canSendMessageInRoom } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import * as overviewCss from '../../threads/overview/RoomThreadOverview.css';
 import { ownDirectionLine } from '../../ui/directional';
-import { MenuEntry } from '../../ui/MenuEntry';
 import { resolveComposerTargetRoom } from './spaceThreadsModel';
 import * as css from './SpaceThreads.css';
 
@@ -41,18 +37,6 @@ export type SpaceThreadComposerProps = {
   activeRoomIds: readonly string[];
   fileDropContainerRef: RefObject<HTMLElement | null>;
   onThreadCreated: (roomId: string, eventId: string) => void;
-};
-
-const canSendMessageToRoom = (room: Room, userId: string): boolean => {
-  const state = room.getLiveTimeline?.()?.getState?.(EventTimeline.FORWARDS);
-  if (state?.getStateEvents?.(StateEvent.RoomTombstone, '')) return false;
-  const createEvent = state?.getStateEvents?.(StateEvent.RoomCreate, '') ?? undefined;
-  const powerEvent = state?.getStateEvents?.(StateEvent.RoomPowerLevels, '') ?? undefined;
-  const creators = createEvent ? getRoomCreators(createEvent) : new Set<string>();
-  return getRoomPermissionsAPI(creators, getPowersLevelFromMatrixEvent(powerEvent)).event(
-    'm.room.message',
-    userId
-  );
 };
 
 export function SpaceThreadComposer({
@@ -91,7 +75,7 @@ export function SpaceThreadComposer({
 
   const sendableRooms = useMemo(() => {
     void permissionsVersion;
-    return rooms.filter((item) => canSendMessageToRoom(item.room, myUserId));
+    return rooms.filter((item) => canSendMessageInRoom(item.room, myUserId));
   }, [myUserId, permissionsVersion, rooms]);
   const sendableRoomIds = useMemo(
     () => sendableRooms.map((item) => item.room.roomId),
@@ -191,32 +175,21 @@ export function SpaceThreadComposer({
               }}
             >
               {({ choose }) =>
-                eligibleRooms.map((item) => {
-                  const active = item.room.roomId === targetRoom.room.roomId;
-                  return (
-                    <MenuEntry
-                      key={item.room.roomId}
-                      role="menuitemradio"
-                      aria-checked={active}
-                      fill={active ? 'Soft' : 'None'}
-                      className={composerCss.ComposerMenuItem}
-                      label={item.name}
-                      icon={Icons.Check}
-                      after={
-                        <Box as="span" alignItems="Center" gap="200">
-                          {active && <Icon size="50" src={Icons.Check} aria-hidden="true" />}
-                          <span
-                            className={css.RoomDot}
-                            style={{ backgroundColor: item.accentColor }}
-                            aria-hidden="true"
-                          />
-                        </Box>
-                      }
-                      onSelect={choose(() => setChosenTargetRoomId(item.room.roomId))}
-                      data-space-composer-option={item.room.roomId}
-                    />
-                  );
-                })
+                eligibleRooms.map((item) => (
+                  <ComposerRadioMenuEntry
+                    key={item.room.roomId}
+                    label={item.name}
+                    checked={item.room.roomId === targetRoom.room.roomId}
+                    badge={
+                      <span
+                        className={css.RoomDot}
+                        style={{ backgroundColor: item.accentColor }}
+                        aria-hidden="true"
+                      />
+                    }
+                    onSelect={choose(() => setChosenTargetRoomId(item.room.roomId))}
+                  />
+                ))
               }
             </ComposerMenuButton>
           </span>

@@ -1,4 +1,4 @@
-import { Box, Button, Icon, Icons, Text } from 'folds';
+import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
@@ -7,6 +7,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import type { CompactThreadSectionId } from '../../threads/overview/compactThreadSections';
 import * as compactCss from '../../threads/overview/CompactRoomView.css';
+import { CompactSectionHeader } from '../../threads/overview/CompactSectionHeader';
 import { CompactThreadCard } from '../../threads/overview/CompactThreadCard';
 import {
   buildCompactThreadCardViewModelFromRecord,
@@ -129,35 +130,15 @@ export function SpaceThreadsList({
           ? sections.map((section) => {
               const fixedOpen = section.id === singleBucketTab;
               const closed = !fixedOpen && foldedSections.includes(section.id);
-              const label = (
-                <Text size="B300">{`${t(`thread.workflow.${section.id}`)} · ${
-                  section.entries.length
-                }`}</Text>
-              );
               return (
                 <Box key={section.id} direction="Column" gap="200">
-                  <div className={compactCss.SectionHeader} data-compact-section={section.id}>
-                    <Button
-                      as={fixedOpen ? 'div' : 'button'}
-                      size="300"
-                      variant="Secondary"
-                      fill="None"
-                      radii="300"
-                      aria-expanded={fixedOpen ? undefined : !closed}
-                      onClick={fixedOpen ? undefined : () => onToggleSectionFold(section.id)}
-                      before={
-                        fixedOpen ? undefined : (
-                          <Icon
-                            size="100"
-                            src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-                            data-directional={closed || undefined}
-                          />
-                        )
-                      }
-                    >
-                      {label}
-                    </Button>
-                  </div>
+                  <CompactSectionHeader
+                    id={section.id}
+                    count={section.entries.length}
+                    closed={closed}
+                    fixedOpen={fixedOpen}
+                    onToggle={onToggleSectionFold}
+                  />
                   {!closed && section.entries.map(renderCard)}
                 </Box>
               );

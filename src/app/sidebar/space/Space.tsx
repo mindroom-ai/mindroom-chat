@@ -46,6 +46,7 @@ import {
   getSpacePath,
   getSpaceRoomPath,
   getSpaceThreadsPath,
+  isRoomIdOrAliasSegment,
   withSearchParam,
 } from '../../routes/pathUtils';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
@@ -68,9 +69,6 @@ const readViaServers = (searchParams: URLSearchParams): string[] | undefined => 
   ].filter(Boolean);
   return via.length > 0 ? via : undefined;
 };
-
-/** Room IDs start with `!` and aliases with `#`; any other first segment is no space. */
-const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
 
 /**
  * The `/:spaceIdOrAlias/` routes: the joined space as context for its pages.

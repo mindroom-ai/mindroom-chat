@@ -34,6 +34,7 @@ import type {
 import {
   hasActiveThreadFilters,
   hasSearchOnlyThreadFilters,
+  showsFilteredEmptyState,
   THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -537,7 +538,7 @@ export function RoomThreadOverview({
   );
 
   // Only when a filter hides threads: a Compact room with none yet has its Unresolved filter on.
-  const emptyFilteredState = threadCount === 0 && totalThreadCount > 0 && filtersActive && (
+  const emptyFilteredState = showsFilteredEmptyState(threadCount, totalThreadCount, state) && (
     <div className={css.EmptyState}>
       <Text size="T200">
         {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}

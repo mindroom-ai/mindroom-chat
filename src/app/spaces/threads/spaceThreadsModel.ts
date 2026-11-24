@@ -12,10 +12,7 @@ import {
 } from '../../threads/overview/compactThreadSections';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import {
-  selectThreadWorkflowTab,
-  simplifyAgentlessSimpleThreadFilterState,
-  simplifyAgentlessThreadFilterState,
-  simplifyThreadFilterState,
+  projectThreadFilterState,
   type StatusCounts,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -166,20 +163,6 @@ export type SpaceThreadsResult = {
   effectiveFilterState: ThreadFilterState;
 };
 
-const projectFilterState = (
-  filterState: ThreadFilterState,
-  simpleMode: boolean,
-  hasMindroomAgents: boolean
-): ThreadFilterState => {
-  if (simpleMode) {
-    return hasMindroomAgents
-      ? simplifyThreadFilterState(filterState)
-      : simplifyAgentlessSimpleThreadFilterState(filterState);
-  }
-  if (!hasMindroomAgents) return simplifyAgentlessThreadFilterState(filterState);
-  return filterState.tab ? selectThreadWorkflowTab(filterState, filterState.tab) : filterState;
-};
-
 /** Filters, counts, sorts, and optionally groups all threads belonging to a Matrix Space. */
 export const filterAndSortSpaceThreads = ({
   entries,
@@ -218,7 +201,7 @@ export const filterAndSortSpaceThreads = ({
   const tagCounts = computeThreadRecordTagCounts(scopedKeys, keyedRecordMap);
   const availableTags = Object.keys(tagCounts).sort((a, b) => a.localeCompare(b));
 
-  const effective = projectFilterState(filterState, simpleMode, hasMindroomAgents);
+  const effective = projectThreadFilterState(filterState, simpleMode, hasMindroomAgents);
   const searchTokens = normalizeThreadSearchText(effective.freeText).split(' ').filter(Boolean);
   const prefiltered = scoped.filter((entry) => {
     const people = effective.people;
