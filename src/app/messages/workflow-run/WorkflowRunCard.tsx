@@ -19,11 +19,7 @@ import {
 import { cancelBackgroundJob } from '../../matrix/send/cancelBackgroundJob';
 import { ownDirectionBlock, ownDirectionLine } from '../../ui/directional';
 import { openWorkflowRunPanel } from '../../navigation/workflowPanel';
-import {
-  getWorkflowRunStore,
-  useWorkflowRun,
-  type WorkflowRunEntry,
-} from '../live/workflowRunStore';
+import { getWorkflowRunStore, selectWorkflowRun, useWorkflowRun } from '../live/workflowRunStore';
 import {
   workflowRunCostLine,
   workflowRunCountsLine,
@@ -33,13 +29,6 @@ import {
 import * as css from './WorkflowRunCard.css';
 
 const RESUME_TIMEOUT_MS = 15_000;
-
-const isLiveEntryNewer = (live: WorkflowRunEntry | undefined, card: WorkflowRunCardData): boolean => {
-  if (!live || live.fromCard) return false;
-  if (live.meta.attempt > card.attempt) return true;
-  if (live.meta.attempt < card.attempt) return false;
-  return isLiveWorkflowRunStatus(card.status) || !isLiveWorkflowRunStatus(live.meta.status);
-};
 
 export type WorkflowRunCardProps = {
   card: WorkflowRunCardData;
@@ -70,8 +59,7 @@ function StopWorkflowButton({
   const mx = useMatrixClient();
   const viewerId = mx.getUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  const canCancel =
-    !!viewerId && permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId);
+  const canCancel = !!viewerId && permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId);
   if (!canCancel) return null;
   return (
     <Button
@@ -105,19 +93,19 @@ export function WorkflowRunCard({
   const jotaiStore = useStore();
   const room = mx.getRoom(roomId);
   const viewerId = mx.getUserId();
-  const live = useWorkflowRun(roomId, card.run);
-  const useLive = isLiveEntryNewer(live, card);
+  const stored = useWorkflowRun(roomId, card.run);
+  useEffect(() => {
+    getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, Date.now(), threadId);
+  }, [card, mx, roomId, sender, threadId]);
 
-  const status = useLive ? live!.meta.status : card.status;
-  const counts = useLive ? live!.meta.counts : card.counts;
-  const usage = useLive ? live!.meta.usage : card.usage;
-  const title = useLive ? live!.meta.title : card.title;
-  const name = useLive ? live!.meta.name ?? card.name : card.name;
-  const attempt = useLive ? live!.meta.attempt : card.attempt;
-  const startedAt = useLive ? live!.meta.startedAt : card.startedAt;
-  const endedAt = useLive ? live!.meta.endedAt : card.endedAt;
-  const large = useLive ? live!.meta.large : card.large;
-  const phases = useLive && live!.graph.phases.length > 0 ? live!.graph.phases : card.phases;
+  const view = selectWorkflowRun(stored?.live, {
+    sender: sender ?? '',
+    card,
+    receivedAt: 0,
+    threadId,
+  })!;
+  const { status, counts, usage, title, name, attempt, startedAt, endedAt, large } = view;
+  const phases = view.graph && view.graph.phases.length > 0 ? view.graph.phases : card.phases;
   const isLiveStatus = isLiveWorkflowRunStatus(status);
 
   const [now, setNow] = useState(Date.now);
@@ -155,12 +143,11 @@ export function WorkflowRunCard({
     }
   }
 
-  const showGraph = !!live || !!card.graph;
+  const showGraph = !!view.graph;
   const showStop = isLiveStatus && !readOnly && !!room && !!card.jobId;
   const isRequester = !readOnly && !!room && card.requester !== null && viewerId === card.requester;
   const showResume =
-    isRequester &&
-    (status === 'failed' || status === 'cancelled' || status === 'interrupted');
+    isRequester && (status === 'failed' || status === 'cancelled' || status === 'interrupted');
   const showRunAgain = isRequester && status === 'completed';
 
   const handleOpenGraph = () => {
@@ -255,9 +242,9 @@ export function WorkflowRunCard({
         )}
       </div>
 
-      {!isLiveStatus && card.error && (
+      {!isLiveStatus && view.error && (
         <Text size="T200" className={css.ErrorLine} {...ownDirectionBlock}>
-          {card.error}
+          {view.error}
         </Text>
       )}
 

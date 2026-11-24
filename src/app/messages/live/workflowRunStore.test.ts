@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import frames from './__fixtures__/workflow-frames-v1.json';
 import { parseWorkflowFrame } from '../../matrix/protocol/workflowFrame';
-import { parseWorkflowRunCard, WORKFLOW_RUN_CONTENT_KEY } from '../../matrix/protocol/workflowRunContent';
+import {
+  parseWorkflowRunCard,
+  WORKFLOW_RUN_CONTENT_KEY,
+} from '../../matrix/protocol/workflowRunContent';
 import {
   WORKFLOW_RUN_FRESHNESS_MS,
   WORKFLOW_RUN_KEPT_MS,
@@ -50,7 +53,17 @@ describe('WorkflowRunStore', () => {
         groups: [],
         nodes: [],
         edges: [],
-        omitted: { queued: 1000, running: 0, waiting: 0, completed: 0, failed: 0, edges: 0, groups: 0, phases: 0, log: 0 },
+        omitted: {
+          queued: 1000,
+          running: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          edges: 0,
+          groups: 0,
+          phases: 0,
+          log: 0,
+        },
         log: [],
       },
     });
@@ -85,7 +98,11 @@ describe('WorkflowRunStore', () => {
     store.ingest(
       ROOM,
       AGENT,
-      parse({ ...fourthFrame, seq: 5, meta: { ...fourthFrame.meta, status: 'completed', ended_at: 1795389900 } }),
+      parse({
+        ...fourthFrame,
+        seq: 5,
+        meta: { ...fourthFrame.meta, status: 'completed', ended_at: 1795389900 },
+      }),
       2000
     );
     expect(store.get(ROOM, RUN)?.stale).toBe(false);
@@ -105,7 +122,12 @@ describe('WorkflowRunStore', () => {
         title: 'Audit the sample module',
         status: 'completed',
         counts: fourthFrame.meta.counts,
-        usage: { ...fourthFrame.meta.usage, cost_usd: '0.504', attempt_cost_usd: '0.504', projected_cost_usd: '0.504' },
+        usage: {
+          ...fourthFrame.meta.usage,
+          cost_usd: '0.504',
+          attempt_cost_usd: '0.504',
+          projected_cost_usd: '0.504',
+        },
         phases: ['Audit'],
         attempt: 1,
         started_at: 1795389735,
@@ -117,17 +139,63 @@ describe('WorkflowRunStore', () => {
     })!;
 
     store.showCard(ROOM, AGENT, card, 500);
-    expect(store.get(ROOM, RUN)?.graph.nodes).toHaveLength(2);
+    expect(store.getView(ROOM, RUN)?.graph?.nodes).toHaveLength(2);
 
     const storeWithLive = new WorkflowRunStore();
     storeWithLive.ingest(
       ROOM,
       AGENT,
-      parse({ ...fourthFrame, meta: { ...fourthFrame.meta, status: 'completed', ended_at: 1795389900 } }),
+      parse({
+        ...fourthFrame,
+        meta: { ...fourthFrame.meta, status: 'completed', ended_at: 1795389900 },
+      }),
       100
     );
     storeWithLive.showCard(ROOM, AGENT, card, 500);
     expect(storeWithLive.get(ROOM, RUN)?.seq).toBe(4);
-    expect(storeWithLive.get(ROOM, RUN)?.graph.omitted.queued).toBe(412);
+    expect(storeWithLive.getView(ROOM, RUN)?.graph?.omitted.queued).toBe(412);
+  });
+
+  it('yields stale live running status to a durable waiting card while preserving the last graph', () => {
+    vi.useFakeTimers();
+    const store = new WorkflowRunStore();
+    store.ingest(ROOM, AGENT, parse(firstFrame), 1000);
+    vi.advanceTimersByTime(WORKFLOW_RUN_FRESHNESS_MS);
+    const waitingCard = parseWorkflowRunCard({
+      [WORKFLOW_RUN_CONTENT_KEY]: {
+        run: RUN,
+        job_id: 'job-1',
+        requester: '@alex:example.org',
+        title: 'Audit the sample module',
+        status: 'waiting',
+        counts: {
+          queued: 0,
+          running: 1,
+          waiting: 1,
+          completed: 0,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
+        usage: {
+          input_tokens: 1000,
+          output_tokens: 100,
+          tool_calls: 2,
+          cost_usd: '0.05',
+          cost_unknown: false,
+        },
+        phases: ['Audit'],
+        attempt: 1,
+        started_at: 1795389735,
+        ended_at: null,
+        error: null,
+        large: false,
+      },
+    })!;
+    store.showCard(ROOM, AGENT, waitingCard, 35_000);
+    const view = store.getView(ROOM, RUN);
+    expect(view?.status).toBe('waiting');
+    expect(view?.graph?.nodes).toHaveLength(2);
+    expect(view?.stale).toBe(true);
   });
 });

@@ -119,8 +119,8 @@ describe('bindWorkflowFrames', () => {
 
     receive(firstFrame);
     await settle();
-    expect(store.runs(ROOM)).toHaveLength(1);
+    expect(store.get(ROOM, firstFrame.run)).toBeDefined();
     unbind();
-    expect(store.runs(ROOM)).toEqual([]);
+    expect(store.get(ROOM, firstFrame.run)).toBeUndefined();
   });
 });

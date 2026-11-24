@@ -1,20 +1,20 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { compareLiveOrder } from '../../matrix/protocol/liveFrame';
 import {
   applyWorkflowRunDelta,
   isLiveWorkflowRunStatus,
   type WorkflowFrame,
   type WorkflowRunGraph,
   type WorkflowRunMeta,
+  type WorkflowRunSummaryFields,
 } from '../../matrix/protocol/workflowFrame';
 import type { WorkflowRunCard } from '../../matrix/protocol/workflowRunContent';
+import { nextStreamEntry } from './liveReplyStore';
 
 /** A live run without a frame for this long reads stale until the next snapshot arrives. */
 export const WORKFLOW_RUN_FRESHNESS_MS = 30_000;
-
-/** Ended or stale runs are kept in memory for this long so cards and panels can inspect them. */
+/** Ended or stale live runs stay in memory this long for cards and the graph panel. */
 export const WORKFLOW_RUN_KEPT_MS = 30 * 60 * 1000;
 
 export type WorkflowRunEntry = {
@@ -27,97 +27,134 @@ export type WorkflowRunEntry = {
   graph: WorkflowRunGraph;
   lastFrameAt: number;
   stale: boolean;
-  /** Known requester MXID (or null when anonymous/unresumable), when supplied by card or meta. */
-  requester?: string | null;
-  /** True when populated from a durable card message rather than live ephemeral frames. */
-  fromCard?: boolean;
 };
 
-const NO_RUNS: readonly WorkflowRunEntry[] = [];
+export type WorkflowCardRecord = {
+  sender: string;
+  card: WorkflowRunCard;
+  receivedAt: number;
+  threadId: string | null;
+};
+
+export type WorkflowRunView = WorkflowRunSummaryFields & {
+  run: string;
+  agent: string;
+  threadId: string | null;
+  error: string | null;
+  requester: string | null | undefined;
+  graph: WorkflowRunGraph | undefined;
+  stale: boolean;
+  lastFrameAt: number;
+  live?: WorkflowRunEntry;
+};
 
 const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 
-const agentNameFromSender = (sender: string): string => {
-  const localpart = sender.startsWith('@') ? sender.slice(1).split(':')[0] ?? sender : sender;
-  return localpart.startsWith('mindroom_') ? localpart.slice('mindroom_'.length) : localpart;
+const agentFromSender = (sender: string): string => {
+  const local = sender.startsWith('@') ? sender.slice(1).split(':')[0] ?? sender : sender;
+  return local.startsWith('mindroom_') ? local.slice('mindroom_'.length) : local;
 };
 
-/** Workflow runs observed on one Matrix client, kept per room by run ID. */
+/**
+ * Single freshness rule combining live ephemeral state with a durable run card: higher attempt
+ * wins, then terminal over live, then fresh live over live card (a stale live frame yields to a
+ * durable card while retaining its last known graph).
+ */
+export const selectWorkflowRun = (
+  live: WorkflowRunEntry | undefined,
+  record: WorkflowCardRecord | undefined
+): WorkflowRunView | undefined => {
+  if (!live && !record) return undefined;
+  if (!record && live) {
+    return {
+      ...live.meta,
+      run: live.run,
+      error: null,
+      requester: live.meta.requester,
+      graph: live.graph,
+      stale: live.stale,
+      lastFrameAt: live.lastFrameAt,
+      live,
+    };
+  }
+  const { card, sender, receivedAt, threadId } = record!;
+  if (!live) {
+    return {
+      ...card,
+      agent: agentFromSender(sender),
+      threadId,
+      requester: card.requester,
+      graph: card.graph,
+      stale: false,
+      lastFrameAt: receivedAt,
+    };
+  }
+  const liveActive = isLiveWorkflowRunStatus(live.meta.status);
+  const cardActive = isLiveWorkflowRunStatus(card.status);
+  let liveWins: boolean;
+  if (live.meta.attempt !== card.attempt) liveWins = live.meta.attempt > card.attempt;
+  else if (liveActive !== cardActive) liveWins = !liveActive;
+  else if (liveActive) liveWins = !live.stale;
+  else
+    liveWins =
+      live.meta.endedAt !== null && (card.endedAt === null || live.meta.endedAt > card.endedAt);
+
+  const summary = liveWins ? live.meta : card;
+  return {
+    ...summary,
+    run: card.run,
+    agent: live.meta.agent || agentFromSender(sender),
+    threadId: live.meta.threadId ?? threadId,
+    error: liveWins ? null : card.error,
+    requester: card.requester ?? live.meta.requester,
+    graph: liveWins ? live.graph : card.graph ?? live.graph,
+    stale: live.stale && isLiveWorkflowRunStatus(summary.status),
+    lastFrameAt: live.lastFrameAt,
+    live,
+  };
+};
+
+/** Live frames and observed durable run cards on one Matrix client, keyed by room and run ID. */
 export class WorkflowRunStore {
-  private readonly rooms = new Map<string, Map<string, WorkflowRunEntry>>();
+  private readonly live = new Map<string, Map<string, WorkflowRunEntry>>();
 
-  private readonly lists = new Map<string, readonly WorkflowRunEntry[]>();
+  private readonly cards = new Map<string, Map<string, WorkflowCardRecord>>();
 
-  private readonly freshnessTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly views = new Map<string, WorkflowRunView | undefined>();
 
-  private readonly expiryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 
   private readonly listeners = new Map<string, Set<() => void>>();
 
   public ingest(roomId: string, sender: string, frame: WorkflowFrame, receivedAt: number): void {
-    const runs = this.rooms.get(roomId) ?? new Map<string, WorkflowRunEntry>();
+    const runs = this.live.get(roomId) ?? new Map<string, WorkflowRunEntry>();
     const held = runs.get(frame.run);
-    if (held && !held.fromCard) {
-      if (held.sender !== sender || compareLiveOrder(frame, held) <= 0) return;
-    }
-
-    if ('snapshot' in frame) {
-      const requester = frame.meta.requester !== undefined ? frame.meta.requester : held?.requester;
-      const entry: WorkflowRunEntry = {
-        roomId,
-        sender,
-        run: frame.run,
-        sid: frame.sid,
-        seq: frame.seq,
-        meta: frame.meta,
-        graph: frame.snapshot,
-        lastFrameAt: receivedAt,
-        stale: false,
-        ...(requester !== undefined ? { requester } : {}),
-      };
-      runs.set(frame.run, entry);
-      this.rooms.set(roomId, runs);
-      this.scheduleTimers(entry);
-      this.changed(roomId);
-      return;
-    }
-
-    // Delta: requires a non-card held entry from the same stream at the exact preceding sequence.
-    if (!held || held.fromCard) return;
-    if (held.stale || frame.sid !== held.sid || frame.seq !== held.seq + 1) {
-      if (held.stale) return;
-      const staleEntry: WorkflowRunEntry = { ...held, stale: true };
-      runs.set(frame.run, staleEntry);
-      this.rooms.set(roomId, runs);
-      this.clearFreshness(roomId, frame.run);
-      this.scheduleDrop(roomId, frame.run, WORKFLOW_RUN_KEPT_MS);
-      this.changed(roomId);
-      return;
-    }
-
-    const requester = frame.meta.requester !== undefined ? frame.meta.requester : held.requester;
+    const stream = nextStreamEntry(
+      held ? { ...held, docs: held.graph } : undefined,
+      sender,
+      frame,
+      receivedAt,
+      applyWorkflowRunDelta
+    );
+    if (!stream) return;
     const entry: WorkflowRunEntry = {
       roomId,
-      sender,
+      sender: stream.sender,
       run: frame.run,
-      sid: frame.sid,
-      seq: frame.seq,
-      meta: frame.meta,
-      graph: applyWorkflowRunDelta(held.graph, frame.delta),
-      lastFrameAt: receivedAt,
-      stale: false,
-      ...(requester !== undefined ? { requester } : {}),
+      sid: stream.sid,
+      seq: stream.seq,
+      meta: stream.stale && held ? held.meta : frame.meta,
+      graph: stream.docs,
+      lastFrameAt: stream.lastFrameAt,
+      stale: stream.stale,
     };
     runs.set(frame.run, entry);
-    this.rooms.set(roomId, runs);
-    this.scheduleTimers(entry);
-    this.changed(roomId);
+    this.live.set(roomId, runs);
+    this.scheduleTimer(entry);
+    this.changed(roomId, frame.run);
   }
 
-  /**
-   * Seeds a run's graph from its durable card message when the store holds nothing newer for that
-   * run (for example after a reload with no ephemeral history).
-   */
+  /** Records a durable run card so requester, status, error, and graph stay available to the panel. */
   public showCard(
     roomId: string,
     sender: string,
@@ -125,76 +162,28 @@ export class WorkflowRunStore {
     receivedAt: number,
     threadId: string | null = null
   ): void {
-    const runs = this.rooms.get(roomId) ?? new Map<string, WorkflowRunEntry>();
-    const held = runs.get(card.run);
-    if (!card.graph) {
-      if (held && held.requester === undefined) {
-        runs.set(card.run, { ...held, requester: card.requester });
-        this.rooms.set(roomId, runs);
-        this.changed(roomId);
-      }
-      return;
-    }
-    if (held) {
-      const keepHeld = !held.fromCard
-        ? held.meta.attempt > card.attempt ||
-          (held.meta.attempt === card.attempt &&
-            (!isLiveWorkflowRunStatus(held.meta.status) || isLiveWorkflowRunStatus(card.status)))
-        : held.meta.attempt > card.attempt;
-      if (keepHeld) {
-        if (held.requester === undefined) {
-          runs.set(card.run, { ...held, requester: card.requester });
-          this.rooms.set(roomId, runs);
-          this.changed(roomId);
-        }
-        return;
-      }
-    }
-    const entry: WorkflowRunEntry = {
-      roomId,
-      sender,
-      run: card.run,
-      sid: '',
-      seq: -1,
-      meta: {
-        agent: agentNameFromSender(sender),
-        threadId,
-        title: card.title,
-        ...(card.name ? { name: card.name } : {}),
-        status: card.status,
-        attempt: card.attempt,
-        startedAt: card.startedAt ?? Math.floor(receivedAt / 1000),
-        endedAt: card.endedAt,
-        large: card.large,
-        counts: card.counts,
-        usage: card.usage,
-      },
-      graph: card.graph,
-      lastFrameAt: receivedAt,
-      stale: false,
-      requester: card.requester,
-      fromCard: true,
-    };
-    runs.set(card.run, entry);
-    this.rooms.set(roomId, runs);
-    this.clearFreshness(roomId, card.run);
-    this.scheduleDrop(roomId, card.run, WORKFLOW_RUN_KEPT_MS);
-    this.changed(roomId);
+    const byRun = this.cards.get(roomId) ?? new Map<string, WorkflowCardRecord>();
+    const held = byRun.get(card.run);
+    if (held && held.card.attempt > card.attempt) return;
+    if (held && held.card === card && held.sender === sender && held.threadId === threadId) return;
+    byRun.set(card.run, { sender, card, receivedAt, threadId });
+    this.cards.set(roomId, byRun);
+    this.changed(roomId, card.run);
   }
 
   public get(roomId: string, run: string): WorkflowRunEntry | undefined {
-    return this.rooms.get(roomId)?.get(run);
+    return this.live.get(roomId)?.get(run);
   }
 
-  public runs(roomId: string): readonly WorkflowRunEntry[] {
-    const runs = this.rooms.get(roomId);
-    if (!runs) return NO_RUNS;
-    let list = this.lists.get(roomId);
-    if (!list) {
-      list = [...runs.values()];
-      this.lists.set(roomId, list);
-    }
-    return list;
+  public getView(roomId: string, run: string): WorkflowRunView | undefined {
+    const key = runKey(roomId, run);
+    if (this.views.has(key)) return this.views.get(key);
+    const view = selectWorkflowRun(
+      this.live.get(roomId)?.get(run),
+      this.cards.get(roomId)?.get(run)
+    );
+    this.views.set(key, view);
+    return view;
   }
 
   public subscribe(roomId: string, listener: () => void): () => void {
@@ -210,72 +199,47 @@ export class WorkflowRunStore {
   }
 
   public clear(): void {
-    const roomIds = [...this.rooms.keys()];
-    this.freshnessTimers.forEach((timer) => clearTimeout(timer));
-    this.freshnessTimers.clear();
-    this.expiryTimers.forEach((timer) => clearTimeout(timer));
-    this.expiryTimers.clear();
-    this.rooms.clear();
-    this.lists.clear();
-    roomIds.forEach((roomId) => this.notify(roomId));
+    const roomIds = new Set([...this.live.keys(), ...this.cards.keys()]);
+    this.timers.forEach((timer) => clearTimeout(timer));
+    this.timers.clear();
+    this.live.clear();
+    this.cards.clear();
+    this.views.clear();
+    roomIds.forEach((roomId) => this.listeners.get(roomId)?.forEach((fn) => fn()));
   }
 
-  private scheduleTimers(entry: WorkflowRunEntry): void {
-    const { roomId, run, meta } = entry;
-    this.clearFreshness(roomId, run);
-    if (isLiveWorkflowRunStatus(meta.status)) {
-      const key = runKey(roomId, run);
-      this.freshnessTimers.set(
-        key,
-        setTimeout(() => this.markStale(roomId, run), WORKFLOW_RUN_FRESHNESS_MS)
-      );
-      this.scheduleDrop(roomId, run, WORKFLOW_RUN_FRESHNESS_MS + WORKFLOW_RUN_KEPT_MS);
-    } else {
-      this.scheduleDrop(roomId, run, WORKFLOW_RUN_KEPT_MS);
-    }
-  }
-
-  private clearFreshness(roomId: string, run: string): void {
-    const key = runKey(roomId, run);
-    clearTimeout(this.freshnessTimers.get(key));
-    this.freshnessTimers.delete(key);
-  }
-
-  private scheduleDrop(roomId: string, run: string, delayMs: number): void {
-    const key = runKey(roomId, run);
-    clearTimeout(this.expiryTimers.get(key));
-    this.expiryTimers.set(
+  private scheduleTimer(entry: WorkflowRunEntry): void {
+    const key = runKey(entry.roomId, entry.run);
+    clearTimeout(this.timers.get(key));
+    const delay =
+      !entry.stale && isLiveWorkflowRunStatus(entry.meta.status)
+        ? WORKFLOW_RUN_FRESHNESS_MS
+        : WORKFLOW_RUN_KEPT_MS;
+    this.timers.set(
       key,
-      setTimeout(() => this.drop(roomId, run), delayMs)
+      setTimeout(() => this.onTimer(entry.roomId, entry.run), delay)
     );
   }
 
-  private markStale(roomId: string, run: string): void {
-    this.freshnessTimers.delete(runKey(roomId, run));
-    const runs = this.rooms.get(roomId);
+  private onTimer(roomId: string, run: string): void {
+    this.timers.delete(runKey(roomId, run));
+    const runs = this.live.get(roomId);
     const held = runs?.get(run);
-    if (!held || held.stale || !isLiveWorkflowRunStatus(held.meta.status)) return;
-    runs?.set(run, { ...held, stale: true });
-    this.scheduleDrop(roomId, run, WORKFLOW_RUN_KEPT_MS);
-    this.changed(roomId);
+    if (!held) return;
+    if (!held.stale && isLiveWorkflowRunStatus(held.meta.status)) {
+      const staleEntry: WorkflowRunEntry = { ...held, stale: true };
+      runs?.set(run, staleEntry);
+      this.scheduleTimer(staleEntry);
+      this.changed(roomId, run);
+      return;
+    }
+    runs?.delete(run);
+    if (runs && runs.size === 0) this.live.delete(roomId);
+    this.changed(roomId, run);
   }
 
-  private drop(roomId: string, run: string): void {
-    const key = runKey(roomId, run);
-    this.clearFreshness(roomId, run);
-    this.expiryTimers.delete(key);
-    const runs = this.rooms.get(roomId);
-    if (!runs?.delete(run)) return;
-    if (runs.size === 0) this.rooms.delete(roomId);
-    this.changed(roomId);
-  }
-
-  private changed(roomId: string): void {
-    this.lists.delete(roomId);
-    this.notify(roomId);
-  }
-
-  private notify(roomId: string): void {
+  private changed(roomId: string, run: string): void {
+    this.views.delete(runKey(roomId, run));
     this.listeners.get(roomId)?.forEach((listener) => listener());
   }
 }
@@ -291,24 +255,10 @@ export const getWorkflowRunStore = (mx: MatrixClient): WorkflowRunStore => {
   return store;
 };
 
-/** Every workflow run held for `roomId` on the active client, re-rendering on changes. */
-export const useRoomWorkflowRuns = (roomId: string): readonly WorkflowRunEntry[] => {
+/** Unified live + durable view for one workflow run on the active client. */
+export const useWorkflowRun = (roomId: string, run: string): WorkflowRunView | undefined => {
   const store = getWorkflowRunStore(useMatrixClient());
-  const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
-    [roomId, store]
-  );
-  const getRuns = useCallback(() => store.runs(roomId), [roomId, store]);
-  return useSyncExternalStore(subscribe, getRuns);
-};
-
-/** One workflow run held for `roomId` and `run` on the active client. */
-export const useWorkflowRun = (roomId: string, run: string): WorkflowRunEntry | undefined => {
-  const store = getWorkflowRunStore(useMatrixClient());
-  const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
-    [roomId, store]
-  );
-  const getRun = useCallback(() => store.get(roomId, run), [roomId, run, store]);
-  return useSyncExternalStore(subscribe, getRun);
+  const subscribe = useCallback((fn: () => void) => store.subscribe(roomId, fn), [roomId, store]);
+  const get = useCallback(() => store.getView(roomId, run), [roomId, run, store]);
+  return useSyncExternalStore(subscribe, get);
 };

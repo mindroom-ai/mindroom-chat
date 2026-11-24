@@ -228,7 +228,8 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
       )}
     </div>
   );
-}, areChipPropsEqual);
+},
+areChipPropsEqual);
 
 function WorkflowItemsList({
   items,
@@ -255,7 +256,6 @@ function WorkflowItemsList({
   onSelect: (id: string) => void;
   onChipRender?: (id: string) => void;
 }) {
-
   return (
     <div className={css.ItemsGrid}>
       {items.map((item) => {
@@ -281,13 +281,12 @@ function WorkflowItemsList({
 
         const { group, items: children } = item;
         const expanded = expandedGroups.has(group.id);
-        const { shown, more } = expanded
-          ? { shown: children, more: 0 }
-          : foldGroupItems(children);
+        const { shown, more } = expanded ? { shown: children, more: 0 } : foldGroupItems(children);
         const kindLabel = Object.prototype.hasOwnProperty.call(GROUP_KIND_KEYS, group.kind)
           ? t(GROUP_KIND_KEYS[group.kind as keyof typeof GROUP_KIND_KEYS])
           : group.kind;
-        const pct = group.total > 0 ? Math.min(100, Math.round((group.done / group.total) * 100)) : 0;
+        const pct =
+          group.total > 0 ? Math.min(100, Math.round((group.done / group.total) * 100)) : 0;
 
         return (
           <div key={group.id} className={css.GroupBox} data-workflow-group-id={group.id}>
@@ -413,15 +412,13 @@ export function WorkflowPanel({
   const viewerId = mx.getUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
   const canCancel =
-    !readOnly &&
-    !!viewerId &&
-    permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId);
+    !readOnly && !!viewerId && permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, viewerId);
 
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const handledByRoom = useContext(RoomPanelEdgeSwipeContext);
   useEdgeSwipeBack(onClose, mobile && !handledByRoom, { priority: SWIPE_PRIORITY.PANEL });
 
-  const isLive = entry ? isLiveWorkflowRunStatus(entry.meta.status) : false;
+  const isLive = entry ? isLiveWorkflowRunStatus(entry.status) : false;
   const [now, setNow] = useState(Date.now);
   useEffect(
     () => (isLive ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
@@ -449,8 +446,8 @@ export function WorkflowPanel({
   }, [subagentRuns]);
 
   const layout = useMemo(
-    () => (entry ? layoutWorkflowRunGraph(entry.graph) : null),
-    [entry]
+    () => (entry?.graph ? layoutWorkflowRunGraph(entry.graph) : null),
+    [entry?.graph]
   );
 
   const shownNodeIds = useMemo(() => {
@@ -460,8 +457,8 @@ export function WorkflowPanel({
   }, [expandedGroups, layout]);
 
   const visibleEdges = useMemo(
-    () => (entry ? shownEdges(entry.graph.edges, shownNodeIds) : []),
-    [entry, shownNodeIds]
+    () => (entry?.graph ? shownEdges(entry.graph.edges, shownNodeIds) : []),
+    [entry?.graph, shownNodeIds]
   );
 
   // Measure chip bounding boxes in one ResizeObserver + layout effect, throttled to rAF.
@@ -525,15 +522,15 @@ export function WorkflowPanel({
   }, [measureEdges, visibleEdges.length]);
 
   const staleRelative = useRelativeTime(entry?.stale ? entry.lastFrameAt : undefined);
-  const agentProfile = useAgentProfile(room, entry?.meta.agent ?? '');
+  const agentProfile = useAgentProfile(room, entry?.agent ?? '');
 
   const runJob = jobs.find((job) => job.kind === 'workflow' && job.workflow === run);
   const stoppingRun = !!runJob && stoppingJob === runJob.jobId && isLive;
   const resuming =
     !!entry &&
     resumingAt !== null &&
-    resumingAt.status === entry.meta.status &&
-    resumingAt.attempt === entry.meta.attempt;
+    resumingAt.status === entry.status &&
+    resumingAt.attempt === entry.attempt;
 
   useEffect(() => {
     if (!resuming) return undefined;
@@ -543,22 +540,24 @@ export function WorkflowPanel({
 
   const nodesById = useMemo(() => {
     const map = new Map<string, WorkflowRunNode>();
-    entry?.graph.nodes.forEach((node) => map.set(node.id, node));
+    entry?.graph?.nodes.forEach((node) => map.set(node.id, node));
     return map;
-  }, [entry]);
+  }, [entry?.graph]);
 
   const selectedNode = selectedId ? nodesById.get(selectedId) : undefined;
   const selectedSubagent = selectedNode?.run ? subagentsByRun.get(selectedNode.run) : undefined;
-  const selectedPreview = selectedNode ? nodeResultPreview(selectedNode, selectedSubagent) : undefined;
+  const selectedPreview = selectedNode
+    ? nodeResultPreview(selectedNode, selectedSubagent)
+    : undefined;
   const selectedOutgoingEdges = useMemo(
     () =>
-      selectedNode && entry
+      selectedNode && entry?.graph
         ? entry.graph.edges.filter((edge) => edge.from === selectedNode.id)
         : [],
-    [entry, selectedNode]
+    [entry?.graph, selectedNode]
   );
 
-  const effectiveThreadId = entry?.meta.threadId ?? threadId;
+  const effectiveThreadId = entry?.threadId ?? threadId;
 
   const handleStopRun = async () => {
     if (!runJob || stoppingRun) return;
@@ -575,7 +574,7 @@ export function WorkflowPanel({
   const handleResumeRun = async () => {
     if (!entry || resuming) return;
     setActionError(null);
-    setResumingAt({ status: entry.meta.status, attempt: entry.meta.attempt });
+    setResumingAt({ status: entry.status, attempt: entry.attempt });
     try {
       await sendWorkflowRunResume(mx, room, effectiveThreadId, run);
     } catch {
@@ -594,76 +593,68 @@ export function WorkflowPanel({
     }
   };
 
-  const heading = entry
-    ? workflowRunHeading(entry.meta, t)
-    : t('mindroomUi.workflowRun.title');
-  const showSavedName = !!entry?.meta.name && !!entry.meta.title && entry.meta.name !== entry.meta.title;
-  const countsText = entry ? workflowRunCountsLine(entry.meta.counts, t) : undefined;
-  const costText = entry ? workflowRunCostLine(entry.meta.usage, t, language) : undefined;
+  const heading = entry ? workflowRunHeading(entry, t) : t('mindroomUi.workflowRun.title');
+  const showSavedName = !!entry?.name && !!entry.title && entry.name !== entry.title;
+  const countsText = entry ? workflowRunCountsLine(entry.counts, t) : undefined;
+  const costText = entry ? workflowRunCostLine(entry.usage, t, language) : undefined;
 
   let elapsedText: string | undefined;
-  if (entry) {
+  if (entry && entry.startedAt !== null) {
     if (isLive) {
-      elapsedText = formatWorkDuration(Math.max(0, now - entry.meta.startedAt * 1000), language);
-    } else if (entry.meta.endedAt !== null) {
+      elapsedText = formatWorkDuration(Math.max(0, now - entry.startedAt * 1000), language);
+    } else if (entry.endedAt !== null) {
       elapsedText = formatWorkDuration(
-        Math.max(0, (entry.meta.endedAt - entry.meta.startedAt) * 1000),
+        Math.max(0, (entry.endedAt - entry.startedAt) * 1000),
         language
       );
     }
   }
 
   const showStop = isLive && canCancel && !!runJob;
-  // Enforce the card's requester rule whenever requester is known (from card or frame meta).
   const canResume =
     !!entry &&
     !isLive &&
     !readOnly &&
     !!viewerId &&
-    (entry.requester === undefined || (entry.requester !== null && viewerId === entry.requester));
+    entry.requester != null &&
+    viewerId === entry.requester;
   const showResume =
     canResume &&
-    (entry.meta.status === 'failed' ||
-      entry.meta.status === 'cancelled' ||
-      entry.meta.status === 'interrupted');
-  const showRunAgain = canResume && entry.meta.status === 'completed';
+    (entry.status === 'failed' || entry.status === 'cancelled' || entry.status === 'interrupted');
+  const showRunAgain = canResume && entry.status === 'completed';
 
-  const omittedLines = entry
-    ? ([
-        entry.graph.omitted.queued > 0 &&
-          t('mindroomUi.workflowRun.panel.omitted.queued', { count: entry.graph.omitted.queued }),
-        entry.graph.omitted.running > 0 &&
-          t('mindroomUi.workflowRun.panel.omitted.running', { count: entry.graph.omitted.running }),
-        entry.graph.omitted.waiting > 0 &&
-          t('mindroomUi.workflowRun.panel.omitted.waiting', { count: entry.graph.omitted.waiting }),
-        entry.graph.omitted.failed > 0 &&
-          t('mindroomUi.workflowRun.panel.omitted.failed', { count: entry.graph.omitted.failed }),
-        entry.graph.omitted.completed > 0 &&
-          t('mindroomUi.workflowRun.panel.omitted.done', { count: entry.graph.omitted.completed }),
-      ].filter((line): line is string => !!line))
+  const omitted = entry?.graph?.omitted;
+  const omittedLines = omitted
+    ? [
+        omitted.queued > 0 &&
+          t('mindroomUi.workflowRun.panel.omitted.queued', { count: omitted.queued }),
+        omitted.running > 0 &&
+          t('mindroomUi.workflowRun.panel.omitted.running', { count: omitted.running }),
+        omitted.waiting > 0 &&
+          t('mindroomUi.workflowRun.panel.omitted.waiting', { count: omitted.waiting }),
+        omitted.failed > 0 &&
+          t('mindroomUi.workflowRun.panel.omitted.failed', { count: omitted.failed }),
+        omitted.completed > 0 &&
+          t('mindroomUi.workflowRun.panel.omitted.done', { count: omitted.completed }),
+      ].filter((line): line is string => !!line)
     : [];
 
   return (
-    <section
-      tabIndex={-1}
-      className={css.Panel}
-      aria-label={heading}
-      data-testid="workflow-panel"
-    >
+    <section tabIndex={-1} className={css.Panel} aria-label={heading} data-testid="workflow-panel">
       <header className={SidePanelHeader}>
         <div className={css.HeaderMain}>
           <div className={css.HeaderTitleRow}>
             <Text as="h2" size="H4" truncate {...ownDirectionLine}>
               {heading}
             </Text>
-            {showSavedName && entry?.meta.name && (
+            {showSavedName && entry?.name && (
               <span className={cardCss.MetaBadge} {...ownDirectionLine}>
-                {entry.meta.name}
+                {entry.name}
               </span>
             )}
             {entry && (
-              <span className={cardCss.StatusPill[entry.meta.status]}>
-                {workflowRunStatusLabel(entry.meta.status, t)}
+              <span className={cardCss.StatusPill[entry.status]}>
+                {workflowRunStatusLabel(entry.status, t)}
               </span>
             )}
           </div>
@@ -698,7 +689,9 @@ export function WorkflowPanel({
               onClick={() => void handleStopRun()}
             >
               <Text size="B300">
-                {stoppingRun ? t('mindroomUi.workflowRun.stopping') : t('mindroomUi.workflowRun.stop')}
+                {stoppingRun
+                  ? t('mindroomUi.workflowRun.stopping')
+                  : t('mindroomUi.workflowRun.stop')}
               </Text>
             </Button>
           )}
@@ -832,7 +825,8 @@ export function WorkflowPanel({
                 })}
               </div>
             )}
-            {(selectedNode.run || (selectedNode.job && isLiveNodeStatus(selectedNode.status) && canCancel)) && (
+            {(selectedNode.run ||
+              (selectedNode.job && isLiveNodeStatus(selectedNode.status) && canCancel)) && (
               <div className={css.DetailsActions}>
                 {selectedNode.run && (
                   <Button
@@ -841,7 +835,12 @@ export function WorkflowPanel({
                     variant="Secondary"
                     fill="Soft"
                     onClick={() =>
-                      openSubagentsPanel(jotaiStore, room.roomId, effectiveThreadId, selectedNode.run)
+                      openSubagentsPanel(
+                        jotaiStore,
+                        room.roomId,
+                        effectiveThreadId,
+                        selectedNode.run
+                      )
                     }
                   >
                     <Text size="B300">{t('mindroomUi.workflowRun.node.open')}</Text>
@@ -863,7 +862,7 @@ export function WorkflowPanel({
           </div>
         )}
 
-        {entry && (omittedLines.length > 0 || hasAnyOmitted(entry.graph.omitted)) && (
+        {entry && omitted && (omittedLines.length > 0 || hasAnyOmitted(omitted)) && (
           <div className={css.OmittedSection}>
             {omittedLines.map((line) => (
               <Text key={line} size="T200" priority="300">
@@ -872,13 +871,13 @@ export function WorkflowPanel({
             ))}
             <Text size="T200" priority="300">
               {t('mindroomUi.workflowRun.panel.askAgent', {
-                agent: agentProfile.name || entry.meta.agent,
+                agent: agentProfile.name || entry.agent,
               })}
             </Text>
           </div>
         )}
 
-        {entry && entry.graph.log.length > 0 && (
+        {entry?.graph && entry.graph.log.length > 0 && (
           <div className={css.LogSection}>
             <Text as="h3" size="T200" priority="300" style={{ fontWeight: 600 }}>
               {t('mindroomUi.workflowRun.panel.log')}

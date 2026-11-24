@@ -411,11 +411,101 @@ describe('WorkflowRunCard', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Graph' }));
-    expect(getWorkflowRunStore(mx).get(ROOM_ID, RUN)).toBeDefined();
+    expect(getWorkflowRunStore(mx).getView(ROOM_ID, RUN)?.graph).toBeDefined();
     expect(jotaiStore.get(workflowRunPanelAtom)).toEqual({
       roomId: ROOM_ID,
       run: RUN,
       threadId: THREAD_ID,
     });
+  });
+
+  it('does not let a stale live running frame override a newer durable waiting card edit', () => {
+    vi.useFakeTimers();
+    const { mx } = makeClient();
+    const store = getWorkflowRunStore(mx);
+    store.ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: RUN,
+        sid: '1795389735000-a1b2c3d4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          threadId: THREAD_ID,
+          title: 'Audit the sample module',
+          status: 'running',
+          attempt: 1,
+          startedAt: 1795389735,
+          endedAt: null,
+          large: false,
+          counts: {
+            queued: 0,
+            running: 2,
+            waiting: 0,
+            completed: 1,
+            failed: 0,
+            indeterminate: 0,
+            cached: 0,
+          },
+          usage: {
+            inputTokens: 1000,
+            outputTokens: 100,
+            toolCalls: 2,
+            costUsd: 0.05,
+            costUnknown: false,
+          },
+        },
+        snapshot: {
+          phases: ['Audit'],
+          groups: [],
+          nodes: [],
+          edges: [],
+          log: [],
+          omitted: {
+            queued: 0,
+            running: 0,
+            waiting: 0,
+            completed: 0,
+            failed: 0,
+            edges: 0,
+            groups: 0,
+            phases: 0,
+            log: 0,
+          },
+        },
+      },
+      1000
+    );
+    vi.advanceTimersByTime(30_000);
+
+    const waitingCard = makeCard({
+      status: 'waiting',
+      counts: {
+        queued: 0,
+        running: 1,
+        waiting: 1,
+        completed: 1,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+    });
+    render(
+      <JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <WorkflowRunCard
+            card={waitingCard}
+            roomId={ROOM_ID}
+            threadId={THREAD_ID}
+            sender={AGENT}
+          />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const cardEl = document.querySelector(`[data-workflow-run-card="${RUN}"]`);
+    expect(cardEl?.getAttribute('data-workflow-run-status')).toBe('waiting');
+    expect(screen.getByRole('button', { name: 'Graph' })).toBeTruthy();
   });
 });
