@@ -332,10 +332,15 @@ export const rankUsers = (
       .map((result) => result.user);
   }
 
+  const fallbackQueryWords = queryVariants.map(({ rankQuery }) =>
+    foldText(rankQuery)
+      .split(TOKEN_SEPARATOR)
+      .filter((word) => word.length > 0)
+  );
   const fuzzyByUserId = new Map<string, UserDirectorySearchResult>();
   for (const preparedUser of preparedUsers) {
-    for (const { words } of queryVariants) {
-      const fuzzy = scorePreparedUser(preparedUser.fields, words, true);
+    for (const fallbackWords of fallbackQueryWords) {
+      const fuzzy = scorePreparedUser(preparedUser.fields, fallbackWords, true);
       if (!fuzzy) continue;
       keepBestResult(fuzzyByUserId, {
         user: preparedUser.user,
