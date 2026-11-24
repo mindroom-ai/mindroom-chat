@@ -12,7 +12,10 @@ import {
   textDirection,
 } from './directional';
 
-const received = vi.hoisted(() => ({ popOut: [] as unknown[], tooltip: [] as unknown[] }));
+const received = vi.hoisted(() => ({
+  popOut: [] as Record<string, unknown>[],
+  tooltip: [] as Record<string, unknown>[],
+}));
 
 vi.mock('folds', () => ({
   PopOut: (props: Record<string, unknown>) => {
