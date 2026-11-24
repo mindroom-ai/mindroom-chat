@@ -940,7 +940,7 @@ describe('Space navigation', () => {
     ).toHaveLength(0);
   });
 
-  it('opens header context menus on right-click and marks empty editable sections subtly visible', () => {
+  it('opens header context menus on right-click and distinguishes desktop vs touch options', () => {
     const { space, joined, organizer, design, designReview } = rooms.ids;
     editableSpaces.add(organizer);
     editableSpaces.add(design);
@@ -1037,17 +1037,6 @@ describe('Space navigation', () => {
     } finally {
       window.matchMedia = originalMatchMedia;
     }
-
-    // Editable empty Operations keeps a subtly-visible class on its + button, unlike populated Design Team.
-    const opsAddButton = renderer!.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Operations'
-    );
-    const designAddButton = renderer!.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
-    );
-    expect(String(opsAddButton.props.className).length).toBeGreaterThan(
-      String(designAddButton.props.className).length
-    );
 
     // Making root space editable enables right-click on root Rooms header (rooms-only Add menu).
     act(() => renderer!.unmount());

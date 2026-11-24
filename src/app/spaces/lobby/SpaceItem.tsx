@@ -13,6 +13,7 @@ import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { LocalRoomSummaryLoader } from '../../rooms/RoomSummaryLoader';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
+import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import type { HierarchyItem } from '../useSpaceHierarchy';
 import type { LocalRoomSummary } from '../../rooms/useLocalRoomSummary';
@@ -31,8 +32,10 @@ import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 type SpaceItemCardProps = {
   item: HierarchyItem;
-  /** Immediate parent sub-space name for nested (depth >= 2) headings. */
-  parentName?: string;
+  /** Joined immediate parent sub-space for nested (depth >= 2) headings (tracks live renames). */
+  parentSpace?: Room;
+  /** Fallback hierarchy summary name for an unjoined nested (depth >= 2) parent sub-space. */
+  parentSummaryName?: string;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
   /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
@@ -123,10 +126,35 @@ export function AddToSpaceChips({ spaceId }: { spaceId: string }) {
   );
 }
 
+function ParentPrefixText({ name }: { name: string }) {
+  if (!name) return null;
+  return (
+    <Text as="span" size="T300" priority="300" truncate {...ownDirectionLine}>
+      {revealDirectionControls(name)} /
+    </Text>
+  );
+}
+
+function JoinedParentPrefix({ parentSpace }: { parentSpace: Room }) {
+  return <ParentPrefixText name={useRoomName(parentSpace)} />;
+}
+
+function ParentPrefix({
+  parentSpace,
+  parentSummaryName,
+}: {
+  parentSpace?: Room;
+  parentSummaryName?: string;
+}) {
+  if (parentSpace) return <JoinedParentPrefix parentSpace={parentSpace} />;
+  return parentSummaryName ? <ParentPrefixText name={parentSummaryName} /> : null;
+}
+
 /** A space heading in a lobby: its name opens or collapses it, or offers a way in. */
 export function SpaceItemCard({
   item,
-  parentName,
+  parentSpace,
+  parentSummaryName,
   summary,
   loading = false,
   joined,
@@ -165,11 +193,7 @@ export function SpaceItemCard({
                 />
               }
             >
-              {parentName && (
-                <Text as="span" size="T300" priority="300" truncate {...ownDirectionLine}>
-                  {revealDirectionControls(parentName)} /
-                </Text>
-              )}
+              <ParentPrefix parentSpace={parentSpace} parentSummaryName={parentSummaryName} />
               <Text size="H4" truncate {...ownDirectionLine}>
                 {revealDirectionControls(localSummary.name)}
               </Text>
@@ -214,11 +238,7 @@ export function SpaceItemCard({
                 renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
               />
             </Avatar>
-            {parentName && (
-              <Text as="span" size="T300" priority="300" truncate {...ownDirectionLine}>
-                {revealDirectionControls(parentName)} /
-              </Text>
-            )}
+            <ParentPrefix parentSpace={parentSpace} parentSummaryName={parentSummaryName} />
             <Text size="H4" truncate {...ownDirectionLine}>
               {spaceName}
             </Text>

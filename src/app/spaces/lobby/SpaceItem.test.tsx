@@ -444,13 +444,32 @@ describe('SpaceItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 
-  it('renders a muted parent prefix for nested depth >= 2 headings and a single Add chip opening SpaceAddMenuEntries', () => {
+  it('renders a reactive parent prefix for joined parents, falls back to summary name when unjoined, and opens SpaceAddMenuEntries from one Add chip', () => {
     vi.mocked(mx.getRoom).mockReturnValue({
       roomId,
       getMyMembership: () => Membership.Join,
       getJoinRule: () => JoinRule.Public,
     } as Room);
+    let onNameChange: ((renamed: Room) => void) | undefined;
+    const joinedParent = {
+      roomId: '!ops:example.org',
+      name: 'Operations',
+      on: vi.fn((_event: string, listener: (renamed: Room) => void) => {
+        onNameChange = listener;
+      }),
+      removeListener: vi.fn(),
+    } as unknown as Room;
     const renderer = create(<></>);
+    const renderedTexts = () =>
+      renderer.root
+        .findAll(
+          (node) => typeof node.props.children === 'string' || Array.isArray(node.props.children)
+        )
+        .map((node) =>
+          Array.isArray(node.props.children)
+            ? node.props.children.filter((child: unknown) => typeof child === 'string').join('')
+            : String(node.props.children)
+        );
 
     act(() => {
       renderer.update(
@@ -458,7 +477,8 @@ describe('SpaceItemCard room access', () => {
           <MatrixClientProvider value={mx}>
             <SpaceItemCard
               item={{ ...item, depth: 2 }}
-              parentName="Operations"
+              parentSpace={joinedParent}
+              parentSummaryName="Stale Summary"
               summary={summary}
               joined
               closed={false}
@@ -470,18 +490,34 @@ describe('SpaceItemCard room access', () => {
       );
     });
 
-    // Parent breadcrumb prefix renders before the sub-space name.
-    const texts = renderer.root
-      .findAll(
-        (node) => typeof node.props.children === 'string' || Array.isArray(node.props.children)
-      )
-      .map((node) =>
-        Array.isArray(node.props.children)
-          ? node.props.children.filter((child: unknown) => typeof child === 'string').join('')
-          : String(node.props.children)
+    // Joined parentSpace drives the breadcrumb reactively (overriding summary name on live rename).
+    expect(renderedTexts()).toContain('Operations /');
+    expect(renderedTexts()).toContain('Private space');
+    act(() => {
+      joinedParent.name = 'Ops Team';
+      onNameChange?.(joinedParent);
+    });
+    expect(renderedTexts()).toContain('Ops Team /');
+
+    // Unjoined parentSpace falls back to parentSummaryName.
+    act(() => {
+      renderer.update(
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <MatrixClientProvider value={mx}>
+            <SpaceItemCard
+              item={{ ...item, depth: 2 }}
+              parentSummaryName="Archive Ops"
+              summary={summary}
+              joined
+              closed={false}
+              canEditChild
+              getRoom={() => undefined}
+            />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
       );
-    expect(texts).toContain('Operations /');
-    expect(texts).toContain('Private space');
+    });
+    expect(renderedTexts()).toContain('Archive Ops /');
 
     // Only one Add chip is rendered (replacing separate Add Room / Add Space chips).
     const addButtons = renderer.root.findAll(
@@ -523,7 +559,7 @@ describe('SpaceItemCard room access', () => {
           <MatrixClientProvider value={mx}>
             <SpaceItemCard
               item={{ ...item, depth: 2 }}
-              parentName="Operations"
+              parentSummaryName="Archive Ops"
               summary={summary}
               joined
               closed={false}

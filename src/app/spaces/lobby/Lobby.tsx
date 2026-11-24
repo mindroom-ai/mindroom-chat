@@ -274,15 +274,13 @@ function LobbyContent() {
 
   const renderSpace = (item: HierarchyItem) => {
     const joinedSpace = joinedCopy(item.roomId);
-    const parentName =
-      (item.depth ?? 1) >= 2 && item.parentId
-        ? getRoom(item.parentId)?.name || summaries.get(item.parentId)?.name
-        : undefined;
+    const nestedParentId = (item.depth ?? 1) >= 2 ? item.parentId : undefined;
     return (
       <SpaceItemCard
         key={`${item.parentId}/${item.roomId}`}
         item={item}
-        parentName={parentName}
+        parentSpace={nestedParentId ? joinedCopy(nestedParentId) : undefined}
+        parentSummaryName={nestedParentId ? summaries.get(nestedParentId)?.name : undefined}
         summary={summaries.get(item.roomId)}
         loading={!joinedSpace && loading}
         joined={!!joinedSpace}
