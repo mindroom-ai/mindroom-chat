@@ -108,6 +108,26 @@ describe('rankUsers', () => {
       )
     ).toEqual(['@jphn:example.org']);
 
+    // One-edit fallback also matches prefixes of longer names (e.g. typing "jphn" for "Johnson"),
+    // while keeping whole-token typo hits ranked above prefix typo hits.
+    const johnson: ServerUserDirectoryUser = {
+      userId: '@johnson:example.org',
+      displayName: 'Johnson',
+    };
+    expect(rankUsers([johnson], 'jphn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson], 'jhn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson], 'joohn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson, john], 'jphn').map((user) => user.userId)).toEqual([
+      '@john:example.org',
+      '@johnson:example.org',
+    ]);
+
     // One-edit fallback requires length >= 3 and never matches the homeserver domain.
     expect(rankUsers([{ userId: '@bo:example.org', displayName: 'Bo' }], 'bp')).toEqual([]);
     expect(rankUsers([john], 'orb')).toEqual([]);

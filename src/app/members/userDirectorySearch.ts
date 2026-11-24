@@ -81,7 +81,9 @@ const MIN_ONE_EDIT_LENGTH = 3;
 // fields) so stronger fuzzy matches always outrank a one-edit fallback.
 const ONE_EDIT_FALLBACK_SCORE = 4;
 const ONE_EDIT_TOKEN_PENALTY = -0.5;
+const ONE_EDIT_PREFIX_PENALTY = -0.25;
 const ONE_EDIT_TOKEN_PENALTY_CAP = 4;
+const ONE_EDIT_PREFIX_DELTAS = [0, 1, -1] as const;
 const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
 
 const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): number => {
@@ -159,27 +161,43 @@ const getPreparedUsers = (users: readonly ServerUserDirectoryUser[]): PreparedUs
   return prepared;
 };
 
+const hasSingleEditPrefixMatch = (word: string, token: string): boolean => {
+  if (token.length <= word.length) return false;
+  for (const delta of ONE_EDIT_PREFIX_DELTAS) {
+    const size = word.length + delta;
+    if (
+      size >= MIN_ONE_EDIT_LENGTH &&
+      size < token.length &&
+      typosBetween(word, token.slice(0, size), 1) === 1
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const matchSingleEditFallback = (
   word: string,
   prepared: PreparedText
 ): { score: number; detail: number } | undefined => {
   if (word.length < MIN_ONE_EDIT_LENGTH) return undefined;
   let tokenIndex = 0;
+  let bestDetail = -Infinity;
   for (const token of prepared.text.split(TOKEN_SEPARATOR)) {
     if (token.length === 0) continue;
-    if (
-      token.length >= MIN_ONE_EDIT_LENGTH &&
-      Math.abs(word.length - token.length) <= 1 &&
-      typosBetween(word, token, 1) === 1
-    ) {
-      return {
-        score: ONE_EDIT_FALLBACK_SCORE,
-        detail: Math.min(tokenIndex, ONE_EDIT_TOKEN_PENALTY_CAP) * ONE_EDIT_TOKEN_PENALTY,
-      };
+    if (token.length >= MIN_ONE_EDIT_LENGTH) {
+      const tokenPenalty = Math.min(tokenIndex, ONE_EDIT_TOKEN_PENALTY_CAP) * ONE_EDIT_TOKEN_PENALTY;
+      if (Math.abs(word.length - token.length) <= 1 && typosBetween(word, token, 1) === 1) {
+        bestDetail = Math.max(bestDetail, tokenPenalty);
+      } else if (hasSingleEditPrefixMatch(word, token)) {
+        bestDetail = Math.max(bestDetail, tokenPenalty + ONE_EDIT_PREFIX_PENALTY);
+      }
     }
     tokenIndex += 1;
   }
-  return undefined;
+  return bestDetail > -Infinity
+    ? { score: ONE_EDIT_FALLBACK_SCORE, detail: bestDetail }
+    : undefined;
 };
 
 const scorePreparedUser = (
