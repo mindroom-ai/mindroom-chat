@@ -603,6 +603,111 @@ describe('undecryptable edits', () => {
     expect(editedEvent).toBe(newer);
     expect(hasUndecryptedNewerEdit('$target', targetEvent, timelineSet, editedEvent)).toBe(false);
   });
+
+  it('skips allocating a bundled replacement when a matching readable edit exists', async () => {
+    const attachTrackedBundled = (targetEvent: MatrixEvent, eventId: string) => {
+      let contentReads = 0;
+      const bundled: Record<string, unknown> = {
+        event_id: eventId,
+        origin_server_ts: 3000,
+        room_id: '!room:example.org',
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+      };
+      Object.defineProperty(bundled, 'content', {
+        enumerable: true,
+        get() {
+          contentReads += 1;
+          return {
+            body: '* bundled',
+            'm.new_content': { body: 'bundled', msgtype: 'm.text' },
+            'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            msgtype: 'm.text',
+          };
+        },
+      });
+      targetEvent.event.unsigned = { 'm.relations': { 'm.replace': bundled } };
+      return () => contentReads;
+    };
+
+    // Readable applied edit with matching event ID skips bundled MatrixEvent allocation.
+    const withApplied = makeMessageEvent('$target', 1000);
+    const applied = makeEditEvent('$same', 3000, '$target');
+    withApplied.makeReplaced(applied);
+    const readsWithApplied = attachTrackedBundled(withApplied, '$same');
+    expect(getEditedEvent('$target', withApplied, undefined)).toBe(applied);
+    expect(readsWithApplied()).toBe(0);
+
+    // Missing applied edit still uses the bundled replacement.
+    const withoutApplied = makeMessageEvent('$target', 1000);
+    const readsWithoutApplied = attachTrackedBundled(withoutApplied, '$same');
+    expect(getEditedEvent('$target', withoutApplied, undefined)?.getId()).toBe('$same');
+    expect(readsWithoutApplied()).toBeGreaterThan(0);
+
+    // Unreadable applied edit with matching event ID still falls back to a readable bundle.
+    const withUnreadable = makeMessageEvent('$target', 1000);
+    withUnreadable.makeReplaced(await makeUndecryptableEdit('$same', 3000, '$target'));
+    const readsWithUnreadable = attachTrackedBundled(withUnreadable, '$same');
+    expect(getEditedEvent('$target', withUnreadable, undefined)?.getId()).toBe('$same');
+    expect(readsWithUnreadable()).toBeGreaterThan(0);
+
+    // When a newer edit exists alongside a same-ID wire copy lacking borrowed metadata, keep the
+    // cached bundled copy so the newer edit can borrow metadata from it.
+    const traceMetadata = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'search', result_preview: 'ok' }],
+    };
+    const withNewerEdit = makeMessageEvent('$target', 1000);
+    const wireCompleted = new MatrixEvent({
+      event_id: '$completed',
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      origin_server_ts: 2000,
+      type: 'm.room.message',
+      content: {
+        body: '* Completed',
+        'm.new_content': {
+          body: 'Completed',
+          'io.mindroom.stream_status': 'completed',
+          msgtype: 'm.text',
+        },
+        'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+    });
+    const newerTextOnly = makeEditEvent('$newer', 3000, '$target');
+    withNewerEdit.event.unsigned = {
+      'm.relations': {
+        'm.replace': {
+          event_id: '$completed',
+          room_id: '!room:example.org',
+          sender: '@alice:example.org',
+          origin_server_ts: 2000,
+          type: 'm.room.message',
+          content: {
+            body: '* Completed',
+            'm.new_content': {
+              body: 'Completed',
+              'io.mindroom.stream_status': 'completed',
+              'io.mindroom.tool_trace': traceMetadata,
+              msgtype: 'm.text',
+            },
+            'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            msgtype: 'm.text',
+          },
+        },
+      },
+    };
+    const resolved = getEditedEvent(
+      '$target',
+      withNewerEdit,
+      relationsOf(wireCompleted, newerTextOnly)
+    );
+    expect(resolved).toBe(newerTextOnly);
+    expect(getLatestMessageContent(withNewerEdit, resolved)['io.mindroom.tool_trace']).toEqual(
+      traceMetadata
+    );
+  });
 });
 
 describe('roomHaveUnread', () => {
