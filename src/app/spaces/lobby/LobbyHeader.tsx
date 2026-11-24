@@ -28,7 +28,7 @@ import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
 import { useNavigate } from 'react-router-dom';
-import { getHomePath } from '../../routes/pathUtils';
+import { getHomePath, getSpaceThreadsPath } from '../../routes/pathUtils';
 import { useMembersDrawer } from '../../members/useMembersDrawer';
 import { useRoomAvatar, useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { useSpace } from '../../matrix/hooks/useSpace';
@@ -45,7 +45,7 @@ import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
-import { mxcUrlToHttp } from '../../matrix/matrix';
+import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../../matrix/matrix';
 import { nameInitials } from '../../lib/common';
 import { MenuEntry } from '../../ui/MenuEntry';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
@@ -111,8 +111,11 @@ export function LobbyHeader({
   const spaceName = revealDirectionControls(useRoomName(space));
   const avatarSrc = useSpaceAvatarSrc(space);
   const client = useMatrixClient();
+  const navigate = useNavigate();
   const screenSize = useScreenSizeContext();
   const { t } = useTranslation();
+  const allThreadsPath = getSpaceThreadsPath(getCanonicalAliasOrRoomId(client, space.roomId));
+  const allThreadsLabel = t('sharedUi.space.allThreads');
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const openSpaceSettings = useOpenRoomSettings();
 
@@ -132,6 +135,16 @@ export function LobbyHeader({
     return true;
   };
   const menuActions = [
+    ...(screenSize === ScreenSize.Mobile
+      ? [
+          {
+            label: allThreadsLabel,
+            icon: Icons.Thread,
+            disabled: false,
+            run: () => void navigate(allThreadsPath),
+          },
+        ]
+      : []),
     {
       label: t('featureUi.lobby.lobbyHeader.invite'),
       icon: Icons.UserPlus,
@@ -169,6 +182,28 @@ export function LobbyHeader({
             </>
           )}
         </Box>
+        {screenSize !== ScreenSize.Mobile && (
+          <TooltipProvider
+            position="Bottom"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                <Text>{allThreadsLabel}</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                className={LoneTouchTarget}
+                aria-label={allThreadsLabel}
+                onClick={() => void navigate(allThreadsPath)}
+              >
+                <Icon size="400" src={Icons.Thread} />
+              </IconButton>
+            )}
+          </TooltipProvider>
+        )}
         <TooltipProvider
           position="Bottom"
           offset={4}

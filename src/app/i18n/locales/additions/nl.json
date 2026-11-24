@@ -373,7 +373,8 @@
       }
     },
     "space": {
-      "overview": "Space-overzicht"
+      "overview": "Space-overzicht",
+      "allThreads": "Alle threads"
     }
   },
   "featureUi": {
@@ -2041,5 +2042,40 @@
   },
   "nav": {
     "usage": "Verbruik"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} kamer",
+      "roomsCount_other": "{{count}} kamers",
+      "roomsFiltered": "{{active}} van {{total}} kamers"
+    },
+    "roomFilter": {
+      "aria": "Filteren op kamer",
+      "all": "Alle",
+      "only": "Alleen",
+      "onlyRoomAria": "Alleen {{room}} tonen",
+      "roomsButton": "Kamers {{active}}/{{total}}",
+      "pickerAria": "Kamers filteren",
+      "searchPlaceholder": "Kamers zoeken",
+      "noMatch": "Geen overeenkomende kamers",
+      "showAll": "Alle {{count}} tonen"
+    },
+    "composer": {
+      "postTo": "Plaatsen in:",
+      "postToRoom": "Plaatsen in #{{room}}",
+      "chooseRoomAria": "Kies een kamer om in te plaatsen",
+      "searchRooms": "Kamers zoeken",
+      "noMatchingRooms": "Geen overeenkomende kamers",
+      "draftPinned": "Concept voor #{{room}}",
+      "readOnly": "In geen enkele kamer in deze ruimte kun je berichten plaatsen."
+    },
+    "loading": "Threads laden...",
+    "empty": {
+      "noRooms": "Neem deel aan een kamer in deze ruimte om hier threads te zien.",
+      "noThreads": "Nog geen threads in deze ruimte."
+    },
+    "error": {
+      "title": "Kon threads van de ruimte niet laden"
+    }
   }
 }

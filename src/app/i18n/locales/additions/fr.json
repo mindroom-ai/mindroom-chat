@@ -385,7 +385,8 @@
       }
     },
     "space": {
-      "overview": "Vue d'ensemble de l'espace"
+      "overview": "Vue d'ensemble de l'espace",
+      "allThreads": "Tous les fils"
     }
   },
   "featureUi": {
@@ -2102,5 +2103,41 @@
   },
   "nav": {
     "usage": "Utilisation"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} salon",
+      "roomsCount_many": "{{count}} salons",
+      "roomsCount_other": "{{count}} salons",
+      "roomsFiltered": "{{active}} sur {{total}} salons"
+    },
+    "roomFilter": {
+      "aria": "Filtrer par salon",
+      "all": "Tous",
+      "only": "Uniquement",
+      "onlyRoomAria": "Afficher uniquement {{room}}",
+      "roomsButton": "Salons {{active}}/{{total}}",
+      "pickerAria": "Filtrer les salons",
+      "searchPlaceholder": "Rechercher des salons",
+      "noMatch": "Aucun salon correspondant",
+      "showAll": "Afficher les {{count}}"
+    },
+    "composer": {
+      "postTo": "Publier dans :",
+      "postToRoom": "Publier dans #{{room}}",
+      "chooseRoomAria": "Choisir le salon de publication",
+      "searchRooms": "Rechercher des salons",
+      "noMatchingRooms": "Aucun salon correspondant",
+      "draftPinned": "Brouillon pour #{{room}}",
+      "readOnly": "Aucun salon de cet espace ne permet de publier."
+    },
+    "loading": "Chargement des fils...",
+    "empty": {
+      "noRooms": "Rejoignez un salon dans cet espace pour voir les fils ici.",
+      "noThreads": "Aucun fil dans cet espace pour le moment."
+    },
+    "error": {
+      "title": "Impossible de charger les fils de l’espace"
+    }
   }
 }

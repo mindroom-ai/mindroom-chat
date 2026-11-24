@@ -373,7 +373,8 @@
       }
     },
     "space": {
-      "overview": "Alana genel bakış"
+      "overview": "Alana genel bakış",
+      "allThreads": "Tüm iş parçacıkları"
     }
   },
   "featureUi": {
@@ -2041,5 +2042,40 @@
   },
   "nav": {
     "usage": "Kullanım"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} oda",
+      "roomsCount_other": "{{count}} oda",
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+    },
+    "roomFilter": {
+      "aria": "Odaya göre filtrele",
+      "all": "Tümü",
+      "only": "Yalnızca",
+      "onlyRoomAria": "Yalnızca {{room}} göster",
+      "roomsButton": "Odalar {{active}}/{{total}}",
+      "pickerAria": "Odaları filtrele",
+      "searchPlaceholder": "Odaları ara",
+      "noMatch": "Eşleşen oda yok",
+      "showAll": "Tüm {{count}} odayı göster"
+    },
+    "composer": {
+      "postTo": "Gönder:",
+      "postToRoom": "#{{room}} odasına gönder",
+      "chooseRoomAria": "Gönderilecek odayı seç",
+      "searchRooms": "Odaları ara",
+      "noMatchingRooms": "Eşleşen oda yok",
+      "draftPinned": "#{{room}} için taslak",
+      "readOnly": "Bu alandaki hiçbir oda mesaj göndermeye izin vermiyor."
+    },
+    "loading": "İş parçacıkları yükleniyor...",
+    "empty": {
+      "noRooms": "İş parçacıklarını burada görmek için bu alandaki bir odaya katılın.",
+      "noThreads": "Bu alanda henüz iş parçacığı yok."
+    },
+    "error": {
+      "title": "Alan iş parçacıkları yüklenemedi"
+    }
   }
 }

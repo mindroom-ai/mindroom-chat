@@ -361,7 +361,8 @@
       }
     },
     "space": {
-      "overview": "空間概覽"
+      "overview": "空間概覽",
+      "allThreads": "所有討論串"
     }
   },
   "featureUi": {
@@ -1980,5 +1981,39 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 個房間",
+      "roomsFiltered": "{{active}}/{{total}} 個房間"
+    },
+    "roomFilter": {
+      "aria": "依房間篩選",
+      "all": "全部",
+      "only": "僅看",
+      "onlyRoomAria": "僅顯示 {{room}}",
+      "roomsButton": "房間 {{active}}/{{total}}",
+      "pickerAria": "篩選房間",
+      "searchPlaceholder": "搜尋房間",
+      "noMatch": "沒有相符的房間",
+      "showAll": "顯示全部 {{count}} 個"
+    },
+    "composer": {
+      "postTo": "傳送到：",
+      "postToRoom": "傳送到 #{{room}}",
+      "chooseRoomAria": "選擇要傳送到的房間",
+      "searchRooms": "搜尋房間",
+      "noMatchingRooms": "沒有相符的房間",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空間中沒有允許傳送訊息的房間。"
+    },
+    "loading": "正在載入討論串...",
+    "empty": {
+      "noRooms": "加入此空間中的房間即可在此檢視討論串。",
+      "noThreads": "此空間中還沒有討論串。"
+    },
+    "error": {
+      "title": "無法載入空間討論串"
+    }
   }
 }

@@ -36,7 +36,7 @@ import {
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
-import { SPACE_LOBBY_PATH } from '../../routes/paths';
+import { SPACE_LOBBY_PATH, SPACE_THREADS_PATH } from '../../routes/paths';
 import {
   getDirectRoomPath,
   getHomePath,
@@ -45,6 +45,7 @@ import {
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
+  getSpaceThreadsPath,
   withSearchParam,
 } from '../../routes/pathUtils';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
@@ -275,6 +276,7 @@ export function Space() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
+  const threadsSelected = useMatch(SPACE_THREADS_PATH) !== null;
 
   const {
     spaceRooms,
@@ -301,6 +303,12 @@ export function Space() {
               label={t('sharedUi.space.overview')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
               selected={lobbySelected}
+            />
+            <SpacePageLink
+              icon={Icons.Thread}
+              label={t('sharedUi.space.allThreads')}
+              to={getSpaceThreadsPath(spaceIdOrAlias)}
+              selected={threadsSelected}
             />
           </NavCategory>
           <SortableRoomGroup canMoveRoom={canMoveRoom} onMoveRoom={onMoveRoom}>

@@ -373,7 +373,8 @@
       }
     },
     "space": {
-      "overview": "स्पेस का अवलोकन"
+      "overview": "स्पेस का अवलोकन",
+      "allThreads": "सभी थ्रेड"
     }
   },
   "featureUi": {
@@ -2041,5 +2042,40 @@
   },
   "nav": {
     "usage": "उपयोग"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} रूम",
+      "roomsCount_other": "{{count}} रूम",
+      "roomsFiltered": "{{total}} में से {{active}} रूम"
+    },
+    "roomFilter": {
+      "aria": "रूम के अनुसार फ़िल्टर करें",
+      "all": "सभी",
+      "only": "केवल",
+      "onlyRoomAria": "केवल {{room}} दिखाएं",
+      "roomsButton": "रूम {{active}}/{{total}}",
+      "pickerAria": "रूम फ़िल्टर करें",
+      "searchPlaceholder": "रूम खोजें",
+      "noMatch": "कोई मेल खाता रूम नहीं",
+      "showAll": "सभी {{count}} दिखाएं"
+    },
+    "composer": {
+      "postTo": "यहाँ पोस्ट करें:",
+      "postToRoom": "#{{room}} में पोस्ट करें",
+      "chooseRoomAria": "पोस्ट करने के लिए रूम चुनें",
+      "searchRooms": "रूम खोजें",
+      "noMatchingRooms": "कोई मेल खाता रूम नहीं",
+      "draftPinned": "#{{room}} के लिए ड्राफ़्ट",
+      "readOnly": "इस स्पेस के किसी भी रूम में पोस्ट करने की अनुमति नहीं है।"
+    },
+    "loading": "थ्रेड लोड हो रहे हैं...",
+    "empty": {
+      "noRooms": "यहाँ थ्रेड देखने के लिए इस स्पेस के किसी रूम में शामिल हों।",
+      "noThreads": "इस स्पेस में अभी तक कोई थ्रेड नहीं है।"
+    },
+    "error": {
+      "title": "स्पेस के थ्रेड लोड नहीं हो सके"
+    }
   }
 }

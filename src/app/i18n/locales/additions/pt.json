@@ -385,7 +385,8 @@
       }
     },
     "space": {
-      "overview": "Visão geral do espaço"
+      "overview": "Visão geral do espaço",
+      "allThreads": "Todas as conversas"
     }
   },
   "featureUi": {
@@ -2102,5 +2103,41 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "aria": "Filtrar por sala",
+      "all": "Todas",
+      "only": "Somente",
+      "onlyRoomAria": "Mostrar somente {{room}}",
+      "roomsButton": "Salas {{active}}/{{total}}",
+      "pickerAria": "Filtrar salas",
+      "searchPlaceholder": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada",
+      "showAll": "Mostrar todas as {{count}}"
+    },
+    "composer": {
+      "postTo": "Enviar para:",
+      "postToRoom": "Enviar para #{{room}}",
+      "chooseRoomAria": "Escolher sala para enviar",
+      "searchRooms": "Pesquisar salas",
+      "noMatchingRooms": "Nenhuma sala encontrada",
+      "draftPinned": "Rascunho para #{{room}}",
+      "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
+    },
+    "loading": "Carregando conversas...",
+    "empty": {
+      "noRooms": "Entre em uma sala neste espaço para ver as conversas aqui.",
+      "noThreads": "Ainda não há conversas neste espaço."
+    },
+    "error": {
+      "title": "Não foi possível carregar as conversas do espaço"
+    }
   }
 }

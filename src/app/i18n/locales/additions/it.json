@@ -385,7 +385,8 @@
       }
     },
     "space": {
-      "overview": "Panoramica dello spazio"
+      "overview": "Panoramica dello spazio",
+      "allThreads": "Tutte le discussioni"
     }
   },
   "featureUi": {
@@ -2102,5 +2103,41 @@
   },
   "nav": {
     "usage": "Utilizzo"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} stanza",
+      "roomsCount_many": "{{count}} stanze",
+      "roomsCount_other": "{{count}} stanze",
+      "roomsFiltered": "{{active}} di {{total}} stanze"
+    },
+    "roomFilter": {
+      "aria": "Filtra per stanza",
+      "all": "Tutte",
+      "only": "Solo",
+      "onlyRoomAria": "Mostra solo {{room}}",
+      "roomsButton": "Stanze {{active}}/{{total}}",
+      "pickerAria": "Filtra stanze",
+      "searchPlaceholder": "Cerca stanze",
+      "noMatch": "Nessuna stanza corrispondente",
+      "showAll": "Mostra tutte le {{count}}"
+    },
+    "composer": {
+      "postTo": "Pubblica in:",
+      "postToRoom": "Pubblica in #{{room}}",
+      "chooseRoomAria": "Scegli la stanza in cui pubblicare",
+      "searchRooms": "Cerca stanze",
+      "noMatchingRooms": "Nessuna stanza corrispondente",
+      "draftPinned": "Bozza per #{{room}}",
+      "readOnly": "Nessuna stanza di questo spazio consente la pubblicazione."
+    },
+    "loading": "Caricamento discussioni...",
+    "empty": {
+      "noRooms": "Unisciti a una stanza in questo spazio per vedere le discussioni qui.",
+      "noThreads": "Non ci sono ancora discussioni in questo spazio."
+    },
+    "error": {
+      "title": "Impossibile caricare le discussioni dello spazio"
+    }
   }
 }

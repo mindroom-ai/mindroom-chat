@@ -9,6 +9,7 @@ import {
   getSpaceLobbyPath,
   getSpacePath,
   getSpaceRoomPath,
+  getSpaceThreadsPath,
   getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
@@ -160,6 +161,8 @@ const resolveUniversalLinkBaseRoute = (
   if (segments.length === 2 && second) {
     if (second.toLowerCase() === 'lobby')
       return { basePath: getSpaceLobbyPath(first), isLobby: true };
+    if (second.toLowerCase() === 'threads')
+      return { basePath: getSpaceThreadsPath(first), isLobby: true };
     if (isEventId(second) || isRoomOrAlias(second))
       return { basePath: getSpaceRoomPath(first, second) };
     return undefined;

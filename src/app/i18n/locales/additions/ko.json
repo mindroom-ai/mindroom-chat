@@ -361,7 +361,8 @@
       }
     },
     "space": {
-      "overview": "스페이스 개요"
+      "overview": "스페이스 개요",
+      "allThreads": "모든 스레드"
     }
   },
   "featureUi": {
@@ -1980,5 +1981,39 @@
   },
   "nav": {
     "usage": "사용량"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "방 {{count}}개",
+      "roomsFiltered": "방 {{total}}개 중 {{active}}개"
+    },
+    "roomFilter": {
+      "aria": "방별 필터",
+      "all": "전체",
+      "only": "만",
+      "onlyRoomAria": "{{room}}만 보기",
+      "roomsButton": "방 {{active}}/{{total}}",
+      "pickerAria": "방 필터",
+      "searchPlaceholder": "방 검색",
+      "noMatch": "일치하는 방이 없습니다",
+      "showAll": "전체 {{count}}개 보기"
+    },
+    "composer": {
+      "postTo": "게시 대상:",
+      "postToRoom": "#{{room}}에 게시",
+      "chooseRoomAria": "게시할 방 선택",
+      "searchRooms": "방 검색",
+      "noMatchingRooms": "일치하는 방이 없습니다",
+      "draftPinned": "#{{room}} 임시 저장",
+      "readOnly": "이 스페이스에 게시할 수 있는 방이 없습니다."
+    },
+    "loading": "스레드 불러오는 중...",
+    "empty": {
+      "noRooms": "이 스페이스의 방에 참여하면 여기에서 스레드를 볼 수 있습니다.",
+      "noThreads": "이 스페이스에는 아직 스레드가 없습니다."
+    },
+    "error": {
+      "title": "스페이스 스레드를 불러올 수 없습니다"
+    }
   }
 }

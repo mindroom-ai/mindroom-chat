@@ -373,7 +373,8 @@
       }
     },
     "space": {
-      "overview": "Space overview"
+      "overview": "Space overview",
+      "allThreads": "All threads"
     }
   },
   "featureUi": {
@@ -2041,5 +2042,40 @@
   },
   "nav": {
     "usage": "Usage"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} room",
+      "roomsCount_other": "{{count}} rooms",
+      "roomsFiltered": "{{active}} of {{total}} rooms"
+    },
+    "roomFilter": {
+      "aria": "Filter by room",
+      "all": "All",
+      "only": "Only",
+      "onlyRoomAria": "Show only {{room}}",
+      "roomsButton": "Rooms {{active}}/{{total}}",
+      "pickerAria": "Filter rooms",
+      "searchPlaceholder": "Search rooms",
+      "noMatch": "No matching rooms",
+      "showAll": "Show all {{count}}"
+    },
+    "composer": {
+      "postTo": "Post to:",
+      "postToRoom": "Post to #{{room}}",
+      "chooseRoomAria": "Choose room to post to",
+      "searchRooms": "Search rooms",
+      "noMatchingRooms": "No matching rooms",
+      "draftPinned": "Draft for #{{room}}",
+      "readOnly": "No rooms in this space allow posting."
+    },
+    "loading": "Loading threads...",
+    "empty": {
+      "noRooms": "Join a room in this space to see threads here.",
+      "noThreads": "No threads in this space yet."
+    },
+    "error": {
+      "title": "Could not load space threads"
+    }
   }
 }

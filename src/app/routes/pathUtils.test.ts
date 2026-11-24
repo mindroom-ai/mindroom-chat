@@ -3,6 +3,7 @@ import {
   getActivityInvitesPath,
   getActivityPath,
   getActivityRoomPath,
+  getSpaceThreadsPath,
   getThreadsRoomPath,
   getUsagePath,
   isQuickCapturePath,
@@ -19,6 +20,7 @@ describe('Activity and Threads paths', () => {
     expect(getActivityRoomPath('!r:x')).toBe('/activity/!r%3Ax');
     expect(getActivityRoomPath('!r:x', '$e')).toBe('/activity/!r%3Ax/%24e');
     expect(getThreadsRoomPath('#a:x')).toBe('/threads/%23a%3Ax');
+    expect(getSpaceThreadsPath('!space:example.org')).toBe('/!space%3Aexample.org/threads');
   });
 });
 

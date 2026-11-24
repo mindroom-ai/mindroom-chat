@@ -361,7 +361,8 @@
       }
     },
     "space": {
-      "overview": "スペースの概要"
+      "overview": "スペースの概要",
+      "allThreads": "すべてのスレッド"
     }
   },
   "featureUi": {
@@ -1980,5 +1981,39 @@
   },
   "nav": {
     "usage": "使用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}}件のルーム",
+      "roomsFiltered": "{{total}}件中{{active}}件のルーム"
+    },
+    "roomFilter": {
+      "aria": "ルームで絞り込む",
+      "all": "すべて",
+      "only": "のみ",
+      "onlyRoomAria": "{{room}}のみを表示",
+      "roomsButton": "ルーム {{active}}/{{total}}",
+      "pickerAria": "ルームを絞り込む",
+      "searchPlaceholder": "ルームを検索",
+      "noMatch": "一致するルームがありません",
+      "showAll": "全{{count}}件を表示"
+    },
+    "composer": {
+      "postTo": "投稿先:",
+      "postToRoom": "#{{room}}に投稿",
+      "chooseRoomAria": "投稿先のルームを選択",
+      "searchRooms": "ルームを検索",
+      "noMatchingRooms": "一致するルームがありません",
+      "draftPinned": "#{{room}}の下書き",
+      "readOnly": "このスペースに投稿できるルームがありません。"
+    },
+    "loading": "スレッドを読み込み中...",
+    "empty": {
+      "noRooms": "このスペースのルームに参加すると、ここにスレッドが表示されます。",
+      "noThreads": "このスペースにはまだスレッドがありません。"
+    },
+    "error": {
+      "title": "スペースのスレッドを読み込めませんでした"
+    }
   }
 }

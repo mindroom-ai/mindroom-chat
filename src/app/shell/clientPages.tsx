@@ -44,6 +44,7 @@ export { Direct } from '../sidebar/direct/Direct';
 export { DirectCreate } from '../sidebar/direct/DirectCreate';
 export { SpaceRouteProvider } from '../sidebar/space/Space';
 export { Lobby } from '../spaces/lobby/Lobby';
+export { SpaceThreadsPage } from '../spaces/threads/SpaceThreadsPage';
 export { ThreadsNav } from '../threads/page/ThreadsNav';
 export { ThreadsEmpty } from '../threads/page/ThreadsEmpty';
 export { Canvases } from '../canvas/page/Canvases';

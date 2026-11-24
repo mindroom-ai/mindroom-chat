@@ -361,7 +361,8 @@
       }
     },
     "space": {
-      "overview": "Ikhtisar space"
+      "overview": "Ikhtisar space",
+      "allThreads": "Semua utas"
     }
   },
   "featureUi": {
@@ -1980,5 +1981,39 @@
   },
   "nav": {
     "usage": "Penggunaan"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} ruang",
+      "roomsFiltered": "{{active}} dari {{total}} ruang"
+    },
+    "roomFilter": {
+      "aria": "Filter menurut ruang",
+      "all": "Semua",
+      "only": "Hanya",
+      "onlyRoomAria": "Tampilkan hanya {{room}}",
+      "roomsButton": "Ruang {{active}}/{{total}}",
+      "pickerAria": "Filter ruang",
+      "searchPlaceholder": "Cari ruang",
+      "noMatch": "Tidak ada ruang yang cocok",
+      "showAll": "Tampilkan semua {{count}}"
+    },
+    "composer": {
+      "postTo": "Kirim ke:",
+      "postToRoom": "Kirim ke #{{room}}",
+      "chooseRoomAria": "Pilih ruang tujuan kirim",
+      "searchRooms": "Cari ruang",
+      "noMatchingRooms": "Tidak ada ruang yang cocok",
+      "draftPinned": "Draf untuk #{{room}}",
+      "readOnly": "Tidak ada ruang di space ini yang mengizinkan pengiriman."
+    },
+    "loading": "Memuat utas...",
+    "empty": {
+      "noRooms": "Bergabunglah dengan ruang di space ini untuk melihat utas di sini.",
+      "noThreads": "Belum ada utas di space ini."
+    },
+    "error": {
+      "title": "Tidak dapat memuat utas space"
+    }
   }
 }

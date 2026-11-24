@@ -361,7 +361,8 @@
       }
     },
     "space": {
-      "overview": "空间概览"
+      "overview": "空间概览",
+      "allThreads": "所有话题"
     }
   },
   "featureUi": {
@@ -1980,5 +1981,39 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 个房间",
+      "roomsFiltered": "{{active}}/{{total}} 个房间"
+    },
+    "roomFilter": {
+      "aria": "按房间筛选",
+      "all": "全部",
+      "only": "仅看",
+      "onlyRoomAria": "仅显示 {{room}}",
+      "roomsButton": "房间 {{active}}/{{total}}",
+      "pickerAria": "筛选房间",
+      "searchPlaceholder": "搜索房间",
+      "noMatch": "没有匹配的房间",
+      "showAll": "显示全部 {{count}} 个"
+    },
+    "composer": {
+      "postTo": "发送到：",
+      "postToRoom": "发送到 #{{room}}",
+      "chooseRoomAria": "选择要发送到的房间",
+      "searchRooms": "搜索房间",
+      "noMatchingRooms": "没有匹配的房间",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空间中没有允许发送消息的房间。"
+    },
+    "loading": "正在加载话题...",
+    "empty": {
+      "noRooms": "加入此空间中的房间即可在此查看话题。",
+      "noThreads": "此空间中还没有话题。"
+    },
+    "error": {
+      "title": "无法加载空间话题"
+    }
   }
 }

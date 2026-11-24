@@ -9,6 +9,9 @@ export type ViewedPlace = { roomId?: string; threadId?: string };
 
 const ROOM_ROUTES = [HOME_ROOM_PATH, DIRECT_ROOM_PATH, SPACE_ROOM_PATH];
 
+/** Room IDs start with `!` and aliases with `#`; reserved sub-segments like `lobby` or `threads` do not. */
+const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
+
 /** The room (by ID) and thread a location shows; aliases resolve through the joined rooms. */
 export const getViewedPlace = (
   client: MatrixClient,
@@ -20,7 +23,7 @@ export const getViewedPlace = (
     const roomIdOrAlias =
       matchPath(route, location.pathname)?.params.roomIdOrAlias &&
       routeSegment(location.pathname, ROUTE_PARAM_SEGMENT.roomIdOrAlias);
-    if (roomIdOrAlias) {
+    if (roomIdOrAlias && isRoomIdOrAliasSegment(roomIdOrAlias)) {
       const roomId = isRoomAlias(roomIdOrAlias)
         ? getCanonicalAliasRoomId(client, roomIdOrAlias)
         : roomIdOrAlias;

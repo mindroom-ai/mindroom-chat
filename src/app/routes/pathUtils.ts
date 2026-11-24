@@ -25,6 +25,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  SPACE_THREADS_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
   USAGE_PATH,
@@ -187,6 +188,8 @@ export const getSpacePath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_PATH, { spaceIdOrAlias });
 export const getSpaceLobbyPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_LOBBY_PATH, { spaceIdOrAlias });
+export const getSpaceThreadsPath = (spaceIdOrAlias: string): string =>
+  generatePath(SPACE_THREADS_PATH, { spaceIdOrAlias });
 export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
   generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias });
 
