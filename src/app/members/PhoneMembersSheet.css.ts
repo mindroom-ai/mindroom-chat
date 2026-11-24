@@ -47,6 +47,8 @@ export const Panel = style([
     backgroundColor: color.Background.Container,
     borderInlineStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
+    // Cast the shadow to the side only, never upward onto the top bar.
+    clipPath: 'inset(0 -48px)',
     borderEndStartRadius: toRem(28),
     // The last member rows stay inside the round corner.
     overflow: 'clip',

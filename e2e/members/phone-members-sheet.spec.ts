@@ -332,6 +332,9 @@ for (const engine of ENGINES) {
           // What the sheet holds is clipped to the rounded corner.
           expect(await sheet(page).evaluate(cornersOf)).toEqual([0, 0, 0, PHONE_SHEET_RADIUS]);
           expect(await sheet(page).evaluate(borderWidthsOf)).toEqual([0, 0, 0, 1]);
+          expect(await sheet(page).evaluate((panel) => getComputedStyle(panel).clipPath)).toBe(
+            'inset(0px -48px)'
+          );
           expect(await sheet(page).evaluate((panel) => getComputedStyle(panel).overflow)).toMatch(
             /^(clip|hidden)$/
           );

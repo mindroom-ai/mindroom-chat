@@ -466,6 +466,9 @@ for (const engine of ENGINES) {
           // What the drawer holds is clipped to the rounded corner.
           expect(await drawer(page).evaluate(cornersOf)).toEqual([0, 0, PHONE_SHEET_RADIUS, 0]);
           expect(await drawer(page).evaluate(borderWidthsOf)).toEqual([0, 1, 0, 0]);
+          expect(await drawer(page).evaluate((panel) => getComputedStyle(panel).clipPath)).toBe(
+            'inset(0px -48px)'
+          );
           expect(await drawer(page).evaluate((panel) => getComputedStyle(panel).overflow)).toMatch(
             /^(clip|hidden)$/
           );
