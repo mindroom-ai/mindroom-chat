@@ -160,6 +160,8 @@ const makeRoom = (
     getType: () => (opts.isSpace ? 'm.space' : undefined),
     getMyMembership: () => 'join',
     getCanonicalAlias: () => null,
+    membersLoaded: () => true,
+    loadMembersIfNeeded: () => Promise.resolve(true),
     getMembers: () => members,
     getMember: () => null,
     getThread: () => undefined,
@@ -361,6 +363,9 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByText('Build failure')).toBeTruthy();
     expect(screen.getByText('New button spec')).toBeTruthy();
     expect(container.querySelectorAll('[data-space-thread-room-badge]').length).toBe(2);
+    expect(
+      container.querySelector('[data-thread-root-id="$t-eng"]')?.getAttribute('aria-label')
+    ).toContain('Engineering');
     expect(container.querySelector('[data-space-rooms-badge]')?.textContent).toBe('2 rooms');
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
 

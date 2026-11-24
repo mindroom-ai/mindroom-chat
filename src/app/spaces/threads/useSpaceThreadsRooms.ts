@@ -9,6 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
+import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { hasActiveMindroomAgent } from '../../matrix/protocol/agentIdentity';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
@@ -66,6 +67,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   const store = useStore();
   const visibleSpaceRoomIds = useVisibleRooms(useSpaceNavigationRooms(spaceId));
   const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds);
+  const membersVersion = useLoadedRoomMembers(mx, visibleSpaceRoomIds);
   const spaceRooms = useMemo(
     () =>
       visibleSpaceRoomIds.map((id) => mx.getRoom(id)).filter((room): room is Room => Boolean(room)),
@@ -149,8 +151,9 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
 
   const hasMindroomAgents = useMemo(() => {
     void metaVersion;
+    void membersVersion;
     return spaceRooms.some((room) => hasActiveMindroomAgent(room.getMembers?.() ?? []));
-  }, [metaVersion, spaceRooms]);
+  }, [membersVersion, metaVersion, spaceRooms]);
 
   return { spaceRooms, roomMeta, hasMindroomAgents, threadListsSettled, timelineTick };
 };

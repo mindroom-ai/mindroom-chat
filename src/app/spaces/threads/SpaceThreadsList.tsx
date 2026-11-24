@@ -76,6 +76,7 @@ export function SpaceThreadsList({
       <div key={entry.key} className={compactCss.CardShell}>
         <CompactThreadCard
           room={room}
+          roomName={showRoomBadge ? roomName : undefined}
           viewModel={viewModel}
           badges={
             <>

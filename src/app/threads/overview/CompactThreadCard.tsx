@@ -36,6 +36,8 @@ export type CompactThreadCardProps = {
   badges?: ReactNode;
   /** The card's room, which names the thread a fork was made from. */
   room?: Room;
+  /** Included in the button's accessible name when cards from several rooms share one list. */
+  roomName?: string;
 };
 
 /** How long ago a thread's last activity may be for its card to show it as just happened. */
@@ -92,6 +94,7 @@ function CompactThreadCardBase({
   onClick,
   attachment,
   badges,
+  roomName,
   forkedFromLabel,
 }: Omit<CompactThreadCardProps, 'room'> & {
   /** "Forked from <the parent's title>", for a fork. */
@@ -137,6 +140,7 @@ function CompactThreadCardBase({
       : undefined;
   const ariaLabel = [
     t('thread.aria.openThread', { title: titleText }),
+    roomName,
     forkedFromLabel,
     attentionStatusText,
     previewText,
