@@ -32,7 +32,7 @@ import { isRecord } from '../../lib/isRecord';
  * reads, all through WebKit's networking process.
  */
 type RootRevisionFingerprint = readonly unknown[];
-type SavedRootRevision = { revision: number; fingerprint: RootRevisionFingerprint };
+type SavedRootRevision = { revision: number; fingerprint: RootRevisionFingerprint | null };
 
 const restoredRooms = new WeakSet<Room>();
 const savedRootRevisions = new WeakMap<
@@ -68,22 +68,42 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
 const eventIdOf = (value: unknown): string | undefined =>
   isRecord(value) && typeof value.event_id === 'string' ? value.event_id : undefined;
 
-const getRootFingerprint = (room: Room, rootEvent: MatrixEvent): RootRevisionFingerprint => {
+const pushPreviewFingerprint = (parts: unknown[], room: Room, preview: unknown): void => {
+  const previewRecord = asRecord(preview);
+  const previewId = eventIdOf(previewRecord);
+  const previewUnsigned = asRecord(previewRecord?.unsigned);
+  const previewReplace = asRecord(previewUnsigned?.['m.relations'])?.[RelationType.Replace];
+  const previewReplaceId = eventIdOf(previewReplace);
+  parts.push(
+    preview,
+    previewId,
+    previewUnsigned,
+    previewUnsigned?.redacted_because,
+    previewReplace,
+    previewReplaceId,
+    isRoomEventRedacted(room, previewId),
+    isRoomEventRedacted(room, previewReplaceId)
+  );
+};
+
+/**
+ * O(1) identity/state snapshot of every input that can affect `getRootRevision(room, rootEvent)`
+ * for an unedited root. Edited roots return `null` and always run the full `{ clone: false }`
+ * revision check so in-place metadata borrowing on `edit.event.content['m.new_content']` is never
+ * missed.
+ */
+const getRootFingerprint = (
+  room: Room,
+  rootEvent: MatrixEvent
+): RootRevisionFingerprint | null => {
+  if (rootEvent.replacingEvent()) return null;
   const rawEvent = rootEvent.event;
   const unsigned = rawEvent.unsigned;
   const relations = asRecord(unsigned?.['m.relations']);
   const bundledThread = asRecord(relations?.[RelationType.Thread]);
-  const bundledLatest = bundledThread?.latest_event;
-  const bundledLatestId = eventIdOf(bundledLatest);
-  const bundledLatestUnsigned = asRecord(asRecord(bundledLatest)?.unsigned);
-  const bundledLatestReplaceId = eventIdOf(
-    asRecord(bundledLatestUnsigned?.['m.relations'])?.[RelationType.Replace]
-  );
   const bundledReplace = relations?.[RelationType.Replace];
   const bundledReplaceId = eventIdOf(bundledReplace);
-  const edit = rootEvent.replacingEvent();
-  const editId = edit?.getId();
-  return [
+  const parts: unknown[] = [
     rootEvent,
     rawEvent,
     rawEvent.content,
@@ -91,9 +111,6 @@ const getRootFingerprint = (room: Room, rootEvent: MatrixEvent): RootRevisionFin
     unsigned?.redacted_because,
     relations,
     bundledThread,
-    bundledLatest,
-    bundledLatestId,
-    bundledLatestUnsigned?.redacted_because,
     bundledThread?.count,
     bundledThread?.current_user_participated,
     bundledReplace,
@@ -103,21 +120,12 @@ const getRootFingerprint = (room: Room, rootEvent: MatrixEvent): RootRevisionFin
     rootEvent.status,
     rootEvent.isRedacted(),
     rootEvent.getClearContent(),
-    edit,
-    edit?.event,
-    edit?.event?.content,
-    edit?.event?.unsigned,
-    edit?.event?.unsigned?.redacted_because,
-    edit?.getType(),
-    edit?.isDecryptionFailure(),
-    edit?.status,
-    edit?.isRedacted(),
-    edit?.getClearContent(),
-    isRoomEventRedacted(room, bundledLatestId),
-    isRoomEventRedacted(room, bundledLatestReplaceId),
     isRoomEventRedacted(room, bundledReplaceId),
-    isRoomEventRedacted(room, editId),
   ];
+  pushPreviewFingerprint(parts, room, bundledThread?.latest_event);
+  pushPreviewFingerprint(parts, room, bundledThread?.['io.mindroom.title']);
+  pushPreviewFingerprint(parts, room, bundledThread?.['io.mindroom.latest_reply']);
+  return parts;
 };
 
 const sameRootFingerprint = (a: RootRevisionFingerprint, b: RootRevisionFingerprint): boolean => {
@@ -128,7 +136,7 @@ const sameRootFingerprint = (a: RootRevisionFingerprint, b: RootRevisionFingerpr
   return true;
 };
 
-/** 53-bit string hash (cyrb53): the page keeps a number per root, not its JSON. */
+/** 53-bit string hash (cyrb53): the page keeps a hash per root, not its serialized JSON. */
 const hashRevision = (value: string): number => {
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
@@ -231,11 +239,11 @@ export const useRoomThreadList = (
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
         // Later pages can update the same SDK object, including its edits.
         const existing = saved.get(threadId);
-        if (
-          existing &&
-          sameRootFingerprint(existing.fingerprint, getRootFingerprint(room, rootEvent))
-        ) {
-          return;
+        if (existing?.fingerprint) {
+          const currentFingerprint = getRootFingerprint(room, rootEvent);
+          if (currentFingerprint && sameRootFingerprint(existing.fingerprint, currentFingerprint)) {
+            return;
+          }
         }
         const revision = getRootRevision(room, rootEvent);
         // Capture fingerprint after `getRootRevision` so hydration changes are reflected.

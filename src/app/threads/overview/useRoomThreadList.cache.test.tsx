@@ -867,3 +867,90 @@ it('does not rewrite unchanged cached roots restored on a fresh Room when listin
   // fires 40 concurrent 6-store readwrite transactions in one synchronous forEach burst.
   expect(saved).toEqual(['$newly-listed-root']);
 });
+
+it('re-saves an edited root when metadata is written into its edit in place', async () => {
+  const { mx, room, engine } = setUpRoom();
+  const saved: string[] = [];
+  recordSaves(engine, (threadId) => saved.push(threadId));
+  const root = listedRoot('$edited-root', 'Initial');
+  const edit = rootEdit('$edited-root', 'Final answer');
+  root.makeReplaced(edit);
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([root], false);
+  });
+
+  const first = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(first.current?.loading).toBe(false);
+  });
+  await closeList();
+  expect(saved).toEqual(['$edited-root']);
+
+  // In-place metadata borrowing (like fillMetadataFromOlderEdits) mutates `m.new_content` directly.
+  saved.length = 0;
+  const newContent = edit.event.content?.['m.new_content'] as Record<string, unknown>;
+  newContent['io.mindroom.tool_trace'] = { version: 2, events: [] };
+
+  const second = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(second.current?.loading).toBe(false);
+  });
+  await closeList();
+  expect(saved).toEqual(['$edited-root']);
+});
+
+it('re-saves an unedited root when its bundled io.mindroom.title preview is redacted', async () => {
+  const { mx, room, engine } = setUpRoom();
+  const saved: string[] = [];
+  recordSaves(engine, (threadId) => saved.push(threadId));
+  const titlePreview = {
+    event_id: '$title-preview',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1500,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'Thread title preview' },
+  };
+  const root = new MatrixEvent({
+    event_id: '$titled-root',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'Root' },
+    unsigned: {
+      'm.relations': {
+        'm.thread': {
+          count: 1,
+          current_user_participated: true,
+          'io.mindroom.title': titlePreview,
+        },
+      },
+    },
+  });
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([root], false);
+  });
+
+  const first = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(first.current?.loading).toBe(false);
+  });
+  await closeList();
+  expect(saved).toEqual(['$titled-root']);
+
+  // Mark the preview event redacted in the room without replacing `root.event`.
+  saved.length = 0;
+  room.redactedBundledEdits = new Set(['$title-preview']);
+
+  const second = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(second.current?.loading).toBe(false);
+  });
+  await closeList();
+  expect(saved).toEqual(['$titled-root']);
+});

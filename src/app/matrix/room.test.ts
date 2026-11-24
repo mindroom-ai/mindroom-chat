@@ -650,6 +650,63 @@ describe('undecryptable edits', () => {
     const readsWithUnreadable = attachTrackedBundled(withUnreadable, '$same');
     expect(getEditedEvent('$target', withUnreadable, undefined)?.getId()).toBe('$same');
     expect(readsWithUnreadable()).toBeGreaterThan(0);
+
+    // When a newer edit exists alongside a same-ID wire copy lacking borrowed metadata, keep the
+    // cached bundled copy so the newer edit can borrow metadata from it.
+    const traceMetadata = {
+      version: 2,
+      events: [{ type: 'tool_call_completed', tool_name: 'search', result_preview: 'ok' }],
+    };
+    const withNewerEdit = makeMessageEvent('$target', 1000);
+    const wireCompleted = new MatrixEvent({
+      event_id: '$completed',
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      origin_server_ts: 2000,
+      type: 'm.room.message',
+      content: {
+        body: '* Completed',
+        'm.new_content': {
+          body: 'Completed',
+          'io.mindroom.stream_status': 'completed',
+          msgtype: 'm.text',
+        },
+        'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+    });
+    const newerTextOnly = makeEditEvent('$newer', 3000, '$target');
+    withNewerEdit.event.unsigned = {
+      'm.relations': {
+        'm.replace': {
+          event_id: '$completed',
+          room_id: '!room:example.org',
+          sender: '@alice:example.org',
+          origin_server_ts: 2000,
+          type: 'm.room.message',
+          content: {
+            body: '* Completed',
+            'm.new_content': {
+              body: 'Completed',
+              'io.mindroom.stream_status': 'completed',
+              'io.mindroom.tool_trace': traceMetadata,
+              msgtype: 'm.text',
+            },
+            'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            msgtype: 'm.text',
+          },
+        },
+      },
+    };
+    const resolved = getEditedEvent(
+      '$target',
+      withNewerEdit,
+      relationsOf(wireCompleted, newerTextOnly)
+    );
+    expect(resolved).toBe(newerTextOnly);
+    expect(getLatestMessageContent(withNewerEdit, resolved)['io.mindroom.tool_trace']).toEqual(
+      traceMetadata
+    );
   });
 });
 

@@ -504,21 +504,31 @@ const getEditCandidates = (
   for (const edit of getRelationEdits(eventId, mEvent, timelineSet)) {
     addCandidate(edit);
   }
+  // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
+  addCandidate(getSyncedEdit(eventId));
   if (serializedReplacementCandidate) {
     addCandidate(serializedReplacementCandidate);
   } else {
-    // Skip allocating a bundled MatrixEvent when an applied or relation edit already holds a
-    // readable copy of the exact same event ID.
+    // Skip allocating a bundled MatrixEvent when existing candidates already hold a readable copy
+    // of the exact same event ID and no other readable edit ID could borrow metadata from it.
     const bundledId = getSerializedReplacementEventId(mEvent);
-    if (
-      bundledId !== undefined &&
-      !candidates.some((candidate) => candidate.getId() === bundledId && isReadableEdit(candidate))
-    ) {
-      addCandidate(getShallowSerializedReplacementEvent(mEvent));
+    if (bundledId !== undefined) {
+      let hasReadableSameId = false;
+      let hasReadableDifferentId = false;
+      for (const candidate of candidates) {
+        if (!isReadableEdit(candidate)) continue;
+        if (candidate.getId() === bundledId) {
+          hasReadableSameId = true;
+        } else {
+          hasReadableDifferentId = true;
+          break;
+        }
+      }
+      if (!hasReadableSameId || hasReadableDifferentId) {
+        addCandidate(getShallowSerializedReplacementEvent(mEvent));
+      }
     }
   }
-  // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
-  addCandidate(getSyncedEdit(eventId));
   return candidates;
 };
 
