@@ -1668,8 +1668,7 @@
       "replyAndOther": "{{name}} dan {{other}} membalas",
       "replyAndOthers_other": "{{name}} dan {{count}} lainnya membalas",
       "finished": "{{name}} selesai",
-      "stopped": "{{name}} berhenti",
-      "youReplied": "Anda membalas"
+      "stopped": "{{name}} berhenti"
     },
     "newCount_other": "{{count}} baru",
     "runMinutes_other": "{{count}} mnt",
@@ -2063,5 +2062,34 @@
   },
   "nav": {
     "usage": "Penggunaan"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} ruang",
+      "roomsFiltered": "{{active}} dari {{total}} ruang"
+    },
+    "roomFilter": {
+      "label": "Ruang",
+      "ariaLabel": "Filter utas menurut ruang",
+      "ariaLabelActive": "Filter utas menurut ruang ({{number}} dipilih)",
+      "ariaLabelOne": "Ruang: {{room}}",
+      "search": "Cari ruang",
+      "noMatch": "Tidak ada ruang yang cocok"
+    },
+    "composer": {
+      "postTo": "Kirim ke:",
+      "postToRoom": "Kirim ke #{{room}}",
+      "chooseRoomAria": "Pilih ruang tujuan kirim",
+      "draftPinned": "Draf untuk #{{room}}",
+      "readOnly": "Tidak ada ruang di space ini yang mengizinkan pengiriman."
+    },
+    "loading": "Memuat utas...",
+    "empty": {
+      "noRooms": "Bergabunglah dengan ruang di space ini untuk melihat utas di sini.",
+      "noThreads": "Belum ada utas di space ini."
+    },
+    "error": {
+      "title": "Tidak dapat memuat utas space"
+    }
   }
 }

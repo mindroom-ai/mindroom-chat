@@ -1721,8 +1721,7 @@
       "replyAndOthers_one": "{{name}} ve {{count}} kişi daha yanıtladı",
       "replyAndOthers_other": "{{name}} ve {{count}} kişi daha yanıtladı",
       "finished": "{{name}} işini tamamladı",
-      "stopped": "{{name}} durdu",
-      "youReplied": "Yanıtladınız"
+      "stopped": "{{name}} durdu"
     },
     "newCount_one": "{{count}} yeni",
     "newCount_other": "{{count}} yeni",
@@ -2132,5 +2131,35 @@
   },
   "nav": {
     "usage": "Kullanım"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} oda",
+      "roomsCount_other": "{{count}} oda",
+      "roomsFiltered": "{{total}} odadan {{active}} tanesi"
+    },
+    "roomFilter": {
+      "label": "Odalar",
+      "ariaLabel": "Konuları odaya göre filtrele",
+      "ariaLabelActive": "Konuları odaya göre filtrele ({{number}} seçili)",
+      "ariaLabelOne": "Odalar: {{room}}",
+      "search": "Odaları ara",
+      "noMatch": "Eşleşen oda yok"
+    },
+    "composer": {
+      "postTo": "Gönder:",
+      "postToRoom": "#{{room}} odasına gönder",
+      "chooseRoomAria": "Gönderilecek odayı seç",
+      "draftPinned": "#{{room}} için taslak",
+      "readOnly": "Bu alandaki hiçbir oda mesaj göndermeye izin vermiyor."
+    },
+    "loading": "İş parçacıkları yükleniyor...",
+    "empty": {
+      "noRooms": "İş parçacıklarını burada görmek için bu alandaki bir odaya katılın.",
+      "noThreads": "Bu alanda henüz iş parçacığı yok."
+    },
+    "error": {
+      "title": "Alan iş parçacıkları yüklenemedi"
+    }
   }
 }

@@ -1774,8 +1774,7 @@
       "replyAndOthers_many": "{{name}} y {{count}} más respondieron",
       "replyAndOthers_other": "{{name}} y {{count}} más respondieron",
       "finished": "{{name}} terminó",
-      "stopped": "{{name}} se detuvo",
-      "youReplied": "Respondiste"
+      "stopped": "{{name}} se detuvo"
     },
     "newCount_one": "{{count}} nuevo",
     "newCount_many": "{{count}} nuevos",
@@ -2201,5 +2200,36 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar hilos por sala",
+      "ariaLabelActive": "Filtrar hilos por sala (seleccionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Buscar salas",
+      "noMatch": "No hay salas coincidentes"
+    },
+    "composer": {
+      "postTo": "Publicar en:",
+      "postToRoom": "Publicar en #{{room}}",
+      "chooseRoomAria": "Elegir sala para publicar",
+      "draftPinned": "Borrador para #{{room}}",
+      "readOnly": "Ninguna sala de este espacio permite publicar."
+    },
+    "loading": "Cargando hilos...",
+    "empty": {
+      "noRooms": "Únete a una sala en este espacio para ver los hilos aquí.",
+      "noThreads": "Todavía no hay hilos en este espacio."
+    },
+    "error": {
+      "title": "No se pudieron cargar los hilos del espacio"
+    }
   }
 }

@@ -1933,8 +1933,7 @@
       "replyAndOthers_many": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشاركًا آخر",
       "replyAndOthers_other": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
       "finished": "أنهى ⁨{{name}}⁩ عمله",
-      "stopped": "توقف ⁨{{name}}⁩",
-      "youReplied": "رددت"
+      "stopped": "توقف ⁨{{name}}⁩"
     },
     "newCount_zero": "جديدة: ⁨{{count}}⁩",
     "newCount_one": "جديدة: ⁨{{count}}⁩",
@@ -2408,5 +2407,39 @@
   },
   "nav": {
     "usage": "الاستخدام"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_zero": "⁨{{count}}⁩ غرفة",
+      "roomsCount_one": "غرفة واحدة (⁨{{count}}⁩)",
+      "roomsCount_two": "غرفتان (⁨{{count}}⁩)",
+      "roomsCount_few": "⁨{{count}}⁩ غرف",
+      "roomsCount_many": "⁨{{count}}⁩ غرفة",
+      "roomsCount_other": "⁨{{count}}⁩ غرفة",
+      "roomsFiltered": "⁨{{active}}⁩ من ⁨{{total}}⁩ غرفة"
+    },
+    "roomFilter": {
+      "label": "الغرف",
+      "ariaLabel": "تصفية سلاسل المحادثات حسب الغرفة",
+      "ariaLabelActive": "تصفية سلاسل المحادثات حسب الغرفة (المحدد: ⁨{{number}}⁩)",
+      "ariaLabelOne": "الغرف: ⁨{{room}}⁩",
+      "search": "البحث في الغرف",
+      "noMatch": "لا توجد غرف مطابقة"
+    },
+    "composer": {
+      "postTo": "النشر في:",
+      "postToRoom": "النشر في #⁨{{room}}⁩",
+      "chooseRoomAria": "اختر غرفة للنشر فيها",
+      "draftPinned": "مسودة لـ #⁨{{room}}⁩",
+      "readOnly": "لا توجد غرف في هذه المساحة تسمح بالنشر."
+    },
+    "loading": "جارٍ تحميل سلاسل الرسائل...",
+    "empty": {
+      "noRooms": "انضم إلى غرفة في هذه المساحة لعرض سلاسل الرسائل هنا.",
+      "noThreads": "لا توجد سلاسل رسائل في هذه المساحة بعد."
+    },
+    "error": {
+      "title": "تعذر تحميل سلاسل رسائل المساحة"
+    }
   }
 }

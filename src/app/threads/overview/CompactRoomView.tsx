@@ -12,12 +12,13 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
+import { CompactSectionHeader } from './CompactSectionHeader';
 import { CompactThreadCard } from './CompactThreadCard';
 import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
@@ -717,36 +718,16 @@ export function CompactRoomView({
 
   const renderSectionHeader = (id: CompactThreadSectionId) => {
     const key = sectionRowKey(id);
-    const fixedOpen = id === singleBucketTab;
-    const closed = folded.includes(id);
-    const count = sectionCounts.get(id) ?? 0;
-    const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
-      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        {fixedOpen ? (
-          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
-            {label}
-          </Button>
-        ) : (
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            aria-expanded={!closed}
-            onClick={() => toggleFold(id)}
-            before={
-              <Icon
-                size="100"
-                src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-                data-directional={closed || undefined}
-              />
-            }
-          >
-            {label}
-          </Button>
-        )}
-      </div>
+      <CompactSectionHeader
+        key={key}
+        id={id}
+        count={sectionCounts.get(id) ?? 0}
+        closed={folded.includes(id)}
+        fixedOpen={id === singleBucketTab}
+        onToggle={toggleFold}
+        motionRow={key}
+      />
     );
   };
   const renderRow = (row: CompactBlockRow) => {

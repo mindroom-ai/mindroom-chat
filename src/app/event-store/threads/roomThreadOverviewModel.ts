@@ -435,3 +435,46 @@ export const selectThreadWorkflowTab = (
   idle: 'any',
   statusMode: 'and',
 });
+
+/**
+ * Project a persisted filter state onto the controls that are currently visible.
+ * Persisted advanced filters remain stored so they can be restored when those controls
+ * become available again.
+ */
+export const projectThreadFilterState = (
+  state: ThreadFilterState,
+  simpleMode: boolean,
+  hasMindroomAgents: boolean
+): ThreadFilterState => {
+  if (simpleMode) {
+    return hasMindroomAgents
+      ? simplifyThreadFilterState(state)
+      : simplifyAgentlessSimpleThreadFilterState(state);
+  }
+  if (!hasMindroomAgents) return simplifyAgentlessThreadFilterState(state);
+  return state.tab ? selectThreadWorkflowTab(state, state.tab) : state;
+};
+
+/** Applies a raw search query string, parsing DSL tokens only when agent controls are shown. */
+export const applyThreadSearchQuery = (
+  state: ThreadFilterState,
+  query: string,
+  hasMindroomAgents: boolean
+): ThreadFilterState =>
+  hasMindroomAgents
+    ? applyParsedThreadFilterQuery(state, parseThreadFilterQuery(query))
+    : {
+        ...state,
+        // With agent controls hidden, the retained search field is plain
+        // text. Preserve agent filters in storage and treat is:/tag: tokens
+        // literally instead of mutating invisible filter dimensions.
+        freeText: normalizeThreadSearchText(query),
+        unsupportedQuery: '',
+      };
+
+/** Whether the overview toolbar shows its "no threads match" empty banner with Reset action. */
+export const showsFilteredEmptyState = (
+  threadCount: number,
+  totalThreadCount: number,
+  state: ThreadFilterState
+): boolean => threadCount === 0 && totalThreadCount > 0 && hasActiveThreadFilters(state);

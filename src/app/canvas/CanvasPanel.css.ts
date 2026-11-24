@@ -20,12 +20,23 @@ export const Title = style({
   minWidth: 0,
 });
 
+export const FrameWrap = style({
+  flex: '1 1 auto',
+  minHeight: 0,
+  overflow: 'hidden',
+  position: 'relative',
+  width: '100%',
+});
+
 export const Frame = style({
   backgroundColor: color.Background.Container,
   border: 'none',
   display: 'block',
-  flex: '1 1 auto',
-  minHeight: 0,
+  height: '100%',
+  // eslint-disable-next-line no-restricted-syntax -- FrameWrap is dir=ltr so top-left stays the scale origin.
+  left: 0,
+  position: 'absolute',
+  top: 0,
   width: '100%',
 });
 

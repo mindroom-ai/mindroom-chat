@@ -34,6 +34,7 @@ import type {
 import {
   hasActiveThreadFilters,
   hasSearchOnlyThreadFilters,
+  showsFilteredEmptyState,
   THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -288,6 +289,8 @@ export type RoomThreadOverviewProps = {
   /** The Tags dropdown's Clear: drops every tag filter. */
   onClearTags: () => void;
   onSearchQueryChange: (query: string) => void;
+  /** The Rooms dropdown (SpaceRoomFilter), shown in Space thread overviews. */
+  roomsFilter?: React.ReactNode;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
   /** The cards show in sections (Needs you, Working, Later, Done), each in its own order. */
@@ -417,6 +420,7 @@ export function RoomThreadOverview({
   onRemoveTag,
   onClearTags,
   onSearchQueryChange,
+  roomsFilter,
   peopleFilter,
   threadSections = false,
   onToggleThreadSections,
@@ -538,9 +542,7 @@ export function RoomThreadOverview({
 
   // Only when a filter hides threads: a Compact room with none yet has its Unresolved filter on.
   const emptyFilteredState = !hideEmptyState &&
-    threadCount === 0 &&
-    totalThreadCount > 0 &&
-    filtersActive && (
+    showsFilteredEmptyState(threadCount, totalThreadCount, state) && (
       <div className={css.EmptyState}>
         <Text size="T200">
           {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
@@ -654,6 +656,7 @@ export function RoomThreadOverview({
               </TooltipProvider>
             </>
           )}
+          {roomsFilter}
           {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
           {sectionsSwitch}
           {forMeSwitch}
@@ -703,6 +706,7 @@ export function RoomThreadOverview({
             totalThreadCount={totalThreadCount}
           />
         )}
+        {roomsFilter}
         {peopleFilter}
         {hasMindroomAgents && (state.tags.size > 0 || availableTags.length > 0) && (
           <ThreadTagFilter

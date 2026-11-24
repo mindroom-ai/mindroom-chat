@@ -423,7 +423,7 @@ let typoRows = [new Uint16Array(32), new Uint16Array(32), new Uint16Array(32)];
  * How many typos turn `typed` into `word`, up to `limit`: a wrong, missing or extra letter, or
  * two neighbors swapped. More than `limit` is reported as `limit + 1`.
  */
-const typosBetween = (typed: string, word: string, limit: number): number => {
+export const typosBetween = (typed: string, word: string, limit: number): number => {
   if (Math.abs(typed.length - word.length) > limit) return limit + 1;
   const width = word.length + 1;
   if ((typoRows[0]?.length ?? 0) < width) {

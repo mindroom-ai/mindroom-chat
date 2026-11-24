@@ -216,4 +216,19 @@ describe('thread filter bar modes', () => {
     rerender({ threadCount: 2, totalThreadCount: 4, state: { ...unresolved, forMe: true } });
     expect(live()).toBe('Showing 2 of 4 threads. For me filter on.');
   });
+
+  it('renders roomsFilter in both Simple mode and Advanced mode toolbars', () => {
+    const roomsFilter = (
+      <button type="button" data-test-rooms-filter="true">
+        Rooms
+      </button>
+    );
+    renderBar(true, { roomsFilter });
+    expect(byData('data-test-rooms-filter')).toHaveLength(1);
+
+    act(() => {
+      modeSwitch().props.onClick();
+    });
+    expect(byData('data-test-rooms-filter')).toHaveLength(1);
+  });
 });
