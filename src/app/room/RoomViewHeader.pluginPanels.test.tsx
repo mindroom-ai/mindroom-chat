@@ -50,7 +50,8 @@ vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined
 vi.mock('../triggers/useRoomTriggers', () => ({
   useRoomTriggers: () => ({
     triggers: [],
-    isFetching: false,
+    loading: false,
+    loadFailed: false,
     refetch: vi.fn(async () => undefined),
     toggleTrigger: vi.fn(async () => undefined),
     deleteTrigger: vi.fn(async () => undefined),

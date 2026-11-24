@@ -2018,12 +2018,14 @@
     "close": "關閉",
     "empty": "此房間沒有觸發器。",
     "emptyHint": "為此房間設定的觸發器會顯示在這裡。",
+    "loadError": "無法載入觸發器。",
     "missingTrigger": "觸發器 {{id}} 已不在此房間中。",
     "kind": {
       "webhook": "Webhook",
       "room_message": "房間監看",
       "external_event": "事件訂閱",
-      "thread_tag": "討論串標籤"
+      "thread_tag": "討論串標籤",
+      "unknown": "觸發器"
     },
     "watchingRoom": "正在監看此房間",
     "stateOn": "已開啟",

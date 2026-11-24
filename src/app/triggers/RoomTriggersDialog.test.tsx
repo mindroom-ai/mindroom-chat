@@ -27,7 +27,7 @@ const mx = {
   getRoom: () => ({
     roomId: ROOM_ID,
     name: 'Design',
-    getMember: (id: string) => (id === '@bob:example.org' ? { name: 'Bob' } : null),
+    getMember: () => null,
     loadMembersIfNeeded: async () => true,
   }),
 } as unknown as MatrixClient;
@@ -77,25 +77,19 @@ afterEach(() => {
 });
 
 describe('RoomTriggersDialog', () => {
-  it('renders rows of every kind with thread link, prompt, state, last fired, and non-owner subtitle', () => {
+  it('renders rows with trigger IDs, unknown kind/thread_mode fallbacks, disabled reasons, and non-owner subtitle', () => {
     const triggers: RoomTrigger[] = [
       makeTrigger(),
       makeTrigger({
-        triggerId: 'tr_hook',
-        kind: 'webhook',
-        description: 'Release webhook',
+        triggerId: 'tr_future',
+        kind: 'cron_v2',
+        description: '',
         prompt: null,
         targetThreadId: null,
-        threadMode: 'room',
+        threadMode: 'dm_thread',
+        enabled: false,
+        disabledReason: 'once_consumed',
         lastFiredAt: null,
-      }),
-      makeTrigger({
-        triggerId: 'tr_event',
-        kind: 'external_event',
-        description: '',
-        prompt: 'Report staging alerts',
-        targetThreadId: null,
-        threadMode: 'new_thread',
         ownerUserId: '@bob:example.org',
         canManage: false,
       }),
@@ -105,7 +99,6 @@ describe('RoomTriggersDialog', () => {
         relation: 'watch',
         description: 'Urgent watch',
         prompt: 'Flag urgent threads',
-        targetRoomId: '!other:example.org',
         targetThreadId: null,
         threadMode: 'origin',
         enabled: false,
@@ -115,39 +108,34 @@ describe('RoomTriggersDialog', () => {
 
     const { onOpenThread } = renderDialog({ triggers });
     const cards = screen.getAllByRole('article');
-    expect(cards).toHaveLength(4);
+    expect(cards).toHaveLength(3);
 
-    // Room watch row: kind, prompt with inline code, On state, relative last fired, Open thread.
+    // Described row shows description as title, trigger ID in subtitle, prompt, thread link.
     const watchCard = cards[0]!;
-    expect(watchCard.textContent).toContain('Design triage');
+    expect(within(watchCard).getByRole('heading', { name: 'Design triage' })).toBeTruthy();
     expect(watchCard.textContent).toContain('Room watch');
-    expect(watchCard.textContent).toContain('On');
-    expect(watchCard.textContent).toContain('Last fired');
-    expect(watchCard.querySelector('code')?.textContent).toBe('design');
+    expect(watchCard.textContent).toContain('tr_watch');
+    expect(watchCard.textContent).toContain('Thread');
+    expect(watchCard.querySelector('[data-mention-id]')).toBeNull();
     fireEvent.click(within(watchCard).getByRole('button', { name: 'Open thread' }));
     expect(onOpenThread).toHaveBeenCalledWith('$triage-thread', ROOM_ID);
 
-    // Webhook row: Webhook kind, Never fired, no prompt box.
-    const hookCard = cards[1]!;
-    expect(hookCard.textContent).toContain('Release webhook');
-    expect(hookCard.textContent).toContain('Webhook');
-    expect(hookCard.textContent).toContain('Never fired');
-    expect(within(hookCard).queryByRole('region', { name: 'Prompt' })).toBeNull();
+    // Undescribed unknown-kind non-owner row: trigger ID as title, generic Trigger label, no dest text, Used, owner, no manage buttons.
+    const futureCard = cards[1]!;
+    expect(within(futureCard).getByRole('heading', { name: 'tr_future' })).toBeTruthy();
+    expect(futureCard.textContent).toContain('Trigger');
+    expect(futureCard.textContent).toContain('Used');
+    expect(futureCard.textContent).toContain('Never fired');
+    expect(futureCard.textContent).not.toContain('Room timeline');
+    expect(futureCard.querySelector('[data-mention-id="@bob:example.org"]')).toBeTruthy();
+    expect(within(futureCard).queryByRole('button', { name: /Enable|Disable/ })).toBeNull();
+    expect(within(futureCard).queryByRole('button', { name: 'Delete' })).toBeNull();
 
-    // Non-owner event subscription row: kind as title, owner in subtitle, NO manage buttons.
-    const eventCard = cards[2]!;
-    expect(eventCard.textContent).toContain('Event subscription');
-    expect(eventCard.querySelector('[data-mention-id="@bob:example.org"]')).toBeTruthy();
-    expect(watchCard.querySelector('[data-mention-id]')).toBeNull();
-    expect(eventCard.textContent).toContain('Report staging alerts');
-    expect(within(eventCard).queryByRole('button', { name: /Enable|Disable/ })).toBeNull();
-    expect(within(eventCard).queryByRole('button', { name: 'Delete' })).toBeNull();
-
-    // Thread tag watch row: Off, Expired, Watching this room.
-    const tagCard = cards[3]!;
+    // Watch row: Expired, Watching this room, trigger ID shown.
+    const tagCard = cards[2]!;
     expect(tagCard.textContent).toContain('Thread tag');
+    expect(tagCard.textContent).toContain('tr_tag');
     expect(tagCard.textContent).toContain('Watching this room');
-    expect(tagCard.textContent).toContain('Off');
     expect(tagCard.textContent).toContain('Expired');
   });
 
@@ -160,7 +148,6 @@ describe('RoomTriggersDialog', () => {
 
     renderDialog({ onToggleTrigger, onDeleteTrigger });
 
-    // Failed toggle shows alert, then retry succeeds.
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toContain('Could not update')
@@ -168,20 +155,18 @@ describe('RoomTriggersDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
     await waitFor(() => expect(onToggleTrigger).toHaveBeenCalledWith('tr_watch', false));
 
-    // Delete requires confirmation: Keep cancels without deleting.
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     const keepButton = screen.getByRole('button', { name: 'Keep' });
     expect(document.activeElement).toBe(keepButton);
     fireEvent.click(keepButton);
     expect(onDeleteTrigger).not.toHaveBeenCalled();
 
-    // Confirming Delete trigger calls onDeleteTrigger.
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete trigger' }));
     await waitFor(() => expect(onDeleteTrigger).toHaveBeenCalledWith('tr_watch'));
   });
 
-  it('highlights and focuses a wake-pill target row, or explains when it is gone', () => {
+  it('highlights a target row, shows missing notice on empty success, and shows loadError on failure', () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
 
@@ -199,14 +184,14 @@ describe('RoomTriggersDialog', () => {
     expect(document.activeElement).toBe(targetCard);
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
 
-    // While loading, do not prematurely claim a missing trigger is gone.
+    // Failed load: show only the single error line, not empty state or missing notice.
     rerender(
       <MatrixClientProvider value={mx}>
         <MemoryRouter>
           <RoomTriggersDialog
             roomId={ROOM_ID}
             triggers={[]}
-            loading
+            loadFailed
             highlightTriggerId="tr_gone"
             onClose={vi.fn()}
             onOpenThread={vi.fn()}
@@ -216,9 +201,13 @@ describe('RoomTriggersDialog', () => {
         </MemoryRouter>
       </MatrixClientProvider>
     );
+    expect(document.querySelector('[data-triggers-error]')?.textContent).toBe(
+      "Couldn't load triggers."
+    );
     expect(document.querySelector('[data-trigger-missing]')).toBeNull();
+    expect(screen.queryByText('No triggers in this room.')).toBeNull();
 
-    // Once loaded without the trigger, show the missing notice.
+    // Successful empty load: show missing notice + empty state.
     rerender(
       <MatrixClientProvider value={mx}>
         <MemoryRouter>
@@ -226,6 +215,7 @@ describe('RoomTriggersDialog', () => {
             roomId={ROOM_ID}
             triggers={[]}
             loading={false}
+            loadFailed={false}
             highlightTriggerId="tr_gone"
             onClose={vi.fn()}
             onOpenThread={vi.fn()}
@@ -236,5 +226,6 @@ describe('RoomTriggersDialog', () => {
       </MatrixClientProvider>
     );
     expect(document.querySelector('[data-trigger-missing]')?.textContent).toContain('tr_gone');
+    expect(screen.getByText('No triggers in this room.')).toBeTruthy();
   });
 });

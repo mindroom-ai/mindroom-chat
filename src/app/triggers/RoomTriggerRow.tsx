@@ -1,30 +1,32 @@
 import { Fragment, type ReactNode, type Ref, useEffect, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { revealDirectionControls } from '../ui/directional';
 import { renderSchedulePrompt } from '../schedules/schedulePrompt';
 import * as s from '../schedules/roomSchedules.css';
 import { TriggersIcon } from './TriggersIcon';
-import type { RoomTrigger, TriggerKind, TriggerThreadMode } from './roomTriggersApi';
+import type { RoomTrigger } from './roomTriggersApi';
 import * as css from './roomTriggers.css';
 
 const BTN = { type: 'button', size: '300', radii: '300' } as const;
 const COMPACT = { ...BTN, variant: 'Secondary', fill: 'Soft', className: s.CompactAction } as const;
 const CONFIRM = { ...BTN, className: s.CancelBarButton } as const;
-const KIND_ICONS: Record<TriggerKind, IconSrc> = {
-  webhook: TriggersIcon,
-  room_message: Icons.Eye,
-  external_event: Icons.Bell,
-  thread_tag: Icons.Bookmark,
-};
+
+const KIND_KEYS = {
+  webhook: 'roomTriggers.kind.webhook',
+  room_message: 'roomTriggers.kind.room_message',
+  external_event: 'roomTriggers.kind.external_event',
+  thread_tag: 'roomTriggers.kind.thread_tag',
+} as const;
+
 const DEST_KEYS = {
   room: 'roomTriggers.destinationRoom',
   thread: 'roomTriggers.destinationThread',
   new_thread: 'roomTriggers.destinationNewThread',
   origin: 'roomTriggers.destinationOrigin',
-} as const satisfies Record<TriggerThreadMode, string>;
+} as const;
 
 type Props = {
   trigger: RoomTrigger;
@@ -49,22 +51,36 @@ export function RoomTriggerRow(props: Props) {
     if (confirmDelete) keepBtnRef.current?.focus();
   }, [confirmDelete]);
 
-  const kindLabel = t(`roomTriggers.kind.${trigger.kind}`);
+  const kindLabel = t(
+    Object.hasOwn(KIND_KEYS, trigger.kind)
+      ? KIND_KEYS[trigger.kind as keyof typeof KIND_KEYS]
+      : 'roomTriggers.kind.unknown'
+  );
+  const destLabel =
+    trigger.threadMode && Object.hasOwn(DEST_KEYS, trigger.threadMode)
+      ? t(DEST_KEYS[trigger.threadMode as keyof typeof DEST_KEYS])
+      : undefined;
   const desc = trigger.description.trim();
+  const idLabel = revealDirectionControls(trigger.triggerId);
   const promptText = trigger.prompt?.trim() ? trigger.prompt : undefined;
   const showDeleteBar = trigger.canManage && confirmDelete;
-  const reason =
-    !trigger.enabled && trigger.disabledReason !== 'manual' ? trigger.disabledReason : null;
-  const disabledNote =
-    reason === 'expired'
+  const disabledNote = !trigger.enabled
+    ? trigger.disabledReason === 'expired'
       ? t('roomTriggers.disabledExpired')
-      : reason === 'once_consumed'
+      : trigger.disabledReason === 'once_consumed'
         ? t('roomTriggers.disabledOnceConsumed')
-        : reason && <bdi>{revealDirectionControls(reason)}</bdi>;
+        : undefined
+    : undefined;
+
   const rawSubtitle: ReactNode[] = [
-    desc ? kindLabel : undefined,
+    kindLabel,
+    desc ? (
+      <code className={s.TaskId}>
+        <bdi>{idLabel}</bdi>
+      </code>
+    ) : undefined,
     trigger.relation === 'watch' ? t('roomTriggers.watchingRoom') : undefined,
-    t(DEST_KEYS[trigger.threadMode]),
+    destLabel,
     owner ? <bdi>{owner}</bdi> : undefined,
     disabledNote,
     trigger.lastFiredAt !== null ? (
@@ -111,12 +127,12 @@ export function RoomTriggerRow(props: Props) {
     >
       <div className={css.CardHeader}>
         <span className={trigger.enabled ? s.IconTile.primary : css.IconTileNeutral} aria-hidden>
-          <Icon size="100" src={KIND_ICONS[trigger.kind]} />
+          <Icon size="100" src={TriggersIcon} />
         </span>
         <span className={s.RowBody}>
           <span className={s.RowTopLine}>
             <Text as="h3" size="H5" className={classNames(s.RowTitle, s.Wrap)} dir="auto">
-              {desc ? revealDirectionControls(desc) : kindLabel}
+              {desc ? revealDirectionControls(desc) : <bdi>{idLabel}</bdi>}
             </Text>
             <span className={trigger.enabled ? s.StatusPill.success : css.StatusPillNeutral}>
               {t(trigger.enabled ? 'roomTriggers.stateOn' : 'roomTriggers.stateOff')}

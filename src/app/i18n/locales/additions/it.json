@@ -2148,12 +2148,14 @@
     "close": "Chiudi",
     "empty": "Nessun trigger in questa stanza.",
     "emptyHint": "I trigger configurati per questa stanza compaiono qui.",
+    "loadError": "Impossibile caricare i trigger.",
     "missingTrigger": "Il trigger {{id}} non è più in questa stanza.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Monitoraggio stanza",
       "external_event": "Sottoscrizione eventi",
-      "thread_tag": "Tag thread"
+      "thread_tag": "Tag thread",
+      "unknown": "Trigger"
     },
     "watchingRoom": "Monitora questa stanza",
     "stateOn": "Attivo",

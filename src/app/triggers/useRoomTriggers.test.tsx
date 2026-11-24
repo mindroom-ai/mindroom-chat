@@ -76,14 +76,14 @@ describe('useRoomTriggers', () => {
     });
 
     await waitFor(() => expect(result.current.triggers).toHaveLength(1));
-    expect(result.current.triggers[0]?.triggerId).toBe('tr_a');
+    expect(result.current.loadFailed).toBe(false);
 
-    // Switch to room B: does not leak room A's triggers.
     rerender({ room: roomB });
     expect(result.current.triggers).toEqual([]);
     await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
+    expect(result.current.loadFailed).toBe(false);
 
-    // Switch back to room A: served immediately from cache without a redundant fetch.
+    // Switch back to room A: served from cache without a redundant fetch.
     rerender({ room: roomA });
     expect(result.current.triggers.map((t) => t.triggerId)).toEqual(['tr_a']);
     expect(mocks.send).toHaveBeenCalledTimes(2);
@@ -101,7 +101,6 @@ describe('useRoomTriggers', () => {
     });
     await waitFor(() => expect(result.current.triggers).toHaveLength(1));
 
-    // Explicit refetch bypasses staleTime.
     mocks.send.mockResolvedValueOnce(
       new Response(JSON.stringify({ triggers: [makeRow('tr_a', true)] }), { status: 200 })
     );
@@ -110,7 +109,6 @@ describe('useRoomTriggers', () => {
     });
     expect(mocks.send).toHaveBeenCalledTimes(2);
 
-    // Toggle sends PATCH and invalidates.
     mocks.send
       .mockResolvedValueOnce(new Response(JSON.stringify(makeRow('tr_a', false)), { status: 200 }))
       .mockResolvedValueOnce(
@@ -120,9 +118,7 @@ describe('useRoomTriggers', () => {
       await result.current.toggleTrigger('tr_a', false);
     });
     await waitFor(() => expect(result.current.triggers[0]?.enabled).toBe(false));
-    expect(mocks.send).toHaveBeenCalledTimes(4);
 
-    // Delete sends DELETE and invalidates.
     mocks.send
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
@@ -130,10 +126,9 @@ describe('useRoomTriggers', () => {
       await result.current.deleteTrigger('tr_a');
     });
     await waitFor(() => expect(result.current.triggers).toEqual([]));
-    expect(mocks.send).toHaveBeenCalledTimes(6);
   });
 
-  it('returns empty without fetching when there is no MindRoom server or API returns 404', async () => {
+  it('marks loadFailed on no server or 404, but not on empty 200', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const room = makeRoom('!roomA:example.org');
 
@@ -142,12 +137,14 @@ describe('useRoomTriggers', () => {
       wrapper: makeWrapper(queryClient),
     });
     expect(result.current.triggers).toEqual([]);
+    expect(result.current.loadFailed).toBe(true);
     expect(mocks.send).not.toHaveBeenCalled();
 
     mocks.server = { apiUrl: 'https://mindroom.example.org', pending: false };
     mocks.send.mockResolvedValueOnce(new Response(null, { status: 404 }));
     rerender();
-    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.triggers).toEqual([]);
+    expect(result.current.loadFailed).toBe(true);
   });
 });

@@ -2148,12 +2148,14 @@
     "close": "Cerrar",
     "empty": "No hay activadores en esta sala.",
     "emptyHint": "Los activadores configurados para esta sala aparecen aquí.",
+    "loadError": "No se pudieron cargar los activadores.",
     "missingTrigger": "El activador {{id}} ya no está en esta sala.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Vigilancia de sala",
       "external_event": "Suscripción de eventos",
-      "thread_tag": "Etiqueta de hilo"
+      "thread_tag": "Etiqueta de hilo",
+      "unknown": "Activador"
     },
     "watchingRoom": "Vigilando esta sala",
     "stateOn": "Activo",

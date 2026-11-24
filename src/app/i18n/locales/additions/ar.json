@@ -2343,12 +2343,14 @@
     "close": "إغلاق",
     "empty": "لا توجد مشغّلات في هذه الغرفة.",
     "emptyHint": "تظهر هنا المشغّلات المُعدّة لهذه الغرفة.",
+    "loadError": "تعذر تحميل المشغلات.",
     "missingTrigger": "لم يعد المشغّل ⁨{{id}}⁩ موجودًا في هذه الغرفة.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "مراقبة الغرفة",
       "external_event": "اشتراك حدث",
-      "thread_tag": "وسم السلسلة"
+      "thread_tag": "وسم السلسلة",
+      "unknown": "مشغل"
     },
     "watchingRoom": "يراقب هذه الغرفة",
     "stateOn": "مفعّل",

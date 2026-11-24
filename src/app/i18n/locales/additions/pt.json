@@ -2148,12 +2148,14 @@
     "close": "Fechar",
     "empty": "Nenhum gatilho nesta sala.",
     "emptyHint": "Os gatilhos configurados para esta sala aparecem aqui.",
+    "loadError": "Não foi possível carregar os gatilhos.",
     "missingTrigger": "O gatilho {{id}} não está mais nesta sala.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Monitoramento da sala",
       "external_event": "Assinatura de eventos",
-      "thread_tag": "Tag de tópico"
+      "thread_tag": "Tag de tópico",
+      "unknown": "Gatilho"
     },
     "watchingRoom": "Monitorando esta sala",
     "stateOn": "Ativo",

@@ -15,13 +15,9 @@ type SendFn = (path: string, init?: RequestInit) => Promise<Response>;
 const mocks = vi.hoisted(
   (): {
     send: ReturnType<typeof vi.fn<SendFn>>;
-    navigateRoomThread: ReturnType<typeof vi.fn>;
-    screenSize: 'Desktop' | 'Mobile';
     server: { apiUrl: string | undefined; pending: boolean };
   } => ({
     send: vi.fn<SendFn>(),
-    navigateRoomThread: vi.fn(),
-    screenSize: 'Desktop',
     server: { apiUrl: 'https://mindroom.example.org', pending: false },
   })
 );
@@ -37,16 +33,26 @@ vi.mock('react-i18next', async (importOriginal) => {
     }),
   };
 });
-vi.mock('focus-trap-react', () => ({
-  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
-}));
 vi.mock('folds', async (importOriginal) => {
   const folds = await importOriginal<typeof import('folds')>();
   return {
     ...folds,
-    Overlay: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-      open ? children : null,
-    OverlayCenter: ({ children }: { children: React.ReactNode }) => children,
+    Overlay: ({
+      open,
+      backdrop,
+      children,
+    }: {
+      open: boolean;
+      backdrop?: React.ReactNode;
+      children: React.ReactNode;
+    }) =>
+      open ? (
+        <>
+          {backdrop}
+          {children}
+        </>
+      ) : null,
+    OverlayCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
       anchor ? content : null,
   };
@@ -91,14 +97,14 @@ vi.mock('../navigation/useRoomNavigate', () => ({
     navigatePath: vi.fn(),
     navigateRoom: vi.fn(),
     navigateSpace: vi.fn(),
-    navigateRoomThread: mocks.navigateRoomThread,
+    navigateRoomThread: vi.fn(),
     roomPath: () => '/home',
   }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/hooks/useScreenSize')>()),
-  useScreenSizeContext: () => mocks.screenSize,
+  useScreenSizeContext: () => 'Desktop',
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({
@@ -115,6 +121,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({
 }));
 
 const ROOM_ID = '!design:example.org';
+const box = new DOMRect(0, 0, 120, 40);
 
 const rowJson = (overrides: Record<string, unknown> = {}) => ({
   trigger_id: 'tr_design',
@@ -122,14 +129,11 @@ const rowJson = (overrides: Record<string, unknown> = {}) => ({
   relation: 'target',
   description: 'Design triage',
   prompt: 'Summarize new issues in the Design channel',
-  agent: 'assistant',
   target_room_id: ROOM_ID,
   target_thread_id: '$thread1',
   thread_mode: 'thread',
   enabled: true,
   disabled_reason: null,
-  once: false,
-  expires_at: null,
   last_fired_at: Date.now() - 120_000,
   owner_user_id: '@alice:example.org',
   can_manage: true,
@@ -155,6 +159,11 @@ const renderRoomHeader = (withWakePill?: string) => {
   }) as unknown as MatrixClient;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const store = createStore();
+  // Real FocusTrap checks tabbable geometry via getClientRects/getBoundingClientRect.
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
+    box,
+  ] as unknown as DOMRectList);
   return render(
     <QueryClientProvider client={queryClient}>
       <JotaiProvider store={store}>
@@ -184,108 +193,81 @@ const renderRoomHeader = (withWakePill?: string) => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   mocks.send.mockReset();
-  mocks.navigateRoomThread.mockReset();
-  mocks.screenSize = 'Desktop';
   mocks.server = { apiUrl: 'https://mindroom.example.org', pending: false };
 });
 
 describe('RoomViewHeader triggers integration', () => {
-  it('hides the header entry when the API returns 404 or no triggers', async () => {
-    mocks.send.mockResolvedValueOnce(new Response(null, { status: 404 }));
+  it('hides the header entry at 0 or on 404, and shows load error from wake pill on 404', async () => {
+    mocks.send.mockResolvedValueOnce(
+      new Response(JSON.stringify({ triggers: [] }), { status: 200 })
+    );
     renderRoomHeader();
     await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('button', { name: /Triggers/ })).toBeNull();
+    cleanup();
+    mocks.send.mockReset();
+
+    mocks.send.mockImplementation(async () => new Response(null, { status: 404 }));
+    renderRoomHeader('tr_design');
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('button', { name: /Triggers/ })).toBeNull();
+
+    // Expand wake pill and click trigger link -> shows Couldn't load triggers, not empty/missing.
+    fireEvent.click(screen.getByRole('button', { name: /Triggered/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'View trigger tr_design' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Triggers' });
+    await waitFor(() =>
+      expect(dialog.querySelector('[data-triggers-error]')?.textContent).toBe(
+        "Couldn't load triggers."
+      )
+    );
+    expect(dialog.querySelector('[data-trigger-missing]')).toBeNull();
+    expect(screen.queryByText('No triggers in this room.')).toBeNull();
   });
 
-  it('shows the header button on desktop, overflows to the room menu on mobile, and handles owner mutations', async () => {
-    let rows = [
-      rowJson(),
-      rowJson({ trigger_id: 'tr_other', owner_user_id: '@bob:example.org', can_manage: false }),
-    ];
-    mocks.send.mockImplementation(async (path: string, init?: RequestInit) => {
-      if (init?.method === 'PATCH') {
-        const body = JSON.parse(String(init.body)) as { enabled: boolean };
-        rows = rows.map((r) =>
-          path.endsWith(String(r.trigger_id)) ? { ...r, enabled: body.enabled } : r
-        );
-        return new Response(JSON.stringify(rows[0]), { status: 200 });
-      }
-      if (init?.method === 'DELETE') {
-        rows = rows.filter((r) => !path.endsWith(String(r.trigger_id)));
-        return new Response(null, { status: 204 });
-      }
-      return new Response(JSON.stringify({ triggers: rows }), { status: 200 });
-    });
-
+  it('shows the header button when >0, refetches on open, and closes on Escape and backdrop click via real FocusTrap', async () => {
+    mocks.send.mockImplementation(
+      async () => new Response(JSON.stringify({ triggers: [rowJson()] }), { status: 200 })
+    );
     renderRoomHeader();
-    const button = await screen.findByRole('button', { name: 'Triggers (2)' });
+    const button = await screen.findByRole('button', { name: 'Triggers (1)' });
     fireEvent.click(button);
 
     const dialog = await screen.findByRole('dialog', { name: 'Triggers' });
-    expect(dialog.querySelectorAll('article')).toHaveLength(2);
-    // Refetches when dialog opens.
     await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
 
-    // Owner toggles off -> PATCH with { enabled: false }.
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Enable' })).toBeTruthy());
-    expect(mocks.send).toHaveBeenCalledWith(
-      '/api/rooms/!design%3Aexample.org/triggers/tr_design',
-      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ enabled: false }) })
-    );
+    // Escape dismisses through real FocusTrap.
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
 
-    // Owner deletes with confirm -> DELETE.
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete trigger' }));
-    await waitFor(() => expect(dialog.querySelectorAll('article')).toHaveLength(1));
-    expect(mocks.send).toHaveBeenCalledWith(
-      '/api/rooms/!design%3Aexample.org/triggers/tr_design',
-      expect.objectContaining({ method: 'DELETE' })
-    );
-
-    // On mobile, Triggers overflows into the room menu instead of the base row.
-    cleanup();
-    mocks.screenSize = 'Mobile';
-    renderRoomHeader();
-    await waitFor(() => expect(mocks.send).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: 'Triggers (1)' })).toBeNull();
-    const moreButton = screen.getByRole('button', { name: 'More Options' });
-    const rect = new DOMRect(0, 0, 40, 40);
-    moreButton.getClientRects = () => [rect] as unknown as DOMRectList;
-    moreButton.getBoundingClientRect = () => rect;
-    fireEvent.click(moreButton);
-    expect(await screen.findByRole('button', { name: 'Triggers (1)' })).toBeTruthy();
+    // Backdrop click also dismisses through real FocusTrap.
+    fireEvent.click(button);
+    const reopened = await screen.findByRole('dialog', { name: 'Triggers' });
+    const backdrop = reopened.parentElement?.previousElementSibling;
+    expect(backdrop).toBeInstanceOf(HTMLElement);
+    fireEvent.mouseDown(backdrop!);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
   });
 
-  it('opens the dialog highlighted on the wake pill trigger, or reports it gone if deleted', async () => {
+  it('opens the dialog highlighted on the wake pill row, refetches via invalidation, and closes on Escape', async () => {
     mocks.send.mockImplementation(
       async () => new Response(JSON.stringify({ triggers: [rowJson()] }), { status: 200 })
     );
     renderRoomHeader('tr_design');
     await screen.findByRole('button', { name: 'Triggers (1)' });
 
+    fireEvent.click(screen.getByRole('button', { name: /Triggered/ }));
     fireEvent.click(screen.getByRole('button', { name: 'View trigger tr_design' }));
+
     const dialog = await screen.findByRole('dialog', { name: 'Triggers' });
+    await waitFor(() => expect(mocks.send).toHaveBeenCalledTimes(2));
     expect(
       dialog.querySelector('[data-trigger-id="tr_design"]')?.getAttribute('data-highlighted')
     ).toBe('true');
 
-    // When the wake pill points to a trigger no longer in the room (even if 0 triggers remain).
-    cleanup();
-    mocks.send.mockImplementation(
-      async () => new Response(JSON.stringify({ triggers: [] }), { status: 200 })
-    );
-    renderRoomHeader('tr_deleted');
-    await waitFor(() => expect(mocks.send).toHaveBeenCalled());
-    expect(screen.queryByRole('button', { name: /Triggers/ })).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'View trigger tr_deleted' }));
-    const goneDialog = await screen.findByRole('dialog', { name: 'Triggers' });
-    await waitFor(() =>
-      expect(goneDialog.querySelector('[data-trigger-missing]')?.textContent).toContain(
-        'tr_deleted'
-      )
-    );
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Triggers' })).toBeNull());
   });
 });

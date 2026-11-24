@@ -2083,12 +2083,14 @@
     "close": "Kapat",
     "empty": "Bu odada tetikleyici yok.",
     "emptyHint": "Bu oda için ayarlanan tetikleyiciler burada görünür.",
+    "loadError": "Tetikleyiciler yüklenemedi.",
     "missingTrigger": "{{id}} tetikleyicisi artık bu odada değil.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Oda izleme",
       "external_event": "Olay aboneliği",
-      "thread_tag": "Konu etiketi"
+      "thread_tag": "Konu etiketi",
+      "unknown": "Tetikleyici"
     },
     "watchingRoom": "Bu odayı izliyor",
     "stateOn": "Açık",

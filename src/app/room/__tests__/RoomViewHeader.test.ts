@@ -205,21 +205,22 @@ vi.mock('../../schedules/roomSchedules.css', () => ({
 }));
 
 // The schedules browser tests exercise the dialog and its mention/profile UI.
+vi.mock('../../schedules/RoomSchedulesDialog', () => ({
+  RoomSchedulesDialog: () => null,
+}));
+
 vi.mock('../../triggers/useRoomTriggers', () => ({
   useRoomTriggers: () => ({
     triggers: [],
-    isFetching: false,
+    loading: false,
+    loadFailed: false,
     refetch: vi.fn(async () => undefined),
     toggleTrigger: vi.fn(async () => undefined),
     deleteTrigger: vi.fn(async () => undefined),
   }),
 }));
-vi.mock('../../schedules/RoomSchedulesDialog', () => ({
-  RoomSchedulesDialog: () => null,
-}));
 vi.mock('../../triggers/RoomTriggersDialog', () => ({
   RoomTriggersDialog: () => null,
-  RoomTriggersOverlay: () => null,
 }));
 
 vi.mock('../../matrix/hooks/useStateEvents', () => ({

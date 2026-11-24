@@ -2018,12 +2018,14 @@
     "close": "关闭",
     "empty": "此房间没有触发器。",
     "emptyHint": "为此房间配置的触发器会显示在这里。",
+    "loadError": "无法加载触发器。",
     "missingTrigger": "触发器 {{id}} 已不在此房间中。",
     "kind": {
       "webhook": "Webhook",
       "room_message": "房间监听",
       "external_event": "事件订阅",
-      "thread_tag": "话题标签"
+      "thread_tag": "话题标签",
+      "unknown": "触发器"
     },
     "watchingRoom": "正在监听此房间",
     "stateOn": "已开启",

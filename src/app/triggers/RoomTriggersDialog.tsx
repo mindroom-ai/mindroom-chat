@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { forwardRef, useId, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, Text } from 'folds';
 import { localDigits } from '../lib/localDigits';
@@ -14,7 +14,6 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from '../messages/html/react-custom-html-parser';
-import { RoomDialogOverlay } from '../schedules/RoomDialogOverlay';
 import * as s from '../schedules/roomSchedules.css';
 import { RoomTriggerRow } from './RoomTriggerRow';
 import { TriggersIcon } from './TriggersIcon';
@@ -24,6 +23,7 @@ export type RoomTriggersDialogProps = {
   roomId: string;
   triggers: readonly RoomTrigger[];
   loading?: boolean;
+  loadFailed?: boolean;
   highlightTriggerId?: string;
   onClose: () => void;
   onOpenThread: (threadId: string, targetRoomId?: string) => void;
@@ -31,130 +31,129 @@ export type RoomTriggersDialogProps = {
   onDeleteTrigger: (triggerId: string) => Promise<void>;
 };
 
-export function RoomTriggersDialog(props: RoomTriggersDialogProps) {
-  const { roomId, triggers, loading = false, highlightTriggerId } = props;
-  const { onClose, onOpenThread, onToggleTrigger, onDeleteTrigger } = props;
-  const { t, i18n } = useTranslation();
-  const mx = useMatrixClient();
-  const mentionClickHandler = useMentionClickHandler(roomId);
-  const titleId = useId();
-  const highlightedRef = useRef<HTMLElement>(null);
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
-  const matched = Boolean(
-    highlightTriggerId && triggers.some((row) => row.triggerId === highlightTriggerId)
-  );
+export const RoomTriggersDialog = forwardRef<HTMLDivElement, RoomTriggersDialogProps>(
+  function RoomTriggersDialog(props, ref) {
+    const { roomId, triggers, loading = false, loadFailed = false, highlightTriggerId } = props;
+    const { onClose, onOpenThread, onToggleTrigger, onDeleteTrigger } = props;
+    const { t, i18n } = useTranslation();
+    const mx = useMatrixClient();
+    const mentionClickHandler = useMentionClickHandler(roomId);
+    const titleId = useId();
+    const highlightedRef = useRef<HTMLElement>(null);
+    const locale = i18n.resolvedLanguage ?? i18n.language ?? 'en';
+    const matched = Boolean(
+      highlightTriggerId && triggers.some((row) => row.triggerId === highlightTriggerId)
+    );
 
-  useLayoutEffect(() => {
-    if (!matched) return;
-    highlightedRef.current?.scrollIntoView?.({ block: 'nearest' });
-    highlightedRef.current?.focus({ preventScroll: true });
-  }, [highlightTriggerId, matched]);
+    useLayoutEffect(() => {
+      if (!matched) return;
+      highlightedRef.current?.scrollIntoView?.({ block: 'nearest' });
+      highlightedRef.current?.focus({ preventScroll: true });
+    }, [highlightTriggerId, matched]);
 
-  const renderOwner = (userId: string) =>
-    isUserId(userId)
-      ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
-          ...makeMentionCustomProps(mentionClickHandler),
-          title: userId,
-        })
-      : undefined;
+    const renderOwner = (userId: string) =>
+      isUserId(userId)
+        ? renderMatrixMention(mx, roomId, getMatrixToUser(userId), {
+            ...makeMentionCustomProps(mentionClickHandler),
+            title: userId,
+          })
+        : undefined;
 
-  return (
-    <Modal
-      size="400"
-      flexHeight
-      className={s.Dialog}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-    >
-      <PageScroll
-        header={
-          <Header size="500" className={s.Header}>
-            <Box grow="Yes" alignItems="Center" gap="200">
-              <Icon size="200" src={TriggersIcon} />
-              <Text as="h2" id={titleId} size="H4">
-                {t('roomTriggers.title')}
-              </Text>
-              <span className={s.HeaderCount}>{localDigits(String(triggers.length), locale)}</span>
-            </Box>
-            <DialogCloseButton label={t('roomTriggers.close')} onClick={onClose} />
-          </Header>
-        }
+    return (
+      <Modal
+        ref={ref}
+        size="400"
+        flexHeight
+        className={s.Dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
       >
-        <Box direction="Column" gap="300" className={s.Content}>
-          {highlightTriggerId && !loading && !matched && (
-            <div role="status" className={s.NoticeBar} data-trigger-missing="">
-              <Text size="T200">
-                {t('roomTriggers.missingTrigger', {
-                  id: revealDirectionControls(highlightTriggerId),
-                })}
-              </Text>
-            </div>
-          )}
+        <PageScroll
+          header={
+            <Header size="500" className={s.Header}>
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Icon size="200" src={TriggersIcon} />
+                <Text as="h2" id={titleId} size="H4">
+                  {t('roomTriggers.title')}
+                </Text>
+                {!loadFailed && (!loading || triggers.length > 0) && (
+                  <span className={s.HeaderCount}>
+                    {localDigits(String(triggers.length), locale)}
+                  </span>
+                )}
+              </Box>
+              <DialogCloseButton label={t('roomTriggers.close')} onClick={onClose} />
+            </Header>
+          }
+        >
+          <Box direction="Column" gap="300" className={s.Content}>
+            {loadFailed ? (
+              <Box
+                direction="Column"
+                gap="200"
+                className={s.Empty}
+                role="alert"
+                data-triggers-error=""
+              >
+                <Text size="T300">{t('roomTriggers.loadError')}</Text>
+              </Box>
+            ) : (
+              <>
+                {highlightTriggerId && !loading && !matched && (
+                  <div role="status" className={s.NoticeBar} data-trigger-missing="">
+                    <Text size="T200">
+                      {t('roomTriggers.missingTrigger', {
+                        id: revealDirectionControls(highlightTriggerId),
+                      })}
+                    </Text>
+                  </div>
+                )}
 
-          {triggers.length === 0 ? (
-            <Box direction="Column" gap="200" className={s.Empty}>
-              <Text size="T400">{t('roomTriggers.empty')}</Text>
-              <Text size="T300" priority="300">
-                {t('roomTriggers.emptyHint')}
-              </Text>
-            </Box>
-          ) : (
-            <Box direction="Column" gap="200">
-              {triggers.map((trigger) => (
-                <RoomTriggerRow
-                  key={trigger.triggerId}
-                  trigger={trigger}
-                  highlighted={trigger.triggerId === highlightTriggerId}
-                  owner={
-                    !trigger.canManage && trigger.ownerUserId
-                      ? (renderOwner(trigger.ownerUserId) ?? trigger.ownerUserId)
-                      : undefined
-                  }
-                  articleRef={trigger.triggerId === highlightTriggerId ? highlightedRef : undefined}
-                  onOpenThread={
-                    trigger.targetThreadId
-                      ? () =>
-                          onOpenThread(trigger.targetThreadId!, trigger.targetRoomId ?? undefined)
-                      : undefined
-                  }
-                  onToggle={() => onToggleTrigger(trigger.triggerId, !trigger.enabled)}
-                  onDelete={() => onDeleteTrigger(trigger.triggerId)}
-                />
-              ))}
-            </Box>
-          )}
-        </Box>
-      </PageScroll>
-    </Modal>
-  );
-}
-
-/** Centers the room's triggers dialog over the room view and refetches when opened. */
-export function RoomTriggersOverlay({
-  headerRef,
-  onRefetch,
-  onClose,
-  onOpenThread,
-  ...dialogProps
-}: Omit<RoomTriggersDialogProps, 'onClose'> & {
-  headerRef?: RefObject<HTMLElement | null>;
-  onRefetch?: () => Promise<void> | void;
-  onClose: (dismissed?: boolean) => void;
-}) {
-  useEffect(() => {
-    void onRefetch?.();
-  }, [onRefetch]);
-  return (
-    <RoomDialogOverlay headerRef={headerRef} onClose={onClose}>
-      <RoomTriggersDialog
-        {...dialogProps}
-        onClose={() => onClose(true)}
-        onOpenThread={(threadId, targetRoomId) => {
-          onClose();
-          onOpenThread(threadId, targetRoomId);
-        }}
-      />
-    </RoomDialogOverlay>
-  );
-}
+                {triggers.length > 0 ? (
+                  <Box direction="Column" gap="200">
+                    {triggers.map((trigger) => (
+                      <RoomTriggerRow
+                        key={trigger.triggerId}
+                        trigger={trigger}
+                        highlighted={trigger.triggerId === highlightTriggerId}
+                        owner={
+                          !trigger.canManage && trigger.ownerUserId
+                            ? (renderOwner(trigger.ownerUserId) ?? trigger.ownerUserId)
+                            : undefined
+                        }
+                        articleRef={
+                          trigger.triggerId === highlightTriggerId ? highlightedRef : undefined
+                        }
+                        onOpenThread={
+                          trigger.targetThreadId
+                            ? () =>
+                                onOpenThread(
+                                  trigger.targetThreadId!,
+                                  trigger.targetRoomId ?? undefined
+                                )
+                            : undefined
+                        }
+                        onToggle={() => onToggleTrigger(trigger.triggerId, !trigger.enabled)}
+                        onDelete={() => onDeleteTrigger(trigger.triggerId)}
+                      />
+                    ))}
+                  </Box>
+                ) : (
+                  !loading && (
+                    <Box direction="Column" gap="200" className={s.Empty}>
+                      <Text size="T400">{t('roomTriggers.empty')}</Text>
+                      <Text size="T300" priority="300">
+                        {t('roomTriggers.emptyHint')}
+                      </Text>
+                    </Box>
+                  )
+                )}
+              </>
+            )}
+          </Box>
+        </PageScroll>
+      </Modal>
+    );
+  }
+);

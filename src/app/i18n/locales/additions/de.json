@@ -2083,12 +2083,14 @@
     "close": "Schließen",
     "empty": "Keine Auslöser in diesem Raum.",
     "emptyHint": "Für diesen Raum eingerichtete Auslöser erscheinen hier.",
+    "loadError": "Auslöser konnten nicht geladen werden.",
     "missingTrigger": "Auslöser {{id}} ist nicht mehr in diesem Raum.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Raumüberwachung",
       "external_event": "Ereignis-Abo",
-      "thread_tag": "Thread-Tag"
+      "thread_tag": "Thread-Tag",
+      "unknown": "Auslöser"
     },
     "watchingRoom": "Überwacht diesen Raum",
     "stateOn": "An",

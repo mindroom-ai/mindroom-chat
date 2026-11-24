@@ -53,15 +53,11 @@ import {
   usePendingRoomSchedules,
 } from '../schedules/RoomSchedulesButton';
 import { getRoomScheduleCount, isCommandSafeTaskId } from '../schedules/roomSchedules';
-import { RoomHeaderCountButton } from '../schedules/RoomDialogOverlay';
-import { RoomTriggersOverlay } from '../triggers/RoomTriggersDialog';
+import { RoomDialogOverlay, RoomHeaderCountButton } from '../schedules/RoomDialogOverlay';
+import { RoomTriggersDialog } from '../triggers/RoomTriggersDialog';
 import { TriggersIcon } from '../triggers/TriggersIcon';
 import { useRoomTriggers } from '../triggers/useRoomTriggers';
-import {
-  closeRoomTriggersDialog,
-  openRoomTriggersDialog,
-  roomTriggersDialogAtom,
-} from '../navigation/roomTriggersDialog';
+import { openRoomTriggersDialog, roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import type { EditScheduledTaskResult } from '../schedules/RoomSchedulesDialog';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import {
@@ -307,8 +303,14 @@ export function RoomViewHeader({
   const roomTriggers = useRoomTriggers(room);
   const triggersDialog = useAtomValue(roomTriggersDialogAtom);
   const triggersOpen = triggersDialog?.roomId === room.roomId;
-  const openTriggers = (opener?: HTMLButtonElement) =>
+  const openTriggers = (opener?: HTMLButtonElement) => {
+    void roomTriggers.refetch();
     openRoomTriggersDialog(store, room.roomId, { opener });
+  };
+  const closeTriggers = (dismissed?: boolean) => {
+    store.set(roomTriggersDialogAtom, undefined);
+    if (dismissed) restoreFocusAfterDismiss(triggersDialog?.opener);
+  };
   // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
   const { dialog, showDialog } = useRoomActionDialog();
@@ -855,23 +857,22 @@ export function RoomViewHeader({
         />
       )}
       {triggersOpen && (
-        <RoomTriggersOverlay
-          roomId={room.roomId}
-          headerRef={headerRef}
-          triggers={roomTriggers.triggers}
-          loading={roomTriggers.isFetching}
-          highlightTriggerId={triggersDialog?.triggerId}
-          onClose={(dismissed) => {
-            closeRoomTriggersDialog(store, room.roomId);
-            if (dismissed) restoreFocusAfterDismiss(triggersDialog?.opener);
-          }}
-          onRefetch={roomTriggers.refetch}
-          onOpenThread={(targetThreadId, targetRoomId) =>
-            navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId)
-          }
-          onToggleTrigger={roomTriggers.toggleTrigger}
-          onDeleteTrigger={roomTriggers.deleteTrigger}
-        />
+        <RoomDialogOverlay headerRef={headerRef} onClose={closeTriggers}>
+          <RoomTriggersDialog
+            roomId={room.roomId}
+            triggers={roomTriggers.triggers}
+            loading={roomTriggers.loading}
+            loadFailed={roomTriggers.loadFailed}
+            highlightTriggerId={triggersDialog?.triggerId}
+            onClose={() => closeTriggers(true)}
+            onOpenThread={(targetThreadId, targetRoomId) => {
+              closeTriggers();
+              navigateRoomThread(targetRoomId ?? room.roomId, targetThreadId);
+            }}
+            onToggleTrigger={roomTriggers.toggleTrigger}
+            onDeleteTrigger={roomTriggers.deleteTrigger}
+          />
+        </RoomDialogOverlay>
       )}
       {dialog}
     </PageHeader>

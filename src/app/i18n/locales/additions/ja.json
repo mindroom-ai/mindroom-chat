@@ -2018,12 +2018,14 @@
     "close": "閉じる",
     "empty": "このルームにトリガーはありません。",
     "emptyHint": "このルームに設定されたトリガーがここに表示されます。",
+    "loadError": "トリガーを読み込めませんでした。",
     "missingTrigger": "トリガー {{id}} はこのルームにもうありません。",
     "kind": {
       "webhook": "Webhook",
       "room_message": "ルーム監視",
       "external_event": "イベント購読",
-      "thread_tag": "スレッドタグ"
+      "thread_tag": "スレッドタグ",
+      "unknown": "トリガー"
     },
     "watchingRoom": "このルームを監視中",
     "stateOn": "オン",

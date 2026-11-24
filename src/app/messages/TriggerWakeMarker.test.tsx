@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
@@ -32,9 +33,7 @@ vi.mock('../lib/dom', async () => {
 });
 vi.mock('./TriggerWakeMarker.css', () => ({
   Marker: 'Marker',
-  TriggerRow: 'TriggerRow',
   Trigger: 'Trigger',
-  TriggerLink: 'TriggerLink',
   Title: 'Title',
   Summary: 'Summary',
   Panel: 'Panel',
@@ -308,21 +307,29 @@ describe('TriggerWakeMarker', () => {
     expect(payload.querySelector('a')).toBeNull();
   });
 
-  it('links to its trigger row in RoomTriggersDialog when roomId and triggerId are present', () => {
+  it('links to its trigger row from the expanded panel and invalidates room triggers', () => {
     const store = createStore();
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     render(
-      <JotaiProvider store={store}>
-        <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
-      </JotaiProvider>
+      <QueryClientProvider client={queryClient}>
+        <JotaiProvider store={store}>
+          <TriggerWakeMarker roomId="!ops:example.org" wake={reactiveWake()} />
+        </JotaiProvider>
+      </QueryClientProvider>
     );
 
+    // Collapsed pill stays unchanged.
     const expandButton = screen.getByRole('button', { expanded: false });
-    expect(expandButton.textContent).toBe('Triggeredpr.opened');
+    expect(expandButton.textContent).toBe('Triggeredpr.opened · tr_demo_watch');
+    expect(screen.queryByRole('button', { name: 'View trigger tr_demo_watch' })).toBeNull();
 
+    fireEvent.click(expandButton);
     const linkButton = screen.getByRole('button', { name: 'View trigger tr_demo_watch' });
     expect(linkButton.getAttribute('aria-haspopup')).toBe('dialog');
     fireEvent.click(linkButton);
 
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['room-triggers', '!ops:example.org'] });
     expect(store.get(roomTriggersDialogAtom)).toEqual({
       roomId: '!ops:example.org',
       triggerId: 'tr_demo_watch',

@@ -42,26 +42,6 @@ export const Trigger = style({
 
 globalStyle(`${Trigger} > svg`, { flexShrink: 0 });
 
-export const TriggerRow = style({
-  display: 'inline-flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  columnGap: config.space.S100,
-  rowGap: 0,
-  minInlineSize: 0,
-  maxInlineSize: '100%',
-});
-
-export const TriggerLink = style([
-  Trigger,
-  {
-    marginInlineStart: 0,
-    maxInlineSize: '100%',
-    textDecoration: 'underline',
-    textUnderlineOffset: toRem(2),
-  },
-]);
-
 export const Panel = style([
   modelCss.Panel,
   {
@@ -87,6 +67,23 @@ export const Meta = style({
 // opacity does not compound below WCAG AA contrast.
 globalStyle(`${Meta} time`, {
   opacity: 1,
+});
+
+globalStyle(`${Meta} button`, {
+  padding: 0,
+  border: 0,
+  borderRadius: config.radii.R300,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
+  cursor: 'pointer',
+});
+
+globalStyle(`${Meta} button:focus-visible`, {
+  outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+  outlineOffset: toRem(1),
 });
 
 export const CopyButton = style({

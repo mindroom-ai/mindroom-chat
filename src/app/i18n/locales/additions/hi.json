@@ -2083,12 +2083,14 @@
     "close": "बंद करें",
     "empty": "इस रूम में कोई ट्रिगर नहीं है।",
     "emptyHint": "इस रूम के लिए बनाए गए ट्रिगर यहाँ दिखते हैं।",
+    "loadError": "ट्रिगर लोड नहीं हो सके।",
     "missingTrigger": "ट्रिगर {{id}} अब इस रूम में नहीं है।",
     "kind": {
       "webhook": "Webhook",
       "room_message": "रूम वॉच",
       "external_event": "इवेंट सब्सक्रिप्शन",
-      "thread_tag": "थ्रेड टैग"
+      "thread_tag": "थ्रेड टैग",
+      "unknown": "ट्रिगर"
     },
     "watchingRoom": "इस रूम की निगरानी कर रहा है",
     "stateOn": "चालू",

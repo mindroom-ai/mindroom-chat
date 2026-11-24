@@ -2148,12 +2148,14 @@
     "close": "Fermer",
     "empty": "Aucun déclencheur dans ce salon.",
     "emptyHint": "Les déclencheurs configurés pour ce salon apparaissent ici.",
+    "loadError": "Impossible de charger les déclencheurs.",
     "missingTrigger": "Le déclencheur {{id}} ne se trouve plus dans ce salon.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Veille du salon",
       "external_event": "Abonnement d’événement",
-      "thread_tag": "Étiquette de fil"
+      "thread_tag": "Étiquette de fil",
+      "unknown": "Déclencheur"
     },
     "watchingRoom": "Surveille ce salon",
     "stateOn": "Activé",

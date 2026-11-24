@@ -2083,18 +2083,20 @@
     "close": "Close",
     "empty": "No triggers in this room.",
     "emptyHint": "Triggers configured for this room appear here.",
+    "loadError": "Couldn't load triggers.",
     "missingTrigger": "Trigger {{id}} is no longer in this room.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Room watch",
       "external_event": "Event subscription",
-      "thread_tag": "Thread tag"
+      "thread_tag": "Thread tag",
+      "unknown": "Trigger"
     },
     "watchingRoom": "Watching this room",
     "stateOn": "On",
     "stateOff": "Off",
     "disabledExpired": "Expired",
-    "disabledOnceConsumed": "Used once",
+    "disabledOnceConsumed": "Used",
     "lastFired": "Last fired {{time}}",
     "neverFired": "Never fired",
     "destinationRoom": "Room timeline",

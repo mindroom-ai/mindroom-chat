@@ -2018,12 +2018,14 @@
     "close": "Tutup",
     "empty": "Tidak ada pemicu di ruang ini.",
     "emptyHint": "Pemicu yang diatur untuk ruang ini akan muncul di sini.",
+    "loadError": "Tidak dapat memuat pemicu.",
     "missingTrigger": "Pemicu {{id}} tidak lagi ada di ruang ini.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Pantauan ruang",
       "external_event": "Langganan peristiwa",
-      "thread_tag": "Tag utas"
+      "thread_tag": "Tag utas",
+      "unknown": "Pemicu"
     },
     "watchingRoom": "Memantau ruang ini",
     "stateOn": "Aktif",

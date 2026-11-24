@@ -1,21 +1,16 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { clientSessions } from '../computer/clientSessions';
+import { isRecord } from '../lib/isRecord';
 
-const KINDS = ['webhook', 'room_message', 'thread_tag', 'external_event'] as const;
-const RELATIONS = ['target', 'watch'] as const;
-const THREAD_MODES = ['room', 'thread', 'new_thread', 'origin'] as const;
-
-export type TriggerKind = (typeof KINDS)[number];
-export type TriggerThreadMode = (typeof THREAD_MODES)[number];
 export type RoomTrigger = {
   triggerId: string;
-  kind: TriggerKind;
-  relation: (typeof RELATIONS)[number];
+  kind: string;
+  relation: string;
   description: string;
   prompt: string | null;
   targetRoomId: string | null;
   targetThreadId: string | null;
-  threadMode: TriggerThreadMode;
+  threadMode: string | null;
   enabled: boolean;
   disabledReason: string | null;
   lastFiredAt: number | null;
@@ -24,25 +19,21 @@ export type RoomTrigger = {
 };
 
 const TIMEOUT_MS = 8_000;
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === 'object' && v !== null && !Array.isArray(v);
-const isOneOf = <T extends string>(v: unknown, list: readonly T[]): v is T =>
-  typeof v === 'string' && list.some((item) => item === v);
 const asStr = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const asNum = (v: unknown): number | null =>
   typeof v === 'number' && Number.isFinite(v) ? v : null;
 const triggersPath = (roomId: string, triggerId?: string): string =>
   `/api/rooms/${encodeURIComponent(roomId)}/triggers${triggerId ? `/${encodeURIComponent(triggerId)}` : ''}`;
 
-/** Parses one backend TriggerRow; unknown fields are ignored and malformed rows drop. */
+/** Parses one backend TriggerRow; unknown fields and unknown kind/thread_mode are kept safely. */
 export const parseTriggerRow = (raw: unknown): RoomTrigger | null => {
   if (
     !isRecord(raw) ||
     typeof raw.trigger_id !== 'string' ||
     !raw.trigger_id.trim() ||
-    !isOneOf(raw.kind, KINDS) ||
-    !isOneOf(raw.relation, RELATIONS) ||
-    !isOneOf(raw.thread_mode, THREAD_MODES) ||
+    typeof raw.kind !== 'string' ||
+    !raw.kind.trim() ||
+    typeof raw.relation !== 'string' ||
     typeof raw.description !== 'string' ||
     typeof raw.owner_user_id !== 'string' ||
     typeof raw.enabled !== 'boolean' ||
@@ -58,7 +49,7 @@ export const parseTriggerRow = (raw: unknown): RoomTrigger | null => {
     prompt: asStr(raw.prompt),
     targetRoomId: asStr(raw.target_room_id),
     targetThreadId: asStr(raw.target_thread_id),
-    threadMode: raw.thread_mode,
+    threadMode: asStr(raw.thread_mode),
     enabled: raw.enabled,
     disabledReason: asStr(raw.disabled_reason)?.trim() || null,
     lastFiredAt: asNum(raw.last_fired_at),
@@ -67,37 +58,46 @@ export const parseTriggerRow = (raw: unknown): RoomTrigger | null => {
   };
 };
 
-/** Parses `{ triggers: [...] }`; malformed rows drop. */
-export const parseRoomTriggersResponse = (raw: unknown): RoomTrigger[] =>
+/** Parses `{ triggers: [...] }`; returns `null` if the envelope is malformed. */
+export const parseRoomTriggersResponse = (raw: unknown): RoomTrigger[] | null =>
   isRecord(raw) && Array.isArray(raw.triggers)
     ? raw.triggers.map(parseTriggerRow).filter((row): row is RoomTrigger => row !== null)
-    : [];
+    : null;
 
-const send = (mx: MatrixClient, apiUrl: string, path: string, init: RequestInit = {}) =>
-  clientSessions(mx, apiUrl).send(path, {
-    ...init,
-    redirect: 'error',
-    signal: init.signal
-      ? AbortSignal.any([init.signal, AbortSignal.timeout(TIMEOUT_MS)])
-      : AbortSignal.timeout(TIMEOUT_MS),
-  });
+const send = async (mx: MatrixClient, apiUrl: string, path: string, init: RequestInit = {}) => {
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (init.signal?.aborted) controller.abort();
+  else init.signal?.addEventListener('abort', onAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await clientSessions(mx, apiUrl).send(path, {
+      ...init,
+      redirect: 'error',
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener('abort', onAbort);
+  }
+};
 
 const httpError = (status: number) =>
   Object.assign(new Error(`Request failed (${status}).`), { status });
 
-/** Returns `[]` on 404/401/403/network/timeout; rethrows only if `signal` aborted. */
+/** Returns `null` on 404/401/403/network/timeout/bad payload; rethrows only if `signal` aborted. */
 export const fetchRoomTriggers = async (
   mx: MatrixClient,
   apiUrl: string,
   roomId: string,
   signal?: AbortSignal
-): Promise<RoomTrigger[]> => {
+): Promise<RoomTrigger[] | null> => {
   try {
     const res = await send(mx, apiUrl, triggersPath(roomId), { signal });
-    return res.ok ? parseRoomTriggersResponse(await res.json()) : [];
+    return res.ok ? parseRoomTriggersResponse(await res.json()) : null;
   } catch (error) {
     if (signal?.aborted) throw error;
-    return [];
+    return null;
   }
 };
 

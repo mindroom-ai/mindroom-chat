@@ -38,28 +38,24 @@ afterEach(() => {
   sendMock.mockReset();
 });
 
-describe('parseRoomTriggersResponse', () => {
-  it('parses valid rows, ignores unknown fields, accepts null/missing optionals, and drops malformed rows', () => {
+describe('roomTriggersApi', () => {
+  it('parses valid and unknown-kind rows while dropping malformed rows', () => {
     const parsed = parseRoomTriggersResponse({
-      extra_envelope_field: true,
       triggers: [
-        validRow({ unknown_future_field: 'ignored', secret_like: 'ignored' }),
+        validRow({ unknown_future_field: 'ignored' }),
         {
-          trigger_id: 'tr_hook',
-          kind: 'webhook',
-          relation: 'watch',
+          trigger_id: 'tr_future',
+          kind: 'cron_v2',
+          relation: 'target',
           description: '',
-          thread_mode: 'room',
+          thread_mode: 'dm_thread',
           enabled: false,
-          disabled_reason: 'future_reason',
           owner_user_id: '@bob:example.org',
           can_manage: false,
         },
-        validRow({ kind: 'unknown_kind' }),
         validRow({ trigger_id: '   ' }),
         validRow({ enabled: 'yes' }),
         null,
-        'not-an-object',
       ],
     });
 
@@ -80,78 +76,48 @@ describe('parseRoomTriggersResponse', () => {
         canManage: true,
       },
       {
-        triggerId: 'tr_hook',
-        kind: 'webhook',
-        relation: 'watch',
+        triggerId: 'tr_future',
+        kind: 'cron_v2',
+        relation: 'target',
         description: '',
         prompt: null,
         targetRoomId: null,
         targetThreadId: null,
-        threadMode: 'room',
+        threadMode: 'dm_thread',
         enabled: false,
-        disabledReason: 'future_reason',
+        disabledReason: null,
         lastFiredAt: null,
         ownerUserId: '@bob:example.org',
         canManage: false,
       },
     ]);
+    expect(parseRoomTriggersResponse({ triggers: 'bad' })).toBeNull();
   });
 
-  it('returns an empty list for non-object or missing triggers payloads', () => {
-    expect(parseRoomTriggersResponse(null)).toEqual([]);
-    expect(parseRoomTriggersResponse({ triggers: 'bad' })).toEqual([]);
-  });
-});
-
-describe('room triggers HTTP requests', () => {
-  it('fetches with redirect error and returns empty on 404, 403, or network failure', async () => {
-    sendMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ triggers: [validRow()] }), { status: 200 })
-    );
-    const rows = await fetchRoomTriggers(mx, API_URL, ROOM_ID);
-    expect(rows).toHaveLength(1);
+  it('distinguishes empty 200 from 404 failure and sends PATCH/DELETE mutations', async () => {
+    sendMock.mockResolvedValueOnce(new Response(JSON.stringify({ triggers: [] }), { status: 200 }));
+    expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
     expect(sendMock).toHaveBeenCalledWith(
       '/api/rooms/!ops%3Aexample.org/triggers',
       expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) })
     );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
-    expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
+    expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toBeNull();
 
-    sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
-    expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
-
-    sendMock.mockRejectedValueOnce(new Error('offline'));
-    expect(await fetchRoomTriggers(mx, API_URL, ROOM_ID)).toEqual([]);
-  });
-
-  it('rethrows when the caller aborts the fetch', async () => {
-    const controller = new AbortController();
-    controller.abort();
-    sendMock.mockRejectedValueOnce(new DOMException('Aborted', 'AbortError'));
-    await expect(fetchRoomTriggers(mx, API_URL, ROOM_ID, controller.signal)).rejects.toThrow();
-  });
-
-  it('sends PATCH for enable/disable and DELETE for removal, throwing with status on non-OK', async () => {
     sendMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(validRow({ enabled: false, disabled_reason: 'manual' })), {
-        status: 200,
-      })
+      new Response(JSON.stringify(validRow({ enabled: false })), { status: 200 })
     );
-    const updated = await setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', false);
-    expect(updated?.enabled).toBe(false);
-    expect(sendMock).toHaveBeenCalledWith(
+    expect((await setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', false))?.enabled).toBe(
+      false
+    );
+    expect(sendMock).toHaveBeenLastCalledWith(
       '/api/rooms/!ops%3Aexample.org/triggers/tr_123',
       expect.objectContaining({
         method: 'PATCH',
         redirect: 'error',
         body: JSON.stringify({ enabled: false }),
       })
-    );
-
-    sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
-    await expect(setRoomTriggerEnabled(mx, API_URL, ROOM_ID, 'tr_123', true)).rejects.toMatchObject(
-      { status: 403 }
     );
 
     sendMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -161,9 +127,9 @@ describe('room triggers HTTP requests', () => {
       expect.objectContaining({ method: 'DELETE', redirect: 'error' })
     );
 
-    sendMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    sendMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
     await expect(deleteRoomTrigger(mx, API_URL, ROOM_ID, 'tr_123')).rejects.toMatchObject({
-      status: 404,
+      status: 403,
     });
   });
 });

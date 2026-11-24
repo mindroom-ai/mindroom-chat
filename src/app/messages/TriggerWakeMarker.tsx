@@ -1,5 +1,6 @@
 import {
   Fragment,
+  useContext,
   useEffect,
   useId,
   useMemo,
@@ -9,8 +10,9 @@ import {
   type MouseEventHandler,
   type ReactNode,
 } from 'react';
-import { useTranslation } from 'react-i18next';
+import { QueryClientContext } from '@tanstack/react-query';
 import { useStore } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isTag, isText, type ChildNode } from 'domhandler';
@@ -27,7 +29,6 @@ import { settingsAtom } from '../preferences/settings';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { testMatrixTo } from '../matrix/matrix-to';
 import type { TriggerWakeInfo } from '../matrix/protocol/triggerWake';
-import { openRoomTriggersDialog } from '../navigation/roomTriggersDialog';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { CheckIcon, CopyIcon } from '../rich-text/code/CodeBlockIcons';
 import { stripBidiControls } from '../rich-text/linkDestination';
@@ -48,6 +49,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from './html/react-custom-html-parser';
+import { openRoomTriggersDialog, roomTriggersQueryKey } from '../navigation/roomTriggersDialog';
 import { useMentionClickHandler } from './useMentionClickHandler';
 import { Time } from './Time';
 import * as css from './TriggerWakeMarker.css';
@@ -206,15 +208,10 @@ type TriggerWakeMarkerProps = {
   roomId?: string;
 };
 
-const summaryParts = (wake: TriggerWakeInfo, includeTriggerId: boolean): string[] => {
-  const sourcePart = wake.kind ?? wake.sourceType;
-  const parts = includeTriggerId
-    ? [sourcePart, wake.triggerId]
-    : [sourcePart !== wake.triggerId ? sourcePart : undefined];
-  return parts
+const summaryParts = (wake: TriggerWakeInfo): string[] =>
+  [wake.kind ?? wake.sourceType, wake.triggerId]
     .filter((part, index, list): part is string => !!part && list.indexOf(part) === index)
     .map(revealDirectionControls);
-};
 
 const describeSource = (wake: TriggerWakeInfo): string | undefined => {
   if (wake.sourceType && wake.kind && wake.sourceType !== wake.kind) {
@@ -234,6 +231,7 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
   const client = useOptionalMatrixClient();
   const inRouter = useInRouterContext();
   const store = useStore();
+  const queryClient = useContext(QueryClientContext);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -241,13 +239,34 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
-  const triggerLabel =
-    roomId && wake.triggerId ? revealDirectionControls(wake.triggerId) : undefined;
-  const summary = summaryParts(wake, !triggerLabel);
+  const summary = summaryParts(wake);
   const source = describeSource(wake);
   const metaItems: ReactNode[] = [];
   if (wake.triggerId) {
-    metaItems.push(t(`${KEY}.triggerLabel`, { id: revealDirectionControls(wake.triggerId) }));
+    const id = revealDirectionControls(wake.triggerId);
+    const label = t(`${KEY}.triggerLabel`, { id });
+    metaItems.push(
+      roomId ? (
+        <button
+          key="trigger"
+          type="button"
+          data-trigger-wake-link={wake.triggerId}
+          aria-haspopup="dialog"
+          aria-label={t(`${KEY}.openTriggerLabel`, { id })}
+          onClick={(event) => {
+            void queryClient?.invalidateQueries({ queryKey: roomTriggersQueryKey(roomId) });
+            openRoomTriggersDialog(store, roomId, {
+              triggerId: wake.triggerId!,
+              opener: event.currentTarget,
+            });
+          }}
+        >
+          {label}
+        </button>
+      ) : (
+        label
+      )
+    );
   }
   if (source) {
     metaItems.push(t(`${KEY}.sourceLabel`, { source: revealDirectionControls(source) }));
@@ -274,50 +293,29 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
 
   return (
     <div className={css.Marker} data-trigger-wake={wake.sourceKind}>
-      <div className={css.TriggerRow}>
-        <button
-          type="button"
-          className={css.Trigger}
-          aria-expanded={expanded}
-          aria-controls={expanded ? panelId : undefined}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          <IconBolt size={14} aria-hidden />
-          <Text as="span" size="T200" className={css.Title}>
-            {t(wake.sourceKind === 'reactive' ? `${KEY}.triggered` : `${KEY}.webhook`)}
+      <button
+        type="button"
+        className={css.Trigger}
+        aria-expanded={expanded}
+        aria-controls={expanded ? panelId : undefined}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <IconBolt size={14} aria-hidden />
+        <Text as="span" size="T200" className={css.Title}>
+          {t(wake.sourceKind === 'reactive' ? `${KEY}.triggered` : `${KEY}.webhook`)}
+        </Text>
+        {summary.length > 0 && (
+          <Text as="span" size="T200" className={css.Summary}>
+            {summary.map((part, index) => (
+              <Fragment key={`${index}:${part}`}>
+                {index > 0 ? ' · ' : null}
+                <bdi>{part}</bdi>
+              </Fragment>
+            ))}
           </Text>
-          {summary.length > 0 && (
-            <Text as="span" size="T200" className={css.Summary}>
-              {summary.map((part, index) => (
-                <Fragment key={`${index}:${part}`}>
-                  {index > 0 ? ' · ' : null}
-                  <bdi>{part}</bdi>
-                </Fragment>
-              ))}
-            </Text>
-          )}
-          <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
-        </button>
-        {triggerLabel && (
-          <button
-            type="button"
-            className={css.TriggerLink}
-            data-trigger-wake-link={wake.triggerId}
-            aria-haspopup="dialog"
-            aria-label={t(`${KEY}.openTriggerLabel`, { id: triggerLabel })}
-            onClick={(event) =>
-              openRoomTriggersDialog(store, roomId!, {
-                triggerId: wake.triggerId!,
-                opener: event.currentTarget,
-              })
-            }
-          >
-            <Text as="span" size="T200">
-              <bdi>{triggerLabel}</bdi>
-            </Text>
-          </button>
         )}
-      </div>
+        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
+      </button>
       {expanded && (
         <div id={panelId} className={css.Panel} data-trigger-wake-details="true">
           <div className={css.PanelHeader}>

@@ -2083,12 +2083,14 @@
     "close": "Sluiten",
     "empty": "Geen triggers in deze kamer.",
     "emptyHint": "Triggers die voor deze kamer zijn ingesteld verschijnen hier.",
+    "loadError": "Kon triggers niet laden.",
     "missingTrigger": "Trigger {{id}} bevindt zich niet meer in deze kamer.",
     "kind": {
       "webhook": "Webhook",
       "room_message": "Kamerbewaking",
       "external_event": "Gebeurtenisabonnement",
-      "thread_tag": "Thread-tag"
+      "thread_tag": "Thread-tag",
+      "unknown": "Trigger"
     },
     "watchingRoom": "Bewaakt deze kamer",
     "stateOn": "Aan",
