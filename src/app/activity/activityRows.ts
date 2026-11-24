@@ -38,7 +38,7 @@ export type ActivityRowsResult = {
 };
 export type ActivityInvite = { roomId: string; inviterId?: string; ts: number };
 
-/** How long a read thread stays in Activity after its last activity. */
+/** How long a read thread stays in Activity after its last activity from others. */
 export const ACTIVITY_READ_WINDOW_MS = 7 * 24 * 3600_000;
 
 const NEEDS_YOU_KINDS = new Set<ActivityKind>(['approval', 'question', 'invite']);
@@ -64,8 +64,8 @@ const threadKind = (signals: ThreadSignals, waits: boolean): ActivityThreadRow['
   if (waits && signals.pendingQuestion) return 'question';
   if (waits) return 'approval';
   if (signals.mentionedMe) return 'mention';
-  const { outcome, lastReply } = signals;
-  if (outcome && (!lastReply || outcome.ts >= lastReply.ts)) return outcome.kind;
+  const { outcome, lastOtherReply } = signals;
+  if (outcome && (!lastOtherReply || outcome.ts >= lastOtherReply.ts)) return outcome.kind;
   return 'reply';
 };
 
@@ -80,7 +80,7 @@ const actorsOf = (kind: ActivityThreadRow['kind'], signals: ThreadSignals): stri
   const first = signals.mentionedBy ? [signals.mentionedBy] : [];
   const actors = [...new Set([...first, ...signals.newSenderIds])].filter(Boolean);
   if (actors.length > 0) return actors;
-  return signals.lastReply ? [signals.lastReply.senderId] : [];
+  return signals.lastOtherReply ? [signals.lastOtherReply.senderId] : [];
 };
 
 const compareRows = (a: ActivityRow, b: ActivityRow): number =>
@@ -88,11 +88,11 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
 
 /**
  * Activity's rows: a thread that waits for the person or names them, and a thread they take part
- * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A
- * thread an agent runs alone (an automation) is only counted, unless it names them, it waits for
- * them, or `showAutomations` lists it. A resolved thread has no row and is not counted, until
- * news (`ThreadSignals.newsTs`) comes in it after it was resolved; a thread snoozed at `now` the
- * same, until a person writes in it after it was snoozed.
+ * in with activity from others in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the
+ * invites. A thread an agent runs alone (an automation) is only counted, unless it names them, it
+ * waits for them, or `showAutomations` lists it. A resolved thread has no row and is not counted,
+ * until news from others (`ThreadSignals.otherNewsTs`) comes in it after it was resolved; a thread
+ * snoozed at `now` the same, until a person writes in it after it was snoozed.
  */
 export const buildActivityRows = ({
   entries,
@@ -111,8 +111,8 @@ export const buildActivityRows = ({
   let hiddenAutomations = 0;
   for (const entry of entries) {
     const threadSignals = signals(entry);
-    // Resolving a thread answers what it held; only news that comes after brings it back.
-    if (entry.isResolved && (threadSignals.newsTs ?? 0) <= (entry.resolvedTs ?? Infinity)) {
+    // Resolving a thread answers what it held; only others' news that comes after brings it back.
+    if (entry.isResolved && (threadSignals.otherNewsTs ?? 0) <= (entry.resolvedTs ?? Infinity)) {
       continue;
     }
     // A snooze holds until a person writes in the thread after it was set. Agents' replies, such
@@ -123,7 +123,12 @@ export const buildActivityRows = ({
     ) {
       continue;
     }
-    const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
+    const otherActivityTs = Math.max(
+      threadSignals.otherNewsTs ?? 0,
+      threadSignals.lastOtherReply?.ts ?? 0,
+      threadSignals.outcome?.ts ?? 0
+    );
+    const recent = otherActivityTs > 0 && now - otherActivityTs <= ACTIVITY_READ_WINDOW_MS;
     const waits = isWaitingOnYou(threadSignals, entry);
     const named = threadSignals.mentionedMe;
     // What waits for the person or names them stays however old; the rest leaves after the window.
@@ -139,9 +144,14 @@ export const buildActivityRows = ({
     // A mention is unread by its signal: it may sit in the root, which no reply count holds.
     const unread = waits || named || threadSignals.newCount > 0;
     const kind = threadKind(threadSignals, waits);
-    // A reply row says who replied; a thread with no counted reply has nothing to tell yet.
-    if (kind === 'reply' && !threadSignals.lastReply && threadSignals.newCount === 0) continue;
+    // A reply row says who replied; without a counted reply from others, there is nothing to tell.
+    if (kind === 'reply' && !threadSignals.lastOtherReply && threadSignals.newCount === 0) continue;
     const actorIds = actorsOf(kind, threadSignals);
+    let ts = otherActivityTs;
+    if (!ts) {
+      if (!threadSignals.lastReply) ts = entry.lastActivityTs;
+      else if (threadSignals.mentionedBy) ts = entry.rootTs ?? 0;
+    }
     rows.push({
       type: 'thread',
       key: entry.key,
@@ -149,7 +159,7 @@ export const buildActivityRows = ({
       entry,
       signals: threadSignals,
       unread,
-      ts: Math.max(entry.lastActivityTs, threadSignals.lastReply?.ts ?? 0),
+      ts,
       actorIds,
     });
   }

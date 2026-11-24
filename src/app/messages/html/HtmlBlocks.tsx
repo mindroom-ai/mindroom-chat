@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, type JSX, useContext, useMemo, useState } from 'react';
+import React, { ReactNode, type JSX, useContext, useMemo, useRef, useState } from 'react';
 import {
   type DOMNode,
   Element,
@@ -71,6 +71,7 @@ import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { formatWorkDuration } from '../../lib/time';
+import { useRevealOnOpen } from '../../ui/disclosureReveal';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
@@ -142,14 +143,21 @@ function CollapsibleBlock({
 }) {
   const [expanded, setExpanded] = useState(false);
   const glassRef = useGlassHighlight<HTMLDivElement>();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(expanded, toggleRef, bodyRef);
 
   return (
     <Text ref={glassRef} as="div" size="T300" className={css.Block}>
       <button
+        ref={toggleRef}
         type="button"
         className={css.BlockHeader}
         aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => {
+          if (!expanded) armReveal();
+          setExpanded((v) => !v);
+        }}
       >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
@@ -164,7 +172,11 @@ function CollapsibleBlock({
           aria-hidden
         />
       </button>
-      {expanded && <Box className={css.BlockBody}>{children}</Box>}
+      {expanded && (
+        <Box ref={bodyRef} className={css.BlockBody}>
+          {children}
+        </Box>
+      )}
     </Text>
   );
 }
@@ -507,6 +519,7 @@ function ToolRefGroupBlock({
 
   return (
     <ThreadActivity
+      rootRef={!shown && fold?.open ? fold.registerRun : undefined}
       icon={
         <ActivityIcon
           src={icon.src}
@@ -602,6 +615,7 @@ function InlineSecretRequestBlock({
   return (
     <SecretRequestLine
       lineRef={lineRef}
+      rootRef={!shown && fold?.open ? fold.registerRun : undefined}
       eventId={eventId}
       request={request}
       roomId={roomId}

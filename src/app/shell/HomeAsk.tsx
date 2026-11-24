@@ -1,5 +1,5 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { Avatar, Box, Icon, Icons, Text } from 'folds';
+import { Avatar, Icons, Text } from 'folds';
 import { useAtomValue, useStore } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -11,9 +11,8 @@ import {
 } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { UserAvatar } from '../avatars/UserAvatar';
-import { ComposerMenuButton } from '../composer/ComposerMenuButton';
+import { ComposerMenuButton, ComposerRadioMenuEntry } from '../composer/ComposerMenuButton';
 import { RoomInput } from '../composer/RoomInput';
-import * as composerCss from '../composer/RoomInput.css';
 import {
   composerUploadItemsAtom,
   getHomeAskDraftKey,
@@ -41,7 +40,6 @@ import {
   ownDirectionLine,
   revealDirectionControls,
 } from '../ui/directional';
-import { MenuEntry } from '../ui/MenuEntry';
 import {
   agentNameIn,
   canAskIn,
@@ -289,21 +287,12 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
     onSelect: () => void,
     description?: string
   ) => (
-    <MenuEntry
+    <ComposerRadioMenuEntry
       key={key}
-      role="menuitemradio"
-      aria-checked={checked}
-      fill={checked ? 'Soft' : 'None'}
-      className={composerCss.ComposerMenuItem}
+      checked={checked}
       label={face.label}
+      badge={face.badge}
       description={description}
-      icon={Icons.User}
-      after={
-        <Box as="span" alignItems="Center" gap="200">
-          {checked && <Icon size="50" src={Icons.Check} aria-hidden="true" />}
-          {face.badge}
-        </Box>
-      }
       onSelect={onSelect}
     />
   );

@@ -1653,8 +1653,7 @@
       "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",
       "replyAndOthers_other": "{{name}} 님 외 {{count}}명이 답글을 남겼습니다",
       "finished": "{{name}} 님이 작업을 마쳤습니다",
-      "stopped": "{{name}} 님의 작업이 중지되었습니다",
-      "youReplied": "내가 답장함"
+      "stopped": "{{name}} 님의 작업이 중지되었습니다"
     },
     "newCount_other": "새 항목 {{count}}개",
     "runMinutes_other": "{{count}}분",
@@ -2048,5 +2047,34 @@
   },
   "nav": {
     "usage": "사용량"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "방 {{count}}개",
+      "roomsFiltered": "방 {{total}}개 중 {{active}}개"
+    },
+    "roomFilter": {
+      "label": "방",
+      "ariaLabel": "방으로 스레드 필터링",
+      "ariaLabelActive": "방으로 스레드 필터링 ({{number}}개 선택됨)",
+      "ariaLabelOne": "방: {{room}}",
+      "search": "방 검색",
+      "noMatch": "일치하는 방이 없습니다"
+    },
+    "composer": {
+      "postTo": "게시 대상:",
+      "postToRoom": "#{{room}}에 게시",
+      "chooseRoomAria": "게시할 방 선택",
+      "draftPinned": "#{{room}} 임시 저장",
+      "readOnly": "이 스페이스에 게시할 수 있는 방이 없습니다."
+    },
+    "loading": "스레드 불러오는 중...",
+    "empty": {
+      "noRooms": "이 스페이스의 방에 참여하면 여기에서 스레드를 볼 수 있습니다.",
+      "noThreads": "이 스페이스에는 아직 스레드가 없습니다."
+    },
+    "error": {
+      "title": "스페이스 스레드를 불러올 수 없습니다"
+    }
   }
 }

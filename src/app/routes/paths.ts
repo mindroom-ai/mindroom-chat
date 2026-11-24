@@ -50,5 +50,6 @@ export const EXPLORE_SERVER_PATH = '/explore/:server/';
 
 export const SPACE_PATH = '/:spaceIdOrAlias/';
 export const SPACE_LOBBY_PATH = '/:spaceIdOrAlias/lobby/';
+export const SPACE_THREADS_PATH = '/:spaceIdOrAlias/threads/';
 export const SPACE_SEARCH_PATH = '/:spaceIdOrAlias/search/';
 export const SPACE_ROOM_PATH = '/:spaceIdOrAlias/:roomIdOrAlias/:eventId?/';
