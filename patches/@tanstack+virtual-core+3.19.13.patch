@@ -1,9 +1,10 @@
 # Hold scrollTop writes in _holdOffset while a wheel gesture is live (150ms
 # re-armed quiet timer) and flush via _flushHoldIfReady, so WebKit compositor
-# wheel replay cannot fight prepend/resize scrollTop writes.
+# wheel replay cannot fight prepend/resize scrollTop writes. Also reconcile
+# live scrollTop when flushing or adjusting without an in-flight write.
 # Upstream report: docs/dev/tanstack-wheel-hold-upstream.md
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..04d88b2 100644
+index 186f79e..a1e4b2a 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,8 @@ class Virtualizer {
@@ -68,8 +69,26 @@ index 186f79e..04d88b2 100644
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
+@@ -1492,14 +1520,15 @@ class Virtualizer {
+       if (this.scrollOffset !== null) this.scrollOffset += delta;
+       return true;
+     } else {
+-      const offset = this.getScrollOffset();
++      const live = this.pendingWrite === null && this._holdOffset === 0 ? this._readElementOffset() : null;
++      const offset = live ?? this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(offset + delta);
+       const write = this._scrollToOffset(offset, {
+         adjustments: delta,
+         behavior
+       });
+       if (this.scrollOffset !== null) {
+-        if (this.pendingWrite === write) this.scrollOffset += delta;
++        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
+         if (this.scrollOffset < 0) this.scrollOffset = 0;
+       }
+       return true;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..bb2a4fc 100644
+index ef861e1..32b7477 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,8 @@ class Virtualizer {
@@ -134,3 +153,21 @@ index ef861e1..bb2a4fc 100644
      this._flushHoldIfReady = (sync) => {
        var _a;
        if (this._holdOffset === 0) return;
+@@ -1491,14 +1519,15 @@ class Virtualizer {
+       if (this.scrollOffset !== null) this.scrollOffset += delta;
+       return true;
+     } else {
+-      const offset = this.getScrollOffset();
++      const live = this.pendingWrite === null && this._holdOffset === 0 ? this._readElementOffset() : null;
++      const offset = live ?? this.getScrollOffset();
+       this._clampedAdjustment = this._clampedBy(offset + delta);
+       const write = this._scrollToOffset(offset, {
+         adjustments: delta,
+         behavior
+       });
+       if (this.scrollOffset !== null) {
+-        if (this.pendingWrite === write) this.scrollOffset += delta;
++        if (this.pendingWrite === write) this.scrollOffset = offset + delta;
+         if (this.scrollOffset < 0) this.scrollOffset = 0;
+       }
+       return true;

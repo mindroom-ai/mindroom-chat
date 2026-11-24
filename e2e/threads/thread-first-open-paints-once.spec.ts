@@ -275,24 +275,15 @@ test('a thread opened for the first time paints its replies once, its long reply
     filterState: createDefaultThreadFilterState(),
   });
   await page.getByRole('link', { name: roomName }).first().click();
-  // Wait for the later room notes to settle into Compact view; if they push the target card into
-  // the trailing collapsed block ("N more threads"), expand it before starting the click timer.
-  await expect(page.getByText(`Room note ${ROOM_MESSAGES_AFTER}`, { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
+  // Backfill loads Room note 1..15 and can push this older thread into the trailing compact block
+  // ("N more threads"). Wait for Room note 2 (from backfill) and expand the spacer before clicking.
+  await expect(page.getByText('Room note 2', { exact: true })).toBeVisible({ timeout: 60_000 });
   const card = page.locator(`[data-thread-root-id="${rootId}"]`);
-  const moreThreads = page.getByRole('button', { name: /more threads?$/i });
-  await expect
-    .poll(
-      async () => {
-        if (await moreThreads.isVisible().catch(() => false)) {
-          await moreThreads.click().catch(() => undefined);
-        }
-        return card.isVisible().catch(() => false);
-      },
-      { timeout: 60_000 }
-    )
-    .toBe(true);
+  const spacer = page.locator('[data-compact-spacer]').last();
+  if (await spacer.isVisible().catch(() => false)) {
+    await spacer.click();
+  }
+  await expect(card).toBeVisible({ timeout: 60_000 });
 
   const stopScreencast = SHOTS ? await recordScreencast(page, `${SHOTS}/first-open`) : undefined;
   await page.evaluate(() =>
