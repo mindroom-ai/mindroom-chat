@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import i18n, { registerNamespace } from '../../src/app/i18n/i18n';
 import { LightTheme } from '../../src/app/theme/useTheme';

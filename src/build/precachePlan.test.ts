@@ -316,8 +316,12 @@ describe('writing the production bundle', () => {
       ],
       build: {
         outDir,
-        rollupOptions: {
-          output: { manualChunks: { panel: [path.join(dir, 'app/style.css')] } },
+        rolldownOptions: {
+          output: {
+            codeSplitting: {
+              groups: [{ name: 'panel', test: (id) => id === path.join(dir, 'app/style.css') }],
+            },
+          },
         },
       },
     });

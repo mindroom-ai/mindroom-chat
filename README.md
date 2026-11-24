@@ -72,7 +72,7 @@ just install   # npm ci
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 24 or newer and run `npm ci` and `npm run dev`.
+Without Nix, use Node 24.15+ or 26+ (`package.json` `engines`) and run `npm ci` and `npm run dev`.
 
 The sign-in page offers `mindroom.chat` and `matrix.org`, and takes any other homeserver too. To talk to agents, sign in to the homeserver your MindRoom backend uses; its agents are ordinary Matrix accounts there, and chat needs nothing else. New to MindRoom? Start with its [Getting Started guide](https://docs.mindroom.chat/getting-started/), or [try hosted MindRoom](https://mindroom.chat/#hosted).
 

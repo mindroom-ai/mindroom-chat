@@ -12,7 +12,7 @@ just install   # npm ci; applies patches/ with patch-package
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
+Without Nix, use Node 24.15+ or 26+ (`package.json` `engines`; jsdom 31 requires `^24.15.0 || >=26` and some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
 
 The dev server answers `/config.json` with `config/mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
 
