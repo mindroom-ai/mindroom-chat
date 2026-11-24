@@ -387,7 +387,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       isMarkdown,
       fileDropContainerRef,
       createUploadItems,
-      moveStagedOnRoomChange: !!ask,
+      stagedListKey: ask ? textKey : undefined,
+      deferUpload: !!ask,
       inlineUploadBoard: !!ask,
     });
     const { settlePastes, dismissLostPastes } = attachments;
@@ -666,6 +667,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             restoreRootModelDraft: (target, content) =>
               getModelController(mx).restoreRootModelDraft(target, content),
             uploadItem: transport.uploadItem,
+            prepareAttachmentsForSend: live.ask ? attachments.prepareForSend : undefined,
             clearReplyDraft,
             resetComposer: composer.resetText,
             stopTyping: () => sendTypingStatus(false),
@@ -723,14 +725,58 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
         const textContent = takeText();
         // With nothing to send on Home, there is no send to track.
-        if (ask && !textContent && !hasSendableStagedFiles(attachments.access.snapshot())) return;
+        if (ask && !textContent && !attachments.hasSendableFiles) return;
         setSubmitPending(true);
         ask?.onSendingChange?.(true);
+        let releaseInitialLeases: (() => void) | undefined;
+        let releasePreparedLeases: (() => void) | undefined;
+        let pendingFallback: Descendant[] | undefined;
         try {
+          if (ask && attachments.hasSendableFiles) {
+            releaseInitialLeases = attachments.access.protectPasteItems(
+              attachments.access.snapshot().staged
+            );
+            if (textContent) {
+              pendingFallback = composer.snapshotText();
+              composer.resetText();
+              sendTypingStatus(false);
+            }
+            const prepared = await attachments.prepareForSend(room);
+            releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+            const uploaded = await Promise.all(
+              prepared.map((item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item))
+            );
+            const uploadedItems = uploaded.filter(
+              (item): item is TUploadItem => item !== undefined
+            );
+            if (!ask.canSend(room) || (!textContent && uploadedItems.length === 0)) {
+              if (pendingFallback) {
+                sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
+                pendingFallback = undefined;
+              }
+              return;
+            }
+            const fallbackForSession = pendingFallback;
+            pendingFallback = undefined;
+            const sending = sessions.startSendSession({
+              textContent,
+              midTurnMode: mode,
+              explicitMidTurnMode: explicitMode !== undefined,
+              batch: { fileItems: uploadedItems },
+              composerFallback: fallbackForSession,
+              composerAlreadyReset: Boolean(textContent),
+              beforeSend: (sentTo) => ask.canSend(sentTo),
+              onLocalEchoCreated: ask.onLocalEcho,
+            });
+            sendTypingStatus(false);
+            await sending;
+            return;
+          }
           const sending = sessions.startSendSession({
             textContent,
             midTurnMode: mode,
             explicitMidTurnMode: explicitMode !== undefined,
+            batch: ask ? { fileItems: [] } : undefined,
             // Home's question is asked about, and told of, as it was at this press.
             beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
             onLocalEchoCreated: ask?.onLocalEcho,
@@ -738,14 +784,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
           await sending;
+        } catch (error) {
+          if (pendingFallback) {
+            sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
+          }
+          throw error;
         } finally {
+          releasePreparedLeases?.();
+          releaseInitialLeases?.();
           ask?.onSendingChange?.(false);
           if (mountedRef.current) setSubmitPending(false);
         }
       },
       [
         ask,
-        attachments.access,
+        attachments,
         buildTextContent,
         clearReplyDraft,
         commands,
@@ -765,7 +818,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         store,
         t,
         takeRootModelDraft,
-        transport.uploadItem,
+        draftThreadId,
+        room,
+        roomId,
+        transport,
         voice,
         voiceActive,
       ]
@@ -1190,7 +1246,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   agentReplying={agentReplying}
                   hasContent={() =>
                     buildTextContent(midTurnSend) !== undefined ||
-                    hasSendableStagedFiles(attachments.access.snapshot()) ||
+                    (ask
+                      ? attachments.hasSendableFiles
+                      : hasSendableStagedFiles(attachments.access.snapshot())) ||
                     hasVoice ||
                     dictationCanSend
                   }

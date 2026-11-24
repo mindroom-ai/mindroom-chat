@@ -352,13 +352,16 @@ vi.mock('../../emoji/board/LazyEmojiBoard', () => ({
 vi.mock('../upload/UploadCardRenderer', () => ({
   UploadCardRenderer: ({
     fileItem,
+    autoUpload = true,
     onRemove,
   }: {
     fileItem: TUploadItem;
+    autoUpload?: boolean;
     onRemove: (file: File) => void;
   }) =>
     React.createElement('button', {
       'aria-label': `Remove upload ${fileItem.file.name}`,
+      'data-auto-upload': String(autoUpload),
       onClick: () => onRemove(fileItem.file),
     }),
 }));
@@ -1054,6 +1057,8 @@ const updateRoomInput = async (
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
+    view?: string;
+    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
   }
 ) => {
   await act(async () => {
@@ -5332,14 +5337,57 @@ describe("RoomInput as Home's ask field", () => {
     await act(async () => attachBtn.props.onClick());
     expect(fileInputState.pick).toHaveBeenCalledTimes(1);
 
-    // Drop -> inline board -> attachment-only send with agent mention.
+    // Drop on unencrypted room -> deferred (zero uploads, autoUpload=false), inline board.
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
     await act(async () => {
-      fileInputState.onDrop?.([new File(['hello'], 'dropped.txt', { type: 'text/plain' })]);
+      fileInputState.onDrop?.([new File(['secret'], 'dropped.txt', { type: 'text/plain' })]);
       await Promise.resolve();
     });
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
     expect(renderer.root.find((n) => n.props['data-upload-board-inline'] === 'true')).toBeTruthy();
-    const [droppedItem] = store.get(composerUploadItemsAtom(ROOM_ID, HOME_ASK_VIEW));
-    store.set(roomUploadAtomFamily(droppedItem!.file), { mxc: 'mxc://mindroom/dropped' });
+    expect(
+      renderer.root.find((n) => n.props['aria-label'] === 'Remove upload dropped.txt').props[
+        'data-auto-upload'
+      ]
+    ).toBe('false');
+
+    // Switch to encrypted room -> Send encrypts and uploads encrypted bytes while keeping onSendingChange(true) locked until completion.
+    await updateRoomInput(renderer, store, {
+      roomId: OTHER_ROOM_ID,
+      encryptedRoom: true,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const encUpload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(encUpload.promise);
+    let sendEnc!: Promise<void>;
+    await act(async () => {
+      sendEnc = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.uploadContent.mock.calls[0]![1]).toMatchObject({ includeFilename: false });
+
+    // Network failure unlocks Home and keeps file staged; switching back to unencrypted room and pressing Send retries cleanly.
+    await act(async () => {
+      encUpload.reject(new Error('offline'));
+      await sendEnc;
+    });
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    await updateRoomInput(renderer, store, {
+      roomId: ROOM_ID,
+      encryptedRoom: false,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/dropped' });
     await act(async () => getPrimarySendButton(renderer).props.onClick());
     expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       msgtype: 'm.file',
@@ -5360,11 +5408,10 @@ describe("RoomInput as Home's ask field", () => {
       await Promise.resolve();
     });
     expect(editorMocks.insertNode).toHaveBeenCalledTimes(1);
-    const staged = store.get(composerUploadItemsAtom(ROOM_ID, HOME_ASK_VIEW));
-    expect(staged).toHaveLength(2);
-    staged.forEach((item, i) =>
-      store.set(roomUploadAtomFamily(item.file), { mxc: `mxc://mindroom/p-${i}` })
-    );
+    expect(store.get(homeUploadsAtom)).toHaveLength(2);
+    mxState.uploadContent
+      .mockResolvedValueOnce({ content_uri: 'mxc://mindroom/p-0' })
+      .mockResolvedValueOnce({ content_uri: 'mxc://mindroom/p-1' });
     stageComposerText('Review these');
     resetEditorOnNextSend();
     await act(async () => getPrimarySendButton(renderer).props.onClick());
@@ -5402,7 +5449,10 @@ describe("RoomInput as Home's ask field", () => {
         new File(['data'], `note-${threadingEnabled}.txt`, { type: 'text/plain' })
       );
       act(() => {
-        store.set(composerUploadItemsAtom(ROOM_ID, HOME_ASK_VIEW), { type: 'PUT', item: [item] });
+        store.set(composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW), {
+          type: 'PUT',
+          item: [item],
+        });
         store.set(roomUploadAtomFamily(item.file), { mxc: 'mxc://mindroom/note' });
       });
       stageComposerText('Follow-up caption');

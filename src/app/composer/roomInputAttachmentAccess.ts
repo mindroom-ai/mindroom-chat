@@ -1,5 +1,20 @@
+import type { MatrixError } from 'matrix-js-sdk';
 import { UploadStatus, type TUploadItem, type Upload } from '../matrix/state/upload';
-import type { TUploadContent } from '../matrix/matrix';
+import { toMatrixUploadError, type TUploadContent } from '../matrix/matrix';
+
+/**
+ * An error that blocks the upload before it starts: the file is larger than the server accepts.
+ * The message names both sizes.
+ */
+export const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size' as const;
+
+export const getTooLargeError = (
+  fileSize: number,
+  maxUploadSize: number | undefined
+): MatrixError | undefined =>
+  maxUploadSize !== undefined && fileSize > maxUploadSize
+    ? toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload')
+    : undefined;
 
 export type AttachmentSnapshot = {
   staged: TUploadItem[];

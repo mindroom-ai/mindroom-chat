@@ -83,7 +83,7 @@ const makeTestRoom = (roomId: string, encrypted = false) =>
 
 const renderHarness = (
   prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => [],
-  options?: { moveStagedOnRoomChange?: boolean; view?: string; draftKey?: string }
+  options?: { stagedListKey?: string; deferUpload?: boolean; view?: string; draftKey?: string }
 ) => {
   const store = createStore();
   const editor = createEditor();
@@ -117,7 +117,8 @@ const renderHarness = (
       isMarkdown: true,
       fileDropContainerRef: createRef<HTMLElement>(),
       createUploadItems: prepare,
-      moveStagedOnRoomChange: options?.moveStagedOnRoomChange,
+      stagedListKey: options?.stagedListKey,
+      deferUpload: options?.deferUpload,
     });
     return feature.board;
   };
@@ -601,78 +602,78 @@ describe('attachment staging ownership', () => {
     expect(harness.feature.hasSendableFiles).toBe(true);
   });
 
-  it('moves non-enrolled staged files on room switch, re-prepares across encryption, and handles rapid async switches', async () => {
-    const harness = renderHarness(undefined, {
-      moveStagedOnRoomChange: true,
+  it('keeps deferred Home staged files in one Home list across room switches and prepares/encrypts only on prepareForSend', async () => {
+    const createSpy = vi.fn(async () => []);
+    const homeKey = 'home-draft';
+    const harness = renderHarness(createSpy, {
+      stagedListKey: homeKey,
+      deferUpload: true,
       view: HOME_ASK_VIEW,
-      draftKey: 'home-draft',
+      draftKey: homeKey,
     });
-    const plainB = makeTestRoom('!plain-b:example.org', false);
-    const encC = makeTestRoom('!enc-c:example.org', true);
-    const plainD = makeTestRoom('!plain-d:example.org', false);
-    const enrolledItem = createUploadItem('sending.txt');
+    const encRoom = makeTestRoom('!enc:example.org', true);
+    const plainRoom = makeTestRoom('!plain:example.org', false);
     const stagedPaste = createPasteItem();
-    const inflight = new Promise<{ content_uri: string }>(() => undefined);
 
-    act(() => {
-      harness.feature.access.append(ROOM_ID, [enrolledItem, stagedPaste]);
-      harness.feature.access.enroll([enrolledItem]);
-      harness.store.set(roomUploadAtomFamily(stagedPaste.file), { promise: inflight });
-    });
+    // Staging via paste stays local/unencrypted without calling createUploadItems.
+    act(() => harness.feature.access.append(ROOM_ID, [stagedPaste]));
+    expect(createSpy).not.toHaveBeenCalled();
 
-    // Same encryption: moves non-enrolled file (keeping upload state & owner) and leaves enrolled untouched.
-    harness.changeRoom(plainB.roomId, plainB);
-    expect(harness.store.get(composerUploadItemsAtom(ROOM_ID, HOME_ASK_VIEW))).toEqual([
-      enrolledItem,
+    // Switching rooms keeps the exact same Home-scoped list without modifying items.
+    harness.changeRoom(encRoom.roomId, encRoom);
+    expect(harness.store.get(composerUploadItemsAtom(homeKey, HOME_ASK_VIEW))).toEqual([
+      stagedPaste,
     ]);
-    expect(harness.feature.access.snapshot().staged).toEqual([stagedPaste]);
-    expect(harness.store.get(roomUploadAtomFamily(stagedPaste.file)).status).toBe(
-      UploadStatus.Loading
-    );
-    expect(harness.mx.cancelUpload).not.toHaveBeenCalled();
+    expect(harness.feature.hasSendableFiles).toBe(true);
 
-    // Cross encryption + rapid switch (plainB -> encC -> plainD before encC prep resolves).
-    let resolveEnc!: (items: TUploadItem[]) => void;
+    // prepareForSend on encrypted room encrypts from originalFile, preserves metadata & owner, and replaces in-place.
+    const encBlob = new File(['cipher'], stagedPaste.originalFile.name, {
+      type: 'application/octet-stream',
+    });
     const prepSpy = vi
       .spyOn(uploadPreparation, 'createRoomUploadItems')
-      .mockImplementationOnce(() => new Promise((resolve) => (resolveEnc = resolve)))
-      .mockImplementationOnce(async (files, targetRoom, getMetadata) =>
-        files.map((file, i) => ({
-          file,
-          originalFile: file,
-          encInfo: targetRoom.hasEncryptionStateEvent() ? ({ v: 'v2' } as never) : undefined,
-          metadata: getMetadata?.(file, i) ?? { markedAsSpoiler: false },
-        }))
-      );
+      .mockResolvedValueOnce([
+        {
+          file: encBlob,
+          originalFile: stagedPaste.originalFile,
+          encInfo: { v: 'v2' } as never,
+          metadata: stagedPaste.metadata,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          file: stagedPaste.originalFile,
+          originalFile: stagedPaste.originalFile,
+          encInfo: undefined,
+          metadata: stagedPaste.metadata,
+        },
+      ]);
     try {
-      harness.changeRoom(encC.roomId, encC);
-      expect(harness.mx.cancelUpload).toHaveBeenCalledWith(inflight);
-      expect(harness.store.get(composerUploadItemsAtom(plainB.roomId, HOME_ASK_VIEW))).toEqual([]);
-
-      harness.changeRoom(plainD.roomId, plainD);
+      let preparedEnc!: TUploadItem[];
       await act(async () => {
-        resolveEnc([
-          {
-            file: new File(['cipher'], stagedPaste.originalFile.name),
-            originalFile: stagedPaste.originalFile,
-            encInfo: { v: 'v2' } as never,
-            metadata: stagedPaste.metadata,
-          },
-        ]);
-        await Promise.resolve();
-        await Promise.resolve();
+        preparedEnc = await harness.feature.prepareForSend(encRoom);
       });
+      expect(preparedEnc).toHaveLength(1);
+      expect(preparedEnc[0]!.file).toBe(encBlob);
+      expect(preparedEnc[0]!.encInfo).toBeTruthy();
+      expect(harness.feature.access.snapshot().staged).toEqual(preparedEnc);
 
-      expect(prepSpy).toHaveBeenCalledTimes(2);
-      expect(harness.store.get(composerUploadItemsAtom(encC.roomId, HOME_ASK_VIEW))).toEqual([]);
-      const finalItems = harness.store.get(composerUploadItemsAtom(plainD.roomId, HOME_ASK_VIEW));
-      expect(finalItems).toHaveLength(1);
-      expect(finalItems[0]).toMatchObject({
-        originalFile: stagedPaste.originalFile,
+      // A transient upload error stays retryable via hasSendableFiles and re-prepares cleanly for an unencrypted room.
+      act(() => harness.store.set(roomUploadAtomFamily(encBlob), { error: new Error('offline') }));
+      expect(harness.feature.hasSendableFiles).toBe(true);
+      harness.changeRoom(plainRoom.roomId, plainRoom);
+      let preparedPlain!: TUploadItem[];
+      await act(async () => {
+        preparedPlain = await harness.feature.prepareForSend(plainRoom);
+      });
+      expect(preparedPlain[0]).toMatchObject({
+        file: stagedPaste.originalFile,
         encInfo: undefined,
         metadata: stagedPaste.metadata,
       });
-      expect(harness.feature.access.snapshot().staged).toEqual(finalItems);
+      expect(harness.store.get(roomUploadAtomFamily(stagedPaste.originalFile)).status).toBe(
+        UploadStatus.Idle
+      );
     } finally {
       prepSpy.mockRestore();
     }

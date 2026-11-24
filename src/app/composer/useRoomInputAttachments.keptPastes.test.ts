@@ -185,4 +185,46 @@ describe('large pastes in a draft restored after a reload', () => {
     expect(restored.feature.access.snapshot().staged).toHaveLength(1);
     expect(await restored.feature.access.snapshot().staged[0]!.file.text()).toBe(LOG);
   });
+
+  it('does not restore a paste chip copied from a room draft into Home', async () => {
+    await keepPasteText(USER, getRoomInputDraftKey(USER, ROOM_ID), marker.fileName, LOG);
+    const store = createStore();
+    const editor = withInlineElements(createEditor());
+    editor.children = [
+      {
+        type: 'paragraph',
+        children: [{ text: 'Copied: ' }, createRoomInputPasteMarkerElement(marker), { text: '' }],
+      } as unknown as Descendant,
+    ];
+    const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
+    const homeDraftKey = getHomeAskDraftKey(USER);
+    let feature!: ReturnType<typeof useRoomInputAttachments>;
+    const HomeHarness = () => {
+      feature = useRoomInputAttachments({
+        mx: { cancelUpload: vi.fn() } as never,
+        userId: USER,
+        room: room as unknown as Room,
+        roomId: ROOM_ID,
+        draftKey: homeDraftKey,
+        stagedListKey: homeDraftKey,
+        deferUpload: true,
+        editor,
+        isMarkdown: true,
+        fileDropContainerRef: createRef<HTMLElement>(),
+        createUploadItems: prepare,
+      });
+      return null;
+    };
+    await act(async () => {
+      renderers.push(
+        create(React.createElement(Provider, { store }, React.createElement(HomeHarness)))
+      );
+    });
+    await act(async () => {
+      await feature.settlePastes();
+    });
+    expect(feature.access.snapshot().staged).toEqual([]);
+    expect(feature.lostPastes).toBe(true);
+    expect(getRoomInputPasteMarkerFileNames(editor.children).size).toBe(0);
+  });
 });

@@ -779,24 +779,37 @@ describe('dictationSendHandoff', () => {
     const onLocalEcho = vi.fn();
     const dismissLostNotices = vi.fn();
     const askFile = new File(['pic'], 'note.png', { type: 'image/png' });
+    const encAskFile = new File(['cipher'], 'note.png', { type: 'application/octet-stream' });
     const askItem: TUploadItem = {
       file: askFile,
       originalFile: askFile,
       encInfo: undefined,
       metadata: { markedAsSpoiler: false },
     };
+    const encAskItem: TUploadItem = {
+      file: encAskFile,
+      originalFile: askFile,
+      encInfo: { v: 'v2' } as never,
+      metadata: { markedAsSpoiler: false },
+    };
+    const encRoom = makeRoom({ hasEncryptionStateEvent: () => true });
     const { access: askAttachments, getEnrolled: getAskEnrolled } = makeAttachmentAccess([askItem]);
+    const uploadAskItem = vi.fn(async () => 'mxc://example.org/enc-note');
+    const prepareAttachmentsForSend = vi.fn(async (_r: Room, _items: TUploadItem[]) => {
+      askAttachments.append(encRoom.roomId, [encAskItem]);
+      return [encAskItem];
+    });
     const sAsk = makeMockSession();
     startSendSession.mockImplementationOnce(async (opts) => {
-      expect(opts?.beforeSend?.(room)).toBe(true);
-      opts?.onLocalEchoCreated?.('~!room:txn1', room);
+      expect(opts?.beforeSend?.(encRoom)).toBe(true);
+      opts?.onLocalEchoCreated?.('~!room:txn1', encRoom);
     });
     const askEditor = withInlineElements(createEditor());
     askEditor.children = makeDoc();
     handoffComposerDictationSend({
       ...makeStartInput({
         store,
-        room,
+        room: encRoom,
         session: sAsk.session,
         ownerKey: key,
         parseCommands: false,
@@ -809,29 +822,36 @@ describe('dictationSendHandoff', () => {
         attachments: askAttachments,
         sessions: { startSendSession, restoreText: vi.fn() },
         dismissLostNotices,
+        prepareAttachmentsForSend,
       }),
       editor: askEditor,
-      room,
-      roomId: room.roomId,
+      room: encRoom,
+      roomId: encRoom.roomId,
       threadingEnabled: true,
       commands: {},
       takeRootModelDraft: vi.fn(() => undefined),
-      uploadItem: vi.fn(async () => 'mxc://example.org/note'),
+      uploadItem: uploadAskItem,
       clearReplyDraft: vi.fn(),
       resetComposer: vi.fn(),
       stopTyping: vi.fn(),
     });
     expect(getAskEnrolled()).toEqual([askItem]);
+    // Deferred upload: nothing uploaded at handoff time before prepareAttachmentsForSend commits.
+    expect(uploadAskItem).not.toHaveBeenCalled();
     await act(async () => {
       sAsk.resolveFinish({ status: 'completed', text: 'summarize today' });
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
     });
+    expect(prepareAttachmentsForSend).toHaveBeenCalledWith(encRoom, [askItem]);
+    expect(uploadAskItem).toHaveBeenCalledWith(encAskItem);
     expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain(
       '@mindroom_helper:example.org'
     );
-    expect(startSendSession.mock.calls[0]![0]!.batch?.fileItems).toEqual([askItem]);
+    expect(startSendSession.mock.calls[0]![0]!.batch?.fileItems).toEqual([encAskItem]);
     expect(dismissLostNotices).toHaveBeenCalledTimes(1);
-    expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', room);
+    expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', encRoom);
     expect(onSendingChange).toHaveBeenCalledWith(false);
 
     const sAskFileOnly = makeMockSession();

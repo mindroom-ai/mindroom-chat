@@ -510,7 +510,8 @@ describe('HomeAsk', () => {
     expect(lastRoomInputProps.current?.onRoomMessageSent?.('$root-1')).toBe(true);
     expect(navigateRoomThreadDirect).toHaveBeenCalledWith('!eng', '$root-1');
 
-    // Staged file without typed text freezes destination against ranking updates.
+    // Staged file in Home's single list freezes destination against ranking updates (no typed text).
+    const homeUploads = composerUploadItemsAtom(getHomeAskDraftKey(ME), HOME_ASK_VIEW);
     const file = new File(['pic'], 'note.png', { type: 'image/png' });
     const item = {
       file,
@@ -518,29 +519,32 @@ describe('HomeAsk', () => {
       encInfo: undefined,
       metadata: { markedAsSpoiler: false },
     };
-    act(() =>
-      store.set(composerUploadItemsAtom('!eng', HOME_ASK_VIEW), { type: 'PUT', item: [item] })
-    );
+    act(() => store.set(homeUploads, { type: 'PUT', item: [item] }));
     first.refresh([{ ...quillAgent, lastUsedTs: 999 }, helperAgent]);
     expect(lastRoomInputProps.current?.roomId).toBe('!eng');
 
-    // Room-mode room disables threading and returns false from onRoomMessageSent.
+    // Switching to an unstarted DM stand-in unmounts RoomInput yet preserves Home's staged files.
+    fireEvent.click(screen.getByRole('button', { name: 'Helper answers' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Quill/ }));
+    expect(screen.queryByTestId('room-input')).toBeNull();
+    expect(store.get(homeUploads)).toEqual([item]);
+
+    // Switching back to Helper -> Lobby (room-mode) disables threading and returns false on send.
+    fireEvent.click(screen.getByRole('button', { name: 'Quill answers' }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Helper/ }));
     fireEvent.click(screen.getByRole('button', { name: 'In Engineering' }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: /^Lobby/ }));
     expect(lastRoomInputProps.current?.threadingEnabled).toBe(false);
     expect(lastRoomInputProps.current?.onRoomMessageSent?.('$room-msg')).toBe(false);
     expect(navigateRoom).toHaveBeenCalledWith('!lobby', '$room-msg');
 
-    // Remount with staged file in Lobby (no typed text) restores Lobby and forwards caller drop ref.
-    act(() => {
-      store.set(composerUploadItemsAtom('!eng', HOME_ASK_VIEW), { type: 'RESET' });
-      store.set(composerUploadItemsAtom('!lobby', HOME_ASK_VIEW), { type: 'PUT', item: [item] });
-    });
+    // Remount with staged file in Home's list (no typed text) restores Lobby and forwards caller drop ref.
     first.unmount();
     const outerRef = { current: document.createElement('div') };
     const restored = renderAsk(mx, [helperAgent, quillAgent], store, outerRef);
     expect(lastRoomInputProps.current?.roomId).toBe('!lobby');
     expect(lastRoomInputProps.current?.fileDropContainerRef).toBe(outerRef);
+    expect(store.get(homeUploads)).toEqual([item]);
     restored.unmount();
   });
 });

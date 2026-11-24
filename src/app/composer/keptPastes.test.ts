@@ -29,9 +29,19 @@ describe('kept paste texts', () => {
     expect(texts.get('mindroom-paste-a1b2c3.txt')).toBe(LOG);
   });
 
-  it("keeps each account's pastes apart", async () => {
+  it("keeps each account's and draft's pastes apart", async () => {
     await keepPasteText(BOB, ROOM_DRAFT, 'mindroom-paste-a1b2c3.txt', 'bob');
     expect((await readKeptPasteTexts(ALICE, ['mindroom-paste-a1b2c3.txt'])).size).toBe(0);
+
+    await keepPasteText(ALICE, ROOM_DRAFT, 'mindroom-paste-d4e5f6.txt', 'secret room text');
+    expect(
+      (await readKeptPasteTexts(ALICE, ['mindroom-paste-d4e5f6.txt'], THREAD_DRAFT)).size
+    ).toBe(0);
+    expect(
+      (await readKeptPasteTexts(ALICE, ['mindroom-paste-d4e5f6.txt'], ROOM_DRAFT)).get(
+        'mindroom-paste-d4e5f6.txt'
+      )
+    ).toBe('secret room text');
   });
 
   it('forgets the pastes a draft no longer holds, and only that draft’s', async () => {

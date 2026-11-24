@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
-import { atom, useAtomValue, useStore } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   EventStatus,
@@ -21,7 +21,6 @@ import {
   homeAskDestinationAtomFamily,
   homeAskPendingAtomFamily,
   roomIdToMsgDraftAtomFamily,
-  type TUploadItem,
 } from '../composer/roomInputDrafts';
 import { useEditor } from '../editor/Editor';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
@@ -62,9 +61,6 @@ type FieldProps = {
   open: OpenFn;
   fileDropContainerRef?: RefObject<HTMLElement | null>;
 };
-
-const EMPTY_UPLOAD_ITEMS: readonly TUploadItem[] = [];
-const EMPTY_UPLOAD_ITEMS_ATOM = atom(() => EMPTY_UPLOAD_ITEMS);
 
 export function Badge({ id, name, mxc, src, square }: BadgeProps) {
   const mx = useMatrixClient();
@@ -189,7 +185,9 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
   const editor = useEditor();
   const version = useCapabilities()['m.room_versions']?.default;
   const userId = mx.getSafeUserId();
-  const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(userId));
+  const draftKey = getHomeAskDraftKey(userId);
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+  const uploadsAtom = composerUploadItemsAtom(draftKey, HOME_ASK_VIEW);
   const destinationAtom = homeAskDestinationAtomFamily(userId);
   const pendingAtom = homeAskPendingAtomFamily(userId);
   const sending = useAtomValue(pendingAtom)?.state === 'sending';
@@ -198,25 +196,22 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
     if (sent?.state === 'sending') {
       return { agentId: sent.agentId, roomId: sent.roomId, isDirect: sent.isDirect };
     }
-    const dest = store.get(destinationAtom);
-    const hasFiles =
-      !!dest?.roomId && store.get(composerUploadItemsAtom(dest.roomId, HOME_ASK_VIEW)).length > 0;
-    if (store.get(draftAtom).length === 0 && !hasFiles) return undefined;
-    return dest ?? { agentId: '', roomId: null };
+    const hasDraft = store.get(draftAtom).length > 0;
+    const hasFiles = store.get(uploadsAtom).length > 0;
+    if (!hasDraft && !hasFiles) return undefined;
+    return store.get(destinationAtom) ?? (hasDraft ? { agentId: '', roomId: null } : undefined);
   });
   const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
   const alive = useAlive();
   const [focusOnMount, setFocusOnMount] = useState(false);
   const typed = useAtomValue(draftAtom).length > 0;
+  const hasStagedFiles = useAtomValue(uploadsAtom).length > 0;
   const selected = choice ?? destinationOf(first, first.defaultRoomId ?? null);
   const agent = agents.find((c) => c.userId === selected.agentId) ?? goneAgent(selected.agentId);
   const agentId = agent.userId;
   const { roomId } = selected;
   const isDirect = !!selected.isDirect;
   const starting = starts[agentId];
-  const hasStagedFiles =
-    useAtomValue(roomId ? composerUploadItemsAtom(roomId, HOME_ASK_VIEW) : EMPTY_UPLOAD_ITEMS_ATOM)
-      .length > 0;
   // Freeze destination on the first keystroke or staged file so background ranking updates do not redirect a draft.
   if ((typed || hasStagedFiles) && !choice) {
     setChoice(store.get(destinationAtom) ?? (typed ? { agentId: '', roomId: null } : selected));
