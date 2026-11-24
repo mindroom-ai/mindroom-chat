@@ -185,13 +185,20 @@ describe('LeaveRoomPrompt', () => {
     const heading = document.getElementById('leave-room-prompt-heading');
     const question = document.getElementById('leave-room-prompt-heading-question');
     expect(heading?.textContent).toBe('Leave Space');
+    expect(question?.previousElementSibling?.id).toBe('leave-room-prompt-heading-target');
     expect(question?.previousElementSibling?.textContent).toBe('Design Team');
-    expect(spaceDialog?.textContent).toContain('Design Team');
+    expect(spaceDialog?.getAttribute('aria-describedby')).toBe(
+      'leave-room-prompt-heading-target leave-room-prompt-heading-question'
+    );
 
     act(() => root.render(<span />));
     roomNames.clear();
     show(undefined, '!r:test');
+    const unnamedDialog = document.querySelector('[role="alertdialog"]');
     const unnamedQuestion = document.getElementById('leave-room-prompt-heading-question');
     expect(unnamedQuestion?.previousElementSibling).toBeNull();
+    expect(unnamedDialog?.getAttribute('aria-describedby')).toBe(
+      'leave-room-prompt-heading-question'
+    );
   });
 });

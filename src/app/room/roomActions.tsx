@@ -1,4 +1,5 @@
 import { lazy, type ComponentType, type ReactNode } from 'react';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
@@ -19,6 +20,7 @@ import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
+import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
@@ -211,11 +213,16 @@ function RemoveFromSpaceEntry({
   );
 }
 
-/** Remove from, for each chat room the room is a sub-room of and the space listing it. */
-function TakeOffEntry({ room, removeFromSpaceId, close }: RoomActionProps) {
+/** Remove from, for each chat room the room is a sub-room of and the space listing it directly. */
+function TakeOffEntry({ room, spaceId, removeFromSpaceId, close }: RoomActionProps) {
   const client = useMatrixClient();
   const parentRooms = useParentRooms(room);
-  const candidateSpace = removeFromSpaceId ? client.getRoom(removeFromSpaceId) : null;
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  const targetSpaceId = removeFromSpaceId ?? spaceId;
+  const candidateSpace =
+    targetSpaceId && roomToParents.get(room.roomId)?.has(targetSpaceId)
+      ? client.getRoom(targetSpaceId)
+      : null;
   const parentSpace =
     candidateSpace &&
     candidateSpace.isSpaceRoom() &&

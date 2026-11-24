@@ -366,15 +366,26 @@ describe('the shared room actions', () => {
       removeListener: vi.fn(),
       ...overrides,
     });
+    const linkDirectlyToSpace = (...parents: string[]) => {
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'INITIALIZE',
+        roomToParents: new Map([[room.roomId, new Set(parents)]]),
+      });
+    };
 
-    it('offers critical Remove from <space> when permitted and calls removeSpaceChild', () => {
+    it('offers critical Remove from <space> for a direct child from sidebar row or room header and calls removeSpaceChild', () => {
       state.removeSpaceChild.mockClear();
       state.rooms[spaceId] = makeJoinedSpace();
+      linkDirectlyToSpace(spaceId);
       const close = vi.fn();
       render(<Harness removeFromSpaceId={spaceId} close={close} />);
 
       const entry = screen.getByRole('menuitem', { name: 'Remove from Design Team' });
-      expect(rows()).toContain('Remove from Design Team');
+      expect(rows()).toEqual([
+        ...SHARED.slice(0, -2),
+        'Remove from Design Team',
+        ...SHARED.slice(-2),
+      ]);
       expect(entry.className).toBe(screen.getByRole('menuitem', { name: 'Leave Room' }).className);
 
       fireEvent.click(entry);
@@ -384,11 +395,28 @@ describe('the shared room actions', () => {
         spaceId,
         '!room:example.org'
       );
+
+      // Room header menu (passes spaceId without removeFromSpaceId) stays unified for direct children.
+      cleanup();
+      render(<Harness spaceId={spaceId} />);
+      expect(rows()).toEqual([
+        ...SHARED.slice(0, -2),
+        'Remove from Design Team',
+        ...SHARED.slice(-2),
+      ]);
     });
 
-    it('omits Remove from <space> when the user lacks m.space.child permission or the target is not a joined space', () => {
-      state.canListRooms = false;
+    it('omits Remove from <space> for non-direct / orphaned sub-rooms, missing permission, or non-joined spaces', () => {
       state.rooms[spaceId] = makeJoinedSpace();
+
+      // Not directly linked to spaceId (e.g. orphaned chat sub-room under an archived parent).
+      linkDirectlyToSpace('!archived-chat:example.org');
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      linkDirectlyToSpace(spaceId);
+      state.canListRooms = false;
       render(<Harness removeFromSpaceId={spaceId} />);
       expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
       cleanup();
@@ -399,7 +427,7 @@ describe('the shared room actions', () => {
       expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
       cleanup();
 
-      state.rooms[spaceId] = makeJoinedSpace({ isSpaceRoom: () => false });
+      delete state.rooms[spaceId];
       render(<Harness removeFromSpaceId={spaceId} />);
       expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
     });

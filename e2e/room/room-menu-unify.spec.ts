@@ -66,6 +66,8 @@ type Case = {
   canInvite: boolean;
   /** Why New Sub-room is disabled, '' when it is not; a direct message's menu has none. */
   newSubRoom?: string;
+  /** Name of the editable space directly listing this room, when shown in that space. */
+  removeFromSpace?: string;
   encrypted: boolean;
 };
 
@@ -77,7 +79,7 @@ const item = (name: string, reason = ''): Item => ({
 });
 
 /** The entries every room menu shares, in their order. */
-const sharedItems = ({ canInvite, newSubRoom, encrypted }: Case): Item[] => [
+const sharedItems = ({ canInvite, newSubRoom, removeFromSpace, encrypted }: Case): Item[] => [
   item('Mark as Read'),
   item('Notifications'),
   item('Invite', canInvite ? '' : NO_INVITE),
@@ -86,6 +88,7 @@ const sharedItems = ({ canInvite, newSubRoom, encrypted }: Case): Item[] => [
   item('Room Settings'),
   item('Message Search', encrypted ? NO_SEARCH : ''),
   item('Jump to Time'),
+  ...(removeFromSpace === undefined ? [] : [item(`Remove from ${removeFromSpace}`)]),
   item('Archive Room'),
   item('Leave Room'),
 ];
@@ -193,6 +196,7 @@ const seed = async (label: string): Promise<Seed> => {
         room: `/${enc(space)}/${enc(spaceRoom)}/`,
         canInvite: true,
         newSubRoom: '',
+        removeFromSpace: 'Field Team',
         encrypted: false,
       },
     ],

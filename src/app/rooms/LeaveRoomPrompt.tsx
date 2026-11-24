@@ -90,7 +90,9 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
             id={`${HEADING_ID}-dialog`}
             role="alertdialog"
             aria-labelledby={HEADING_ID}
-            aria-describedby={`${HEADING_ID}-question`}
+            aria-describedby={
+              roomName ? `${HEADING_ID}-target ${HEADING_ID}-question` : `${HEADING_ID}-question`
+            }
             tabIndex={-1}
             style={{ width: '100%', maxWidth: promptWidth, outline: 'none' }}
           >
@@ -112,7 +114,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
               {roomName && (
-                <Text size="H5" truncate {...ownDirectionLine}>
+                <Text id={`${HEADING_ID}-target`} size="H5" truncate {...ownDirectionLine}>
                   {roomName}
                 </Text>
               )}
