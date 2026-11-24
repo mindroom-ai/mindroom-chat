@@ -1,6 +1,6 @@
 import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Avatar, IconButton, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';

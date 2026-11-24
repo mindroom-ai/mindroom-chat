@@ -133,7 +133,7 @@ const fetchRawAttachment = async (
         source.mimeType || response.headers.get('Content-Type') || 'application/octet-stream',
     };
   }
-  const chunks: Uint8Array[] = [];
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
   let size = 0;
   try {
     const length = Number(response.headers.get('Content-Length'));

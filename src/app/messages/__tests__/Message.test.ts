@@ -63,7 +63,7 @@ vi.mock('../../ui/page/PageScroll', async () => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {

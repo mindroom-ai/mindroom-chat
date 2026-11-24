@@ -181,7 +181,7 @@ vi.mock('focus-trap-react', () => {
     );
     return React.createElement('div', null, children);
   };
-  return { default: FocusTrapMock };
+  return { FocusTrap: FocusTrapMock };
 });
 
 vi.mock('./VoiceRecordingCapsule.css', () => ({

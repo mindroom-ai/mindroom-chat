@@ -11,4 +11,4 @@ https://github.com/mindroom-ai/pull-request-client-plugin 9cc3291bd8572b3fd4c9b7
 # Quiet per-thread AI cost, token count, models used, and context window telemetry on Compact cards
 # and in thread details (hover card, thread menu, and sidebar hover card); off by default until
 # enabled in Settings -> Plugins.
-https://github.com/mindroom-ai/thread-usage-client-plugin 0d098ad4b4554738a7ca884cfa4b1e7c31673b1e
+https://github.com/mindroom-ai/thread-usage-client-plugin 12bebda0813c56cb62b70a75515a9ed84dd58aeb
