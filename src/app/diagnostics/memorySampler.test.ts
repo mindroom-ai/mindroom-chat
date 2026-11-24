@@ -252,4 +252,63 @@ describe('memory sampler', () => {
     expect(trace.record).not.toHaveBeenCalled();
     expect(trace.listeners.size).toBe(0);
   });
+
+  it('counts light DOM nodes, open shadow roots, and nested shadow DOM nodes', () => {
+    trace.recording = true;
+    sampleMemory('interval');
+    expect(samples().at(-1)).toMatchObject({
+      dom_nodes: document.getElementsByTagName('*').length,
+      shadow_roots: 0,
+      shadow_dom_nodes: 0,
+    });
+
+    const host = document.createElement('div');
+    const closedHost = document.createElement('div');
+    closedHost.attachShadow({ mode: 'closed' }).append(document.createElement('span'));
+    const shadow = host.attachShadow({ mode: 'open' });
+    const innerHost = document.createElement('section');
+    shadow.append(document.createElement('p'), innerHost);
+    document.body.append(host, closedHost);
+    cleanups.push(() => {
+      host.remove();
+      closedHost.remove();
+    });
+
+    sampleMemory('interval');
+    expect(samples().at(-1)).toMatchObject({
+      dom_nodes: document.getElementsByTagName('*').length,
+      shadow_roots: 1,
+      shadow_dom_nodes: 2,
+    });
+
+    const nestedShadow = innerHost.attachShadow({ mode: 'open' });
+    nestedShadow.append(document.createElement('span'), document.createElement('em'));
+
+    sampleMemory('interval');
+    expect(samples().at(-1)).toMatchObject({
+      dom_nodes: document.getElementsByTagName('*').length,
+      shadow_roots: 2,
+      shadow_dom_nodes: 4,
+    });
+  });
+
+  it.each(['plugin_panel_open', 'plugin_panel_close'] as const)(
+    'records %s with its reason flag and flushes immediately',
+    (reason) => {
+      trace.recording = true;
+      sampleMemory(reason);
+
+      const reasonKey = `reason_${reason}`;
+      expect(trace.record).toHaveBeenCalledWith(
+        'memory.media',
+        expect.objectContaining({ [reasonKey]: true }),
+        { flush: false }
+      );
+      expect(trace.record).toHaveBeenLastCalledWith(
+        'memory.sample',
+        expect.objectContaining({ [reasonKey]: true }),
+        { flush: true }
+      );
+    }
+  );
 });
