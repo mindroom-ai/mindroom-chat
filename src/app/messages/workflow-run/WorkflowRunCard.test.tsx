@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { workflowRunPanelAtom } from '../../navigation/workflowPanel';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { RoomProvider } from '../../matrix/hooks/useRoom';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { keepCancelsOf } from '../../matrix/state/sentCancels';
 import {
@@ -625,5 +626,67 @@ describe('WorkflowRunCard', () => {
       </JotaiProvider>
     );
     expect(screen.getByText('Reused: 6')).toBeTruthy();
+  });
+
+  it('hides Graph on an inherited card from another room and keeps it on a same-room card', () => {
+    const { mx } = makeClient();
+    const cardWithGraph = makeCard({
+      status: 'completed',
+      endedAt: 1795389800,
+      graph: {
+        phases: ['Audit'],
+        groups: [],
+        nodes: [],
+        edges: [],
+        log: [],
+        omitted: {
+          queued: 0,
+          running: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          edges: 0,
+          groups: 0,
+          phases: 0,
+          log: 0,
+        },
+      },
+    });
+    const otherRoom = { roomId: '!other:example.org' } as unknown as Room;
+    const sameRoom = { roomId: ROOM_ID } as unknown as Room;
+
+    const { rerender } = render(
+      <JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <RoomProvider value={otherRoom}>
+            <WorkflowRunCard
+              card={cardWithGraph}
+              roomId={ROOM_ID}
+              threadId={THREAD_ID}
+              sender={AGENT}
+              readOnly
+            />
+          </RoomProvider>
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    expect(screen.queryByRole('button', { name: 'Graph' })).toBeNull();
+
+    rerender(
+      <JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <RoomProvider value={sameRoom}>
+            <WorkflowRunCard
+              card={cardWithGraph}
+              roomId={ROOM_ID}
+              threadId={THREAD_ID}
+              sender={AGENT}
+              readOnly
+            />
+          </RoomProvider>
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+    expect(screen.getByRole('button', { name: 'Graph' })).toBeTruthy();
   });
 });

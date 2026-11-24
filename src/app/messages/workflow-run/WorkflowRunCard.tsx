@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import { Button, Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useRoomOptionally } from '../../matrix/hooks/useRoom';
 import { isLiveWorkflowRunStatus } from '../../matrix/protocol/workflowFrame';
 import type { WorkflowRunCard as WorkflowRunCardData } from '../../matrix/protocol/workflowRunContent';
 import { openWorkflowRunPanel } from '../../navigation/workflowPanel';
@@ -46,6 +47,7 @@ export function WorkflowRunCard({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const jotaiStore = useStore();
+  const displayedRoom = useRoomOptionally();
   const room = mx.getRoom(roomId);
   const stored = useWorkflowRun(roomId, card.run);
   const cardObservedAt = cardTimestamp(card, updatedAt);
@@ -63,20 +65,21 @@ export function WorkflowRunCard({
   const isLive = isLiveWorkflowRunStatus(view.status);
   const heading = workflowRunHeading(view, t);
   const phases = view.graph?.phases.length ? view.graph.phases : card.phases;
-  const graphButton = view.graph ? (
-    <Button
-      type="button"
-      size="300"
-      variant="Secondary"
-      fill="Soft"
-      onClick={() => {
-        getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, cardObservedAt, threadId);
-        openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
-      }}
-    >
-      <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
-    </Button>
-  ) : null;
+  const graphButton =
+    view.graph && (!displayedRoom || displayedRoom.roomId === roomId) ? (
+      <Button
+        type="button"
+        size="300"
+        variant="Secondary"
+        fill="Soft"
+        onClick={() => {
+          getWorkflowRunStore(mx).showCard(roomId, sender ?? '', card, cardObservedAt, threadId);
+          openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
+        }}
+      >
+        <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
+      </Button>
+    ) : null;
 
   return (
     <section
