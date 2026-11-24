@@ -14,7 +14,11 @@ import {
 import type { ClientSessions } from '../../computer/clientSessions';
 import { DictationApiError, DictationClient } from './api';
 import { createDictationRateBudget } from './dictationRefinement';
-import { DICTATION_FRAME_SAMPLES, DICTATION_SAMPLE_RATE, encodePcm16Wav } from './dictationSegmenter';
+import {
+  DICTATION_FRAME_SAMPLES,
+  DICTATION_SAMPLE_RATE,
+  encodePcm16Wav,
+} from './dictationSegmenter';
 import {
   createDictationSession,
   type DictationCaptureFactory,
@@ -495,7 +499,7 @@ describe('createDictationSession', () => {
     const session = createDictationSession({
       client: { transcribe: vi.fn() },
       getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+        ({ getAudioTracks: () => [track], getTracks: () => [track] }) as unknown as MediaStream,
       createAudioContext: () => fakeContext,
       loadVad: async () => makeVad(),
     });
@@ -551,7 +555,7 @@ describe('createDictationSession', () => {
       const session = createDictationSession({
         client: { transcribe: vi.fn() },
         getUserMedia: async () =>
-          ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+          ({ getAudioTracks: () => [track], getTracks: () => [track] }) as unknown as MediaStream,
         createAudioContext: () => fakeContext,
         loadVad: async () => makeVad(),
       });
@@ -1154,7 +1158,11 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     Object.defineProperty(globalThis.navigator, 'locks', {
       configurable: true,
       value: {
-        request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
+        request: async <T>(
+          name: string,
+          _options: LockOptions,
+          callback: LockGrantedCallback<T>
+        ) => {
           if (heldLocks.has(name)) return callback(null);
           heldLocks.add(name);
           try {

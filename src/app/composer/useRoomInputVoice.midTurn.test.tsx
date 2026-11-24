@@ -54,7 +54,7 @@ const createSession = (name = 'voice.ogg'): VoiceCaptureSession =>
       },
     }),
     reset: () => undefined,
-  } as unknown as VoiceCaptureSession);
+  }) as unknown as VoiceCaptureSession;
 
 const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(

@@ -13,7 +13,7 @@ vi.mock('./ComputerScreen', () => {
 const AGENT = '@mindroom_helper:example.org';
 
 const answer = (body: unknown, status = 200) =>
-  ({ ok: status < 300, status, json: () => Promise.resolve(body) } as Response);
+  ({ ok: status < 300, status, json: () => Promise.resolve(body) }) as Response;
 
 /** A computer service that opens a session and hands out a stream ticket. */
 const service = () =>
@@ -45,7 +45,7 @@ const client = () =>
         expires_in: 3600,
       }),
     },
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('ComputerScreenUnavailable', () => {
   afterEach(() => {

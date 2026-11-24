@@ -638,11 +638,14 @@ const handleActiveEnd = (
   const durationMs = gesture.tracker.settleDurationMs(commit, extent, endTimeMs);
   const currentOffset = gesture.tracker.offset;
   const settleToken = ++settleCounter;
-  const watchdogId = setTimeout(() => {
-    if (activeSettle?.token === settleToken) {
-      abortActiveSettle();
-    }
-  }, Math.max(0, durationMs) + SETTLE_WATCHDOG_GRACE_MS);
+  const watchdogId = setTimeout(
+    () => {
+      if (activeSettle?.token === settleToken) {
+        abortActiveSettle();
+      }
+    },
+    Math.max(0, durationMs) + SETTLE_WATCHDOG_GRACE_MS
+  );
 
   activeSettle = {
     token: settleToken,

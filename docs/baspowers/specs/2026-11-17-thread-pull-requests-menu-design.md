@@ -11,6 +11,7 @@ What T3 Code does (pingdotgg/t3code `055b4491`): the header has one icon toggle,
 The "same UI element" in MindRoom: the plugin's thread details rows (`src/ThreadDetails.tsx`: state icon, `repo #N`, state in words, checks, title; then the worktree's branch and path), already shown in the thread's hover card and at the top of the thread's ⋮ menu.
 
 Said by Bas: one icon, a menu listing every PR, each row clickable; T3 Code as the model. Assumed:
+
 - The icon goes in the open thread's banner row (`ThreadContextBanner`, next to ⋮ / pin / resolve), as T3 puts its toggle in the header row. That row exists on phones and desktop, so the strip's rows of vertical space go away entirely.
 - A row click does what a chip click does today: open the PR in the plugin's side panel (`panel.open(pr)`); a row for the PR the panel already shows is marked current.
 - The Compact view's card chips (`ThreadCardPullRequests`) stay: Bas pointed at the open thread.
@@ -18,10 +19,12 @@ Said by Bas: one icon, a menu listing every PR, each row clickable; T3 Code as t
 ## Scope
 
 In:
+
 - App: a new plugin contribution kind, `threadHeaderSlot`, components drawn in the open thread's banner row before the ⋮ button. SDK version 63.
 - Plugin: replace `ThreadPullRequestStrip` with `ThreadPullRequestsButton` (contributed to `threadHeaderSlot`): a PR icon button with the count, opening a menu of the thread's PRs and its worktree.
 
 Out:
+
 - Compact card chips, hover cards, the ⋮ menu's details group (unchanged).
 - Any state colour or GitHub request on the closed button: it asks GitHub nothing until the menu opens.
 
@@ -38,6 +41,7 @@ Docs: a "Thread header slot" section in `docs/client-plugins.md`, "now 63", and 
 ## Pull request plugin
 
 `ThreadPullRequestsButton({ room, threadId })`:
+
 - Reads `useThreadPullRequests(room, threadId)`. No PRs and no worktree: renders null.
 - The button: the SDK's `IconButton` with the `GitPullRequestArrow` glyph and the PR count beside it (no count for one PR; worktree only: the `GitBranch` glyph), wrapped in `IconTooltip` with "Pull requests (N)" / "Worktree", `aria-haspopup="menu"`, `aria-expanded`. Sized in rem and styled like the banner's other icon buttons (measure them).
 - Click opens a menu (SDK `Menu` in `PopOut`, anchored to the button, closes on Escape, outside click and after a row click, focus returns to the button). Rows:

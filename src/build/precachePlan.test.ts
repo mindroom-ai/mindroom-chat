@@ -32,14 +32,14 @@ const chunk = (fileName: string, shape: ChunkShape): Rollup.OutputChunk =>
       importedCss: new Set(shape.css ?? []),
       importedAssets: new Set(shape.assets ?? []),
     },
-  } as unknown as Rollup.OutputChunk);
+  }) as unknown as Rollup.OutputChunk;
 
 const asset = (fileName: string, source?: string): Rollup.OutputAsset =>
   ({
     type: 'asset',
     fileName,
     originalFileNames: source ? [source] : [],
-  } as unknown as Rollup.OutputAsset);
+  }) as unknown as Rollup.OutputAsset;
 
 /** An entry, a signed-in page chunk and the crypto chunk that share one chunk, and lazy parts. */
 const bundle = (): OutputBundle => {

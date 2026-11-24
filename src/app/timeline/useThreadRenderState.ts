@@ -17,7 +17,10 @@ import {
   type RoomEventHandlerMap,
   Thread,
 } from 'matrix-js-sdk';
-import { aggregateCachedRelationEvents, hydrateCachedEvents } from '../event-store/cache/eventCacheEditUtils';
+import {
+  aggregateCachedRelationEvents,
+  hydrateCachedEvents,
+} from '../event-store/cache/eventCacheEditUtils';
 import { removeAggregatedReactionByEventId } from '../event-store/engine/redactionCacheLifecycle';
 import { useThreadEventRefresh } from '../event-store/threads/useThreadEventRefresh';
 import {

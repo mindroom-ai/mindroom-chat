@@ -33,7 +33,7 @@ const makeEvent = ({
     getUnsigned: () => undefined,
     isRedacted: () => false,
     isRedaction: () => false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const makeRoom = (rootEvent?: MatrixEvent): Room =>
   ({
@@ -49,7 +49,7 @@ const makeRoom = (rootEvent?: MatrixEvent): Room =>
     })),
     getMember: vi.fn(() => undefined),
     currentState: { getStateEvents: vi.fn(() => []) },
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const visibleRootData = {
   ids: ['$root'],

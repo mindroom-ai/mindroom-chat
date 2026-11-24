@@ -35,6 +35,7 @@
 ### Task 1: Shared Capture Core (`src/app/composer/capture/`) & Voice Wiring
 
 **Files:**
+
 - Create: `src/app/composer/capture/liveCapture.ts`
 - Create: `src/app/composer/capture/captureJournal.ts`
 - Create: `src/app/composer/capture/useLiveCaptureCapsuleVisible.ts`
@@ -51,6 +52,7 @@
 - Test: `src/app/composer/capture/captureJournal.test.ts`, `src/app/composer/capture/LiveCaptureIndicator.test.tsx`, `src/app/composer/capture/__tests__/captureOwnership.architecture.test.ts`, `src/app/shell/accountState.test.ts`
 
 **Interfaces:**
+
 - Produces in `src/app/composer/capture/liveCapture.ts`:
   - `LiveCapture`, `LiveCaptureError`, `liveCaptureAtom`, `liveCaptureErrorAtom`, `liveCaptureCapsulesShownAtom`, `captureDiscardsInFlightAtom`
   - `beginLiveCapture(store, kind, createSession)`, `restoreLiveCapture(store, entry)`, `claimLiveVoice(store, expected?)`, `claimLiveDictation(store, expected?)`, `clearLiveCapture(store, expected)`, `discardLiveCapture(store, expected?)`, `parkLiveCapture(store)`, `endLiveCapturesOfAccount(store)`, `captureAccountGuard(store)`
@@ -76,6 +78,7 @@
 ### Task 2: Dictation Checkpointing, Recovery Hydration & Session Lifecycle
 
 **Files:**
+
 - Modify: `src/app/composer/dictation/dictationSegmenter.ts`
 - Modify: `src/app/composer/dictation/dictationRefinement.ts`
 - Modify: `src/app/composer/dictation/dictationSession.ts`
@@ -83,6 +86,7 @@
 - Test: `src/app/composer/dictation/dictationSegmenter.test.ts`, `dictationRefinement.test.ts`, `dictationSession.test.ts`, `startLiveDictation.test.ts`
 
 **Interfaces:**
+
 - Consumes: `liveCapture.ts` (`beginLiveCapture`, `restoreLiveCapture`, `liveCaptureAtom`, `captureAccountGuard`), `captureJournal.ts` (`beginDictationJournal`, `recoverDictationJournal`, `hasDictationJournalRecord`, `deleteCapture`, `releaseCapture`).
 - Produces in `dictationSession.ts`:
   - Extended `DictationSnapshot` (`recovered: boolean`, `hasClient: boolean`)
@@ -111,6 +115,7 @@
 ### Task 3: Cross-Navigation Composer Hook, Capsule UI, Handoff & Shell Recovery
 
 **Files:**
+
 - Modify: `src/app/composer/dictation/useRoomInputDictation.tsx`
 - Modify: `src/app/composer/dictation/DictationCapsule.tsx`
 - Modify: `src/app/composer/dictation/dictationSendHandoff.ts`
@@ -120,6 +125,7 @@
 - Test: `src/app/composer/dictation/useRoomInputDictation.test.tsx`, `src/app/composer/dictation/RoomInput.dictation.test.tsx`, `src/app/composer/dictation/dictationSendHandoff.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `liveCapture.ts`, `startLiveDictation.ts`, `useLiveCaptureCapsuleVisible.ts`, `DiscardCaptureDialog.tsx`, `captureJournal.ts` (`deleteCapture`, `releaseCapture`).
 
 - [ ] **Step 1: Refactor `useRoomInputDictation.tsx` to read account-wide `liveCaptureAtom`**

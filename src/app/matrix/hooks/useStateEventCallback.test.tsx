@@ -13,7 +13,7 @@ const avatarEvent = (roomId: string, url: string): MatrixEvent =>
     getRoomId: () => roomId,
     getStateKey: () => '',
     getType: () => StateEvent.RoomAvatar,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 /** Rooms of one client, each reading its avatar from `avatars`. */
 const makeRooms = (client: EventEmitter, avatars: Map<string, MatrixEvent>): Room[] =>

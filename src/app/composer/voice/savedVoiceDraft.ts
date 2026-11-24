@@ -11,11 +11,7 @@ import {
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
-import {
-  holdCapture,
-  recoverVoiceRecording,
-  releaseCapture,
-} from '../capture/captureJournal';
+import { holdCapture, recoverVoiceRecording, releaseCapture } from '../capture/captureJournal';
 
 /**
  * A voice message whose send failed stays parked with Retry and Discard until it is sent or
@@ -142,11 +138,7 @@ export const useSavedVoiceDraft = (
         const savedRoom = saved && mx.getRoom(saved.roomId);
         const room = savedRoom && isJoined(savedRoom) ? savedRoom : undefined;
         const id = saved?.recordingId;
-        if (
-          saved &&
-          room &&
-          (!id || !globalThis.navigator?.locks || (await holdCapture(id)))
-        ) {
+        if (saved && room && (!id || !globalThis.navigator?.locks || (await holdCapture(id)))) {
           if (slotTaken()) {
             if (id) releaseCapture(id);
             return;

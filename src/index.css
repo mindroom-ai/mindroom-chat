@@ -49,10 +49,18 @@ body {
   overflow: hidden;
   /* Only the bundled Inter (@fontsource-variable/inter in src/index.tsx): a locally installed
      'Inter' may be another version with other letterforms and spacing. */
-  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'Inter Variable',
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   /* Inter's contextual alternates change what people typed: "1x2" showed as "1×2" and "->" as an
      arrow. Text shows the characters it has. */
-  font-feature-settings: 'cv11' 1, 'calt' 0;
+  font-feature-settings:
+    'cv11' 1,
+    'calt' 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
@@ -125,17 +133,17 @@ select {
    maximum-scale=1 (index.html) keeps iOS from zooming into it, and into these fields below 100 %. */
 @media (hover: none) and (pointer: coarse) {
   input:not(
-      [type='button'],
-      [type='checkbox'],
-      [type='color'],
-      [type='file'],
-      [type='hidden'],
-      [type='image'],
-      [type='radio'],
-      [type='range'],
-      [type='reset'],
-      [type='submit']
-    ),
+    [type='button'],
+    [type='checkbox'],
+    [type='color'],
+    [type='file'],
+    [type='hidden'],
+    [type='image'],
+    [type='radio'],
+    [type='range'],
+    [type='reset'],
+    [type='submit']
+  ),
   textarea,
   select {
     font-size: 1rem !important;

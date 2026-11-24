@@ -38,18 +38,18 @@ The corpus (`command-palette/__fixtures__/searchCorpus.ts`) holds 379 cases over
 
 The search before this change (Fuse.js and the exact-word search, commit `328551ab0`) passes 270 of the 379; the search of this change passes all of them (`commandPaletteResults.corpus.test.ts`):
 
-| Group | What it holds | Before | After |
-|---|---|---|---|
-| names | a person's name brings no setting; text that means nothing lists nothing | 26 of 32 | 32 |
-| prefix | the start of a name or of a word in it | 45 of 55 | 55 |
-| acronym | initials and abbreviations (`crm`, `mf`, `js`, `engplat`) | 5 of 37 | 37 |
-| typo | a wrong, missing, doubled or swapped letter | 20 of 38 | 38 |
-| accent | text typed without the name's accents | 26 of 30 | 30 |
-| words | several words, in any order, over several fields | 31 of 42 | 42 |
-| scripts | Japanese, Russian, Arabic, Hebrew, Korean names; the app in German and Japanese | 50 of 56 | 56 |
-| all | the row meant is first on the All tab; how actions, settings and choices share its three rows | 35 of 55 | 55 |
-| fields | search words, topics, tags, user IDs | 32 of 34 | 34 |
-| total | | 270 of 379 | 379 |
+| Group   | What it holds                                                                                 | Before     | After |
+| ------- | --------------------------------------------------------------------------------------------- | ---------- | ----- |
+| names   | a person's name brings no setting; text that means nothing lists nothing                      | 26 of 32   | 32    |
+| prefix  | the start of a name or of a word in it                                                        | 45 of 55   | 55    |
+| acronym | initials and abbreviations (`crm`, `mf`, `js`, `engplat`)                                     | 5 of 37    | 37    |
+| typo    | a wrong, missing, doubled or swapped letter                                                   | 20 of 38   | 38    |
+| accent  | text typed without the name's accents                                                         | 26 of 30   | 30    |
+| words   | several words, in any order, over several fields                                              | 31 of 42   | 42    |
+| scripts | Japanese, Russian, Arabic, Hebrew, Korean names; the app in German and Japanese               | 50 of 56   | 56    |
+| all     | the row meant is first on the All tab; how actions, settings and choices share its three rows | 35 of 55   | 55    |
+| fields  | search words, topics, tags, user IDs                                                          | 32 of 34   | 34    |
+| total   |                                                                                               | 270 of 379 | 379   |
 
 The corpus was written before the matcher, with 361 cases, of which the search before passed 259. It then changed in three ways. Cases were added for what the work brought up: an accented name against a longer name that starts the same, and, asked for in the review of the pull request this one builds on, how actions, settings and choices share All's three rows. Two expectations were wrong and were corrected: `john` and `jhon` on All expected the person as the first row, where a thread named "John's access request" matches the same way and threads come before people, so both now expect the person among the rows shown. The "before" column is the old search run on the final corpus.
 
@@ -65,11 +65,11 @@ What failed before, by cause:
 
 On 5000 rooms and 5000 people (`__fixtures__/searchLoad.ts`), 39 typed texts, the best of three runs each, old and new run back to back three times on one machine under load:
 
-| | Before | After |
-|---|---|---|
-| a keystroke, median | 64, 67, 64 ms | 6.4, 8.1, 8.8 ms |
-| a keystroke, slowest text | 151, 152, 144 ms | 20, 19, 22 ms |
-| the first search, which prepares both lists | 106, 107, 117 ms | 143, 93, 92 ms |
+|                                             | Before           | After            |
+| ------------------------------------------- | ---------------- | ---------------- |
+| a keystroke, median                         | 64, 67, 64 ms    | 6.4, 8.1, 8.8 ms |
+| a keystroke, slowest text                   | 151, 152, 144 ms | 20, 19, 22 ms    |
+| the first search, which prepares both lists | 106, 107, 117 ms | 143, 93, 92 ms   |
 
 The first search costs about what it did; it is paid again whenever a list changes identity, as before.
 
@@ -88,17 +88,17 @@ The first search costs about what it did; it is paid again whenever a list chang
 - A word of a field starts after a character that is no letter or digit, and at a capital letter after a small one (`MindRoom` is `Mind` and `Room`). In Chinese, Japanese, Thai, Lao, Khmer and Burmese text, which is written without spaces, every character starts a word.
 - One typed word matches a field in one of these ways, best first:
 
-| Way | Example | Fields |
-|---|---|---|
-| the whole field | `theme` for Theme | all |
-| the start of the field, as a whole word | `john` for John Smith | all |
-| the start of a later word, as a whole word | `room` for Create Room | all |
-| the start of the field | `plat` for Platform Reliability | all |
-| the start of a later word | `plat` for Engineering Platform | all |
-| initials of words that follow each other | `cr` for Create Room, `js` for John Smith | names |
-| inside a word | `room` for mindroom-dev | all (three letters or more outside names) |
-| a typo | `markdwon` for Markdown, `jhon` for John | all |
-| an abbreviation | `engplat` for Engineering Platform, `crm` for Create Room | names |
+| Way                                        | Example                                                   | Fields                                    |
+| ------------------------------------------ | --------------------------------------------------------- | ----------------------------------------- |
+| the whole field                            | `theme` for Theme                                         | all                                       |
+| the start of the field, as a whole word    | `john` for John Smith                                     | all                                       |
+| the start of a later word, as a whole word | `room` for Create Room                                    | all                                       |
+| the start of the field                     | `plat` for Platform Reliability                           | all                                       |
+| the start of a later word                  | `plat` for Engineering Platform                           | all                                       |
+| initials of words that follow each other   | `cr` for Create Room, `js` for John Smith                 | names                                     |
+| inside a word                              | `room` for mindroom-dev                                   | all (three letters or more outside names) |
+| a typo                                     | `markdwon` for Markdown, `jhon` for John                  | all                                       |
+| an abbreviation                            | `engplat` for Engineering Platform, `crm` for Create Room | names                                     |
 
 - "Names" are the fields a row is called by: a room's name, a person's display name and user name, an action's title. The other fields (topic, alias, parent spaces, search words, description, tags, room of a thread, user ID) and a thread's title, which is a sentence, take no initials and no abbreviations.
 - **Typos.** The first letter must be right. A word of up to three letters takes no typo. A word of four letters takes two neighboring letters swapped (`jhon`), nothing else. A word of five to eight letters takes one typo, and one of nine or more takes two; a typo is a letter that is wrong, missing or extra, or two neighbors swapped. The typed word is compared with a whole word of the field; from seven letters on also with the start of a longer word, so a typo does not hide the row while the word is still being typed. A word of more than 64 letters is pasted, not typed: it takes no typo and is no abbreviation, and matches where a field holds it.
@@ -136,16 +136,16 @@ The first search costs about what it did; it is paid again whenever a list chang
 
 ### Units
 
-| File | What it does |
-|---|---|
-| `command-palette/fuzzyMatch.ts` (new) | Pure, no app types. `foldText`, `prepareText` (the folded text with its word starts and ends), `matchWord` (one typed word against one prepared text: the way it matches as a score, the detail inside that way, and the matched ranges, or nothing), `originalRanges` (ranges of folded text as ranges of the text as written), `MATCH_SCORE` (the scores that mean something on their own). |
-| `command-palette/commandPaletteSearch.ts` | The fields of each list with their weights (`commandPaletteSearchConfig`), `matchCommandPaletteSection` (the matches of a list for typed text: item, score, marks per field, best first). The prepared rows of a list are kept while the list keeps its identity. Fuse.js goes. |
-| `command-palette/commandPaletteResults.ts` (new) | Pure: `getCommandPaletteLocalSections` gives the rooms, threads, people and actions of a tab for typed text, in the order shown, with their marks. `rankCommandPalettePeople` ranks local and server people together. The corpus tests run on it. |
-| `command-palette/commandPalettePeopleRanking.ts` | Removed: the one score ranks people. |
-| `command-palette/useCommandPaletteCommands.ts`, `commandPaletteItems.ts` | `searchCommands(text)` becomes `commands`, the rows only typed text finds (settings, page choices), which the palette searches with the actions. |
-| `command-palette/CommandPalette.tsx` | Builds its sections from `getCommandPaletteLocalSections`. |
-| `command-palette/CommandPaletteList.tsx`, `CommandPalette.css.ts` | Draws the marks (`TitleMatch`). |
-| `matrix/protocol/agentIdentity.ts` | Exports the agent user name prefix. |
+| File                                                                     | What it does                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command-palette/fuzzyMatch.ts` (new)                                    | Pure, no app types. `foldText`, `prepareText` (the folded text with its word starts and ends), `matchWord` (one typed word against one prepared text: the way it matches as a score, the detail inside that way, and the matched ranges, or nothing), `originalRanges` (ranges of folded text as ranges of the text as written), `MATCH_SCORE` (the scores that mean something on their own). |
+| `command-palette/commandPaletteSearch.ts`                                | The fields of each list with their weights (`commandPaletteSearchConfig`), `matchCommandPaletteSection` (the matches of a list for typed text: item, score, marks per field, best first). The prepared rows of a list are kept while the list keeps its identity. Fuse.js goes.                                                                                                               |
+| `command-palette/commandPaletteResults.ts` (new)                         | Pure: `getCommandPaletteLocalSections` gives the rooms, threads, people and actions of a tab for typed text, in the order shown, with their marks. `rankCommandPalettePeople` ranks local and server people together. The corpus tests run on it.                                                                                                                                             |
+| `command-palette/commandPalettePeopleRanking.ts`                         | Removed: the one score ranks people.                                                                                                                                                                                                                                                                                                                                                          |
+| `command-palette/useCommandPaletteCommands.ts`, `commandPaletteItems.ts` | `searchCommands(text)` becomes `commands`, the rows only typed text finds (settings, page choices), which the palette searches with the actions.                                                                                                                                                                                                                                              |
+| `command-palette/CommandPalette.tsx`                                     | Builds its sections from `getCommandPaletteLocalSections`.                                                                                                                                                                                                                                                                                                                                    |
+| `command-palette/CommandPaletteList.tsx`, `CommandPalette.css.ts`        | Draws the marks (`TitleMatch`).                                                                                                                                                                                                                                                                                                                                                               |
+| `matrix/protocol/agentIdentity.ts`                                       | Exports the agent user name prefix.                                                                                                                                                                                                                                                                                                                                                           |
 
 ### Data flow
 

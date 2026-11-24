@@ -28,7 +28,7 @@ export const threadActorName = (mx: MatrixClient, room: Room | null, userId: str
  */
 export const threadPreviewText = (t: TFunction, preview: ThreadPreview): string =>
   preview.kind === 'text'
-    ? localizeThreadPreview(preview.text, preview.localization, t) ?? ''
+    ? (localizeThreadPreview(preview.text, preview.localization, t) ?? '')
     : t(`threadPreview.${preview.kind}`);
 
 /** A thread's title in the cross-room lists: its AI title, else its first message, controls written out. */

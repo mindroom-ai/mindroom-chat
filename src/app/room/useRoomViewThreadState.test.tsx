@@ -89,7 +89,7 @@ const roomHolding = (roomId: string, eventIds: string[] = []) =>
             content: { msgtype: 'm.text', body: 'Root' },
           })
         : undefined,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 let room = roomHolding(ROOM_ID);
 

@@ -67,23 +67,23 @@ Out:
 
 The widget is a page of the same web app with no Matrix client. The signed-in app in the main window is the only client; it serves the widget. On the Mac the widget page runs in a second web view in a second window.
 
-| File | Role |
-|---|---|
-| `src/app/quick-capture/captureProtocol.ts` | The messages between widget and host, their guards (`isCaptureMessage`), the state shape (`CaptureState`, `CaptureRoom`, `CaptureItem`), error codes |
-| `src/app/quick-capture/captureChannel.ts` | `openCaptureChannel()`: the `BroadcastChannel` named `mindroom.quickCapture`; `createCaptureClient(channel)`: hello, state subscription, requests with ids and a timeout |
-| `src/app/quick-capture/captureItems.ts` | Pure: the room's list from thread index entries, their signals and the room's unanswered roots |
-| `src/app/quick-capture/captureRooms.ts` | Pure: the picker's rooms from the joined rooms |
-| `src/app/quick-capture/sendCapture.ts` | `sendCapture(mx, room, entry)` and `sendCaptureReply(mx, room, threadId, text)` |
-| `src/app/preferences/quickCaptureRoom.ts` | The per-account default room atom (in `preferences`, so sign-out can clear it) |
-| `src/app/quick-capture/QuickCaptureHost.tsx` | Mounted in `ClientNonUIFeatures`: answers hello, pushes state while a widget listens, runs requests |
-| `src/app/quick-capture/QuickCapturePage.tsx`, `.css.ts` | The widget page: connects, shows the states, owns the keys |
-| `src/app/quick-capture/CaptureInput.tsx`, `CaptureList.tsx`, `CaptureRoomPicker.tsx` | The page's three parts |
-| `src/app/quick-capture/captureKeys.ts` | Pure: key event and focus zone to action |
-| `src/app/native/nativeQuickCapture.ts` | The `MindRoomQuickCapture` plugin: `hide`, `showMainWindow`, `captureScreenshot`, `openScreenRecordingSettings`, and whether it is there |
-| `ios/App/App/QuickCaptureSceneDelegate.swift` | The widget's scene: a `QuickCaptureViewController` (a bridge controller that starts at `/quick-capture/`) |
-| `ios/App/App/MindRoomQuickCapturePlugin.swift` | The plugin's native side |
-| `ios/App/App/MacWindowing.swift` | Mac only: AppKit reached through the Objective-C runtime (window level, chrome, show and hide, front app), and the Carbon hot key |
-| `ios/App/App/MacScreenshot.swift` | Mac only: ScreenCaptureKit capture to a PNG file |
+| File                                                                                 | Role                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/app/quick-capture/captureProtocol.ts`                                           | The messages between widget and host, their guards (`isCaptureMessage`), the state shape (`CaptureState`, `CaptureRoom`, `CaptureItem`), error codes                     |
+| `src/app/quick-capture/captureChannel.ts`                                            | `openCaptureChannel()`: the `BroadcastChannel` named `mindroom.quickCapture`; `createCaptureClient(channel)`: hello, state subscription, requests with ids and a timeout |
+| `src/app/quick-capture/captureItems.ts`                                              | Pure: the room's list from thread index entries, their signals and the room's unanswered roots                                                                           |
+| `src/app/quick-capture/captureRooms.ts`                                              | Pure: the picker's rooms from the joined rooms                                                                                                                           |
+| `src/app/quick-capture/sendCapture.ts`                                               | `sendCapture(mx, room, entry)` and `sendCaptureReply(mx, room, threadId, text)`                                                                                          |
+| `src/app/preferences/quickCaptureRoom.ts`                                            | The per-account default room atom (in `preferences`, so sign-out can clear it)                                                                                           |
+| `src/app/quick-capture/QuickCaptureHost.tsx`                                         | Mounted in `ClientNonUIFeatures`: answers hello, pushes state while a widget listens, runs requests                                                                      |
+| `src/app/quick-capture/QuickCapturePage.tsx`, `.css.ts`                              | The widget page: connects, shows the states, owns the keys                                                                                                               |
+| `src/app/quick-capture/CaptureInput.tsx`, `CaptureList.tsx`, `CaptureRoomPicker.tsx` | The page's three parts                                                                                                                                                   |
+| `src/app/quick-capture/captureKeys.ts`                                               | Pure: key event and focus zone to action                                                                                                                                 |
+| `src/app/native/nativeQuickCapture.ts`                                               | The `MindRoomQuickCapture` plugin: `hide`, `showMainWindow`, `captureScreenshot`, `openScreenRecordingSettings`, and whether it is there                                 |
+| `ios/App/App/QuickCaptureSceneDelegate.swift`                                        | The widget's scene: a `QuickCaptureViewController` (a bridge controller that starts at `/quick-capture/`)                                                                |
+| `ios/App/App/MindRoomQuickCapturePlugin.swift`                                       | The plugin's native side                                                                                                                                                 |
+| `ios/App/App/MacWindowing.swift`                                                     | Mac only: AppKit reached through the Objective-C runtime (window level, chrome, show and hide, front app), and the Carbon hot key                                        |
+| `ios/App/App/MacScreenshot.swift`                                                    | Mac only: ScreenCaptureKit capture to a PNG file                                                                                                                         |
 
 **Protocol.** Every message carries `v: 1`. Widget to host: `hello`, and `request` with an `id`, the `hostId` it addresses and one action: `send` (`roomId`, `text`, `images: Blob[]`, `open`), `reply` (`roomId`, `threadId`, `text`), `resolve` (`roomId`, `threadId`, `resolved`), `selectRoom` (`roomId`), `open` (`roomId`, `threadId?`), `read` (`roomId`, `threadId`). Host to widget: `state` (`hostId`, `CaptureState`), `response` (`id`, `hostId`, and a result: `ok` with an optional `threadId`, or an error code), and `gone` when the host unmounts or its page goes away (`pagehide`: a reload or a sign-out unmounts nothing). A host has a random `hostId`; the widget follows the first host that answers its hello and ignores the others, so two app tabs in a browser cannot both run a request.
 

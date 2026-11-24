@@ -132,11 +132,11 @@ const expectFocusOnCancel = async (name = 'Discard voice recording?') =>
     document.activeElement
   );
 const layOut = () =>
-  vi
-    .spyOn(HTMLElement.prototype, 'getClientRects')
-    .mockImplementation(function rects(this: HTMLElement) {
-      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
-    });
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+    this: HTMLElement
+  ) {
+    return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+  });
 
 function SettingsWithLogout() {
   const [confirming, setConfirming] = useState(false);

@@ -237,8 +237,7 @@ export const useRoomInputVoice = ({
     if (!pendingVoiceSendDraft) return;
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
     if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
-      if (pendingVoiceSendDraft.recordingId)
-        releaseCapture(pendingVoiceSendDraft.recordingId);
+      if (pendingVoiceSendDraft.recordingId) releaseCapture(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
   }, [

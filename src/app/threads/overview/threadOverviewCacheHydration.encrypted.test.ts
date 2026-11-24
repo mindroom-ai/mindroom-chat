@@ -67,7 +67,7 @@ const client = () =>
       await Promise.resolve();
       Object.assign(event, { clearEvent: clear[event.getId() ?? ''] });
     },
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const readPreview = (mapper: (raw: IEvent) => MatrixEvent) =>
   resolveCachedOverviewUpdate({

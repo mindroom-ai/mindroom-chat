@@ -129,8 +129,7 @@ export const createStoredSessionTokenRefresh = ({
   deviceId,
   refreshToken,
 }: Pick<StoredSession, 'sessionId' | 'baseUrl' | 'deviceId' | 'refreshToken'>):
-  | TokenRefreshFunction
-  | undefined => {
+  TokenRefreshFunction | undefined => {
   if (!refreshToken) return undefined;
 
   const refreshClient = createMatrixClient({ baseUrl, localTimeoutMs: TOKEN_REFRESH_TIMEOUT_MS });

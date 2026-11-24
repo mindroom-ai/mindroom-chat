@@ -71,7 +71,7 @@ describe('HomeRecentThreads', () => {
         threadRootId: `${i}`,
         summaryText: `Thread ${i}`,
         lastActivityTs: NOW - i * 1000,
-      } as unknown as CrossRoomThreadIndexEntry);
+      }) as unknown as CrossRoomThreadIndexEntry;
     const list = [
       makeEntry(1, '!gone'),
       makeEntry(2, '!r2'),

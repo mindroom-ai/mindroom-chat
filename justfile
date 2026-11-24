@@ -23,7 +23,7 @@ test *args:
 lint:
     npm run lint
 
-# Format the files you changed with Prettier (2.8.8).
+# Format the files you changed with Prettier (3).
 format *paths:
     npx prettier --write {{paths}}
 

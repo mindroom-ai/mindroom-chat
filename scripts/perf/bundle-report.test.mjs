@@ -1,7 +1,14 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -15,7 +22,10 @@ const fakeDist = () => {
   const dist = mkdtempSync(path.join(tmpdir(), 'bundle-report-'));
   mkdirSync(path.join(dist, 'assets'));
   const write = (name, code) => writeFileSync(path.join(dist, 'assets', name), code);
-  write('index-AAAAAAAA.js', 'import{a as b}from"./shared-BBBBBBBB.js";const l=()=>import("./lazy-CCCCCCCC.js");b(l);');
+  write(
+    'index-AAAAAAAA.js',
+    'import{a as b}from"./shared-BBBBBBBB.js";const l=()=>import("./lazy-CCCCCCCC.js");b(l);'
+  );
   write('shared-BBBBBBBB.js', 'import"./leaf-DDDDDDDD.js";export const a=x=>x;');
   write('leaf-DDDDDDDD.js', 'console.log(1);');
   write('lazy-CCCCCCCC.js', `export default ${JSON.stringify('x'.repeat(5000))};`);
@@ -42,8 +52,16 @@ test('the initial load is the entry with its static imports and the style sheet'
   assert.equal(result.status, 0, result.stderr);
   const { summary, rows } = JSON.parse(readFileSync(out, 'utf8'));
   assert.deepEqual(
-    rows.filter((row) => row.initial).map((row) => row.file).sort(),
-    ['assets/index-AAAAAAAA.js', 'assets/index-EEEEEEEE.css', 'assets/leaf-DDDDDDDD.js', 'assets/shared-BBBBBBBB.js']
+    rows
+      .filter((row) => row.initial)
+      .map((row) => row.file)
+      .sort(),
+    [
+      'assets/index-AAAAAAAA.js',
+      'assets/index-EEEEEEEE.css',
+      'assets/leaf-DDDDDDDD.js',
+      'assets/shared-BBBBBBBB.js',
+    ]
   );
   assert.equal(summary.entry, 'assets/index-AAAAAAAA.js');
   assert.equal(summary.initialFiles, 4);

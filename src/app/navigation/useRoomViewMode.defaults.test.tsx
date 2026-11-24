@@ -32,7 +32,7 @@ const threadModeEvent = () =>
     getType: () => 'io.mindroom.thread_mode',
     getStateKey: () => '',
     getContent: () => threadMode,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 const client = Object.assign(new EventEmitter(), {
   getHomeserverUrl: () => 'https://example.org',
   getSafeUserId: () => ME,

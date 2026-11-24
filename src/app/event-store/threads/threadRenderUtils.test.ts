@@ -94,7 +94,7 @@ const attachSerializedReplacement = (
 const makeRoom = (txnMap?: Map<string, MatrixEvent>) =>
   ({
     getEventForTxnId: (txnId: string) => txnMap?.get(txnId),
-  } as never);
+  }) as never;
 
 describe('getThreadInitialRenderMode', () => {
   it('shows a loading state while initialization is pending and no events are available', () => {

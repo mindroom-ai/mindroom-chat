@@ -14,12 +14,12 @@ A release tag is `vYYYY.M.N`: the year and month (UTC) it was cut in, and `N`, w
 
 `scripts/calver.mjs` is the only code that reads these tags:
 
-| Command | What it does |
-|---|---|
-| `node scripts/calver.mjs next` | prints the tag the next release gets, from the tags of the checkout (fetch them first: `git fetch --tags https://github.com/mindroom-ai/mindroom-chat.git`) |
-| `node scripts/calver.mjs latest` | prints the newest release tag of the checkout; the Image workflow points the container image's `latest` only at that release ([`deployment.md`](deployment.md#container-image)) |
-| `just release [<commit>] [--dry-run] [--yes]` | `scripts/calver.mjs release`: cuts a release by hand (below) |
-| `node scripts/calver.mjs auto <commit> --main <ref>` | what the Release workflow runs (below) |
+| Command                                              | What it does                                                                                                                                                                    |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `node scripts/calver.mjs next`                       | prints the tag the next release gets, from the tags of the checkout (fetch them first: `git fetch --tags https://github.com/mindroom-ai/mindroom-chat.git`)                     |
+| `node scripts/calver.mjs latest`                     | prints the newest release tag of the checkout; the Image workflow points the container image's `latest` only at that release ([`deployment.md`](deployment.md#container-image)) |
+| `just release [<commit>] [--dry-run] [--yes]`        | `scripts/calver.mjs release`: cuts a release by hand (below)                                                                                                                    |
+| `node scripts/calver.mjs auto <commit> --main <ref>` | what the Release workflow runs (below)                                                                                                                                          |
 
 The next version is `N + 1` in the month of the newest release tag, or `N = 0` of the current month once that month is later. A clock that is behind the newest tag still gives a higher version. Tags of any other form (`v0.1.0`, `v4.12.6-mindroom.180`, `nightly`) do not count.
 
@@ -69,12 +69,12 @@ Xcode Cloud runs the scripts in `ios/App/ci_scripts/`, beside `ios/App/App.xcwor
 1. `ci_post_clone.sh` installs Node and CocoaPods with Homebrew when they are missing, then `npm ci`.
 2. `ci_pre_xcodebuild.sh` fetches the tags, asks `scripts/ios-ci-version.mjs` for the versions, writes them into the App target (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`), builds the web app with `MINDROOM_RELEASE_VERSION=v<marketing version>` (`npm run build:ios`), runs `npx cap sync ios` (which runs `pod install`) and the App Store preflight.
 
-| Build | `MARKETING_VERSION` | `CURRENT_PROJECT_VERSION` |
-|---|---|---|
-| started by a release tag (`CI_TAG=v2026.11.3`) | `2026.11.3` | `CI_BUILD_NUMBER` |
-| of a commit that carries a release tag | that tag's version | `CI_BUILD_NUMBER` |
-| of any other commit, such as a push to `main` | the next release's version, `2026.11.4` after `v2026.11.3` | `CI_BUILD_NUMBER` |
-| started by a tag that is not `vYYYY.M.N` | the build fails | |
+| Build                                          | `MARKETING_VERSION`                                        | `CURRENT_PROJECT_VERSION` |
+| ---------------------------------------------- | ---------------------------------------------------------- | ------------------------- |
+| started by a release tag (`CI_TAG=v2026.11.3`) | `2026.11.3`                                                | `CI_BUILD_NUMBER`         |
+| of a commit that carries a release tag         | that tag's version                                         | `CI_BUILD_NUMBER`         |
+| of any other commit, such as a push to `main`  | the next release's version, `2026.11.4` after `v2026.11.3` | `CI_BUILD_NUMBER`         |
+| started by a tag that is not `vYYYY.M.N`       | the build fails                                            |                           |
 
 With automatic releases on, a push to `main` starts its Xcode Cloud build before the Release workflow tags it; both arrive at the same version unless another release lands in between. `IOS_MARKETING_VERSION` (or `APP_STORE_MARKETING_VERSION`) and `IOS_BUILD_NUMBER`, set as workflow environment variables, override both. The build log names the source of each value, for example `Resolved iOS marketing version from next-after:v2026.11.3`. Untagged builds of one commit range share a version and differ in build number, which App Store Connect allows; Xcode Cloud's counter only grows.
 

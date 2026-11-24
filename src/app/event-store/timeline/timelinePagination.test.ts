@@ -14,13 +14,13 @@ import { getFirstLinkedTimeline, getLinkedTimelines } from './linkedTimelines';
 const makeEvent = (eventId: string) =>
   ({
     getId: () => eventId,
-  } as never);
+  }) as never;
 
 const makeTimeline = () =>
   ({
     getEvents: () => [],
     getNeighbouringTimeline: () => null,
-  } as never);
+  }) as never;
 
 const makeLinkedTimeline = () => {
   const neighbours = new Map<Direction, EventTimeline>();

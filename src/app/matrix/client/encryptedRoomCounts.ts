@@ -71,7 +71,7 @@ const serverCountsOf = (
 const heldSince = (timeline: EventTimeline): number =>
   timeline.getPaginationToken(Direction.Backward) === null
     ? -Infinity
-    : timeline.getEvents()[0]?.getTs() ?? Infinity;
+    : (timeline.getEvents()[0]?.getTs() ?? Infinity);
 
 const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => {
   // Relations stay unencrypted, so the wire content has them before decryption too.

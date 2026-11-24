@@ -2,10 +2,7 @@ import Fuse, { type FuseOptionKey } from 'fuse.js';
 import type { Room } from 'matrix-js-sdk';
 
 import { Membership } from '../matrix/types/room';
-import {
-  INVITE_AUTOCOMPLETE_LIMIT,
-  type ServerUserDirectoryUser,
-} from './userDirectoryCache';
+import { INVITE_AUTOCOMPLETE_LIMIT, type ServerUserDirectoryUser } from './userDirectoryCache';
 import { getMxIdLocalPart } from '../matrix/matrix';
 
 export const MINDROOM_AGENT_LOCALPART_PREFIX = 'mindroom_';

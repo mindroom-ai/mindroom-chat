@@ -278,7 +278,7 @@ const buildBoundedFallbackSegments = (
   let lastEmittedVoicedPos: number | null = null;
   let prevWasHardCut = false;
 
-  for (let cursor = 0; cursor < frames.length; ) {
+  for (let cursor = 0; cursor < frames.length;) {
     let end = cursor;
     let totalSamples = 0;
     while (end < frames.length && end - cursor < DICTATION_HARD_CUT_FRAMES) {
@@ -408,7 +408,11 @@ export const replayDictationTail = async ({
 
   if (vadFailed) {
     return {
-      segments: buildBoundedFallbackSegments(replayedFrames, initialSegmentIndex, initialOverlapped),
+      segments: buildBoundedFallbackSegments(
+        replayedFrames,
+        initialSegmentIndex,
+        initialOverlapped
+      ),
       effectiveElapsedMs,
     };
   }

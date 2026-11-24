@@ -54,7 +54,7 @@ const makeEvent = (
     isRedaction: () => false,
     replacingEvent: () => undefined,
     getThread: () => undefined,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const makeRoom = (events: MatrixEvent[] = []): Room =>
   ({
@@ -67,7 +67,7 @@ const makeRoom = (events: MatrixEvent[] = []): Room =>
         getChildEventsForEvent: () => undefined,
       },
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const mapRawCachedEvent = (rawEvent: IEvent): MatrixEvent => {
   const raw = rawEvent as RawCachedEvent;

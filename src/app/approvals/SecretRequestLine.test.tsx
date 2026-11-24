@@ -21,7 +21,7 @@ const mx = vi.hoisted(() => ({
   getUserId: () => env.viewer,
   getRoom: () => ({
     getMember: (userId: string) =>
-      ({ '@mindroom_assistant:example.org': { name: 'Ada' } }[userId] ?? null),
+      ({ '@mindroom_assistant:example.org': { name: 'Ada' } })[userId] ?? null,
     getJoinedMembers: () => [],
   }),
 }));

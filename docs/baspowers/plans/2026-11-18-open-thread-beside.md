@@ -55,13 +55,15 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
 ### Task 1: Per-room memory of the second thread
 
 **Files:**
+
 - Modify: `src/app/preferences/accountStorageKeys.ts`
 - Create: `src/app/room/useSecondThread.ts`
 - Test: `src/app/room/useSecondThread.test.ts`
 
 **Interfaces:**
+
 - Produces: `useSecondThread(roomId: string, userId: string, mainThreadId: string | undefined):
-  { threadId: string | undefined; open: (threadId: string) => void; close: () => void }`.
+{ threadId: string | undefined; open: (threadId: string) => void; close: () => void }`.
   `threadId` is B for `roomId`, read from storage on the first render with that room; `open`
   stores and shows it; `close` forgets it for that room. When `mainThreadId === threadId`, the hook
   closes B (effect) and returns `threadId: undefined` in that render already.
@@ -80,16 +82,17 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
   - In `accountStorageKeys` test (existing file if any, else in this test):
     `accountStorageKeys('@u:x')` contains both new keys.
 - [ ] **Step 2: Run** `nix develop -c just test src/app/room/useSecondThread.test.ts`; expect FAIL
-  (module missing).
+      (module missing).
 - [ ] **Step 3: Implement.** Use `getSafeLocalStorage`/`getStorageItemSafe`/`setStorageItemSafe`
-  from `src/app/lib/safeLocalStorage`. Keep the room's value in `useState`, looked up again when
-  `roomId` changes (the `lookedUpIn` pattern of `room/usePluginPanel.ts`).
+      from `src/app/lib/safeLocalStorage`. Keep the room's value in `useState`, looked up again when
+      `roomId` changes (the `lookedUpIn` pattern of `room/usePluginPanel.ts`).
 - [ ] **Step 4: Run** the test; expect PASS.
 - [ ] **Step 5: Commit** "Second thread: remember it per room for the account".
 
 ### Task 2: Banner Close, shared typing keys, Escape in a second view
 
 **Files:**
+
 - Modify: `src/app/threads/ThreadContextBanner.tsx` (prop `onClose?: () => void`)
 - Create: `src/app/room/typeToCompose.ts` (move `OWNS_TYPING_SELECTOR`, `focusOwnsTyping`,
   `isPasteKey`, `isTypingKey` out of `RoomView.tsx` unchanged, exported; `RoomView.tsx` imports
@@ -99,6 +102,7 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
   `src/app/room/useRoomEscapeReadReceipts.test.ts`
 
 **Interfaces:**
+
 - Produces: `ThreadContextBanner` `onClose?: () => void`. Given, the banner's leading button is an
   `IconButton` with `Icons.Cross`, `aria-label` `t('thread.close')`, no shortcut, calling
   `onClose`; Back (`onExitThread`) is not rendered then, also not the phone back button.
@@ -117,14 +121,15 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
     called with `'$b'`, never with `'$a'`, and `markMainTimelineAsRead` not called.
 - [ ] **Step 2: Run** both files; expect FAIL.
 - [ ] **Step 3: Implement** the three changes. `RoomView.typeToCompose.test.tsx` must still pass
-  unchanged.
+      unchanged.
 - [ ] **Step 4: Run** `nix develop -c just test src/app/threads/ThreadContextBanner
-  src/app/room/useRoomEscapeReadReceipts src/app/room/RoomView`; expect PASS.
+src/app/room/useRoomEscapeReadReceipts src/app/room/RoomView`; expect PASS.
 - [ ] **Step 5: Commit** "Thread banner Close; Escape in a second thread view marks it read".
 
 ### Task 3: The second thread side panel in the room page
 
 **Files:**
+
 - Create: `src/app/navigation/secondThread.ts`
 - Create: `src/app/room/SecondThreadPanel.tsx`
 - Modify: `src/app/room/Room.tsx`
@@ -132,14 +137,15 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
   `Room.panelBesideThread.test.tsx` / `Room.sidePanels.test.tsx`)
 
 **Interfaces:**
+
 - Produces (`navigation/secondThread.ts`): `type SecondThreadControl = { offers: (rootId: string)
-  => boolean; open: (rootId: string) => void }` and
+=> boolean; open: (rootId: string) => void }` and
   `SecondThreadContext = createContext<SecondThreadControl | undefined>(undefined)`.
 - Produces (`SecondThreadPanel.tsx`): `SecondThreadPanel({ room, threadId, onClose, widthKey })`.
   Renders `ResizablePanel` (constants in Global Constraints, `resizeLabel t('thread.resizeSecond')`,
   `collapseLabel t('thread.close')`, `onCollapse={onClose}`) > a column `div` with
   `onKeyDown` > `ThreadView room threadId header={<ThreadContextBanner room threadId
-  onExitThread={onClose} onClose={onClose} />} autoFocus focusRef onThreadLoadError={onClose}`.
+onExitThread={onClose} onClose={onClose} />} autoFocus focusRef onThreadLoadError={onClose}`.
   `onKeyDown`: call `noteThreadViewKey(evt, threadId)`; then if not `defaultPrevented`, the key is
   `isTypingKey` or `isPasteKey`, and the focus is on no editable element and not inside
   `focusOwnsTyping()`, call `focusRef.current?.()`. Key `threadId` on `ThreadView` so a new B mounts
@@ -147,10 +153,10 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
 - Consumes: Task 1 hook, Task 2 banner prop and helpers.
 - Room.tsx: `const second = useSecondThread(roomId, ownUserId, threadId)` (the page's thread);
   panel entry `{ id: 'thread', open: !mobile && !!second.threadId, close: second.close,
-  label: t('thread.second'), render: () => <SecondThreadPanel ... /> }` after `members`. Context
+label: t('thread.second'), render: () => <SecondThreadPanel ... /> }` after `members`. Context
   value (memoized), `undefined` when `mobile`: `offers = (id) => isConfirmedMatrixEventId(id) &&
-  id !== threadId && id !== second.threadId`; `open = (id) => request('thread', () =>
-  second.open(id))`. Provide `SecondThreadContext` around the returned tree. Focus on close: when
+id !== threadId && id !== second.threadId`; `open = (id) => request('thread', () =>
+second.open(id))`. Provide `SecondThreadContext` around the returned tree. Focus on close: when
   B closes and the focus was inside B's panel (check `document.activeElement` against the panel's
   element before closing, or that it ended on `body`), focus the first
   `[data-testid="thread-column"] [contenteditable="true"]` inside `conversationRef`, else
@@ -175,18 +181,20 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
 - [ ] **Step 2: Run** the file; expect FAIL.
 - [ ] **Step 3: Implement** the three files.
 - [ ] **Step 4: Run** `nix develop -c just test src/app/room/`; expect PASS (all room tests: the
-  sibling `Room.*.test.tsx` files may need a mock of `./SecondThreadPanel` if they mock heavy
-  children; add it where a suite fails at import).
+      sibling `Room.*.test.tsx` files may need a mock of `./SecondThreadPanel` if they mock heavy
+      children; add it where a suite fails at import).
 - [ ] **Step 5: Commit** "Room: a second thread side panel".
 
 ### Task 4: "Open beside" in the thread menu
 
 **Files:**
+
 - Modify: `src/app/threads/ThreadActionsMenu.tsx`
 - Modify: `src/app/i18n/locales/additions/*.json` (17 files; the four keys of Global Constraints)
 - Test: `src/app/threads/ThreadActionsMenu.items.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `SecondThreadContext` (Task 3).
 - Entry: `action: 'openBeside'`, `label t('threadActions.openBeside')`, an existing icon that is
   not used by another entry of this menu (for example `Icons.Sidebar` or the panel icons in
@@ -202,14 +210,15 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
     whose `offers` returns false: no item named Open beside.
 - [ ] **Step 2: Run**; expect FAIL.
 - [ ] **Step 3: Implement**; write the locale overlays with a small Python script keeping each
-  file's indent.
+      file's indent.
 - [ ] **Step 4: Run** `nix develop -c just test src/app/threads/ThreadActionsMenu
-  src/app/i18n`; expect PASS.
+src/app/i18n`; expect PASS.
 - [ ] **Step 5: Commit** "Thread menu: Open beside".
 
 ### Task 5: End to end, docs, gates
 
 **Files:**
+
 - Create: `e2e/threads/open-thread-beside.spec.ts` (model on `e2e/threads/agent-thread-column.spec.ts`
   and `e2e/threads/compact-thread-cards.spec.ts`; invented placeholder text only, such as
   "Example thread alpha" and "Example thread beta")
@@ -227,10 +236,10 @@ room for the account in localStorage and offers it to `ThreadActionsMenu` throug
   - Close (button "Close thread" in the panel): panel gone, focus in alpha's composer.
   - 390x844 phone context: beta's card menu has no "Open beside".
 - [ ] **Step 2: Run** on a private slot (unusual number below 50, check `ss -ltnp` first):
-  `nix develop -c bash -c 'scripts/e2e-slot.sh <n> npx playwright test e2e/threads/open-thread-beside.spec.ts --reporter=line'`;
-  expect PASS. Bring the slot down after.
+      `nix develop -c bash -c 'scripts/e2e-slot.sh <n> npx playwright test e2e/threads/open-thread-beside.spec.ts --reporter=line'`;
+      expect PASS. Bring the slot down after.
 - [ ] **Step 3: Gates**, outputs to log files, then grep them:
-  `just typecheck`, `just strict`, `NODE_OPTIONS=--max-old-space-size=6144 just lint`, `just test`,
-  `just script-tests`, `just license-check`. Check pc load first
-  (`cat /proc/loadavg`; above 24, run only focused tests and say so).
+      `just typecheck`, `just strict`, `NODE_OPTIONS=--max-old-space-size=6144 just lint`, `just test`,
+      `just script-tests`, `just license-check`. Check pc load first
+      (`cat /proc/loadavg`; above 24, run only focused tests and say so).
 - [ ] **Step 4: Commit** "Open beside: end-to-end spec and docs".

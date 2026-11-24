@@ -66,8 +66,8 @@ function DiagnosticsExport() {
     status === 'unexpected'
       ? t('featureUi.settings.about.diagnosticsUnexpected')
       : status === 'unavailable'
-      ? t('featureUi.settings.about.diagnosticsUnavailable')
-      : t('featureUi.settings.about.diagnosticsNone');
+        ? t('featureUi.settings.about.diagnosticsUnavailable')
+        : t('featureUi.settings.about.diagnosticsNone');
 
   const handleExport = async () => {
     if (exportingRef.current) return;
@@ -346,14 +346,14 @@ function AppUpdateSetting() {
         ? t('featureUi.settings.about.updateInstallFailed')
         : t('featureUi.settings.about.updateReady', { version: readyVersion })
       : checking
-      ? t('featureUi.settings.about.checkingForUpdates')
-      : checkOutcome === 'none'
-      ? t('featureUi.settings.about.upToDate')
-      : checkOutcome === 'found'
-      ? t('featureUi.settings.about.updateAvailable')
-      : checkOutcome === 'error'
-      ? t('featureUi.settings.about.updateCheckFailed')
-      : t('featureUi.settings.about.updatesDescription');
+        ? t('featureUi.settings.about.checkingForUpdates')
+        : checkOutcome === 'none'
+          ? t('featureUi.settings.about.upToDate')
+          : checkOutcome === 'found'
+            ? t('featureUi.settings.about.updateAvailable')
+            : checkOutcome === 'error'
+              ? t('featureUi.settings.about.updateCheckFailed')
+              : t('featureUi.settings.about.updatesDescription');
 
   return (
     <SettingTile
@@ -417,8 +417,8 @@ function MacAppSetting() {
     copied === undefined
       ? ''
       : copied
-      ? t('messageCodeBlock.copied')
-      : t('featureUi.macApp.copyFailed');
+        ? t('messageCodeBlock.copied')
+        : t('featureUi.macApp.copyFailed');
   const copy = () => {
     // Emptied first, so the live region announces a second copy's outcome again.
     setCopied(undefined);

@@ -62,7 +62,7 @@ const makeRoom = (roomId: string, membership: KnownMembership): Room =>
   ({
     roomId,
     getMyMembership: () => membership,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const makeMatrixClient = (
   userId: string,
@@ -80,7 +80,7 @@ const makeMatrixClient = (
       matrix_server_name: 'example.org',
       expires_in: 3600,
     })),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const makeFakeCapture = (): DictationCaptureFactory => async () => ({
   readLevel: () => 0.2,
@@ -93,7 +93,7 @@ const makePausedStubSession = () =>
     getSnapshot: () => ({ phase: 'paused' }),
     subscribe: () => () => undefined,
     reset: vi.fn(),
-  } as never);
+  }) as never;
 
 const waitForJournalSettled = async (ms = 40) => {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -121,7 +121,11 @@ describe('startLiveDictation and recovery', () => {
     Object.defineProperty(globalThis.navigator, 'locks', {
       configurable: true,
       value: {
-        request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
+        request: async <T>(
+          name: string,
+          _options: LockOptions,
+          callback: LockGrantedCallback<T>
+        ) => {
           if (heldLocks.has(name)) return callback(null);
           heldLocks.add(name);
           try {
@@ -1023,7 +1027,11 @@ describe('startLiveDictation and recovery', () => {
       value: unknown,
       key?: IDBValidKey
     ) {
-      if (value && typeof value === 'object' && (value as { type?: unknown }).type === 'audio/wav') {
+      if (
+        value &&
+        typeof value === 'object' &&
+        (value as { type?: unknown }).type === 'audio/wav'
+      ) {
         throw new DOMException('Quota exceeded', 'QuotaExceededError');
       }
       return origPut.call(this, value, key);
@@ -1036,7 +1044,11 @@ describe('startLiveDictation and recovery', () => {
         store,
         makeMatrixClient(USER_A),
         {},
-        { loadVad: async () => { throw new Error('WASM unavailable'); } }
+        {
+          loadVad: async () => {
+            throw new Error('WASM unavailable');
+          },
+        }
       );
       await waitForJournalSettled();
 

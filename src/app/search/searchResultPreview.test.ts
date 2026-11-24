@@ -109,7 +109,7 @@ describe('getSearchResultPreviewText', () => {
           },
         },
       },
-    } as never);
+    }) as never;
 
   it('ignores an edit another sender bundled with the message', () => {
     const event = withBundledEditBy('@other:example.org');
@@ -186,7 +186,7 @@ describe('a search hit of a reply with tool calls', () => {
     'io.mindroom.tool_trace': { version: 3, events: [{ ...calls[0], body_line: 2, at: 1 }] },
   };
   const hit = (sender: string, content: Record<string, unknown>) =>
-    ({ type: MessageEvent.RoomMessage, sender, content } as never);
+    ({ type: MessageEvent.RoomMessage, sender, content }) as never;
 
   beforeAll(() => trustAgentsOfViewer('@reader:example.org'));
 

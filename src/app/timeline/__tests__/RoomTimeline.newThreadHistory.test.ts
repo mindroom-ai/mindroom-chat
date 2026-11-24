@@ -21,10 +21,11 @@ describe('new thread history', () => {
   it.each(['empty terminal page', 'older reply', 'request failure'])(
     'checks fallback history on first open: %s',
     async (outcome) => {
-      const { reconcileThreadBackwardPagination } = await import('../../event-store/timeline/threadPaginationUtils');
-      const paginationUtils = await vi.importActual<typeof import('../../event-store/timeline/threadPaginationUtils')>(
-        '../../event-store/timeline/threadPaginationUtils'
-      );
+      const { reconcileThreadBackwardPagination } =
+        await import('../../event-store/timeline/threadPaginationUtils');
+      const paginationUtils = await vi.importActual<
+        typeof import('../../event-store/timeline/threadPaginationUtils')
+      >('../../event-store/timeline/threadPaginationUtils');
       vi.mocked(reconcileThreadBackwardPagination).mockImplementation(
         paginationUtils.reconcileThreadBackwardPagination
       );
