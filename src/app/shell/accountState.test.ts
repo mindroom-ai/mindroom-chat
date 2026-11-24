@@ -4,6 +4,7 @@ import { setFileScope } from '@vanilla-extract/css/fileScope';
 import type { createStore as CreateStore } from 'jotai';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ActiveCall } from '../calls/callStore';
+import type { DetachedDictationSend } from '../composer/roomInputDrafts';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 
 // Every atom the app makes while its modules load, with the stack that made it. Atoms made later
@@ -218,7 +219,7 @@ describe('forgetAccountState', () => {
     const store = createStore();
     const forgotten = primitives.filter((entry) => !isKept(entry));
     // Each atom first holds something of the last account, so a forget that writes back what it
-    // finds, or a reset that keeps old entries, leaves it there. The three whose forget reads them
+    // finds, or a reset that keeps old entries, leaves it there. The four whose forget reads them
     // hold a value of the shape it reads; every other one gets an entry of its own.
     store.set(typing.roomIdToTypingMembersAtom, {
       type: 'PUT',
@@ -232,6 +233,16 @@ describe('forgetAccountState', () => {
     store.set(liveVoice.liveVoiceRecordingAtom, {
       reset: endRecording,
     } as unknown as VoiceCaptureSession);
+    const abortDetachedDictation = vi.fn();
+    store.set(
+      drafts.detachedDictationSendsAtom,
+      new Map([
+        [
+          '!room:example.org',
+          { abort: abortDetachedDictation } as unknown as DetachedDictationSend,
+        ],
+      ])
+    );
     forgotten.forEach(({ atom, module }) => {
       if (isDeepStrictEqual(store.get(atom as never), atom.init)) {
         putValue(store, atom, leftBehind(atom.init, module));
@@ -250,6 +261,7 @@ describe('forgetAccountState', () => {
     expect(forgotten.filter(left).map(describeAtom)).toEqual([]);
     // The recording the account was making is ended at once, which frees the microphone.
     expect(endRecording).toHaveBeenCalledTimes(1);
+    expect(abortDetachedDictation).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the call and runs what follows its end', () => {

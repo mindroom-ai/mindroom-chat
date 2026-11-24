@@ -1363,6 +1363,7 @@
       "statusFinishing": "完了処理中...",
       "statusSending": "完了して送信中...",
       "noSpeech": "音声が検出されませんでした。",
+      "noSpeechOffThread": "{{room}} で音声が検出されませんでした。",
       "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",

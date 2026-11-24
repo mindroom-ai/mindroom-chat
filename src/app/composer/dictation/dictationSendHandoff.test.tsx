@@ -455,7 +455,11 @@ describe('dictationSendHandoff', () => {
       await Promise.resolve();
     });
     expect(startSendSession).not.toHaveBeenCalled();
-    expect(store.get(detachedDictationErrorAtom)).toEqual({ ownerKey: keyA, roomName: 'Design' });
+    expect(store.get(detachedDictationErrorAtom)).toEqual({
+      ownerKey: keyA,
+      roomName: 'Design',
+      kind: 'failed',
+    });
     expect(screen.getByRole('alert').textContent).toContain(
       'composer.dictation.sendFailedOffThread:Design'
     );
@@ -874,6 +878,7 @@ describe('dictationSendHandoff', () => {
     });
     expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
 
+    startSendSession.mockClear();
     restoreRootModelDraft.mockClear();
     const sCmd = makeMockSession();
     startDetachedDictationSend(
@@ -882,15 +887,213 @@ describe('dictationSendHandoff', () => {
         room,
         session: sCmd.session,
         ownerKey: keyA,
+        commandsSnapshot: {
+          me: { name: 'me', description: 'Send an action.', source: 'app' },
+        },
         rootModel,
         restoreRootModelDraft,
+        sessions: { startSendSession, restoreText: vi.fn() },
       })
     );
     await act(async () => {
       sCmd.resolveFinish({ status: 'completed', text: '/me waves' });
       await Promise.resolve();
     });
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        textContent: expect.objectContaining({ msgtype: 'm.emote', body: 'waves' }),
+        rootModel: null,
+      })
+    );
     expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
     view.unmount();
+  });
+
+  it('excludes files already enrolled by a failed Thread A Finish & Send from Thread B Finish & Send', async () => {
+    const store = createStore();
+    const room = makeRoom('!r1:example.org', 'General');
+    const fileA = new File(['pdf'], 'A-only.pdf', { type: 'application/pdf' });
+    const fileItemA: TUploadItem = {
+      file: fileA,
+      originalFile: fileA,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const { access, getEnrolled } = makeAttachmentAccess([fileItemA]);
+    const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
+      async () => undefined
+    );
+    const uploadItem = vi.fn(async () => 'mxc://test/a-only');
+    const keyA = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadA');
+    const keyB = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadB');
+
+    const editorA = withInlineElements(createEditor());
+    editorA.children = makeDoc();
+    const sessionA = makeMockSession();
+    const entryA = handoffComposerDictationSend({
+      store,
+      mx: { getRoom: vi.fn(() => room) } as unknown as MatrixClient,
+      editor: editorA,
+      room,
+      roomId: room.roomId,
+      roomName: 'General',
+      threadId: '$threadA',
+      threadingEnabled: true,
+      ownerKey: keyA,
+      draftKey: keyA,
+      composerContext: { roomId: room.roomId, threadId: '$threadA' },
+      session: sessionA.session,
+      savedSelection: null,
+      midTurnMode: 'auto',
+      explicitMidTurnMode: false,
+      isMarkdown: true,
+      ownUserId: '@alice:example.org',
+      parseCommands: true,
+      commands: {},
+      attachments: access,
+      sessions: { startSendSession, restoreText: vi.fn() },
+      takeRootModelDraft: () => undefined,
+      uploadItem,
+      clearReplyDraft: vi.fn(),
+      restoreReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+
+    await act(async () => {
+      sessionA.resolveFinish({
+        status: 'failed',
+        failedSegments: 1,
+        completedSegments: 0,
+        errorMessage: 'Transient error',
+      });
+      await Promise.resolve();
+    });
+    expect(getEnrolled()).toEqual([fileItemA]);
+
+    // Thread B in the same room finishes and sends while A-only.pdf is still enrolled by Thread A.
+    const editorB = withInlineElements(createEditor());
+    editorB.children = makeDoc();
+    const sessionB = makeMockSession();
+    handoffComposerDictationSend({
+      store,
+      mx: { getRoom: vi.fn(() => room) } as unknown as MatrixClient,
+      editor: editorB,
+      room,
+      roomId: room.roomId,
+      roomName: 'General',
+      threadId: '$threadB',
+      threadingEnabled: true,
+      ownerKey: keyB,
+      draftKey: keyB,
+      composerContext: { roomId: room.roomId, threadId: '$threadB' },
+      session: sessionB.session,
+      savedSelection: null,
+      midTurnMode: 'auto',
+      explicitMidTurnMode: false,
+      isMarkdown: true,
+      ownUserId: '@alice:example.org',
+      parseCommands: true,
+      commands: {},
+      attachments: access,
+      sessions: { startSendSession, restoreText: vi.fn() },
+      takeRootModelDraft: () => undefined,
+      uploadItem,
+      clearReplyDraft: vi.fn(),
+      restoreReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+
+    await act(async () => {
+      sessionB.resolveFinish({ status: 'completed', text: 'Thread B message only' });
+      await Promise.resolve();
+    });
+
+    expect(startSendSession).toHaveBeenCalledTimes(1);
+    expect(startSendSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        textContent: expect.objectContaining({ body: 'Thread B message only' }),
+        batch: { fileItems: [] },
+        context: expect.objectContaining({ threadId: '$threadB' }),
+      })
+    );
+    // Thread A still retains A-only.pdf enrolled and sends it on retry.
+    expect(getEnrolled()).toEqual([fileItemA]);
+
+    await act(async () => {
+      store.get(detachedDictationSendsAtom).get(entryA.ownerKey)!.retryAndSend();
+      sessionA.resolveRetry({ status: 'completed', text: 'Thread A retry with file' });
+      await Promise.resolve();
+    });
+
+    expect(startSendSession).toHaveBeenCalledTimes(2);
+    expect(startSendSession.mock.calls[1]![0]).toEqual(
+      expect.objectContaining({
+        textContent: expect.objectContaining({ body: 'Thread A retry with file' }),
+        batch: { fileItems: [fileItemA] },
+        context: expect.objectContaining({ threadId: '$threadA' }),
+      })
+    );
+  });
+
+  it('surfaces off-thread empty transcription in detachedDictationErrorAtom without sending', async () => {
+    const store = createStore();
+    const room = makeRoom('!r1:example.org', 'Design');
+    const keyA = getRoomInputDraftKey('@alice:example.org', room.roomId, '$threadA');
+    const replyDraft: IReplyDraft = { userId: '@bob:example.org', eventId: '$ev1', body: 'Orig' };
+    const rootModel = threadModelContent('@router:example.org', 'DEV1', 'fast@high');
+    const startSendSession = vi.fn<(options?: StartRoomInputSendSessionOptions) => Promise<void>>(
+      async () => undefined
+    );
+    const restoreReplyDraft = vi.fn();
+    const restoreRootModelDraft = vi.fn();
+    const sEmpty = makeMockSession();
+
+    const notice = render(
+      <Provider store={store}>
+        <DictationSendErrorNotice />
+      </Provider>
+    );
+
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sEmpty.session,
+        ownerKey: keyA,
+        sendContext: {
+          roomId: room.roomId,
+          room,
+          threadId: '$threadA',
+          replyDraft,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        rootModel,
+        restoreReplyDraft,
+        restoreRootModelDraft,
+        sessions: { startSendSession, restoreText: vi.fn() },
+      })
+    );
+
+    await act(async () => {
+      sEmpty.resolveFinish({ status: 'completed', text: '   ' });
+      await Promise.resolve();
+    });
+
+    expect(startSendSession).not.toHaveBeenCalled();
+    expect(store.get(detachedDictationSendsAtom).size).toBe(0);
+    expect(store.get(detachedDictationErrorAtom)).toEqual({
+      ownerKey: keyA,
+      roomName: 'Design',
+      kind: 'noSpeech',
+    });
+    expect(screen.getByRole('alert').textContent).toContain(
+      'composer.dictation.noSpeechOffThread:Design'
+    );
+    expect(restoreReplyDraft).toHaveBeenCalledWith(replyDraft);
+    expect(restoreRootModelDraft).toHaveBeenCalledWith(room, rootModel);
+    notice.unmount();
   });
 });

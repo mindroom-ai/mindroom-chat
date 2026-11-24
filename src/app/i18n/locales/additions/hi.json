@@ -1408,6 +1408,7 @@
       "statusFinishing": "समाप्त हो रहा है...",
       "statusSending": "समाप्त करके भेजा जा रहा है...",
       "noSpeech": "कोई आवाज़ नहीं मिली।",
+      "noSpeechOffThread": "{{room}} में कोई आवाज़ नहीं मिली।",
       "sendFailedOffThread": "{{room}} में डिक्टेट किया गया संदेश समाप्त नहीं हो सका। पुनः प्रयास करने के लिए इसे खोलें।",
       "statusPendingRetry_one": "{{count}} खंड पुनः प्रयास के लिए लंबित",
       "statusPendingRetry_other": "{{count}} खंड पुनः प्रयास के लिए लंबित",

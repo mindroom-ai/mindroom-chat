@@ -196,7 +196,9 @@ export const handoffComposerDictationSend = (
   const pendingMarks = editor.marks ? { ...editor.marks } : null;
   const savedSelection =
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
-  const stagedSnapshot = ask ? [] : attachments.snapshot().staged.filter((item) => !item.prepError);
+  const { staged, enrolled } = ask ? { staged: [], enrolled: [] } : attachments.snapshot();
+  const enrolledFiles = new Set(enrolled.map((item) => item.file));
+  const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
   const rootModel =
     !ask &&
     !params.forkFrom &&
@@ -347,7 +349,11 @@ export const startDetachedDictationSend = (
     if (result.status === 'failed') {
       setEntryStatus('failed');
       if (!getMountedOwner(store, ownerKey)) {
-        store.set(detachedDictationErrorAtom, { ownerKey, roomName: input.roomName });
+        store.set(detachedDictationErrorAtom, {
+          ownerKey,
+          roomName: input.roomName,
+          kind: 'failed',
+        });
       }
       return;
     }
@@ -387,8 +393,17 @@ export const startDetachedDictationSend = (
       : undefined;
     const activeStaged = getActiveStaged();
     if (!textContent && (ask || activeStaged.length === 0)) {
-      restoreDraftAndCleanup([]);
-      getMountedOwner(store, ownerKey)?.onNoSpeech();
+      restoreDraftAndCleanup(input.docSnapshot);
+      const mountedOwner = getMountedOwner(store, ownerKey);
+      if (mountedOwner) {
+        mountedOwner.onNoSpeech();
+      } else {
+        store.set(detachedDictationErrorAtom, {
+          ownerKey,
+          roomName: input.roomName,
+          kind: 'noSpeech',
+        });
+      }
       return;
     }
 

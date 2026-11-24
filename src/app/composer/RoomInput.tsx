@@ -623,8 +623,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const submit = useCallback(
       async (explicitMode: MidTurnMode | undefined, waited: boolean) => {
-        const liveDictation =
-          dictation.getLiveStatus?.() ?? (dictation.blocksSubmit ? 'blocked' : 'idle');
+        const liveDictation = dictation.getLiveStatus();
         if (liveDictation === 'blocked') return;
         if (voiceActive && voice.blocksSubmit()) return;
         const mode = explicitMode ?? midTurnSend;
@@ -644,7 +643,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           }
           const live = dictationHandoffRef.current;
           if (isLocalEchoEventId(live.threadId) || (live.ask && !live.ask.canSend())) return;
-          const detached = dictation.detachForSend?.();
+          const detached = dictation.detachForSend();
           if (!detached) return;
           handoffComposerDictationSend({
             ...live,

@@ -1498,6 +1498,7 @@
       "statusFinishing": "Завершение...",
       "statusSending": "Завершение и отправка...",
       "noSpeech": "Речь не обнаружена.",
+      "noSpeechOffThread": "Речь в {{room}} не обнаружена.",
       "sendFailedOffThread": "Не удалось завершить надиктованное сообщение в {{room}}. Откройте его, чтобы повторить попытку.",
       "statusPendingRetry_one": "{{count}} фрагмент ожидает повтора",
       "statusPendingRetry_few": "{{count}} фрагмента ожидают повтора",

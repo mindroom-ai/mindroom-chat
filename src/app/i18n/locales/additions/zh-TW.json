@@ -1363,6 +1363,7 @@
       "statusFinishing": "正在完成...",
       "statusSending": "正在完成並傳送...",
       "noSpeech": "未偵測到語音。",
+      "noSpeechOffThread": "在 {{room}} 中未偵測到語音。",
       "sendFailedOffThread": "無法完成 {{room}} 中的聽寫訊息。請開啟並重試。",
       "statusPendingRetry_other": "{{count}} 個片段等待重試",
       "capReached": "已達到 5:00 上限",

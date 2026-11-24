@@ -1363,6 +1363,7 @@
       "statusFinishing": "Menyelesaikan...",
       "statusSending": "Menyelesaikan dan mengirim...",
       "noSpeech": "Tidak ada suara yang terdeteksi.",
+      "noSpeechOffThread": "Tidak ada suara yang terdeteksi di {{room}}.",
       "sendFailedOffThread": "Tidak dapat menyelesaikan pesan dikte di {{room}}. Buka untuk mencoba lagi.",
       "statusPendingRetry_other": "{{count}} segmen menunggu percobaan ulang",
       "capReached": "Batas 5:00 tercapai",

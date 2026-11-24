@@ -1453,6 +1453,7 @@
       "statusFinishing": "Completamento...",
       "statusSending": "Completamento e invio...",
       "noSpeech": "Nessuna voce rilevata.",
+      "noSpeechOffThread": "Nessuna voce rilevata in {{room}}.",
       "sendFailedOffThread": "Impossibile completare il messaggio dettato in {{room}}. Aprilo per riprovare.",
       "statusPendingRetry_one": "{{count}} segmento in attesa di nuovo tentativo",
       "statusPendingRetry_many": "{{count}} segmenti in attesa di nuovo tentativo",

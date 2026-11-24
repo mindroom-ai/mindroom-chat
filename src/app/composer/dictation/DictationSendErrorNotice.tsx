@@ -7,7 +7,7 @@ import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { PageSlot, noticeCard } from '../../ui/noticeSlots.css';
 import { detachedDictationErrorAtom } from '../roomInputDrafts';
 
-/** Non-blocking notice when a detached Finish & Send dictation fails while viewing elsewhere. */
+/** Non-blocking notice when a detached Finish & Send dictation fails or hears no speech elsewhere. */
 export function DictationSendErrorNotice() {
   const { t } = useTranslation();
   const [failure, setFailure] = useAtom(detachedDictationErrorAtom);
@@ -31,7 +31,12 @@ export function DictationSendErrorNotice() {
           style={{ color: color.Critical.Main, flexShrink: 0 }}
         />
         <Text size="T300" style={{ flexGrow: 1, minInlineSize: 0, overflowWrap: 'anywhere' }}>
-          {t('composer.dictation.sendFailedOffThread', { room: failure.roomName })}
+          {t(
+            failure.kind === 'noSpeech'
+              ? 'composer.dictation.noSpeechOffThread'
+              : 'composer.dictation.sendFailedOffThread',
+            { room: failure.roomName }
+          )}
         </Text>
         <IconButton
           size="300"

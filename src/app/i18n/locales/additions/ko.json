@@ -1363,6 +1363,7 @@
       "statusFinishing": "마무리 중...",
       "statusSending": "마무리하고 전송 중...",
       "noSpeech": "음성이 감지되지 않았습니다.",
+      "noSpeechOffThread": "{{room}}에서 음성이 감지되지 않았습니다.",
       "sendFailedOffThread": "{{room}}의 받아쓰기 메시지를 완료할 수 없습니다. 열어서 다시 시도하세요.",
       "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
       "capReached": "5:00 제한에 도달했습니다",

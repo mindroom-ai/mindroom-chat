@@ -492,10 +492,11 @@ export type DetachedDictationSend = {
   readonly abort: () => void;
 };
 
-/** Non-blocking shell notice when a detached dictation send fails while viewing elsewhere. */
+/** Non-blocking shell notice when a detached dictation send fails or detects no speech off-thread. */
 export type DetachedDictationError = {
   readonly ownerKey: string;
   readonly roomName: string;
+  readonly kind: 'failed' | 'noSpeech';
 };
 
 /** In-flight and failed background Finish & Send dictations, keyed by stable composer send key. */
@@ -603,12 +604,7 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   store.set(voiceAutoSendPendingAtom, false);
   store.set(activeDictationAtom, undefined);
   endVoiceRecordingsOfAccount(store);
-  const detached = store.get(detachedDictationSendsAtom);
-  if (detached instanceof Map) {
-    detached.forEach((entry) => {
-      if (entry && typeof entry.abort === 'function') entry.abort();
-    });
-  }
+  store.get(detachedDictationSendsAtom).forEach((entry) => entry.abort());
   store.set(detachedDictationSendsAtom, new Map());
   store.set(detachedDictationErrorAtom, undefined);
 };

@@ -1453,6 +1453,7 @@
       "statusFinishing": "Finalizando...",
       "statusSending": "Finalizando e enviando...",
       "noSpeech": "Nenhuma fala detectada.",
+      "noSpeechOffThread": "Nenhuma fala detectada em {{room}}.",
       "sendFailedOffThread": "Não foi possível concluir a mensagem ditada em {{room}}. Abra para tentar novamente.",
       "statusPendingRetry_one": "{{count}} segmento aguardando nova tentativa",
       "statusPendingRetry_many": "{{count}} segmentos aguardando nova tentativa",

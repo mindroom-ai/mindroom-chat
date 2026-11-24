@@ -1453,6 +1453,7 @@
       "statusFinishing": "Finalizando...",
       "statusSending": "Finalizando y enviando...",
       "noSpeech": "No se detectó voz.",
+      "noSpeechOffThread": "No se detectó voz en {{room}}.",
       "sendFailedOffThread": "No se pudo finalizar el mensaje dictado en {{room}}. Ábrelo para reintentar.",
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",

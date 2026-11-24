@@ -1408,6 +1408,7 @@
       "statusFinishing": "Finishing...",
       "statusSending": "Finishing and sending...",
       "noSpeech": "No speech detected.",
+      "noSpeechOffThread": "No speech detected in {{room}}.",
       "sendFailedOffThread": "Could not finish dictated message in {{room}}. Open it to retry.",
       "statusPendingRetry_one": "{{count}} segment pending retry",
       "statusPendingRetry_other": "{{count}} segments pending retry",

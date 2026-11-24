@@ -1408,6 +1408,7 @@
       "statusFinishing": "Tamamlanıyor...",
       "statusSending": "Tamamlanıyor ve gönderiliyor...",
       "noSpeech": "Konuşma algılanmadı.",
+      "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
       "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",

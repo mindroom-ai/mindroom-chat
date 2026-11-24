@@ -1588,6 +1588,7 @@
       "statusFinishing": "جارٍ الإنهاء…",
       "statusSending": "جارٍ الإنهاء والإرسال…",
       "noSpeech": "لم يتم اكتشاف أي كلام.",
+      "noSpeechOffThread": "لم يتم اكتشاف أي كلام في ⁨{{room}}⁩.",
       "sendFailedOffThread": "تعذّر إنهاء الرسالة المُملاة في ⁨{{room}}⁩. افتحها لإعادة المحاولة.",
       "statusPendingRetry_zero": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
       "statusPendingRetry_one": "مقطع واحد (⁨{{count}}⁩) بانتظار إعادة المحاولة",
