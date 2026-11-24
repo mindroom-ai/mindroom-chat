@@ -535,6 +535,7 @@
       "options": "Opties voor space",
       "subspaceUnread": "{{name}}, ongelezen berichten",
       "backToParent": "Terug naar {{name}}",
+      "add": "Toevoegen",
       "newRoom": "Nieuwe kamer",
       "addExistingRoom": "Bestaande kamer toevoegen",
       "newSubspace": "Nieuwe subspace",

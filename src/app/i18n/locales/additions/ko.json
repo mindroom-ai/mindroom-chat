@@ -522,6 +522,7 @@
       "options": "스페이스 옵션",
       "subspaceUnread": "{{name}}, 읽지 않은 메시지",
       "backToParent": "{{name}}(으)로 돌아가기",
+      "add": "추가",
       "newRoom": "새 방",
       "addExistingRoom": "기존 방 추가",
       "newSubspace": "새 하위 스페이스",

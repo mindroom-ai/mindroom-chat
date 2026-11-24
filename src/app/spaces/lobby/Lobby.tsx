@@ -136,10 +136,6 @@ const getHiddenEntries = (
   return hidden;
 };
 
-/** Nested entries step in from the lobby's edge, one step per level below the first. */
-const nestingInset = (depth = 1) =>
-  depth > 1 ? { marginInlineStart: `calc(${config.space.S400} * ${depth - 1})` } : undefined;
-
 /** The top space's own heading: its rooms' title and, for those allowed, ways to add more. */
 function LobbyRootHeading({ canEdit }: { canEdit: boolean }) {
   const { t } = useTranslation();
@@ -278,10 +274,15 @@ function LobbyContent() {
 
   const renderSpace = (item: HierarchyItem) => {
     const joinedSpace = joinedCopy(item.roomId);
+    const parentName =
+      (item.depth ?? 1) >= 2 && item.parentId
+        ? getRoom(item.parentId)?.name || summaries.get(item.parentId)?.name
+        : undefined;
     return (
       <SpaceItemCard
         key={`${item.parentId}/${item.roomId}`}
         item={item}
+        parentName={parentName}
         summary={summaries.get(item.roomId)}
         loading={!joinedSpace && loading}
         joined={!!joinedSpace}
@@ -324,7 +325,6 @@ function LobbyContent() {
                   key={`${item.parentId}/${item.roomId}`}
                   className={styleCss.LobbyEntry}
                   direction="Column"
-                  style={nestingInset(item.depth)}
                   data-lobby-entry={item.roomId}
                 >
                   {item.space ? renderSpace(item) : renderRoom(item)}

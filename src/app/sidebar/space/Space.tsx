@@ -212,6 +212,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
                 permissions={permissions}
                 dialogs={dialogs}
                 onClose={close}
+                showAdd={false}
                 beforeMain={
                   <>
                     <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />

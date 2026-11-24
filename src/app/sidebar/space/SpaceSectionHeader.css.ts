@@ -44,11 +44,23 @@ export const ActionButton = style([
 ]);
 
 /**
+ * On touch/non-hover devices, sub-space `+` is hidden because its entries are folded into `⋮`,
+ * cutting right-edge icon clutter in half.
+ */
+export const SubspaceAddButton = style({
+  '@media': {
+    '(hover: none)': {
+      display: 'none',
+    },
+  },
+});
+
+/**
  * On an empty editable section, keeps `+` subtly visible at rest so the section reads as an
  * actionable target without adding an extra inline row.
  */
 export const EmptyAddButton = style({
-  opacity: 0.7,
+  opacity: 0.5,
   selectors: {
     [`${Header}:hover &`]: { opacity: 1 },
     [`${Header}:focus-within &`]: { opacity: 1 },

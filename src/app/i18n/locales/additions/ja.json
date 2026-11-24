@@ -522,6 +522,7 @@
       "options": "スペースのオプション",
       "subspaceUnread": "{{name}}、未読メッセージあり",
       "backToParent": "{{name}} に戻る",
+      "add": "追加",
       "newRoom": "新しいルーム",
       "addExistingRoom": "既存のルームを追加",
       "newSubspace": "新しいサブスペース",

@@ -269,7 +269,7 @@ export function SpaceRoomSection({
           const room = client.getRoom(roomId);
           return room ? (
             <Fragment key={roomId}>
-              <SortableRoomRow {...rowProps(room)} />
+              <SortableRoomRow {...rowProps(room)} removeFromSpaceId={section.spaceId} />
               {!section.closed && (
                 <SubRoomRows
                   parent={room}

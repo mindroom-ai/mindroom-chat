@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   openSettings: vi.fn(),
   sendStateEvent: vi.fn(() => Promise.resolve({})),
+  removeSpaceChild: vi.fn(() => Promise.resolve()),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   rooms: {} as Record<string, unknown>,
   plugins: [] as RegisteredPlugin[],
@@ -33,9 +34,13 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
   useNavigate: () => state.navigate,
 }));
+vi.mock('../spaces/lobby/spaceChildren', () => ({
+  removeSpaceChild: state.removeSpaceChild,
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:example.org',
+    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
     sendStateEvent: state.sendStateEvent,
   }),
 }));
@@ -131,6 +136,7 @@ const room = {
 /** A room menu as an entry point shows it, with its dialog beside it as the entry points do. */
 function Harness(props: {
   spaceId?: string;
+  removeFromSpaceId?: string;
   threadId?: string;
   roomEntries?: React.ReactNode;
   close?: () => void;
@@ -145,6 +151,7 @@ function Harness(props: {
         close={props.close ?? vi.fn()}
         showDialog={showDialog}
         spaceId={props.spaceId}
+        removeFromSpaceId={props.removeFromSpaceId}
         threadId={props.threadId}
         onLeft={props.onLeft}
         roomEntries={props.roomEntries}
@@ -346,6 +353,56 @@ describe('the shared room actions', () => {
     expect(rows()).toContain("Remove from Garden (You can't change the rooms listed under Garden)");
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));
     expect(state.sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  describe('Remove from <space> parity', () => {
+    const spaceId = '!design:example.org';
+    const makeJoinedSpace = (overrides: Record<string, unknown> = {}) => ({
+      roomId: spaceId,
+      name: 'Design Team',
+      isSpaceRoom: () => true,
+      getMyMembership: () => 'join',
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      ...overrides,
+    });
+
+    it('offers critical Remove from <space> when permitted and calls removeSpaceChild', () => {
+      state.removeSpaceChild.mockClear();
+      state.rooms[spaceId] = makeJoinedSpace();
+      const close = vi.fn();
+      render(<Harness removeFromSpaceId={spaceId} close={close} />);
+
+      const entry = screen.getByRole('menuitem', { name: 'Remove from Design Team' });
+      expect(rows()).toContain('Remove from Design Team');
+      expect(entry.className).toBe(screen.getByRole('menuitem', { name: 'Leave Room' }).className);
+
+      fireEvent.click(entry);
+      expect(close).toHaveBeenCalledOnce();
+      expect(state.removeSpaceChild).toHaveBeenCalledWith(
+        expect.anything(),
+        spaceId,
+        '!room:example.org'
+      );
+    });
+
+    it('omits Remove from <space> when the user lacks m.space.child permission or the target is not a joined space', () => {
+      state.canListRooms = false;
+      state.rooms[spaceId] = makeJoinedSpace();
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      state.canListRooms = true;
+      state.rooms[spaceId] = makeJoinedSpace({ getMyMembership: () => 'leave' });
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+      cleanup();
+
+      state.rooms[spaceId] = makeJoinedSpace({ isSpaceRoom: () => false });
+      render(<Harness removeFromSpaceId={spaceId} />);
+      expect(screen.queryByRole('menuitem', { name: 'Remove from Design Team' })).toBeNull();
+    });
   });
 });
 

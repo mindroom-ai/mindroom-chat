@@ -11,7 +11,12 @@ import { activeCallAtom, type ActiveCall } from '../calls/callStore';
 const SPACE = '!s:test';
 const leave = vi.fn();
 const forget = vi.fn();
-const getRoom = (roomId: string) => ({ roomId, isSpaceRoom: () => roomId === SPACE });
+const roomNames = new Map<string, string>();
+const getRoom = (roomId: string) => ({
+  roomId,
+  name: roomNames.get(roomId),
+  isSpaceRoom: () => roomId === SPACE,
+});
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ leave, forget, getRoom }),
 }));
@@ -36,6 +41,7 @@ describe('LeaveRoomPrompt', () => {
     host.remove();
     leave.mockReset();
     forget.mockReset();
+    roomNames.clear();
   });
 
   const show = (store = createStore(), roomId = '!r:test') => {
@@ -170,5 +176,22 @@ describe('LeaveRoomPrompt', () => {
     const alert = document.querySelector('[role="alert"]');
     expect(alert?.firstChild?.textContent?.trim()).toBe('Failed to leave space!');
     expect(leaveButton.disabled).toBe(false);
+  });
+
+  it('names the target space or room above the confirmation question when room.name is present, and omits it when absent', () => {
+    roomNames.set(SPACE, 'Design Team');
+    show(undefined, SPACE);
+    const spaceDialog = document.querySelector('[role="alertdialog"]');
+    const heading = document.getElementById('leave-room-prompt-heading');
+    const question = document.getElementById('leave-room-prompt-heading-question');
+    expect(heading?.textContent).toBe('Leave Space');
+    expect(question?.previousElementSibling?.textContent).toBe('Design Team');
+    expect(spaceDialog?.textContent).toContain('Design Team');
+
+    act(() => root.render(<span />));
+    roomNames.clear();
+    show(undefined, '!r:test');
+    const unnamedQuestion = document.getElementById('leave-room-prompt-heading-question');
+    expect(unnamedQuestion?.previousElementSibling).toBeNull();
   });
 });

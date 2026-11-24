@@ -535,6 +535,7 @@
       "options": "स्पेस विकल्प",
       "subspaceUnread": "{{name}}, अपठित संदेश",
       "backToParent": "{{name}} पर वापस जाएँ",
+      "add": "जोड़ें",
       "newRoom": "नया रूम",
       "addExistingRoom": "मौजूदा रूम जोड़ें",
       "newSubspace": "नया सब-स्पेस",

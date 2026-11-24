@@ -404,6 +404,35 @@ const checkQuickActions = async (browser: Browser, engine: string) => {
   await expect(sectionButton(page, designId)).toBeVisible();
   await expect(sectionButton(page, researchId)).toBeVisible();
 
+  // Space overview sub-space room cards align flush-left with root room cards.
+  const rootLobbyCard = page.locator(`[data-lobby-entry="${seeded.roomIds['Book Swap']!}"]`);
+  const subspaceLobbyCard = page.locator(
+    `[data-lobby-entry="${seeded.roomIds['Design Review']!}"]`
+  );
+  await expect(rootLobbyCard).toBeVisible({ timeout: 30_000 });
+  await expect(subspaceLobbyCard).toBeVisible({ timeout: 30_000 });
+  const [rootCardBox, subspaceCardBox] = await Promise.all([
+    rootLobbyCard.boundingBox(),
+    subspaceLobbyCard.boundingBox(),
+  ]);
+  expect(Math.abs(rootCardBox!.x - subspaceCardBox!.x)).toBeLessThanOrEqual(2);
+
+  // Space header ⋮ omits Add entries (deduplicated against +), and Leave Space names the space.
+  await list(page).getByRole('button', { name: 'Space Options', exact: true }).click();
+  const headerOptionsMenu = page.getByRole('menu');
+  await expect(
+    headerOptionsMenu.getByRole('menuitem', { name: 'Space Settings', exact: true })
+  ).toBeVisible();
+  await expect(
+    headerOptionsMenu.getByRole('menuitem', { name: 'New Room', exact: true })
+  ).toHaveCount(0);
+  await headerOptionsMenu.getByRole('menuitem', { name: 'Leave Space', exact: true }).click();
+  const leaveSpaceDialog = page.getByRole('alertdialog', { name: 'Leave Space' });
+  await expect(leaveSpaceDialog).toBeVisible();
+  await expect(leaveSpaceDialog.getByText(PARENT, { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(leaveSpaceDialog).toHaveCount(0);
+
   // 1. Space header + opens the 4-item Add menu and creates a room directly in the root space.
   await list(page)
     .getByRole('button', { name: `Add to ${PARENT}`, exact: true })
@@ -449,19 +478,34 @@ const checkQuickActions = async (browser: Browser, engine: string) => {
 
   // Return to Field Notes and confirm Design Quick Room lives under Design Team, not root Rooms.
   await page.locator(`[data-id="${seeded.parent}"]`).first().click();
-  await expect(
-    sectionContainer(page, designId).getByRole('link', { name: 'Design Quick Room' })
-  ).toBeVisible({ timeout: 30_000 });
+  const designQuickRoomLink = sectionContainer(page, designId).getByRole('link', {
+    name: 'Design Quick Room',
+  });
+  await expect(designQuickRoomLink).toBeVisible({ timeout: 30_000 });
   await expect(
     sectionContainer(page, rootId).getByRole('link', { name: 'Design Quick Room' })
   ).toHaveCount(0);
 
-  // 3. Sub-space section options button reveals grouped sub-space actions on Design Team.
+  // Right-clicking a room inside a sub-space offers Remove from <sub-space> and unlinks it.
+  await designQuickRoomLink.click({ button: 'right' });
+  const roomContextMenu = page.getByRole('menu');
+  await expect(
+    roomContextMenu.getByRole('menuitem', { name: `Remove from ${DESIGN}`, exact: true })
+  ).toBeVisible();
+  await roomContextMenu
+    .getByRole('menuitem', { name: `Remove from ${DESIGN}`, exact: true })
+    .click();
+  await expect(designQuickRoomLink).toHaveCount(0);
+
+  // 3. Desktop sub-space ⋮ opens management-only options without repeating Add entries.
   await sectionButton(page, designId).hover();
   await list(page)
     .getByRole('button', { name: `${DESIGN} options`, exact: true })
     .click();
   const designOptionsMenu = page.getByRole('menu');
+  await expect(
+    designOptionsMenu.getByRole('menuitem', { name: 'New Room', exact: true })
+  ).toHaveCount(0);
   await expect(
     designOptionsMenu.getByRole('menuitem', { name: 'Space Settings', exact: true })
   ).toBeVisible();
@@ -477,9 +521,10 @@ const checkQuickActions = async (browser: Browser, engine: string) => {
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
 
-  // 4. Right-clicking nested Research Group removes it from its immediate parent (Operations).
+  // 4. Right-clicking nested Research Group includes both Add and Remove from immediate parent.
   await sectionButton(page, researchId).click({ button: 'right' });
   const researchMenu = page.getByRole('menu');
+  await expect(researchMenu.getByRole('menuitem', { name: 'New Room', exact: true })).toBeVisible();
   await expect(
     researchMenu.getByRole('menuitem', { name: `Remove from ${ORGANIZER}`, exact: true })
   ).toBeVisible();
@@ -520,6 +565,22 @@ const checkPhone = async (browser: Browser, engine: string, language?: string) =
     await page.screenshot({
       path: `${SHOTS}/subspace-sections-phone-${engine}-${language ?? 'en'}.png`,
     });
+  }
+
+  if (!language) {
+    // Phone sub-space headers hide `+` and fold Add entries into `⋮`.
+    await expect(
+      list(page).getByRole('button', { name: `Add to ${DESIGN}`, exact: true })
+    ).toBeHidden();
+    await list(page)
+      .getByRole('button', { name: `${DESIGN} options`, exact: true })
+      .tap();
+    const phoneDesignMenu = page.getByRole('menu');
+    await expect(
+      phoneDesignMenu.getByRole('menuitem', { name: 'New Room', exact: true })
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
   }
 
   await sectionButton(page, designId).tap();

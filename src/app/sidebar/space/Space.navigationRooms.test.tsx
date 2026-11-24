@@ -287,17 +287,20 @@ vi.mock('../room-nav/SortableRoomList', () => ({
     room,
     linkPath,
     spaceId,
+    removeFromSpaceId,
     subRoom,
   }: {
     room: { roomId: string };
     linkPath: string;
     spaceId: string;
+    removeFromSpaceId?: string;
     subRoom?: boolean;
   }) => (
     <div
       data-row-room={room.roomId}
       data-link={linkPath}
       data-space={spaceId}
+      data-remove-from-space={removeFromSpaceId}
       data-sub-room={subRoom}
     />
   ),
@@ -786,6 +789,29 @@ describe('Space navigation', () => {
       [designReview]: [design],
     });
 
+    // Space header ⋮ omits Add entries because + sits directly beside it.
+    const headerOptionsMenu = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props['data-nav-options'] === 'Space Options'
+    );
+    const headerOptionsEntries = headerOptionsMenu
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(headerOptionsEntries).not.toContain('New Room');
+    expect(headerOptionsEntries).toContain('Space Settings');
+
+    // Top-level room rows receive removeFromSpaceId for their own section; sub-room rows do not.
+    const joinedRow = renderer!.root.find((node) => node.props['data-row-room'] === joined);
+    const designReviewRow = renderer!.root.find(
+      (node) => node.props['data-row-room'] === designReview
+    );
+    expect(joinedRow.props['data-remove-from-space']).toBe(space);
+    expect(designReviewRow.props['data-remove-from-space']).toBe(design);
+    const subRoomEl = subRooms.renderRoom?.(rooms.of(designReview)) as
+      | React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }>
+      | undefined;
+    expect(subRoomEl?.props.subRoom).toBe(true);
+    expect(subRoomEl?.props.removeFromSpaceId).toBeUndefined();
+
     const headerAddMenu = renderer!.root.find(
       (node) => typeof node.type === 'string' && node.props['data-nav-options'] === 'Add to garden'
     );
@@ -821,9 +847,12 @@ describe('Space navigation', () => {
       .map((node) => node.props['data-menu-entry']);
     expect(roomsAddEntries).toEqual(['New Room', 'Add Existing Room']);
 
-    // Sub-space + opens all 4 entries targeting that sub-space.
+    // Sub-space + gets the touch-hide SubspaceAddButton class (root Rooms + does not) and opens all 4 add entries.
     const designAddButton = renderer!.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
+    );
+    expect(String(designAddButton.props.className).length).toBeGreaterThan(
+      String(roomsAddButton.props.className).length
     );
     act(() => {
       designAddButton.props.onClick({ currentTarget: { getBoundingClientRect: () => rect } });
@@ -948,8 +977,69 @@ describe('Space navigation', () => {
     const designLabels = designPopout
       .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
       .map((node) => node.props['data-menu-entry']);
+    // Right-clicking a sub-space header opens the full context menu (Add + management).
+    expect(designLabels).toContain('New Room');
     expect(designLabels).toContain('Space Settings');
     expect(designLabels).toContain('Leave Space');
+
+    // Clicking sub-space ⋮ on a hover-capable mouse omits Add; touch pointerType includes Add.
+    const designOptionsButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Design Team options'
+    );
+    const rect = { x: 0, y: 0, width: 24, height: 24 };
+    act(() => {
+      designOptionsButton.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+        nativeEvent: { pointerType: 'mouse' },
+      });
+    });
+    const desktopOptionsLabels = renderer!.root
+      .find((node) => typeof node.type === 'string' && 'data-popout' in node.props)
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(desktopOptionsLabels).not.toContain('New Room');
+    expect(desktopOptionsLabels).toContain('Space Settings');
+
+    act(() => {
+      designOptionsButton.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+        nativeEvent: { pointerType: 'touch' },
+      });
+    });
+    const touchOptionsLabels = renderer!.root
+      .find((node) => typeof node.type === 'string' && 'data-popout' in node.props)
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(touchOptionsLabels).toContain('New Room');
+    expect(touchOptionsLabels).toContain('Space Settings');
+
+    // Non-hover devices (matchMedia '(hover: none)') also open the full menu from ⋮.
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query === '(hover: none)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    }));
+    try {
+      act(() => {
+        designOptionsButton.props.onClick({
+          currentTarget: { getBoundingClientRect: () => rect },
+          nativeEvent: { pointerType: '' },
+        });
+      });
+      const noHoverOptionsLabels = renderer!.root
+        .find((node) => typeof node.type === 'string' && 'data-popout' in node.props)
+        .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+        .map((node) => node.props['data-menu-entry']);
+      expect(noHoverOptionsLabels).toContain('New Room');
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
 
     // Editable empty Operations keeps a subtly-visible class on its + button, unlike populated Design Team.
     const opsAddButton = renderer!.root.find(

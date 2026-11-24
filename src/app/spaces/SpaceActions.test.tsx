@@ -363,6 +363,31 @@ describe('SpaceActions', () => {
     );
     clickEntry('Unpin');
     expect(mocks.unpinSpaceFromSidebar).toHaveBeenCalledWith(mockClient, '!sub:example.org');
+
+    // showAdd={false} omits the Add group even when permissions.canAdd is true.
+    act(() => renderer!.unmount());
+    render(
+      <SpaceMenuGroups
+        space={space}
+        permissions={{ canAdd: true, canInvite: true }}
+        dialogs={dialogs}
+        onClose={onClose}
+        showAdd={false}
+        pinMode="toggle"
+      />
+    );
+    expect(renderer!.root.findAll((node) => 'data-menu-group' in node.props)).toHaveLength(2);
+    expect(renderer!.root.findAll((node) => 'data-line' in node.props)).toHaveLength(1);
+    const noAddLabels = renderer!.root
+      .findAll((node) => node.type === 'button')
+      .map((node) => node.props['data-menu-entry']);
+    expect(noAddLabels).toEqual([
+      'Invite',
+      'Copy Link',
+      'Space Settings',
+      'Unpin from Sidebar',
+      'Leave Space',
+    ]);
   });
 
   it('opens and closes lazy dialogs cleanly and triggers onLeft when leaving', async () => {

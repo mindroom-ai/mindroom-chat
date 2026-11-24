@@ -548,6 +548,7 @@
       "options": "Opções do espaço",
       "subspaceUnread": "{{name}}, mensagens não lidas",
       "backToParent": "Voltar para {{name}}",
+      "add": "Adicionar",
       "newRoom": "Nova sala",
       "addExistingRoom": "Adicionar sala existente",
       "newSubspace": "Novo subespaço",

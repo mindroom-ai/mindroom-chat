@@ -522,6 +522,7 @@
       "options": "空间选项",
       "subspaceUnread": "{{name}}，有未读消息",
       "backToParent": "返回 {{name}}",
+      "add": "添加",
       "newRoom": "新建房间",
       "addExistingRoom": "添加现有房间",
       "newSubspace": "新建子空间",

@@ -108,12 +108,14 @@ function SubspaceOptionsWithParent({
   parentSpace,
   permissions,
   dialogs,
+  showAdd,
   onClose,
 }: {
   subspace: Room;
   parentSpace: Room;
   permissions: SpaceQuickPermissions;
   dialogs: SpaceQuickDialogHandlers;
+  showAdd: boolean;
   onClose: () => void;
 }) {
   const parentName = useRoomName(parentSpace);
@@ -124,6 +126,7 @@ function SubspaceOptionsWithParent({
       permissions={permissions}
       dialogs={dialogs}
       onClose={onClose}
+      showAdd={showAdd}
       pinMode="toggle"
       removeFromParent={
         canEditParent ? { parentSpaceId: parentSpace.roomId, parentName } : undefined
@@ -132,7 +135,7 @@ function SubspaceOptionsWithParent({
   );
 }
 
-type SectionMenuKind = 'add' | 'options';
+type SectionMenuKind = 'add' | 'options' | 'context';
 type OpenSectionMenu = {
   kind: SectionMenuKind;
   anchor: RectCords;
@@ -146,6 +149,12 @@ const pointerAnchor = (event: MouseEvent): RectCords => ({
   width: 0,
   height: 0,
 });
+
+const isTouchOrNoHover = (event: MouseEvent): boolean =>
+  (event.nativeEvent as Partial<PointerEvent> | undefined)?.pointerType === 'touch' ||
+  (typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(hover: none)').matches);
 
 export type SpaceSectionHeaderProps = {
   /** The space this section lists (root space or joined descendant sub-space). */
@@ -198,7 +207,7 @@ export function SpaceSectionHeader({
   }, []);
 
   const canOpenContextMenu = !isRoot || permissions.canAdd;
-  const contextKind: SectionMenuKind = isRoot ? 'add' : 'options';
+  const contextKind: SectionMenuKind = isRoot ? 'add' : 'context';
   const hasActions = permissions.canAdd || !isRoot;
 
   const openMenu = (next: OpenSectionMenu, focusBackTo: HTMLElement | null) => {
@@ -249,7 +258,7 @@ export function SpaceSectionHeader({
   const openOptionsFromButton = (event: MouseEvent<HTMLButtonElement>) => {
     openMenu(
       {
-        kind: 'options',
+        kind: isTouchOrNoHover(event) ? 'context' : 'options',
         anchor: event.currentTarget.getBoundingClientRect(),
         position: 'Bottom',
         align: 'End',
@@ -285,7 +294,11 @@ export function SpaceSectionHeader({
                 radii="300"
                 variant="Background"
                 fill="None"
-                className={classNames(css.ActionButton, isEmpty && css.EmptyAddButton)}
+                className={classNames(
+                  css.ActionButton,
+                  !isRoot && css.SubspaceAddButton,
+                  isEmpty && css.EmptyAddButton
+                )}
                 aria-label={t('featureUi.spaceNav.addToSpace', { name: label })}
                 aria-haspopup="menu"
                 aria-expanded={menu?.kind === 'add'}
@@ -303,7 +316,7 @@ export function SpaceSectionHeader({
                 className={css.ActionButton}
                 aria-label={t('featureUi.spaceNav.subspaceOptions', { name: spaceName })}
                 aria-haspopup="menu"
-                aria-expanded={menu?.kind === 'options'}
+                aria-expanded={menu?.kind === 'options' || menu?.kind === 'context'}
                 onClick={openOptionsFromButton}
               >
                 <Icon size="50" src={Icons.VerticalDots} />
@@ -353,6 +366,7 @@ export function SpaceSectionHeader({
                       parentSpace={parentSpace}
                       permissions={permissions}
                       dialogs={dialogs}
+                      showAdd={menu.kind === 'context'}
                       onClose={closeMenu}
                     />
                   ) : (
@@ -361,6 +375,7 @@ export function SpaceSectionHeader({
                       permissions={permissions}
                       dialogs={dialogs}
                       onClose={closeMenu}
+                      showAdd={menu.kind === 'context'}
                       pinMode="toggle"
                     />
                   )}

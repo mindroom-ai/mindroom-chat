@@ -535,6 +535,7 @@
       "options": "Alan seçenekleri",
       "subspaceUnread": "{{name}}, okunmamış mesajlar",
       "backToParent": "{{name}} alanına dön",
+      "add": "Ekle",
       "newRoom": "Yeni oda",
       "addExistingRoom": "Mevcut odayı ekle",
       "newSubspace": "Yeni alt alan",

@@ -218,6 +218,8 @@ export type SpaceMenuGroupsProps = {
   permissions: SpaceQuickPermissions;
   dialogs: SpaceQuickDialogHandlers;
   onClose: () => void;
+  /** Include the Add group when the user can add children (defaults to `true`). */
+  showAdd?: boolean;
   /** Caller-specific entries placed at the top of the main group (e.g. Mark as Read, Sort A-Z). */
   beforeMain?: ReactNode;
   /** Include a `Space overview` entry navigating directly to the space lobby. */
@@ -244,6 +246,7 @@ export function SpaceMenuGroups({
   permissions,
   dialogs,
   onClose,
+  showAdd = true,
   beforeMain,
   showOverview = false,
   pinMode,
@@ -255,7 +258,7 @@ export function SpaceMenuGroups({
   const openSpaceSettings = useOpenRoomSettings();
 
   const groups: Array<{ key: string; content: ReactNode }> = [];
-  if (permissions.canAdd) {
+  if (showAdd && permissions.canAdd) {
     groups.push({
       key: 'add',
       content: (

@@ -24,6 +24,7 @@ import { useAlive } from '../lib/hooks/useAlive';
 import { stopPropagation } from '../lib/keyboard';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 
 type LeaveRoomPromptProps = {
   roomId: string;
@@ -58,7 +59,9 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
   const { t } = useTranslation();
   const client = useMatrixClient();
   const { leaveRoom } = useCallActions(client);
-  const space = client.getRoom(roomId)?.isSpaceRoom() ?? false;
+  const room = client.getRoom(roomId);
+  const space = room?.isSpaceRoom() ?? false;
+  const roomName = room?.name ? revealDirectionControls(room.name) : undefined;
   const strings = space ? 'sharedUi.leaveSpacePrompt' : 'sharedUi.leaveRoomPrompt';
   const isMounted = useAlive();
   const [leaveState, setLeaveState] = useState<LeaveState>({ kind: 'idle' });
@@ -108,6 +111,11 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
               />
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
+              {roomName && (
+                <Text size="H5" truncate {...ownDirectionLine}>
+                  {roomName}
+                </Text>
+              )}
               <Text id={`${HEADING_ID}-question`} size="T300" priority="400">
                 {t(
                   space

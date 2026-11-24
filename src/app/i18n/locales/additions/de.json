@@ -535,6 +535,7 @@
       "options": "Space-Optionen",
       "subspaceUnread": "{{name}}, ungelesene Nachrichten",
       "backToParent": "Zurück zu {{name}}",
+      "add": "Hinzufügen",
       "newRoom": "Neuer Raum",
       "addExistingRoom": "Vorhandenen Raum hinzufügen",
       "newSubspace": "Neuer Unter-Space",

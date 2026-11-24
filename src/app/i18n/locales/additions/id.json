@@ -522,6 +522,7 @@
       "options": "Opsi space",
       "subspaceUnread": "{{name}}, pesan belum dibaca",
       "backToParent": "Kembali ke {{name}}",
+      "add": "Tambah",
       "newRoom": "Ruang Baru",
       "addExistingRoom": "Tambahkan Ruang yang Ada",
       "newSubspace": "Sub-space Baru",
