@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useEffectEvent, useReducer } from 'react';
 import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 
@@ -13,14 +13,15 @@ export const useLocalEchoRoot = (
 ) => {
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   const pending = isLocalEchoEventId(threadId);
-  const latestOnDeleted = useRef(onDeleted);
-  latestOnDeleted.current = onDeleted;
+  const onEchoDeleted = useEffectEvent(() => {
+    onDeleted?.();
+  });
 
   useEffect(() => {
     if (!pending) return undefined;
     const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, _room, oldId) => {
       if (oldId !== threadId && event.getId() !== threadId) return;
-      if (event.status === EventStatus.CANCELLED) latestOnDeleted.current?.();
+      if (event.status === EventStatus.CANCELLED) onEchoDeleted();
       else refresh();
     };
     room.on(RoomEvent.LocalEchoUpdated, onEcho);

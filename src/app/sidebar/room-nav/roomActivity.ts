@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import {
   RelationType,
   RoomEvent,
@@ -125,23 +125,11 @@ export const useRoomActivityListener = (
 ): void => {
   const client = useMatrixClient();
   const enabled = sections.some((section) => section.recent || section.showTimes);
-  const sectionsRef = useRef(sections);
-  sectionsRef.current = sections;
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
-      event,
-      room,
-      toStartOfTimeline,
-      _removed,
-      data
-    ) => {
+  const onTimeline = useEffectEvent<RoomEventHandlerMap[RoomEvent.Timeline]>(
+    (event, room, toStartOfTimeline, _removed, data) => {
       if (!room || toStartOfTimeline || !data.liveEvent) return;
       if (isReplaceEdit(event)) return;
-      for (const section of sectionsRef.current) {
+      for (const section of sections) {
         if ((!section.recent && !section.showTimes) || !section.trackedRoomIds.has(room.roomId)) {
           continue;
         }
@@ -152,11 +140,15 @@ export const useRoomActivityListener = (
             sortRoomIdsByActivity(client, section.baseTop, section.tree)
           )
         ) {
-          onChangeRef.current();
+          onChange();
           return;
         }
       }
-    };
+    }
+  );
+
+  useEffect(() => {
+    if (!enabled) return undefined;
     client.on(RoomEvent.Timeline, onTimeline);
     return () => {
       client.off(RoomEvent.Timeline, onTimeline);

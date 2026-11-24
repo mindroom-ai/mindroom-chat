@@ -1,5 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
 import { isComposingKey } from '../shortcuts/shortcuts';
 import {
   createCaptureClient,
@@ -59,15 +58,14 @@ export const useQuickCapture = (channel: CaptureChannel | undefined) => {
  * acts on), wherever the focus is, the page itself included.
  */
 export const useCaptureEscape = (onEscape: () => void) => {
-  const latest = useLatestRef(onEscape);
+  const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.defaultPrevented || isComposingKey(event) || event.key !== 'Escape') return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    onEscape();
+  });
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isComposingKey(event) || event.key !== 'Escape') return;
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      event.preventDefault();
-      latest.current();
-    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [latest]);
+  }, []);
 };

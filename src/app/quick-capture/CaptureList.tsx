@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useRef,
@@ -12,7 +13,6 @@ import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { copyToClipboard } from '../lib/dom';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { formatCompactRelativeTime } from '../lib/time';
 import { isComposingKey, keyCapsOf } from '../shortcuts/shortcuts';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -88,7 +88,6 @@ export function CaptureList({
   const tabStopId = (selected ?? items[0])?.threadId;
   /** The thread whose peek shows. */
   const peekedId = peekOpen ? selected?.threadId : undefined;
-  const latest = useLatestRef({ items, roomId, request });
 
   // A row or field the list moves, or takes away (as a peek that closes takes its buttons), loses
   // the focus to the page: it gets it back, or the selected row takes it.
@@ -114,13 +113,14 @@ export function CaptureList({
 
   // A peek that opens on a new answer reads it, once for each opening: a new state that still says
   // `new` asks nothing more. A read that fails leaves the chip, and nothing to say.
-  useEffect(() => {
-    if (peekedId === undefined) return;
-    const { items: listed, roomId: peekedRoomId, request: ask } = latest.current;
-    const item = listed.find((candidate) => candidate.threadId === peekedId);
+  const markPeekedRead = useEffectEvent((threadId: string) => {
+    const item = items.find((candidate) => candidate.threadId === threadId);
     if (item?.chip !== 'new' || isPending(item)) return;
-    void ask({ kind: 'read', roomId: peekedRoomId, threadId: peekedId });
-  }, [latest, peekedId]);
+    void request({ kind: 'read', roomId, threadId });
+  });
+  useEffect(() => {
+    if (peekedId !== undefined) markPeekedRead(peekedId);
+  }, [peekedId]);
 
   const focusRow = (threadId: string) => rows.current.get(threadId)?.focus();
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useEffectEvent, useMemo, useReducer } from 'react';
 import { useAtomValue } from 'jotai';
 import { RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -41,8 +41,9 @@ export function useDirectRooms(): Room[] {
     [client, roomIds]
   );
   const sorted = [...directs].sort(byLatestActivity);
-  const shown = useRef(sorted);
-  shown.current = sorted;
+  const checkOrder = useEffectEvent(() => {
+    if (!sameOrder(sorted, [...sorted].sort(byLatestActivity))) resort();
+  });
 
   useEffect(() => {
     const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
@@ -53,8 +54,7 @@ export function useDirectRooms(): Room[] {
       data
     ) => {
       if (!room || toStartOfTimeline || !data.liveEvent || !directIds.has(room.roomId)) return;
-      const current = shown.current;
-      if (!sameOrder(current, [...current].sort(byLatestActivity))) resort();
+      checkOrder();
     };
     client.on(RoomEvent.Timeline, onTimeline);
     return () => {

@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useEffectEvent, useMemo } from 'react';
 import { useStore, type Atom } from 'jotai';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../config/useClientConfig';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../matrix/session/sessions';
 import { navigationRoomsAtom } from '../matrix/state/archivedRooms';
@@ -179,7 +178,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
   const navigation = useRoomNavigate();
   const userId = mx.getSafeUserId();
   const roomAtom = useMemo(() => getQuickCaptureRoomAtom(userId), [userId]);
-  const context = useLatestRef<HostContext>({
+  const hostContext: HostContext = {
     mx,
     store,
     roomAtom,
@@ -187,7 +186,9 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     options: { markdown, linkSchemes },
     hideActivity,
     navigation,
-  });
+  };
+  const readLatestState = useEffectEvent(() => readCaptureState(hostContext));
+  const runLatestAction = useEffectEvent((action: CaptureAction) => runAction(hostContext, action));
 
   useEffect(() => {
     const channel = givenChannel ?? openCaptureChannel();
@@ -206,7 +207,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       if (!open) return;
       lastStateTs = Date.now();
       try {
-        channel.post({ v: 1, type: 'state', hostId, state: readCaptureState(context.current) });
+        channel.post({ v: 1, type: 'state', hostId, state: readLatestState() });
       } catch (error) {
         // A change that set an atom must not fail for it; the widget's next hello reads it again.
         console.warn('[quick-capture] could not read the state', error);
@@ -258,7 +259,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       silenceTimer = setTimeout(stopWatching, WIDGET_SILENCE_MS);
     };
     const onRequest = async (id: string, action: CaptureAction) => {
-      const result = await runAction(context.current, action).catch(failureOf);
+      const result = await runLatestAction(action).catch(failureOf);
       if (action.kind === 'selectRoom' && result.ok) postState();
       if (open) channel.post({ v: 1, type: 'response', id, hostId, result });
     };
@@ -280,7 +281,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       open = false;
       if (!givenChannel) channel.close();
     };
-  }, [context, givenChannel, mx, roomAtom, store]);
+  }, [givenChannel, mx, roomAtom, store]);
 
   return null;
 }

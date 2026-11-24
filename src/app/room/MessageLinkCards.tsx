@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useEffectEvent,
   useId,
   useMemo,
   useReducer,
@@ -103,7 +104,10 @@ export function MessageLinkCards({
     controls: panelControls,
     phone: useScreenSizeContext() === ScreenSize.Mobile,
   });
-  const latest = useLatestRef({ roomId, shown });
+  const openHoverCard = useEffectEvent((card: Shown, onHide: () => void) => {
+    if (shown) onHide();
+    else setHovered({ ...card, roomId });
+  });
 
   useEffect(() => setShown(undefined), [roomId]);
   useEffect(
@@ -181,8 +185,8 @@ export function MessageLinkCards({
       timer = setTimeout(() => {
         timer = undefined;
         const now = cardOf(link);
-        if (!now || now.href !== href || !still() || latest.current.shown) return hide();
-        return setHovered({ ...now, roomId: latest.current.roomId });
+        if (!now || now.href !== href || !still()) return hide();
+        return openHoverCard(now, hide);
       }, HOVER_CARD_DELAY_MS);
     };
     const underPointer = (target: Element) =>
@@ -232,7 +236,7 @@ export function MessageLinkCards({
       hideHover.current = undefined;
       for (const [type, listener] of listeners) document.removeEventListener(type, listener);
     };
-  }, [hoverCards, match, latest, hoverId]);
+  }, [hoverCards, match, hoverId]);
 
   const show = useCallback(
     (link: HTMLAnchorElement, href: string) => {

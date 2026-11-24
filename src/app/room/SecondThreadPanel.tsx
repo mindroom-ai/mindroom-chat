@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type RefObject,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -38,9 +39,8 @@ function FocusProbe({
   ownsFocus: RefObject<boolean>;
   onGone: (hadFocus: boolean) => void;
 }) {
-  const gone = useRef(onGone);
-  gone.current = onGone;
-  useLayoutEffect(() => () => gone.current(!!ownsFocus.current), [ownsFocus]);
+  const notifyGone = useEffectEvent(onGone);
+  useLayoutEffect(() => () => notifyGone(!!ownsFocus.current), [ownsFocus]);
   return null;
 }
 

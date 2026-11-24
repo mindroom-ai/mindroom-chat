@@ -4,6 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -655,19 +656,20 @@ function RoomContent() {
   );
   // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
   // conversation, so the panel lists its run.
-  const subagentsShown = useLatestRef({ threadId, classic: viewMode === 'classic' });
+  const showSubagentsConversation = useEffectEvent((openedThreadId: string | undefined) => {
+    const target = conversationToShow(openedThreadId, threadId, viewMode === 'classic');
+    if (target === null) navigateRoom(roomId);
+    else if (target !== undefined) navigateRoomThread(roomId, target);
+  });
   useEffect(
     () =>
       store.sub(subagentsPanelAtom, () => {
         const opened = store.get(subagentsPanelAtom);
         if (opened?.roomId !== roomId) return;
         request('subagents', () => undefined);
-        const shown = subagentsShown.current;
-        const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
-        if (target === null) navigateRoom(roomId);
-        else if (target !== undefined) navigateRoomThread(roomId, target);
+        showSubagentsConversation(opened.threadId);
       }),
-    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
+    [request, roomId, store]
   );
   const folded = layout === 'folded';
   function toggleFilled(id: string) {

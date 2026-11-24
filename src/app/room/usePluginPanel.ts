@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import { isRecord } from '../lib/isRecord';
 import { usePluginStorage } from '../plugins/pluginStorage';
 import type { RoomSidePanel } from '../plugins/sidePanels';
@@ -67,10 +66,10 @@ export const usePluginPanel = (
     setOpen(undefined);
   }
   // The list it opened again over closes once, after the render it shows in.
-  const closeMembers = useLatestRef(members.close);
+  const closeMembers = useEffectEvent(members.close);
   useEffect(() => {
-    if (activeOpen?.overMembers) closeMembers.current();
-  }, [closeMembers, activeOpen]);
+    if (activeOpen?.overMembers) closeMembers();
+  }, [activeOpen]);
 
   const show = useCallback(
     ({ id, remember }: RoomSidePanel, request?: unknown) => {

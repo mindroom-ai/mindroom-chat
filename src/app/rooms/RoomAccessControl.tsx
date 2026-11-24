@@ -3,6 +3,7 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -107,8 +108,6 @@ function RoomAccessSession({
   const [dialogOpen, setDialogOpen] = useState(false);
   const attemptRef = useRef<Attempt>(undefined);
   const attemptIdRef = useRef(0);
-  const targetRef = useRef(targetRoomId);
-  targetRef.current = targetRoomId;
 
   const setAttempt = useCallback((next: Attempt | undefined) => {
     attemptRef.current = next;
@@ -146,8 +145,7 @@ function RoomAccessSession({
   }, [signal, summaryMembership]);
 
   useEffect(() => {
-    const isTarget = (roomId: string | undefined) =>
-      !!targetRef.current && roomId === targetRef.current;
+    const isTarget = (roomId: string | undefined) => !!targetRoomId && roomId === targetRoomId;
     // Both our own member state event and the membership event report a change in the target.
     const onMemberState = (event: MatrixEvent) => {
       const ownMemberEvent =
@@ -288,8 +286,6 @@ function RoomAccessRequestDialog({
   const messageId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
-  const loadingRef = useRef(loading);
-  loadingRef.current = loading;
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
@@ -303,25 +299,26 @@ function RoomAccessRequestDialog({
     };
   }, []);
 
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === 'Escape' && !loading) {
+      event.stopPropagation();
+      requestClose();
+    }
+  });
+  const handlePointerDown = useEffectEvent((event: MouseEvent) => {
+    const target = event.target as Node | null;
+    if (!loading && target && !dialogRef.current?.contains(target)) requestClose();
+  });
+
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !loadingRef.current) {
-        event.stopPropagation();
-        requestClose();
-      }
-    };
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!loadingRef.current && target && !dialogRef.current?.contains(target)) requestClose();
-    };
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('mousedown', handlePointerDown);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handlePointerDown);
     };
-  }, [requestClose]);
+  }, []);
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();

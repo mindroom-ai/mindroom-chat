@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useMemo,
   useRef,
@@ -42,7 +43,6 @@ import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { MessageLinkCards } from './MessageLinkCards';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
@@ -153,16 +153,18 @@ export function ThreadView({
   // later view finds them. Until then they stay, as a send under way may still use them.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
-  const last = useLatestRef({ threadId, onUnmount });
+  const notifyUnmount = useEffectEvent(() => {
+    onUnmount?.(threadId);
+  });
   useEffect(
     () => () => {
-      last.current.onUnmount?.(last.current.threadId);
+      notifyUnmount();
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
         roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
       });
     },
-    [last, roomsShown, view]
+    [roomsShown, view]
   );
 
   // The fork draft: the thread up to the fork point, read-only, and a composer whose first message
@@ -205,14 +207,16 @@ export function ThreadView({
   // same thread: the focus stays where the person took it meanwhile. `autoFocus` counts as a thread
   // opens or changes: changing it alone (the column changing width) moves no focus.
   const previousThreadId = useRef<string>(undefined);
-  const autoFocusRef = useLatestRef(autoFocus);
+  const focusOnOpen = useEffectEvent((focus: () => void) => {
+    if (autoFocus) focus();
+  });
   useEffect(() => {
     const previous = previousThreadId.current;
     previousThreadId.current = threadId;
     const rootConfirmed =
       isLocalEchoEventId(previous) && resolveCanonicalThreadRootId(room, previous) === threadId;
-    if (autoFocusRef.current && !rootConfirmed) focusConversation();
-  }, [autoFocusRef, focusConversation, room, threadId]);
+    if (!rootConfirmed) focusOnOpen(focusConversation);
+  }, [focusConversation, room, threadId]);
   // A fork draft opens to its composer.
   const forkKey = forkFrom && `${forkFrom.roomId ?? ''}\n${forkFrom.threadId}\n${forkFrom.eventId}`;
   useEffect(() => {
