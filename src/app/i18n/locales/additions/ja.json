@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "コンパクト表示",
-        "threadFiltersActive": "スレッドフィルター（有効）"
+        "threadFiltersActive": "スレッドフィルター（有効）",
+        "mindroomSettings": "MindRoom設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "詳細フィルター",
@@ -1224,7 +1225,9 @@
     "backgroundJobs": {
       "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
       "finished": "完了: {{tool}}",
+      "awaitingAnswer": "あなたの回答待ち: {{tool}}",
       "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了",
+      "groupWorkflows": "ワークフロー · {{number}}",
       "groupSubagents": "サブエージェント · {{number}}",
       "groupTools": "ツール · {{number}}",
       "tools_other": "ツール {{count}} 件",
@@ -1264,6 +1267,88 @@
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
       "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
+    },
+    "workflowRun": {
+      "title": "ワークフロー",
+      "status": {
+        "starting": "開始中",
+        "running": "実行中",
+        "waiting": "回答待ち",
+        "completed": "完了",
+        "failed": "失敗",
+        "cancelled": "キャンセル",
+        "interrupted": "中断"
+      },
+      "counts": "完了 {{done}}、実行中 {{running}}、待機中 {{waiting}}",
+      "reused": "再利用: {{count}}",
+      "cost": "これまで {{spent}}、合計約 {{projected}}",
+      "costAtLeast": "これまで少なくとも {{spent}}",
+      "largeRun": "大規模実行",
+      "attempt": "試行 {{number}}",
+      "stop": "停止",
+      "stopping": "停止中…",
+      "resume": "再開",
+      "runAgain": "再実行",
+      "starting": "開始中…",
+      "failedCount_other": "{{count}} 件失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "すでに回答済みです。",
+          "noLongerOpen": "この質問はもう受け付けていません。",
+          "notAnOption": "選択肢に含まれていません。",
+          "notForYou": "実行を開始した人のみ回答できます。"
+        },
+        "noReply": "まだ応答がありません。もう一度お試しください。",
+        "placeholder": "回答を入力",
+        "send": "送信",
+        "answered": "回答済み: {{answer}}",
+        "cancelled": "キャンセル",
+        "onlyRequester": "{{name}} のみ回答できます。"
+      },
+      "graph": "グラフ",
+      "panel": {
+        "close": "閉じる",
+        "resize": "ワークフローパネルのサイズを変更",
+        "hide": "ワークフローを隠す",
+        "waitingForUpdate": "次の更新を待っています…",
+        "stale": "更新されていません。最終更新: {{time}}。",
+        "log": "ログ",
+        "showMore": "さらに {{count}} 件表示",
+        "omitted": {
+          "queued_other": "他に待機中 {{count}} 件",
+          "running_other": "他に実行中 {{count}} 件",
+          "waiting_other": "他に待ち {{count}} 件",
+          "failed_other": "他に失敗 {{count}} 件",
+          "done_other": "他に完了 {{count}} 件"
+        },
+        "askAgent": "残りは {{agent}} に確認してください。"
+      },
+      "group": {
+        "foreach": "繰り返し",
+        "parallel": "並列",
+        "run": "保存済みワークフロー",
+        "workflow": "入れ子ワークフロー",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗: {{count}}"
+      },
+      "node": {
+        "reused": "前回の実行から再利用",
+        "queued": "キュー待機中",
+        "mayHaveRun": "実行済みの可能性",
+        "waitingOn": {
+          "user": "あなたの回答待ち",
+          "approval": "承認待ち",
+          "peer": "メッセージ待ち"
+        },
+        "sessionTurns_other": "{{count}} ターン",
+        "result": "結果",
+        "error": "エラー",
+        "messages": "メッセージ",
+        "messagesTo": "{{name}} へのメッセージ: {{count}}",
+        "open": "開く",
+        "detailsUnavailable": "再読み込み後は詳細を表示できません。",
+        "stop": "エージェントを停止"
+      }
     },
     "subagents": {
       "title": "サブエージェント",
@@ -1500,7 +1585,9 @@
     },
     "actions": {
       "goActivity": "アクティビティに移動",
-      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
+      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目",
+      "openCurrentRoomMindroomSettings": "MindRoomのルーム設定を開く",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}}のMindRoom設定を開く"
     },
     "recentVisits": {
       "recentlyOpened": "最近開いた項目",
@@ -1653,8 +1740,7 @@
       "replyAndOther": "{{name}} と {{other}} が返信しました",
       "replyAndOthers_other": "{{name}} とほか {{count}} 人が返信しました",
       "finished": "{{name}} が完了しました",
-      "stopped": "{{name}} が停止しました",
-      "youReplied": "あなたが返信しました"
+      "stopped": "{{name}} が停止しました"
     },
     "newCount_other": "新着 {{count}} 件",
     "runMinutes_other": "{{count}} 分",
@@ -2048,5 +2134,34 @@
   },
   "nav": {
     "usage": "使用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}}件のルーム",
+      "roomsFiltered": "{{total}}件中{{active}}件のルーム"
+    },
+    "roomFilter": {
+      "label": "ルーム",
+      "ariaLabel": "ルームでスレッドを絞り込む",
+      "ariaLabelActive": "ルームでスレッドを絞り込む（{{number}} 件を選択中）",
+      "ariaLabelOne": "ルーム: {{room}}",
+      "search": "ルームを検索",
+      "noMatch": "一致するルームがありません"
+    },
+    "composer": {
+      "postTo": "投稿先:",
+      "postToRoom": "#{{room}}に投稿",
+      "chooseRoomAria": "投稿先のルームを選択",
+      "draftPinned": "#{{room}}の下書き",
+      "readOnly": "このスペースに投稿できるルームがありません。"
+    },
+    "loading": "スレッドを読み込み中...",
+    "empty": {
+      "noRooms": "このスペースのルームに参加すると、ここにスレッドが表示されます。",
+      "noThreads": "このスペースにはまだスレッドがありません。"
+    },
+    "error": {
+      "title": "スペースのスレッドを読み込めませんでした"
+    }
   }
 }

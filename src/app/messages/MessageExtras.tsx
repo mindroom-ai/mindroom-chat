@@ -8,6 +8,7 @@ import {
   type HTMLReactParserOptions,
 } from 'html-react-parser';
 import { isDesktopApp } from '../lib/nativeShell';
+import { useDetailsRevealOnOpen } from '../ui/disclosureReveal';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
@@ -143,14 +144,16 @@ const getSectionKey = (section: MessageExtrasSection, index: number): string =>
 
 function MessageExtraDetails({ defaultOpen, ...props }: MessageExtraDetailsProps) {
   const initializedRef = useRef(false);
+  const revealRef = useDetailsRevealOnOpen();
   const handleRef = useCallback(
     (node: HTMLDetailsElement | null) => {
+      revealRef(node);
       if (!node || initializedRef.current) return;
 
       node.open = defaultOpen;
       initializedRef.current = true;
     },
-    [defaultOpen]
+    [defaultOpen, revealRef]
   );
 
   return <details {...props} ref={handleRef} />;

@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "緊湊檢視",
-        "threadFiltersActive": "討論串篩選器（已啟用）"
+        "threadFiltersActive": "討論串篩選器（已啟用）",
+        "mindroomSettings": "MindRoom 設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "進階篩選器",
@@ -1224,7 +1225,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成",
+      "groupWorkflows": "工作流程 · {{number}}",
       "groupSubagents": "子代理 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
@@ -1264,6 +1267,88 @@
       },
       "jobTotal_other": "{{count}} 個背景工作",
       "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+    },
+    "workflowRun": {
+      "title": "工作流程",
+      "status": {
+        "starting": "正在啟動",
+        "running": "執行中",
+        "waiting": "等待回覆",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "counts": "{{done}} 已完成，{{running}} 執行中，{{waiting}} 等待中",
+      "reused": "已重複使用：{{count}}",
+      "cost": "目前已花費 {{spent}}，預計總計約 {{projected}}",
+      "costAtLeast": "目前已花費至少 {{spent}}",
+      "largeRun": "大型執行",
+      "attempt": "第 {{number}} 次嘗試",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "繼續",
+      "runAgain": "再次執行",
+      "starting": "正在啟動…",
+      "failedCount_other": "{{count}} 項失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已經回答過了。",
+          "noLongerOpen": "此問題已關閉。",
+          "notAnOption": "這不是可選項之一。",
+          "notForYou": "只有發起此執行的人可以回答。"
+        },
+        "noReply": "尚未收到回覆，請重試。",
+        "placeholder": "輸入你的回答",
+        "send": "傳送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "圖譜",
+      "panel": {
+        "close": "關閉",
+        "resize": "調整工作流程面板大小",
+        "hide": "隱藏工作流程",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新於 {{time}}。",
+        "log": "日誌",
+        "showMore": "再顯示 {{count}} 項",
+        "omitted": {
+          "queued_other": "另有 {{count}} 項排隊中",
+          "running_other": "另有 {{count}} 項執行中",
+          "waiting_other": "另有 {{count}} 項等待中",
+          "failed_other": "另有 {{count}} 項失敗",
+          "done_other": "另有 {{count}} 項已完成"
+        },
+        "askAgent": "其餘詳情可詢問 {{agent}}。"
+      },
+      "group": {
+        "foreach": "逐一執行",
+        "parallel": "平行",
+        "run": "已儲存的工作流程",
+        "workflow": "巢狀工作流程",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗：{{count}}"
+      },
+      "node": {
+        "reused": "重複使用了上次執行結果",
+        "queued": "排隊中",
+        "mayHaveRun": "可能已執行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待核准",
+          "peer": "等待訊息"
+        },
+        "sessionTurns_other": "{{count}} 輪",
+        "result": "結果",
+        "error": "錯誤",
+        "messages": "訊息",
+        "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
+        "open": "開啟",
+        "detailsUnavailable": "重新載入後已無法查看詳細資料。",
+        "stop": "停止代理"
+      }
     },
     "subagents": {
       "title": "子代理",
@@ -1500,7 +1585,9 @@
     },
     "actions": {
       "goActivity": "前往動態",
-      "goActivityDescription": "提及、回覆和等待你處理的事項"
+      "goActivityDescription": "提及、回覆和等待你處理的事項",
+      "openCurrentRoomMindroomSettings": "開啟 MindRoom 房間設定",
+      "openCurrentRoomMindroomSettingsDescription": "開啟 {{room}} 的 MindRoom 設定"
     },
     "recentVisits": {
       "recentlyOpened": "最近開啟",
@@ -1653,8 +1740,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回覆了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回覆了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回覆"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 則新訊息",
     "runMinutes_other": "{{count}} 分鐘",
@@ -2048,5 +2134,34 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 個房間",
+      "roomsFiltered": "{{active}}/{{total}} 個房間"
+    },
+    "roomFilter": {
+      "label": "房間",
+      "ariaLabel": "依房間篩選討論串",
+      "ariaLabelActive": "依房間篩選討論串（已選 {{number}} 個）",
+      "ariaLabelOne": "房間：{{room}}",
+      "search": "搜尋房間",
+      "noMatch": "沒有相符的房間"
+    },
+    "composer": {
+      "postTo": "傳送到：",
+      "postToRoom": "傳送到 #{{room}}",
+      "chooseRoomAria": "選擇要傳送到的房間",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空間中沒有允許傳送訊息的房間。"
+    },
+    "loading": "正在載入討論串...",
+    "empty": {
+      "noRooms": "加入此空間中的房間即可在此檢視討論串。",
+      "noThreads": "此空間中還沒有討論串。"
+    },
+    "error": {
+      "title": "無法載入空間討論串"
+    }
   }
 }

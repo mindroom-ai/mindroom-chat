@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "紧凑视图",
-        "threadFiltersActive": "讨论串过滤器（已启用）"
+        "threadFiltersActive": "讨论串过滤器（已启用）",
+        "mindroomSettings": "MindRoom 设置"
       },
       "roomThreadOverview": {
         "advancedFilters": "高级过滤器",
@@ -1224,7 +1225,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 个后台任务已完成",
+      "groupWorkflows": "工作流 · {{number}}",
       "groupSubagents": "子智能体 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 个工具",
@@ -1264,6 +1267,88 @@
       },
       "jobTotal_other": "{{count}} 个后台任务",
       "jobTotalFinished_other": "{{count}} 个后台任务已完成"
+    },
+    "workflowRun": {
+      "title": "工作流",
+      "status": {
+        "starting": "正在启动",
+        "running": "运行中",
+        "waiting": "等待回复",
+        "completed": "已完成",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "interrupted": "已中断"
+      },
+      "counts": "{{done}} 已完成，{{running}} 运行中，{{waiting}} 等待中",
+      "reused": "已复用：{{count}}",
+      "cost": "目前已花费 {{spent}}，预计总计约 {{projected}}",
+      "costAtLeast": "目前已花费至少 {{spent}}",
+      "largeRun": "大型运行",
+      "attempt": "第 {{number}} 次尝试",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "继续",
+      "runAgain": "再次运行",
+      "starting": "正在启动…",
+      "failedCount_other": "{{count}} 项失败",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已经回答过了。",
+          "noLongerOpen": "此问题已关闭。",
+          "notAnOption": "这不是可选项之一。",
+          "notForYou": "只有发起此运行的人可以回答。"
+        },
+        "noReply": "尚未收到回复，请重试。",
+        "placeholder": "输入你的回答",
+        "send": "发送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "图谱",
+      "panel": {
+        "close": "关闭",
+        "resize": "调整工作流面板大小",
+        "hide": "隐藏工作流",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新于 {{time}}。",
+        "log": "日志",
+        "showMore": "再显示 {{count}} 项",
+        "omitted": {
+          "queued_other": "另有 {{count}} 项排队中",
+          "running_other": "另有 {{count}} 项运行中",
+          "waiting_other": "另有 {{count}} 项等待中",
+          "failed_other": "另有 {{count}} 项失败",
+          "done_other": "另有 {{count}} 项已完成"
+        },
+        "askAgent": "其余详情可询问 {{agent}}。"
+      },
+      "group": {
+        "foreach": "遍历",
+        "parallel": "并行",
+        "run": "已保存的工作流",
+        "workflow": "嵌套工作流",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失败：{{count}}"
+      },
+      "node": {
+        "reused": "复用了上次运行结果",
+        "queued": "排队中",
+        "mayHaveRun": "可能已运行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待批准",
+          "peer": "等待消息"
+        },
+        "sessionTurns_other": "{{count}} 轮",
+        "result": "结果",
+        "error": "错误",
+        "messages": "消息",
+        "messagesTo": "发送给 {{name}} 的消息：{{count}}",
+        "open": "打开",
+        "detailsUnavailable": "重新加载后详情已不可用。",
+        "stop": "停止智能体"
+      }
     },
     "subagents": {
       "title": "子智能体",
@@ -1500,7 +1585,9 @@
     },
     "actions": {
       "goActivity": "前往动态",
-      "goActivityDescription": "提及、回复和等待你处理的事项"
+      "goActivityDescription": "提及、回复和等待你处理的事项",
+      "openCurrentRoomMindroomSettings": "打开 MindRoom 房间设置",
+      "openCurrentRoomMindroomSettingsDescription": "打开 {{room}} 的 MindRoom 设置"
     },
     "recentVisits": {
       "recentlyOpened": "最近打开",
@@ -1653,8 +1740,7 @@
       "replyAndOther": "{{name}} 和 {{other}} 回复了",
       "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回复了",
       "finished": "{{name}} 已完成",
-      "stopped": "{{name}} 已停止",
-      "youReplied": "你已回复"
+      "stopped": "{{name}} 已停止"
     },
     "newCount_other": "{{count}} 条新消息",
     "runMinutes_other": "{{count}} 分钟",
@@ -2048,5 +2134,34 @@
   },
   "nav": {
     "usage": "用量"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} 个房间",
+      "roomsFiltered": "{{active}}/{{total}} 个房间"
+    },
+    "roomFilter": {
+      "label": "房间",
+      "ariaLabel": "按房间过滤讨论串",
+      "ariaLabelActive": "按房间过滤讨论串（已选 {{number}} 个）",
+      "ariaLabelOne": "房间：{{room}}",
+      "search": "搜索房间",
+      "noMatch": "没有匹配的房间"
+    },
+    "composer": {
+      "postTo": "发送到：",
+      "postToRoom": "发送到 #{{room}}",
+      "chooseRoomAria": "选择要发送到的房间",
+      "draftPinned": "#{{room}} 的草稿",
+      "readOnly": "此空间中没有允许发送消息的房间。"
+    },
+    "loading": "正在加载话题...",
+    "empty": {
+      "noRooms": "加入此空间中的房间即可在此查看话题。",
+      "noThreads": "此空间中还没有话题。"
+    },
+    "error": {
+      "title": "无法加载空间话题"
+    }
   }
 }

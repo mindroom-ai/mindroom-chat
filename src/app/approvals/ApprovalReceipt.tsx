@@ -10,6 +10,7 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
 import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
 import { IsolatedText } from '../ui/directional';
+import { useDetailsRevealOnOpen } from '../ui/disclosureReveal';
 
 export function ApprovalReceipt({
   approval,
@@ -23,7 +24,8 @@ export function ApprovalReceipt({
   /** The approval's room, for people's names; the thread's room by default. */
   roomId?: string;
 }) {
-  const glassRef = useGlassHighlight<HTMLDetailsElement>(undefined, !nested);
+  const revealRef = useDetailsRevealOnOpen();
+  const glassRef = useGlassHighlight<HTMLDetailsElement>(revealRef, !nested);
   const { t } = useTranslation();
   const room = useApprovalRoom(roomId);
   const person = (userId: string) => userDisplayName(room, userId);

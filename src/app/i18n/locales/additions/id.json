@@ -1163,7 +1163,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Tampilan ringkas",
-        "threadFiltersActive": "Filter utas (aktif)"
+        "threadFiltersActive": "Filter utas (aktif)",
+        "mindroomSettings": "Pengaturan MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filter lanjutan",
@@ -1224,7 +1225,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
+      "awaitingAnswer": "Menunggu jawaban Anda: {{tool}}",
       "jobCountFinished": "{{count}} tugas latar belakang selesai",
+      "groupWorkflows": "Alur kerja · {{number}}",
       "groupSubagents": "Subagen · {{number}}",
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
@@ -1264,6 +1267,88 @@
       },
       "jobTotal_other": "{{count}} tugas latar belakang",
       "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
+    },
+    "workflowRun": {
+      "title": "Alur kerja",
+      "status": {
+        "starting": "Memulai",
+        "running": "Berjalan",
+        "waiting": "Menunggu Anda",
+        "completed": "Selesai",
+        "failed": "Gagal",
+        "cancelled": "Dibatalkan",
+        "interrupted": "Terhenti"
+      },
+      "counts": "{{done}} selesai, {{running}} berjalan, {{waiting}} menunggu",
+      "reused": "Digunakan kembali: {{count}}",
+      "cost": "{{spent}} sejauh ini, sekitar {{projected}} total",
+      "costAtLeast": "setidaknya {{spent}} sejauh ini",
+      "largeRun": "Eksekusi besar",
+      "attempt": "Percobaan {{number}}",
+      "stop": "Hentikan",
+      "stopping": "Menghentikan…",
+      "resume": "Lanjutkan",
+      "runAgain": "Jalankan lagi",
+      "starting": "Memulai…",
+      "failedCount_other": "{{count}} gagal",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Sudah dijawab.",
+          "noLongerOpen": "Pertanyaan ini tidak lagi terbuka.",
+          "notAnOption": "Itu bukan salah satu pilihan.",
+          "notForYou": "Hanya orang yang memulai eksekusi yang dapat menjawab."
+        },
+        "noReply": "Belum ada balasan. Coba lagi.",
+        "placeholder": "Ketik jawaban Anda",
+        "send": "Kirim",
+        "answered": "Dijawab: {{answer}}",
+        "cancelled": "Dibatalkan",
+        "onlyRequester": "Hanya {{name}} yang dapat menjawab."
+      },
+      "graph": "Grafik",
+      "panel": {
+        "close": "Tutup",
+        "resize": "Ubah ukuran panel alur kerja",
+        "hide": "Sembunyikan alur kerja",
+        "waitingForUpdate": "Menunggu pembaruan berikutnya dari eksekusi…",
+        "stale": "Tidak diperbarui. Pembaruan terakhir {{time}}.",
+        "log": "Log",
+        "showMore": "Tampilkan {{count}} lagi",
+        "omitted": {
+          "queued_other": "dan {{count}} lagi dalam antrean",
+          "running_other": "dan {{count}} lagi berjalan",
+          "waiting_other": "dan {{count}} lagi menunggu",
+          "failed_other": "dan {{count}} lagi gagal",
+          "done_other": "dan {{count}} lagi selesai"
+        },
+        "askAgent": "Tanyakan sisanya kepada {{agent}}."
+      },
+      "group": {
+        "foreach": "Untuk setiap",
+        "parallel": "Paralel",
+        "run": "Alur kerja tersimpan",
+        "workflow": "Alur kerja bersarang",
+        "progress": "{{done}} dari {{total}}",
+        "failed": "Gagal: {{count}}"
+      },
+      "node": {
+        "reused": "Digunakan kembali dari eksekusi terakhir",
+        "queued": "Dalam antrean",
+        "mayHaveRun": "Mungkin sudah berjalan",
+        "waitingOn": {
+          "user": "Menunggu jawaban Anda",
+          "approval": "Menunggu persetujuan",
+          "peer": "Menunggu pesan"
+        },
+        "sessionTurns_other": "{{count}} giliran",
+        "result": "Hasil",
+        "error": "Kesalahan",
+        "messages": "Pesan",
+        "messagesTo": "Pesan ke {{name}}: {{count}}",
+        "open": "Buka",
+        "detailsUnavailable": "Detail tidak lagi tersedia setelah muat ulang.",
+        "stop": "Hentikan agen"
+      }
     },
     "subagents": {
       "title": "Subagen",
@@ -1500,7 +1585,9 @@
     },
     "actions": {
       "goActivity": "Ke Aktivitas",
-      "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda"
+      "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda",
+      "openCurrentRoomMindroomSettings": "Buka pengaturan MindRoom ruang",
+      "openCurrentRoomMindroomSettingsDescription": "Buka pengaturan MindRoom untuk {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Baru dibuka",
@@ -1653,8 +1740,7 @@
       "replyAndOther": "{{name}} dan {{other}} membalas",
       "replyAndOthers_other": "{{name}} dan {{count}} lainnya membalas",
       "finished": "{{name}} selesai",
-      "stopped": "{{name}} berhenti",
-      "youReplied": "Anda membalas"
+      "stopped": "{{name}} berhenti"
     },
     "newCount_other": "{{count}} baru",
     "runMinutes_other": "{{count}} mnt",
@@ -2048,5 +2134,34 @@
   },
   "nav": {
     "usage": "Penggunaan"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_other": "{{count}} ruang",
+      "roomsFiltered": "{{active}} dari {{total}} ruang"
+    },
+    "roomFilter": {
+      "label": "Ruang",
+      "ariaLabel": "Filter utas menurut ruang",
+      "ariaLabelActive": "Filter utas menurut ruang ({{number}} dipilih)",
+      "ariaLabelOne": "Ruang: {{room}}",
+      "search": "Cari ruang",
+      "noMatch": "Tidak ada ruang yang cocok"
+    },
+    "composer": {
+      "postTo": "Kirim ke:",
+      "postToRoom": "Kirim ke #{{room}}",
+      "chooseRoomAria": "Pilih ruang tujuan kirim",
+      "draftPinned": "Draf untuk #{{room}}",
+      "readOnly": "Tidak ada ruang di space ini yang mengizinkan pengiriman."
+    },
+    "loading": "Memuat utas...",
+    "empty": {
+      "noRooms": "Bergabunglah dengan ruang di space ini untuk melihat utas di sini.",
+      "noThreads": "Belum ada utas di space ini."
+    },
+    "error": {
+      "title": "Tidak dapat memuat utas space"
+    }
   }
 }

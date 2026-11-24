@@ -23,6 +23,7 @@ import { RoomPermissionsPage } from './permissions/RoomPermissionsPage';
 import { RoomPacksPage } from './RoomPacksPage';
 import { RoomDeveloperToolsPage } from './developer-tools/RoomDeveloperToolsPage';
 import { RoomMindroomPage } from './mindroom/RoomMindroomPage';
+import { MindroomIcon } from '../../ui/branding/MindroomIcon';
 import { revealDirectionControls } from '../../ui/directional';
 
 const NAVIGATION = 'featureUi.roomSettings.navigation';
@@ -30,9 +31,9 @@ const NAVIGATION = 'featureUi.roomSettings.navigation';
 /** The dialog's pages in menu order, with their names and icons; some are only for rooms. */
 const PAGES: Array<{ page: RoomSettingsPage; label: string; icon: IconSrc; roomOnly?: true }> = [
   { page: RoomSettingsPage.GeneralPage, label: 'general', icon: Icons.Setting },
+  { page: RoomSettingsPage.MindroomPage, label: 'mindroom', icon: MindroomIcon, roomOnly: true },
   { page: RoomSettingsPage.MembersPage, label: 'members', icon: Icons.User },
   { page: RoomSettingsPage.PermissionsPage, label: 'permissions', icon: Icons.Lock },
-  { page: RoomSettingsPage.MindroomPage, label: 'mindroom', icon: Icons.Bulb, roomOnly: true },
   { page: RoomSettingsPage.EmojisStickersPage, label: 'emojisStickers', icon: Icons.Smile },
   { page: RoomSettingsPage.DeveloperToolsPage, label: 'developerTools', icon: Icons.Terminal },
 ];

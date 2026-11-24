@@ -125,6 +125,8 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   useScreenSizeContext: () => screen.size,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
+  invalidateRoomMindroomAgent: () => undefined,
+  useRoomHasMindroomAgent: () => false,
   useRoomViewMode: () => ({
     viewMode: view.mode,
     setViewMode: () => undefined,
@@ -748,7 +750,10 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       if (isCall) {
         pins.ids = ['$pinned:example.org'];
         rerender();
+      } else {
+        window.dispatchEvent(new Event('resize'));
       }
+      await Promise.resolve();
       await nextFrame();
       expect(positioner.style.right).toBe('144px');
       expect(host.querySelector(selector)).toBe(content);
@@ -1152,6 +1157,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         if (action === 'move') {
           expect(menu.parentElement?.style.top).toBe('10px');
           bounds.mockReturnValue(new DOMRect(250, 54, 40, 40));
+          window.dispatchEvent(new Event('scroll'));
           await nextFrame();
           expect(submenu()).toBe(menu);
           expect(menu.parentElement?.style.top).toBe('54px');

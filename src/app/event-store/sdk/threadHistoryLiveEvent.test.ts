@@ -1,6 +1,6 @@
 import { MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { createInitializedThreadForRoot } from './threadBootstrapSdk';
 
 const makeReply = (eventId: string, ts: number): MatrixEvent =>
@@ -28,7 +28,6 @@ class ThreadEnabledClient extends MatrixClient {
 const previousSupport = Thread.hasServerSideSupport;
 afterEach(() => {
   Thread.hasServerSideSupport = previousSupport;
-  vi.restoreAllMocks();
 });
 
 // patches/matrix-js-sdk+45.2.0.patch: Thread.insertEventIntoTimeline gates upstream #5652's
@@ -38,7 +37,6 @@ it('reports out-of-order history replies as non-live and out-of-order live repli
   Thread.hasServerSideSupport = FeatureSupport.Stable;
   const mx = new ThreadEnabledClient();
   const room = new Room('!room:example.org', mx, '@alice:example.org', { timelineSupport: true });
-  vi.spyOn(mx, 'fetchRoomEvent');
   const root = new MatrixEvent({
     event_id: '$root',
     room_id: '!room:example.org',

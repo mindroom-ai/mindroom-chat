@@ -13,22 +13,36 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { registerPluginTranslations } from '../plugins/pluginTranslations';
 import type { RegisteredPlugin } from '../plugins/registry';
 import type { PluginRoomAction } from '../plugins/roomActions';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
-const state = vi.hoisted(() => ({
-  canInvite: true,
-  canListRooms: true,
-  encrypted: false,
-  navigate: vi.fn(),
-  openSettings: vi.fn(),
-  sendStateEvent: vi.fn(() => Promise.resolve({})),
-  removeSpaceChild: vi.fn(() => Promise.resolve()),
+const state = vi.hoisted(() => {
+  const sendStateEvent = vi.fn(() => Promise.resolve({}));
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-  rooms: {} as Record<string, unknown>,
-  plugins: [] as RegisteredPlugin[],
-  reportBoundaryError: vi.fn(),
-}));
+  const rooms = {} as Record<string, unknown>;
+  const makeClient = () => ({
+    getSafeUserId: () => '@me:example.org',
+    getRoom: (roomId: string) => rooms[roomId] ?? null,
+    sendStateEvent,
+  });
+  return {
+    canInvite: true,
+    canListRooms: true,
+    encrypted: false,
+    navigate: vi.fn(),
+    openSettings: vi.fn(),
+    sendStateEvent,
+    removeSpaceChild: vi.fn(() => Promise.resolve()),
+    rooms,
+    client: makeClient(),
+    resetClient() {
+      this.client = makeClient();
+    },
+    plugins: [] as RegisteredPlugin[],
+    reportBoundaryError: vi.fn(),
+  };
+});
 
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
@@ -38,11 +52,7 @@ vi.mock('../spaces/lobby/spaceChildren', () => ({
   removeSpaceChild: state.removeSpaceChild,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    getSafeUserId: () => '@me:example.org',
-    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
-    sendStateEvent: state.sendStateEvent,
-  }),
+  useMatrixClient: () => state.client,
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
@@ -56,7 +66,8 @@ vi.mock('../matrix/hooks/useRoomPermissions', () => ({
 vi.mock('../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => (state.encrypted ? {} : undefined),
 }));
-vi.mock('../matrix/matrix', () => ({
+vi.mock('../matrix/matrix', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/matrix')>()),
   getCanonicalAliasOrRoomId: (_client: unknown, roomId: string) => roomId,
   isRoomAlias: () => false,
 }));
@@ -193,7 +204,10 @@ afterEach(() => {
   state.canInvite = true;
   state.canListRooms = true;
   state.encrypted = false;
-  state.rooms = {};
+  Object.keys(state.rooms).forEach((roomId) => {
+    delete state.rooms[roomId];
+  });
+  state.resetClient();
   state.plugins.length = 0;
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
   getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
@@ -210,6 +224,7 @@ describe('the shared room actions', () => {
         'newSubRoom',
         'copyLink',
         'settings',
+        'mindroomSettings',
         'search',
         'jumpToTime',
       ],
@@ -310,6 +325,139 @@ describe('the shared room actions', () => {
       <RoomActionsMenu room={space} submenuSide="Right" close={vi.fn()} showDialog={vi.fn()} />
     );
     expect(rows()).not.toContain('New Sub-room');
+  });
+
+  it('offers MindRoom Settings right after Room Settings only for non-space rooms with an agent', () => {
+    const agentRoom = {
+      roomId: '!other:example.org',
+      name: 'Workshop',
+      isSpaceRoom: () => false,
+      getMembers: () => [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+    };
+    state.rooms[agentRoom.roomId] = agentRoom;
+    const close = vi.fn();
+    render(
+      <RoomActionsMenu
+        room={agentRoom as unknown as Room}
+        submenuSide="Right"
+        close={close}
+        showDialog={vi.fn()}
+      />
+    );
+    const allRows = rows();
+    expect(allRows.indexOf('MindRoom Settings')).toBe(allRows.indexOf('Room Settings') + 1);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'MindRoom Settings' }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(state.openSettings).toHaveBeenCalledWith(
+      '!other:example.org',
+      RoomSettingsPage.MindroomPage
+    );
+
+    // Spaces omit MindRoom Settings even if they hold an agent member.
+    cleanup();
+    const agentSpace = {
+      roomId: '!agent-space:example.org',
+      isSpaceRoom: () => true,
+      getMembers: () => [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+    };
+    state.rooms[agentSpace.roomId] = agentSpace;
+    render(
+      <RoomActionsMenu
+        room={agentSpace as unknown as Room}
+        submenuSide="Right"
+        close={vi.fn()}
+        showDialog={vi.fn()}
+      />
+    );
+    expect(rows()).not.toContain('MindRoom Settings');
+  });
+
+  it('loads lazy room members on menu open (even across early close) and skips when unnecessary', async () => {
+    const openMenu = (target: Record<string, unknown>) =>
+      render(
+        <RoomActionsMenu
+          room={target as unknown as Room}
+          submenuSide="Right"
+          close={vi.fn()}
+          showDialog={vi.fn()}
+        />
+      );
+
+    let loaded = false;
+    let resolveLoad!: (value: boolean) => void;
+    const members: Array<{ userId: string; membership: string }> = [];
+    const loadMembersIfNeeded = vi.fn(() => new Promise<boolean>((r) => (resolveLoad = r)));
+    const lazyRoom = {
+      roomId: '!lazy:example.org',
+      isSpaceRoom: () => false,
+      currentState: {},
+      membersLoaded: () => loaded,
+      getMembers: () => members,
+      loadMembersIfNeeded,
+    };
+    state.rooms[lazyRoom.roomId] = lazyRoom;
+
+    openMenu(lazyRoom);
+    expect(loadMembersIfNeeded).toHaveBeenCalledOnce();
+    expect(rows()).not.toContain('MindRoom Settings');
+
+    // Hydrates without replacing currentState or emitting membership events.
+    members.push({ userId: '@mindroom_helper:example.org', membership: 'join' });
+    loaded = true;
+    resolveLoad(true);
+    await screen.findByRole('menuitem', { name: 'MindRoom Settings' });
+    expect(rows().indexOf('MindRoom Settings')).toBe(rows().indexOf('Room Settings') + 1);
+
+    // Closing before hydration finishes still invalidates the cached false on resolution.
+    cleanup();
+    let earlyLoaded = false;
+    let resolveEarly!: (value: boolean) => void;
+    const earlyMembers: Array<{ userId: string; membership: string }> = [];
+    const earlyLoad = vi.fn(() => new Promise<boolean>((r) => (resolveEarly = r)));
+    const earlyRoom = {
+      roomId: '!early-close:example.org',
+      isSpaceRoom: () => false,
+      currentState: {},
+      membersLoaded: () => earlyLoaded,
+      getMembers: () => earlyMembers,
+      loadMembersIfNeeded: earlyLoad,
+    };
+    state.rooms[earlyRoom.roomId] = earlyRoom;
+    const view = openMenu(earlyRoom);
+    view.unmount();
+    earlyMembers.push({ userId: '@mindroom_helper:example.org', membership: 'join' });
+    earlyLoaded = true;
+    resolveEarly(true);
+    await Promise.resolve();
+    openMenu(earlyRoom);
+    expect(rows()).toContain('MindRoom Settings');
+    expect(earlyLoad).toHaveBeenCalledOnce();
+
+    // Skips loading when members are loaded, an agent is already known, or the room is a space.
+    for (const [id, isSpace, membersLoaded, initial] of [
+      ['!loaded:example.org', false, true, []],
+      [
+        '!known-agent:example.org',
+        false,
+        false,
+        [{ userId: '@mindroom_helper:example.org', membership: 'join' }],
+      ],
+      ['!lazy-space:example.org', true, false, []],
+    ] as const) {
+      cleanup();
+      const skipLoad = vi.fn(() => Promise.resolve(true));
+      const candidate = {
+        roomId: id,
+        isSpaceRoom: () => isSpace,
+        membersLoaded: () => membersLoaded,
+        getMembers: () => [...initial],
+        loadMembersIfNeeded: skipLoad,
+      };
+      state.rooms[id] = candidate;
+      openMenu(candidate);
+      expect(skipLoad).not.toHaveBeenCalled();
+    }
   });
 
   it('has no New Sub-room in the menu of a direct chat, whose partner could not find it', () => {

@@ -203,10 +203,6 @@ vi.mock('slate-react', () => ({
   },
 }));
 
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: () => false,
-}));
-
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));

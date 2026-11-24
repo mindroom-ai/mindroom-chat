@@ -29,11 +29,25 @@ import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimeli
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
 import { isUnreadableYet } from './decryptionWaits';
 import { getSyncedEdit } from './client/syncedEdits';
+import { getPowersLevelFromMatrixEvent } from './hooks/usePowerLevels';
+import { getRoomCreators } from './hooks/useRoomCreators';
+import { getRoomPermissionsAPI } from './hooks/useRoomPermissions';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
-  const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-  return state?.getStateEvents(type, stateKey) ?? undefined;
+  const state = room.getLiveTimeline?.()?.getState?.(EventTimeline.FORWARDS);
+  return state?.getStateEvents?.(type, stateKey) ?? undefined;
+};
+
+/** Whether `userId` may send `m.room.message` events in a non-tombstoned `room`. */
+export const canSendMessageInRoom = (room: Room, userId: string): boolean => {
+  if (getStateEvent(room, StateEvent.RoomTombstone)) return false;
+  const create = getStateEvent(room, StateEvent.RoomCreate);
+  const levels = getPowersLevelFromMatrixEvent(getStateEvent(room, StateEvent.RoomPowerLevels));
+  return getRoomPermissionsAPI(create ? getRoomCreators(create) : new Set(), levels).event(
+    'm.room.message',
+    userId
+  );
 };
 
 /** The account data event of `eventType`, if the client has it. */

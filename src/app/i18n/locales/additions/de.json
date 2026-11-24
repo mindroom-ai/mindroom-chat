@@ -1198,7 +1198,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Kompaktansicht",
-        "threadFiltersActive": "Thread-Filter (aktiv)"
+        "threadFiltersActive": "Thread-Filter (aktiv)",
+        "mindroomSettings": "MindRoom-Einstellungen"
       },
       "roomThreadOverview": {
         "advancedFilters": "Erweiterte Filter",
@@ -1259,7 +1260,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} Hintergrundaufgaben ({{shown}} angezeigt)",
       "finished": "Abgeschlossen: {{tool}}",
+      "awaitingAnswer": "Wartet auf deine Antwort: {{tool}}",
       "jobCountFinished": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-Agenten · {{number}}",
       "groupTools": "Werkzeuge · {{number}}",
       "tools_one": "{{count}} Werkzeug",
@@ -1304,6 +1307,95 @@
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
       "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Startet",
+        "running": "Läuft",
+        "waiting": "Wartet auf dich",
+        "completed": "Fertig",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen",
+        "interrupted": "Unterbrochen"
+      },
+      "counts": "{{done}} fertig, {{running}} aktiv, {{waiting}} wartend",
+      "reused": "Wiederverwendet: {{count}}",
+      "cost": "Bisher {{spent}}, insgesamt etwa {{projected}}",
+      "costAtLeast": "bisher mindestens {{spent}}",
+      "largeRun": "Großer Lauf",
+      "attempt": "Versuch {{number}}",
+      "stop": "Stoppen",
+      "stopping": "Wird gestoppt…",
+      "resume": "Fortsetzen",
+      "runAgain": "Erneut ausführen",
+      "starting": "Wird gestartet…",
+      "failedCount_one": "{{count}} fehlgeschlagen",
+      "failedCount_other": "{{count}} fehlgeschlagen",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Bereits beantwortet.",
+          "noLongerOpen": "Diese Frage ist nicht mehr offen.",
+          "notAnOption": "Das ist keine der Optionen.",
+          "notForYou": "Nur die Person, die den Lauf gestartet hat, kann antworten."
+        },
+        "noReply": "Noch keine Antwort. Bitte erneut versuchen.",
+        "placeholder": "Antwort eingeben",
+        "send": "Senden",
+        "answered": "Beantwortet: {{answer}}",
+        "cancelled": "Abgebrochen",
+        "onlyRequester": "Nur {{name}} kann antworten."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Schließen",
+        "resize": "Workflow-Panel skalieren",
+        "hide": "Workflow ausblenden",
+        "waitingForUpdate": "Wartet auf das nächste Update des Laufs…",
+        "stale": "Wird nicht aktualisiert. Letztes Update {{time}}.",
+        "log": "Protokoll",
+        "showMore": "{{count}} weitere anzeigen",
+        "omitted": {
+          "queued_one": "und {{count}} weitere in der Warteschlange",
+          "queued_other": "und {{count}} weitere in der Warteschlange",
+          "running_one": "und {{count}} weitere aktiv",
+          "running_other": "und {{count}} weitere aktiv",
+          "waiting_one": "und {{count}} weitere wartend",
+          "waiting_other": "und {{count}} weitere wartend",
+          "failed_one": "und {{count}} weitere fehlgeschlagen",
+          "failed_other": "und {{count}} weitere fehlgeschlagen",
+          "done_one": "und {{count}} weitere fertig",
+          "done_other": "und {{count}} weitere fertig"
+        },
+        "askAgent": "Frag {{agent}} nach dem Rest."
+      },
+      "group": {
+        "foreach": "Für jedes",
+        "parallel": "Parallel",
+        "run": "Gespeicherter Workflow",
+        "workflow": "Verschachtelter Workflow",
+        "progress": "{{done}} von {{total}}",
+        "failed": "Fehlgeschlagen: {{count}}"
+      },
+      "node": {
+        "reused": "Aus dem letzten Lauf wiederverwendet",
+        "queued": "In Warteschlange",
+        "mayHaveRun": "Möglicherweise ausgeführt",
+        "waitingOn": {
+          "user": "Wartet auf deine Antwort",
+          "approval": "Wartet auf Genehmigung",
+          "peer": "Wartet auf eine Nachricht"
+        },
+        "sessionTurns_one": "{{count}} Runde",
+        "sessionTurns_other": "{{count}} Runden",
+        "result": "Ergebnis",
+        "error": "Fehler",
+        "messages": "Nachrichten",
+        "messagesTo": "Nachrichten an {{name}}: {{count}}",
+        "open": "Öffnen",
+        "detailsUnavailable": "Details sind nach dem Neuladen nicht mehr verfügbar.",
+        "stop": "Agent stoppen"
+      }
     },
     "subagents": {
       "title": "Sub-Agenten",
@@ -1547,7 +1639,9 @@
     },
     "actions": {
       "goActivity": "Zur Aktivität",
-      "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet"
+      "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet",
+      "openCurrentRoomMindroomSettings": "MindRoom-Raumeinstellungen öffnen",
+      "openCurrentRoomMindroomSettingsDescription": "MindRoom-Einstellungen für {{room}} öffnen"
     },
     "recentVisits": {
       "recentlyOpened": "Zuletzt geöffnet",
@@ -1702,8 +1796,7 @@
       "replyAndOthers_one": "{{name}} und {{count}} weitere Person haben geantwortet",
       "replyAndOthers_other": "{{name}} und {{count}} weitere haben geantwortet",
       "finished": "{{name}} ist fertig",
-      "stopped": "{{name}} wurde gestoppt",
-      "youReplied": "Du hast geantwortet"
+      "stopped": "{{name}} wurde gestoppt"
     },
     "newCount_one": "{{count}} neu",
     "newCount_other": "{{count}} neu",
@@ -2113,5 +2206,35 @@
   },
   "nav": {
     "usage": "Nutzung"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} Raum",
+      "roomsCount_other": "{{count}} Räume",
+      "roomsFiltered": "{{active}} von {{total}} Räumen"
+    },
+    "roomFilter": {
+      "label": "Räume",
+      "ariaLabel": "Threads nach Raum filtern",
+      "ariaLabelActive": "Threads nach Raum filtern ({{number}} ausgewählt)",
+      "ariaLabelOne": "Räume: {{room}}",
+      "search": "Räume suchen",
+      "noMatch": "Keine passenden Räume"
+    },
+    "composer": {
+      "postTo": "Senden an:",
+      "postToRoom": "An #{{room}} senden",
+      "chooseRoomAria": "Raum zum Senden auswählen",
+      "draftPinned": "Entwurf für #{{room}}",
+      "readOnly": "In keinem Raum dieses Space sind Nachrichten erlaubt."
+    },
+    "loading": "Threads werden geladen...",
+    "empty": {
+      "noRooms": "Tritt einem Raum in diesem Space bei, um hier Threads zu sehen.",
+      "noThreads": "Noch keine Threads in diesem Space."
+    },
+    "error": {
+      "title": "Space-Threads konnten nicht geladen werden"
+    }
   }
 }

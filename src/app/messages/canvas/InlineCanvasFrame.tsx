@@ -1,4 +1,5 @@
 import {
+  type ReactNode,
   type RefObject,
   useCallback,
   useContext,
@@ -10,7 +11,7 @@ import {
   useState,
 } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { Box, Button, Text } from 'folds';
+import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { canvasesEnabled } from '../../config/canvases';
 import { useClientConfig } from '../../config/useClientConfig';
@@ -18,7 +19,11 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { getMemberDisplayName } from '../../matrix/room';
 import { readChatUiAction, type ChatUiAction } from '../../matrix/protocol/chatUiProtocol';
+import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../preferences/settings';
+import { useSetting } from '../../preferences/useSetting';
 import { ThemeKind, useTheme } from '../../theme/useTheme';
+import { ownDirectionLine } from '../../ui/directional';
+import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { useCanvasPage } from './useCanvasPage';
 import { useCanvasSavedState } from './useCanvasSavedState';
@@ -29,6 +34,7 @@ import { CanvasAnswerBar } from './CanvasAnswerBar';
 import { CanvasPageErrors } from './CanvasPageErrors';
 import { CanvasUpdateNotice } from './CanvasUpdateNotice';
 import { readCanvasTheme } from './canvasTheme';
+import * as css from './canvasHost.css';
 import {
   buildCanvasDocument,
   canvasDocumentKey,
@@ -44,9 +50,11 @@ import {
 
 type CanvasAction = Extract<ChatUiAction, { action: 'show_canvas' }>;
 
-/** How much a page rendered `width` pixels wide shrinks to fit a column; it never grows. */
-export const inlineCanvasScale = (column: number, width: number | undefined): number =>
-  width === undefined || column <= 0 ? 1 : Math.min(1, column / width);
+/** How much a page scales for page zoom and, when it sets `width`, to fit its column. */
+export const inlineCanvasScale = (column: number, width: number | undefined, zoom = 1): number => {
+  if (width === undefined) return zoom;
+  return column <= 0 ? zoom : Math.min(zoom, column / width);
+};
 
 /** A page that keeps escaping its frame, such as one that navigates as it loads, stops reloading. */
 const MAX_ESCAPE_RELOADS = 3;
@@ -69,6 +77,8 @@ function SizedFrame({
   onRestart?: () => void;
 }) {
   const { t } = useTranslation();
+  const [pageZoom] = useSetting(settingsAtom, 'pageZoom');
+  const zoom = pageZoom / PAGE_ZOOM_DEFAULT;
   const box = useRef<HTMLDivElement>(null);
   const ownFrame = useRef<HTMLIFrameElement>(null);
   const frame = frameRef ?? ownFrame;
@@ -144,9 +154,10 @@ function SizedFrame({
       </Box>
     );
   // A page with its own viewport width renders at that width and shrinks to the column, so a
-  // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
-  const scale = inlineCanvasScale(column, width);
-  const limit = inlineCanvasWindowHeight(width ?? column);
+  // desktop layout keeps its desktop breakpoint; the frame's box takes the scaled height.
+  const scale = inlineCanvasScale(column, width, zoom);
+  const logicalWidth = width ?? (column > 0 ? column / zoom : 0);
+  const limit = inlineCanvasWindowHeight(logicalWidth);
   const frameHeight = preview ? limit : (reported ?? 160);
   const shown = preview ? Math.min(reported ?? limit, limit) : frameHeight;
   return (
@@ -162,7 +173,7 @@ function SizedFrame({
         allow={CANVAS_PERMISSIONS}
         referrerPolicy="no-referrer"
         style={{
-          width: width === undefined ? '100%' : width,
+          width: width === undefined ? (zoom === 1 ? '100%' : `${100 / zoom}%`) : width,
           height: frameHeight,
           display: 'block',
           border: 0,
@@ -376,14 +387,18 @@ function InteractiveInlineCanvas({ mx, room, action, libraries, remote }: Inline
 export function InlineCanvasFrame({
   event,
   readOnly = false,
+  fallback = null,
 }: {
   event: MatrixEvent;
   readOnly?: boolean;
+  /** Shown when no inline canvas renders here (disabled, non-inline, or another member's). */
+  fallback?: ReactNode;
 }) {
   const { t } = useTranslation();
   const config = useClientConfig();
   const mx = useMatrixClient();
-  const openCanvasId = useContext(ChatUiActionContext)?.openCanvasId;
+  const actions = useContext(ChatUiActionContext);
+  const openCanvasId = actions?.openCanvasId;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
     const redacted = () => queueMicrotask(refresh);
@@ -394,12 +409,12 @@ export function InlineCanvasFrame({
       event.off(MatrixEventEvent.BeforeRedaction, redacted);
     };
   }, [event]);
-  if (!canvasesEnabled(config)) return null;
+  if (!canvasesEnabled(config)) return fallback;
   const room = mx.getRoom(event.getRoomId());
-  if (!room) return null;
+  if (!room) return fallback;
   const action = readChatUiAction(event, mx.getSafeUserId(), room);
-  if (action?.action !== 'show_canvas' || !action.inline) return null;
-  if (action.requesterId !== mx.getSafeUserId()) return null;
+  if (action?.action !== 'show_canvas' || !action.inline) return fallback;
+  if (action.requesterId !== mx.getSafeUserId()) return fallback;
   const props = {
     mx,
     room,
@@ -407,13 +422,42 @@ export function InlineCanvasFrame({
     libraries: config.mindroom?.canvas?.libraries === true,
     remote: config.mindroom?.canvas?.remoteAssets === true,
   };
-  if (readOnly) return <PassiveInlineCanvas key={action.eventId} {...props} />;
-  if (openCanvasId === action.eventId)
-    return (
-      <Text size="T300" priority="300" role="status" data-canvas-in-panel>
-        {t('mindroomUi.canvas.shownInPanel')}
-      </Text>
-    );
-  // One host per canvas: its saved and shared state hooks rely on the canvas never changing under them.
-  return <InteractiveInlineCanvas key={action.eventId} {...props} />;
+  const body = readOnly ? (
+    <PassiveInlineCanvas key={action.eventId} {...props} />
+  ) : openCanvasId === action.eventId ? (
+    <Text size="T300" priority="300" role="status" data-canvas-in-panel>
+      {t('mindroomUi.canvas.shownInPanel')}
+    </Text>
+  ) : (
+    // One host per canvas: its saved and shared state hooks rely on the canvas never changing under them.
+    <InteractiveInlineCanvas key={action.eventId} {...props} />
+  );
+  const headerAction = !readOnly && !actions?.textRequest ? actions?.read(event) : undefined;
+  const unavailableReason = headerAction ? actions?.unavailable(headerAction) : undefined;
+
+  return (
+    <div className={css.InlineCard}>
+      <div className={css.InlineCardHeader}>
+        <div className={css.InlineCardTitle} data-canvas-notice-title>
+          <Icon size="100" src={Icons.Category} style={{ flexShrink: 0 }} />
+          <Text as="span" size="T300" truncate {...ownDirectionLine}>
+            {action.canvas.title}
+          </Text>
+        </div>
+        {headerAction && (
+          <div className={css.InlineCardAction} data-canvas-actions="">
+            <ChatUiActionButton event={event} compact />
+          </div>
+        )}
+      </div>
+      {unavailableReason && (
+        <div className={css.InlineCardNote}>
+          <Text size="T200" priority="300" role="note">
+            {unavailableReason}
+          </Text>
+        </div>
+      )}
+      <div className={css.InlineCardBody}>{body}</div>
+    </div>
+  );
 }

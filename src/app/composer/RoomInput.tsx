@@ -15,7 +15,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 import { ReactEditor } from 'slate-react';
 import { useAtomValue, useStore } from 'jotai';
-import { isKeyHotkey } from 'is-hotkey';
+import { matchesHotkey } from '../shortcuts/shortcuts';
 import { type IContent, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
 import { Box, Icon, Icons, RectCords, Text, color, config } from 'folds';
@@ -165,8 +165,6 @@ export type RoomInputProps = {
 // dragged out of a room's composer.
 const refuseDrop = (event: DragEvent<HTMLElement>) => event.preventDefault();
 
-const isEnter = isKeyHotkey('enter');
-
 // The composer card lines up with the approval and typing bars above it.
 const COMPOSER_STYLE: React.CSSProperties = { marginInline: config.space.S400 };
 
@@ -181,8 +179,6 @@ const dropZoneStyle = (): React.CSSProperties => ({
   padding: config.space.S400,
   marginBlockEnd: config.space.S200,
 });
-const isModEnter = isKeyHotkey('mod+enter');
-
 // Why the last slash command did not run, in the critical color above the composer.
 const commandProblemStyle = (): React.CSSProperties => ({
   color: color.Critical.Main,
@@ -532,11 +528,12 @@ export function RoomInput({
     editor,
     roomId,
     threadId,
-    thread: threadId !== undefined,
+    thread: threadId !== undefined || forkFrom !== undefined,
     ownerKey: dictationOwnerKey,
     sendKey: textKey,
     draftKey: textKey,
     rootRef,
+    containerRef: fileDropContainerRef,
     onCommandProblem: setCommandProblem,
     restoreAttachments: restoreDictationAttachments,
     restoreReplyDraft,
@@ -808,12 +805,12 @@ export function RoomInput({
       const keyEvent = event.nativeEvent ?? event;
       if (toggleKeyboardShortcut(editor, event)) return;
       // With a menu open, Enter picks its suggestion; it never sends then.
-      if (autocompleteMenuOpen && isEnter(keyEvent)) {
+      if (autocompleteMenuOpen && matchesHotkey('enter', keyEvent)) {
         event.preventDefault();
         return;
       }
-      const sendKey = enterForNewline || mobileOrTablet() ? isModEnter : isEnter;
-      if (sendKey(keyEvent)) {
+      const sendKey = enterForNewline || mobileOrTablet() ? 'mod+enter' : 'enter';
+      if (matchesHotkey(sendKey, keyEvent)) {
         event.preventDefault();
         void handleSend();
       }
@@ -928,6 +925,7 @@ export function RoomInput({
       ? {
           ...voice.voiceKey,
           root: () => rootRef.current,
+          container: () => fileDropContainerRef?.current ?? null,
           thread: threadId !== undefined,
           hasContent: () =>
             !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
@@ -936,7 +934,14 @@ export function RoomInput({
           },
           focus: () => ReactEditor.focus(editor),
         }
-      : undefined
+      : forkFrom
+        ? {
+            root: () => rootRef.current,
+            container: () => fileDropContainerRef?.current ?? null,
+            thread: true,
+            disabled: true,
+          }
+        : undefined
   );
   const expanded = isComposerExpanded({
     phone,

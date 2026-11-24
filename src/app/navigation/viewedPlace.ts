@@ -2,6 +2,7 @@ import { matchPath } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../routes/paths';
+import { isRoomIdOrAliasSegment } from '../routes/pathUtils';
 import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
 /** The room and thread the window shows, read from the app's address. */
@@ -20,7 +21,7 @@ export const getViewedPlace = (
     const roomIdOrAlias =
       matchPath(route, location.pathname)?.params.roomIdOrAlias &&
       routeSegment(location.pathname, ROUTE_PARAM_SEGMENT.roomIdOrAlias);
-    if (roomIdOrAlias) {
+    if (roomIdOrAlias && isRoomIdOrAliasSegment(roomIdOrAlias)) {
       const roomId = isRoomAlias(roomIdOrAlias)
         ? getCanonicalAliasRoomId(client, roomIdOrAlias)
         : roomIdOrAlias;
