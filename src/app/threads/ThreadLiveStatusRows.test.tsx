@@ -12,6 +12,11 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import {
+  clearLongTextHydrationCache,
+  getLongTextSource,
+  hydrateLongTextSource,
+} from '../matrix/protocol/longText';
 import { keepSyncedEdits } from '../matrix/client/syncedEdits';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
@@ -140,6 +145,7 @@ describe('ThreadLiveStatusRows', () => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
     signals.read = undefined;
+    clearLongTextHydrationCache();
     vi.useRealTimers();
     Thread.hasServerSideSupport = previousThreadSupport;
     vi.restoreAllMocks();
@@ -432,5 +438,33 @@ describe('ThreadLiveStatusRows', () => {
     });
 
     expect(textOf(rows)).toEqual(['Cost', '≥ $0.75']);
+  });
+
+  it('shows running tools once a streaming sidecar checkpoint hydrates', async () => {
+    const sidecarReply = reply('$sidecar', 3000, {
+      msgtype: 'm.file',
+      body: 'preview',
+      url: 'mxc://server/checkpoint-1',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const { mx, room } = await setup([sidecarReply]);
+    const rows = render(mx, room, true);
+    expect(textOf(rows)).toEqual(['Status', 'Streaming']);
+
+    await act(async () => {
+      await hydrateLongTextSource(
+        getLongTextSource(sidecarReply.getContent())!,
+        async () =>
+          JSON.stringify({
+            msgtype: 'm.text',
+            body: 'full',
+            'io.mindroom.stream_status': 'streaming',
+            'io.mindroom.tool_trace': { version: 2, events: [started('shell')] },
+          }),
+        mx
+      );
+    });
+    expect(textOf(rows)).toEqual(['Status', 'Streaming', 'Tools', '1 running: shell']);
   });
 });
