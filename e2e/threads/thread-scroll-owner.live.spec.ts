@@ -53,6 +53,7 @@ const assertScrollProbeClean = (
     maxUnexplainedPx: r.maxUnexplainedPx,
     maxSpreadPx: r.maxSpreadPx,
     lostPlaceFrames: r.lostPlaceFrames,
+    topJumps: r.jumps.slice(0, 4),
   });
   expect(r.scrolledPx, `scrolled upward: ${summary}`).toBeGreaterThan(minScrolledPx);
   expect(r.lostPlaceFrames, `lost place: ${summary}`).toBe(0);

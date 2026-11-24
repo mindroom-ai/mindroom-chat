@@ -287,46 +287,32 @@ export const openAndRunThreadJump = async (
 export const readThreadScrollState = (page: Page) =>
   page.evaluate((sel) => {
     const inner = document.querySelector<HTMLElement>(sel);
-    let scroller: HTMLElement | null = inner?.parentElement ?? null;
-    while (scroller) {
-      const oy = getComputedStyle(scroller).overflowY;
-      if (oy === 'auto' || oy === 'scroll') break;
+    let scroller = inner?.parentElement ?? null;
+    while (scroller && !/^(auto|scroll)$/.test(getComputedStyle(scroller).overflowY)) {
       scroller = scroller.parentElement;
     }
     if (!inner || !scroller) return null;
     const view = scroller.getBoundingClientRect();
-    const reserve = inner.querySelector<HTMLElement>('[data-testid="thread-headroom-reserve"]');
-    const skeletonRows = Array.from(
-      inner.querySelectorAll<HTMLElement>('[data-headroom-skeleton-row="true"]')
-    );
-    const visibleSkeletonRows = skeletonRows.filter((el) => {
-      const r = el.getBoundingClientRect();
-      return r.height > 0 && r.bottom > view.top && r.top < view.bottom;
-    }).length;
-    const row0 = inner.querySelector<HTMLElement>('[data-index="0"]');
-    const row0Rect = row0?.getBoundingClientRect();
-    const row0Visible =
-      !!row0Rect && row0Rect.height > 0 && row0Rect.bottom > view.top && row0Rect.top < view.bottom;
-    const track = scroller.querySelector<HTMLElement>('[role="scrollbar"]');
-    const thumb = track?.querySelector<HTMLElement>('[data-scrollbar-thumb="true"]');
-    const trackRect = track?.getBoundingClientRect();
-    const thumbRect = thumb?.getBoundingClientRect();
+    const inView = (r?: DOMRect) =>
+      !!r && r.height > 0 && r.bottom > view.top && r.top < view.bottom;
+    const box = (el: Element | null) => {
+      const r = el?.getBoundingClientRect();
+      return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null;
+    };
+    const skeletons = Array.from(inner.querySelectorAll('[data-headroom-skeleton-row="true"]'));
+    const track = scroller.querySelector('[role="scrollbar"]');
     return {
       scrollTop: Math.round(scroller.scrollTop),
       scrollHeight: Math.round(scroller.scrollHeight),
       clientHeight: Math.round(scroller.clientHeight),
       headroomPx: Number(inner.dataset.headroomPx ?? 0),
       threadCount: Number(inner.dataset.threadCount ?? 0),
-      hasReserve: !!reserve,
-      visibleSkeletonRows,
-      row0Visible,
+      hasReserve: !!inner.querySelector('[data-testid="thread-headroom-reserve"]'),
+      visibleSkeletonRows: skeletons.filter((el) => inView(el.getBoundingClientRect())).length,
+      row0Visible: inView(inner.querySelector('[data-index="0"]')?.getBoundingClientRect()),
       scrollbarDragging: scroller.dataset.scrollbarDragging === 'true',
-      trackBox: trackRect
-        ? { x: trackRect.x, y: trackRect.y, width: trackRect.width, height: trackRect.height }
-        : null,
-      thumbBox: thumbRect
-        ? { x: thumbRect.x, y: thumbRect.y, width: thumbRect.width, height: thumbRect.height }
-        : null,
+      trackBox: box(track),
+      thumbBox: box(track?.querySelector('[data-scrollbar-thumb="true"]') ?? null),
     };
   }, THREAD_ROWS_SELECTOR);
 
@@ -334,11 +320,8 @@ export const focusThreadScrollbar = (page: Page, dispatchTouchStart = false) =>
   page.evaluate(
     ({ sel, touch }) => {
       if (touch) window.dispatchEvent(new Event('touchstart', { bubbles: true }));
-      const inner = document.querySelector<HTMLElement>(sel);
-      let scroller: HTMLElement | null = inner?.parentElement ?? null;
-      while (scroller) {
-        const oy = getComputedStyle(scroller).overflowY;
-        if (oy === 'auto' || oy === 'scroll') break;
+      let scroller = document.querySelector<HTMLElement>(sel)?.parentElement ?? null;
+      while (scroller && !/^(auto|scroll)$/.test(getComputedStyle(scroller).overflowY)) {
         scroller = scroller.parentElement;
       }
       const track = scroller?.querySelector<HTMLElement>('[role="scrollbar"]');
@@ -350,14 +333,16 @@ export const focusThreadScrollbar = (page: Page, dispatchTouchStart = false) =>
   );
 
 export const installUnderReportedCountRoute = async (page: Page) => {
+  await routeQuietly(page, '**/_matrix/client/*/rooms/*/messages**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"chunk":[],"start":"","end":""}',
+    })
+  );
   await routeQuietly(page, '**/_matrix/client/**', async (route) => {
     const url = route.request().url();
-    if (
-      !url.includes('/sync') &&
-      !url.includes('/event/') &&
-      !url.includes('/threads') &&
-      !url.includes('/relations/')
-    ) {
+    if (!/\/(sync|event\/|threads|relations\/)/.test(url)) {
       await route.continue();
       return;
     }
@@ -384,9 +369,16 @@ export const waitForSettledAtRow0 = async (page: Page, timeout = 30_000) => {
     .poll(
       async () => {
         const st = await readThreadScrollState(page);
-        return st ? st.headroomPx === 0 && st.scrollTop <= 2 && st.row0Visible : false;
+        return st
+          ? {
+              h: st.headroomPx,
+              top: st.scrollTop <= 2 ? 0 : st.scrollTop,
+              r0: st.row0Visible,
+              n: st.threadCount,
+            }
+          : null;
       },
       { timeout }
     )
-    .toBe(true);
+    .toEqual(expect.objectContaining({ h: 0, top: 0, r0: true }));
 };

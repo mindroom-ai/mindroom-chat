@@ -310,10 +310,11 @@ export const applyRestTimeHeadroomIntent = ({
         );
     const delta = targetHeadroom - owner.committedHeadroomPx;
     if (delta > 1) {
+      const inPureReserve = scrollElement.scrollTop + viewH <= owner.committedHeadroomPx;
       applyHeadroomTransition({
         nextHeadroom: targetHeadroom,
         scrollKind: 'offset',
-        targetScrollTop: scrollElement.scrollTop + delta,
+        targetScrollTop: inPureReserve ? scrollElement.scrollTop : scrollElement.scrollTop + delta,
         releaseHeldEvents: true,
       });
       return;
@@ -345,10 +346,11 @@ export const applyRestTimeHeadroomIntent = ({
     });
     const delta = targetHeadroom - owner.committedHeadroomPx;
     if (delta > 1) {
+      const inPureReserve = scrollElement.scrollTop + viewH <= owner.committedHeadroomPx;
       applyHeadroomTransition({
         nextHeadroom: targetHeadroom,
         scrollKind: 'offset',
-        targetScrollTop: scrollElement.scrollTop + delta,
+        targetScrollTop: inPureReserve ? scrollElement.scrollTop : scrollElement.scrollTop + delta,
       });
       return;
     }
