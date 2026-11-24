@@ -1,10 +1,10 @@
 # Two independent upstream fixes (see docs/dev/tanstack-wheel-hold-upstream.md):
 # PR 1: Hold scrollTop writes in _holdOffset while a wheel gesture (or its
-#   compositor scroll tail) is live (250ms quiet) and flush via _flushHoldIfReady
+#   compositor scroll tail) is live (100ms quiet) and flush via _flushHoldIfReady
 #   at rest, so WebKit wheel replay cannot fight prepend/resize writes.
 # PR 2: Reconcile unseen live scrollTop mutations in applyScrollAdjustment.
 diff --git a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
-index 186f79e..87c128c 100644
+index 186f79e..00d3fa5 100644
 --- a/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 +++ b/node_modules/@tanstack/virtual-core/dist/cjs/index.cjs
 @@ -217,6 +217,8 @@ class Virtualizer {
@@ -53,7 +53,7 @@ index 186f79e..87c128c 100644
 +            }
 +            this._flushHoldIfReady(true);
 +            this._retryClampedAdjustment();
-+          }, 250);
++          }, 100);
 +        };
          this.unsubs.push(
            this.options.observeElementOffset(this, (offset, isScrolling) => {
@@ -113,7 +113,7 @@ index 186f79e..87c128c 100644
        }
        return true;
 diff --git a/node_modules/@tanstack/virtual-core/dist/esm/index.js b/node_modules/@tanstack/virtual-core/dist/esm/index.js
-index ef861e1..389ae31 100644
+index ef861e1..c62eeba 100644
 --- a/node_modules/@tanstack/virtual-core/dist/esm/index.js
 +++ b/node_modules/@tanstack/virtual-core/dist/esm/index.js
 @@ -216,6 +216,8 @@ class Virtualizer {
@@ -162,7 +162,7 @@ index ef861e1..389ae31 100644
 +            }
 +            this._flushHoldIfReady(true);
 +            this._retryClampedAdjustment();
-+          }, 250);
++          }, 100);
 +        };
          this.unsubs.push(
            this.options.observeElementOffset(this, (offset, isScrolling) => {

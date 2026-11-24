@@ -21,7 +21,7 @@
 +      this._wheelTimer = null; this._wheelLive = false
 +      if (live !== null && this._holdOffset !== 0) this.scrollOffset = Math.max(0, live + this._holdOffset)
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
-+    }, 250)
++    }, 100)
 +  }
 -  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll
 +  private _canWriteScroll = () => !(isIOSWebKit() && this._iosGesture.inMotion()) && !this._reportedOverscroll && !this._wheelLive

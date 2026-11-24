@@ -288,21 +288,21 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
 
-      // An external scroll event from WebKit wheel momentum re-arms the 250ms hold.
-      vi.advanceTimersByTime(200);
+      // An external scroll event from WebKit wheel momentum re-arms the 100ms hold.
+      vi.advanceTimersByTime(70);
       scroll(START_OFFSET - 60, true);
-      vi.advanceTimersByTime(200);
+      vi.advanceTimersByTime(70);
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
 
       // Silent compositor travel observed when the timer expires also defers flush.
       holder.element.scrollTop = START_OFFSET - 120;
-      vi.advanceTimersByTime(50);
+      vi.advanceTimersByTime(30);
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
 
-      // Once truly still for 250ms, the hold flushes from the live scrollTop.
-      vi.advanceTimersByTime(250);
+      // Once truly still for 100ms, the hold flushes from the live scrollTop.
+      vi.advanceTimersByTime(100);
       expect(bankedAdjustment(virtualizer)).toBe(0);
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [flushedOffset] = scrollToFn.mock.calls[0] as [number];
