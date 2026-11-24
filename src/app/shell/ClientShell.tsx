@@ -19,6 +19,7 @@ import { EncryptionRecoveryPrompt } from '../account/encryption/EncryptionRecove
 import { RecoveryDialogRenderer } from '../account/encryption/RecoveryDialogRenderer';
 import { IncomingVerificationRequests } from '../account/verification/IncomingVerificationRequests';
 import { CallFeatures } from '../calls/CallFeatures';
+import { ContextualTipNotice } from '../tour/ContextualTipNotice';
 import { TourOffer } from '../tour/TourOffer';
 import { TourRenderer } from '../tour/TourRenderer';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
@@ -77,6 +78,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <RecoveryDialogRenderer />
           <EncryptionRecoveryPrompt />
           <TourOffer />
+          <ContextualTipNotice />
           <ModeratorGrantErrorNotice />
           <DictationSendErrorNotice />
           <MacAppOffer />

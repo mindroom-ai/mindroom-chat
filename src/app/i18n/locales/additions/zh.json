@@ -1902,6 +1902,38 @@
       "settingsKeywords": "导览, 教程, 指南, 帮助, 入门, 引导, 讨论串",
       "howThreadsWork": "讨论串如何运作",
       "noThreadsHint": "在下方发送一条消息即可发起讨论串。"
+    },
+    "help": {
+      "button": "帮助与指南",
+      "buttonWithTip": "帮助与指南（1 条提示）",
+      "title": "帮助与指南",
+      "subtitle": "快速指南",
+      "oneTip": "1 条提示",
+      "suggested": "为你推荐",
+      "showHow": "查看方法",
+      "dismissTip": "关闭提示",
+      "guidesHeading": "界面指南",
+      "guides": {
+        "conversation": "讨论串如何运作",
+        "resolve": "解决已完成的讨论串",
+        "filters": "查找已解决的讨论串",
+        "snooze": "延后至稍后处理",
+        "pinAndTag": "置顶和添加标签",
+        "views": "紧凑视图与讨论串视图",
+        "activity": "动态与审批"
+      },
+      "fullTour": "完整导览",
+      "shortcuts": "快捷键"
+    },
+    "tips": {
+      "resolve": {
+        "title": "解决已完成的讨论串",
+        "cardTitle": "解决已完成的讨论串",
+        "roomSummary_other": "当前房间有 {{count}} 个未解决的讨论串，尚无已解决项",
+        "allSummary_other": "共有 {{count}} 个未解决的讨论串，尚无已解决项",
+        "cardTextRoom_other": "当前房间有 {{count}} 个未解决的讨论串，尚无已解决项。标记已完成的讨论串可保持列表整洁。",
+        "cardTextAll_other": "共有 {{count}} 个未解决的讨论串，尚无已解决项。标记已完成的讨论串可保持列表整洁。"
+      }
     }
   },
   "threadNav": {
