@@ -280,17 +280,20 @@ describe('installDesktopHistorySwipe', () => {
 
     const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
     try {
-      // LTR scroller mid-scroll: hitting scrollLeft=0 mid-gesture stays ignored
-      scroller.scrollLeft = 40;
+      // LTR scroller starting 5px from left edge: wheel -5 scrolls to 0 before 12px axis lock,
+      // so the gesture stays blocked without showing the indicator or going Back
+      scroller.scrollLeft = 5;
       emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      fireWheel({ deltaX: -20 }, child);
+      fireWheel({ deltaX: -5 }, child);
       scroller.scrollLeft = 0;
-      fireWheel({ deltaX: -50 }, child);
-      fireWheel({ deltaX: -50 }, child);
+      fireWheel({ deltaX: -40 }, child);
+      fireWheel({ deltaX: -40 }, child);
+      fireWheel({ deltaX: -40 }, child);
       emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(indicatorEl()).toBeNull();
       expect(backSpy).not.toHaveBeenCalled();
 
-      // Fresh swipe already at left edge chains into Back
+      // Fresh swipe starting already at left edge (scrollLeft = 0) chains into Back
       runSwipe(BACK_SWIPE, { target: child });
       expect(backSpy).toHaveBeenCalledTimes(1);
 
@@ -459,7 +462,30 @@ describe('installDesktopHistorySwipe', () => {
     }
   });
 
-  it('resets without committing on cancel, blur, window-hidden, popstate, visibilitychange, and 350ms watchdog', () => {
+  it('keeps a confirmed armed swipe alive across a 1000ms pause before end or momentum', () => {
+    vi.useFakeTimers();
+    const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
+    try {
+      // Pause 1000ms with fingers still before lifting (end)
+      runSwipe(BACK_SWIPE, { end: null });
+      vi.advanceTimersByTime(1000);
+      expect(indicatorEl()?.dataset).toMatchObject({ visible: 'true', armed: 'true' });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+
+      // Pause 1000ms with fingers still before lifting (momentum: true)
+      runSwipe(BACK_SWIPE, { end: null });
+      vi.advanceTimersByTime(1000);
+      expect(indicatorEl()?.dataset).toMatchObject({ visible: 'true', armed: 'true' });
+      fireWheel({ deltaX: -10, momentum: true });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      stop();
+    }
+  });
+
+  it('resets without committing on interruptions, expires unconfirmed !hasBegin at 100ms, and cleans up stale state at 2000ms', () => {
     vi.useFakeTimers();
     const stop = installDesktopHistorySwipe(window, { isMac: () => true, allowUntrusted: true });
     try {
@@ -489,13 +515,27 @@ describe('installDesktopHistorySwipe', () => {
       document.dispatchEvent(new Event('visibilitychange'));
       Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
       expect(indicatorEl()?.dataset.visible).toBe('false');
-
-      startArmed();
-      vi.advanceTimersByTime(350);
-      expect(indicatorEl()?.dataset.visible).toBe('false');
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-
       expect(backSpy).not.toHaveBeenCalled();
+
+      // Unconfirmed !hasBegin expires to idle after 100ms (stale delta discarded)
+      fireWheel({ deltaX: -50 });
+      fireWheel({ deltaX: -50 });
+      vi.advanceTimersByTime(100);
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      fireWheel({ deltaX: -30 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).not.toHaveBeenCalled();
+
+      // Stale committed state (if end is dropped) expires after 2000ms fallback
+      runSwipe([{ deltaX: -20 }, { deltaX: -20 }, { deltaX: -20 }], { end: 'fling' });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(2000);
+      fireWheel({ deltaX: -40 });
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      fireWheel({ deltaX: -40 });
+      fireWheel({ deltaX: -40 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(2);
     } finally {
       stop();
     }

@@ -10,6 +10,8 @@ type HistoryDirection = 'back' | 'forward';
 type GesturePhase = 'idle' | 'pending' | 'tracking' | 'ignored' | 'committed';
 type NavigationWindow = Window & { navigation?: { canGoBack?: boolean; canGoForward?: boolean } };
 type MomentumWheelEvent = WheelEvent & { momentum?: boolean };
+type ScrollerSnapshot = { el: Element; scrollLeft: number; minL: number; maxL: number };
+type PathSnapshot = { overscrollBlocked: boolean; scrollers: ScrollerSnapshot[] };
 
 export type DesktopHistorySwipeOptions = {
   isMac?: () => boolean;
@@ -24,7 +26,7 @@ const COMMIT_PX = 100;
 const FLING_COMMIT_PX = 55;
 const MIN_EVENTS = 3;
 const BEGIN_RACE_MS = 100;
-const INACTIVITY_MS = 350;
+const STALE_CLEANUP_MS = 2000;
 const SWIPE_DEDUP_MS = 250;
 const SCROLL_BOX = new Set(['auto', 'scroll', 'hidden']);
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -32,6 +34,7 @@ const CHEVRON_D: Record<HistoryDirection, string> = {
   back: 'M14.5 6.5L9 12l5.5 5.5',
   forward: 'M9.5 6.5L15 12l-5.5 5.5',
 };
+const EMPTY_SNAPSHOT: PathSnapshot = { overscrollBlocked: false, scrollers: [] };
 
 const signedDelta = (dx: number, dir: HistoryDirection, rtl: boolean): number =>
   (rtl ? dir === 'back' : dir === 'forward') ? dx : -dx;
@@ -64,8 +67,17 @@ const pathElementsOf = (target: Window, event: WheelEvent): Element[] => {
   return out;
 };
 
-const isBlockedByDom = (target: Window, elements: Iterable<Element>, sumX: number): boolean => {
+const canScrollInDirection = (
+  scrollLeft: number,
+  minL: number,
+  maxL: number,
+  sumX: number
+): boolean => (sumX < 0 ? scrollLeft > minL + 1 : scrollLeft < maxL - 1);
+
+const snapshotPath = (target: Window, elements: Iterable<Element>): PathSnapshot => {
   const { documentElement, body } = target.document;
+  let overscrollBlocked = false;
+  const scrollers: ScrollerSnapshot[] = [];
   for (const el of elements) {
     const style = target.getComputedStyle(el);
     const ox = style.overflowX || style.overflow;
@@ -76,7 +88,7 @@ const isBlockedByDom = (target: Window, elements: Iterable<Element>, sumX: numbe
       scrollBox &&
       (style.overscrollBehaviorX === 'contain' || style.overscrollBehaviorX === 'none')
     ) {
-      return true;
+      overscrollBlocked = true;
     }
     const scroller =
       ox === 'auto' ||
@@ -86,12 +98,36 @@ const isBlockedByDom = (target: Window, elements: Iterable<Element>, sumX: numbe
     if (scroller && el.scrollWidth > el.clientWidth + 1) {
       const max = el.scrollWidth - el.clientWidth;
       const rtl = style.direction === 'rtl';
-      const minL = rtl ? -max : 0;
-      const maxL = rtl ? 0 : max;
-      if (sumX < 0 ? el.scrollLeft > minL + 1 : el.scrollLeft < maxL - 1) return true;
+      scrollers.push({ el, scrollLeft: el.scrollLeft, minL: rtl ? -max : 0, maxL: rtl ? 0 : max });
     }
   }
-  return false;
+  return { overscrollBlocked, scrollers };
+};
+
+const isBlockedAtAxisLock = (
+  target: Window,
+  start: PathSnapshot,
+  currentPath: Element[],
+  sameEvent: boolean,
+  sumX: number
+): boolean => {
+  if (start.overscrollBlocked) return true;
+  for (const snap of start.scrollers) {
+    if (
+      canScrollInDirection(snap.scrollLeft, snap.minL, snap.maxL, sumX) ||
+      snap.el.scrollLeft !== snap.scrollLeft
+    ) {
+      return true;
+    }
+  }
+  if (sameEvent) return false;
+  const current = snapshotPath(target, currentPath);
+  return (
+    current.overscrollBlocked ||
+    current.scrollers.some((snap) =>
+      canScrollInDirection(snap.scrollLeft, snap.minL, snap.maxL, sumX)
+    )
+  );
 };
 
 const createIndicator = (target: Window) => {
@@ -139,7 +175,7 @@ const emptyGesture = (phase: GesturePhase = 'idle') => ({
   phase,
   hasBegin: false,
   startedAt: 0,
-  startElements: [] as Element[],
+  startSnapshot: EMPTY_SNAPSHOT,
   sumX: 0,
   sumY: 0,
   travelX: 0,
@@ -177,22 +213,26 @@ export const installDesktopHistorySwipe = (
   let pendingBegin = false;
   let lastWheelCommitAt = -Infinity;
   let g = emptyGesture();
-  let watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   const isActive = (): boolean => g.phase === 'pending' || g.phase === 'tracking';
 
-  const armWatchdog = (): void => {
-    clearTimeout(watchdogTimer);
-    watchdogTimer = setTimeout(() => reset('idle'), INACTIVITY_MS);
+  const clearTimer = (): void => {
+    clearTimeout(timer);
+    timer = undefined;
+  };
+
+  const armTimer = (ms: number): void => {
+    clearTimeout(timer);
+    timer = setTimeout(() => reset('idle'), ms);
   };
 
   const reset = (phase: 'idle' | 'ignored' | 'committed' = 'idle'): void => {
-    clearTimeout(watchdogTimer);
-    watchdogTimer = undefined;
+    clearTimer();
     pendingBegin = false;
     g = emptyGesture(phase);
     indicator.hide();
-    if (phase !== 'idle') armWatchdog();
+    if (phase !== 'idle') armTimer(STALE_CLEANUP_MS);
   };
 
   const renderIndicator = (): void => {
@@ -255,19 +295,19 @@ export const installDesktopHistorySwipe = (
     if (event.phase === 'begin') {
       if (isActive() && !g.hasBegin && now() - g.startedAt < BEGIN_RACE_MS) {
         g.hasBegin = true;
-        armWatchdog();
+        clearTimer();
         renderIndicator();
       } else {
         reset('idle');
         if (swipeTrackingEnabled) {
           pendingBegin = true;
-          armWatchdog();
+          armTimer(STALE_CLEANUP_MS);
         }
       }
     } else if (event.phase === 'fling') {
       if (g.phase === 'tracking') finishTracking(true, false);
       else if (g.phase === 'pending' || pendingBegin) reset('ignored');
-      else if (g.phase === 'committed' || g.phase === 'ignored') armWatchdog();
+      else if (g.phase === 'committed' || g.phase === 'ignored') armTimer(STALE_CLEANUP_MS);
     } else if (event.phase === 'end') {
       if (g.phase === 'tracking') finishTracking(false, true);
       else reset('idle');
@@ -295,11 +335,11 @@ export const installDesktopHistorySwipe = (
       return;
     }
     if (g.phase === 'committed' || g.phase === 'ignored') {
-      armWatchdog();
+      armTimer(STALE_CLEANUP_MS);
       return;
     }
     if (isActive() && !g.hasBegin && now() - g.startedAt >= BEGIN_RACE_MS) {
-      reset('ignored');
+      reset('idle');
       return;
     }
     if ((event as MomentumWheelEvent).momentum) {
@@ -313,22 +353,28 @@ export const installDesktopHistorySwipe = (
       if (isActive() || pendingBegin) reset('ignored');
       return;
     }
-    if (event.deltaX === 0 && event.deltaY === 0) {
-      if (isActive()) armWatchdog();
-      return;
-    }
+    if (event.deltaX === 0 && event.deltaY === 0) return;
 
     if (g.phase === 'idle') {
+      if (
+        Math.hypot(event.deltaX, event.deltaY) >= AXIS_LOCK_PX &&
+        Math.abs(event.deltaX) < Math.abs(event.deltaY) * AXIS_RATIO
+      ) {
+        reset('ignored');
+        return;
+      }
+      const hasBegin = pendingBegin;
+      clearTimer();
+      pendingBegin = false;
       g = {
         ...emptyGesture('pending'),
-        hasBegin: pendingBegin,
+        hasBegin,
         startedAt: now(),
-        startElements: path,
+        startSnapshot: snapshotPath(target, path),
       };
-      pendingBegin = false;
+      if (!hasBegin) armTimer(BEGIN_RACE_MS);
     }
 
-    armWatchdog();
     g.travelX += Math.abs(event.deltaX);
     g.travelY += Math.abs(event.deltaY);
     g.eventCount += 1;
@@ -340,7 +386,7 @@ export const installDesktopHistorySwipe = (
       if (Math.hypot(g.sumX, g.sumY) < AXIS_LOCK_PX) return;
       if (
         Math.abs(g.sumX) < Math.abs(g.sumY) * AXIS_RATIO ||
-        isBlockedByDom(target, new Set([...g.startElements, ...path]), g.sumX)
+        isBlockedAtAxisLock(target, g.startSnapshot, path, g.eventCount === 1, g.sumX)
       ) {
         reset('ignored');
         return;
