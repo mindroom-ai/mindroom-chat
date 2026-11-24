@@ -1231,6 +1231,26 @@
         "expandAllLong": "Tüm uzun mesajları genişlet",
         "collapseAllLong": "Tüm uzun mesajları daralt",
         "showFullMessage": "Mesajın tamamını göster"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Her şey tamam",
+        "resolvedCount_one": "{{count}} çözüldü",
+        "resolvedCount_other": "{{count}} çözüldü",
+        "snoozedCount_one": "{{count}} ertelendi",
+        "snoozedCount_other": "{{count}} ertelendi",
+        "showAll": "Tümünü göster",
+        "startNewThreadBelow": "Aşağıda yeni bir konu başlatın",
+        "recentlyResolved": "Yakın zamanda çözülenler",
+        "reopen": "Yeniden aç",
+        "noMatchHeading": "Filtrelerinizle eşleşen konu yok",
+        "hiddenByForMe_one": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByForMe_other": "{{count}} açık konu «Benim için» tarafından gizleniyor.",
+        "hiddenByFilters_one": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "hiddenByFilters_other": "{{count}} açık konu filtreleriniz tarafından gizleniyor.",
+        "adjustOrResetFilters": "Bu odadaki konuları görmek için filtrelerinizi düzenleyin veya sıfırlayın.",
+        "turnOffForMe": "«Benim için» filtresini kapat",
+        "resetAll": "Tümünü sıfırla",
+        "resetFilters": "Filtreleri sıfırla"
       }
     },
     "computer": {

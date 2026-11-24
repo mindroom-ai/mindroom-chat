@@ -168,6 +168,19 @@ describe('thread filter bar modes', () => {
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  it('suppresses the inline empty-filter row when hideEmptyState is true', () => {
+    for (const simple of [true, false]) {
+      renderBar(simple, {
+        threadCount: 0,
+        totalThreadCount: 3,
+        state: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+        hideEmptyState: true,
+      });
+      const empty = renderer?.root.findAll((node) => node.props.className === css.EmptyState) ?? [];
+      expect(empty).toHaveLength(0);
+    }
+  });
+
   it('speaks the summary when the filters change, not when a message moves the count', () => {
     const store = renderBar(true);
     const rerender = (overrides: Partial<RoomThreadOverviewProps>) =>

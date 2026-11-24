@@ -2,6 +2,7 @@ import React from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { CompactRoomView } from './CompactRoomView';
 import { CompactCardSwipe } from './CompactCardSwipe';
@@ -128,7 +129,10 @@ vi.mock('./useCompactThreadSections', () => ({ useCompactThreadSections: () => u
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
-    useTranslation: () => ({ t: translateFromEn }),
+    useTranslation: () => ({
+      t: translateFromEn,
+      i18n: { resolvedLanguage: 'en', language: 'en' },
+    }),
   };
 });
 
@@ -175,6 +179,7 @@ vi.mock('./CompactRoomView.css', () => ({
   CardShell: 'CardShell',
   CardMotion: 'CardMotion',
   Cards: 'Cards',
+  CardsEmpty: 'CardsEmpty',
   PinnedSection: 'PinnedSection',
 }));
 
@@ -191,6 +196,7 @@ const makeRoom = () =>
     roomId: '!room:server',
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getThread: () => null,
+    getMember: () => null,
   }) as unknown as Room;
 
 describe('CompactRoomView', () => {
@@ -417,6 +423,54 @@ describe('CompactRoomView', () => {
     });
     expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(1);
     expect(renderedCardProps).not.toHaveBeenCalled();
+  });
+
+  it('renders CompactRoomEmptyState and expands CardsEmpty when emptyState is passed for hidden threads', () => {
+    const room = makeRoom();
+    const record = makeThreadRecord('$resolved-1', {
+      status: {
+        isKnownThreadRoot: true,
+        replyCount: 1,
+        isResolved: true,
+        isUnread: false,
+        isStreaming: false,
+        scheduledTaskCount: 0,
+        tags: [],
+      },
+    });
+    const threadRecordMap = new Map([['$resolved-1', record]]);
+    useCompactThreadCardViewModelsMock.mockReturnValue([]);
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: [],
+          threadRecordMap,
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+          emptyState: {
+            filterState: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+            now: 1_700_000_060_000,
+            canCompose: true,
+            onReset: vi.fn(),
+            onShowSnoozed: vi.fn(),
+          },
+        })
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.props['data-compact-room-empty-state'] === 'inboxZero')
+    ).toHaveLength(1);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          typeof node.props.className === 'string' && node.props.className.includes('CardsEmpty')
+      )
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('No threads'))).toHaveLength(0);
   });
 
   it('builds compact card view models through the shared MindRoom selector', () => {

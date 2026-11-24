@@ -1196,6 +1196,22 @@
         "expandAllLong": "展開所有長訊息",
         "collapseAllLong": "收合所有長訊息",
         "showFullMessage": "顯示完整訊息"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "已全部處理完畢",
+        "resolvedCount_other": "{{count}} 個已解決",
+        "snoozedCount_other": "{{count}} 個已延後",
+        "showAll": "顯示全部",
+        "startNewThreadBelow": "在下方開始新討論串",
+        "recentlyResolved": "最近已解決",
+        "reopen": "重新開啟",
+        "noMatchHeading": "沒有符合篩選條件的討論串",
+        "hiddenByForMe_other": "{{count}} 個未解決的討論串被「與我相關」隱藏。",
+        "hiddenByFilters_other": "{{count}} 個未解決的討論串被篩選條件隱藏。",
+        "adjustOrResetFilters": "調整或重設篩選條件以檢視此聊天室中的討論串。",
+        "turnOffForMe": "關閉「與我相關」",
+        "resetAll": "全部重設",
+        "resetFilters": "重設篩選條件"
       }
     },
     "computer": {

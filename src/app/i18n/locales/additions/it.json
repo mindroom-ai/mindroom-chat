@@ -1266,6 +1266,30 @@
         "expandAllLong": "Espandi tutti i messaggi lunghi",
         "collapseAllLong": "Comprimi tutti i messaggi lunghi",
         "showFullMessage": "Mostra messaggio completo"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tutto in ordine",
+        "resolvedCount_one": "{{count}} risolto",
+        "resolvedCount_many": "{{count}} risolti",
+        "resolvedCount_other": "{{count}} risolti",
+        "snoozedCount_one": "{{count}} posticipato",
+        "snoozedCount_many": "{{count}} posticipati",
+        "snoozedCount_other": "{{count}} posticipati",
+        "showAll": "Mostra tutti",
+        "startNewThreadBelow": "Inizia un nuovo thread qui sotto",
+        "recentlyResolved": "Risolti di recente",
+        "reopen": "Riapri",
+        "noMatchHeading": "Nessun thread corrisponde ai tuoi filtri",
+        "hiddenByForMe_one": "{{count}} thread aperto è nascosto da Per me.",
+        "hiddenByForMe_many": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByForMe_other": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByFilters_one": "{{count}} thread aperto è nascosto dai tuoi filtri.",
+        "hiddenByFilters_many": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "hiddenByFilters_other": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "adjustOrResetFilters": "Modifica o ripristina i filtri per vedere i thread in questa stanza.",
+        "turnOffForMe": "Disattiva Per me",
+        "resetAll": "Ripristina tutto",
+        "resetFilters": "Ripristina filtri"
       }
     },
     "computer": {

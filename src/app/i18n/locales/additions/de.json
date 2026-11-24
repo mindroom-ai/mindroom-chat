@@ -1231,6 +1231,26 @@
         "expandAllLong": "Alle langen Nachrichten aufklappen",
         "collapseAllLong": "Alle langen Nachrichten zuklappen",
         "showFullMessage": "Ganze Nachricht anzeigen"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Alles erledigt",
+        "resolvedCount_one": "{{count}} gelöst",
+        "resolvedCount_other": "{{count}} gelöst",
+        "snoozedCount_one": "{{count}} zurückgestellt",
+        "snoozedCount_other": "{{count}} zurückgestellt",
+        "showAll": "Alle anzeigen",
+        "startNewThreadBelow": "Unten einen neuen Thread starten",
+        "recentlyResolved": "Zuletzt gelöst",
+        "reopen": "Wieder öffnen",
+        "noMatchHeading": "Keine Threads entsprechen deinen Filtern",
+        "hiddenByForMe_one": "{{count}} offener Thread wird durch „Für mich“ ausgeblendet.",
+        "hiddenByForMe_other": "{{count}} offene Threads werden durch „Für mich“ ausgeblendet.",
+        "hiddenByFilters_one": "{{count}} offener Thread wird durch deine Filter ausgeblendet.",
+        "hiddenByFilters_other": "{{count}} offene Threads werden durch deine Filter ausgeblendet.",
+        "adjustOrResetFilters": "Passe deine Filter an oder setze sie zurück, um Threads in diesem Raum zu sehen.",
+        "turnOffForMe": "„Für mich“ ausschalten",
+        "resetAll": "Alle zurücksetzen",
+        "resetFilters": "Filter zurücksetzen"
       }
     },
     "computer": {

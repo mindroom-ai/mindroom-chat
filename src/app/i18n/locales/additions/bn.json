@@ -1231,6 +1231,26 @@
         "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
         "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন",
         "showFullMessage": "পুরো বার্তা দেখুন"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "সব কাজ শেষ",
+        "resolvedCount_one": "{{count}}টি সমাধান করা হয়েছে",
+        "resolvedCount_other": "{{count}}টি সমাধান করা হয়েছে",
+        "snoozedCount_one": "{{count}}টি স্থগিত",
+        "snoozedCount_other": "{{count}}টি স্থগিত",
+        "showAll": "সব দেখান",
+        "startNewThreadBelow": "নিচে একটি নতুন থ্রেড শুরু করুন",
+        "recentlyResolved": "সম্প্রতি সমাধান করা হয়েছে",
+        "reopen": "আবার খুলুন",
+        "noMatchHeading": "কোনো থ্রেড আপনার ফিল্টারের সাথে মেলে না",
+        "hiddenByForMe_one": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByForMe_other": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByFilters_one": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "hiddenByFilters_other": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "adjustOrResetFilters": "এই রুমের থ্রেড দেখতে আপনার ফিল্টার সামঞ্জস্য বা রিসেট করুন।",
+        "turnOffForMe": "«আমার জন্য» বন্ধ করুন",
+        "resetAll": "সব রিসেট করুন",
+        "resetFilters": "ফিল্টার রিসেট করুন"
       }
     },
     "computer": {

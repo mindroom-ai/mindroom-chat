@@ -8,7 +8,11 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
-import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
+import {
+  getCompactThreadTitleText,
+  getThreadScheduledDisplayText,
+  getThreadScheduledLabel,
+} from './compactThreadCardUtils';
 import {
   classifyThreadWorkflow,
   type ThreadWorkflowStatus,
@@ -168,12 +172,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   locale,
 }: BuildCompactThreadCardViewModelFromRecordOptions): CompactThreadCardViewModel => {
   const { presentation, status } = record;
-  const titleText = replaceMatrixUserIdsWithDisplayNames(
-    room,
-    getThreadPrimarySummaryText(presentation, t) ??
-      t?.('mindroomUi.threads.compactThreadCardViewModel.threadStarted') ??
-      'Thread started'
-  );
+  const titleText = getCompactThreadTitleText(room, presentation, t);
   const replyPreviewText = localizeThreadPreview(
     presentation.latestReplyPreviewText,
     presentation.latestReplyPreviewLocalization,

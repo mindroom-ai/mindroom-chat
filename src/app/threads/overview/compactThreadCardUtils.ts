@@ -1,3 +1,9 @@
+import type { TFunction } from 'i18next';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { replaceMatrixUserIdsWithDisplayNames } from '../../event-store/threads/threadMessagePreview';
+import { getThreadPrimarySummaryText } from '../../event-store/threads/threadPresentation';
+import type { ThreadRecord } from '../../event-store/threads/types';
+
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -122,4 +128,15 @@ export const getScheduledTimeUpdateInterval = (ts: number, now = Date.now()): nu
   if (deltaMs < ONE_HOUR_MS * 24) return FIFTEEN_MINUTES_MS;
   return ONE_HOUR_MS;
 };
-import type { TFunction } from 'i18next';
+
+export const getCompactThreadTitleText = (
+  room: Room,
+  presentation: ThreadRecord['presentation'],
+  t?: TFunction
+): string =>
+  replaceMatrixUserIdsWithDisplayNames(
+    room,
+    getThreadPrimarySummaryText(presentation, t) ??
+      t?.('mindroomUi.threads.compactThreadCardViewModel.threadStarted') ??
+      'Thread started'
+  );

@@ -294,6 +294,8 @@ export type RoomThreadOverviewProps = {
   threadSections?: boolean;
   /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
   onToggleThreadSections?: () => void;
+  /** Suppress the toolbar's inline empty-filter row when the room canvas renders its own empty state. */
+  hideEmptyState?: boolean;
 };
 
 /** A filter-bar toggle that shows only its icon on a narrow bar. */
@@ -418,6 +420,7 @@ export function RoomThreadOverview({
   peopleFilter,
   threadSections = false,
   onToggleThreadSections,
+  hideEmptyState = false,
 }: RoomThreadOverviewProps) {
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t, i18n } = useTranslation();
@@ -534,21 +537,24 @@ export function RoomThreadOverview({
   );
 
   // Only when a filter hides threads: a Compact room with none yet has its Unresolved filter on.
-  const emptyFilteredState = threadCount === 0 && totalThreadCount > 0 && filtersActive && (
-    <div className={css.EmptyState}>
-      <Text size="T200">
-        {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
-      </Text>
-      <button
-        type="button"
-        className={css.ResetLink}
-        onClick={onReset}
-        aria-label={t('mindroomUi.threads.roomThreadOverview.resetAllThreadFilters')}
-      >
-        <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.reset')}</Text>
-      </button>
-    </div>
-  );
+  const emptyFilteredState = !hideEmptyState &&
+    threadCount === 0 &&
+    totalThreadCount > 0 &&
+    filtersActive && (
+      <div className={css.EmptyState}>
+        <Text size="T200">
+          {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
+        </Text>
+        <button
+          type="button"
+          className={css.ResetLink}
+          onClick={onReset}
+          aria-label={t('mindroomUi.threads.roomThreadOverview.resetAllThreadFilters')}
+        >
+          <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.reset')}</Text>
+        </button>
+      </div>
+    );
 
   // Switches the bar between its simple controls and all of them; the stored filter keeps both.
   const advancedFiltersLabel = t('mindroomUi.threads.roomThreadOverview.advancedFilters');

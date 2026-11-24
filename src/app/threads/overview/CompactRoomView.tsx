@@ -11,6 +11,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { CompactThreadCard } from './CompactThreadCard';
+import { CompactRoomEmptyState, type CompactRoomEmptyStateConfig } from './CompactRoomEmptyState';
 import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
 import { SwipeList } from './CompactCardSwipe.css';
 import * as css from './CompactRoomView.css';
@@ -99,6 +101,8 @@ export type CompactRoomViewProps = {
    * changing its stored fold, so switching to Done still shows Done threads immediately.
    */
   singleBucketTab?: ThreadWorkflowBucket;
+  /** Filter context and actions for the rich empty state when filters hide every thread. */
+  emptyState?: CompactRoomEmptyStateConfig;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
@@ -375,6 +379,7 @@ export function CompactRoomView({
   filterBarShown = false,
   sectionsNow,
   singleBucketTab,
+  emptyState,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -767,6 +772,8 @@ export function CompactRoomView({
       />
     );
   };
+  const showRichEmptyState =
+    threadRootIds.length === 0 && emptyState !== undefined && threadRecordMap.size > 0;
   return (
     <Box
       ref={viewRef}
@@ -780,7 +787,7 @@ export function CompactRoomView({
     >
       <Box
         ref={contentRef}
-        className={`${SwipeList} ${css.Cards}`}
+        className={classNames(SwipeList, css.Cards, showRichEmptyState && css.CardsEmpty)}
         style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
@@ -824,11 +831,29 @@ export function CompactRoomView({
           </Box>
         )}
         {threadRootIds.length === 0 ? (
-          <Box className={css.EmptyState}>
-            <Text size="T300" priority="300">
-              {t('mindroomUi.threads.compactRoomView.noThreads')}
-            </Text>
-          </Box>
+          showRichEmptyState ? (
+            <CompactRoomEmptyState
+              room={room}
+              threadRecordMap={threadRecordMap}
+              filterState={emptyState.filterState}
+              now={emptyState.now}
+              canCompose={emptyState.canCompose}
+              indexPending={indexPending}
+              canToggle={canToggle}
+              updatingThreadRootIds={updatingThreadRootIds}
+              onThreadClick={onThreadClick}
+              onSetResolved={handleSetResolved}
+              onReset={emptyState.onReset}
+              onToggleForMe={emptyState.onToggleForMe}
+              onShowSnoozed={emptyState.onShowSnoozed}
+            />
+          ) : (
+            <Box className={css.EmptyState}>
+              <Text size="T300" priority="300">
+                {t('mindroomUi.threads.compactRoomView.noThreads')}
+              </Text>
+            </Box>
+          )
         ) : (
           blocks.rows.slice(1).flatMap((rows, i) => {
             const section = heldSections?.[i]?.id;

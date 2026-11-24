@@ -1231,6 +1231,26 @@
         "expandAllLong": "Expand all long messages",
         "collapseAllLong": "Collapse all long messages",
         "showFullMessage": "Show full message"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "All caught up",
+        "resolvedCount_one": "{{count}} resolved",
+        "resolvedCount_other": "{{count}} resolved",
+        "snoozedCount_one": "{{count}} snoozed",
+        "snoozedCount_other": "{{count}} snoozed",
+        "showAll": "Show all",
+        "startNewThreadBelow": "Start a new thread below",
+        "recentlyResolved": "Recently resolved",
+        "reopen": "Reopen",
+        "noMatchHeading": "No threads match your filters",
+        "hiddenByForMe_one": "{{count}} open thread is hidden by For me.",
+        "hiddenByForMe_other": "{{count}} open threads are hidden by For me.",
+        "hiddenByFilters_one": "{{count}} open thread is hidden by your filters.",
+        "hiddenByFilters_other": "{{count}} open threads are hidden by your filters.",
+        "adjustOrResetFilters": "Adjust or reset your filters to see threads in this room.",
+        "turnOffForMe": "Turn off For me",
+        "resetAll": "Reset all",
+        "resetFilters": "Reset filters"
       }
     },
     "computer": {

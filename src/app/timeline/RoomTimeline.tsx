@@ -143,6 +143,7 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import {
   MINDROOM_ACCOUNTS_STATE_EVENT,
@@ -303,6 +304,7 @@ const useTimelineDisplaySettings = () => ({
   messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
   hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
+  simpleThreadFilters: !!useSettingValue(settingsAtom, 'simpleThreadFilters'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
@@ -367,6 +369,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     messageSpacing,
     showHiddenEvents,
     hideThreadFilterBar,
+    simpleThreadFilters,
     prefetchDepth,
   } = useTimelineDisplaySettings();
   const compactLayout = messageLayout === MessageLayout.Compact;
@@ -923,6 +926,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     [boundUserId, rosterAccountIds, joinedAccountIds, ignoredUsersSet]
   );
   const viewerId = mx.getUserId() ?? undefined;
+  const roomPermissions = useRoomPermissions(roomCreators, powerLevels);
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const canCompose = !!viewerId && roomPermissions.event('m.room.message', viewerId) && !tombstone;
   useLayoutEffect(() => {
     const onMembership = (_event: MatrixEvent, member: RoomMember, previous?: string) => {
       if (
@@ -2002,6 +2008,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
         threadSections={threadSectionsShown}
         onToggleThreadSections={sectionsOffered ? props.onToggleThreadSections : undefined}
+        hideEmptyState={compactCards && threadIndex.showCompactRoomView}
         peopleFilter={
           props.onTogglePerson && (
             <ThreadPeopleFilter
@@ -2070,6 +2077,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               ? threadFilterState.tab
               : undefined
           }
+          emptyState={{
+            filterState: threadFilterState,
+            now: threadIndex.snoozeNow,
+            canCompose,
+            onReset: props.onReset ?? ignoreFilterChange,
+            onToggleForMe: props.onToggleForMe,
+            onShowSnoozed:
+              !simpleThreadFilters && hasMindroomAgents && props.onSelectTab
+                ? () => props.onSelectTab?.('later')
+                : (props.onReset ?? ignoreFilterChange),
+          }}
         />
       </Box>
     );

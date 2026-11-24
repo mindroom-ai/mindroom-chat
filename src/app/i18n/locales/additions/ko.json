@@ -1196,6 +1196,22 @@
         "expandAllLong": "긴 메시지 모두 펼치기",
         "collapseAllLong": "긴 메시지 모두 접기",
         "showFullMessage": "전체 메시지 보기"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "모두 확인했습니다",
+        "resolvedCount_other": "해결됨 {{count}}개",
+        "snoozedCount_other": "일시 중지 {{count}}개",
+        "showAll": "모두 보기",
+        "startNewThreadBelow": "아래에서 새 스레드 시작",
+        "recentlyResolved": "최근 해결됨",
+        "reopen": "다시 열기",
+        "noMatchHeading": "필터와 일치하는 스레드가 없습니다",
+        "hiddenByForMe_other": "열린 스레드 {{count}}개가 '나를 위한 스레드' 필터로 숨겨져 있습니다.",
+        "hiddenByFilters_other": "열린 스레드 {{count}}개가 필터로 숨겨져 있습니다.",
+        "adjustOrResetFilters": "이 방의 스레드를 보려면 필터를 조정하거나 재설정하세요.",
+        "turnOffForMe": "'나를 위한 스레드' 끄기",
+        "resetAll": "모두 재설정",
+        "resetFilters": "필터 재설정"
       }
     },
     "computer": {
