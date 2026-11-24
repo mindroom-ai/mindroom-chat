@@ -74,14 +74,22 @@ describe('rankUsers', () => {
     expect(rankUsers(users, 'alcie').map((user) => user.userId)).toContain('@alice:example.org');
   });
 
-  it('matches a single-character substitution in a 4-letter name in the directory fallback', () => {
+  it('matches single-edit typos in short names in the directory fallback', () => {
     const john: ServerUserDirectoryUser = { userId: '@john:example.org', displayName: 'John' };
+    const sam: ServerUserDirectoryUser = { userId: '@sam:example.org', displayName: 'Sam' };
+    const tom: ServerUserDirectoryUser = { userId: '@tom:example.org', displayName: 'Tom' };
     expect(rankUsers([...users, john], 'jphn').map((user) => user.userId)).toEqual([
       '@john:example.org',
     ]);
+    expect(rankUsers([...users, sam], 'saam').map((user) => user.userId)).toEqual([
+      '@sam:example.org',
+    ]);
+    expect(rankUsers([...users, tom], 'tmo').map((user) => user.userId)).toEqual([
+      '@tom:example.org',
+    ]);
 
-    // Stronger fuzzy matches (e.g. a transposition) rank above a single-character substitution,
-    // and display-name substitutions outrank localpart-token substitutions.
+    // Stronger fuzzy matches (e.g. a transposition) rank above a one-edit fallback,
+    // and display-name fallback hits outrank localpart-token fallback hits.
     expect(
       rankUsers(
         [
@@ -93,14 +101,14 @@ describe('rankUsers', () => {
       ).map((user) => user.userId)
     ).toEqual(['@jpnh:example.org', '@john:example.org', '@john_doe:example.org']);
 
-    // Literal hits still suppress substitution fallback matches.
+    // Literal hits still suppress one-edit fallback matches.
     expect(
       rankUsers([john, { userId: '@jphn:example.org', displayName: 'Jphn' }], 'jphn').map(
         (user) => user.userId
       )
     ).toEqual(['@jphn:example.org']);
 
-    // Substitutions require length >= 3 and never match the homeserver domain.
+    // One-edit fallback requires length >= 3 and never matches the homeserver domain.
     expect(rankUsers([{ userId: '@bo:example.org', displayName: 'Bo' }], 'bp')).toEqual([]);
     expect(rankUsers([john], 'orb')).toEqual([]);
   });

@@ -1,6 +1,12 @@
 import type { Room } from 'matrix-js-sdk';
 
-import { foldText, matchWord, prepareText, type PreparedText } from '../lib/fuzzyMatch';
+import {
+  foldText,
+  matchWord,
+  prepareText,
+  typosBetween,
+  type PreparedText,
+} from '../lib/fuzzyMatch';
 import { Membership } from '../matrix/types/room';
 import { INVITE_AUTOCOMPLETE_LIMIT, type ServerUserDirectoryUser } from './userDirectoryCache';
 import { getMxIdLocalPart } from '../matrix/matrix';
@@ -69,13 +75,13 @@ const matchField = (value: string, query: string): FieldMatch => {
  */
 const NO_MATCH_TIER = 8;
 
-const MIN_SUBSTITUTION_LENGTH = 3;
-// Below every weighted matchWord score (minimum is 30 * 0.1 = 3.0 on non-name fields and
-// 16 * 0.25 = 4.0 on name fields) so exact, transposition, typo, initials, and abbreviation
-// matches always outrank a single-character substitution fallback.
-const SUBSTITUTION_FALLBACK_SCORE = 4;
-const SUBSTITUTION_TOKEN_PENALTY = -0.5;
-const SUBSTITUTION_TOKEN_PENALTY_CAP = 4;
+const MIN_ONE_EDIT_LENGTH = 3;
+// Weighted score is 4 * 0.5 = 2.0 on display name and 4 * 0.25 = 1.0 on post-prefix localpart,
+// strictly below every weighted matchWord score (minimum 3.0 on non-name fields, 4.0 on name
+// fields) so stronger fuzzy matches always outrank a one-edit fallback.
+const ONE_EDIT_FALLBACK_SCORE = 4;
+const ONE_EDIT_TOKEN_PENALTY = -0.5;
+const ONE_EDIT_TOKEN_PENALTY_CAP = 4;
 const TOKEN_SEPARATOR = /[^\p{L}\p{N}]+/u;
 
 const getRankTier = (user: ServerUserDirectoryUser, normalizedQuery: string): number => {
@@ -153,30 +159,22 @@ const getPreparedUsers = (users: readonly ServerUserDirectoryUser[]): PreparedUs
   return prepared;
 };
 
-const hasSingleCharSubstitution = (left: string, right: string): boolean => {
-  if (left.length !== right.length) return false;
-  let diffs = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    if (left.charCodeAt(index) !== right.charCodeAt(index)) {
-      diffs += 1;
-      if (diffs > 1) return false;
-    }
-  }
-  return diffs === 1;
-};
-
-const matchSingleCharSubstitution = (
+const matchSingleEditFallback = (
   word: string,
   prepared: PreparedText
 ): { score: number; detail: number } | undefined => {
-  if (word.length < MIN_SUBSTITUTION_LENGTH) return undefined;
+  if (word.length < MIN_ONE_EDIT_LENGTH) return undefined;
   let tokenIndex = 0;
   for (const token of prepared.text.split(TOKEN_SEPARATOR)) {
     if (token.length === 0) continue;
-    if (hasSingleCharSubstitution(word, token)) {
+    if (
+      token.length >= MIN_ONE_EDIT_LENGTH &&
+      Math.abs(word.length - token.length) <= 1 &&
+      typosBetween(word, token, 1) === 1
+    ) {
       return {
-        score: SUBSTITUTION_FALLBACK_SCORE,
-        detail: Math.min(tokenIndex, SUBSTITUTION_TOKEN_PENALTY_CAP) * SUBSTITUTION_TOKEN_PENALTY,
+        score: ONE_EDIT_FALLBACK_SCORE,
+        detail: Math.min(tokenIndex, ONE_EDIT_TOKEN_PENALTY_CAP) * ONE_EDIT_TOKEN_PENALTY,
       };
     }
     tokenIndex += 1;
@@ -187,7 +185,7 @@ const matchSingleCharSubstitution = (
 const scorePreparedUser = (
   fields: readonly PreparedField[],
   words: readonly string[],
-  allowSubstitution = false
+  allowOneEditFallback = false
 ): { score: number; detail: number } | undefined => {
   if (words.length === 0) return undefined;
   let scoreSum = 0;
@@ -198,8 +196,8 @@ const scorePreparedUser = (
     for (const field of fields) {
       const match =
         matchWord(word, field.prepared, field.name) ??
-        (allowSubstitution && field.name
-          ? matchSingleCharSubstitution(word, field.prepared)
+        (allowOneEditFallback && field.name
+          ? matchSingleEditFallback(word, field.prepared)
           : undefined);
       if (!match) continue;
       const score = match.score * field.weight;
