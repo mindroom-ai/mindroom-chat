@@ -1653,8 +1653,7 @@
       "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",
       "replyAndOthers_other": "{{name}} 님 외 {{count}}명이 답글을 남겼습니다",
       "finished": "{{name}} 님이 작업을 마쳤습니다",
-      "stopped": "{{name}} 님의 작업이 중지되었습니다",
-      "youReplied": "내가 답장함"
+      "stopped": "{{name}} 님의 작업이 중지되었습니다"
     },
     "newCount_other": "새 항목 {{count}}개",
     "runMinutes_other": "{{count}}분",

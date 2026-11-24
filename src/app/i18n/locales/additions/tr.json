@@ -1702,8 +1702,7 @@
       "replyAndOthers_one": "{{name}} ve {{count}} kişi daha yanıtladı",
       "replyAndOthers_other": "{{name}} ve {{count}} kişi daha yanıtladı",
       "finished": "{{name}} işini tamamladı",
-      "stopped": "{{name}} durdu",
-      "youReplied": "Yanıtladınız"
+      "stopped": "{{name}} durdu"
     },
     "newCount_one": "{{count}} yeni",
     "newCount_other": "{{count}} yeni",

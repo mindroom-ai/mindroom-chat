@@ -1800,8 +1800,7 @@
       "replyAndOthers_many": "{{name}} и ещё {{count}} участников ответили",
       "replyAndOthers_other": "{{name}} и ещё {{count}} участника ответили",
       "finished": "{{name}}: работа завершена",
-      "stopped": "{{name}}: работа остановлена",
-      "youReplied": "Вы ответили"
+      "stopped": "{{name}}: работа остановлена"
     },
     "newCount_one": "{{count}} новое",
     "newCount_few": "{{count}} новых",
