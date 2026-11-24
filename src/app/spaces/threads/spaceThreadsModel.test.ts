@@ -5,7 +5,10 @@ import {
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import { QUIET_AFTER_MS } from '../../event-store/threads/threadWorkflow';
-import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import {
+  getCrossRoomThreadIndexKey,
+  type CrossRoomThreadIndexEntry,
+} from '../../threads/cross-room/crossRoomThreadIndex';
 import {
   collectSpaceThreadEntries,
   filterAndSortSpaceThreads,
@@ -33,6 +36,7 @@ const runFilter = (
     simpleMode?: boolean;
     hasMindroomAgents?: boolean;
     groupSections?: boolean;
+    pinnedKeys?: readonly string[];
   } = {}
 ) =>
   filterAndSortSpaceThreads({
@@ -44,6 +48,7 @@ const runFilter = (
     snoozeNow: NOW,
     hasMindroomAgents: overrides.hasMindroomAgents ?? true,
     groupSections: overrides.groupSections ?? false,
+    pinnedKeys: overrides.pinnedKeys,
   });
 
 const rootIdsOf = (result: ReturnType<typeof runFilter>) =>
@@ -238,6 +243,42 @@ describe('spaceThreadsModel', () => {
       grouped.sections[3]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
     ).toEqual(['$quiet']);
     expect(grouped.nextQuietWakeTs).toBe(NOW - 3 + QUIET_AFTER_MS);
+  });
+
+  it('keeps a pinned >5-day-old unresolved thread in needsYou instead of folding it into quiet', () => {
+    const staleTs = NOW - QUIET_AFTER_MS - 60_000;
+    const entries = [
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$recent',
+        replyCount: 0,
+        lastActivityTs: NOW - 1_000,
+      }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_B,
+        threadRootId: '$pinnedOld',
+        replyCount: 0,
+        lastActivityTs: staleTs,
+      }),
+      makeSpaceThreadEntry({
+        roomId: ROOM_A,
+        threadRootId: '$unpinnedOld',
+        replyCount: 0,
+        lastActivityTs: staleTs,
+      }),
+    ];
+
+    const grouped = runFilter(entries, {
+      groupSections: true,
+      pinnedKeys: [getCrossRoomThreadIndexKey(ROOM_B, '$pinnedOld')],
+    });
+    expect(grouped.sections.map((section) => section.id)).toEqual(['needsYou', 'quiet']);
+    expect(
+      grouped.sections[0]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
+    ).toEqual(['$pinnedOld', '$recent']);
+    expect(
+      grouped.sections[1]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)
+    ).toEqual(['$unpinnedOld']);
   });
 
   it('sorts ascending across multiple surviving entries and respects simple-mode projection', () => {

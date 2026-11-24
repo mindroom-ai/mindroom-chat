@@ -19,6 +19,7 @@ import {
 } from '../../event-store/threads/roomThreadOverviewModel';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
+import { usePinnedEventIdsByRoom } from '../../event-store/threads/useThreadPinning';
 import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
@@ -26,7 +27,10 @@ import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
-import { crossRoomThreadIndexAtom } from '../../threads/cross-room/crossRoomThreadIndex';
+import {
+  crossRoomThreadIndexAtom,
+  getCrossRoomThreadIndexKey,
+} from '../../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { getCompactRoomSectionsAtom } from '../../threads/overview/compactRoomSections';
 import { roomThreadFilterAtomFamily } from '../../threads/overview/roomThreadFilterState';
@@ -52,6 +56,8 @@ import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
 import * as css from './SpaceThreads.css';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+const EMPTY_ROOMS: readonly Room[] = [];
+const EMPTY_PINNED_KEYS: readonly string[] = [];
 
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
@@ -68,6 +74,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     orderedRoomIds,
     hasMindroomAgents,
     threadListsSettled,
+    metaVersion,
     timelineTick,
   } = useSpaceThreadsRooms(space.roomId);
 
@@ -87,6 +94,17 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
   const sectionsEnabled = hasMindroomAgents && compactSections.on;
+  const pinnedByRoom = usePinnedEventIdsByRoom(sectionsEnabled ? spaceRooms : EMPTY_ROOMS);
+  const pinnedKeys = useMemo(() => {
+    if (pinnedByRoom.size === 0) return EMPTY_PINNED_KEYS;
+    const keys: string[] = [];
+    pinnedByRoom.forEach((ids, roomId) => {
+      for (let i = ids.length - 1; i >= 0; i -= 1) {
+        keys.push(getCrossRoomThreadIndexKey(roomId, ids[i]!));
+      }
+    });
+    return keys;
+  }, [pinnedByRoom]);
   const [quietClock, setQuietClock] = useState(() => ({
     enabled: sectionsEnabled,
     now: Date.now(),
@@ -131,6 +149,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         quietNow,
         hasMindroomAgents,
         groupSections: sectionsEnabled,
+        pinnedKeys,
         signalsOf: sectionsEnabled
           ? (entry) => {
               const room = roomsById.get(entry.roomId)?.room;
@@ -147,6 +166,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       hasMindroomAgents,
       mx,
       myUserId,
+      pinnedKeys,
       quietNow,
       roomsById,
       sectionsEnabled,
@@ -320,6 +340,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           roomsById={roomsById}
           showRoomBadge={activeRoomIds.length > 1}
           snoozeNow={snoozeNow}
+          metaVersion={metaVersion}
           showLoading={showLoading}
           emptyKey={emptyKey}
           onOpenThread={navigateRoomThread}

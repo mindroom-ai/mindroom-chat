@@ -61,6 +61,7 @@ type SpaceThreadCardRowProps = {
   accentColor: string;
   showRoomBadge: boolean;
   snoozeNow: number;
+  metaVersion: number;
   onOpenThread: (roomId: string, threadRootId: string) => void;
 };
 
@@ -71,6 +72,7 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
   accentColor,
   showRoomBadge,
   snoozeNow,
+  metaVersion,
   onOpenThread,
 }: SpaceThreadCardRowProps) {
   const { t, i18n } = useTranslation();
@@ -78,31 +80,31 @@ const SpaceThreadCardRow = memo(function SpaceThreadCardRow({
   const myUserId = mx.getSafeUserId();
   const useAuthentication = useMediaAuthentication();
 
-  const viewModel = useMemo(
-    () =>
-      buildCompactThreadCardViewModelFromRecord({
-        record: entry.threadRecord,
-        room,
-        forkedFrom: getForkedFrom(room, entry.threadRootId),
-        now: snoozeNow,
-        currentUserId: myUserId,
-        mx,
-        useAuthentication,
-        t,
-        locale: i18n.language,
-      }),
-    [
-      entry.threadRecord,
-      entry.threadRootId,
-      i18n.language,
-      mx,
-      myUserId,
+  const viewModel = useMemo(() => {
+    void metaVersion;
+    return buildCompactThreadCardViewModelFromRecord({
+      record: entry.threadRecord,
       room,
-      snoozeNow,
-      t,
+      forkedFrom: getForkedFrom(room, entry.threadRootId),
+      now: snoozeNow,
+      currentUserId: myUserId,
+      mx,
       useAuthentication,
-    ]
-  );
+      t,
+      locale: i18n.language,
+    });
+  }, [
+    entry.threadRecord,
+    entry.threadRootId,
+    i18n.language,
+    metaVersion,
+    mx,
+    myUserId,
+    room,
+    snoozeNow,
+    t,
+    useAuthentication,
+  ]);
 
   const badges = useMemo(() => {
     const confirmed = isConfirmedMatrixEventId(entry.threadRootId);
@@ -150,6 +152,7 @@ export type SpaceThreadsListProps = {
   roomsById: ReadonlyMap<string, SpaceRoomItem>;
   showRoomBadge: boolean;
   snoozeNow: number;
+  metaVersion: number;
   showLoading: boolean;
   emptyKey?: SpaceThreadsEmptyKey;
   onOpenThread: (roomId: string, threadRootId: string) => void;
@@ -165,6 +168,7 @@ export function SpaceThreadsList({
   roomsById,
   showRoomBadge,
   snoozeNow,
+  metaVersion,
   showLoading,
   emptyKey,
   onOpenThread,
@@ -184,6 +188,7 @@ export function SpaceThreadsList({
         accentColor={roomItem.accentColor}
         showRoomBadge={showRoomBadge}
         snoozeNow={snoozeNow}
+        metaVersion={metaVersion}
         onOpenThread={onOpenThread}
       />
     );

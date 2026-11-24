@@ -132,6 +132,7 @@ export type FilterAndSortSpaceThreadsOptions = {
   quietNow?: number;
   hasMindroomAgents: boolean;
   groupSections?: boolean;
+  pinnedKeys?: readonly string[];
   signalsOf?: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
 };
 
@@ -159,6 +160,7 @@ export const filterAndSortSpaceThreads = ({
   quietNow = snoozeNow,
   hasMindroomAgents,
   groupSections = false,
+  pinnedKeys = [],
   signalsOf,
 }: FilterAndSortSpaceThreadsOptions): SpaceThreadsResult => {
   const roomCounts = new Map<string, number>();
@@ -228,7 +230,7 @@ export const filterAndSortSpaceThreads = ({
         recordMap: keyedRecordMap,
         entryOf: (key) => entryByKey.get(key),
         signalsOf: (entry) => signalsOf?.(entry),
-        pinnedRootIds: [],
+        pinnedRootIds: pinnedKeys,
         now: snoozeNow,
         quietNow,
       })

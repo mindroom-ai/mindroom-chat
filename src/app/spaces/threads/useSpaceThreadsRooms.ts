@@ -60,19 +60,19 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   const store = useStore();
   const visibleSpaceRoomIds = useVisibleRooms(useSpaceNavigationRooms(spaceId));
   const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds);
-  const membersVersion = useLoadedRoomMembers(mx, visibleSpaceRoomIds);
+  const loadedMembersVersion = useLoadedRoomMembers(mx, visibleSpaceRoomIds);
   const spaceRooms = useMemo(
     () =>
       visibleSpaceRoomIds.map((id) => mx.getRoom(id)).filter((room): room is Room => Boolean(room)),
     [mx, visibleSpaceRoomIds]
   );
 
-  const [metaVersion, setMetaVersion] = useState(0);
+  const [roomMetaVersion, setRoomMetaVersion] = useState(0);
   const [timelineTick, setTimelineTick] = useState(0);
 
   useEffect(() => {
     if (spaceRooms.length === 0) return undefined;
-    const bumpMeta = () => setMetaVersion((tick) => tick + 1);
+    const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
     spaceRooms.forEach((room) => {
       room.on?.(RoomEvent.Name, bumpMeta);
       room.on?.(RoomStateEvent.Members, bumpMeta);
@@ -84,6 +84,8 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
       });
     };
   }, [spaceRooms]);
+
+  const metaVersion = roomMetaVersion + loadedMembersVersion;
 
   const roomsById = useMemo<ReadonlyMap<string, SpaceRoomItem>>(() => {
     void metaVersion;
@@ -141,9 +143,8 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
 
   const hasMindroomAgents = useMemo(() => {
     void metaVersion;
-    void membersVersion;
     return spaceRooms.some((room) => hasActiveMindroomAgent(room.getMembers?.() ?? []));
-  }, [membersVersion, metaVersion, spaceRooms]);
+  }, [metaVersion, spaceRooms]);
 
   return {
     spaceRooms,
@@ -152,6 +153,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
     orderedRoomIds,
     hasMindroomAgents,
     threadListsSettled,
+    metaVersion,
     timelineTick,
   };
 };

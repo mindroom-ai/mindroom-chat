@@ -17,6 +17,12 @@ import {
 } from './threadPinning';
 import { matchesEnum } from '../../lib/matchesEnum';
 
+const EMPTY_PINNED_BY_ROOM: ReadonlyMap<string, string[]> = new Map();
+
+const readRoomPinnedEventIds = (room: Room): string[] =>
+  getPendingPinnedEventIds(room) ??
+  getPinnedEventIds(getStateEvent(room, StateEvent.RoomPinnedEvents)?.getContent());
+
 export const usePinnedEventIds = (room: Room): string[] => {
   const [stateVersion, refresh] = useForceUpdate();
   useEffect(() => {
@@ -39,11 +45,47 @@ export const usePinnedEventIds = (room: Room): string[] => {
   return useMemo(() => {
     void version;
     void stateVersion;
-    return (
-      getPendingPinnedEventIds(room) ??
-      getPinnedEventIds(getStateEvent(room, StateEvent.RoomPinnedEvents)?.getContent())
-    );
+    return readRoomPinnedEventIds(room);
   }, [room, version, stateVersion]);
+};
+
+export const usePinnedEventIdsByRoom = (rooms: readonly Room[]): ReadonlyMap<string, string[]> => {
+  const [stateVersion, refresh] = useForceUpdate();
+  useEffect(() => {
+    if (rooms.length === 0) return undefined;
+    const handleState = (event: MatrixEvent) => {
+      if (matchesEnum(event.getType(), StateEvent.RoomPinnedEvents) && event.getStateKey() === '')
+        refresh();
+    };
+    rooms.forEach((room) => {
+      room.on?.(RoomStateEvent.Events, handleState);
+      room.on?.(RoomEvent.CurrentStateUpdated, refresh);
+    });
+    return () => {
+      rooms.forEach((room) => {
+        room.removeListener?.(RoomStateEvent.Events, handleState);
+        room.removeListener?.(RoomEvent.CurrentStateUpdated, refresh);
+      });
+    };
+  }, [rooms, refresh]);
+  const version = useSyncExternalStore(
+    subscribePendingPins,
+    getPendingPinsVersion,
+    getPendingPinsVersion
+  );
+  return useMemo(() => {
+    void version;
+    void stateVersion;
+    if (rooms.length === 0) return EMPTY_PINNED_BY_ROOM;
+    let pinnedByRoom: Map<string, string[]> | undefined;
+    rooms.forEach((room) => {
+      const ids = readRoomPinnedEventIds(room);
+      if (ids.length === 0) return;
+      pinnedByRoom ??= new Map();
+      pinnedByRoom.set(room.roomId, ids);
+    });
+    return pinnedByRoom ?? EMPTY_PINNED_BY_ROOM;
+  }, [rooms, version, stateVersion]);
 };
 
 export const useThreadPinning = (room: Room) => {

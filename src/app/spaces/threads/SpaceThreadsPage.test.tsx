@@ -27,6 +27,7 @@ import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { AccountDataEvent } from '../../matrix/types/accountData';
+import { StateEvent } from '../../matrix/types/room';
 import { QUIET_AFTER_MS } from '../../event-store/threads/threadWorkflow';
 import { settingsAtom } from '../../preferences/settings';
 import { useHistoryStackRecorder } from '../../routes/historyStack';
@@ -125,10 +126,24 @@ const createEmitter = () => {
   };
 };
 
+type FakeMemberInput = {
+  userId: string;
+  membership: string;
+  name: string;
+  rawDisplayName?: string;
+};
+
+const toFakeMember = (member: FakeMemberInput) => ({
+  ...member,
+  rawDisplayName: member.rawDisplayName ?? member.name,
+  getMxcAvatarUrl: () => null,
+});
+
 type FakeRoom = Room & {
   emit: (event: string, ...args: unknown[]) => void;
   setName: (next: string) => void;
-  setMembers: (next: Array<{ userId: string; membership: string; name: string }>) => void;
+  setMembers: (next: FakeMemberInput[]) => void;
+  setPinnedEventIds: (next: string[]) => void;
   setTimelineEvents: (next: unknown[]) => void;
 };
 
@@ -142,14 +157,21 @@ const makeRoom = (
     canonicalAlias?: string | null;
     threadMode?: RoomThreadMode;
     timelineEvents?: unknown[];
+    pinnedEventIds?: string[];
+    membersLoaded?: boolean;
+    loadMembersIfNeeded?: () => Promise<boolean>;
   } = {}
 ): FakeRoom => {
   const emitter = createEmitter();
   const canSend = opts.canSend ?? true;
   let name = initialName;
-  let members = opts.hasAgent
-    ? [{ userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' }]
-    : [{ userId: ME, membership: 'join', name: 'Me' }];
+  let membersLoaded = opts.membersLoaded ?? true;
+  let members = (
+    opts.hasAgent
+      ? [{ userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' }]
+      : [{ userId: ME, membership: 'join', name: 'Me' }]
+  ).map(toFakeMember);
+  let pinnedEventIds = opts.pinnedEventIds ?? [];
   let timelineEvents = opts.timelineEvents ?? [];
 
   const powerEvent = {
@@ -159,7 +181,13 @@ const makeRoom = (
     ? { getContent: () => ({ mode: opts.threadMode }) }
     : null;
   const state = {
-    getStateEvents: (type: string) => (type === 'm.room.power_levels' ? powerEvent : null),
+    getStateEvents: (type: string) => {
+      if (type === 'm.room.power_levels') return powerEvent;
+      if (type === (StateEvent.RoomPinnedEvents as string)) {
+        return { getContent: () => ({ pinned: pinnedEventIds }) };
+      }
+      return null;
+    },
   };
 
   return {
@@ -171,10 +199,14 @@ const makeRoom = (
     getType: () => (opts.isSpace ? 'm.space' : undefined),
     getMyMembership: () => 'join',
     getCanonicalAlias: () => opts.canonicalAlias ?? null,
-    membersLoaded: () => true,
-    loadMembersIfNeeded: () => Promise.resolve(true),
+    membersLoaded: () => membersLoaded,
+    loadMembersIfNeeded: () =>
+      (opts.loadMembersIfNeeded?.() ?? Promise.resolve(true)).then((loaded) => {
+        membersLoaded = true;
+        return loaded;
+      }),
     getMembers: () => members,
-    getMember: () => null,
+    getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
     getThread: () => undefined,
     findEventById: (eventId: string) =>
       (timelineEvents as Array<{ getId?: () => string }>).find((e) => e.getId?.() === eventId),
@@ -199,8 +231,11 @@ const makeRoom = (
     setName: (next: string) => {
       name = next;
     },
-    setMembers: (next: Array<{ userId: string; membership: string; name: string }>) => {
-      members = next;
+    setMembers: (next: FakeMemberInput[]) => {
+      members = next.map(toFakeMember);
+    },
+    setPinnedEventIds: (next: string[]) => {
+      pinnedEventIds = next;
     },
     setTimelineEvents: (next: unknown[]) => {
       timelineEvents = next;
@@ -811,6 +846,97 @@ describe('SpaceThreadsPage', () => {
 
     fireEvent.click(within(quietSection as HTMLElement).getByRole('button'));
     expect(screen.getByText('Quiet thread')).toBeTruthy();
+  });
+
+  it('keeps pinned >5-day-old unresolved threads in needsYou and updates live when room pins change', () => {
+    const now = Date.now();
+    const staleTs = now - QUIET_AFTER_MS - 60_000;
+    const eng = makeRoom(ROOM_ENG, 'Engineering', {
+      hasAgent: true,
+      pinnedEventIds: ['$pinned-stale'],
+    });
+    const des = makeRoom(ROOM_DES, 'Design', { hasAgent: true });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$pinned-stale', 'Pinned stale thread', staleTs, ME, 0),
+      makeEntry(ROOM_DES, 'Design', '$quiet-stale', 'Unpinned stale thread', staleTs, ME, 0),
+    ];
+    const store = createStore();
+    store.set(getCompactRoomSectionsAtom(ME), { type: 'SET_ON', on: true });
+
+    const { container } = renderSpaceThreads({ rooms: [eng, des], entries, store });
+    expect(container.querySelector('[data-compact-section="needsYou"]')).toBeTruthy();
+    expect(container.querySelector('[data-compact-section="quiet"]')).toBeTruthy();
+    expect(screen.getByText('Pinned stale thread')).toBeTruthy();
+    expect(screen.queryByText('Unpinned stale thread')).toBeNull();
+
+    act(() => {
+      eng.setPinnedEventIds([]);
+      eng.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomPinnedEvents,
+        getStateKey: () => '',
+      });
+    });
+    expect(container.querySelector('[data-compact-section="needsYou"]')).toBeNull();
+    expect(screen.queryByText('Pinned stale thread')).toBeNull();
+
+    act(() => {
+      des.setPinnedEventIds(['$quiet-stale']);
+      des.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomPinnedEvents,
+        getStateKey: () => '',
+      });
+    });
+    expect(container.querySelector('[data-compact-section="needsYou"]')).toBeTruthy();
+    expect(screen.getByText('Unpinned stale thread')).toBeTruthy();
+  });
+
+  it('updates memoized card sender display name when child room members load or change without changing entry', async () => {
+    const bobId = '@bob:example.org';
+    let resolveLoadMembers!: (loaded: boolean) => void;
+    const loadMembersPromise = new Promise<boolean>((resolve) => {
+      resolveLoadMembers = resolve;
+    });
+    const eng = makeRoom(ROOM_ENG, 'Engineering', {
+      hasAgent: true,
+      membersLoaded: false,
+      loadMembersIfNeeded: () => loadMembersPromise,
+    });
+    const entry = makeSpaceThreadEntry({
+      roomId: ROOM_ENG,
+      roomName: 'Engineering',
+      threadRootId: '$member-update',
+      summaryText: 'Deploy status',
+      rootPreviewText: 'Root: Deploy status',
+      latestReplyPreviewText: 'Checking in',
+      rootSenderId: bobId,
+      participantIds: [bobId],
+      lastActivityTs: NOW,
+      isForUser: true,
+    });
+
+    const { store } = renderSpaceThreads({ rooms: [eng], entries: [entry] });
+    expect(screen.getByText('bob: Checking in')).toBeTruthy();
+
+    await act(async () => {
+      eng.setMembers([
+        { userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' },
+        { userId: bobId, membership: 'join', name: 'Bob Builder' },
+      ]);
+      resolveLoadMembers(true);
+      await loadMembersPromise;
+    });
+    expect(screen.getByText('Bob Builder: Checking in')).toBeTruthy();
+    expect(store.get(crossRoomThreadIndexAtom).entries.get(entry.key)).toBe(entry);
+
+    act(() => {
+      eng.setMembers([
+        { userId: '@mindroom_code:example.org', membership: 'join', name: 'Code' },
+        { userId: bobId, membership: 'join', name: 'Robert Builder' },
+      ]);
+      eng.emit(RoomStateEvent.Members);
+    });
+    expect(screen.getByText('Robert Builder: Checking in')).toBeTruthy();
+    expect(store.get(crossRoomThreadIndexAtom).entries.get(entry.key)).toBe(entry);
   });
 
   it('steps back on mobile when opened from the room-ID lobby path for a space with a canonical alias', () => {

@@ -39,13 +39,13 @@ const optionalSegment = (value: string | undefined): string | null => value || n
 
 const trimSlashes = (value: string): string => value.replace(/^\/+/, '').replace(/\/+$/, '');
 
+/** Room IDs start with `!` and aliases with `#`; reserved route segments like `lobby` or `threads` do not. */
+export const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
+
 /**
  * A route parameter built with `encodeURIComponent`, decoded. A value that is not valid
  * percent-encoding, such as a hand-typed `%`, stays as it is instead of throwing.
  */
-/** Room IDs start with `!` and aliases with `#`; reserved route segments like `lobby` or `threads` do not. */
-export const isRoomIdOrAliasSegment = (value: string): boolean => /^[!#]/.test(value);
-
 export const decodeRouteParam = (value: string): string => {
   try {
     return decodeURIComponent(value);
