@@ -8,7 +8,7 @@ import {
   registerAgentAccount,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
-import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
+import { PHONE_SHEET_RADIUS, borderWidthsOf, cornersOf } from '../helpers/cardCorners';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -19,10 +19,10 @@ import {
 // a dimmed room. The scrim, Escape, a swipe toward the end edge, the menu button and a room picked
 // in the search put it away; closed after a keyboard opened it, it gives the focus back to the
 // button that opened it (Members or More Options); while it is out a swipe from the start edge
-// brings out no drawer. It rounds only its corner over the page, as the drawer does, with the page
-// card's radius. 390 by 844 (and 744 by 1133 for the corner) with touch, in Chromium with real
-// touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
-// PHONE_MEMBERS_SHOTS=<directory> to save screenshots.
+// brings out no drawer. It rounds only its lower corner over the page (28 px) with a 1 px hairline
+// along the edge facing the page, mirroring the drawer. 390 by 844 (and 744 by 1133 for the corner)
+// with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, in WebKit. Set PHONE_MEMBERS_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'phone-members-sheet-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PHONE_MEMBERS_SHOTS;
@@ -283,7 +283,7 @@ for (const engine of ENGINES) {
 const TABLET = { width: 744, height: 1133 };
 
 for (const engine of ENGINES) {
-  test(`${engine}: the members sheet rounds its corner over the page as the page card does`, async ({
+  test(`${engine}: the members sheet rounds its corner over the page with a hairline edge`, async ({
     browser,
   }, testInfo) => {
     test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
@@ -323,16 +323,15 @@ for (const engine of ENGINES) {
           /* eslint-enable no-await-in-loop */
         }
 
-        // The page card's corner, where the page floats beside the rail.
-        const card = await pageCardRadius(page);
-
         for (const viewport of [PHONE.viewport, TABLET]) {
           /* eslint-disable no-await-in-loop -- one size after the other on one page. */
           await page.setViewportSize(viewport);
           await openMembers(page);
-          // Only the corner over the page is round: the top one meets the bar, the others the
-          // screen's edge. What the sheet holds is clipped to it.
-          expect(await sheet(page).evaluate(cornersOf)).toEqual([0, 0, 0, card]);
+          // Only the lower corner over the page is round (28 px) and only the edge facing the page
+          // carries a 1 px hairline: the top meets the bar and the other edges meet the screen.
+          // What the sheet holds is clipped to the rounded corner.
+          expect(await sheet(page).evaluate(cornersOf)).toEqual([0, 0, 0, PHONE_SHEET_RADIUS]);
+          expect(await sheet(page).evaluate(borderWidthsOf)).toEqual([0, 0, 0, 1]);
           expect(await sheet(page).evaluate((panel) => getComputedStyle(panel).overflow)).toMatch(
             /^(clip|hidden)$/
           );
@@ -341,10 +340,12 @@ for (const engine of ENGINES) {
           /* eslint-enable no-await-in-loop */
         }
 
-        // Right to left, the sheet comes from the left edge and rounds its bottom-right corner.
+        // Right to left, the sheet comes from the left edge, rounds its bottom-right corner, and
+        // draws its 1 px hairline along the right edge facing the page.
         await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
         await openMembers(page);
-        expect(await sheet(page).evaluate(cornersOf)).toEqual([0, 0, card, 0]);
+        expect(await sheet(page).evaluate(cornersOf)).toEqual([0, 0, PHONE_SHEET_RADIUS, 0]);
+        expect(await sheet(page).evaluate(borderWidthsOf)).toEqual([0, 1, 0, 0]);
       } finally {
         await context.close();
       }

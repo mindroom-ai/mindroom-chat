@@ -59,8 +59,9 @@ export const Scrim = style([
  * The drawer: the rail and the section's list side by side, as wide as the screen leaves room for
  * beside a strip of the scrim, or as wide as the rail when the page has no list. A sheet over the
  * page, it rounds its one free lower corner to 28 px and draws a hairline (`ContainerLine`) along
- * its inner edge so it separates cleanly from the dimmed page: the top meets the bar and the other
- * edges meet the screen. Off screen past the start edge while closed, and hidden once it got there.
+ * the edge facing the page so it separates cleanly from the dimmed page: the top meets the bar and
+ * the other edges meet the screen. Off screen past the start edge while closed, and hidden once it
+ * got there.
  */
 export const Panel = style([
   DefaultReset,
