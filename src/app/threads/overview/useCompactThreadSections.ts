@@ -10,10 +10,7 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
-import {
-  buildCompactThreadSections,
-  type CompactThreadSection,
-} from './compactThreadSections';
+import { buildCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
@@ -119,7 +116,6 @@ export const useCompactThreadSections = ({
     );
     return () => clearTimeout(timer);
     // quietClock.now is a dependency so a capped timer re-arms for the rest of a long wait.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, nextQuietWakeTs, quietClock.now]);
 
   return result?.sections;

@@ -29,6 +29,7 @@ import {
   isFailedLocalEchoEvent,
   isPendingLocalEchoEvent,
 } from '../../matrix/protocol/pendingLocalEcho';
+import { getPendingThreadEvents } from '../cache/pendingThreadEvents';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
@@ -212,21 +213,21 @@ const isFailedThreadEvent = (event: MatrixEvent | undefined): boolean =>
 
 const getThreadPendingSend = (
   threadRootEvent: MatrixEvent | undefined,
-  replyEvents: MatrixEvent[]
-): boolean => {
-  if (isPendingThreadEvent(threadRootEvent)) return true;
-
-  return replyEvents.some((event) => isPendingThreadEvent(event));
-};
+  replyEvents: MatrixEvent[],
+  pendingReplyEvents: MatrixEvent[]
+): boolean =>
+  isPendingThreadEvent(threadRootEvent) ||
+  replyEvents.some(isPendingThreadEvent) ||
+  pendingReplyEvents.some(isPendingThreadEvent);
 
 const getThreadFailedSend = (
   threadRootEvent: MatrixEvent | undefined,
-  replyEvents: MatrixEvent[]
-): boolean => {
-  if (isFailedThreadEvent(threadRootEvent)) return true;
-
-  return replyEvents.some((event) => isFailedThreadEvent(event));
-};
+  replyEvents: MatrixEvent[],
+  pendingReplyEvents: MatrixEvent[]
+): boolean =>
+  isFailedThreadEvent(threadRootEvent) ||
+  replyEvents.some(isFailedThreadEvent) ||
+  pendingReplyEvents.some(isFailedThreadEvent);
 
 export const getThreadReplyCount = (
   room: Room,
@@ -450,8 +451,17 @@ export const buildThreadRecord = ({
     threadResolution?.tags?.[SNOOZED_TAG] as TagMetadata | undefined
   );
   const isStreaming = getThreadStreamingState(room, threadRootId);
-  const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
-  const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, visibleReplyEvents);
+  const pendingReplyEvents = getPendingThreadEvents(room, threadRootId);
+  const hasPendingSend = getThreadPendingSend(
+    resolvedThreadRootEvent,
+    visibleReplyEvents,
+    pendingReplyEvents
+  );
+  const hasFailedSend = getThreadFailedSend(
+    resolvedThreadRootEvent,
+    visibleReplyEvents,
+    pendingReplyEvents
+  );
 
   return {
     roomId: room.roomId,
