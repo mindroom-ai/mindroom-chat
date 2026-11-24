@@ -192,8 +192,11 @@ const seedThreads = async () => {
   await fill(weatherRoot, 'Weather cache', 2);
   await reply(weatherRoot, thought(UPPER_ANSWER, 'Verify region normalization before TTL.', 5000));
   await fill(weatherRoot, 'Weather cache', 6);
-  const shortBody = [mark(READ, 1), mark(GREP, 2), SHORT_ANSWER];
-  const shortReason = { text: 'Inspect cache readers.\n\nPass region.', duration_ms: 8000 };
+  const shortBody = [SHORT_ANSWER, mark(READ, 1), mark(GREP, 2)];
+  const shortReason = {
+    text: 'Inspect cache readers.\n\nCheck region prefix.\n\nConfirm 300 s TTL.',
+    duration_ms: 8000,
+  };
   await reply(
     weatherRoot,
     agentReply(shortBody, [READ, GREP], { 'io.mindroom.reasoning': shortReason })

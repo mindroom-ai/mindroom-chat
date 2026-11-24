@@ -37,8 +37,6 @@ type MessageExtraDetailsProps = React.DetailedHTMLProps<
   HTMLDetailsElement
 > & {
   defaultOpen: boolean;
-  summary: React.ReactNode;
-  summaryClassName?: string;
 };
 
 type MessageExtrasProps = {
@@ -144,33 +142,21 @@ function MessageExtraSectionContent({
 const getSectionKey = (section: MessageExtrasSection, index: number): string =>
   `${index}:${section.title}:${section.contentType}`;
 
-function MessageExtraDetails({
-  defaultOpen,
-  summary,
-  summaryClassName,
-  children,
-  ...props
-}: MessageExtraDetailsProps) {
+function MessageExtraDetails({ defaultOpen, ...props }: MessageExtraDetailsProps) {
   const initializedRef = useRef(false);
-  const { detailsRef, onToggle, summaryProps } = useDetailsRevealOnOpen();
+  const revealRef = useDetailsRevealOnOpen();
   const handleRef = useCallback(
     (node: HTMLDetailsElement | null) => {
-      detailsRef.current = node;
+      revealRef(node);
       if (!node || initializedRef.current) return;
+
       node.open = defaultOpen;
       initializedRef.current = true;
     },
-    [defaultOpen, detailsRef]
+    [defaultOpen, revealRef]
   );
 
-  return (
-    <details {...props} ref={handleRef} onToggle={onToggle}>
-      <summary className={summaryClassName} {...summaryProps}>
-        {summary}
-      </summary>
-      {children}
-    </details>
-  );
+  return <details {...props} ref={handleRef} />;
 }
 
 export function MessageExtras({
@@ -192,14 +178,14 @@ export function MessageExtras({
       aria-label={t('mindroomUi.messages.mindroomMessageExtras.messageExtras')}
     >
       {extras.sections.map((section, index) => {
+        const detailsProps: MessageExtraDetailsProps = {
+          className: css.Section,
+          defaultOpen: !section.collapsed,
+        };
+
         return (
-          <MessageExtraDetails
-            key={getSectionKey(section, index)}
-            className={css.Section}
-            defaultOpen={!section.collapsed}
-            summary={section.title}
-            summaryClassName={css.Summary}
-          >
+          <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
+            <summary className={css.Summary}>{section.title}</summary>
             <div className={css.Content}>
               {/* Only the reply's body draws a secret request at its call, and gives
               approval cards to calls by their tool's name. */}

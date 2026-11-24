@@ -13,13 +13,13 @@ import { READER_INTENT_EVENTS } from './roomTimelineScroll';
  * from that gesture, not from the observer's last pass: under load the list takes a reply's rows
  * a pass late, and the pass with its finishing edit's growth can follow one that took its last
  * frames' growth.
- * The reader counts as at the bottom by their last scroll, before the growth: a measurement
- * correction can move the scroll position along with the growth, so the position after it
- * cannot tell a pinned reader from one a little above the bottom.
+ * For live streaming frames, pinning is judged by the reader's last scroll before that frame's
+ * growth: a measurement correction can move the scroll position along with the growth, so the
+ * position after it cannot tell a pinned reader from one a little above the bottom. Non-frame
+ * growth or shrink refreshes bottom pinning from the live viewport distance, and an active
+ * disclosure reveal suppresses growth-follow writes so the reveal owns scrollTop.
  * Only a timeline at its live end follows: at the bottom of older history, the growth is newer
  * events loading, and following it would page the reader through history they have not read.
- * Growth or shrink without a live frame refreshes bottom pinning from the live viewport distance,
- * and an active disclosure reveal suppresses growth-follow writes so the reveal owns scrollTop.
  */
 export const useFollowContentGrowth = (
   getScrollElement: () => HTMLElement | null,

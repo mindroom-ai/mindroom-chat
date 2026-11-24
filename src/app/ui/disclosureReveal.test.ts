@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { act, createElement, type ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DISCLOSURE_REVEAL_TOP_MARGIN_PX,
@@ -7,6 +9,7 @@ import {
   isDisclosureRevealActive,
   measureExpandedBottom,
   scheduleDisclosureReveal,
+  useDetailsRevealOnOpen,
 } from './disclosureReveal';
 import { HEADER_OUT_OF_PADDING } from './styles/threadHeaderInset';
 
@@ -246,5 +249,114 @@ describe('scheduleDisclosureReveal', () => {
     // Overflowing scroller: returns immediately on scrollHeight > clientHeight.
     Object.defineProperty(scroller, 'scrollHeight', { configurable: true, value: 1200 });
     expect(findScrollContainer(toggle)).toBe(scroller);
+  });
+
+  describe('useDetailsRevealOnOpen', () => {
+    let root: Root | undefined;
+
+    afterEach(() => {
+      act(() => root?.unmount());
+      root = undefined;
+    });
+
+    function TestDetails({
+      id,
+      open,
+      children,
+    }: {
+      id: string;
+      open?: boolean;
+      children?: ReactNode;
+    }) {
+      const revealRef = useDetailsRevealOnOpen();
+      return createElement('details', { id, open, ref: revealRef }, children);
+    }
+
+    it('reveals on direct summary open, skips initial open and close, and isolates nested details', () => {
+      const { scroller, rows } = createFixture();
+      const host = document.createElement('div');
+      rows.append(host);
+      root = createRoot(host);
+      act(() =>
+        root!.render(
+          createElement(
+            'div',
+            null,
+            createElement(
+              TestDetails,
+              { id: 'initial', open: true },
+              createElement('summary', null, 'Open on mount')
+            ),
+            createElement(
+              TestDetails,
+              { id: 'outer' },
+              createElement('summary', null, 'Outer'),
+              createElement(
+                TestDetails,
+                { id: 'inner' },
+                createElement('summary', null, createElement('span', { id: 'inner-label' }, 'In'))
+              )
+            )
+          )
+        )
+      );
+
+      const initial = host.querySelector<HTMLDetailsElement>('#initial')!;
+      const outer = host.querySelector<HTMLDetailsElement>('#outer')!;
+      const inner = host.querySelector<HTMLDetailsElement>('#inner')!;
+      const outerSummary = outer.querySelector<HTMLElement>(':scope > summary')!;
+      const innerSummary = inner.querySelector<HTMLElement>(':scope > summary')!;
+      const innerLabel = host.querySelector<HTMLElement>('#inner-label')!;
+      const bindRects = (el: HTMLElement, top: number, height: number) => {
+        el.getBoundingClientRect = () => rect(top - scroller.scrollTop, height);
+      };
+      bindRects(initial, 560, 200);
+      bindRects(outerSummary, 520, 24);
+      bindRects(outer, 520, 220);
+      bindRects(innerSummary, 560, 24);
+      bindRects(inner, 560, 210);
+
+      // Initially open <details open> never triggers a reveal even if toggle fires.
+      act(() => {
+        initial.dispatchEvent(new Event('toggle'));
+      });
+      flushFrame();
+      expect(scroller.scrollTop).toBe(200);
+
+      // Clicking nested summary arms and reveals only the inner <details>, never the outer one.
+      act(() => {
+        innerLabel.click();
+        inner.open = true;
+        inner.dispatchEvent(new Event('toggle'));
+      });
+      expect(isDisclosureRevealActive(scroller)).toBe(true);
+      flushFrame();
+      expect(scroller.scrollTop).toBe(266);
+
+      // Outer was not armed by the inner summary click.
+      act(() => {
+        outer.open = true;
+        outer.dispatchEvent(new Event('toggle'));
+      });
+      expect(isDisclosureRevealActive(scroller)).toBe(false);
+
+      // Clicking summary to close does not reveal; re-opening outer via its own summary does.
+      act(() => {
+        outerSummary.click();
+        outer.open = false;
+        outer.dispatchEvent(new Event('toggle'));
+      });
+      flushFrame();
+      expect(scroller.scrollTop).toBe(266);
+
+      bindRects(outer, 600, 250);
+      act(() => {
+        outerSummary.click();
+        outer.open = true;
+        outer.dispatchEvent(new Event('toggle'));
+      });
+      flushFrame();
+      expect(scroller.scrollTop).toBe(346);
+    });
   });
 });

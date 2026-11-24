@@ -299,45 +299,73 @@ export const useRevealOnOpen = (
 };
 
 /**
- * Arms clamped reveal on native `<details>` only when the reader activates `<summary>` from a
- * closed state. Initial `defaultOpen` and collapse never scroll.
+ * Returns a ref callback for native `<details>` that arms clamped reveal when the reader clicks
+ * its direct `<summary>` from a closed state. Initial `open` / `defaultOpen`, nested `<details>`
+ * clicks, and collapse never scroll.
  */
-export const useDetailsRevealOnOpen = () => {
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const summaryRef = useRef<HTMLElement>(null);
-  const armedRef = useRef(false);
-  const cancelRef = useRef<(() => void) | undefined>(undefined);
+export const useDetailsRevealOnOpen = (): ((node: HTMLDetailsElement | null) => void) => {
+  const detachRef = useRef<(() => void) | undefined>(undefined);
+  const nodeRef = useRef<HTMLDetailsElement | null>(null);
 
-  const cancel = useCallback(() => {
-    cancelRef.current?.();
-    cancelRef.current = undefined;
-  }, []);
-  useEffect(() => cancel, [cancel]);
+  const attach = useCallback((node: HTMLDetailsElement | null) => {
+    detachRef.current?.();
+    detachRef.current = undefined;
+    nodeRef.current = node;
+    if (!node) return;
 
-  const arm = useCallback(() => {
-    const details = detailsRef.current;
-    if (!details) return;
-    if (details.open) {
-      armedRef.current = false;
-      cancel();
-    } else {
-      armedRef.current = true;
-    }
-  }, [cancel]);
-
-  const onToggle = useCallback(() => {
-    const wasArmed = armedRef.current;
-    armedRef.current = false;
-    cancel();
-    const details = detailsRef.current;
-    const summary = summaryRef.current ?? details?.querySelector('summary');
-    if (wasArmed && details?.open && summary) {
-      cancelRef.current = scheduleDisclosureReveal({
+    let armed = false;
+    let cancelReveal: (() => void) | undefined;
+    const stopReveal = () => {
+      cancelReveal?.();
+      cancelReveal = undefined;
+    };
+    const onClick = (event: MouseEvent) => {
+      const target =
+        event.target instanceof Element
+          ? event.target
+          : event.target instanceof Node
+            ? event.target.parentElement
+            : null;
+      const summary = target?.closest('summary');
+      if (!summary || summary.parentElement !== node) return;
+      if (node.open) {
+        armed = false;
+        stopReveal();
+      } else {
+        armed = true;
+      }
+    };
+    const onToggle = () => {
+      const wasArmed = armed;
+      armed = false;
+      stopReveal();
+      if (!wasArmed || !node.open) return;
+      const summary =
+        Array.from(node.children).find(
+          (child): child is HTMLElement => child.tagName === 'SUMMARY'
+        ) ?? node;
+      cancelReveal = scheduleDisclosureReveal({
         toggle: summary,
-        getTargets: () => (detailsRef.current ? [detailsRef.current] : []),
+        getTargets: () => (node.isConnected ? [node] : []),
       });
-    }
-  }, [cancel]);
+    };
+    node.addEventListener('click', onClick);
+    node.addEventListener('toggle', onToggle);
+    detachRef.current = () => {
+      stopReveal();
+      node.removeEventListener('click', onClick);
+      node.removeEventListener('toggle', onToggle);
+    };
+  }, []);
 
-  return { detailsRef, onToggle, summaryProps: { ref: summaryRef, onClick: arm } };
+  // React StrictMode replays effects without replaying DOM refs.
+  useEffect(() => {
+    if (nodeRef.current && !detachRef.current) attach(nodeRef.current);
+    return () => {
+      detachRef.current?.();
+      detachRef.current = undefined;
+    };
+  }, [attach]);
+
+  return attach;
 };

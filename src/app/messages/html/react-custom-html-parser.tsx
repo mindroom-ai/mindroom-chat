@@ -42,6 +42,7 @@ import {
 } from '../../rich-text/code/codeBlockLanguage';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { useDetailsRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
@@ -586,6 +587,11 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
  * A Matrix spoiler (`data-mx-spoiler`, whose value is an optional reason): hidden until clicked
  * or activated with the keyboard. Links inside never load a site icon, even once revealed.
  */
+function RevealDetails(props: ComponentPropsWithoutRef<'details'>) {
+  const revealRef = useDetailsRevealOnOpen();
+  return <details {...props} ref={revealRef} />;
+}
+
 function Spoiler({ reason, children }: { reason?: string; children: ReactNode }) {
   const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
@@ -858,6 +864,19 @@ export const getReactCustomHtmlParser = (
         default:
           return undefined;
       }
+    },
+    // Wrap <details> in transform rather than replace so outer option wrappers (such as tool-trace
+    // marker parsing in HtmlBlocks.tsx) still process children inside <details>.
+    transform: (reactNode, domNode) => {
+      if (
+        isTag(domNode) &&
+        domNode.name === 'details' &&
+        React.isValidElement<ComponentPropsWithoutRef<'details'>>(reactNode) &&
+        reactNode.type === 'details'
+      ) {
+        return <RevealDetails key={reactNode.key} {...reactNode.props} />;
+      }
+      return reactNode as JSX.Element | string | null;
     },
   };
   return parserOptions;
