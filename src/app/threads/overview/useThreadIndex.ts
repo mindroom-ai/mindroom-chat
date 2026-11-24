@@ -298,8 +298,8 @@ export const resolveThreadIndexSnapshot = ({
   const overviewThreadRootIds = showCompactRoomView
     ? compactOverviewOrdering.displayOrderedIds
     : roomThreadFilterActive
-    ? normalOverviewOrdering.displayOrderedIds
-    : [];
+      ? normalOverviewOrdering.displayOrderedIds
+      : [];
   const countThreadRootIds = showCompactRoomView ? compactThreadRootIds : visibleThreadRootIds;
 
   return {

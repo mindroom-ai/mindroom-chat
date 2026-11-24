@@ -9,19 +9,19 @@ import {
 } from './stopReaction';
 
 const makeTargetEvent = (content: Record<string, unknown>): MatrixEvent =>
-  ({ getContent: () => content } as MatrixEvent);
+  ({ getContent: () => content }) as MatrixEvent;
 
 const makeReactionEvent = (): MatrixEvent =>
   ({
     getSender: () => '@agent:mindroom.chat',
     getRelation: () => ({ rel_type: 'm.annotation' }),
     isRedacted: () => false,
-  } as MatrixEvent);
+  }) as MatrixEvent;
 
 const makeRelations = (keys: string[]): Relations =>
   ({
     getSortedAnnotationsByKey: () => keys.map((key) => [key, new Set([makeReactionEvent()])]),
-  } as unknown as Relations);
+  }) as unknown as Relations;
 
 describe('isStaleStopReactionKey', () => {
   it.each(['🛑', '⏹️', '⏹'])('hides the %s stop chip when stream_status is terminal', (key) => {
@@ -95,9 +95,9 @@ describe('getRenderableAnnotationsByKey', () => {
 });
 
 describe('isAgentStopButton', () => {
-  const reaction = (sender: string) => ({ getSender: () => sender } as MatrixEvent);
+  const reaction = (sender: string) => ({ getSender: () => sender }) as MatrixEvent;
   const reply = (content: Record<string, unknown>) =>
-    ({ getSender: () => '@agent:mindroom.chat', getContent: () => content } as MatrixEvent);
+    ({ getSender: () => '@agent:mindroom.chat', getContent: () => content }) as MatrixEvent;
   const streaming = reply({ 'io.mindroom.stream_status': 'streaming' });
 
   it("is the agent's stop reaction on its streaming reply", () => {

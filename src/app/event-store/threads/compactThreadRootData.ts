@@ -156,9 +156,7 @@ export const getCompactThreadRootPreviewInfo = (
       ? getEditedEvent(options.eventId, event, options.room.getUnfilteredTimelineSet())
       : undefined);
   const content = getLatestMessageContent(event, editedEvent) as
-    | Record<string, unknown>
-    | null
-    | undefined;
+    Record<string, unknown> | null | undefined;
   const previewText = getThreadMessagePreviewText(content);
   if (!previewText) return undefined;
 

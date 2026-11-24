@@ -26,7 +26,7 @@ type ReactionProps = {
 export const Reaction = as<'button', ReactionProps>(
   ({ className, mx, reaction, count, label, useAuthentication, onClick, ...props }, ref) => {
     const imageSrc = reaction.startsWith('mxc://')
-      ? mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined
+      ? (mxcUrlToHttp(mx, reaction, useAuthentication) ?? undefined)
       : undefined;
     return (
       <button
@@ -84,8 +84,8 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
     .map((event) => event.getContent().shortcode)
     .find((value): value is string => typeof value === 'string');
   const shortcode = reaction.startsWith('mxc://')
-    ? customShortcode ?? reaction
-    : emojiData?.getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction;
+    ? (customShortcode ?? reaction)
+    : (emojiData?.getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction);
 
   return (
     <Trans

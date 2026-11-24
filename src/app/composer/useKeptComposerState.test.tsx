@@ -21,7 +21,7 @@ const reply: IReplyDraft = {
   relation: { rel_type: 'm.thread', event_id: '$root' },
 };
 const staged = (name: string) =>
-  ({ file: new File(['x'], name), originalFile: new File(['x'], name) } as unknown as TUploadItem);
+  ({ file: new File(['x'], name), originalFile: new File(['x'], name) }) as unknown as TUploadItem;
 
 let values: Map<string, string>;
 let renderer: ReactTestRenderer | undefined;

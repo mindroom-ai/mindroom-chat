@@ -135,7 +135,9 @@ describe('screenKey', () => {
     };
 
     expect(screenKey(unmatchedCompanion)).toBe(screenKey(foldedPrimary));
-    expect(pickFocus([me, unmatchedCompanion], undefined)).toBe(pickFocus([me, foldedPrimary], undefined));
+    expect(pickFocus([me, unmatchedCompanion], undefined)).toBe(
+      pickFocus([me, foldedPrimary], undefined)
+    );
     expect(pickScope([me, unmatchedCompanion])).toBe(pickScope([me, foldedPrimary]));
   });
 });

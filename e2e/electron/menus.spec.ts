@@ -299,7 +299,9 @@ test('showMainWindow IPC restores the window, and macOS close hides and reopens 
 
       await expect
         .poll(() =>
-          app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false)
+          app.evaluate(
+            ({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible() ?? false
+          )
         )
         .toBe(true);
       await expect(page.locator('input[name="serverInput"]')).toBeVisible();
@@ -614,9 +616,7 @@ test('@homeserver closing window while recording stops live tracks, keeps page a
       )
       .toBe(true);
     expect(
-      await page.evaluate(
-        () => (window as unknown as { __p4AliveMarker?: string }).__p4AliveMarker
-      )
+      await page.evaluate(() => (window as unknown as { __p4AliveMarker?: string }).__p4AliveMarker)
     ).toBe(aliveMarker);
     await expect(page.getByText(/^Recovered recording · /)).toBeVisible({ timeout: 15_000 });
   } finally {
@@ -656,7 +656,9 @@ test('@homeserver CallPanel omits screenshare button when screenShare is false',
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            rtc_transports: [{ type: 'livekit', livekit_service_url: 'http://127.0.0.1:9/livekit' }],
+            rtc_transports: [
+              { type: 'livekit', livekit_service_url: 'http://127.0.0.1:9/livekit' },
+            ],
           }),
         });
       }
@@ -800,7 +802,9 @@ test('@homeserver real right-click opens Copy Image Address (without access_toke
         )
         .toBe(true);
 
-      const imgSrc = await lightboxImage.evaluate((el: HTMLImageElement) => el.currentSrc || el.src);
+      const imgSrc = await lightboxImage.evaluate(
+        (el: HTMLImageElement) => el.currentSrc || el.src
+      );
       expect(imgSrc).toMatch(/^blob:|\/_matrix\/client\/v1\/media\//);
       expect(imgSrc).not.toContain('access_token');
       expect(imgSrc).not.toContain(alice.accessToken);
@@ -833,9 +837,7 @@ test('@homeserver real right-click opens Copy Image Address (without access_toke
       });
       expect(clicked).toBe(true);
 
-      await expect
-        .poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
-        .toBe(imgSrc);
+      await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe(imgSrc);
       const copied = await app.evaluate(({ clipboard }) => clipboard.readText());
       expect(copied).not.toContain('access_token');
       expect(copied).not.toContain(alice.accessToken);

@@ -1,7 +1,10 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadLatestCachedThreadEventsBatch, type CachedThreadEventPage } from '../../event-store/cache/eventRepository';
+import {
+  loadLatestCachedThreadEventsBatch,
+  type CachedThreadEventPage,
+} from '../../event-store/cache/eventRepository';
 import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from '../../event-store/threads/types';

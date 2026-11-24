@@ -53,8 +53,8 @@ const consumerFor = (url) => {
     candidates.length === 1
       ? candidates[0]
       : Number.isNaN(target)
-      ? null
-      : candidates.sort((a, b) => distance(a) - distance(b))[0] ?? null;
+        ? null
+        : (candidates.sort((a, b) => distance(a) - distance(b))[0] ?? null);
   if (candidates.length > 1 && Number.isNaN(target)) {
     console.error(
       `warning: ${base}: ${candidates.length} maps share this name and --build has no such chunk; its frames stay minified`
@@ -101,7 +101,8 @@ profile.samples.forEach((id, index) => {
   self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[index] ?? 0));
 });
 const parent = new Map();
-for (const node of profile.nodes) for (const child of node.children ?? []) parent.set(child, node.id);
+for (const node of profile.nodes)
+  for (const child of node.children ?? []) parent.set(child, node.id);
 
 const selfByLabel = new Map();
 const totalByLabel = new Map();
@@ -120,7 +121,9 @@ for (const [id, micros] of self) {
     totalByLabel.set(frame, (totalByLabel.get(frame) ?? 0) + micros);
   }
 }
-const appTop = [...totalByLabel].filter(([name]) => / src\//.test(name)).sort((a, b) => b[1] - a[1]);
+const appTop = [...totalByLabel]
+  .filter(([name]) => / src\//.test(name))
+  .sort((a, b) => b[1] - a[1]);
 const ms = (micros) => `${(micros / 1000).toFixed(1).padStart(8)} ms`;
 const idle = ['(idle)', '(program)', '(garbage collector)', '(root)'];
 console.log(`profile: ${ms(total)} sampled`);

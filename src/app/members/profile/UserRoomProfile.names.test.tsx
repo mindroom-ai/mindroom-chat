@@ -72,7 +72,7 @@ const room = (rawDisplayName?: string) =>
       rawDisplayName !== undefined && userId === QUINN
         ? { userId, rawDisplayName, membership: 'join', getMxcAvatarUrl: () => undefined }
         : null,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const heading = (inRoom: Room): string => {
   act(() => {

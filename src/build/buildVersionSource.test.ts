@@ -42,6 +42,8 @@ describe('build version of a checkout without Git', () => {
   });
 
   it('still takes an explicit version first', () => {
-    expect(readBuildVersion({ MINDROOM_BUILD_VERSION: 'build-7' }, checkout('x\n'))).toBe('build-7');
+    expect(readBuildVersion({ MINDROOM_BUILD_VERSION: 'build-7' }, checkout('x\n'))).toBe(
+      'build-7'
+    );
   });
 });

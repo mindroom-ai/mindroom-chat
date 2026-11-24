@@ -361,10 +361,10 @@ test.describe('live issue073 persistent thread navigation', () => {
         viewport.label === 'mobile-narrow'
           ? 10
           : viewport.label === 'desktop'
-          ? 8
-          : viewport.label === 'desktop-short'
-          ? 1
-          : 2;
+            ? 8
+            : viewport.label === 'desktop-short'
+              ? 1
+              : 2;
       const { fixtures, homeserver, password, roomNames, session, spaceId, username } =
         await prepareThreadFixtures(threadCount);
       await setAccountData(

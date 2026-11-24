@@ -657,9 +657,8 @@ vi.mock('../../event-store/cache/db', async (importOriginal) => {
 // `importOriginal`). Keep the real module intact and only override
 // the comparison helper.
 vi.mock('../../event-store/cache/eventCacheTokenUtils', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../event-store/cache/eventCacheTokenUtils')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../event-store/cache/eventCacheTokenUtils')>();
   return {
     ...actual,
     compareCachedPaginationAnchors: () => 0,
@@ -673,9 +672,8 @@ vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
 }));
 
 vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../event-store/timeline/timelineScrollUtils')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
   return {
     ...actual,
     isScrollNearBottom: () => true,
@@ -1536,9 +1534,8 @@ describe('RoomTimeline collapsible wiring', () => {
     // themselves the moment their attachment hydrated, while every other
     // long message stayed folded. They now fold like everything else; the
     // "Show more" affordance is guaranteed by the force-overflow heuristic.
-    const { getCollapsibleMessageMode, shouldForceCollapsibleMessageOverflow } = await import(
-      '../threadCollapsibleMessages'
-    );
+    const { getCollapsibleMessageMode, shouldForceCollapsibleMessageOverflow } =
+      await import('../threadCollapsibleMessages');
     const longTextContent = {
       body: 'Long text sidecar',
       msgtype: 'm.file',
@@ -1598,9 +1595,8 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('marks visible live thread replies for initially-expanded mode', async () => {
-    const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } = await import(
-      '../threadCollapsibleMessages'
-    );
+    const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } =
+      await import('../threadCollapsibleMessages');
     const threadRootEvent = makeEvent('$thread-root', {
       content: {
         body: 'Thread root',

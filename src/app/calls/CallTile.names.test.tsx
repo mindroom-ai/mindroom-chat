@@ -110,7 +110,7 @@ afterEach(() => {
 });
 
 describe('call tiles in a room whose member list is not loaded', () => {
-  it("put the user ID after a copied name until the member list shows who is who", async () => {
+  it('put the user ID after a copied name until the member list shows who is who', async () => {
     // The copy's name reads like the real member's, whom the client has not loaded yet.
     const { room, listArrives } = unopenedRoom([
       [COPY, 'Morgan Lee'],
@@ -129,15 +129,12 @@ describe('call tiles in a room whose member list is not loaded', () => {
     expect(tileNames()).toEqual([withId('Morgan Lee', COPY), 'Jordan Host']);
   });
 
-  it("put the user ID after a name copied from an agent, also while it is awaited and on its screen", () => {
+  it('put the user ID after a name copied from an agent, also while it is awaited and on its screen', () => {
     // The member list failed to load: the copy keeps its user ID for the whole call.
     const { room } = unopenedRoom([[AGENT_COPY, 'Desk Helper']], { failing: true });
     render(
       <ul>
-        <ScreenTile
-          room={room}
-          participant={participant(AGENT_COPY, { screen: screenTrack })}
-        />
+        <ScreenTile room={room} participant={participant(AGENT_COPY, { screen: screenTrack })} />
         <CallTile room={room} participant={participant(AGENT_COPY, { connected: false })} />
       </ul>
     );

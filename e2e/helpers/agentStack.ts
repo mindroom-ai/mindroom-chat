@@ -366,8 +366,7 @@ export const showThread = async (page: Page, stack: AgentStack, rootId: string):
   await expectThreadShown(page, rootId);
 };
 
-export const composer = (page: Page): Locator =>
-  page.getByRole('textbox', { name: COMPOSER_NAME });
+export const composer = (page: Page): Locator => page.getByRole('textbox', { name: COMPOSER_NAME });
 
 /** Types into the composer (a rich-text editor, so keystrokes rather than fill) and sends with Enter. */
 export const sendFromComposer = async (page: Page, text: string): Promise<void> => {
@@ -385,8 +384,7 @@ const latestContent = (events: MatrixEvent[]): Map<string, MatrixEvent> => {
   const edits = new Map<string, Record<string, unknown>>();
   events.forEach((event) => {
     const relation = event.content['m.relates_to'] as
-      | { rel_type?: string; event_id?: string }
-      | undefined;
+      { rel_type?: string; event_id?: string } | undefined;
     if (relation?.rel_type === 'm.replace' && relation.event_id) {
       if (!edits.has(relation.event_id)) {
         edits.set(relation.event_id, {
@@ -423,8 +421,7 @@ export const lobbyEvents = async (stack: AgentStack, limit = 200): Promise<Matri
 
 export const inThread = (event: MatrixEvent, rootId: string): boolean => {
   const relation = event.content['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
+    { rel_type?: string; event_id?: string } | undefined;
   return relation?.rel_type === 'm.thread' && relation.event_id === rootId;
 };
 

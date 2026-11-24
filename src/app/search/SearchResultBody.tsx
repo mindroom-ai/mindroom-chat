@@ -105,8 +105,7 @@ const useCurrentThreadTitle = (roomId: string, rootId: string | undefined) => {
 /** A reply quotes a message that search does not return, so the hit says so. */
 const quotesAnotherMessage = (content: Record<string, unknown>): boolean => {
   const relation = content['m.relates_to'] as
-    | { 'm.in_reply_to'?: { event_id?: unknown }; is_falling_back?: boolean }
-    | undefined;
+    { 'm.in_reply_to'?: { event_id?: unknown }; is_falling_back?: boolean } | undefined;
   return typeof relation?.['m.in_reply_to']?.event_id === 'string' && !relation.is_falling_back;
 };
 

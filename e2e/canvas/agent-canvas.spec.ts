@@ -303,9 +303,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await send.click();
   await expect
     .poll(async () =>
-      (
-        await viewerMessages()
-      ).some(
+      (await viewerMessages()).some(
         (event) =>
           (event.content['io.mindroom.canvas_response'] as { data?: unknown } | undefined)?.data &&
           JSON.stringify(
@@ -499,9 +497,9 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(panel.getByText(/^Sent the errors to /)).toBeVisible();
   await expect
     .poll(async () =>
-      (
-        await viewerMessages()
-      ).find((event) => String(event.content.body).includes('Canvas error ('))
+      (await viewerMessages()).find((event) =>
+        String(event.content.body).includes('Canvas error (')
+      )
     )
     .toBeTruthy();
   const errorReport = (await viewerMessages()).find((event) =>

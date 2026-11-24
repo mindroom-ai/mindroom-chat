@@ -50,7 +50,7 @@ const makeTargets = (pending?: PendingThreadTarget) =>
     discard: vi.fn(),
     advanceAttempt: vi.fn(),
     wakeRetry: vi.fn(),
-  } satisfies ThreadTargetCommands);
+  }) satisfies ThreadTargetCommands;
 
 /** The hook's options with recording callbacks; each test overrides what it is about. */
 const setup = (scrollArea: HTMLDivElement | null, overrides: Partial<Options> = {}) => {

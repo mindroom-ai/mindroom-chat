@@ -195,7 +195,7 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
     ({ flows }) => [
       ...new Set(
         flows
-          .flatMap((flow) => ('identity_providers' in flow ? flow.identity_providers ?? [] : []))
+          .flatMap((flow) => ('identity_providers' in flow ? (flow.identity_providers ?? []) : []))
           .map(({ name }): unknown => name)
           .filter((name): name is string => typeof name === 'string' && name !== '')
           .map((name) => KNOWN_PROVIDERS[name.toLowerCase()] ?? name)

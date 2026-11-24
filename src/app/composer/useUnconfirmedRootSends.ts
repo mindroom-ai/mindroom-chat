@@ -8,8 +8,7 @@ import { moveMessageDraft } from './roomInputDrafts';
 
 /** A send the composer holds while its thread's root waits for the server. */
 export type HeldSend =
-  | { kind: 'message'; mode?: MidTurnMode }
-  | { kind: 'sticker'; mxc: string; label: string };
+  { kind: 'message'; mode?: MidTurnMode } | { kind: 'sticker'; mxc: string; label: string };
 
 type Held = { root: MatrixEvent; localId: string; sends: HeldSend[] };
 

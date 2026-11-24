@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../../computer/computerFocus';
 import { createHintHold } from '../../shortcuts/hintHold';
 import { hasTextSelection, openOverlay } from '../../shortcuts/shortcutDom';
-import { formatShortcut, shortcutOfAria, usesCommandKey, type ShortcutId } from '../../shortcuts/shortcuts';
+import {
+  formatShortcut,
+  shortcutOfAria,
+  usesCommandKey,
+  type ShortcutId,
+} from '../../shortcuts/shortcuts';
 import * as css from './Shortcuts.css';
 
 const HOLD_MS = 1000;

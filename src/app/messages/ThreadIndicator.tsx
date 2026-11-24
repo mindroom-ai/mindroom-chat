@@ -55,7 +55,7 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
   const name = (member && getMemberDisplayName(room, userId)) || userId;
   const mxc = member?.getMxcAvatarUrl();
   const src = mxc
-    ? mxcUrlToHttp(mx, mxc, useAuthentication, 36, 36, 'crop') ?? undefined
+    ? (mxcUrlToHttp(mx, mxc, useAuthentication, 36, 36, 'crop') ?? undefined)
     : undefined;
   return (
     <Avatar className={css.ThreadParticipant} size="200" radii="400" title={name}>

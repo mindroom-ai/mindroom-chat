@@ -15,7 +15,10 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from '../../event-store/timeline/threadPaginationUtils';
-import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
+import {
+  getLinkedTimelines,
+  getThreadTimelineEvents,
+} from '../../event-store/timeline/linkedTimelines';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { getThreadCursorAnchor } from '../../event-store/cache/eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';

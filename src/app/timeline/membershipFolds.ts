@@ -305,7 +305,7 @@ export const loadedRangeOfRows = (
 ): TimelineRange => {
   if (!loadedStarts) return range;
   const loadedIndex = (row: number) =>
-    row >= loadedStarts.length ? loadedCount : loadedStarts[Math.max(row, 0)] ?? loadedCount;
+    row >= loadedStarts.length ? loadedCount : (loadedStarts[Math.max(row, 0)] ?? loadedCount);
   return { start: loadedIndex(range.start), end: loadedIndex(range.end) };
 };
 

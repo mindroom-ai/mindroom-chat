@@ -20,7 +20,7 @@ const room = {
 
 /** A listed thread: its root and how many replies the server counts. */
 const thread = (rootEvent: MatrixEvent, length: number) =>
-  ({ id: rootEvent.getId(), rootEvent, length } as unknown as Thread);
+  ({ id: rootEvent.getId(), rootEvent, length }) as unknown as Thread;
 
 describe('withListedThreadRoots', () => {
   it('puts the listed roots the rows lack first, oldest first, older than every row', () => {

@@ -67,10 +67,13 @@ for (const viewport of [
         });
       }
       await loginWithPassword(page, { homeserver, ...credentials });
-      await page.evaluate((url) => {
-        window.history.pushState(null, '', url);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+      await page.evaluate(
+        (url) => {
+          window.history.pushState(null, '', url);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        },
+        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
+      );
       const banner = page.locator('[data-thread-context-summary]').locator('xpath=../../../..');
       const scroll = page.locator('[data-thread-count]').locator('xpath=../..');
       await expect(banner).toBeVisible();

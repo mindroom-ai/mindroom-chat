@@ -158,7 +158,7 @@ describe('MessageLinkCards', () => {
   const clickAt = (top: number) => {
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
     const link = screen.getByRole('link', { name: 'One' });
-    link.getBoundingClientRect = () => ({ top, bottom: top + 20, left: 0, right: 50 } as DOMRect);
+    link.getBoundingClientRect = () => ({ top, bottom: top + 20, left: 0, right: 50 }) as DOMRect;
     fireEvent.click(link);
   };
 

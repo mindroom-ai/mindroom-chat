@@ -204,7 +204,7 @@ export const resolveDeploymentBranding = (
   const poweredBy =
     auth.poweredBy === undefined
       ? MINDROOM_DEFAULT_POWERED_BY
-      : linkList(auth.poweredBy, 'auth.poweredBy', warn) ?? MINDROOM_DEFAULT_POWERED_BY;
+      : (linkList(auth.poweredBy, 'auth.poweredBy', warn) ?? MINDROOM_DEFAULT_POWERED_BY);
 
   return {
     title: pageTitle ?? MINDROOM_APP_NAME,

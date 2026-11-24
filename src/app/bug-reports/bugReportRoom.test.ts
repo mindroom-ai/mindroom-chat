@@ -25,7 +25,7 @@ const room = (
   return {
     roomId,
     getMyMembership: () => myMembership,
-    getType: () => (opts.type === null ? undefined : opts.type ?? 'io.mindroom.bug_reports'),
+    getType: () => (opts.type === null ? undefined : (opts.type ?? 'io.mindroom.bug_reports')),
     getJoinRule: () => opts.joinRule ?? 'invite',
     getHistoryVisibility: () => opts.historyVisibility ?? 'shared',
     loadMembersIfNeeded: vi.fn(async () => {

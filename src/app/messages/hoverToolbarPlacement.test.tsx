@@ -42,7 +42,7 @@ const rectOf = ({ top, bottom, left, right }: Rect) =>
     height: bottom - top,
     x: left,
     y: top,
-  } as DOMRect);
+  }) as DOMRect;
 
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
