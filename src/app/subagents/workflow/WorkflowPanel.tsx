@@ -260,7 +260,10 @@ function WorkflowItemsList({
     <div className={css.ItemsGrid}>
       {items.map((item) => {
         if (item.type === 'node') {
-          const { node, turns } = item;
+          const { node, children } = item;
+          const turns = children
+            ?.filter((c): c is Extract<WorkflowGraphItem, { type: 'node' }> => c.type === 'node')
+            .map((c) => c.node);
           return (
             <WorkflowNodeChip
               key={node.id}
@@ -358,7 +361,7 @@ const collectShownIds = (
   items.forEach((item) => {
     if (item.type === 'node') {
       into.add(item.node.id);
-      item.turns?.forEach((turn) => into.add(turn.id));
+      if (item.children) collectShownIds(item.children, expandedGroups, into);
     } else {
       const shown = expandedGroups.has(item.group.id)
         ? item.items
@@ -546,9 +549,7 @@ export function WorkflowPanel({
 
   const selectedNode = selectedId ? nodesById.get(selectedId) : undefined;
   const selectedSubagent = selectedNode?.run ? subagentsByRun.get(selectedNode.run) : undefined;
-  const selectedPreview = selectedNode
-    ? nodeResultPreview(selectedNode, selectedSubagent)
-    : undefined;
+  const selectedPreview = selectedNode ? nodeResultPreview(selectedSubagent) : undefined;
   const selectedOutgoingEdges = useMemo(
     () =>
       selectedNode && entry?.graph

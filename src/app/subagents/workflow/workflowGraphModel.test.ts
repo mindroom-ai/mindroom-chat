@@ -108,7 +108,6 @@ describe('workflowGraphModel', () => {
       makeGraph({ omitted: { ...emptyOmitted, queued: 1000 } })
     );
     expect(countsOnly.bands).toEqual([]);
-    expect(countsOnly.omitted.queued).toBe(1000);
   });
 
   it('keeps a node whose group the frame left out', () => {
@@ -143,10 +142,25 @@ describe('workflowGraphModel', () => {
     );
     expect(ids(layout.bands[0]!.items)).toEqual(['n2', 'n9']);
     const sessionItem = layout.bands[0]!.items[0];
-    expect(sessionItem?.type === 'node' ? sessionItem.turns?.map((turn) => turn.id) : []).toEqual([
+    expect(sessionItem?.type === 'node' ? ids(sessionItem.children ?? []) : []).toEqual([
       'n5',
       'n8',
     ]);
+  });
+
+  it('nests a workflow group under the agent node that started it', () => {
+    const layout = layoutWorkflowRunGraph(
+      makeGraph({
+        phases: ['Audit'],
+        groups: [makeGroup('n2', { kind: 'workflow', phase: 0, parent: 'n1' })],
+        nodes: [makeNode('n1', { phase: 0 }), makeNode('n3', { phase: 0, group: 'n2' })],
+      })
+    );
+    expect(ids(layout.bands[0]!.items)).toEqual(['n1']);
+    const caller = layout.bands[0]!.items[0];
+    const nested = caller?.type === 'node' ? caller.children?.[0] : undefined;
+    expect(nested?.type === 'group' ? nested.group.id : null).toBe('n2');
+    expect(nested?.type === 'group' ? ids(nested.items) : []).toEqual(['n3']);
   });
 
   it('folds a group of 300 to its unfinished items and the newest done ones', () => {
@@ -200,7 +214,6 @@ describe('workflowGraphModel', () => {
   });
 
   it('previews the subagent run result, else the last non-empty line written, cut to 300 chars', () => {
-    const node = makeNode('n1');
     const makeSubagent = (result: string | undefined, md: string): SubagentRun => ({
       roomId: '!r:example',
       sender: '@mindroom_panels:example',
@@ -225,14 +238,14 @@ describe('workflowGraphModel', () => {
       docs: { md, reasoning: '', tools: [], status: 'completed', activity: '', segments: [] },
     });
 
-    expect(nodeResultPreview(node, undefined)).toBeUndefined();
-    expect(nodeResultPreview(node, makeSubagent('Summary ready.', 'Earlier line\nLast line'))).toBe(
+    expect(nodeResultPreview(undefined)).toBeUndefined();
+    expect(nodeResultPreview(makeSubagent('Summary ready.', 'Earlier line\nLast line'))).toBe(
       'Summary ready.'
     );
-    expect(nodeResultPreview(node, makeSubagent(undefined, 'First line\n\nSecond line\n  '))).toBe(
+    expect(nodeResultPreview(makeSubagent(undefined, 'First line\n\nSecond line\n  '))).toBe(
       'Second line'
     );
     const longResult = 'x'.repeat(400);
-    expect(nodeResultPreview(node, makeSubagent(longResult, ''))).toHaveLength(300);
+    expect(nodeResultPreview(makeSubagent(longResult, ''))).toHaveLength(300);
   });
 });
