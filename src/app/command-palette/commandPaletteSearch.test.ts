@@ -309,6 +309,50 @@ describe('matchCommandPaletteSection rows', () => {
     expect(search('dialog')).toEqual(['$dialog']);
   });
 
+  it('ranks active unresolved threads above older or resolved ones regardless of word position', () => {
+    const thread = (
+      id: string,
+      summaryText: string,
+      rest: Partial<CommandPaletteThreadItem> = {}
+    ): CommandPaletteThreadItem => ({
+      id,
+      kind: 'thread',
+      roomId: '!a:example.org',
+      threadId: id,
+      summaryText,
+      roomName: 'Product',
+      ...rest,
+    });
+    const searchThreads = (items: CommandPaletteThreadItem[], query: string) =>
+      ids(
+        matchCommandPaletteSection({
+          items,
+          query,
+          config: commandPaletteSearchConfig.threads,
+        }).map(({ item }) => item)
+      );
+
+    expect(
+      searchThreads(
+        [
+          thread('$done', 'Widget layout glitch', { isResolved: true, sortRank: 1, boost: -40 }),
+          thread('$recent', 'Mobile widget rollout', { isResolved: false, sortRank: 2, boost: 0 }),
+        ],
+        'widg'
+      )
+    ).toEqual(['$recent', '$done']);
+
+    expect(
+      searchThreads(
+        [
+          thread('$done', 'Widget layout glitch', { isResolved: true, sortRank: 10, boost: -10 }),
+          thread('$open', 'Mobile widget rollout', { isResolved: false, sortRank: 1, boost: 0 }),
+        ],
+        'widg'
+      )
+    ).toEqual(['$open', '$done']);
+  });
+
   it('finds a person by name, user name and user ID, with or without the @', () => {
     const items = [
       user('john', 'John Smith', '@jsmith:example.org'),

@@ -225,6 +225,16 @@ export const Row = style({
       background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}, inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 8px rgb(0 0 0 / 4%)`,
     },
+    '&[data-resolved="true"]': {
+      background: `color-mix(in srgb, ${color.Success.Container} 72%, transparent)`,
+      boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${color.Success.ContainerLine} 80%, transparent)`,
+      color: color.Success.OnContainer,
+    },
+    '&[data-resolved="true"][data-selected="true"]': {
+      background: `color-mix(in srgb, ${color.Success.ContainerHover} 92%, transparent)`,
+      boxShadow: `inset 0 0 0 2px ${color.Success.Main}, inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 8px rgb(0 0 0 / 4%)`,
+    },
+    '&[data-resolved="true"] + &[data-resolved="true"]': { marginTop: 2 },
   },
   ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
 });
@@ -244,6 +254,10 @@ export const RowIcon = style({
     [`${Row}[data-selected="true"] &`]: {
       color: color.Primary.OnContainer,
       background: `color-mix(in srgb, ${color.Primary.ContainerHover} 75%, transparent)`,
+    },
+    [`${Row}[data-resolved="true"] &, ${Row}[data-resolved="true"][data-selected="true"] &`]: {
+      background: color.Success.Main,
+      color: color.Success.OnMain,
     },
   },
 });
@@ -305,6 +319,8 @@ export const RowTime = style({
   fontVariantNumeric: 'tabular-nums',
 });
 
+const resolvedTagBorderColor = `color-mix(in srgb, ${color.Success.Main} 45%, ${color.Success.ContainerLine})`;
+
 export const Tag = style({
   flex: 'none',
   padding: '1px 6px',
@@ -315,6 +331,12 @@ export const Tag = style({
   fontWeight: 600,
   lineHeight: '14px',
   letterSpacing: '0.04em',
+  selectors: {
+    [`${Row}[data-resolved="true"] &`]: {
+      color: color.Success.OnContainer,
+      borderColor: resolvedTagBorderColor,
+    },
+  },
 });
 
 export const Match = style({
@@ -334,6 +356,9 @@ export const TitleMatch = style({
   textDecoration: 'underline',
   textDecorationThickness: 1,
   textUnderlineOffset: 2,
+  selectors: {
+    [`${Row}[data-resolved="true"] &`]: { color: color.Success.MainLine },
+  },
 });
 
 export const RowDescription = style({
@@ -343,6 +368,12 @@ export const RowDescription = style({
   color: color.SurfaceVariant.OnContainer,
   fontSize: 12,
   lineHeight: '17px',
+  selectors: {
+    [`${Row}[data-resolved="true"] &`]: {
+      color: color.Success.OnContainer,
+      opacity: config.opacity.P400,
+    },
+  },
 });
 
 export const RowState = style({
@@ -364,7 +395,10 @@ export const RowEnter = style({
   flex: 'none',
   visibility: 'hidden',
   color: color.SurfaceVariant.OnContainer,
-  selectors: { [`${Row}[data-selected="true"] &`]: { visibility: 'visible' } },
+  selectors: {
+    [`${Row}[data-selected="true"] &`]: { visibility: 'visible' },
+    [`${Row}[data-resolved="true"] &`]: { color: color.Success.OnContainer },
+  },
   '@media': { '(pointer: coarse)': { display: 'none' } },
 });
 

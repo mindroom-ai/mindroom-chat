@@ -1,5 +1,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { rankCommandPaletteThreads } from './commandPaletteItems';
+import { withRecentVisits } from './commandPaletteRecentVisits';
 import {
   buildCommandPaletteDmRoomMap,
   COMMAND_PALETTE_USER_LIMIT,
@@ -285,5 +287,53 @@ describe('buildCommandPaletteDmRoomMap', () => {
         myUserId: '@me:example.org',
       }).get('@bob:example.org')
     ).toBe(room.roomId);
+  });
+});
+
+describe('rankCommandPaletteThreads', () => {
+  const entry = (
+    threadRootId: string,
+    lastActivityTs: number,
+    isUnread = false,
+    isResolved = false
+  ) => ({ roomId: '!room:example.org', threadRootId, lastActivityTs, isUnread, isResolved });
+
+  it('orders unresolved first, demotes resolved by -40, and drops open-thread unread boost', () => {
+    const ranked = rankCommandPaletteThreads(
+      [
+        entry('$resolved-newer', 500, true, true),
+        entry('$resolved-older', 100, false, true),
+        entry('$open-unread', 400, true),
+        entry('$active-unread', 200, true),
+        entry('$active-read', 300),
+      ],
+      '!room:example.org',
+      '$open-unread'
+    );
+
+    expect(
+      ranked.map(({ entry: item, sortRank, boost }) => [item.threadRootId, sortRank, boost])
+    ).toEqual([
+      ['$open-unread', 0, 0],
+      ['$active-read', 4, 0],
+      ['$active-unread', 3, 10],
+      ['$resolved-newer', 2, -30],
+      ['$resolved-older', 1, -40],
+    ]);
+  });
+
+  it('keeps unresolved unvisited read boost above a pinned unread resolved thread', () => {
+    const rows: Array<{ id: string; sortRank: number; boost: number; recentVisit?: boolean }> =
+      rankCommandPaletteThreads([
+        entry('$resolved-hot', 500, true, true),
+        entry('$open-quiet', 100),
+      ]).map(({ entry: item, sortRank, boost }) => ({ id: item.threadRootId, sortRank, boost }));
+
+    const visited = withRecentVisits(rows, ['$resolved-hot'], undefined);
+    expect(visited.find((row) => row.id === '$resolved-hot')).toMatchObject({
+      recentVisit: true,
+      boost: -10,
+    });
+    expect(visited.find((row) => row.id === '$open-quiet')?.boost).toBe(0);
   });
 });
