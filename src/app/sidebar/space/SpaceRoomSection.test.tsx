@@ -105,6 +105,8 @@ describe('useSpaceRoomSections room in a space and its sub-space', () => {
         '!lounge': { name: 'Lounge' },
         '!garden': { name: 'Garden' },
         '!workshop': { name: 'Workshop' },
+        '!side': { name: 'Side', space: true },
+        '!studio': { name: 'Studio' },
       },
       {
         '!sub': ['!root'],
@@ -112,13 +114,15 @@ describe('useSpaceRoomSections room in a space and its sub-space', () => {
         '!lounge': ['!root'],
         '!garden': ['!root', '!sub'],
         '!workshop': ['!root', '!sub', '!crew'],
+        '!side': ['!root'],
+        '!studio': ['!sub', '!side'],
       }
     );
     const sectionOf = (spaceId: string) =>
       result.latest.sections.find((section) => section.spaceId === spaceId)!;
 
     expect(sectionOf('!root').orderedTop).toEqual(['!lounge']);
-    expect(sectionOf('!sub').orderedTop).toEqual(['!garden']);
+    expect(sectionOf('!sub').orderedTop).toEqual(['!garden', '!studio']);
     expect(result.latest.canMoveRoom('!sub', '!root', '!garden')).toBe(true);
     expect(result.latest.canMoveRoom('!root', '!sub', '!garden')).toBe(false);
     expect(result.latest.canMoveRoom('!root', '!sub', '!lounge')).toBe(true);
@@ -126,6 +130,9 @@ describe('useSpaceRoomSections room in a space and its sub-space', () => {
     expect(sectionOf('!crew').orderedTop).toEqual(['!workshop']);
     expect(result.latest.canMoveRoom('!crew', '!root', '!workshop')).toBe(false);
     expect(result.latest.canMoveRoom('!crew', '!sub', '!workshop')).toBe(true);
+    // Side would still hide Studio from Rooms after it leaves Sub.
+    expect(result.latest.canMoveRoom('!sub', '!root', '!studio')).toBe(false);
+    expect(result.latest.canMoveRoom('!sub', '!crew', '!studio')).toBe(true);
   });
 });
 
