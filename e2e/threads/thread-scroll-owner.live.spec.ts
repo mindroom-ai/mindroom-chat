@@ -67,10 +67,8 @@ const assertScrollProbeClean = (
 const measureZeroHeadroomGrowthDrift = (page: Page) =>
   page.evaluate(async (sel) => {
     const inner = document.querySelector<HTMLElement>(sel);
-    let scroller: HTMLElement | null = inner?.parentElement ?? null;
-    while (scroller) {
-      const oy = getComputedStyle(scroller).overflowY;
-      if (oy === 'auto' || oy === 'scroll') break;
+    let scroller = inner?.parentElement ?? null;
+    while (scroller && !/^(auto|scroll)$/.test(getComputedStyle(scroller).overflowY)) {
       scroller = scroller.parentElement;
     }
     if (!inner || !scroller) return null;
@@ -197,7 +195,7 @@ test.describe('thread scroll owner invariants', () => {
           let minHeadroom = initial?.headroomPx ?? Number.POSITIVE_INFINITY;
           await scrollWheelBursts(
             page,
-            8,
+            10,
             14,
             () => 220,
             async () => {
@@ -208,6 +206,11 @@ test.describe('thread scroll owner invariants', () => {
           const beforeRest = await readThreadScrollState(page);
           await page.waitForTimeout(1_200);
           const afterRest = await readThreadScrollState(page);
+          minHeadroom = Math.min(
+            minHeadroom,
+            beforeRest?.headroomPx ?? minHeadroom,
+            afterRest?.headroomPx ?? minHeadroom
+          );
           await scrollWheelBursts(page, 20, 16, () => 220);
           await page.waitForTimeout(1_000);
           assertScrollProbeClean(await stopProbe(page), 5_000, { checkUnexplained: false });
