@@ -432,7 +432,11 @@ export const useTimelineScrollLedgerController = ({
     getScrollElement,
     estimateSize,
     overscan: 10,
-    ...(threadId ? { anchorTo: 'end' as const, rangeExtractor } : {}),
+    // Keep key-based prepend anchoring (`anchorTo: 'end'`) on threads, but disable
+    // virtual-core's list-only `wasAtEnd` check (`getVirtualDistanceFromEnd() <= scrollEndThreshold`)
+    // because thread scrollers include header and composer padding outside the virtual list.
+    // Resize-following instead uses actual scroller distance from bottom below.
+    ...(threadId ? { anchorTo: 'end' as const, scrollEndThreshold: -1, rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
     observeElementOffset: observeTimelineOffset,
     measureElement: measureRow,
@@ -1072,8 +1076,13 @@ export const useTimelineScrollLedgerController = ({
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = threadId
       ? (item, delta, instance) => {
+          const el = instance.scrollElement;
           const offset = instance.scrollOffset ?? 0;
-          const adjust = instance.itemSizeCache?.has(item.key)
+          const maxScroll = el ? el.scrollHeight - el.clientHeight : 0;
+          const atRealEnd = !!el && maxScroll > 0 && maxScroll - el.scrollTop <= 1;
+          const adjust = atRealEnd
+            ? true
+            : instance.itemSizeCache?.has(item.key)
             ? item.end <= offset
             : item.start < offset;
           if (adjust && delta < 0) measurementCorrectionPxRef.current += delta;
