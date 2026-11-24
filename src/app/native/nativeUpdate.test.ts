@@ -1,27 +1,10 @@
 // @vitest-environment jsdom
-import { Capacitor } from '@capacitor/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setAppUpdate } from '../config/appUpdate';
 import type { DesktopUpdateBridge } from '../lib/desktopBridge';
 import { isNativeUpdateAvailable, NATIVE_UPDATE_POLL_MS, watchNativeUpdate } from './nativeUpdate';
 
-const plugin = vi.hoisted(() => ({ status: vi.fn(), install: vi.fn() }));
-
-vi.mock('@capacitor/core', () => ({
-  Capacitor: {
-    getPlatform: vi.fn(() => 'web'),
-    isNativePlatform: vi.fn(() => false),
-    isPluginAvailable: vi.fn(() => false),
-  },
-  registerPlugin: vi.fn(() => plugin),
-}));
 vi.mock('../config/appUpdate', () => ({ setAppUpdate: vi.fn() }));
-
-const setAvailable = (available: boolean) => {
-  vi.mocked(Capacitor.isNativePlatform).mockReturnValue(available);
-  vi.mocked(Capacitor.getPlatform).mockReturnValue(available ? 'ios' : 'web');
-  vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(available);
-};
 
 const shown = (visible: boolean) => {
   Object.defineProperty(document, 'visibilityState', {
@@ -32,6 +15,13 @@ const shown = (visible: boolean) => {
 };
 
 const settle = () => vi.advanceTimersByTimeAsync(0);
+
+const setDesktopUpdate = (update?: DesktopUpdateBridge) => {
+  Object.defineProperty(window, 'mindroomDesktop', {
+    configurable: true,
+    value: update ? { update } : {},
+  });
+};
 
 describe('watchNativeUpdate', () => {
   beforeEach(() => {
@@ -45,17 +35,26 @@ describe('watchNativeUpdate', () => {
     vi.useRealTimers();
   });
 
-  it('asks nothing without the plugin: a browser, iOS, the Quick Capture window', async () => {
-    setAvailable(false);
+  it('asks nothing without the desktop update bridge: a browser, iOS, or Quick Capture window', async () => {
+    expect(isNativeUpdateAvailable()).toBe(false);
     watchNativeUpdate()();
     await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
-    expect(plugin.status).not.toHaveBeenCalled();
+    expect(setAppUpdate).not.toHaveBeenCalled();
+
+    setDesktopUpdate(undefined);
+    expect(isNativeUpdateAvailable()).toBe(false);
+    watchNativeUpdate()();
+    await settle();
     expect(setAppUpdate).not.toHaveBeenCalled();
   });
 
   it('takes an update that was staged before the page started', async () => {
-    setAvailable(true);
-    plugin.status.mockResolvedValue({ version: '2026.11.10' });
+    const desktopUpdate: DesktopUpdateBridge = {
+      status: vi.fn().mockResolvedValue({ version: '2026.11.10' }),
+      install: vi.fn().mockResolvedValue(undefined),
+    };
+    setDesktopUpdate(desktopUpdate);
+    expect(isNativeUpdateAvailable()).toBe(true);
     const stop = watchNativeUpdate();
     await settle();
     expect(setAppUpdate).toHaveBeenLastCalledWith({
@@ -63,66 +62,37 @@ describe('watchNativeUpdate', () => {
       install: expect.any(Function),
     });
     await vi.mocked(setAppUpdate).mock.lastCall![0]!.install();
-    expect(plugin.install).toHaveBeenCalledOnce();
+    expect(desktopUpdate.install).toHaveBeenCalledOnce();
     stop();
   });
 
   it('follows staging and withdrawal while shown, rests while hidden, and stops', async () => {
-    setAvailable(true);
-    plugin.status.mockResolvedValue({});
+    const status = vi.fn().mockResolvedValue({});
+    const install = vi.fn().mockResolvedValue(undefined);
+    setDesktopUpdate({ status, install });
     const stop = watchNativeUpdate();
     await settle();
     expect(setAppUpdate).toHaveBeenLastCalledWith(undefined);
-    plugin.status.mockResolvedValue({ version: '2026.11.10' });
+    status.mockResolvedValue({ version: '2026.11.10' });
     await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
     expect(setAppUpdate).toHaveBeenLastCalledWith({
       version: '2026.11.10',
       install: expect.any(Function),
     });
     // A failed question changes nothing.
-    plugin.status.mockRejectedValue(new Error('bridge'));
+    status.mockRejectedValue(new Error('bridge'));
     await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
     expect(setAppUpdate).toHaveBeenCalledTimes(2);
     shown(false);
-    plugin.status.mockResolvedValue({ version: '' });
+    status.mockResolvedValue({ version: '' });
     await vi.advanceTimersByTimeAsync(3 * NATIVE_UPDATE_POLL_MS);
-    expect(plugin.status).toHaveBeenCalledTimes(3);
+    expect(status).toHaveBeenCalledTimes(3);
     shown(true);
     await settle();
     expect(setAppUpdate).toHaveBeenLastCalledWith(undefined);
     stop();
     await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
     shown(true);
-    expect(plugin.status).toHaveBeenCalledTimes(4);
-  });
-
-  it('uses the Electron desktop update bridge when present and ignores it when absent', async () => {
-    setAvailable(false);
-    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
-    expect(isNativeUpdateAvailable()).toBe(false);
-    watchNativeUpdate()();
-    await settle();
-    expect(setAppUpdate).not.toHaveBeenCalled();
-
-    const desktopUpdate: DesktopUpdateBridge = {
-      status: vi.fn().mockResolvedValue({ version: '2026.11.12' }),
-      install: vi.fn().mockResolvedValue(undefined),
-    };
-    Object.defineProperty(window, 'mindroomDesktop', {
-      configurable: true,
-      value: { update: desktopUpdate },
-    });
-    expect(isNativeUpdateAvailable()).toBe(true);
-
-    const stop = watchNativeUpdate();
-    await settle();
-    expect(plugin.status).not.toHaveBeenCalled();
-    expect(setAppUpdate).toHaveBeenLastCalledWith({
-      version: '2026.11.12',
-      install: expect.any(Function),
-    });
-    await vi.mocked(setAppUpdate).mock.lastCall![0]!.install();
-    expect(desktopUpdate.install).toHaveBeenCalledOnce();
-    stop();
+    expect(status).toHaveBeenCalledTimes(4);
   });
 });

@@ -11,7 +11,7 @@ const getBlockedMicrophoneMessage = (): string => {
     return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in Android app settings and try again.`;
   }
 
-  // The Mac app is the iOS app under Mac Catalyst.
+  // The iOS/iPadOS app can also run on Apple silicon Macs.
   if (nativePlatform === 'ios' && !isMacOS()) {
     return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in iPhone settings and try again.`;
   }

@@ -91,7 +91,7 @@ cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: f
 
 ## Native apps
 
-The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store.
+The iOS, iPadOS and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`), and the macOS app wraps it with [Electron](https://www.electronjs.org) (`electron/`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store and Mac DMG.
 
 On the Apple Watch, MindRoom records a voice message into a room you pick with one tap, from the app, a complication or Siri, shows that room's threads with their answers, and lets you approve an agent's tool call or answer its question from your wrist, in end-to-end encrypted rooms too. Connect it from the iPhone app: Settings, Apple Watch. It needs watchOS 27 or newer.
 

@@ -45,7 +45,7 @@ describe('iOS incoming call ring resources', () => {
     expect(wav.equals(buildRingtoneWav())).toBe(true);
   });
 
-  it('registers ring.wav in the Xcode project Resources for App and AppStoreMac', () => {
+  it('registers ring.wav in the Xcode project Resources for App', () => {
     const project = xcode.project(projectPath);
     project.parseSync();
 
@@ -64,7 +64,7 @@ describe('iOS incoming call ring resources', () => {
       string,
       { files?: Array<{ comment?: string }> }
     >;
-    for (const targetName of ['App', 'AppStoreMac']) {
+    for (const targetName of ['App']) {
       const targetEntry = Object.entries(targets).find(
         ([key, value]) =>
           !key.endsWith('_comment') &&

@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { getSingleAppTargetBuildSettingValue } from '../../../scripts/ios-xcode-project.mjs';
 
 const require = createRequire(import.meta.url);
 // Use the same parsers as the declared Capacitor CLI dependency.
@@ -12,26 +11,16 @@ const xcode = requireCapacitor('xcode');
 const appDirectory = resolve('ios/App/App');
 const info = plist.parse(readFileSync(resolve(appDirectory, 'Info.plist'), 'utf8'));
 
-const projectSource = readFileSync(resolve('ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
-const appSetting = (name: string) =>
-  getSingleAppTargetBuildSettingValue(projectSource, name).replace(/^"|"$/g, '');
-
 describe('iOS scene launch configuration', () => {
-  it('provides the application scene first, and a second one only the Mac opens', () => {
+  it('provides the single application scene without storyboards', () => {
     const manifest = info.UIApplicationSceneManifest;
     expect(manifest, 'iOS 27 rejects legacy application-only startup').toBeDefined();
-    // One scene on iPhone and iPad; the Mac also opens the Quick Capture window.
-    expect(manifest.UIApplicationSupportsMultipleScenes).toBe(
-      '$(MINDROOM_SUPPORTS_MULTIPLE_SCENES)'
-    );
-    expect(appSetting('MINDROOM_SUPPORTS_MULTIPLE_SCENES')).toBe('NO');
-    expect(appSetting('"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]"')).toBe('YES');
+    expect(manifest.UIApplicationSupportsMultipleScenes).toBe(false);
     const scenes = manifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication;
-    expect(scenes).toHaveLength(2);
-    expect(scenes[0].UISceneConfigurationName).toBe('Default Configuration');
-    expect(scenes[1]).toEqual({
-      UISceneConfigurationName: 'Quick Capture',
-      UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).QuickCaptureSceneDelegate',
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]).toEqual({
+      UISceneConfigurationName: 'Default Configuration',
+      UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
     });
     // This app creates its custom bridge in the scene delegate, so UIKit must
     // not create a second bridge from the old application or scene storyboard.
@@ -61,8 +50,5 @@ describe('iOS scene launch configuration', () => {
     });
     fileNames.forEach((fileName) => expect(compiledPaths).toContain(fileName));
     expect(compiledPaths).toContain('MindRoomBridgeViewController.swift');
-    ['MacWindowing.swift', 'MacScreenshot.swift', 'MindRoomQuickCapturePlugin.swift'].forEach(
-      (fileName) => expect(compiledPaths).toContain(fileName)
-    );
   });
 });

@@ -10,8 +10,8 @@ declare global {
 
 // Links to users go to matrix.to, which every Matrix client understands. Links to rooms and
 // events open this app on the current web origin (`<origin><base>/<room>/<event>?via=...`), so a
-// copied link brings the reader straight back to the message; on native Capacitor shells (iOS,
-// Mac Catalyst, Android) they use `NATIVE_APP_WEB_ORIGIN` so Universal Links open the native app
+// copied link brings the reader straight back to the message; on native Capacitor shells (iOS
+// and Android) they use `NATIVE_APP_WEB_ORIGIN` so Universal Links open the native app
 // and fall back to the web app when it is not installed; without an `http:`/`https:` page origin
 // (such as `file:`, non-native `capacitor:`, or no `location`), they fall back to matrix.to so
 // the link stays portable.
