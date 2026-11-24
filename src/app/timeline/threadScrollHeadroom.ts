@@ -239,7 +239,7 @@ export const computeHeadroomBudget = ({
   const raw = Math.round(
     Math.max(0, unloadedReplies) * safeAvg +
       Math.max(0, unmeasuredLoaded) * perUnmeasured +
-      safeViewH * TOP_UP_LOW_WATER_VIEWPORTS
+      safeViewH * MIN_HISTORY_BUDGET_VIEWPORTS
   );
   return Math.max(raw, Math.round(safeViewH * MIN_HISTORY_BUDGET_VIEWPORTS));
 };

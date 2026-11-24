@@ -225,7 +225,10 @@ test.describe('thread scroll owner invariants', () => {
             driftCheck,
           });
           expect(
-            minHeadroom < (initial?.headroomPx ?? 0) * 0.8 || (beforeRest?.threadCount ?? 0) < 120,
+            minHeadroom < (initial?.headroomPx ?? 0) * 0.8 ||
+              ((beforeRest?.threadCount ?? 0) < 280 &&
+                (afterRest?.threadCount ?? 0) > (beforeRest?.threadCount ?? 0) &&
+                (afterRest?.scrollTop ?? 0) > (beforeRest?.scrollTop ?? 0)),
             `headroom consumed or pages held mid-gesture: ${summary}`
           ).toBe(true);
           expect(
