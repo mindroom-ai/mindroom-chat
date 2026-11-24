@@ -58,6 +58,7 @@ import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { roomSettingsAtom } from '../navigation/roomSettingsState';
+import { roomTriggersDialogAtom } from '../navigation/roomTriggersDialog';
 import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
@@ -125,6 +126,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),
+  toInitial(roomTriggersDialogAtom),
   toInitial(createRoomModalAtom),
   toInitial(createSpaceModalAtom),
   toInitial(userRoomProfileAtom),

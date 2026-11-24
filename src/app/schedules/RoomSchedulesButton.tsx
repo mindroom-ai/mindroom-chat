@@ -1,32 +1,13 @@
-import {
-  type CSSProperties,
-  type MouseEvent,
-  type RefObject,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useState,
-} from 'react';
+import { type MouseEvent, type RefObject, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FocusTrap } from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  Tooltip,
-} from 'folds';
+import { Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
-import { headerDismissTrap } from '../ui/useHeaderPopup';
-import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
 import { getPendingRoomSchedules } from './roomSchedules';
+import { RoomDialogOverlay } from './RoomDialogOverlay';
 import { type EditScheduledTaskResult, RoomSchedulesDialog } from './RoomSchedulesDialog';
 import * as css from './roomSchedules.css';
 
@@ -34,26 +15,6 @@ import * as css from './roomSchedules.css';
 export function usePendingRoomSchedules(room: Room): ParsedScheduledTask[] {
   const events = useScheduledTaskEvents(room);
   return useMemo(() => getPendingRoomSchedules(events), [events]);
-}
-
-/** The horizontal center of the header in viewport pixels, following layout changes. */
-function useCenterX(headerRef?: RefObject<HTMLElement | null>): number | undefined {
-  const [centerX, setCenterX] = useState<number>();
-  const header = useCallback(() => headerRef?.current, [headerRef]);
-  const measure = useCallback(() => {
-    const element = header();
-    if (!element) return;
-    const rect = element.getBoundingClientRect();
-    setCenterX(rect.left + rect.width / 2);
-  }, [header]);
-  useLayoutEffect(() => {
-    if (!header()) return undefined;
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [header, measure]);
-  useResizeObserver(measure, header);
-  return centerX;
 }
 
 type RoomSchedulesOverlayProps = {
@@ -79,32 +40,21 @@ export function RoomSchedulesOverlay({
   onCancelTask,
   onEditTask,
 }: RoomSchedulesOverlayProps) {
-  const centerX = useCenterX(headerRef);
   return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter
-        style={
-          centerX === undefined
-            ? undefined
-            : ({ [css.ROOM_VIEW_CENTER]: `${centerX}px` } as CSSProperties)
-        }
-      >
-        <FocusTrap focusTrapOptions={headerDismissTrap(onClose)}>
-          <RoomSchedulesDialog
-            roomId={roomId}
-            tasks={tasks}
-            openThreadId={openThreadId}
-            onClose={() => onClose(true)}
-            onOpenThread={(threadId) => {
-              onClose();
-              onOpenThread(threadId);
-            }}
-            onCancelTask={onCancelTask}
-            onEditTask={onEditTask}
-          />
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
+    <RoomDialogOverlay headerRef={headerRef} onClose={onClose}>
+      <RoomSchedulesDialog
+        roomId={roomId}
+        tasks={tasks}
+        openThreadId={openThreadId}
+        onClose={() => onClose(true)}
+        onOpenThread={(threadId) => {
+          onClose();
+          onOpenThread(threadId);
+        }}
+        onCancelTask={onCancelTask}
+        onEditTask={onEditTask}
+      />
+    </RoomDialogOverlay>
   );
 }
 
