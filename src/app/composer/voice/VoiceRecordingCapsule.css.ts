@@ -2,11 +2,18 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { glassFloating, glassOutline, glassSurface } from '../../ui/styles/Glass.css';
 
-// The bar fills the composer row it replaces, as tall as the composer's single text line.
+// The bar floats above the composer, as tall as the composer's single text line.
 const CAPSULE_MIN_HEIGHT = toRem(40);
 
-// The recording bar that takes the composer's place: discard, waveform, timer, pause.
-// It floats like the composer card, and keeps a line around it when glass is turned off.
+// Composer-aligned container shared by voice recording and dictation bars.
+export const Container = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  marginBlockEnd: config.space.S200,
+});
+
+// Floating recording bar above the composer card; keeps a line around it when glass is off.
 export const Capsule = style([
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
@@ -24,6 +31,24 @@ export const Capsule = style([
   },
   { color: color.SurfaceVariant.OnContainer },
 ]);
+
+export const CapsuleStacked = style([
+  Capsule,
+  {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: config.space.S100,
+  },
+]);
+
+export const ControlsRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  inlineSize: '100%',
+  minInlineSize: 0,
+});
 
 // The waveform takes the squeeze, not the side buttons: WebKit shrinks a button below its icon,
 // which turned them into tall slivers with shrunken icons beside a long label.
