@@ -343,14 +343,18 @@ export const useThreadReturnPlace = ({
 };
 
 /**
- * Ends the scroll the virtual list still reconciles. virtual-core (3.17.3) keeps the row or offset
- * it was last asked to scroll to (`scrollState`) and, until it lands there or 5 s pass, scrolls
- * there again whenever that target moves (`reconcileScroll`): a row that arrives or changes size
- * in that time would pull a reader who has scrolled away back to it. It has no public way to drop
- * that scroll; its `cleanup` clears the same field.
+ * Ends the scroll the virtual list still reconciles. virtual-core keeps the row or offset it was
+ * last asked to scroll to (`scrollState`) and, until it lands there or 5 s pass, scrolls there
+ * again whenever that target moves (`reconcileScroll`): a row that arrives or changes size in that
+ * time would pull a reader who has scrolled away back to it. Uses `cancelScroll()` (added in
+ * virtual-core 3.18) on real instances, falling back to clearing `scrollState` for test doubles.
  */
 const endVirtualListScroll = (virtualizer: object) => {
-  (virtualizer as { scrollState?: unknown }).scrollState = null;
+  if ('cancelScroll' in virtualizer && typeof virtualizer.cancelScroll === 'function') {
+    (virtualizer as { cancelScroll: () => void }).cancelScroll();
+  } else {
+    (virtualizer as { scrollState?: unknown }).scrollState = null;
+  }
 };
 
 /**

@@ -111,8 +111,8 @@ export const analyzeRide = (
  * while `window.__driverDepth > 0` are the test's own and are not
  * recorded. Must be called before page.goto.
  */
-export const installScrollWriteProbe = (page: Page): Promise<void> =>
-  page.addInitScript(() => {
+export const installScrollWriteProbe = async (page: Page): Promise<void> => {
+  await page.addInitScript(() => {
     const w = window as Window & {
       __appScrollWrites?: { kind: string; value: number; t: number }[];
       __driverDepth?: number;
@@ -150,6 +150,7 @@ export const installScrollWriteProbe = (page: Page): Promise<void> =>
       };
     });
   });
+};
 
 /**
  * Injects realistic latency into /relations continuation pages (the

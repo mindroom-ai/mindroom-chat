@@ -190,7 +190,9 @@ const pageProbe = () => {
 };
 
 /** Call before the page's first navigation. */
-export const installProbe = (page: Page): Promise<void> => page.addInitScript(pageProbe);
+export const installProbe = async (page: Page): Promise<void> => {
+  await page.addInitScript(pageProbe);
+};
 
 type Metrics = {
   taskMs: number;

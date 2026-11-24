@@ -72,9 +72,12 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
     'refreshes same-row resize coverage across room/thread navigation (initial thread: %s)',
     (initialThreadId) => {
       const root = document.createElement('div');
+      let currentHeight = 600;
       Object.defineProperties(root, {
+        clientWidth: { value: 390 },
+        clientHeight: { get: () => currentHeight },
         offsetWidth: { value: 390 },
-        offsetHeight: { value: 600 },
+        offsetHeight: { get: () => currentHeight },
       });
       const observers = new Map<Element, ResizeObserverCallback>();
       class ControlledResizeObserver {
@@ -94,6 +97,7 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
       }
       vi.stubGlobal('ResizeObserver', ControlledResizeObserver);
       const resize = (height: number) => {
+        currentHeight = height;
         act(() => {
           observers.get(root)!(
             [
