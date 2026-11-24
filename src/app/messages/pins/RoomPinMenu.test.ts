@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type JSX } from 'react';
 import { act, create as createRenderer, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -81,7 +81,9 @@ vi.mock('folds', () => {
   const ForwardedDiv = React.forwardRef<
     HTMLDivElement,
     { children?: React.ReactNode; [key: string]: unknown }
-  >(({ children, ...props }, ref) => React.createElement('div', { ...props, ref }, children));
+  >(({ children, ...props }, ref) =>
+    React.createElement('div', { ...props, ref }, children as React.ReactNode)
+  );
 
   return {
     Avatar: Box,

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { startTransition, Suspense, useLayoutEffect, useRef } from 'react';
+import { act, startTransition, Suspense, useLayoutEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge } from '../../lib/desktopBridge';
 import { CANVAS_FRAME_READY, useCanvasFrame } from './canvasFrame';

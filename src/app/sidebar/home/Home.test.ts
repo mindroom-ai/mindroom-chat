@@ -229,7 +229,10 @@ describe('Home', () => {
     renderer.root.findAllByProps({ 'data-find-anything': true });
 
   it('keeps create and join actions available when rooms exist', () => {
-    const renderer = create(React.createElement(Home));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Home));
+    });
 
     expectRoomActionsWork(renderer);
     expect(findFields(renderer)).toHaveLength(1);
@@ -246,7 +249,10 @@ describe('Home', () => {
 
   it('keeps create and join actions available in the empty state', () => {
     homeRoomsState.roomIds = [];
-    const renderer = create(React.createElement(Home));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Home));
+    });
 
     expectRoomActionsWork(renderer);
     expect(findFields(renderer)).toHaveLength(1);
@@ -257,7 +263,10 @@ describe('Home', () => {
 
   it('leaves the search field to the top bar on a phone', () => {
     screen.size = 'Mobile';
-    const renderer = create(React.createElement(Home));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Home));
+    });
 
     expect(findFields(renderer)).toHaveLength(0);
     expectRoomActionsWork(renderer);

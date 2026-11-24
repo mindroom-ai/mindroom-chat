@@ -14,14 +14,15 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const findElementInNode = (
   node: ReactNode,
-  predicate: (element: ReactElement) => boolean
-): ReactElement | undefined => {
+  predicate: (element: ReactElement<any>) => boolean
+): ReactElement<any> | undefined => {
   if (!React.isValidElement(node)) return undefined;
-  if (predicate(node)) return node;
+  const element = node as ReactElement<any>;
+  if (predicate(element)) return element;
 
-  return React.Children.toArray(node.props.children)
+  return React.Children.toArray(element.props.children)
     .map((child) => findElementInNode(child, predicate))
-    .find((child): child is ReactElement => child !== undefined);
+    .find((child): child is ReactElement<any> => child !== undefined);
 };
 
 importBeforeTests(() => import('../RoomTimeline'));
@@ -92,10 +93,7 @@ describe('RoomTimeline approval rendering', () => {
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
     const reactions = approvalMessage?.props.reactions;
     const { ThreadBadge } = await import('../ThreadBadge');
-    const threadBadge = findElementInNode(
-      reactions,
-      (element) => element.type === ThreadBadge
-    );
+    const threadBadge = findElementInNode(reactions, (element) => element.type === ThreadBadge);
 
     expect(threadBadge).toBeDefined();
     expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe('Cached approval summary');
@@ -225,7 +223,9 @@ describe('RoomTimeline approval rendering', () => {
       await flushAsyncWork(1);
     });
 
-    const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$encrypted-approval' });
+    const approvalMessage = renderer?.root.findByProps({
+      'data-message-id': '$encrypted-approval',
+    });
     const renderedApprovalContent = approvalMessage?.findAll(
       (node) => node.props.eventType === MINDROOM_TOOL_APPROVAL_EVENT
     )[0];
@@ -241,9 +241,7 @@ describe('RoomTimeline approval rendering', () => {
       approvalMessage?.props.reactions,
       (element) => element.type === ThreadBadge
     );
-    expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe(
-      'Encrypted approval summary'
-    );
+    expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe('Encrypted approval summary');
     expect(threadBadge?.props.includeRecentSummaryData).toBe(true);
   });
 });

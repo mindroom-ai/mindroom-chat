@@ -21,7 +21,7 @@ export function useSlidingPill(
   pillRef: RefObject<HTMLElement | null>,
   selected: string | undefined
 ): void {
-  const kickRef = useRef<() => void>();
+  const kickRef = useRef<() => void>(undefined);
 
   useLayoutEffect(() => {
     const group = groupRef.current;

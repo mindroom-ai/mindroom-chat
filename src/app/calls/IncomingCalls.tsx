@@ -110,7 +110,7 @@ function RingAlerts({
     return () => document.removeEventListener('visibilitychange', syncVisibility);
   }, []);
 
-  const startedRingId = useRef<string>();
+  const startedRingId = useRef<string>(undefined);
 
   useEffect(() => {
     if (hiddenOnIOS || !sound || muted || Date.now() >= ring.expiresAt) return undefined;

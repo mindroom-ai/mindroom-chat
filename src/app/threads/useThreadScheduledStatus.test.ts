@@ -73,7 +73,10 @@ const renderHookHarness = (
     latestSnapshot = value;
   };
 
-  const renderer = create(React.createElement(Harness, { room, threadRootId, onRender }));
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(React.createElement(Harness, { room, threadRootId, onRender }));
+  });
 
   return {
     getSnapshot: () => {

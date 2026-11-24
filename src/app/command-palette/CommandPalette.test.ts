@@ -367,8 +367,13 @@ const paletteElement = (props: Partial<React.ComponentProps<typeof CommandPalett
     ...props,
   });
 
-const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
-  create(paletteElement(props));
+const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(paletteElement(props));
+  });
+  return renderer;
+};
 
 const type = async (renderer: ReturnType<typeof create>, value: string) =>
   act(async () => getInput(renderer).props.onChange({ currentTarget: { value } }));
@@ -1322,8 +1327,11 @@ describe('CommandPalette pages and rows that keep it open', () => {
 
   it('the chip goes back and focuses the field', async () => {
     const focus = vi.fn();
-    const renderer = create(paletteElement({ initialTab: 'actions' }), {
-      createNodeMock: (element) => (element.type === 'input' ? { focus } : null),
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(paletteElement({ initialTab: 'actions' }), {
+        createNodeMock: (element) => (element.type === 'input' ? { focus } : null),
+      });
     });
     await openThemePage(renderer, 'the');
     focus.mockClear();

@@ -54,7 +54,7 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   const store = useStore();
   const rootKey = useAtomValue(phoneNavSectionRootAtom);
   const wasSectionRoot = useRef(false);
-  const aliasAction = useRef<NavigationType>();
+  const aliasAction = useRef<NavigationType>(undefined);
   useLayoutEffect(() => {
     if (resolvingAlias) {
       // The alias's own clean-ups replace it too; the first navigation to it counts.

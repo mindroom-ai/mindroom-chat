@@ -57,7 +57,10 @@ vi.mock('../../ui/MenuEntry', () => ({
 }));
 
 const entries = (onClose = vi.fn()) => {
-  const renderer = create(<HiddenRailPages onClose={onClose} />);
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(<HiddenRailPages onClose={onClose} />);
+  });
   return renderer.root.findAllByType('button');
 };
 

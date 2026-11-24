@@ -227,8 +227,7 @@ vi.mock('../layout/layout', () => ({
       if (typeof ref === 'function') {
         ref(nodeRef.current);
       } else if (ref) {
-        const mutableRef = ref as React.MutableRefObject<HostNodeMock | null>;
-        mutableRef.current = nodeRef.current;
+        ref.current = nodeRef.current;
       }
 
       return React.createElement('div', props, children);

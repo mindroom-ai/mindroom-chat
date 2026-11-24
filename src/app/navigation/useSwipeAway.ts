@@ -20,7 +20,7 @@ const quickSwitching = (): boolean => document.querySelector('[data-quick-accoun
  * A drag of the account quick switcher is no swipe.
  */
 export const useSwipeAway = (
-  ref: RefObject<HTMLElement>,
+  ref: RefObject<HTMLElement | null>,
   edge: 'start' | 'end',
   onSwipe: () => void,
   options: {

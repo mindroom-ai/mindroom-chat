@@ -673,7 +673,7 @@ function RoomContent() {
   );
   // The thread shown whose one call to open a plugin's panel beside it came; it gets another once
   // another thread or the room's own timeline has shown.
-  const calledBeside = useRef<string>();
+  const calledBeside = useRef<string>(undefined);
   useEffect(() => {
     if (calledBeside.current !== threadId) calledBeside.current = undefined;
   }, [threadId]);

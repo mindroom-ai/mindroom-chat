@@ -2,6 +2,7 @@ import {
   type ComponentType,
   type ForwardedRef,
   type LazyExoticComponent,
+  type PropsWithoutRef,
   createElement,
   forwardRef,
   lazy,
@@ -53,12 +54,13 @@ export function lazyPart<P extends object>(
           // Parts mount from the attempt they started with; only once this failure is on screen
           // do later mounts get a fresh one. A mount that suspends is thrown away and starts
           // over, so switching any earlier would load again and again while it fails.
-          function Failed(props: P, ref: ForwardedRef<unknown>) {
+          function Failed(props: PropsWithoutRef<P>, ref: ForwardedRef<unknown>) {
             const [Loaded, setLoaded] = useState<ComponentType<P>>();
             useEffect(() => {
               if (latest === current) latest = attempt();
             }, []);
-            if (Loaded) return createElement(Loaded, { ...props, ref });
+            const partProps = props as P;
+            if (Loaded) return createElement(Loaded, { ...partProps, ref });
             // `Unavailable` gets the props without the ref, which has nothing to point at here.
             const retryLoad = () =>
               load().then(
@@ -71,7 +73,7 @@ export function lazyPart<P extends object>(
                   throw retryError;
                 }
               );
-            return createElement(Unavailable, { ...props, retryLoad });
+            return createElement(Unavailable, { ...partProps, retryLoad });
           }
           return { default: forwardRef(Failed) as unknown as ComponentType<P> };
         })
@@ -81,10 +83,10 @@ export function lazyPart<P extends object>(
   };
   let latest = attempt();
 
-  function LazyPart(props: P, ref: ForwardedRef<unknown>) {
+  function LazyPart(props: PropsWithoutRef<P>, ref: ForwardedRef<unknown>) {
     // A lazy component takes the props of the one it loads; React's types cannot say so for P.
     const [Part] = useState(() => latest.Part as unknown as ComponentType<P>);
-    return createElement(Part, { ...props, ref });
+    return createElement(Part, { ...(props as P), ref });
   }
   return forwardRef(LazyPart) as unknown as ComponentType<P>;
 }

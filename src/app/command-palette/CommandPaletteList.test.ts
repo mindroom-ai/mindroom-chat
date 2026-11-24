@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandPaletteList, type CommandPaletteListSection } from './CommandPaletteList';
 
@@ -83,17 +83,22 @@ const ROOM_SECTION: CommandPaletteListSection = {
   title: 'Rooms',
   items: [{ id: '!general:example.org', kind: 'room', name: 'General', topic: 'Team chat' }],
 };
-const renderList = (props: Partial<React.ComponentProps<typeof CommandPaletteList>> = {}) =>
-  create(
-    React.createElement(CommandPaletteList, {
-      id: 'results',
-      label: 'Search results',
-      sections: [ROOM_SECTION],
-      onSelect: vi.fn(),
-      onHighlight: vi.fn(),
-      ...props,
-    })
-  );
+const renderList = (props: Partial<React.ComponentProps<typeof CommandPaletteList>> = {}) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(CommandPaletteList, {
+        id: 'results',
+        label: 'Search results',
+        sections: [ROOM_SECTION],
+        onSelect: vi.fn(),
+        onHighlight: vi.fn(),
+        ...props,
+      })
+    );
+  });
+  return renderer;
+};
 
 describe('CommandPaletteList', () => {
   it('gives each result group a visible accessible category label', () => {

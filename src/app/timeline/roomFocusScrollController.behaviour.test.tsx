@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { StrictMode, useState } from 'react';
+import { act as actInDom, StrictMode, useState, type JSX } from 'react';
 import { createRoot } from 'react-dom/client';
-import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';

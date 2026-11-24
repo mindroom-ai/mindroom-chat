@@ -6,7 +6,7 @@ import { useLayoutEffect, useRef, type RefObject } from 'react';
  * bar's start allows, and one that would overhang its start moves forward. Runs after every
  * render, so the panel follows the bar as it wraps.
  */
-export const useKeepInsideToolbar = (panelRef: RefObject<HTMLElement>) => {
+export const useKeepInsideToolbar = (panelRef: RefObject<HTMLElement | null>) => {
   const shiftRef = useRef(0);
   useLayoutEffect(() => {
     const panel = panelRef.current;

@@ -46,7 +46,7 @@ export function InviteNotifications() {
   const seen = useRef<Set<string>>(new Set());
   const previous = useRef<readonly string[]>([]);
   // The list as rendered before the baseline; its stale entries are never treated as new.
-  const stale = useRef<readonly string[]>();
+  const stale = useRef<readonly string[]>(undefined);
 
   useLayoutEffect(() => {
     const baseline = invitedRoomIds(client);

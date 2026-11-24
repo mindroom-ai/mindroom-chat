@@ -25,12 +25,17 @@ vi.mock('../../ui/MenuEntry', () => ({
 
 const OFFERED: ClientConfig = { macApp: { offer: true } };
 
-const menu = (onClose: () => void, config: ClientConfig = OFFERED) =>
-  create(
-    <ClientConfigProvider value={config}>
-      <MacAppMenuEntry onClose={onClose} />
-    </ClientConfigProvider>
-  );
+const menu = (onClose: () => void, config: ClientConfig = OFFERED) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <ClientConfigProvider value={config}>
+        <MacAppMenuEntry onClose={onClose} />
+      </ClientConfigProvider>
+    );
+  });
+  return renderer;
+};
 
 const DMG = 'https://github.com/mindroom-ai/mindroom-chat/releases/download/v1/MindRoom.dmg';
 

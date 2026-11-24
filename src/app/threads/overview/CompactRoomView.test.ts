@@ -197,15 +197,18 @@ describe('CompactRoomView', () => {
   it('opens thread actions on right click and navigates only after Open thread is chosen', async () => {
     useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$context')]);
     const onThreadClick = vi.fn();
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$context'],
-        threadRecordMap: new Map(),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$context'],
+          threadRecordMap: new Map(),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const shell = renderer.root.findByProps({ className: 'CardShell' });
     const event = {
       preventDefault: vi.fn(),
@@ -232,15 +235,18 @@ describe('CompactRoomView', () => {
     useCompactThreadCardViewModelsMock.mockReturnValue([
       makeViewModel('$context', { isResolved: true }),
     ]);
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$context'],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$context'],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     expect(renderer.root.findAllByProps({ 'aria-haspopup': 'menu' })).toHaveLength(1);
     renderer.unmount();
   });
@@ -253,15 +259,18 @@ describe('CompactRoomView', () => {
     const firstTrigger = { focus: vi.fn(), isConnected: true };
     const secondTrigger = { focus: vi.fn(), isConnected: true };
     const onThreadClick = vi.fn();
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$first', '$second'],
-        threadRecordMap: new Map(),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$first', '$second'],
+          threadRecordMap: new Map(),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const [firstShell, secondShell] = renderer.root.findAllByProps({ className: 'CardShell' });
 
     await act(async () => {
@@ -341,15 +350,18 @@ describe('CompactRoomView', () => {
     pinningMocks.canPin = true;
     useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$announcement')]);
     const onThreadClick = vi.fn();
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$announcement'],
-        threadRecordMap: new Map(),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$announcement'],
+          threadRecordMap: new Map(),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const button = renderer.root.findByProps({ 'data-compact-thread-pin': 'true' });
     await act(() => button.props.onClick());
     expect(pinningMocks.setPinned).toHaveBeenCalledWith('$announcement', true);
@@ -363,15 +375,18 @@ describe('CompactRoomView', () => {
       makeViewModel('$announcement'),
       makeViewModel('$ordinary'),
     ]);
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$announcement', '$ordinary'],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$announcement', '$ordinary'],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const section = renderer.root.findByProps({ 'data-pinned-threads': 'true' });
     expect(section.findAllByProps({ 'data-thread-root-id': '$announcement' })).toHaveLength(1);
     expect(section.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
@@ -382,15 +397,18 @@ describe('CompactRoomView', () => {
 
   it('renders an empty state when there are no thread roots', () => {
     const room = makeRoom();
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room,
-        threadRootIds: [],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: [],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
       room,
@@ -407,15 +425,17 @@ describe('CompactRoomView', () => {
     const viewModel = makeViewModel('$thread-1', { titleText: 'AI summary' });
     useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
 
-    create(
-      React.createElement(CompactRoomView, {
-        room,
-        threadRootIds: ['$thread-1'],
-        threadRecordMap,
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    act(() => {
+      create(
+        React.createElement(CompactRoomView, {
+          room,
+          threadRootIds: ['$thread-1'],
+          threadRecordMap,
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     expect(useCompactThreadCardViewModelsMock).toHaveBeenCalledWith({
       room,
@@ -430,15 +450,18 @@ describe('CompactRoomView', () => {
     const viewModel = makeViewModel('$thread-resolve');
     useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
 
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$thread-resolve'],
-        threadRecordMap: new Map([['$thread-resolve', makeThreadRecord('$thread-resolve')]]),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$thread-resolve'],
+          threadRecordMap: new Map([['$thread-resolve', makeThreadRecord('$thread-resolve')]]),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const resolveButton = renderer.root.findByProps({
       'data-compact-thread-resolve': 'true',
     });
@@ -461,15 +484,18 @@ describe('CompactRoomView', () => {
       updatingThreadRootIds: new Set(),
       error: undefined,
     });
-    const readOnly = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$thread-read-only'],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let readOnly!: ReturnType<typeof create>;
+    act(() => {
+      readOnly = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$thread-read-only'],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     expect(readOnly.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
 
@@ -483,15 +509,18 @@ describe('CompactRoomView', () => {
       updatingThreadRootIds: new Set(),
       error: undefined,
     });
-    const resolved = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$thread-resolved'],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let resolved!: ReturnType<typeof create>;
+    act(() => {
+      resolved = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$thread-resolved'],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     expect(resolved.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
   });
@@ -508,15 +537,18 @@ describe('CompactRoomView', () => {
       updatingThreadRootIds: new Set(['$thread-pending']),
       error: undefined,
     });
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$thread-pending', '$thread-idle'],
-        threadRecordMap: new Map(),
-        onThreadClick: vi.fn(),
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$thread-pending', '$thread-idle'],
+          threadRecordMap: new Map(),
+          onThreadClick: vi.fn(),
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     const actions = renderer.root.findAllByProps({ 'data-compact-thread-resolve': 'true' });
     expect(actions.map((action) => action.props.disabled)).toEqual([true, false]);
@@ -528,15 +560,18 @@ describe('CompactRoomView', () => {
       makeViewModel('$open'),
       makeViewModel('$done', { isResolved: true }),
     ]);
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$open', '$done'],
-        threadRecordMap: new Map(),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$open', '$done'],
+          threadRecordMap: new Map(),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
     const [open, done] = renderer.root.findAllByType(CompactCardSwipe);
 
     expect(open!.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
@@ -577,7 +612,10 @@ describe('CompactRoomView', () => {
       onThreadClick: vi.fn(),
       compactRoomScrollStateRef: { current: new Map() },
     };
-    const editor = create(React.createElement(CompactRoomView, props));
+    let editor!: ReturnType<typeof create>;
+    act(() => {
+      editor = create(React.createElement(CompactRoomView, props));
+    });
     const swipeEnabled = (renderer: ReturnType<typeof create>) =>
       renderer.root.findAllByType(CompactCardSwipe).map((swipe) => swipe.props.enabled);
 
@@ -591,7 +629,10 @@ describe('CompactRoomView', () => {
       updatingThreadRootIds: new Set(),
       error: undefined,
     });
-    const reader = create(React.createElement(CompactRoomView, props));
+    let reader!: ReturnType<typeof create>;
+    act(() => {
+      reader = create(React.createElement(CompactRoomView, props));
+    });
     expect(swipeEnabled(reader)).toEqual([false, false, false, false]);
     reader.unmount();
   });
@@ -629,15 +670,18 @@ describe('CompactRoomView', () => {
       recentThreadSummaryText: 'Recent sidebar summary',
     });
     useCompactThreadCardViewModelsMock.mockReturnValue([viewModel]);
-    const renderer = create(
-      React.createElement(CompactRoomView, {
-        room: makeRoom(),
-        threadRootIds: ['$thread-3'],
-        threadRecordMap: new Map([['$thread-3', makeThreadRecord('$thread-3')]]),
-        onThreadClick,
-        compactRoomScrollStateRef: { current: new Map() },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(CompactRoomView, {
+          room: makeRoom(),
+          threadRootIds: ['$thread-3'],
+          threadRecordMap: new Map([['$thread-3', makeThreadRecord('$thread-3')]]),
+          onThreadClick,
+          compactRoomScrollStateRef: { current: new Map() },
+        })
+      );
+    });
 
     const button = renderer.root.findByProps({ 'data-thread-root-id': '$thread-3' });
 
@@ -696,7 +740,7 @@ describe('CompactRoomView', () => {
     });
   };
   const nodeMockFor =
-    (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement) =>
+    (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement<any>) =>
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
         : // The cards' container listens for touchmove; a card's track comes to rest as it goes.
@@ -710,7 +754,7 @@ describe('CompactRoomView', () => {
       renderer = create(
         renderOverview(makeRoom(), ['$thread-1', '$thread-2'], { current: new Map() }),
         {
-          createNodeMock: (element: React.ReactElement) =>
+          createNodeMock: (element: React.ReactElement<any>) =>
             element.props['data-compact-room-view'] === 'true'
               ? createScrollElement()
               : {

@@ -100,7 +100,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // so the timeline, which pads itself for the footer, does not move under the pointer.
   const [anchorHeight, setAnchorHeight] = useState<number>();
   const listId = useId();
-  const hoverTimer = useRef<number>();
+  const hoverTimer = useRef<number>(undefined);
   const show = (mode: OpenMode) => {
     window.clearTimeout(hoverTimer.current);
     toggled.current = document.activeElement === toggle.current;

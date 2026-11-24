@@ -158,9 +158,13 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
       </MatrixClientProvider>
     );
   });
-  await act(async () => {
-    await vi.waitFor(() => expect(ids).toHaveLength(400), { timeout: 20_000 });
-  });
+  await vi.waitFor(
+    async () => {
+      await act(async () => {});
+      expect(ids).toHaveLength(400);
+    },
+    { timeout: 20_000 }
+  );
   expect(new Set(ids)).toEqual(new Set(roots.map((root) => root.event_id)));
   expect(fetchFn).not.toHaveBeenCalled();
   expect(room.getLiveTimeline().getEvents()).toHaveLength(0);
@@ -267,13 +271,15 @@ const showList = (mx: MatrixClient, engine: Engine, room: Room) => {
     list.current = useRoomThreadList(room, true, changes, 0);
     return null;
   }
-  renderer = create(
-    <MatrixClientProvider value={mx}>
-      <SyncEngineProvider engine={engine}>
-        <Harness />
-      </SyncEngineProvider>
-    </MatrixClientProvider>
-  );
+  act(() => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <SyncEngineProvider engine={engine}>
+          <Harness />
+        </SyncEngineProvider>
+      </MatrixClientProvider>
+    );
+  });
   return list;
 };
 
@@ -406,27 +412,25 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
     vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
       room.processThreadRoots([root], false);
     });
-    await act(async () => {
-      const list = showList(mx, engine, room);
-      await vi.waitFor(async () => {
-        const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
-        expect(cached.rootEvent).toBeDefined();
-        const saved = JSON.stringify(cached.rootEvent);
-        if (change === 'edit') expect(saved).toContain('Newer server title');
-        else if (change === 'redaction')
-          expect(cached.rootEvent?.unsigned?.redacted_because).toBeTruthy();
-        else if (change === 'bundled reply') expect(saved).toContain('$reply-2');
-        else if (change === 'edit decryption') expect(saved).toContain('$edit');
-        else if (change === 'none')
-          expect(cached.rootEvent?.content?.body).toBe('Listed by server');
-        // The listed reply is kept as an edit target, not as downloaded history.
-        expect(cached.events.map((event) => event.event_id)).toEqual(
-          change === 'bundled reply' ? ['$reply-2'] : []
-        );
-        expect(cached.tailLoaded).toBe(false);
-        expect(cached.snapshotComplete).toBe(false);
-        expect(list.current?.loading).toBe(false);
-      });
+    const list = showList(mx, engine, room);
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+      expect(cached.rootEvent).toBeDefined();
+      const saved = JSON.stringify(cached.rootEvent);
+      if (change === 'edit') expect(saved).toContain('Newer server title');
+      else if (change === 'redaction')
+        expect(cached.rootEvent?.unsigned?.redacted_because).toBeTruthy();
+      else if (change === 'bundled reply') expect(saved).toContain('$reply-2');
+      else if (change === 'edit decryption') expect(saved).toContain('$edit');
+      else if (change === 'none') expect(cached.rootEvent?.content?.body).toBe('Listed by server');
+      // The listed reply is kept as an edit target, not as downloaded history.
+      expect(cached.events.map((event) => event.event_id)).toEqual(
+        change === 'bundled reply' ? ['$reply-2'] : []
+      );
+      expect(cached.tailLoaded).toBe(false);
+      expect(cached.snapshotComplete).toBe(false);
+      expect(list.current?.loading).toBe(false);
     });
     expect(saves).toEqual(changesBeforeLaterPage[change]);
     // The decrypted edit is one the root shows.
@@ -454,9 +458,10 @@ it('saves a root that changed before a later page when the overview closes befor
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots([root], false);
   });
-  await act(async () => {
-    showList(mx, engine, room);
-    await vi.waitFor(() => expect(pages).toBe(2));
+  showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(pages).toBe(2);
   });
   // The reader leaves the room while its list still loads.
   await closeList();
@@ -488,10 +493,10 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
     room.processThreadRoots([root], false);
   });
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  let list: ReturnType<typeof showList> = {};
-  await act(async () => {
-    list = showList(mx, engine, room);
-    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
+  const list = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(list.current?.loading).toBe(false);
   });
   expect(failNextRevision).toBe(false);
   expect(list.current?.error).toBeUndefined();
@@ -524,9 +529,10 @@ it('checks each listed root with its page and once more as the load ends, not on
   });
   revisedRoots.length = 0;
   const showOverview = async () => {
-    await act(async () => {
-      const list = showList(mx, engine, room);
-      await vi.waitFor(() => expect(list.current?.loading).toBe(false));
+    const list = showList(mx, engine, room);
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(list.current?.loading).toBe(false);
     });
     await closeList();
   };
@@ -600,7 +606,10 @@ it('saves only changed listed roots when the overview is shown again', async () 
           </SyncEngineProvider>
         </MatrixClientProvider>
       );
-      await vi.waitFor(() => expect(loading).toBe(false));
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(loading).toBe(false);
     });
     await act(async () => renderer?.unmount());
     renderer = undefined;
@@ -707,9 +716,16 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
           </SyncEngineProvider>
         </MatrixClientProvider>
       );
-      await vi.waitFor(() => expect(loading).toBe(false));
-      await whileShown?.();
     });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(loading).toBe(false);
+    });
+    if (whileShown) {
+      await act(async () => {
+        await whileShown();
+      });
+    }
     await act(async () => renderer?.unmount());
     renderer = undefined;
   };
@@ -755,9 +771,10 @@ it('saves a listed root that is still being decrypted when the overview closes',
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots([root], false);
   });
-  await act(async () => {
-    const list = showList(mx, engine, room);
-    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
+  const list = showList(mx, engine, room);
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(list.current?.loading).toBe(false);
   });
   await closeList();
   expect(saved).toEqual([]);
@@ -827,12 +844,16 @@ it('does not rewrite unchanged cached roots restored on a fresh Room when listin
       })
   );
 
-  await act(async () => {
-    const list = showList(mx, engine, room);
-    // Wait until loadCachedThreadRootsForRoom restores all 40 cached threads into `room`.
-    await vi.waitFor(() => expect(room.getThreads().length).toBe(40));
-    releaseServerList();
-    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
+  const list = showList(mx, engine, room);
+  // Wait until loadCachedThreadRootsForRoom restores all 40 cached threads into `room`.
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(room.getThreads().length).toBe(40);
+  });
+  releaseServerList();
+  await vi.waitFor(async () => {
+    await act(async () => {});
+    expect(list.current?.loading).toBe(false);
   });
 
   // Only the 1 newly listed thread changed; rewriting all 40 unchanged cached roots back to IDB

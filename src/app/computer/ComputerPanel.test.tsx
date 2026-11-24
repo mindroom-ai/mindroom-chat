@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import React, { forwardRef, lazy, useEffect, useImperativeHandle } from 'react';
+import React, { act, forwardRef, lazy, useEffect, useImperativeHandle } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { ConnectionError, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComputerPanel, type ComputerPanelProps } from './ComputerPanel';

@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { useState, type ReactNode } from 'react';
+import { act, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useMenuBehaviour } from './menuBehaviour';
 

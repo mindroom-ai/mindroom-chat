@@ -1,4 +1,4 @@
-import { memo, useState, type MouseEvent } from 'react';
+import { memo, useState, type MouseEvent, type JSX } from 'react';
 import classNames from 'classnames';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';

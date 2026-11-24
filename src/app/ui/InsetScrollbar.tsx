@@ -4,8 +4,8 @@ import * as css from './InsetScrollbar.css';
 import { blockSelection } from './dragSelection';
 
 type InsetScrollbarProps = {
-  scrollRef: RefObject<HTMLElement>;
-  contentRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
+  contentRef: RefObject<HTMLElement | null>;
   label: string;
   className: string;
   /** Composite widgets retain their own arrow-key focus order. */

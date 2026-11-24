@@ -13,6 +13,7 @@ const mx = vi.hoisted(() => ({
     () => 'https://example.org/_matrix/client/v1/media/download/example.org/parrot'
   ),
   on: vi.fn(),
+  off: vi.fn(),
   removeListener: vi.fn(),
 }));
 

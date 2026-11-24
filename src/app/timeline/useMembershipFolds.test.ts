@@ -104,7 +104,7 @@ describe('useMembershipFolds', () => {
       const entriesRef = useRef<{
         events: MatrixEvent[];
         entries: { event: MatrixEvent; absoluteIndex: number }[];
-      }>();
+      }>(undefined);
       if (entriesRef.current?.events !== events) {
         entriesRef.current = {
           events,

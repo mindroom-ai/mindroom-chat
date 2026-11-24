@@ -23,7 +23,7 @@ export const titleWithCount = (base: string, count: number): string =>
  */
 export function UnreadTitleFeature() {
   const count = countRoomNotifications(useAtomValue(navigationRoomToUnreadAtom));
-  const base = useRef<string>();
+  const base = useRef<string>(undefined);
 
   useEffect(() => {
     base.current = document.title;

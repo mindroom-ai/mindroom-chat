@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import {
@@ -90,13 +90,16 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const CANVASES: ClientConfig = { mindroom: { canvas: { enabled: true } } };
 
 const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.Desktop) => {
-  const renderer = create(
-    <ScreenSizeProvider value={screenSize}>
-      <ClientConfigProvider value={config}>
-        <SidebarNav />
-      </ClientConfigProvider>
-    </ScreenSizeProvider>
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <ScreenSizeProvider value={screenSize}>
+        <ClientConfigProvider value={config}>
+          <SidebarNav />
+        </ClientConfigProvider>
+      </ScreenSizeProvider>
+    );
+  });
   const tabs = renderer.root
     .findAll((node) => typeof node.props['data-tab'] === 'string')
     .map((node) => node.props['data-tab'] as string);

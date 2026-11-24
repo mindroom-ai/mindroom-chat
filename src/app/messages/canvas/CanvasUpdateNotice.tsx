@@ -23,10 +23,12 @@ export function CanvasUpdateNotice({
           agent: agentName,
         })}
       </Text>
+      {/* Marked so the message hover toolbar keeps clear of this end-side button (`hoverToolbarPlacement`). */}
       <Button
         size="300"
         variant="Secondary"
         onClick={host.loadUpdate}
+        data-canvas-actions=""
         fill="Soft"
         outlined
         radii="300"

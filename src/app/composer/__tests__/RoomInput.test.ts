@@ -3024,7 +3024,9 @@ describe('RoomInput', () => {
       target?.send();
     });
     expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
-    renderer.unmount();
+    act(() => {
+      renderer.unmount();
+    });
     expect(target?.start()).toBe(false);
     expect(resolveVoiceComposer()).toBeUndefined();
   });
@@ -5273,7 +5275,9 @@ describe("RoomInput as Home's ask field", () => {
     mounted.renderer.unmount();
 
     const unmounted = await sendLongQuestion({ isDirect: true }, OTHER_ROOM_ID);
-    unmounted.renderer.unmount();
+    act(() => {
+      unmounted.renderer.unmount();
+    });
     await unmounted.fail();
     expect(unmounted.store.get(homeDraft())).toEqual(question);
     expect(unmounted.store.get(homeAskDestinationAtomFamily(USER_ID))).toEqual({
@@ -5300,7 +5304,9 @@ describe("RoomInput as Home's ask field", () => {
       onRoomMessageSent
     );
     expect(onSendingChange.mock.calls).toEqual([[true]]);
-    gone.renderer.unmount();
+    act(() => {
+      gone.renderer.unmount();
+    });
     await gone.finishUpload();
     expect(onLocalEcho.mock.calls).toEqual([[echoId, inRoom]]);
     expect(onSendingChange.mock.calls).toEqual([[true], [false]]);

@@ -66,7 +66,7 @@ const FOLD_EASING = 'cubic-bezier(.2, .8, .2, 1)';
  * The answered layout needs none of it; an answer already there when the card mounts, or one
  * where motion is not allowed (`motionAllowed`), shows it at once.
  */
-const useFoldOnAnswer = (cardRef: RefObject<HTMLElement>, answered: boolean): boolean => {
+const useFoldOnAnswer = (cardRef: RefObject<HTMLElement | null>, answered: boolean): boolean => {
   const [wasAnswered, setWasAnswered] = useState(answered);
   const [folding, setFolding] = useState(false);
   if (answered !== wasAnswered) {
@@ -74,7 +74,7 @@ const useFoldOnAnswer = (cardRef: RefObject<HTMLElement>, answered: boolean): bo
     setFolding(answered && motionAllowed());
   }
   // The card's width while it waits, which it keeps while the options fold.
-  const openWidth = useRef<number>();
+  const openWidth = useRef<number>(undefined);
   useEffect(() => {
     const card = cardRef.current;
     if (answered || !card || typeof ResizeObserver === 'undefined') return undefined;

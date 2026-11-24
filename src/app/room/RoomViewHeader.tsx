@@ -282,7 +282,7 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  const focusedAction = useRef<HTMLElement>();
+  const focusedAction = useRef<HTMLElement>(undefined);
   const [schedules, setSchedules] = useState<{ roomId: string; opener?: HTMLButtonElement }>();
   const schedulesOpen = !!hasMindroomAgents && schedules?.roomId === room.roomId;
   const openSchedules = (opener?: HTMLButtonElement) =>

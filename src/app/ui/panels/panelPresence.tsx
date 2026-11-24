@@ -91,7 +91,7 @@ export function usePanelSlot(
   useLayoutEffect(() => {
     if (panel) lastPanel.current = panel;
   });
-  const lastWidth = useRef<number>();
+  const lastWidth = useRef<number>(undefined);
   /** Whether the panel was closing at the last commit, until `done`. */
   const closingRef = useRef(false);
   const done = useCallback(() => {

@@ -11,6 +11,7 @@ const createClient = () => ({
   getAccountData: vi.fn(() => undefined),
   getRooms: vi.fn(() => []),
   on: vi.fn(),
+  off: vi.fn(),
   removeListener: vi.fn(),
 });
 
@@ -18,7 +19,9 @@ describe('account atom binding resets', () => {
   let renderer: ReactTestRenderer | undefined;
 
   afterEach(() => {
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
     renderer = undefined;
     vi.useRealTimers();
   });

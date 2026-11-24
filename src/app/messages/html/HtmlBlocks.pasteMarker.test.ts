@@ -1,6 +1,6 @@
 import React from 'react';
 import parse from 'html-react-parser';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -41,9 +41,12 @@ describe('Mindroom paste marker HTML blocks', () => {
     // Production passes the message content whose formatted_body is parsed;
     // marker-aware parsing activates from that content.
     const parserOptions = markerParserOptions({}, { formatted_body: formattedBody });
-    const renderer = create(
-      React.createElement(React.Fragment, null, parse(formattedBody, parserOptions))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(React.Fragment, null, parse(formattedBody, parserOptions))
+      );
+    });
 
     const rendered = JSON.stringify(renderer.toJSON());
 

@@ -263,7 +263,7 @@ export const useMembershipFoldRowSizes = (
   windowRows: readonly MatrixEvent[] | undefined,
   view: MembershipFoldView,
   renderedRef: MutableRefObject<RenderedRoomRows>,
-  innerRef: RefObject<Element>
+  innerRef: RefObject<Element | null>
 ) => {
   useLayoutEffect(() => {
     renderedRef.current = windowRows

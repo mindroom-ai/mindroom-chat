@@ -55,7 +55,7 @@ export type MessageSearchProps = {
   /** Whether the search can reach every room the user is in. */
   allowGlobal?: boolean;
   /** The page's scroll container; results load more as it nears the end. */
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 };
 
 type MessageSearchRow = ReturnType<typeof flattenMessageSearchRows>[number];

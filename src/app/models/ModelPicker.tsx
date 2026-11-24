@@ -196,7 +196,7 @@ function ModelPickerPanel({
   /** Back from the levels, the keys return to the Effort row. */
   const backRef = useRef(false);
   /** The filter field or the list, whichever the keys left for the levels. */
-  const columnOriginRef = useRef<HTMLElement>();
+  const columnOriginRef = useRef<HTMLElement>(undefined);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);

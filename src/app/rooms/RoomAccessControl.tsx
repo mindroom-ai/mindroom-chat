@@ -105,7 +105,7 @@ function RoomAccessSession({
   const [liveMembership, setLiveMembership] = useState<string>();
   const [attempt, setAttemptState] = useState<Attempt>();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const attemptRef = useRef<Attempt>();
+  const attemptRef = useRef<Attempt>(undefined);
   const attemptIdRef = useRef(0);
   const targetRef = useRef(targetRoomId);
   targetRef.current = targetRoomId;

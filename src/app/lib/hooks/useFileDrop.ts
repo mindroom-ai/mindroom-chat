@@ -9,7 +9,7 @@ const hasFiles = (event: DragEvent): boolean =>
  * whether files are being dragged over it, for a drop overlay.
  */
 export const useFileDropZone = (
-  zoneRef: RefObject<HTMLElement>,
+  zoneRef: RefObject<HTMLElement | null>,
   onDrop: (files: File[]) => void
 ): boolean => {
   const [active, setActive] = useState(false);

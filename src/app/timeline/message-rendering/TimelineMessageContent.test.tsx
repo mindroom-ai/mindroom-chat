@@ -175,9 +175,16 @@ describe('timeline reactions', () => {
         );
       // The row's reaction slot, which the real message draws under its body.
       const alerts = () => {
-        const slot = create(<>{message().props.reactions}</>);
-        const found = slot.root.findAll((node) => node.props.role === 'alert');
-        return found.map((node) => JSON.stringify(node.children));
+        let slot!: ReturnType<typeof create>;
+        act(() => {
+          slot = create(<>{message().props.reactions}</>);
+        });
+        try {
+          const found = slot.root.findAll((node) => node.props.role === 'alert');
+          return found.map((node) => JSON.stringify(node.children));
+        } finally {
+          act(() => slot.unmount());
+        }
       };
 
       await act(async () => {

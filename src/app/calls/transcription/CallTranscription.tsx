@@ -28,7 +28,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   // nothing said before it resumed is sent. The transcriber pauses it while MindRoom says so.
   const requestPending = useAtomValue(pauseRequestAtom) !== undefined;
 
-  const transcriberRef = useRef<CallTranscriber>();
+  const transcriberRef = useRef<CallTranscriber>(undefined);
   const latest = useRef({ track, requestPending });
   latest.current = { track, requestPending };
 

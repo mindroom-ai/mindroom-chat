@@ -13,7 +13,10 @@ import {
   resetPendingThreadTagsForTests,
   setPendingThreadTag,
 } from './threadTagPending';
-import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
+import {
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+} from '../../event-store/threads/threadTags';
 import { useThreadTags } from './useThreadTags';
 import { useMutateThreadTags } from './useMutateThreadTags';
 
@@ -117,15 +120,18 @@ describe('useThreadTags', () => {
     });
 
     let snapshot: ReturnType<typeof useThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        threadRootId: '$root',
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          threadRootId: '$root',
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot?.displayTags).toEqual(['bug']);
     expect(snapshot?.tags).toEqual({
@@ -154,15 +160,18 @@ describe('useThreadTags', () => {
     ]);
 
     let snapshot: ReturnType<typeof useThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        threadRootId: '$root',
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          threadRootId: '$root',
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot?.tags).toEqual({
       bug: { set_by: '@alice:example.org', set_at: ISO_2 },
@@ -194,15 +203,18 @@ describe('useThreadTags', () => {
     ]);
 
     let snapshot: ReturnType<typeof useThreadTags> | undefined;
-    const renderer = create(
-      React.createElement(Harness, {
-        room,
-        threadRootId: '$root',
-        onRender: (value) => {
-          snapshot = value;
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          threadRootId: '$root',
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+    });
 
     expect(snapshot?.tags).toEqual({
       bug: { set_by: '@bob:example.org', set_at: ISO_3 },
@@ -298,7 +310,10 @@ describe('useThreadTags', () => {
       sync([bobsTag]);
       expect(snapshot?.displayTags).toEqual(['x-desk', 'y-tab']);
 
-      sync([bobsTag, makePerTagEvent('$root', 'x-desk', { set_by: '@alice:example.org', set_at: ISO_1 })]);
+      sync([
+        bobsTag,
+        makePerTagEvent('$root', 'x-desk', { set_by: '@alice:example.org', set_at: ISO_1 }),
+      ]);
       expect(snapshot?.displayTags).toEqual(['x-desk', 'y-tab']);
 
       // The own tag has settled, so a later removal by someone else shows at once.

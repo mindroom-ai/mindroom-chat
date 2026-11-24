@@ -24,7 +24,7 @@ type SettingsPageFrameProps = {
   requestClose: () => void;
   children: ReactNode;
   /** The scrolling viewport, for pages with a virtual list. */
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
 };
 
 /** What the settings dialog hands each of its pages. */

@@ -4,7 +4,7 @@ import * as css from './ScrollTopContainer.css';
 
 type ScrollTopContainerProps = {
   /** The scrolling element to watch. */
-  scrollRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
   /** Shown once the content is scrolled down by more than this many pixels. */
   threshold?: number;
   className?: string;

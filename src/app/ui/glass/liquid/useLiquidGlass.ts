@@ -7,7 +7,7 @@ export const useLiquidGlass = <T extends HTMLElement>(
   { refraction = true }: { refraction?: boolean } = {}
 ): RefCallback<T> => {
   const element = useRef<T | null>(null);
-  const cleanup = useRef<(() => void) | undefined>();
+  const cleanup = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
     // React 18 StrictMode replays effects without replaying DOM refs.
     if (enabled && element.current && !cleanup.current) {

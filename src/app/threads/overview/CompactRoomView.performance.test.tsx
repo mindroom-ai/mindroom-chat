@@ -163,7 +163,10 @@ describe('CompactRoomView row rendering', () => {
 
   it('rerenders action controls only for rows whose action state changed', async () => {
     const props = makeProps();
-    const renderer = create(<CompactRoomView {...props} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<CompactRoomView {...props} />);
+    });
     expect(state.actionRenderProps).toHaveBeenCalledTimes(9);
 
     act(() => renderer.update(<CompactRoomView {...props} />));
@@ -202,7 +205,10 @@ describe('CompactRoomView row rendering', () => {
 
   it("does not render a row's card again when only the row's actions change", () => {
     const props = makeProps();
-    const renderer = create(<CompactRoomView {...props} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<CompactRoomView {...props} />);
+    });
     expect(state.cardRenders).toHaveBeenCalledTimes(3);
 
     state.updatingThreadRootIds = new Set(['$first']);
@@ -219,7 +225,10 @@ describe('CompactRoomView row rendering', () => {
     const props = makeProps();
     const firstSetPinned = state.setPinned;
     const firstSetResolved = state.setResolved;
-    const renderer = create(<CompactRoomView {...props} />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<CompactRoomView {...props} />);
+    });
     expect(state.actionRenderProps).toHaveBeenCalledTimes(3);
 
     const latestSetPinned = vi.fn();

@@ -386,7 +386,7 @@ function PluginMessageContent({
 }: MatchedRenderer & { event: PluginEvent; fallback: ReactElement }) {
   return (
     <ErrorBoundary
-      fallback={fallback}
+      fallbackRender={() => fallback}
       // After a failure the plugin tries again once another renderer or other content comes along,
       // as a reply streams in, not each time the timeline draws the same message again.
       resetKeys={[Component, JSON.stringify(event.content)]}

@@ -115,7 +115,7 @@ function ScheduleAccordionItem({
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const keepButtonRef = useRef<HTMLButtonElement>(null);
   const confirmBarRef = useRef<HTMLDivElement>(null);
-  const copyTimerRef = useRef<number>();
+  const copyTimerRef = useRef<number>(undefined);
   const mountedRef = useRef(true);
 
   useEffect(() => {

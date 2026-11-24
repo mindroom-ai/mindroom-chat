@@ -1,10 +1,13 @@
 /* eslint-disable react/prop-types */
-import React from 'react';
+import React, { type JSX } from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { ThreadApprovals } from './ThreadApprovalProvider';
-import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from '../matrix/protocol/toolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT,
+  ToolApprovalData,
+} from '../matrix/protocol/toolApproval';
 
 const sendEventMock = vi.fn();
 vi.mock('../ui/page/PageScroll', () => ({
@@ -69,7 +72,7 @@ vi.mock('folds', () => ({
     React.createElement(
       'button',
       { ...props, onClick, ref, type: props.type ?? 'button' },
-      children
+      children as React.ReactNode
     )
   ),
   Icon: ({ src }: { src?: string }) => React.createElement('span', null, src ?? 'icon'),
@@ -729,7 +732,9 @@ describe('ToolApprovalCard', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('The arguments are too large to preview.');
-    expect(text).toContain('The arguments are too large to review, so this request can only be denied.');
+    expect(text).toContain(
+      'The arguments are too large to review, so this request can only be denied.'
+    );
     expect(text).not.toContain('This request cannot be approved here.');
     expect(text).not.toContain('Show all arguments');
     expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
@@ -1351,7 +1356,7 @@ describe('ToolApprovalCard', () => {
       denyTrigger?: { focus: ReturnType<typeof vi.fn> };
     } = {};
 
-    const createNodeMock = (element: React.ReactElement) => {
+    const createNodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
       if (element.type === 'button') {
         const label = getReactNodeText(element.props.children as React.ReactNode);
         const node = { focus: vi.fn() };
@@ -1372,13 +1377,16 @@ describe('ToolApprovalCard', () => {
       return null;
     };
 
-    const renderer = create(
-      React.createElement(ToolApprovalCard, {
-        approval: pendingApproval,
-        ...approvalContext,
-      }),
-      { createNodeMock }
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ToolApprovalCard, {
+          approval: pendingApproval,
+          ...approvalContext,
+        }),
+        { createNodeMock }
+      );
+    });
 
     act(() => {
       findButtonByText(renderer.root, 'Deny').props.onClick();

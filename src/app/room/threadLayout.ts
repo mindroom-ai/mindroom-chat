@@ -43,7 +43,7 @@ const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
  * stores a choice. Before the page has a layout the room's row answers; a row with none either (a
  * test renderer's) counts as roomy.
  */
-export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
+export const useThreadLayout = (pageRef: RefObject<HTMLElement | null>) => {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [layout, setLayout] = useAtom(threadLayoutAtom);
   // Whether the page is wide enough, not its width: a page that resizes as a panel moves renders

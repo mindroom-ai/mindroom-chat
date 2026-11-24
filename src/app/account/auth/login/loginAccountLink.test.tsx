@@ -1,4 +1,4 @@
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider, Trans } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
@@ -14,14 +14,17 @@ describe('the sign-in page link to registration', () => {
       react: { useSuspense: false },
     });
     // Login.tsx renders this key.
-    const renderer = create(
-      <I18nextProvider i18n={language}>
-        <Trans
-          i18nKey="sharedUi.login.noAccountLink"
-          components={{ authLink: <a href="/register">Register</a> }}
-        />
-      </I18nextProvider>
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <Trans
+            i18nKey="sharedUi.login.noAccountLink"
+            components={{ authLink: <a href="/register">Register</a> }}
+          />
+        </I18nextProvider>
+      );
+    });
     expect(renderer.toJSON()).toEqual([
       "Don't have an account? ",
       expect.objectContaining({ type: 'a', children: ['Register'] }),

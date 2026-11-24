@@ -14,7 +14,8 @@ vi.mock('folds', async () => {
 
   const forwardTag = (tag: string) =>
     React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, ...props }, ref) => reactModule.createElement(tag, { ...props, ref }, children)
+      ({ children, ...props }, ref) =>
+        reactModule.createElement(tag, { ...props, ref }, children as React.ReactNode)
     );
 
   return {
@@ -30,7 +31,7 @@ vi.mock('folds', async () => {
     Text: forwardTag('span'),
     as: <P extends object>(
       render: (props: P, ref: React.ForwardedRef<HTMLElement>) => React.ReactElement
-    ) => React.forwardRef<HTMLElement, P>((props, ref) => render(props, ref)),
+    ) => React.forwardRef<HTMLElement, P>((props, ref) => render(props as P, ref)),
     color: {
       Success: {
         Main: 'green',

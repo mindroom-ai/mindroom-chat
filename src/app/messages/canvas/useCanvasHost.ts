@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import {
@@ -147,7 +147,7 @@ export function useCanvasHost({
   // Every error this page reported, so one already sent is not offered again.
   const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
-  const uploadingSubmission = useRef<CanvasSubmission>();
+  const uploadingSubmission = useRef<CanvasSubmission>(undefined);
   const stagedNow = useRef(staged);
   stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
@@ -165,7 +165,7 @@ export function useCanvasHost({
   const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
   const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
   // The update held behind Load update; its page finishing its download is not a new update.
-  const heldRevisionId = useRef<string>();
+  const heldRevisionId = useRef<string>(undefined);
 
   const shownRevisionId = displayed.revisionEventId;
   const frameRevisionId = useRef(shownRevisionId);
@@ -187,9 +187,15 @@ export function useCanvasHost({
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     // An update held behind Load update stays held when the same page starts again.
-    setPageErrors(NO_PAGE_ERRORS);
-    seenErrors.current = new Set();
   }, [frameKey, shownRevisionId]);
+
+  // Reset error state in layout phase so the previous alert unmounts before paint and before the
+  // new iframe can post errors that would race with a passive effect.
+  useLayoutEffect(() => {
+    pageErrorsNow.current = NO_PAGE_ERRORS;
+    seenErrors.current = new Set();
+    setPageErrors(NO_PAGE_ERRORS);
+  }, [frameKey]);
 
   // An update loads at once unless it would discard work the user has not sent.
   const incomingRevision = revisionKey(canvas, incomingHtmlKey);

@@ -116,7 +116,7 @@ const render = (props: Partial<Props> = {}) => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element(props), {
-      createNodeMock: (host) => {
+      createNodeMock: (host: React.ReactElement<any>) => {
         if (host.props['data-list']) return list;
         return host.props['data-compact-card-swipe'] === 'action' ? strip : track;
       },

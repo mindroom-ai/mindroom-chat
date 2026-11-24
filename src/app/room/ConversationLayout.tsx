@@ -74,10 +74,10 @@ const NOTICE_STYLE: CSSProperties = {
  * are measured again whenever it changes.
  */
 const useOverlayInsets = (
-  areaRef: RefObject<HTMLElement>,
-  headerRef: RefObject<HTMLElement>,
-  footerRef: RefObject<HTMLElement>,
-  dockRef: RefObject<HTMLElement>,
+  areaRef: RefObject<HTMLElement | null>,
+  headerRef: RefObject<HTMLElement | null>,
+  footerRef: RefObject<HTMLElement | null>,
+  dockRef: RefObject<HTMLElement | null>,
   parts: string
 ) => {
   useLayoutEffect(() => {
@@ -140,9 +140,9 @@ export type ConversationLayoutProps = {
   /** The thread it shows; none for the room's own messages. */
   threadId?: string;
   /** The box: positions the header, dock and footer, measures their insets, takes `useInert`. */
-  areaRef: RefObject<HTMLDivElement>;
+  areaRef: RefObject<HTMLDivElement | null>;
   /** The floating header's contents, given the header's element (for the plugins' slot). */
-  header?: (headerRef: RefObject<HTMLDivElement>) => ReactNode;
+  header?: (headerRef: RefObject<HTMLDivElement | null>) => ReactNode;
   timeline: ReactNode;
   focusConversation: () => void;
   canCancelJobs: boolean;
@@ -153,7 +153,7 @@ export type ConversationLayoutProps = {
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
   collapsed?: boolean;
   /** The element a plugin's cover hides: timeline, dock and footer. */
-  conversationRef?: RefObject<HTMLDivElement>;
+  conversationRef?: RefObject<HTMLDivElement | null>;
   /** Layers over the conversation, under the header: the plugin cover. */
   children?: ReactNode;
 };

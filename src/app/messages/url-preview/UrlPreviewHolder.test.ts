@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /* eslint-disable react/prop-types */
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UrlPreviewCard, UrlPreviewHolder } from './UrlPreviewCard';
 
@@ -11,7 +10,8 @@ const { mx } = vi.hoisted(() => ({ mx: { getUrlPreview: vi.fn() } }));
 vi.mock('folds', () => {
   const tag = (name: string, extra = {}) =>
     React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
-      ({ children, style }, ref) => React.createElement(name, { ref, style, ...extra }, children)
+      ({ children, style }, ref) =>
+        React.createElement(name, { ref, style, ...extra }, children as React.ReactNode)
     );
   return {
     Box: tag('div'),

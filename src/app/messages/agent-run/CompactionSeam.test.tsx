@@ -100,7 +100,7 @@ const render = (element: React.ReactElement) => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element, {
-      createNodeMock: (element) => ({
+      createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => ({
         getBoundingClientRect: () =>
           element.props.role === 'tooltip' ? { ...cardRect } : { ...triggerRect },
         contains: () => false,

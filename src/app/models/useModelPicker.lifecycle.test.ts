@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import React, { StrictMode, useEffect } from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act, StrictMode, useEffect } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { ClientEvent, createClient, Device, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
@@ -89,15 +88,14 @@ const setup = () => {
   const mount = async (strict = false) => {
     root = createRoot(node);
     await act(async () => {
-      root!.render(
-        React.createElement(
-          MatrixClientProvider,
-          { value: mx },
-          strict
-            ? React.createElement(StrictMode, null, React.createElement(App))
-            : React.createElement(App)
-        )
+      const tree = React.createElement(
+        MatrixClientProvider,
+        { value: mx },
+        React.createElement(App)
       );
+      // Wrap at the root: React 19.3 StrictMode double-invokes mount effects from the outermost
+      // newly mounted fiber, so nesting StrictMode inside a fresh provider skips replay.
+      root!.render(strict ? React.createElement(StrictMode, null, tree) : tree);
       await flush();
     });
   };

@@ -52,7 +52,7 @@ type SettingsSearchProps = {
  * `/` focuses the field while the key would type nothing: nothing that takes text has the focus,
  * and the key lands in the dialog or on the page itself rather than in a menu or dialog over it.
  */
-const useSlashFocus = (field: RefObject<HTMLInputElement>) =>
+const useSlashFocus = (field: RefObject<HTMLInputElement | null>) =>
   useKeyDown(
     window,
     useCallback(

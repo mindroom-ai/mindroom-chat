@@ -148,7 +148,7 @@ export function RoomView({
   const conversationRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
-  const threadReturnPlaceRef = useRef<RoomRowsPlace>();
+  const threadReturnPlaceRef = useRef<RoomRowsPlace>(undefined);
 
   const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
@@ -176,7 +176,7 @@ export function RoomView({
     !!openThreadId &&
     ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
-  const deletedRoot = useRef<string>();
+  const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
     deletedRoot.current = openThreadId;
     threadState.handleThreadRootDeleted();
@@ -190,7 +190,7 @@ export function RoomView({
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // Under the column that fills the page, typing goes to the column's composer instead.
-  const focusColumn = useRef<() => void>();
+  const focusColumn = useRef<() => void>(undefined);
   const focusComposer = useCallback(() => {
     if (!columnFills) ReactEditor.focus(editor);
     else focusColumn.current?.();

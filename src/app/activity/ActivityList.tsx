@@ -151,7 +151,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   // Show more appends a page when it is activated and when it nears the view. Its focus then
   // goes to the first new row: the page mounts before it, and the last page takes it away.
   const moreRef = useRef<HTMLDivElement>(null);
-  const focusKeyRef = useRef<string>();
+  const focusKeyRef = useRef<string>(undefined);
   const appendPage = () => {
     if (moreRef.current?.contains(document.activeElement)) {
       focusKeyRef.current = rest[visibleRest.length]?.key;

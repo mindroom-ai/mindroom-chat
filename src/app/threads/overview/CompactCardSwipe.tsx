@@ -56,7 +56,7 @@ const swipingByTrack = new WeakMap<EventTarget, () => boolean>();
  * one for all cards: one on every card costs WebKit on iOS a touch region a
  * card, as a touch-action on every card does.
  */
-export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement>): void => {
+export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>): void => {
   useEffect(() => {
     const list = listRef.current;
     if (!list) return undefined;
@@ -94,9 +94,9 @@ export function CompactCardSwipe({
 }: CompactCardSwipeProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
-  const gestureRef = useRef<Gesture>();
+  const gestureRef = useRef<Gesture>(undefined);
   const swipedRef = useRef(false);
-  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Taken when the swipe starts, so the strip keeps naming the action it ran
   // while the card settles over a thread that has already toggled.
   const [strip, setStrip] = useState<Strip>();

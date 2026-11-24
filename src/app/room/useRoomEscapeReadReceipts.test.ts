@@ -90,13 +90,16 @@ describe('useRoomEscapeReadReceipts', () => {
     // Its own store: other cases' harnesses stay mounted on the default one.
     const store = createStore();
     store.set(atom, true);
-    const renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(Harness, { threadId: '$thread' })
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { threadId: '$thread' })
+        )
+      );
+    });
     act(() => {
       state.handler?.({} as KeyboardEvent);
     });
@@ -120,13 +123,16 @@ describe('useRoomEscapeReadReceipts', () => {
     store.set(shownConversationViewsAtom, [
       { view: 'column', roomId: '!room:server', threadId: '$thread' },
     ]);
-    const renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(Harness, { threadId: '$thread' })
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { threadId: '$thread' })
+        )
+      );
+    });
     act(() => {
       state.handler?.({} as KeyboardEvent);
     });
@@ -142,13 +148,16 @@ describe('useRoomEscapeReadReceipts', () => {
     store.set(shownConversationViewsAtom, [
       { view: 'panel', roomId: '!room:server', threadId: '$other' },
     ]);
-    const renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(Harness, { threadId: '$thread' })
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { threadId: '$thread' })
+        )
+      );
+    });
     act(() => {
       state.handler?.({} as KeyboardEvent);
     });
@@ -169,13 +178,16 @@ describe('useRoomEscapeReadReceipts', () => {
     // The key was pressed in the column, which noted it as it passed, or outside it.
     const evt = {} as KeyboardEvent;
     if (inColumn) noteThreadColumnKey({ nativeEvent: evt } as React.KeyboardEvent);
-    const renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(Harness, { threadId: '$thread' })
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { threadId: '$thread' })
+        )
+      );
+    });
     act(() => {
       state.handler?.(evt);
     });
@@ -195,9 +207,12 @@ describe('useRoomEscapeReadReceipts', () => {
     ]);
     const evt = {} as KeyboardEvent;
     noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
-    const renderer = create(
-      React.createElement(Provider, { store }, React.createElement(Harness, { threadId: '$a' }))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store }, React.createElement(Harness, { threadId: '$a' }))
+      );
+    });
     act(() => {
       state.handler?.(evt);
     });
@@ -221,9 +236,10 @@ describe('useRoomEscapeReadReceipts', () => {
       ]);
       const evt = {} as KeyboardEvent;
       noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
-      const renderer = create(
-        React.createElement(Provider, { store }, React.createElement(Harness))
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(Provider, { store }, React.createElement(Harness)));
+      });
       act(() => {
         state.handler?.(evt);
       });
@@ -237,7 +253,9 @@ describe('useRoomEscapeReadReceipts', () => {
 
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
     keyHotkeyMock.mockReturnValue(true);
-    create(React.createElement(Harness));
+    act(() => {
+      create(React.createElement(Harness));
+    });
 
     act(() => {
       state.handler?.({} as KeyboardEvent);
@@ -250,7 +268,9 @@ describe('useRoomEscapeReadReceipts', () => {
 
   it('marks only the active thread read on Escape inside a thread', () => {
     keyHotkeyMock.mockReturnValue(true);
-    create(React.createElement(Harness, { hideActivity: true, threadId: '$thread' }));
+    act(() => {
+      create(React.createElement(Harness, { hideActivity: true, threadId: '$thread' }));
+    });
 
     act(() => {
       state.handler?.({} as KeyboardEvent);
@@ -262,7 +282,9 @@ describe('useRoomEscapeReadReceipts', () => {
 
   it('ignores non-Escape key events', () => {
     keyHotkeyMock.mockReturnValue(false);
-    create(React.createElement(Harness));
+    act(() => {
+      create(React.createElement(Harness));
+    });
 
     act(() => {
       state.handler?.({} as KeyboardEvent);

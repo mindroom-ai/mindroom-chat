@@ -1,12 +1,13 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useContext, useMemo, useState } from 'react';
+import React, { ReactNode, type JSX, useContext, useMemo, useState } from 'react';
 import {
+  type DOMNode,
   Element,
   HTMLReactParserOptions,
   Text as DOMText,
   domToReact,
-  htmlToDOM,
 } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
@@ -180,7 +181,7 @@ export const renderHtmlBlock = (
 
   return (
     <NamedBlock icon={icon} blockName={blockName}>
-      {domToReact(children, opts)}
+      {domToReact(children as DOMNode[], opts)}
     </NamedBlock>
   );
 };
@@ -772,7 +773,7 @@ const createToolTraceMarkerParserOptions = (
   };
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
-    replace: (domNode) => {
+    replace: (domNode, index) => {
       const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
 
       if (isContainer) {
@@ -936,7 +937,7 @@ const createToolTraceMarkerParserOptions = (
         }
       }
 
-      return baseReplace ? baseReplace(domNode) : undefined;
+      return baseReplace ? baseReplace(domNode, index) : undefined;
     },
     transform: (reactNode, domNode, index) => {
       const isContainer = isDomElementNode(domNode) && ['p', 'div', 'li'].includes(domNode.name);
@@ -955,7 +956,9 @@ const createToolTraceMarkerParserOptions = (
         }
       }
 
-      return baseTransform ? baseTransform(reactNode, domNode, index) : reactNode;
+      return baseTransform
+        ? baseTransform(reactNode, domNode, index)
+        : (reactNode as JSX.Element | string | null);
     },
   };
   return nextOpts;
@@ -970,8 +973,8 @@ const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
 };
 
 /** The HTML's top-level nodes, as the renderer parses it. */
-export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): ChildNode[] =>
-  htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): DOMNode[] =>
+  parseHtmlToDom(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
 
 type RenderedToolCalls = {
   /** The calls drawn as tool blocks, by index, in the order they are drawn. */

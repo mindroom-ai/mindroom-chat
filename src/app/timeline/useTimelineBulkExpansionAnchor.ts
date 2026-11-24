@@ -101,11 +101,11 @@ export const restoreTimelineBulkExpansionAnchor = (
  */
 export const useTimelineBulkExpansionAnchor = (
   baseline: boolean,
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement | null>
 ): (() => void) => {
   const previousBaselineRef = useRef(baseline);
   const generationRef = useRef(0);
-  const anchorRef = useRef<TimelineBulkExpansionAnchor>();
+  const anchorRef = useRef<TimelineBulkExpansionAnchor>(undefined);
 
   const restoreAnchor = useCallback(() => {
     const scrollElement = scrollRef.current;

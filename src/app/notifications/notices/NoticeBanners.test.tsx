@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DISMISSED_NOTICES_STORAGE_KEY, NOTICE_REFRESH_INTERVAL_MS } from './notices';
 import { NoticeBanners, NoticeLayout } from './NoticeBanners';

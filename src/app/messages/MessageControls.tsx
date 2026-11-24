@@ -1,13 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MutableRefObject,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
@@ -66,7 +57,7 @@ export const useMessageControls = (
 
 const getRefElement = (ref: Ref<HTMLDivElement> | undefined): HTMLElement | null => {
   if (!ref || typeof ref === 'function') return null;
-  return (ref as MutableRefObject<HTMLDivElement | null>).current;
+  return ref.current;
 };
 
 /** The dialog's title, which both of its triggers also carry as their name. */
@@ -203,7 +194,7 @@ export function DownloadOriginalMenuItem({
   const mx = useMatrixClient();
   const [state, setState] = useState<DownloadState>('idle');
   const activeRef = useRef(false);
-  const blobRef = useRef<{ source: LongTextSource; blob: Blob }>();
+  const blobRef = useRef<{ source: LongTextSource; blob: Blob }>(undefined);
 
   const handleClick = async () => {
     if (activeRef.current) return;

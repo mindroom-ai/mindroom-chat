@@ -124,7 +124,7 @@ type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
   editor: Editor;
   threadId?: string;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
   showThreadRepliesInRoom: boolean;
 };
 

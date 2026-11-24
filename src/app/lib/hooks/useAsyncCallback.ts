@@ -45,7 +45,7 @@ export function useAsyncCallback<D, E = unknown, A extends unknown[] = []>(
   const [state, setState] = useState<AsyncState<D, E>>({ status: AsyncStatus.Idle });
   const requestRef = useRef(0);
   const aliveRef = useRef(true);
-  const pendingRef = useRef<PendingPublication<D>>();
+  const pendingRef = useRef<PendingPublication<D>>(undefined);
   const onDiscardRef = useRef(onDiscard);
   onDiscardRef.current = onDiscard;
 

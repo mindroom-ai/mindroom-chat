@@ -74,7 +74,7 @@ const layout = (props: Partial<Parameters<typeof ConversationLayout>[0]> = {}) =
 );
 
 it('draws the header, timeline, dock and footer of the room', () => {
-  let headerRef: RefObject<HTMLDivElement> | undefined;
+  let headerRef: RefObject<HTMLDivElement | null> | undefined;
   render(
     layout({
       header: (ref) => {

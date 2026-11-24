@@ -66,7 +66,7 @@ const unregisterSurface = (element: Element | null) => {
  * browser from zooming or scrolling the page for them (docs/client-plugins.md "Pinches").
  */
 export const usePinchSurface = (
-  ref: RefObject<HTMLElement>,
+  ref: RefObject<HTMLElement | null>,
   { onPinch }: { onPinch: (pinch: SurfacePinch) => void }
 ): void => {
   const listener = useRef(onPinch);

@@ -352,17 +352,20 @@ const renderHeader = async (
 ) => {
   const store = createStore();
   const { RoomViewHeader } = await import('../RoomViewHeader');
-  const renderer = create(
-    React.createElement(
-      Provider,
-      { store },
-      React.createElement(RoomViewHeader, {
-        hasMindroomAgents: true,
-        joinRequestCount,
-        ...headerProps,
-      })
-    )
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(RoomViewHeader, {
+          hasMindroomAgents: true,
+          joinRequestCount,
+          ...headerProps,
+        })
+      )
+    );
+  });
 
   return { renderer, store };
 };

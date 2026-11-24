@@ -75,7 +75,7 @@ type TileVideoProps = {
   /** A camera seen by its own person shows as in a mirror. */
   mirrored?: boolean;
   className?: string;
-  videoRef?: React.RefObject<HTMLVideoElement>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
 };
 
 function TileVideo({ track, mirrored, className = css.TileVideo, videoRef }: TileVideoProps) {

@@ -81,7 +81,7 @@ type LiveRenderOptions = {
   onStoreThreadSummary: ThreadSummaryWriter;
   room: Room;
   roomThreadFilterActive: boolean;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
   /** The shared bottom-pin request, applied by the scroll controller at its next commit. */
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   /** Adds events to the open thread's rows. */

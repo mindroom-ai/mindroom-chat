@@ -118,7 +118,7 @@ export const useRoomRowEntries = ({
     threadId,
     timeline,
   ]);
-  const classicWindowRef = useRef<ClassicWindow>();
+  const classicWindowRef = useRef<ClassicWindow>(undefined);
   const classic = showThreadRepliesInRoom && !threadId;
   const previousWindow = classic ? classicWindowRef.current : undefined;
   const windowTimeline = useMemo(() => {

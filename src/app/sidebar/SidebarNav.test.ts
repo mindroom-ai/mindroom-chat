@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { SidebarNav } from './SidebarNav';
@@ -96,14 +96,19 @@ vi.mock('../matrix/hooks/useAccountSettings', async () => {
   };
 });
 
-const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) =>
-  create(
-    React.createElement(
-      ClientConfigProvider,
-      { value: clientConfig },
-      React.createElement(SidebarNav, { footer })
-    )
-  );
+const renderSidebarNav = (clientConfig: ClientConfig = {}, footer?: React.ReactNode) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        ClientConfigProvider,
+        { value: clientConfig },
+        React.createElement(SidebarNav, { footer })
+      )
+    );
+  });
+  return renderer;
+};
 
 const hasTab = (renderer: ReturnType<typeof renderSidebarNav>, tab: string): boolean =>
   renderer.root.findAll((node) => node.props['data-tab'] === tab).length > 0;

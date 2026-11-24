@@ -112,10 +112,12 @@ describe('useRoomEvent', () => {
       const client = new QueryClient();
       let renderer: ReturnType<typeof create> | undefined;
       try {
-        await act(async () => {
+        act(() => {
           renderer = create(
             React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
           );
+        });
+        await act(async () => {
           await flushAsyncWork();
         });
         expect(bodies).toEqual(['Cached announcement']);
@@ -167,7 +169,7 @@ describe('useRoomEvent', () => {
               ]
         );
         if (change === 'offline') {
-          await act(async () => {
+          act(() => {
             fetchRoomEventMock.mockResolvedValue({
               ...cached,
               unsigned: {
@@ -175,6 +177,8 @@ describe('useRoomEvent', () => {
               },
             });
             matrixClientMock.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+          });
+          await act(async () => {
             await flushAsyncWork();
           });
           expect(bodies).toEqual(['Current announcement']);
@@ -208,10 +212,12 @@ describe('useRoomEvent', () => {
     const client = new QueryClient();
     let renderer: ReturnType<typeof create> | undefined;
     try {
-      await act(async () => {
+      act(() => {
         renderer = create(
           React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
         );
+      });
+      await act(async () => {
         await flushAsyncWork();
       });
       const root = client.getQueryData<MatrixEvent>([room.roomId, '$old', undefined])!;
@@ -271,10 +277,12 @@ describe('useRoomEvent', () => {
       const client = new QueryClient();
       let renderer!: ReturnType<typeof create>;
       try {
-        await act(async () => {
+        act(() => {
           renderer = create(
             React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
           );
+        });
+        await act(async () => {
           await flushAsyncWork();
         });
         expect(events[0]!.getContent().body).toBe('First edit');
@@ -345,16 +353,18 @@ describe('useRoomEvent', () => {
     }
     const client = new QueryClient();
     let renderer!: ReturnType<typeof create>;
-    await act(async () => {
+    act(() => {
       renderer = create(
         React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
       );
+    });
+    await act(async () => {
       await flushAsyncWork();
     });
     expect(events.map((event) => event.getId())).toEqual(['$old']);
     expect(events[0]!.getContent().body).toBe('Older announcement');
     expect(fetchRoomEventMock).toHaveBeenCalledTimes(3);
-    renderer.unmount();
+    act(() => renderer.unmount());
     client.clear();
   });
 
@@ -375,8 +385,10 @@ describe('useRoomEvent', () => {
         React.createElement(Probe, { revision })
       );
     let renderer!: ReturnType<typeof create>;
-    await act(async () => {
+    act(() => {
       renderer = create(render(0));
+    });
+    await act(async () => {
       await flushAsyncWork();
     });
     expect(events[0]!.getContent().body).toBe('body-$old');
@@ -387,7 +399,7 @@ describe('useRoomEvent', () => {
     room.findEventById.mockImplementation((id: string) => (id === '$old' ? live : undefined));
     act(() => renderer.update(render(1)));
     expect(events[0]!.getContent().body).toBe('Updated announcement');
-    renderer.unmount();
+    act(() => renderer.unmount());
     client.clear();
   });
   afterEach(() => {
@@ -422,6 +434,8 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork();
       });
 
@@ -430,7 +444,7 @@ describe('useRoomEvent', () => {
       expect(loadCachedRoomEventMock).not.toHaveBeenCalled();
       expect(fetchRoomEventMock).not.toHaveBeenCalled();
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });
@@ -458,6 +472,8 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork(10);
       });
 
@@ -471,7 +487,7 @@ describe('useRoomEvent', () => {
       );
       expect(fetchRoomEventMock).not.toHaveBeenCalled();
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });
@@ -500,6 +516,8 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork(10);
       });
 
@@ -512,7 +530,7 @@ describe('useRoomEvent', () => {
       );
       expect(fetchRoomEventMock).not.toHaveBeenCalled();
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });
@@ -542,6 +560,8 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork(10);
       });
 
@@ -549,7 +569,7 @@ describe('useRoomEvent', () => {
       expect(resolvedEvent?.getId()).toBe('$network-reply');
       expect(fetchRoomEventMock).toHaveBeenCalledWith('!room:example.org', '$network-reply');
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });
@@ -583,13 +603,15 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork(20);
       });
 
       expect(onEvent).toHaveBeenLastCalledWith(null);
       expect(fetchRoomEventMock).toHaveBeenCalledTimes(1);
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });
@@ -616,6 +638,8 @@ describe('useRoomEvent', () => {
             })
           )
         );
+      });
+      await act(async () => {
         await flushAsyncWork(30);
       });
 
@@ -623,7 +647,7 @@ describe('useRoomEvent', () => {
       // Initial attempt plus the predicate's failureCount < 3 retries.
       expect(fetchRoomEventMock).toHaveBeenCalledTimes(4);
     } finally {
-      renderer?.unmount();
+      act(() => renderer?.unmount());
       queryClient.clear();
     }
   });

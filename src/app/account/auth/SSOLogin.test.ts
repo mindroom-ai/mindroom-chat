@@ -109,12 +109,15 @@ describe('SSOLogin', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Browser.open).mockResolvedValue();
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        redirectUrl: 'mindroom://auth/login/mindroom.chat',
-        action: SSOAction.LOGIN,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+    });
 
     const continueButton = findButtonByText(renderer, 'Continue with SSO');
     const preventDefault = vi.fn();
@@ -143,12 +146,15 @@ describe('SSOLogin', () => {
     accessState.behindAccess = behindAccess;
 
     try {
-      const renderer = create(
-        React.createElement(SSOLogin, {
-          redirectUrl: 'mindroom://auth/login/mindroom.chat',
-          action: SSOAction.LOGIN,
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(SSOLogin, {
+            redirectUrl: 'mindroom://auth/login/mindroom.chat',
+            action: SSOAction.LOGIN,
+          })
+        );
+      });
       await act(async () => {
         await findButtonByText(renderer, 'Continue with SSO')?.props.onClick({
           preventDefault: vi.fn(),
@@ -171,12 +177,15 @@ describe('SSOLogin', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
     vi.mocked(Browser.open).mockResolvedValue();
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        redirectUrl: 'mindroom://auth/login/mindroom.chat',
-        action: SSOAction.LOGIN,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+    });
 
     const continueButton = findButtonByText(renderer, 'Continue with SSO');
     const preventDefault = vi.fn();
@@ -201,12 +210,15 @@ describe('SSOLogin', () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Browser.open).mockRejectedValue(error);
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        redirectUrl: 'mindroom://auth/login/mindroom.chat',
-        action: SSOAction.LOGIN,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+    });
 
     const continueButton = findButtonByText(renderer, 'Continue with SSO');
     const preventDefault = vi.fn();
@@ -224,12 +236,15 @@ describe('SSOLogin', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        redirectUrl: 'https://mindroom.chat/login/mindroom.chat',
-        action: SSOAction.LOGIN,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          redirectUrl: 'https://mindroom.chat/login/mindroom.chat',
+          action: SSOAction.LOGIN,
+        })
+      );
+    });
 
     const continueButton = findButtonByText(renderer, 'Continue with SSO');
     const preventDefault = vi.fn();
@@ -273,19 +288,22 @@ describe('SSOLogin', () => {
       configurable: true,
     });
 
-    const renderer = create(
-      React.createElement(SSOLogin, {
-        action: SSOAction.LOGIN,
-        providers: [
-          {
-            brand: 'apple',
-            id: 'chat.mindroom.matrix.apple',
-            name: 'Apple',
-          },
-        ],
-        redirectUrl: 'mindroom://auth/login/mindroom.chat',
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SSOLogin, {
+          action: SSOAction.LOGIN,
+          providers: [
+            {
+              brand: 'apple',
+              id: 'chat.mindroom.matrix.apple',
+              name: 'Apple',
+            },
+          ],
+          redirectUrl: 'mindroom://auth/login/mindroom.chat',
+        })
+      );
+    });
 
     const appleButton = findButtonByText(renderer, 'Sign in with Apple');
     const preventDefault = vi.fn();
@@ -330,12 +348,15 @@ describe('SSOLogin', () => {
       accessState.behindAccess = behindAccess;
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       try {
-        const renderer = create(
-          React.createElement(SSOLogin, {
-            providers: [{ id: 'chat.mindroom.matrix.apple', name: 'Apple', brand: 'apple' }],
-            redirectUrl: 'mindroom://auth/login/mindroom.chat',
-          })
-        );
+        let renderer!: ReturnType<typeof create>;
+        act(() => {
+          renderer = create(
+            React.createElement(SSOLogin, {
+              providers: [{ id: 'chat.mindroom.matrix.apple', name: 'Apple', brand: 'apple' }],
+              redirectUrl: 'mindroom://auth/login/mindroom.chat',
+            })
+          );
+        });
         await act(async () => {
           await findButtonByText(renderer, 'Sign in with Apple')?.props.onClick({
             preventDefault: vi.fn(),

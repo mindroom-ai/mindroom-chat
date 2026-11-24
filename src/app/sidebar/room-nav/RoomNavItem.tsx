@@ -68,11 +68,11 @@ const NAME_TOOLTIP_DELAY_MS = 400;
  * cover the list. Pressing the link closes it.
  */
 const useCutOffNameTooltip = (
-  rowRef: React.RefObject<HTMLElement>,
-  nameRef: React.RefObject<HTMLElement>
+  rowRef: React.RefObject<HTMLElement | null>,
+  nameRef: React.RefObject<HTMLElement | null>
 ) => {
   const [anchor, setAnchor] = useState<RectCords>();
-  const timer = useRef<number>();
+  const timer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const close = () => {
     window.clearTimeout(timer.current);

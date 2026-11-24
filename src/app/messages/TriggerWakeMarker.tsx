@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useInRouterContext } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { isTag, isText, type ChildNode } from 'domhandler';
-import parse, { domToReact, type HTMLReactParserOptions } from 'html-react-parser';
+import { domToReact, type DOMNode, type HTMLReactParserOptions } from 'html-react-parser';
 import Linkify from 'linkify-react';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Icon, Icons, Text } from 'folds';
@@ -38,6 +38,7 @@ import {
   LinkRule,
   StrikeRule,
 } from '../rich-text/markdown/inline/rules';
+import { parseHtml } from '../rich-text/parseHtml';
 import { sanitizeCustomHtml, sanitizeText } from '../rich-text/sanitize';
 import {
   LINKIFY_OPTS,
@@ -109,7 +110,7 @@ const createPromptHtmlOptions = (mention?: PromptMentionContext): HTMLReactParse
         return <Linkify options={linkifyOpts}>{revealDirectionControls(node.data)}</Linkify>;
       }
       if (!isTag(node)) return undefined;
-      const children = domToReact(node.children, options);
+      const children = domToReact(node.children as DOMNode[], options);
       switch (node.name) {
         case 'a': {
           const { href } = node.attribs;
@@ -159,7 +160,7 @@ const renderPromptContent = (text: string, mention?: PromptMentionContext): Reac
     const html = sanitizeCustomHtml(
       parseInlineMDWithRules(sanitizeText(text), PROMPT_INLINE_RULES)
     );
-    return parse(html, createPromptHtmlOptions(mention));
+    return parseHtml(html, createPromptHtmlOptions(mention));
   } catch {
     return revealDirectionControls(text);
   }
@@ -227,7 +228,7 @@ export function TriggerWakeMarker({ wake, ts, roomId }: TriggerWakeMarkerProps) 
   const inRouter = useInRouterContext();
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const panelId = useId();
 
   useEffect(() => () => clearTimeout(copiedTimer.current), []);

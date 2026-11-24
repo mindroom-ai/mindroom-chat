@@ -102,7 +102,7 @@ export function ComposerSendButton({
     setMenu({ anchor: element.getBoundingClientRect(), hover: false });
   }, canOpen);
   // Opens the menu for a mouse resting on the button, or closes it once the mouse has gone.
-  const hoverTimer = useRef<number>();
+  const hoverTimer = useRef<number>(undefined);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   const closeHover = () => setMenu((current) => (current?.hover ? undefined : current));
   // A rest counts only while the menu may open: once the conversation hides, the reply ends or the

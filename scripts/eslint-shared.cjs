@@ -20,7 +20,7 @@ const COMMON = {
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true } },
   env: { browser: true, es2022: true, node: true },
   settings: {
-    react: { version: '18.2' },
+    react: { version: '19.3' },
     // import/no-restricted-paths skips an import it cannot resolve, and the node resolver tries no
     // TypeScript extensions by default.
     'import/resolver': { node: { extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'] } },

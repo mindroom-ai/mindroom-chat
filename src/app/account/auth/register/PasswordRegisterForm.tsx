@@ -198,7 +198,7 @@ export function PasswordRegisterForm(props: {
   const [mismatch, setMismatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState<WaitingStep>();
-  const resumeRef = useRef<(proceed: boolean) => void>();
+  const resumeRef = useRef<(proceed: boolean) => void>(undefined);
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);

@@ -124,7 +124,10 @@ describe('profile chip clipboard feedback', () => {
 
   it.each(CASES)('shows success for $label only when copy succeeds', async (testCase) => {
     mocks.copyToClipboard.mockResolvedValue(true);
-    const renderer = create(testCase.render());
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(testCase.render());
+    });
 
     await act(async () => {
       await getMenuButton(renderer, testCase.label).props.onClick();
@@ -137,7 +140,10 @@ describe('profile chip clipboard feedback', () => {
 
   it.each(CASES)('does not show success for failed $label', async (testCase) => {
     mocks.copyToClipboard.mockResolvedValue(false);
-    const renderer = create(testCase.render());
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(testCase.render());
+    });
 
     await act(async () => {
       await getMenuButton(renderer, testCase.label).props.onClick();
@@ -152,7 +158,10 @@ describe('profile chip clipboard feedback', () => {
 describe('server chip', () => {
   it('opens the server in a new tab without an opener', () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
-    const renderer = create(<ServerChip server="example.org" />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<ServerChip server="example.org" />);
+    });
 
     act(() => {
       getMenuButton(renderer, 'Open in Browser').props.onClick();

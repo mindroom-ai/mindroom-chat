@@ -210,11 +210,11 @@ export const useRoomInputVoice = ({
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   // Set while this composer holds the send lock (`voiceAutoSendPendingAtom`): the guard of the
   // account it took the lock under. Left since, the lock is the next account's to release.
-  const voiceAutoSendClaimedRef = useRef<() => boolean>();
+  const voiceAutoSendClaimedRef = useRef<() => boolean>(undefined);
   const voiceAutoSendInFlightRef = useRef(false);
-  const voiceRootModelRef = useRef<ThreadModelContent>();
+  const voiceRootModelRef = useRef<ThreadModelContent>(undefined);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
-  const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
+  const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>(undefined);
 
   // Discard any orphaned draft. Three cases:
   //   1. Account-switch leak: the atom is module-level and survives

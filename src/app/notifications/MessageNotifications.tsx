@@ -188,7 +188,7 @@ export function MessageNotificationsFeature() {
   const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
   const views = useAtomValue(shownConversationViewsAtom);
 
-  const settings = useRef<NotifySettings>();
+  const settings = useRef<NotifySettings>(undefined);
   settings.current = {
     desktop,
     sound,
