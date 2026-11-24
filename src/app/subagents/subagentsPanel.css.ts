@@ -296,8 +296,8 @@ export const StatusDot = styleVariants({
 /** The open sub-agent's turns, each the caller's task, the cards of what it started, then its reply. */
 export const Thread = style({ display: 'flex', flexDirection: 'column', gap: space.S300 });
 
-// What the run was asked keeps its line breaks and wraps anywhere.
-export const Task = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+// What the run was asked, as Markdown; `minWidth: 0` lets wide blocks scroll inside the panel.
+export const Task = style({ minWidth: 0, overflowWrap: 'anywhere' });
 
 export const Reply = style({ minWidth: 0, overflowWrap: 'anywhere' });
 

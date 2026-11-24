@@ -13,7 +13,7 @@ const ROOM = '!room:example.org';
 const root = (
   eventId: string,
   ts: number,
-  fork?: { thread_id: unknown; event_id: unknown },
+  fork?: { room_id?: unknown; thread_id: unknown; event_id: unknown },
   extra: Record<string, unknown> = {}
 ) =>
   new MatrixEvent({
@@ -94,6 +94,25 @@ describe('groupThreadForks', () => {
     );
     expect(groupThreadForks([edited], '$p').get('$a')).toEqual([{ threadId: '$f', ts: 9 }]);
   });
+
+  it('ignores cross-room fork roots targeting another room', () => {
+    const crossRoom = root('$cross', 10, {
+      room_id: '!other:example.org',
+      thread_id: '$p',
+      event_id: '$a',
+    });
+    const sameExplicit = root('$same', 11, {
+      room_id: ROOM,
+      thread_id: '$p',
+      event_id: '$a',
+    });
+    const sameOmitted = root('$local', 12, { thread_id: '$p', event_id: '$a' });
+    expect(groupThreadForks([crossRoom, sameExplicit, sameOmitted], '$p', ROOM).get('$a')).toEqual([
+      { threadId: '$same', ts: 11 },
+      { threadId: '$local', ts: 12 },
+    ]);
+    expect(groupThreadForks([crossRoom], '$p').size).toBe(0);
+  });
 });
 
 const makeRoom = (threadRoots: MatrixEvent[], timelineEvents: MatrixEvent[]) => {
@@ -173,5 +192,24 @@ describe('useThreadForks', () => {
     unmount();
     expect(clientEmitter.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
     expect(clientEmitter.listenerCount(RoomEvent.Timeline)).toBe(0);
+  });
+
+  it('ignores cross-room fork roots arriving in the room for another room thread', () => {
+    const { room, state, clientEmitter } = makeRoom([], []);
+    const { result, unmount } = renderHook(() => useThreadForks(room, '$p'));
+    const initial = result.current;
+
+    const cross = root('$cross', 20, {
+      room_id: '!other:example.org',
+      thread_id: '$p',
+      event_id: '$a',
+    });
+    state.timelineEvents = [cross];
+    act(() => {
+      clientEmitter.emit(RoomEvent.Timeline, cross, room);
+    });
+    expect(result.current).toBe(initial);
+    expect(result.current.size).toBe(0);
+    unmount();
   });
 });

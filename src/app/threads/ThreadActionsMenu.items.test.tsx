@@ -21,6 +21,26 @@ vi.unmock('../ui/glass/GlassPrimitives');
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
+vi.mock('./fork/ForkToRoomDialog', () => ({
+  ForkToRoomDialog: ({
+    sourceRoom,
+    onSelect,
+    onClose,
+  }: {
+    sourceRoom: { roomId: string };
+    onSelect: (roomId: string) => void;
+    onClose: () => void;
+  }) => (
+    <div data-testid="fork-to-room-dialog" data-source-room={sourceRoom.roomId}>
+      <button type="button" data-pick-beta="" onClick={() => onSelect('!beta:example.org')}>
+        Project Beta
+      </button>
+      <button type="button" data-close-picker="" onClick={onClose}>
+        Close
+      </button>
+    </div>
+  ),
+}));
 vi.mock('../ui/styles/Motion.css', () => ({
   motion: { duration: { Normal: '0ms', Fast: '0ms' }, easing: { Standard: 'linear' } },
 }));
@@ -145,6 +165,7 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'snooze', label: 'Snooze', icon: glyph(Icons.Clock) },
       { action: 'pin', label: 'Pin thread', icon: glyph(Icons.Pin) },
       { action: 'fork', label: 'Fork thread', icon: glyph(ForkIcon) },
+      { action: 'forkToRoom', label: 'Fork to room…', icon: glyph(ForkIcon) },
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
@@ -323,6 +344,49 @@ describe('ThreadActionsMenu rows', () => {
     expect(rowOf(renderMenu(), 'fork')).toBeUndefined();
     state.threadMode = 'mixed';
     expect(rowOf(renderMenu(), 'fork')).toBeDefined();
+  });
+
+  it('offers Fork to room… beside Fork thread and starts a cross-room fork on room selection', () => {
+    startFork.mockClear();
+    const onClose = vi.fn();
+    const latest = new MatrixEvent({
+      event_id: '$latest',
+      room_id: '!room:test',
+      type: 'm.room.message',
+      sender: '@me:test',
+      origin_server_ts: 2,
+      content: {
+        msgtype: 'm.text',
+        body: 'latest',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      },
+    });
+    const thread = {
+      rootEvent,
+      events: [latest],
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({ getNeighbouringTimeline: () => null }),
+      }),
+    };
+    const items = renderMenu({
+      room: { ...room, getThread: () => thread } as unknown as Room,
+      onClose,
+    });
+
+    const forkIdx = items.findIndex((el) => el.getAttribute('data-thread-action') === 'fork');
+    const forkToRoomIdx = items.findIndex(
+      (el) => el.getAttribute('data-thread-action') === 'forkToRoom'
+    );
+    expect(forkToRoomIdx).toBe(forkIdx + 1);
+
+    act(() => rowOf(items, 'forkToRoom')?.click());
+    expect(host.querySelector('[data-testid="fork-to-room-dialog"]')).not.toBeNull();
+    act(() => host.querySelector<HTMLButtonElement>('[data-pick-beta]')?.click());
+    expect(startFork).toHaveBeenCalledWith(
+      { threadId: '$root', eventId: '$latest' },
+      '!beta:example.org'
+    );
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('opens at least 220px wide with the large corner radius, as the original menu measures', () => {
