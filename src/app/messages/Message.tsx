@@ -571,6 +571,8 @@ export type MessageProps = MessageSubject &
     onOpenInOriginalThread?: () => void;
     /** Starts a fork of the message's thread that holds the thread up to this message. */
     onForkClick?: (eventId: string) => void;
+    /** Opens the target-room picker to fork the message's thread up to this message into another room. */
+    onForkToRoomClick?: (eventId: string) => void;
     /** Rooms whose emoji packs the reaction pickers offer. */
     imagePackRooms?: Room[];
     onReactionToggle?: ReactionHandler;
@@ -674,6 +676,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       onReplyClick,
       onOpenInOriginalThread,
       onForkClick,
+      onForkToRoomClick,
       onReactionToggle,
       resolvedMessageContent,
       replyTiming,
@@ -1009,6 +1012,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                     icon={ForkIcon}
                     onSelect={() => {
                       onForkClick(eventId);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {confirmed && onForkToRoomClick && (
+                  <MenuEntry
+                    label={t('threadFork.forkToRoom')}
+                    icon={ForkIcon}
+                    onSelect={() => {
+                      onForkToRoomClick(eventId);
                       dismissMenu();
                     }}
                   />

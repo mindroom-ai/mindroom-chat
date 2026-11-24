@@ -1610,7 +1610,17 @@
     "forkThread": "分支討論串",
     "forking": "正在從 {{title}} 分支",
     "continueInNewThread": "在新討論串中繼續",
-    "forkCount_other": "{{count}} 個分支"
+    "forkCount_other": "{{count}} 個分支",
+    "forkedFromInRoom": "分支自 {{room}} 中的 {{title}}",
+    "forkedFromAnotherRoom": "分支自其他房間",
+    "forkingIntoRoom": "正在將 {{title}} 分支到 {{room}}",
+    "forkToRoom": "分支到房間…",
+    "forkToRoomTitle": "分支到房間",
+    "forkToRoomSearchPlaceholder": "搜尋房間…",
+    "forkToRoomEmpty": "沒有符合的房間",
+    "forkToRoomAgentWarning": "此房間中的代理程式不在 {{room}} 中，無法查看原討論串",
+    "forkingFromRoom": "正在從 {{room}} 分支",
+    "forkDraftAgentWarning": "此處的代理程式不在 {{room}} 中，無法查看原討論串"
   },
   "activity": {
     "title": "動態",

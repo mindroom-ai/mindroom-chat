@@ -710,6 +710,7 @@ describe('Message Fork from here', () => {
   const renderForkable = async (eventId: string) => {
     const Message = await getMessageComponent();
     const onForkClick = vi.fn();
+    const onForkToRoomClick = vi.fn();
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
@@ -724,31 +725,40 @@ describe('Message Fork from here', () => {
             messageSpacing: '400',
             onReplyClick: vi.fn(),
             onForkClick,
+            onForkToRoomClick,
           },
           React.createElement('div', null, 'message body')
         )
       );
     });
     await openContextMenu(renderer);
-    return { renderer, onForkClick };
+    return { renderer, onForkClick, onForkToRoomClick };
   };
 
-  it('comes right after Reply in Thread and forks at this message', async () => {
-    const { renderer, onForkClick } = await renderForkable('$event');
+  it('comes right after Reply in Thread, followed by Fork to room…, and forks at this message', async () => {
+    const { renderer, onForkClick, onForkToRoomClick } = await renderForkable('$event');
 
     const texts = buttonTexts(renderer);
     expect(texts.indexOf('Reply in Thread')).toBeGreaterThan(-1);
     expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Reply in Thread') + 1);
+    expect(texts.indexOf('Fork to room…')).toBe(texts.indexOf('Fork from here') + 1);
     await act(async () => {
       getButtonByText(renderer, 'Fork from here')?.props.onClick();
     });
     expect(onForkClick).toHaveBeenCalledWith('$event');
+
+    await openContextMenu(renderer);
+    await act(async () => {
+      getButtonByText(renderer, 'Fork to room…')?.props.onClick();
+    });
+    expect(onForkToRoomClick).toHaveBeenCalledWith('$event');
   });
 
   it('is not offered for a message the server has not confirmed', async () => {
     const { renderer } = await renderForkable('~!room:example.org:txn-1');
 
     expect(getButtonByText(renderer, 'Fork from here')).toBeUndefined();
+    expect(getButtonByText(renderer, 'Fork to room…')).toBeUndefined();
   });
 });
 

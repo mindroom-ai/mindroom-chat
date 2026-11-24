@@ -1,4 +1,4 @@
-import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { ownThreadId } from '../event-store/threads/threadFork';
 
 /**
@@ -14,13 +14,32 @@ export const forkPrefixThreadId = (
   forkPrefixEventIds?.has(eventId) ? (ownThreadId(event) ?? eventId) : undefined;
 
 /**
- * The set a row reads its edits from: a fork prefix's row its parent thread's, every other row
- * its own (`rowTimelineSet`).
+ * The room an event belongs to: for a cross-room fork prefix row, its owning room from the
+ * client; otherwise `room`.
+ */
+export const rowEventRoom = (
+  mx: Pick<MatrixClient, 'getRoom'>,
+  room: Room,
+  event: MatrixEvent,
+  prefixThreadId: string | undefined
+): Room => {
+  if (!prefixThreadId) return room;
+  const eventRoomId = event.getRoomId();
+  if (!eventRoomId || eventRoomId === room.roomId) return room;
+  return mx.getRoom(eventRoomId) ?? room;
+};
+
+/**
+ * The set a row reads its edits and reactions from: a fork prefix's row reads its parent thread's
+ * set in `eventRoom` (falling back to `eventRoom`'s unfiltered room timeline set when no SDK
+ * `Thread` exists), and every other row reads its own (`rowTimelineSet`).
  */
 export const rowEditTimelineSet = (
-  room: Room,
+  eventRoom: Room,
   prefixThreadId: string | undefined,
   rowTimelineSet: EventTimelineSet
 ): EventTimelineSet =>
-  (prefixThreadId ? room.getThread(prefixThreadId)?.getUnfilteredTimelineSet() : undefined) ??
-  rowTimelineSet;
+  (prefixThreadId
+    ? eventRoom.getThread(prefixThreadId)?.getUnfilteredTimelineSet() ??
+      eventRoom.getUnfilteredTimelineSet?.()
+    : undefined) ?? rowTimelineSet;
