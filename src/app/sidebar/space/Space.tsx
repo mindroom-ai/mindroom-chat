@@ -186,7 +186,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
             <NavOptionsMenu
               icon={Icons.Plus}
               label={t('featureUi.spaceNav.addToSpace', { name })}
-              width={210}
+              width={220}
               buttonClassName={PairedTouchTarget}
             >
               {(close) => (
@@ -203,7 +203,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
           )}
           <NavOptionsMenu
             label={t('featureUi.spaceNav.options')}
-            width={210}
+            width={220}
             buttonClassName={permissions.canAdd ? PairedTouchTarget : undefined}
           >
             {(close) => (

@@ -334,7 +334,7 @@ export function SpaceSectionHeader({
             >
               <Menu
                 className={scrollableMenuCss.ScrollableMenu}
-                style={{ width: '100vw', maxWidth: toRem(210) }}
+                style={{ width: '100vw', maxWidth: toRem(220) }}
               >
                 <div className={scrollableMenuCss.ScrollableMenuRows}>
                   {menu.kind === 'add' ? (
