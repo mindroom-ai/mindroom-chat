@@ -92,10 +92,7 @@ const pushPreviewFingerprint = (parts: unknown[], room: Room, preview: unknown):
  * revision check so in-place metadata borrowing on `edit.event.content['m.new_content']` is never
  * missed.
  */
-const getRootFingerprint = (
-  room: Room,
-  rootEvent: MatrixEvent
-): RootRevisionFingerprint | null => {
+const getRootFingerprint = (room: Room, rootEvent: MatrixEvent): RootRevisionFingerprint | null => {
   if (rootEvent.replacingEvent()) return null;
   const rawEvent = rootEvent.event;
   const unsigned = rawEvent.unsigned;
