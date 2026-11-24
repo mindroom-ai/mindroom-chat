@@ -40,7 +40,7 @@ describe('sanitizeAccountSettings', () => {
     expect(sanitizeAccountSettings({ macAppOffered: 'yes' }).macAppOffered).toBe(false);
   });
 
-  it.each(['disabledPlugins', 'enabledPlugins'] as const)(
+  it.each(['disabledPlugins', 'enabledPlugins', 'dismissedTips'] as const)(
     'sanitizes %s as deduplicated non-empty string IDs',
     (key) => {
       expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key]).toEqual([]);
@@ -110,6 +110,19 @@ describe('mergeAccountSettings', () => {
       futureKey: 'x',
       disabledPlugins: ['pull-requests'],
       enabledPlugins: ['opt-in'],
+    });
+  });
+
+  it('preserves unknown keys when recording dismissed contextual tips', () => {
+    expect(
+      mergeAccountSettings(
+        { showThreadsInSidebar: true, futureKey: 'x' },
+        { dismissedTips: ['resolve_threads'] }
+      )
+    ).toEqual({
+      showThreadsInSidebar: true,
+      futureKey: 'x',
+      dismissedTips: ['resolve_threads'],
     });
   });
 

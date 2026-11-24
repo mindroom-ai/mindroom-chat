@@ -158,6 +158,10 @@ const keptAtoms = (): Map<object, string> =>
       loaded.tourState.tourOfferAnsweredAtom,
       'keyed by session ID: an account switched back to keeps its answer to the tour offer',
     ],
+    [
+      loaded.tourState.dismissedTipsSessionAtom,
+      'keyed by session ID: an account switched back to keeps its dismissed contextual tips',
+    ],
   ]);
 
 const isKept = ({ atom, module }: { atom: object; module: string }) =>
