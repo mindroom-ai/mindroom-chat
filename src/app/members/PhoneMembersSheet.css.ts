@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, color, config, toRem } from 'folds';
+import { DefaultReset, color, toRem } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
 
 // The navigation drawer's motion (`PhoneNavDrawer.css.ts`), from the other edge; reduced motion
@@ -30,9 +30,8 @@ export const Scrim = style([
 
 /**
  * The sheet, as wide as the drawer: off screen past the end edge until it is out. Like the drawer,
- * it rounds its one free lower corner to 28 px and draws a hairline (`ContainerLine`) along the
- * edge facing the page so it separates cleanly from the dimmed page: the top meets the bar and the
- * other edges meet the screen.
+ * it rounds its one free lower corner to 28 px: the top meets the bar and the other edges meet the
+ * screen.
  */
 export const Panel = style([
   DefaultReset,
@@ -45,7 +44,6 @@ export const Panel = style([
     flexDirection: 'column',
     inlineSize: 'min(calc(100% - 56px), 420px)',
     backgroundColor: color.Background.Container,
-    borderInlineStart: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
     // Cast the shadow to the side only, never upward onto the top bar.
     clipPath: 'inset(0 -48px)',
