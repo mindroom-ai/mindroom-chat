@@ -31,7 +31,12 @@ import type {
   InlineElement,
 } from './slate';
 import { withWordUndo } from './history';
-import { createParagraphElement, isAfterMentionSpace, withInlineElements } from './utils';
+import {
+  createParagraphElement,
+  isAfterMentionSpace,
+  withInlineElements,
+  withRichFragmentPaste,
+} from './utils';
 import { createMarkdownDecorate, type MarkdownLeaf } from './markdownDecorations';
 import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -44,11 +49,13 @@ import { revealDirectionControls } from '../ui/directional';
 
 const emptyDocument: Descendant[] = [createParagraphElement()];
 
-/** Creates the composer's Slate editor once per mount: React, word-wise undo, inline atoms. */
+/** Creates the composer's Slate editor: React, history, word-wise undo, rich paste, inline atoms. */
+export const createComposerEditor = (): Editor =>
+  withInlineElements(withRichFragmentPaste(withWordUndo(withHistory(withReact(createEditor())))));
+
+/** Creates the composer's Slate editor once per mount. */
 export const useEditor = (): Editor => {
-  const [editor] = useState(() =>
-    withInlineElements(withWordUndo(withHistory(withReact(createEditor()))))
-  );
+  const [editor] = useState(createComposerEditor);
   return editor;
 };
 

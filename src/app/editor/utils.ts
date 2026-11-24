@@ -82,6 +82,46 @@ export const withInlineElements = <T extends Editor>(editor: T): T => {
   return editor;
 };
 
+/**
+ * Slate 0.147 loses container structure (such as lists) when a rich clipboard fragment replaces
+ * an expanded selection whose blocks differ in depth, because `insertFragment` deletes and
+ * inserts inside one `withoutNormalizing` pass. Deleting and normalizing first inside one undo
+ * batch preserves the pasted structure and keeps Undo single-step.
+ */
+export const withRichFragmentPaste = <T extends Editor>(editor: T): T => {
+  const { insertFragmentData, insertFragment } = editor;
+  let pastingFragment = false;
+  // eslint-disable-next-line no-param-reassign
+  editor.insertFragment = (fragment, options) => {
+    if (
+      pastingFragment &&
+      fragment.length > 0 &&
+      !options?.at &&
+      editor.selection &&
+      Range.isExpanded(editor.selection)
+    ) {
+      const run = () => {
+        Transforms.delete(editor);
+        insertFragment(fragment, options);
+      };
+      if (HistoryEditor.isHistoryEditor(editor)) HistoryEditor.withNewBatch(editor, run);
+      else run();
+      return;
+    }
+    insertFragment(fragment, options);
+  };
+  // eslint-disable-next-line no-param-reassign
+  editor.insertFragmentData = (data) => {
+    pastingFragment = true;
+    try {
+      return insertFragmentData(data);
+    } finally {
+      pastingFragment = false;
+    }
+  };
+  return editor;
+};
+
 const isEmptyBlock = (node: Descendant): boolean =>
   Element.isElement(node) &&
   !INLINE_TYPES.has(node.type) &&

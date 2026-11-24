@@ -28,7 +28,8 @@ const isTopLevelBlock = (node: Node, path: Path): node is Element =>
 /** The top-level blocks from the start of the selection to its end. */
 const blocksInSelection = (editor: Editor): Element[] => {
   if (!editor.selection) return [];
-  const [start, end] = Range.edges(editor.selection);
+  // Unhang to match Transforms.wrapNodes / unwrapNodes / setNodes (slate 0.131+).
+  const [start, end] = Range.edges(Editor.unhangRange(editor, editor.selection));
   const first = start.path[0];
   const last = end.path[0];
   if (first === undefined || last === undefined) return [];
