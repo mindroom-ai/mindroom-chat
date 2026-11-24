@@ -13,7 +13,7 @@ async function lint(source: string, filePath = consumerPath) {
 }
 
 describe('shared surface import boundary', () => {
-  // ESLint 10 flat config loads eslint-plugin-react-hooks 7 (Babel/Hermes) on the first call,
+  // Loading the flat config (parser, TypeScript, plugins) takes several seconds on the first call,
   // which can pass Vitest's 5 s default under a full-suite run.
   beforeAll(async () => {
     await eslint.calculateConfigForFile(consumerPath);

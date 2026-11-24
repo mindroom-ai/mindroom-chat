@@ -55,7 +55,7 @@ async function layeringOptions(path: string): Promise<LayeringOptions | undefine
 }
 
 describe('domain layering lint', () => {
-  // ESLint 10 flat config loads eslint-plugin-react-hooks 7 (Babel/Hermes) on the first call,
+  // Loading the flat config (parser, TypeScript, plugins) takes several seconds on the first call,
   // which can pass Vitest's 5 s default under a full-suite run.
   beforeAll(async () => {
     await eslint.calculateConfigForFile(probeIn('lib'));

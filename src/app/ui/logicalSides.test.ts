@@ -18,7 +18,7 @@ const styleFile = (body: string) =>
   `import { globalStyle, style } from '@vanilla-extract/css';\n\nconst a = '1px';\nconst b = '2px';\nconst c = '3px';\nconst d = '4px';\nconst withMargin = (inset: string) => \`calc(\${inset} + 4px)\`;\n${body}\n`;
 
 describe('logical sides in styles', () => {
-  // ESLint 10 flat config loads eslint-plugin-react-hooks 7 (Babel/Hermes) on the first call,
+  // Loading the flat config (parser, TypeScript, plugins) takes several seconds on the first call,
   // which can pass Vitest's 5 s default under a full-suite run.
   beforeAll(async () => {
     await eslint.calculateConfigForFile(STYLE_FILE);
