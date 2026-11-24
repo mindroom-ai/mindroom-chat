@@ -38,7 +38,6 @@ import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
 import { withPhonePageSlide } from '../navigation/phonePageSlide';
-import { installDesktopHistorySwipe } from '../navigation/desktopHistorySwipe';
 import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
 import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import '../ui/particle-background/particleCanvasReveal.css';
@@ -109,7 +108,20 @@ function App() {
   useReconcileNativeNotifications();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
   useEffect(() => watchDesktopWindowHidden(() => parkLiveCapture(appJotaiStore)), []);
-  useEffect(() => installDesktopHistorySwipe(window), []);
+  useEffect(() => {
+    if (!isDesktopApp()) return undefined;
+    let cancelled = false;
+    let stop: (() => void) | undefined;
+    void import('../navigation/desktopHistorySwipe')
+      .then(({ installDesktopHistorySwipe }) => {
+        if (!cancelled) stop = installDesktopHistorySwipe(window);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      stop?.();
+    };
+  }, []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.
