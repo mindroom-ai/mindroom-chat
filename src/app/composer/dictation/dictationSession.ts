@@ -11,16 +11,19 @@ import {
 } from './dictationAudioCapture';
 import {
   appendSegmentToGroups,
+  buildGroupMergedWav,
   canAffordRefinement,
   createDictationRateBudget,
   isRecordCoveredByRefinement,
   recordDictationUpload,
+  releaseGroupWavs,
   sealRefinementGroup,
   selectNextUpload,
   stitchRefinedSegments,
   summarizeSessionRecords,
   type DictationRateBudget,
   type RefinementGroup,
+  type RefinementSegmentRecord,
   type SessionRecordSummary,
 } from './dictationRefinement';
 import { DictationSegmenter, type DictationSegment } from './dictationSegmenter';
@@ -95,10 +98,7 @@ export type DictationSession = {
   clearError: () => void;
 };
 
-type SegmentRecord = {
-  segment: DictationSegment;
-  status: 'queued' | 'uploading' | 'completed' | 'failed';
-  text?: string;
+type SegmentRecord = RefinementSegmentRecord & {
   error?: string;
   retryable: boolean;
   autoRetried: boolean;
@@ -311,6 +311,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const uploadOne = async (record: SegmentRecord, index: number, activeGen: number) => {
     const signal = sessionAbort?.signal;
     if (!signal || isStale(activeGen)) return;
+    const wav = record.wav;
+    if (!wav) {
+      record.error = 'Could not transcribe dictation audio.';
+      record.retryable = false;
+      record.status = 'failed';
+      publishRecords();
+      return;
+    }
     if (!(await waitUntil(rateBudget.retryNotBeforeMs - now(), signal, activeGen))) return;
     record.status = 'uploading';
     publishRecords();
@@ -319,12 +327,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       const prompt = promptBefore(index);
       try {
         recordDictationUpload(rateBudget, now(), record.segment.seconds);
-        const result = await client.transcribe(record.segment.wav, { prompt, roomId }, signal);
+        const result = await client.transcribe(wav, { prompt, roomId }, signal);
         if (isStale(activeGen)) return;
         record.text = result.text;
         record.error = undefined;
         record.retryable = false;
         record.status = 'completed';
+        const group = groups.find((item) => index >= item.startIndex && index <= item.endIndex);
+        if (group) releaseGroupWavs(group, records);
         publishRecords();
         return;
       } catch (error) {
@@ -351,46 +361,71 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     }
   };
 
-  const uploadRefinement = async (group: RefinementGroup, activeGen: number) => {
+  const uploadRefinement = async (group: RefinementGroup, targetEnd: number, activeGen: number) => {
     const signal = sessionAbort?.signal;
-    const mergedWav = group.mergedWav;
     if (!signal || isStale(activeGen)) return;
 
     const failOpen = () => {
       if (isStale(activeGen)) return;
+      group.uploadingEndIndex = undefined;
       group.mergedWav = undefined;
-      group.state = 'fallback';
+      group.mergedSeconds = undefined;
+      if (group.state === 'open') {
+        group.liveFailedEndIndex = targetEnd;
+      } else {
+        group.state = 'fallback';
+        releaseGroupWavs(group, records);
+      }
       publishRecords();
     };
-    const allCompleted = records
-      .slice(group.startIndex, group.endIndex + 1)
+    const merged =
+      group.mergedWav && group.mergedSeconds !== undefined
+        ? { wav: group.mergedWav, seconds: group.mergedSeconds }
+        : buildGroupMergedWav(records, group.startIndex, targetEnd);
+    const firstUncovered = Math.max(
+      group.startIndex,
+      group.refinedText && group.refinedEndIndex !== undefined ? group.refinedEndIndex + 1 : 0
+    );
+    const allUncoveredCompleted = records
+      .slice(firstUncovered, targetEnd + 1)
       .every((item) => item.status === 'completed');
-    const requestSignal = allCompleted ? finishPolishAbort?.signal ?? signal : signal;
+    const requestSignal = allUncoveredCompleted ? finishPolishAbort?.signal ?? signal : signal;
     if (
-      !mergedWav ||
+      !merged ||
       requestSignal.aborted ||
-      !canAffordRefinement(rateBudget.uploadHistory, now(), group.mergedSeconds ?? 0)
+      !canAffordRefinement(rateBudget.uploadHistory, now(), merged.seconds)
     ) {
       failOpen();
       return;
     }
+
+    group.uploadingEndIndex = targetEnd;
+    group.mergedWav = undefined;
+    group.mergedSeconds = undefined;
+    if (group.state === 'queued') group.state = 'uploading';
+    publishRecords();
 
     try {
       if (!(await waitUntil(rateBudget.retryNotBeforeMs - now(), requestSignal, activeGen))) {
         failOpen();
         return;
       }
-      group.state = 'uploading';
-      publishRecords();
-
       const prompt = promptBefore(group.startIndex);
-      recordDictationUpload(rateBudget, now(), group.mergedSeconds ?? 0);
-      const result = await client.transcribe(mergedWav, { prompt, roomId }, requestSignal);
+      recordDictationUpload(rateBudget, now(), merged.seconds);
+      const result = await client.transcribe(merged.wav, { prompt, roomId }, requestSignal);
       if (isStale(activeGen)) return;
-      group.mergedWav = undefined;
       const cleaned = result.text.trim();
-      group.refinedText = cleaned || undefined;
-      group.state = cleaned ? 'refined' : 'fallback';
+      if (!cleaned) {
+        failOpen();
+        return;
+      }
+      group.uploadingEndIndex = undefined;
+      group.refinedText = cleaned;
+      group.refinedEndIndex = targetEnd;
+      if (group.state === 'uploading') {
+        group.state = 'open';
+        sealRefinementGroup(group, records);
+      }
       publishRecords();
     } catch (error) {
       if (isStale(activeGen)) return;
@@ -408,7 +443,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
           const next = selectNextUpload(records, groups, deferQueuePumpDepth > 0);
           if (!next) break;
           if (next.kind === 'refinement') {
-            await uploadRefinement(next.group, activeGen);
+            await uploadRefinement(next.group, next.endIndex, activeGen);
           } else {
             const record = records[next.index];
             if (record) await uploadOne(record, next.index, activeGen);
@@ -426,7 +461,8 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
 
   const enqueueSegment = (segment: DictationSegment, activeGen: number) => {
     if (isStale(activeGen)) return;
-    records.push({ segment, status: 'queued', retryable: true, autoRetried: false });
+    const { wav, ...meta } = segment;
+    records.push({ segment: meta, wav, status: 'queued', retryable: true, autoRetried: false });
     appendSegmentToGroups(groups, records);
     publishRecords();
     if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
