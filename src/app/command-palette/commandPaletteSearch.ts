@@ -6,7 +6,7 @@ import {
   prepareText,
   type PreparedText,
   type TextRange,
-} from './fuzzyMatch';
+} from '../lib/fuzzyMatch';
 import type {
   CommandPaletteActionItem,
   CommandPaletteRoomItem,

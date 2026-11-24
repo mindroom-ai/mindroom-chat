@@ -3,7 +3,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { isKeyHotkey } from 'is-hotkey';
 import type { ClientConfig } from '../../config/useClientConfig';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
@@ -190,10 +189,6 @@ vi.mock('../../calls/CallViewChrome', () => ({ CallViewChrome: () => null }));
 vi.mock('../../ui/panels/PanelFrame', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../ui/panels/PanelFrame')>()),
   PanelFrameStrip: () => null,
-}));
-
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: vi.fn(() => false),
 }));
 
 vi.mock('jotai', async () => {
@@ -1356,12 +1351,7 @@ describe('Room', { timeout: 30_000 }, () => {
     });
     const roomViewShown = () => conversationShownIn(renderer!);
     const pressEscape = () => {
-      vi.mocked(isKeyHotkey).mockReturnValue(true);
-      try {
-        vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
-      } finally {
-        vi.mocked(isKeyHotkey).mockReturnValue(false);
-      }
+      vi.mocked(useKeyDown).mock.lastCall?.[1]({ key: 'Escape' } as KeyboardEvent);
     };
     expect(roomViewShown()).toBe(true);
 

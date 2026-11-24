@@ -90,7 +90,7 @@ describe('rankUsers', () => {
     ).toBe('@casey:example.org');
   });
 
-  it('promotes an exact MXID even when stronger display-name Fuse matches exceed the visible limit', () => {
+  it('promotes an exact MXID even when many display-name matches exceed the visible limit', () => {
     const exactUser = { userId: '@alice:example.org', displayName: 'Unrelated' };
     const displayNameMatches = Array.from(
       { length: INVITE_AUTOCOMPLETE_LIMIT * 3 },
@@ -134,6 +134,18 @@ describe('rankUsers', () => {
     ).map((user) => user.userId);
 
     expect(results[0]).toBe('@alice:example.org');
+  });
+
+  it('breaks within-tier ties by fuzzy match quality before userId order', () => {
+    expect(
+      rankUsers(
+        [
+          { userId: '@armindas:example.org', displayName: 'Armindas' },
+          { userId: '@dominic:example.org', displayName: 'Dominic Mindler' },
+        ],
+        'mind'
+      ).map((user) => user.userId)
+    ).toEqual(['@dominic:example.org', '@armindas:example.org']);
   });
 
   it('falls back to a deterministic userId tiebreak', () => {
@@ -264,7 +276,7 @@ describe('rankUsers with spaced queries', () => {
 
     // Both display names are exact matches — one against the raw query, one
     // against its compacted form — so both rank tier 0; the compact user's
-    // shorter-pattern Fuse score then breaks the tie ahead of the userId
+    // single-word exact fuzzy score then breaks the tie ahead of the userId
     // comparison. Without dual-form ranking the compact user falls to the
     // fuzzy-only tier and is left out instead.
     expect(results).toEqual(['@compact:example.org', '@spaced:example.org']);
