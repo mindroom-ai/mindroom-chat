@@ -560,7 +560,13 @@
     "spaceNav": {
       "options": "Параметры пространства",
       "subspaceUnread": "{{name}}, непрочитанные сообщения",
-      "backToParent": "Назад в {{name}}"
+      "backToParent": "Назад в {{name}}",
+      "newRoom": "Новая комната",
+      "addExistingRoom": "Добавить существующую комнату",
+      "newSubspace": "Новое подпространство",
+      "addExistingSubspace": "Добавить существующее подпространство",
+      "addToSpace": "Добавить в {{name}}",
+      "subspaceOptions": "Параметры {{name}}"
     },
     "calls": {
       "panel": {

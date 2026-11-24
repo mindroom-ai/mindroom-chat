@@ -521,7 +521,13 @@
     "spaceNav": {
       "options": "スペースのオプション",
       "subspaceUnread": "{{name}}、未読メッセージあり",
-      "backToParent": "{{name}} に戻る"
+      "backToParent": "{{name}} に戻る",
+      "newRoom": "新しいルーム",
+      "addExistingRoom": "既存のルームを追加",
+      "newSubspace": "新しいサブスペース",
+      "addExistingSubspace": "既存のサブスペースを追加",
+      "addToSpace": "{{name}} に追加",
+      "subspaceOptions": "{{name}} のオプション"
     },
     "calls": {
       "panel": {

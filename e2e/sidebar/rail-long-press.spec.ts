@@ -34,8 +34,19 @@ import {
 const SHOTS = process.env.RAIL_LONG_PRESS_SHOTS;
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
-/** The entries of a space's menu for its creator, who may invite. */
-const ENTRIES = ['Mark as Read', 'Invite', 'Copy Link', 'Space Settings'];
+/** The entries of a space's menu for its creator, who may add rooms/sub-spaces and invite. */
+const ENTRIES = [
+  'New Room',
+  'Add Existing Room',
+  'New Sub-space',
+  'Add Existing Sub-space',
+  'Mark as Read',
+  'Space overview',
+  'Invite',
+  'Copy Link',
+  'Space Settings',
+  'Leave Space',
+];
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 

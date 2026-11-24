@@ -547,7 +547,13 @@
     "spaceNav": {
       "options": "Options de l’espace",
       "subspaceUnread": "{{name}}, messages non lus",
-      "backToParent": "Retour à {{name}}"
+      "backToParent": "Retour à {{name}}",
+      "newRoom": "Nouveau salon",
+      "addExistingRoom": "Ajouter un salon existant",
+      "newSubspace": "Nouveau sous-espace",
+      "addExistingSubspace": "Ajouter un sous-espace existant",
+      "addToSpace": "Ajouter à {{name}}",
+      "subspaceOptions": "Options de {{name}}"
     },
     "calls": {
       "panel": {

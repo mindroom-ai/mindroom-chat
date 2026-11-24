@@ -4,18 +4,24 @@ import { PopOut } from '../../ui/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../ui/glass/GlassPrimitives';
-import { MenuGroup } from '../../ui/MenuEntry';
 import { stopPropagation } from '../../lib/keyboard';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 
 type SidebarContextMenuProps = {
   anchor?: RectCords;
   onClose: () => void;
+  /** The menu's maximum width in pixels; defaults to 200. */
+  width?: number;
   children: ReactNode;
 };
 
 /** The right-click menu of an icon rail button, opened beside it. */
-export function SidebarContextMenu({ anchor, onClose, children }: SidebarContextMenuProps) {
+export function SidebarContextMenu({
+  anchor,
+  onClose,
+  width = 200,
+  children,
+}: SidebarContextMenuProps) {
   if (!anchor) return null;
   return (
     <PopOut
@@ -32,9 +38,7 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Menu style={{ width: '100vw', maxWidth: toRem(200) }}>
-            <MenuGroup>{children}</MenuGroup>
-          </Menu>
+          <Menu style={{ width: '100vw', maxWidth: toRem(width) }}>{children}</Menu>
         </FocusTrap>
       }
     />

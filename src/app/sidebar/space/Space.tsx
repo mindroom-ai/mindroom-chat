@@ -1,5 +1,5 @@
-import { ReactNode, Suspense, lazy, useState } from 'react';
-import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
+import { type ReactNode } from 'react';
+import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import { Navigate, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
@@ -15,14 +15,9 @@ import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAl
 import { useRoomRouteParams } from '../../navigation/useRoomRouteParams';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
-import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
-import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { SpaceProvider, useSpace } from '../../matrix/hooks/useSpace';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
-import { copyToClipboard } from '../../lib/dom';
-import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
@@ -31,6 +26,13 @@ import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
+import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
+import {
+  SpaceAddMenuEntries,
+  SpaceMenuGroups,
+  useSpaceQuickDialogs,
+  useSpaceQuickPermissions,
+} from '../../spaces/SpaceActions';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
@@ -54,7 +56,6 @@ import {
 import { useJoinedParentSpaces } from '../../matrix/state/useSpaceSearchRooms';
 import { BackToListButton } from '../../ui/page/PhoneBackButton';
 import { SortableRoomGroup } from '../room-nav/SortableRoomList';
-import { getSpaceShareLink } from './spaceLink';
 import { SpaceRoomSection, useSpaceRoomSections } from './SpaceRoomSection';
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
@@ -134,21 +135,6 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** The space's title bar: its name, and a menu for its rooms and its settings. */
-// The invite dialog loads the first time someone opens it.
-const InviteUserPrompt = lazy(() =>
-  import('../../members/invite/InviteUserPrompt').then((module) => ({
-    default: module.InviteUserPrompt,
-  }))
-);
-
-// Like the invite dialog, the leave prompt loads when first opened.
-const LeaveRoomPrompt = lazy(() =>
-  import('../../rooms/LeaveRoomPrompt').then((module) => ({
-    default: module.LeaveRoomPrompt,
-  }))
-);
-
 type SpaceHeaderProps = {
   /** The space's rooms, which Mark as Read covers. */
   roomIds: string[];
@@ -171,17 +157,17 @@ function ParentSpaceBack({ parent, others }: { parent: Room; others: Room[] }) {
   );
 }
 
+/** The space's title bar: its name, a quick add menu when allowed, and the space options menu. */
 function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const space = useSpace();
   const name = revealDirectionControls(useRoomName(space));
-  const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
-  const canInvite = permissions.action('invite', client.getUserId() ?? '');
-  const openSpaceSettings = useOpenRoomSettings();
-  const [inviting, setInviting] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+  const permissions = useSpaceQuickPermissions(space);
   const navigate = useNavigate();
+  const dialogs = useSpaceQuickDialogs(space, {
+    onLeft: () => void navigate(getHomePath()),
+  });
   const [parent, ...otherParents] = useJoinedParentSpaces(space.roomId).flatMap(
     (roomId) => client.getRoom(roomId) ?? []
   );
@@ -195,83 +181,58 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
             {name}
           </Text>
         </Box>
-        {/* Mark the space's rooms read, invite people where allowed, or open the space's settings. */}
-        <NavOptionsMenu label={t('featureUi.spaceNav.options')} width={200}>
-          {(close) => (
-            <>
-              <MenuGroup>
-                <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
-                {onSortByName && (
-                  <MenuEntry
-                    label={t('featureUi.roomOrder.sortByName')}
-                    icon={Icons.Sort}
-                    onSelect={() => {
-                      close();
-                      onSortByName();
-                    }}
+        <Box alignItems="Center" gap="100" shrink="No">
+          {permissions.canAdd && (
+            <NavOptionsMenu
+              icon={Icons.Plus}
+              label={t('featureUi.spaceNav.addToSpace', { name })}
+              width={210}
+              buttonClassName={PairedTouchTarget}
+            >
+              {(close) => (
+                <MenuGroup>
+                  <SpaceAddMenuEntries
+                    spaceId={space.roomId}
+                    onClose={close}
+                    onAddRooms={dialogs.openAddRooms}
+                    onAddSpaces={dialogs.openAddSpaces}
                   />
-                )}
-                {canInvite && (
-                  <MenuEntry
-                    label={t('sharedUi.space.invite')}
-                    icon={Icons.UserPlus}
-                    onSelect={() => {
-                      close();
-                      setInviting(true);
-                    }}
-                  />
-                )}
-                <MenuEntry
-                  label={t('sharedUi.space.copyLink')}
-                  icon={Icons.Link}
-                  onSelect={() => {
-                    close();
-                    void copyToClipboard(getSpaceShareLink(client, space));
-                  }}
-                />
-                <MenuEntry
-                  label={t('featureUi.lobby.lobbyHeader.spaceSettings')}
-                  icon={Icons.Setting}
-                  onSelect={() => {
-                    close();
-                    openSpaceSettings(space.roomId);
-                  }}
-                />
-              </MenuGroup>
-              <Line size="300" />
-              <MenuGroup>
-                <MenuEntry
-                  label={t('sharedUi.space.leaveSpace')}
-                  icon={Icons.ArrowGoLeft}
-                  directional
-                  critical
-                  onSelect={() => {
-                    close();
-                    setLeaving(true);
-                  }}
-                />
-              </MenuGroup>
-            </>
+                </MenuGroup>
+              )}
+            </NavOptionsMenu>
           )}
-        </NavOptionsMenu>
+          <NavOptionsMenu
+            label={t('featureUi.spaceNav.options')}
+            width={210}
+            buttonClassName={permissions.canAdd ? PairedTouchTarget : undefined}
+          >
+            {(close) => (
+              <SpaceMenuGroups
+                space={space}
+                permissions={permissions}
+                dialogs={dialogs}
+                onClose={close}
+                beforeMain={
+                  <>
+                    <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                    {onSortByName && (
+                      <MenuEntry
+                        label={t('featureUi.roomOrder.sortByName')}
+                        icon={Icons.Sort}
+                        onSelect={() => {
+                          close();
+                          onSortByName();
+                        }}
+                      />
+                    )}
+                  </>
+                }
+              />
+            )}
+          </NavOptionsMenu>
+        </Box>
       </Box>
-      {inviting && (
-        <Suspense fallback={null}>
-          <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />
-        </Suspense>
-      )}
-      {leaving && (
-        <Suspense fallback={null}>
-          <LeaveRoomPrompt
-            roomId={space.roomId}
-            requestClose={() => setLeaving(false)}
-            onLeft={() => {
-              setLeaving(false);
-              void navigate(getHomePath());
-            }}
-          />
-        </Suspense>
-      )}
+      {dialogs.dialog}
     </PageNavHeader>
   );
 }

@@ -534,7 +534,13 @@
     "spaceNav": {
       "options": "Opties voor space",
       "subspaceUnread": "{{name}}, ongelezen berichten",
-      "backToParent": "Terug naar {{name}}"
+      "backToParent": "Terug naar {{name}}",
+      "newRoom": "Nieuwe kamer",
+      "addExistingRoom": "Bestaande kamer toevoegen",
+      "newSubspace": "Nieuwe subspace",
+      "addExistingSubspace": "Bestaande subspace toevoegen",
+      "addToSpace": "Toevoegen aan {{name}}",
+      "subspaceOptions": "Opties voor {{name}}"
     },
     "calls": {
       "panel": {

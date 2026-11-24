@@ -586,7 +586,13 @@
     "spaceNav": {
       "options": "خيارات المساحة",
       "subspaceUnread": "⁨{{name}}⁩، رسائل غير مقروءة",
-      "backToParent": "العودة إلى ⁨{{name}}⁩"
+      "backToParent": "العودة إلى ⁨{{name}}⁩",
+      "newRoom": "غرفة جديدة",
+      "addExistingRoom": "إضافة غرفة موجودة",
+      "newSubspace": "مساحة فرعية جديدة",
+      "addExistingSubspace": "إضافة مساحة فرعية موجودة",
+      "addToSpace": "إضافة إلى ⁨{{name}}⁩",
+      "subspaceOptions": "خيارات ⁨{{name}}⁩"
     },
     "calls": {
       "panel": {

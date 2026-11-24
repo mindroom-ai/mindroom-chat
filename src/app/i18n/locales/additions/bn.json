@@ -534,7 +534,13 @@
     "spaceNav": {
       "options": "স্পেস বিকল্প",
       "subspaceUnread": "{{name}}, অপঠিত বার্তা",
-      "backToParent": "{{name}}-এ ফিরে যান"
+      "backToParent": "{{name}}-এ ফিরে যান",
+      "newRoom": "নতুন রুম",
+      "addExistingRoom": "বিদ্যমান রুম যোগ করুন",
+      "newSubspace": "নতুন সাব-স্পেস",
+      "addExistingSubspace": "বিদ্যমান সাব-স্পেস যোগ করুন",
+      "addToSpace": "{{name}}-এ যোগ করুন",
+      "subspaceOptions": "{{name}}-এর বিকল্প"
     },
     "calls": {
       "panel": {

@@ -521,7 +521,13 @@
     "spaceNav": {
       "options": "Opsi space",
       "subspaceUnread": "{{name}}, pesan belum dibaca",
-      "backToParent": "Kembali ke {{name}}"
+      "backToParent": "Kembali ke {{name}}",
+      "newRoom": "Ruang Baru",
+      "addExistingRoom": "Tambahkan Ruang yang Ada",
+      "newSubspace": "Sub-space Baru",
+      "addExistingSubspace": "Tambahkan Sub-space yang Ada",
+      "addToSpace": "Tambahkan ke {{name}}",
+      "subspaceOptions": "Opsi {{name}}"
     },
     "calls": {
       "panel": {

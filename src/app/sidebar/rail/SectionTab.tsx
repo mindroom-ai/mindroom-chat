@@ -8,6 +8,7 @@ import {
   SidebarItemBadge,
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
+import { MenuGroup } from '../../ui/MenuEntry';
 import { UnreadBadge } from '../../ui/UnreadBadge';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
@@ -89,7 +90,7 @@ export function SectionTab({
         </SidebarItemBadge>
       )}
       <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-        {menu(closeMenu)}
+        <MenuGroup>{menu(closeMenu)}</MenuGroup>
       </SidebarContextMenu>
     </SidebarItem>
   );

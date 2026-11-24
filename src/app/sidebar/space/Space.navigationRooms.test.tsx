@@ -23,7 +23,10 @@ const {
   dragGroup,
   editableSpaces,
   moveSpaceRoomMock,
+  openCreateRoomMock,
+  openCreateSpaceMock,
   passthrough,
+  removeSpaceChildMock,
   rooms,
   screen,
   selected,
@@ -65,7 +68,11 @@ const {
         getState: () => ({
           getStateEvents: (eventType: string) => {
             if (eventType === 'm.room.create') {
-              return { getContent: () => ({ type }), getSender: () => '@owner:example.org' };
+              return {
+                getContent: () => ({ type }),
+                getSender: () => '@owner:example.org',
+                getTs: () => 1000,
+              };
             }
             if (eventType === 'm.room.power_levels') {
               return {
@@ -87,6 +94,9 @@ const {
     editableSpaces: editable,
     stateListeners: listeners,
     moveSpaceRoomMock: vi.fn(async (): Promise<void> => undefined),
+    removeSpaceChildMock: vi.fn(async (): Promise<void> => undefined),
+    openCreateRoomMock: vi.fn(),
+    openCreateSpaceMock: vi.fn(),
     dragGroup: {
       canMoveRoom: undefined as
         | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
@@ -162,10 +172,33 @@ vi.mock('../../ui/nav/NavItem', () => ({
   NavItemContent: passthrough,
   NavLink: passthrough,
 }));
-vi.mock('../../ui/nav/NavCategoryHeader', () => ({ NavCategoryHeader: passthrough }));
+vi.mock('../../ui/nav/NavCategoryHeader', () => ({
+  NavCategoryHeader: React.forwardRef<HTMLDivElement, Record<string, unknown>>(
+    function MockNavCategoryHeader({ children, ...props }, ref) {
+      return (
+        <div ref={ref} data-nav-category-header {...props}>
+          {children as React.ReactNode}
+        </div>
+      );
+    }
+  ),
+}));
+vi.mock('../../ui/directional', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../ui/directional')>()),
+  PopOut: ({ anchor, content }: { anchor?: unknown; content?: React.ReactNode }) =>
+    anchor ? <div data-popout>{content}</div> : null,
+}));
 vi.mock('../../ui/nav/NavOptionsMenu', () => ({
-  NavOptionsMenu: ({ children }: { children: (close: () => void) => React.ReactNode }) => (
-    <div data-nav-options>{children(() => undefined)}</div>
+  NavOptionsMenu: ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: (close: () => void) => React.ReactNode;
+  }) => (
+    <div data-nav-options={label} aria-label={label}>
+      {children(() => undefined)}
+    </div>
   ),
 }));
 vi.mock('../../ui/MenuEntry', () => ({
@@ -177,19 +210,16 @@ vi.mock('../../ui/MenuEntry', () => ({
   ),
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
-  RoomNavCategoryButton: ({
-    closed,
-    ownDirection,
-    after,
-    children,
-    ...props
-  }: {
-    closed?: boolean;
-    ownDirection?: boolean;
-    after?: React.ReactNode;
-    children?: React.ReactNode;
-    'data-category-id'?: string;
-  } & Record<string, unknown>) => {
+  RoomNavCategoryButton: React.forwardRef<
+    HTMLButtonElement,
+    {
+      closed?: boolean;
+      ownDirection?: boolean;
+      after?: React.ReactNode;
+      children?: React.ReactNode;
+      'data-category-id'?: string;
+    } & Record<string, unknown>
+  >(function MockRoomNavCategoryButton({ closed, ownDirection, after, children, ...props }, ref) {
     const categoryId = props['data-category-id'] ?? '';
     categoryButtonStats.renders.set(
       categoryId,
@@ -209,6 +239,7 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
     }, [categoryId]);
     return (
       <button
+        ref={ref}
         type="button"
         data-section-button
         data-closed={closed ? 'true' : 'false'}
@@ -219,7 +250,7 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
         {after}
       </button>
     );
-  },
+  }),
 }));
 // The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
@@ -274,6 +305,13 @@ vi.mock('../room-nav/SortableRoomList', () => ({
 vi.mock('../../spaces/lobby/spaceChildren', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../spaces/lobby/spaceChildren')>()),
   moveSpaceRoom: moveSpaceRoomMock,
+  removeSpaceChild: removeSpaceChildMock,
+}));
+vi.mock('../../navigation/useCreateRoomModal', () => ({
+  useOpenCreateRoomModal: () => openCreateRoomMock,
+}));
+vi.mock('../../navigation/useCreateSpaceModal', () => ({
+  useOpenCreateSpaceModal: () => openCreateSpaceMock,
 }));
 vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({ JoinBeforeNavigate: () => null }));
 vi.mock('../../room/RoomRoute', () => ({ RouteResolving: () => null }));
@@ -291,7 +329,11 @@ vi.mock('../../routes/useNavToActivePathMapper', () => ({
 }));
 vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
-  usePowerLevels: () => ({}),
+  usePowerLevels: (room: { roomId: string }) => ({
+    state_default: 50,
+    invite: 50,
+    users: { '@alice:example.org': editableSpaces.has(room.roomId) ? 100 : 0 },
+  }),
 }));
 vi.mock('../../matrix/hooks/useRoomCreators', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/useRoomCreators')>()),
@@ -299,7 +341,6 @@ vi.mock('../../matrix/hooks/useRoomCreators', async (importOriginal) => ({
 }));
 vi.mock('../../matrix/hooks/useRoomPermissions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/useRoomPermissions')>()),
-  useRoomPermissions: () => ({ action: () => false }),
 }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/useRoomsNotificationPreferences')>()),
@@ -339,6 +380,10 @@ describe('Space navigation', () => {
     categoryButtonStats.renders.clear();
     moveSpaceRoomMock.mockReset();
     moveSpaceRoomMock.mockImplementation(async () => undefined);
+    removeSpaceChildMock.mockReset();
+    removeSpaceChildMock.mockImplementation(async () => undefined);
+    openCreateRoomMock.mockReset();
+    openCreateSpaceMock.mockReset();
     accountData.content = undefined;
     accountData.setAccountData.mockReset();
     localStorage.clear();
@@ -698,5 +743,254 @@ describe('Space navigation', () => {
       },
     });
     expect(dragGroup.canMoveRoom?.(space, design, joined)).toBe(true);
+  });
+
+  it('gates header + and section + actions by permission and keeps root Rooms + rooms-only', () => {
+    const { space, joined, design, designReview } = rooms.ids;
+
+    // Non-editable space and sub-space: no header + button, no section + buttons, sub-space still has options.
+    renderSpace([space, joined, design, designReview], {
+      [joined]: [space],
+      [design]: [space],
+      [designReview]: [design],
+    });
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' && node.props['data-nav-options'] === 'Add to garden'
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Rooms'
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
+      )
+    ).toHaveLength(0);
+    expect(
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Design Team options'
+      )
+    ).toHaveLength(1);
+
+    // Editable root and sub-space: header +, root Rooms + (rooms-only), and sub-space + (all 4 add actions).
+    act(() => renderer!.unmount());
+    editableSpaces.add(space);
+    editableSpaces.add(design);
+    renderSpace([space, joined, design, designReview], {
+      [joined]: [space],
+      [design]: [space],
+      [designReview]: [design],
+    });
+
+    const headerAddMenu = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props['data-nav-options'] === 'Add to garden'
+    );
+    const headerAddEntries = headerAddMenu
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(headerAddEntries).toEqual([
+      'New Room',
+      'Add Existing Room',
+      'New Sub-space',
+      'Add Existing Sub-space',
+    ]);
+    act(() => {
+      headerAddMenu
+        .find((node) => node.type === 'button' && node.props['data-menu-entry'] === 'New Room')
+        .props.onClick();
+    });
+    expect(openCreateRoomMock).toHaveBeenCalledWith(space);
+
+    // Root Rooms section + opens only the 2 room entries.
+    const roomsAddButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Rooms'
+    );
+    const rect = { x: 0, y: 0, width: 24, height: 24 };
+    act(() => {
+      roomsAddButton.props.onClick({ currentTarget: { getBoundingClientRect: () => rect } });
+    });
+    const roomsPopout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const roomsAddEntries = roomsPopout
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(roomsAddEntries).toEqual(['New Room', 'Add Existing Room']);
+
+    // Sub-space + opens all 4 entries targeting that sub-space.
+    const designAddButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
+    );
+    act(() => {
+      designAddButton.props.onClick({ currentTarget: { getBoundingClientRect: () => rect } });
+    });
+    const popouts = renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const designPopout = popouts[popouts.length - 1]!;
+    const designAddEntries = designPopout
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(designAddEntries).toEqual([
+      'New Room',
+      'Add Existing Room',
+      'New Sub-space',
+      'Add Existing Sub-space',
+    ]);
+    act(() => {
+      designPopout
+        .find((node) => node.type === 'button' && node.props['data-menu-entry'] === 'New Sub-space')
+        .props.onClick();
+    });
+    expect(openCreateSpaceMock).toHaveBeenCalledWith(design);
+  });
+
+  it('targets the immediate nested parent space in sub-space Remove from menu', () => {
+    const { space, joined, organizer, research, readingList } = rooms.ids;
+    editableSpaces.add(space);
+    editableSpaces.add(organizer);
+    editableSpaces.add(research);
+    renderSpace([space, joined, organizer, research, readingList], {
+      [joined]: [space],
+      [organizer]: [space],
+      [research]: [organizer],
+      [readingList]: [research],
+    });
+
+    const researchOptionsButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Research Group options'
+    );
+    const rect = { x: 0, y: 0, width: 24, height: 24 };
+    act(() => {
+      researchOptionsButton.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+      });
+    });
+
+    const popout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const removeEntry = popout.find(
+      (node) => node.type === 'button' && node.props['data-menu-entry'] === 'Remove from Operations'
+    );
+    act(() => {
+      removeEntry.props.onClick();
+    });
+    expect(removeSpaceChildMock).toHaveBeenCalledTimes(1);
+    expect(removeSpaceChildMock).toHaveBeenCalledWith(client, organizer, research);
+
+    // When the immediate parent (Operations) is NOT editable (even if root is editable),
+    // Remove from Operations is hidden.
+    act(() => renderer!.unmount());
+    editableSpaces.delete(organizer);
+    renderSpace([space, joined, organizer, research, readingList], {
+      [joined]: [space],
+      [organizer]: [space],
+      [research]: [organizer],
+      [readingList]: [research],
+    });
+    const researchOptionsReadonlyParent = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Research Group options'
+    );
+    act(() => {
+      researchOptionsReadonlyParent.props.onClick({
+        currentTarget: { getBoundingClientRect: () => rect },
+      });
+    });
+    const readonlyPopout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    expect(
+      readonlyPopout.findAll(
+        (node) =>
+          node.type === 'button' &&
+          typeof node.props['data-menu-entry'] === 'string' &&
+          node.props['data-menu-entry'].startsWith('Remove from')
+      )
+    ).toHaveLength(0);
+  });
+
+  it('opens header context menus on right-click and marks empty editable sections subtly visible', () => {
+    const { space, joined, organizer, design, designReview } = rooms.ids;
+    editableSpaces.add(organizer);
+    editableSpaces.add(design);
+    renderSpace([space, joined, organizer, design, designReview], {
+      [joined]: [space],
+      [organizer]: [space],
+      [design]: [space],
+      [designReview]: [design],
+    });
+
+    const headers = renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-nav-category-header' in node.props
+    );
+    // Root Rooms is NOT editable here -> no onContextMenu handler attached.
+    expect(headers[0]!.props.onContextMenu).toBeUndefined();
+
+    // Right-clicking Design Team header opens its sub-space options menu.
+    const preventDefault = vi.fn();
+    act(() => {
+      headers[1]!.props.onContextMenu({
+        preventDefault,
+        clientX: 40,
+        clientY: 80,
+        nativeEvent: { pointerType: 'mouse' },
+      });
+    });
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    const designPopout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    const designLabels = designPopout
+      .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+      .map((node) => node.props['data-menu-entry']);
+    expect(designLabels).toContain('Space Settings');
+    expect(designLabels).toContain('Leave Space');
+
+    // Editable empty Operations keeps a subtly-visible class on its + button, unlike populated Design Team.
+    const opsAddButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Operations'
+    );
+    const designAddButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Add to Design Team'
+    );
+    expect(String(opsAddButton.props.className).length).toBeGreaterThan(
+      String(designAddButton.props.className).length
+    );
+
+    // Making root space editable enables right-click on root Rooms header (rooms-only Add menu).
+    act(() => renderer!.unmount());
+    editableSpaces.add(space);
+    renderSpace([space, joined, organizer, design, designReview], {
+      [joined]: [space],
+      [organizer]: [space],
+      [design]: [space],
+      [designReview]: [design],
+    });
+    const editableHeaders = renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-nav-category-header' in node.props
+    );
+    const preventRoot = vi.fn();
+    act(() => {
+      editableHeaders[0]!.props.onContextMenu({
+        preventDefault: preventRoot,
+        clientX: 20,
+        clientY: 30,
+        nativeEvent: { pointerType: 'mouse' },
+      });
+    });
+    expect(preventRoot).toHaveBeenCalledTimes(1);
+    const rootPopout = renderer!.root.find(
+      (node) => typeof node.type === 'string' && 'data-popout' in node.props
+    );
+    expect(
+      rootPopout
+        .findAll((node) => node.type === 'button' && 'data-menu-entry' in node.props)
+        .map((node) => node.props['data-menu-entry'])
+    ).toEqual(['New Room', 'Add Existing Room']);
   });
 });

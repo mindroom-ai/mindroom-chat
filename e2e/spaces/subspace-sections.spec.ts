@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import {
   expect,
   test,
@@ -34,7 +35,10 @@ import {
 // SUBSPACES_SECTIONS_SHOTS (or SUBSPACES_MENU_SHOTS) to capture screenshots.
 const PASSWORD = 'subspace-sections-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const SHOTS = process.env.SUBSPACES_SECTIONS_SHOTS ?? process.env.SUBSPACES_MENU_SHOTS;
+const SHOTS =
+  process.env.SPACE_QUICK_ACTIONS_SHOTS ??
+  process.env.SUBSPACES_SECTIONS_SHOTS ??
+  process.env.SUBSPACES_MENU_SHOTS;
 const PARENT = 'Field Notes';
 const PARENT_ROOMS = ['Book Swap', 'Garden Club', 'Harbor Plans'];
 const DESIGN = 'Design Team';
@@ -387,6 +391,120 @@ const checkDragMove = async (browser: Browser, engine: string) => {
   await context.close();
 };
 
+const checkQuickActions = async (browser: Browser, engine: string) => {
+  // Isolated account so room creation and sub-space removal do not mutate other tests' seed.
+  const { context, page, seeded } = await signIn(browser, `${engine}_quick`, DESKTOP);
+  const rootId = `${seeded.parent}|room`;
+  const designId = `${seeded.parent}|subspace|${seeded.design}`;
+  const researchId = `${seeded.parent}|subspace|${seeded.research}`;
+
+  if (SHOTS) mkdirSync(SHOTS, { recursive: true });
+
+  await page.goto(`/${encodeURIComponent(seeded.parent)}/lobby/`);
+  await expect(sectionButton(page, designId)).toBeVisible();
+  await expect(sectionButton(page, researchId)).toBeVisible();
+
+  // 1. Space header + opens the 4-item Add menu and creates a room directly in the root space.
+  await list(page)
+    .getByRole('button', { name: `Add to ${PARENT}`, exact: true })
+    .click();
+  const headerAddMenu = page.getByRole('menu');
+  await expect(
+    headerAddMenu.getByRole('menuitem', { name: 'New Room', exact: true })
+  ).toBeVisible();
+  await expect(
+    headerAddMenu.getByRole('menuitem', { name: 'Add Existing Room', exact: true })
+  ).toBeVisible();
+  await expect(
+    headerAddMenu.getByRole('menuitem', { name: 'New Sub-space', exact: true })
+  ).toBeVisible();
+  await expect(
+    headerAddMenu.getByRole('menuitem', { name: 'Add Existing Sub-space', exact: true })
+  ).toBeVisible();
+  if (SHOTS) {
+    await page.screenshot({ path: `${SHOTS}/space-header-add-menu.png` });
+  }
+  await headerAddMenu.getByRole('menuitem', { name: 'New Room', exact: true }).click();
+  const createRootDialog = page.getByRole('dialog');
+  await createRootDialog.locator('input[name="nameInput"]').fill('Header Quick Room');
+  await createRootDialog.locator('button[type="submit"]').click();
+  await expect(
+    sectionContainer(page, rootId).getByRole('link', { name: 'Header Quick Room' })
+  ).toBeVisible({ timeout: 30_000 });
+
+  // 2. Sub-space section + adds a new room directly into Design Team.
+  await sectionButton(page, designId).hover();
+  await list(page)
+    .getByRole('button', { name: `Add to ${DESIGN}`, exact: true })
+    .click();
+  const designAddMenu = page.getByRole('menu');
+  await expect(
+    designAddMenu.getByRole('menuitem', { name: 'New Sub-space', exact: true })
+  ).toBeVisible();
+  await designAddMenu.getByRole('menuitem', { name: 'New Room', exact: true }).click();
+  const createDesignDialog = page.getByRole('dialog');
+  await createDesignDialog.locator('input[name="nameInput"]').fill('Design Quick Room');
+  await createDesignDialog.locator('button[type="submit"]').click();
+  await expect(roomRow(page, 'Design Quick Room')).toBeVisible({ timeout: 30_000 });
+
+  // Return to Field Notes and confirm Design Quick Room lives under Design Team, not root Rooms.
+  await page.locator(`[data-id="${seeded.parent}"]`).first().click();
+  await expect(
+    sectionContainer(page, designId).getByRole('link', { name: 'Design Quick Room' })
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(
+    sectionContainer(page, rootId).getByRole('link', { name: 'Design Quick Room' })
+  ).toHaveCount(0);
+
+  // 3. Sub-space section options button reveals grouped sub-space actions on Design Team.
+  await sectionButton(page, designId).hover();
+  await list(page)
+    .getByRole('button', { name: `${DESIGN} options`, exact: true })
+    .click();
+  const designOptionsMenu = page.getByRole('menu');
+  await expect(
+    designOptionsMenu.getByRole('menuitem', { name: 'Space Settings', exact: true })
+  ).toBeVisible();
+  await expect(
+    designOptionsMenu.getByRole('menuitem', { name: 'Pin to Sidebar', exact: true })
+  ).toBeVisible();
+  await expect(
+    designOptionsMenu.getByRole('menuitem', { name: `Remove from ${PARENT}`, exact: true })
+  ).toBeVisible();
+  if (SHOTS) {
+    await page.screenshot({ path: `${SHOTS}/subspace-section-menu.png` });
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+
+  // 4. Right-clicking nested Research Group removes it from its immediate parent (Operations).
+  await sectionButton(page, researchId).click({ button: 'right' });
+  const researchMenu = page.getByRole('menu');
+  await expect(
+    researchMenu.getByRole('menuitem', { name: `Remove from ${ORGANIZER}`, exact: true })
+  ).toBeVisible();
+  await researchMenu
+    .getByRole('menuitem', { name: `Remove from ${ORGANIZER}`, exact: true })
+    .click();
+  await expect(sectionButton(page, researchId)).toHaveCount(0);
+
+  // 5. Left-rail right-click on Field Notes opens the grouped rail context menu.
+  await sectionContainer(page, rootId).getByRole('link', { name: 'Header Quick Room' }).click();
+  await page.locator(`[data-id="${seeded.parent}"]`).first().click({ button: 'right' });
+  const railMenu = page.getByRole('menu');
+  for (const entry of ['New Room', 'New Sub-space', 'Space overview', 'Leave Space']) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(railMenu.getByRole('menuitem', { name: entry, exact: true })).toBeVisible();
+  }
+  if (SHOTS) {
+    await page.screenshot({ path: `${SHOTS}/rail-context-menu.png` });
+  }
+  await railMenu.getByRole('menuitem', { name: 'Space overview', exact: true }).click();
+  await expect(page).toHaveURL(lobbyPath(seeded.parent));
+
+  await context.close();
+};
+
 const checkPhone = async (browser: Browser, engine: string, language?: string) => {
   const { context, page, seeded } = await signIn(browser, engine, PHONE, language);
   const designId = `${seeded.parent}|subspace|${seeded.design}`;
@@ -461,6 +579,12 @@ test('dragging a room across sections moves it into an empty or populated sub-sp
   browser,
 }) => {
   await checkDragMove(browser, 'chromium');
+});
+
+test('space header +, sub-space section actions, and rail right-click quick actions work end-to-end', async ({
+  browser,
+}) => {
+  await checkQuickActions(browser, 'chromium');
 });
 
 test('on a phone sub-space sections collapse inline and back returns to the parent', async ({
