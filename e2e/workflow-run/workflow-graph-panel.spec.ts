@@ -273,7 +273,7 @@ test.describe('workflow graph panel fixture screenshots', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/e2e/fixtures/workflow-run.html?surface=panel&lang=en');
 
-    await expect(page.getByRole('heading', { name: 'Audit' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Audit', exact: true })).toBeVisible();
     await expect(page.getByText('28 of 40')).toBeVisible();
     await expect(page.locator('svg path').first()).toBeVisible();
 
@@ -292,7 +292,7 @@ test.describe('workflow graph panel fixture screenshots', () => {
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByRole('heading', { name: 'Audit' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Audit', exact: true })).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath('workflow-panel-phone.png'),
       fullPage: true,
