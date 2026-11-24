@@ -78,6 +78,14 @@ export const isQuickCaptureUrl = (url: string): boolean => {
   );
 };
 
+export const isShellApprovalUrl = (url: string): boolean => {
+  const parsed = parseAppUrl(url);
+  return (
+    parsed !== undefined &&
+    (parsed.pathname === '/shell-approval' || parsed.pathname === '/shell-approval/')
+  );
+};
+
 export const guardWebContents = (
   contents: Electron.WebContents,
   isAllowedUrl: (url: string) => boolean = isAllowedAppPage

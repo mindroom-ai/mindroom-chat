@@ -128,6 +128,35 @@ const bridge = {
         },
       }
     : {}),
+  ...(process.argv.includes('--mindroom-desktop-access=1')
+    ? {
+        desktopAccess: {
+          status: () => ipcRenderer.invoke('desktop:access-status'),
+          login: (request) => ipcRenderer.invoke('desktop:access-login', request),
+          pair: (request) => ipcRenderer.invoke('desktop:access-pair', request),
+          finishSetup: (request) => ipcRenderer.invoke('desktop:access-finish-setup', request),
+          updateLimits: (request) => ipcRenderer.invoke('desktop:access-update-limits', request),
+          removeController: (controllerKey) =>
+            ipcRenderer.invoke('desktop:access-remove-controller', controllerKey),
+          revokeAll: () => ipcRenderer.invoke('desktop:access-revoke-all'),
+          requestPermission: (permission) =>
+            ipcRenderer.invoke('desktop:access-request-permission', permission),
+          relaunch: () => ipcRenderer.invoke('desktop:access-relaunch'),
+          listInstalledApps: () => ipcRenderer.invoke('desktop:access-list-apps'),
+          pickFolder: () => ipcRenderer.invoke('desktop:access-pick-folder'),
+          decideShell: (request) => ipcRenderer.invoke('desktop:access-decide-shell', request),
+          killShellHandle: (handle) => ipcRenderer.invoke('desktop:access-kill-shell', handle),
+        },
+      }
+    : {}),
+  ...(process.argv.includes('--mindroom-shell-approval=1')
+    ? {
+        shellApproval: {
+          status: () => ipcRenderer.invoke('desktop:access-status'),
+          decideShell: (request) => ipcRenderer.invoke('desktop:access-decide-shell', request),
+        },
+      }
+    : {}),
 } satisfies DesktopBridge;
 
 contextBridge.exposeInMainWorld('mindroomDesktop', bridge);

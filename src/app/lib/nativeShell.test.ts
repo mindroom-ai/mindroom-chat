@@ -8,6 +8,7 @@ import {
   isAppWindowFocused,
   isBundledApp,
   isCapacitorApp,
+  isDesktopAccessAvailable,
   isDesktopApp,
   markDesktopShell,
 } from './nativeShell';
@@ -181,5 +182,18 @@ describe('nativeShell', () => {
         Reflect.deleteProperty(document, 'visibilityState');
       }
     }
+  });
+  it('reports isDesktopAccessAvailable only when desktopAccess is exposed on the bridge', () => {
+    expect(isDesktopAccessAvailable()).toBe(false);
+
+    const { bridge } = makeBridge();
+    setDesktopBridge(bridge);
+    expect(isDesktopAccessAvailable()).toBe(false);
+
+    setDesktopBridge({
+      ...bridge,
+      desktopAccess: {} as NonNullable<DesktopBridge['desktopAccess']>,
+    });
+    expect(isDesktopAccessAvailable()).toBe(true);
   });
 });
