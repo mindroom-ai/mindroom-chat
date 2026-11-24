@@ -420,7 +420,9 @@
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。",
         "usage": "在側邊欄顯示用量",
-        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。"
+        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。",
+        "help": "在側邊欄顯示說明與指南",
+        "helpDescription": "快速指南、導覽與鍵盤快速鍵。隱藏後，可從設定中的「關於」或命令面板（{{shortcut}}）開啟導覽，並可按 {{helpShortcut}} 開啟快速鍵。"
       },
       "plugins": {
         "title": "外掛程式",

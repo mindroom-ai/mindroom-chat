@@ -433,7 +433,9 @@
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom.",
         "usage": "Show Usage in the sidebar",
-        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker."
+        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker.",
+        "help": "Show Help & guides in the sidebar",
+        "helpDescription": "Quick guides, the tour, and keyboard shortcuts. When hidden, open the tour from Settings under About or the command palette ({{shortcut}}), and shortcuts with {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",

@@ -420,7 +420,9 @@
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal.",
         "usage": "Tampilkan Penggunaan di bilah sisi",
-        "usageDescription": "Batas penggunaan penyedia dan pemakaian token 7 hari setelah runtime melaporkannya. Saat disembunyikan, buka Penggunaan dari menu ⋮ di Beranda atau pemilih model."
+        "usageDescription": "Batas penggunaan penyedia dan pemakaian token 7 hari setelah runtime melaporkannya. Saat disembunyikan, buka Penggunaan dari menu ⋮ di Beranda atau pemilih model.",
+        "help": "Tampilkan Bantuan & panduan di bilah sisi",
+        "helpDescription": "Panduan singkat, tur, dan pintasan keyboard. Saat disembunyikan, buka tur dari Pengaturan di bawah Tentang atau palet perintah ({{shortcut}}), dan pintasan dengan {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugin",

@@ -18,6 +18,7 @@ const VALUES = {
   username: 'alice',
   sendKey: 'Ctrl',
   shortcut: 'Ctrl+K',
+  helpShortcut: 'Ctrl+/',
 };
 const WEB: SettingsContext = {
   native: false,
@@ -28,7 +29,7 @@ const WEB: SettingsContext = {
   useSystemTheme: true,
   developerTools: false,
   errorReporting: false,
-  railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  railButtons: { threads: true, explore: true, createSpace: true, search: true, help: true },
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
