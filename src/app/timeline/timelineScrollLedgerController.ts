@@ -754,6 +754,9 @@ export const useTimelineScrollLedgerController = ({
         event.preventDefault();
         const v = virtualizerRef.current;
         v.cancelScroll();
+        // virtual-core 3.19 preserves _holdOffset across scroll commands and cancelScroll();
+        // clear it on this explicit jump to top so quiescence cannot push scrollTop off 0.
+        (v as unknown as { _holdOffset: number })._holdOffset = 0;
         if (typeof scrollElement.scrollTo === 'function') {
           scrollElement.scrollTo({ top: 0 });
         } else {
