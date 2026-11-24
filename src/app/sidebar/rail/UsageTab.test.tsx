@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UsageTab } from './UsageTab';
@@ -35,11 +34,9 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItemTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => (
     <>{children(() => undefined)}</>
   ),
-  SidebarAvatar: React.forwardRef<
-    HTMLElement,
-    { as?: string; outlined?: boolean } & Record<string, unknown>
-  >(({ as, outlined: _outlined, ...props }, ref) =>
-    React.createElement(as ?? 'div', { ...props, ref })
+  SidebarAvatar: React.forwardRef<HTMLElement, Record<string, unknown>>(
+    ({ as, outlined: _outlined, ...props }, ref) =>
+      React.createElement(typeof as === 'string' ? as : 'div', { ...props, ref })
   ),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
