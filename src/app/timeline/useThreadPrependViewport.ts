@@ -5,8 +5,8 @@ import { waitForScrollQuiescence } from './scrollQuiescence';
 
 /**
  * Backward requests hand the reader over from the opening pin and commit at
- * scroll rest. The scroll ledger keeps the reader's rows in place for every
- * page that lands above them, so requests no longer capture an anchor.
+ * scroll rest. Upstream TanStack Virtual anchoring keeps the reader's rows in
+ * place for every page that lands above them, so requests no longer capture an anchor.
  */
 export const useThreadPrependViewport = ({
   controller,

@@ -87,9 +87,6 @@ const mount = () => {
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     const rewrapped = controller.unrenderedRewrap();
     const reported = controller.unrenderedInRowReport();

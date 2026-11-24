@@ -107,9 +107,6 @@ const mountRoomLedger = ({ settle = true } = {}) => {
       roomFoldPriceRef: useRef(() => 35),
       roomId: '!logbook:example.org',
       rowsKey,
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     return React.createElement('rows', { ref: controller.virtualInnerRef });
   }
@@ -345,24 +342,20 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
     ledger.unmount();
   });
 
-  it('clears the thread anchor and ledger in an open thread, jumps to 0, and re-anchors cleanly on the next commit', () => {
-    vi.stubGlobal('getComputedStyle', () => ({
-      scrollPaddingTop: '0px',
-      getPropertyValue: () => '',
-    }));
-    const makeEvents = (ids: string[]) => ids.map((id) => ({ getId: () => id }));
-    let threadEvents = makeEvents(Array.from({ length: 20 }, (_, i) => `$ev-${i}`));
+  it('jumps an open thread to 0 and clears scrollOffset on status-bar tap without a ledger', () => {
     let scrollTop = 350;
     const writes: number[] = [];
     let onStatusBarScrollTop: ((event: Event) => void) | undefined;
     const scrollArea = {
-      clientHeight: 700,
-      scrollHeight: 2000,
-      getBoundingClientRect: () => ({ top: 0, bottom: 700 }),
-      addEventListener: (type: string, listener: (event: Event) => void) => {
+      isConnected: true,
+      clientHeight: 600,
+      scrollHeight: 700,
+      style: { overflowY: 'auto' },
+      getBoundingClientRect: () => ({ top: 0, bottom: 600 }),
+      addEventListener: (type: string, listener: EventListener) => {
         if (type === STATUS_BAR_SCROLL_TOP_EVENT) onStatusBarScrollTop = listener;
       },
-      removeEventListener: (type: string, listener: (event: Event) => void) => {
+      removeEventListener: (type: string, listener: EventListener) => {
         if (type === STATUS_BAR_SCROLL_TOP_EVENT && onStatusBarScrollTop === listener) {
           onStatusBarScrollTop = undefined;
         }
@@ -382,29 +375,20 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
     };
     const rows = {
       style: { marginTop: '' },
-      getBoundingClientRect: () => ({
-        top: -scrollTop + (Number.parseFloat(rows.style.marginTop) || 0),
-        bottom: 700,
-      }),
+      getBoundingClientRect: () => ({ top: -scrollTop, bottom: 700 }),
     };
     let controller: TimelineScrollLedgerController | undefined;
     function ThreadLedger() {
-      const threadEventIndexMap = new Map(
-        threadEvents.map((ev, index) => [ev.getId() ?? '', index])
-      );
       controller = useTimelineScrollLedgerController({
         alive: () => true,
         estimateSize: () => 35,
-        getItemKey: (index) => threadEvents[index]?.getId() ?? index,
+        getItemKey: (index) => index,
         getScrollElement: () => scrollArea as unknown as HTMLDivElement,
-        itemCount: threadEvents.length,
+        itemCount: 20,
         pendingRoomFoldPxRef: useRef(0),
         roomFoldPriceRef: useRef(() => 35),
         roomId: '!logbook:example.org',
-        threadEventIndexMap,
-        threadEvents,
         threadId: '$root:example.org',
-        threadInitialRenderMode: 'live',
       });
       return React.createElement('rows', { ref: controller.virtualInnerRef });
     }
@@ -413,20 +397,6 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
       renderer = create(React.createElement(ThreadLedger), { createNodeMock: () => rows });
     });
 
-    // Accumulate an unsettled positive measurement correction while scrolled to row 10 ($ev-10).
-    const correction = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as Correction;
-    act(() => {
-      expect(
-        correction({ end: 100 }, 140, {
-          scrollOffset: 350,
-          scrollDirection: 'backward',
-          scrollElement: scrollArea,
-        })
-      ).toBe(false);
-    });
-    expect(rows.style.marginTop).toBe('-140px');
-
-    // Status-bar tap clears marginTop and old anchor, jumps to 0, and re-commits at row 0 ($ev-0).
     const tapEvent = new Event(STATUS_BAR_SCROLL_TOP_EVENT, { cancelable: true });
     act(() => {
       onStatusBarScrollTop?.(tapEvent);
@@ -435,31 +405,6 @@ describe('status-bar tap scroll-to-top with the offset ledger', () => {
     expect(rows.style.marginTop).toBe('');
     expect(scrollArea.scrollTop).toBe(0);
     expect(writes).toEqual([0]);
-
-    // Inserting a row below $ev-0 (which was above the old $ev-10 anchor) must NOT fold, proving
-    // the old anchor was cleared and re-anchored at $ev-0.
-    threadEvents = makeEvents([
-      '$ev-0',
-      '$ev-inserted-below-0',
-      ...Array.from({ length: 19 }, (_, i) => `$ev-${i + 1}`),
-    ]);
-    act(() => {
-      renderer?.update(React.createElement(ThreadLedger));
-    });
-    expect(rows.style.marginTop).toBe('');
-
-    // Prepending two older rows above $ev-0 folds 2 * 35px cleanly relative to the new $ev-0 anchor.
-    threadEvents = makeEvents([
-      '$ev-older-1',
-      '$ev-older-2',
-      '$ev-0',
-      '$ev-inserted-below-0',
-      ...Array.from({ length: 19 }, (_, i) => `$ev-${i + 1}`),
-    ]);
-    act(() => {
-      renderer?.update(React.createElement(ThreadLedger));
-    });
-    expect(rows.style.marginTop).toBe('-70px');
 
     act(() => renderer?.unmount());
   });

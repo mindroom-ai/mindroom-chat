@@ -1,8 +1,5 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-import {
-  hasMessageExtras,
-  parseMessageExtras,
-} from '../../matrix/protocol/messageExtrasData';
+import { hasMessageExtras, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit } from '../../matrix/room';
@@ -143,10 +140,6 @@ type MeasurementScrollCorrectionHookDeps = {
   // The delta is folded into the offset ledger to preserve the owned
   // anchor: normally the viewport, or the latest event during room fill.
   onDroppedCorrection: (deltaPx: number) => void;
-  // The virtual-core offset at the top of the reader's view for a scroll
-  // offset, when sticky headers and content above the list (a thread's
-  // banner and Load Older) set them apart.
-  viewportTopOffset?: (scrollOffset: number) => number | undefined;
   // virtual-core writes an applied correction at once, but reports rows where
   // they were when React last rendered them: the caller sums the corrections
   // applied since then and renders them before the browser paints. `atEnd`
@@ -189,7 +182,8 @@ const pastEndCorrection = (
 ): number => {
   const { scrollHeight, clientHeight } = scrollElement ?? {};
   if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return 0;
-  if (shownPx === undefined) return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
+  if (shownPx === undefined)
+    return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
   return Math.min(0, scrollHeight - clientHeight - shownPx + rowMovesPx - scrollOffset);
 };
 
@@ -202,18 +196,11 @@ const VIRTUAL_CORE_WRITE_TOLERANCE_PX = 1.5;
 // scroll contract test (virtualizerIOSScrollContract.test.ts) exercises the
 // production closure against the real, unmocked virtual-core — not a
 // re-implementation that could drift.
-const hasWritableScrollAdjustments = (instance: object): boolean => {
-  const proto = Object.getPrototypeOf(instance) as object | null;
-  const desc = proto ? Object.getOwnPropertyDescriptor(proto, 'scrollAdjustments') : undefined;
-  return !desc || desc.writable === true || typeof desc.set === 'function';
-};
-
 export const buildMeasurementScrollCorrectionHook =
   ({
     isIOSWebKitDevice,
     onDroppedCorrection,
     shouldDeferAutomaticFillCorrection,
-    viewportTopOffset,
     onAppliedCorrection,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
@@ -230,25 +217,15 @@ export const buildMeasurementScrollCorrectionHook =
   ): boolean => {
     // A programmatic scroll writes the element before its scroll event
     // updates virtual-core's cached offset. Judge this resize against the
-    // live offset, and make virtual-core apply any adjustment from it: its
-    // applyScrollAdjustment (3.17.3) writes scrollOffset + its pending
-    // adjustments, so fold the difference into those (the iOS contract test
-    // pins this). scrollOffset stays as it is, or virtual-core would ignore
-    // the scroll event as already seen and lose its direction and reset.
-    // An upward write it has not seen yet is a backward scroll: applying a
-    // correction now would fold that move away before its event.
+    // live offset; an upward write virtual-core has not seen yet is a
+    // backward scroll (virtual-core reconciles live scrollTop when applying).
     const cachedOffset = instance.scrollOffset ?? 0;
     const liveOffset = instance.scrollElement?.scrollTop;
-    if (typeof liveOffset === 'number' && hasWritableScrollAdjustments(instance)) {
-      (instance as unknown as { scrollAdjustments: number }).scrollAdjustments =
-        liveOffset - cachedOffset;
-    }
     const scrollOffset = liveOffset ?? cachedOffset;
     // Judge the row in the rendered layout, where the reader has not moved yet.
     const unrenderedPx = unrenderedCorrectionPx?.() ?? 0;
     const renderedOffset = scrollOffset - unrenderedPx;
-    const itemFullyAboveViewport =
-      item.end <= (viewportTopOffset?.(renderedOffset) ?? renderedOffset);
+    const itemFullyAboveViewport = item.end <= renderedOffset;
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
     const isIOS = isIOSWebKitDevice();
     const above = shouldApplyMeasurementScrollCorrection({
@@ -286,11 +263,14 @@ export const buildMeasurementScrollCorrectionHook =
       onDroppedCorrection(delta);
     }
     if (!apply) return false;
-    // virtual-core adds the delta to its pending adjustments and writes the offset plus those.
-    if (hasWritableScrollAdjustments(instance)) {
-      (instance as unknown as { scrollAdjustments: number }).scrollAdjustments += correction - delta;
-    }
     onAppliedCorrection?.(correction, !above && shownPx !== undefined);
+    const applyAdjustment = (
+      instance as unknown as { applyScrollAdjustment?: (deltaPx: number) => boolean }
+    ).applyScrollAdjustment;
+    if (correction !== delta && typeof applyAdjustment === 'function') {
+      applyAdjustment.call(instance, correction);
+      return false;
+    }
     return true;
   };
 

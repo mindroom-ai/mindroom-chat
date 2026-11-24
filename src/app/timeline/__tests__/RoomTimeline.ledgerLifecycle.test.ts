@@ -59,11 +59,9 @@ import {
   create,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
-  getClickableByText,
   makeEvent,
   makeRoom,
   makeTimeline,
-  matrixClientMock,
   roomTimelineVirtualizerState,
   scrollType,
   settingsState,
@@ -269,139 +267,20 @@ describe('RoomTimeline ledger lifecycle', () => {
     }
   });
 
-  it('a settle wait armed in a previous thread never settles the next thread ledger', async () => {
+  it('preserves a tile measurement correction emitted during a room switch commit', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadA = '$ledger-gen-a';
-    const threadB = '$ledger-gen-b';
-    const a = buildThread(threadA, '$ga-', 100);
-    const b = buildThread(threadB, '$gb-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) =>
-      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
-    setThreadEvents(a.initialEvents);
-
-    roomTimelineVirtualizerState.firstVisibleKey = '$ga-100';
-    const scrollElement = {
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
-      querySelector: vi.fn(() => undefined),
-      querySelectorAll: vi.fn(() => []),
-      scrollHeight: 4000,
-      clientHeight: 600,
-      scrollTop: 0,
-      scrollTo: vi.fn(),
+    const roomA = {
+      ...makeRoom({
+        liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$switch-a-${i}`, { ts: i })),
+      }),
+      roomId: '!ledger-switch-a:example.org',
     };
-    const innerElement = {
-      style: {} as Record<string, string>,
-      getBoundingClientRect: () => ({ top: 0 }),
+    const roomB = {
+      ...makeRoom({
+        liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$switch-b-${i}`, { ts: i })),
+      }),
+      roomId: '!ledger-switch-b:example.org',
     };
-    matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
-    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-
-    try {
-      await act(async () => {
-        renderer = create(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadA }),
-          {
-            createNodeMock: (element) =>
-              element.type === scrollType
-                ? scrollElement
-                : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-                ? innerElement
-                : null,
-          }
-        );
-        await flushAsyncWork();
-      });
-
-      // Thread A: Load Older folds 100 one-liners (compact estimate 26px
-      // each) into the ledger and arms a settle wait — which this mock
-      // holds open, as a long-momentum ride does in production.
-      const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
-      await act(async () => {
-        loadOlderChip.props.onClick();
-        await flushAsyncWork(10);
-      });
-      await act(async () => {
-        setThreadEvents(a.prependedEvents);
-        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadA }));
-        await flushAsyncWork(10);
-      });
-      expect(innerElement.style.marginTop).toBe('-2600px');
-      expect(settleWaits.length).toBe(1);
-      const staleWait = settleWaits[0]!;
-
-      // Switch to thread B while A's settle wait is still pending. The
-      // render-time reset must zero the ledger for B.
-      roomTimelineVirtualizerState.optionsHistory.length = 0;
-      await act(async () => {
-        roomTimelineVirtualizerState.firstVisibleKey = '$gb-100';
-        setThreadEvents(b.initialEvents);
-        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
-        await flushAsyncWork(10);
-      });
-      expect(innerElement.style.marginTop).toBe('');
-      expect(scrollElement.scrollTop).toBe(0);
-      // Mutant 7b: the reset must run ABOVE the useVirtualizer call — a
-      // ref-only reset schedules no re-render, so if it ran below, the
-      // FIRST post-switch render would hand the virtualizer the stale
-      // -2600 scrollMargin and only heal on some later incidental render.
-      // `lastOptions` cannot see this (later renders overwrite it); the
-      // history can.
-      expect(roomTimelineVirtualizerState.optionsHistory.length).toBeGreaterThan(0);
-      // toBeCloseTo: the option is computed as -px, which is -0 at zero.
-      expect(roomTimelineVirtualizerState.optionsHistory[0]?.scrollMargin).toBeCloseTo(0);
-
-      // Thread B accrues its own ledger: 5 prepended one-liners = 130px.
-      const loadOlderChipB = getClickableByText(renderer!, 'Load Older Messages');
-      await act(async () => {
-        loadOlderChipB.props.onClick();
-        await flushAsyncWork(10);
-      });
-      await act(async () => {
-        setThreadEvents(b.prependedEvents);
-        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
-        await flushAsyncWork(10);
-      });
-      expect(innerElement.style.marginTop).toBe('-130px');
-      expect(settleWaits.length).toBe(2);
-
-      // THE PIN: the STALE wait (generation A) resolves first — in
-      // production A's scroll element disconnected, so its quiescence
-      // fires long before B is quiet. It must NOT settle B's ledger.
-      await act(async () => {
-        staleWait.resolve();
-        await flushAsyncWork(5);
-      });
-      expect(innerElement.style.marginTop).toBe('-130px');
-      expect(scrollElement.scrollTop).toBe(0);
-
-      // Healthy path: B's own wait settles B's ledger exactly.
-      await act(async () => {
-        settleWaits[1]!.resolve();
-        await flushAsyncWork(5);
-      });
-      expect(innerElement.style.marginTop).toBe('');
-      expect(scrollElement.scrollTop).toBe(130);
-    } finally {
-      act(() => {
-        renderer?.unmount();
-      });
-    }
-  });
-
-  it('preserves a tile measurement correction emitted during a thread switch commit', async () => {
-    const { RoomTimeline } = await import('../RoomTimeline');
-    const threadA = '$ledger-switch-measure-a';
-    const threadB = '$ledger-switch-measure-b';
-    const a = buildThread(threadA, '$switch-a-', 0);
-    const b = buildThread(threadB, '$switch-b-', 0);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) =>
-      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
-    setThreadEvents(a.initialEvents);
     roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
     const scrollElement = {
       isConnected: true,
@@ -426,12 +305,15 @@ describe('RoomTimeline ledger lifecycle', () => {
     try {
       await act(async () => {
         renderer = create(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadA }),
+          React.createElement(ControlledRoomTimeline, {
+            room: roomA,
+            initialViewMode: 'classic',
+          }),
           {
             createNodeMock: (element) => {
               if (element.type === scrollType) return scrollElement;
               const props = element.props as Record<string, unknown>;
-              if (props['data-thread-count'] !== undefined) return innerElement;
+              if (props['data-testid'] === 'room-virtual-inner') return innerElement;
               if (props['data-virtual-index'] !== undefined) return tileElement;
               return null;
             },
@@ -459,8 +341,12 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
 
       await act(async () => {
-        setThreadEvents(b.initialEvents);
-        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
+        renderer!.update(
+          React.createElement(ControlledRoomTimeline, {
+            room: roomB,
+            initialViewMode: 'classic',
+          })
+        );
         await flushAsyncWork(10);
       });
 
@@ -495,11 +381,9 @@ describe('RoomTimeline ledger lifecycle', () => {
     // any React commit, exactly as virtual-core's ResizeObserver does.
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadA = '$ledger-tick-a';
-    const a = buildThread(threadA, '$tick-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadA ? a.model : null);
-    setThreadEvents(a.initialEvents);
+    const room = makeRoom({
+      liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$tick-${i}`, { ts: i })),
+    });
     const scrollElement = {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -521,12 +405,13 @@ describe('RoomTimeline ledger lifecycle', () => {
     try {
       await act(async () => {
         renderer = create(
-          React.createElement(ControlledRoomTimeline, { room, threadId: threadA }),
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
           {
             createNodeMock: (element) =>
               element.type === scrollType
                 ? scrollElement
-                : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+                : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                  'room-virtual-inner'
                 ? innerElement
                 : null,
           }
@@ -581,11 +466,9 @@ describe('RoomTimeline ledger lifecycle', () => {
   it('coasts through positive-ledger top runway and settles at physical exhaustion', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadId = '$ledger-positive-top-runway';
-    const thread = buildThread(threadId, '$top-runway-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
-    setThreadEvents(thread.initialEvents);
+    const room = makeRoom({
+      liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$top-runway-${i}`, { ts: i })),
+    });
     const innerRect = { top: -1114, bottom: 60_000 };
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
       1139,
@@ -598,14 +481,18 @@ describe('RoomTimeline ledger lifecycle', () => {
 
     try {
       await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
+          {
+            createNodeMock: (element) =>
+              element.type === scrollType
+                ? scrollElement
+                : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                  'room-virtual-inner'
+                ? innerElement
+                : null,
+          }
+        );
         await flushAsyncWork();
       });
 
@@ -673,11 +560,9 @@ describe('RoomTimeline ledger lifecycle', () => {
   it('settles only toward a ledger boundary and survives a coalesced write event', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadId = '$ledger-boundary-cause';
-    const thread = buildThread(threadId, '$boundary-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
-    setThreadEvents(thread.initialEvents);
+    const room = makeRoom({
+      liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$boundary-${i}`, { ts: i })),
+    });
     // Trace-shaped geometry: the inner bottom is inside the positive-
     // ledger bottom guard while the top is tens of thousands of px away.
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
@@ -691,14 +576,18 @@ describe('RoomTimeline ledger lifecycle', () => {
 
     try {
       await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
+          {
+            createNodeMock: (element) =>
+              element.type === scrollType
+                ? scrollElement
+                : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                  'room-virtual-inner'
+                ? innerElement
+                : null,
+          }
+        );
         await flushAsyncWork();
       });
 
@@ -897,11 +786,9 @@ describe('RoomTimeline ledger lifecycle', () => {
     // wait refold it.
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadId = '$ledger-discard-watchdog';
-    const thread = buildThread(threadId, '$discard-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
-    setThreadEvents(thread.initialEvents);
+    const room = makeRoom({
+      liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$discard-${i}`, { ts: i })),
+    });
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
       34331,
       { top: -34000, bottom: 1500 }
@@ -919,14 +806,18 @@ describe('RoomTimeline ledger lifecycle', () => {
 
     try {
       await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
+          {
+            createNodeMock: (element) =>
+              element.type === scrollType
+                ? scrollElement
+                : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                  'room-virtual-inner'
+                ? innerElement
+                : null,
+          }
+        );
         await flushAsyncWork();
       });
 
@@ -996,11 +887,9 @@ describe('RoomTimeline ledger lifecycle', () => {
   it('watchdog stands down when motion resumes from the settled offset or a finger arrives', async () => {
     mockIsIOSWebKit = true;
     const { RoomTimeline } = await import('../RoomTimeline');
-    const threadId = '$ledger-discard-standdown';
-    const thread = buildThread(threadId, '$standdown-', 5);
-    const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
-    setThreadEvents(thread.initialEvents);
+    const room = makeRoom({
+      liveEvents: Array.from({ length: 5 }, (_, i) => makeEvent(`$standdown-${i}`, { ts: i })),
+    });
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
       34331,
       { top: -34000, bottom: 1500 }
@@ -1016,14 +905,18 @@ describe('RoomTimeline ledger lifecycle', () => {
 
     try {
       await act(async () => {
-        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
-          createNodeMock: (element) =>
-            element.type === scrollType
-              ? scrollElement
-              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
-              ? innerElement
-              : null,
-        });
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
+          {
+            createNodeMock: (element) =>
+              element.type === scrollType
+                ? scrollElement
+                : (element.props as Record<string, unknown>)?.['data-testid'] ===
+                  'room-virtual-inner'
+                ? innerElement
+                : null,
+          }
+        );
         await flushAsyncWork();
       });
 
@@ -1078,12 +971,14 @@ describe('RoomTimeline ledger lifecycle', () => {
         await flushAsyncWork(3);
       });
       expect(scrollWrites).toEqual([34412, 34412]);
-      const touchStartListener = (
+      const touchStartListeners = (
         scrollElement.addEventListener as ReturnType<typeof vi.fn>
-      ).mock.calls.find((call) => call[0] === 'touchstart')?.[1] as EventListener;
-      expect(typeof touchStartListener).toBe('function');
+      ).mock.calls
+        .filter((call) => call[0] === 'touchstart')
+        .map((call) => call[1] as EventListener);
+      expect(touchStartListeners.length).toBeGreaterThan(0);
       await act(async () => {
-        touchStartListener(new Event('touchstart'));
+        touchStartListeners.forEach((listener) => listener(new Event('touchstart')));
         fireScroll(34338);
         await flushAsyncWork(3);
       });
@@ -1104,12 +999,12 @@ describe('RoomTimeline ledger lifecycle', () => {
         await flushAsyncWork(3);
       });
       expect(scrollWrites).toEqual([34412, 34412, 34412]);
-      const wheelListener = (
-        scrollElement.addEventListener as ReturnType<typeof vi.fn>
-      ).mock.calls.find((call) => call[0] === 'wheel')?.[1] as (event: Partial<WheelEvent>) => void;
-      expect(typeof wheelListener).toBe('function');
+      const wheelListeners = (scrollElement.addEventListener as ReturnType<typeof vi.fn>).mock.calls
+        .filter((call) => call[0] === 'wheel')
+        .map((call) => call[1] as (event: Partial<WheelEvent>) => void);
+      expect(wheelListeners.length).toBeGreaterThan(0);
       await act(async () => {
-        wheelListener({ deltaY: -72, deltaMode: 0 });
+        wheelListeners.forEach((listener) => listener({ deltaY: -72, deltaMode: 0 }));
         fireScroll(34340);
         await flushAsyncWork(3);
       });

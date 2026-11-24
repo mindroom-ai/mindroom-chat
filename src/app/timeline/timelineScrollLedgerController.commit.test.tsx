@@ -40,9 +40,6 @@ it('renders the rows an applied correction moved before the browser paints', asy
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
     });
     readMeasurementCorrectionPx = controller.readMeasurementCorrectionPx;
     useLayoutEffect(() => {
@@ -59,7 +56,11 @@ it('renders the rows an applied correction moved before the browser paints', asy
   ) => boolean;
   const resize = (end: number, delta = -200) => {
     const scrollOffset = scrollElement.scrollTop;
-    const apply = correction({ end }, delta, { scrollOffset, scrollDirection: null, scrollElement });
+    const apply = correction({ end }, delta, {
+      scrollOffset,
+      scrollDirection: null,
+      scrollElement,
+    });
     // virtual-core writes an applied correction at once.
     if (apply) scrollElement.scrollTop += delta;
     return apply;

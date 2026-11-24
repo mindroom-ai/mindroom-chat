@@ -24,6 +24,7 @@ import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { scrollToBottom } from '../lib/dom';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
@@ -1261,12 +1262,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
-  // What prices the open thread's rows besides its events: the ledger holds the reader's rows
-  // when it changes the price of an unmeasured row above them.
-  const threadRowPricing = useMemo(
-    () => [threadHiddenIds, turnFolds.view],
-    [threadHiddenIds, turnFolds.view]
-  );
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout,
@@ -1325,21 +1320,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomFoldPriceRef,
     roomId: room.roomId,
     rowsKey: threadId ? undefined : rowsGeneration,
-    threadEventIndexMap,
-    threadEvents,
     threadId,
-    threadInitialRenderMode,
-    threadRowPricing,
     pinThreadLeadingItem: showThreadLoadOlder,
-    leadingKey: threadId
-      ? [
-          threadLoadError ? 'error' : '',
-          showThreadLoadOlder ? 'older' : '',
-          threadLoading ? 'loading' : '',
-        ].join('|')
-      : roomSurfaceShown && !latestAtTop
-      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-      : '',
+    leadingKey:
+      !threadId && roomSurfaceShown && !latestAtTop
+        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+        : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
@@ -1455,13 +1441,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       if (typeof v.scrollToEnd === 'function') {
         v.scrollToEnd({ behavior: smooth ? 'smooth' : 'auto' });
       } else if (scrollRef.current) {
-        scrollRef.current.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: smooth ? 'smooth' : 'instant',
-        });
+        scrollToBottom(scrollRef.current, smooth ? 'smooth' : 'instant');
       }
     },
-    [virtualizerRef]
+    [scrollRef, virtualizerRef]
   );
 
   const effectiveThreadFilterStateRef = useLatestRef(threadIndex.effectiveThreadFilterState);
@@ -2258,9 +2241,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   {threadHeader}
                 </ThreadTimelineHeader>
               )}
-              <div ref={ledger.leadingRef}>
-                <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
-              </div>
+              <ThreadLoadingLines loadError={threadLoadError} loading={threadLoading} />
             </>
           ) : (
             <div ref={ledger.leadingRef}>

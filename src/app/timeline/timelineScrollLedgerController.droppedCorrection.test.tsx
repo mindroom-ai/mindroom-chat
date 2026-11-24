@@ -32,7 +32,7 @@ vi.mock('./scrollQuiescence', () => ({
  * row's new height: the list ends at its newest row. The two renders after the drop show
  * `nextThreadId`: the first paints the margin, and the second moves a correction still waiting.
  */
-const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = threadId) => {
+const afterDroppedCorrection = (roomId: string, nextRoomId = roomId) => {
   const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
   const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
@@ -45,7 +45,7 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
       return { top: this.hasAttribute('data-list') ? -400 : 0 } as DOMRect;
     });
   let readRowFoldPx = () => 0;
-  function Harness({ shown }: { shown: string | undefined }) {
+  function Harness({ shown }: { shown: string }) {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
       estimateSize: () => 100,
@@ -54,11 +54,7 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
       itemCount: 2,
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 100),
-      roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadId: shown,
-      threadInitialRenderMode: 'live',
+      roomId: shown,
     });
     readRowFoldPx = controller.readRowFoldPx;
     return (
@@ -71,7 +67,7 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
   const container = document.createElement('div');
   const root = createRoot(container);
   try {
-    flushSync(() => root.render(<Harness shown={threadId} />));
+    flushSync(() => root.render(<Harness shown={roomId} />));
     const inner = container.firstElementChild as HTMLElement;
 
     const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
@@ -85,10 +81,10 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
     // The margin and the part of it the rows bring change in the same render.
     expect(inner.style.marginTop).toBe('');
     expect(readRowFoldPx()).toBe(0);
-    flushSync(() => root.render(<Harness shown={nextThreadId} />));
+    flushSync(() => root.render(<Harness shown={nextRoomId} />));
     // The render that paints the margin also counts its part.
     const painted = { marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() };
-    flushSync(() => root.render(<Harness shown={nextThreadId} />));
+    flushSync(() => root.render(<Harness shown={nextRoomId} />));
     const { marginTop } = inner.style;
 
     // The newest row ends where the list ends.
@@ -115,120 +111,19 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
   }
 };
 
-it('reads no shrink in a thread whose row above the reader grew and moved into the ledger', () => {
-  // The thread's list holds all its rows: it rendered the grown row, so the margin lifts it
-  // without the list giving up any room, and the end clamp must not pull the reader up.
-  expect(afterDroppedCorrection('$thread')).toMatchObject({
+it('reads no shrink in the room view when a row above the reader grew into the ledger', () => {
+  // The room's list rendered the grown row: a reader at its newest row stays there.
+  expect(afterDroppedCorrection('!room:example.org')).toMatchObject({
     painted: { marginTop: '-62px', rowFoldPx: 62 },
     marginTop: '-62px',
     shrink: 0,
   });
 });
 
-it('reads no shrink in the room view either', () => {
-  // The room's list rendered the grown row as well: a reader at its newest row stays there.
-  expect(afterDroppedCorrection(undefined)).toMatchObject({
-    painted: { marginTop: '-62px', rowFoldPx: 62 },
-    marginTop: '-62px',
-    shrink: 0,
-  });
-});
-
-it('drops a waiting correction with the thread it was taken for', () => {
-  // Another thread opened before the render that paints the correction's margin.
-  expect(afterDroppedCorrection('$thread', '$other')).toMatchObject({
+it('drops a waiting correction when switching rooms', () => {
+  // Another room opened before the render that paints the correction's margin.
+  expect(afterDroppedCorrection('!room:example.org', '!other:example.org')).toMatchObject({
     marginTop: '',
     rowFoldPx: 0,
   });
-});
-
-it('reads no shrink when leading content (e.g. Load older messages) mounts above a thread list', () => {
-  const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
-  const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
-  reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
-  const origGetVirtualItemForOffset = virtualizer.getVirtualItemForOffset;
-  virtualizer.getVirtualItemForOffset = () => ({ index: 0, start: 0, size: 200 } as never);
-  const scrollElement = document.createElement('div');
-  scrollElement.scrollTop = 400;
-  const rect = vi
-    .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-    .mockImplementation(function (this: HTMLElement) {
-      if (this.hasAttribute('data-list')) return { top: -400, bottom: 800, height: 400 } as DOMRect;
-      if (this.dataset.index === '0') return { top: 400, bottom: 600, height: 200 } as DOMRect;
-      if (this.dataset.index === '1') return { top: 600, bottom: 800, height: 200 } as DOMRect;
-      return { top: 0, bottom: 400, height: 400 } as DOMRect;
-    });
-  let readRowFoldPx = () => 0;
-  let leadingHeight = 0;
-  function Harness({ leadingKey }: { leadingKey: string }) {
-    const controller = useTimelineScrollLedgerController({
-      alive: () => true,
-      estimateSize: () => 200,
-      getItemKey: (index) => index,
-      getScrollElement: () => scrollElement,
-      itemCount: 2,
-      leadingKey,
-      pendingRoomFoldPxRef: useRef(0),
-      roomFoldPriceRef: useRef(() => 200),
-      roomId: '!room:example.org',
-      threadEventIndexMap: new Map([
-        ['$e0', 0],
-        ['$e1', 1],
-      ]),
-      threadEvents: [{ getId: () => '$e0' }, { getId: () => '$e1' }],
-      threadId: '$thread',
-      threadInitialRenderMode: 'live',
-    });
-    readRowFoldPx = controller.readRowFoldPx;
-    return (
-      <>
-        <div
-          ref={(node) => {
-            (controller.leadingRef as { current: HTMLDivElement | null }).current = node;
-            if (node) {
-              Object.defineProperty(node, 'offsetHeight', {
-                configurable: true,
-                get: () => leadingHeight,
-              });
-            }
-          }}
-        />
-        <div
-          ref={controller.virtualInnerRef}
-          data-list
-          style={{
-            marginTop: controller.ledgerPxAtRender ? `${-controller.ledgerPxAtRender}px` : '',
-          }}
-        >
-          <div data-index="0" />
-          <div data-index="1" />
-        </div>
-      </>
-    );
-  }
-  const container = document.createElement('div');
-  const root = createRoot(container);
-  try {
-    flushSync(() => root.render(<Harness leadingKey="" />));
-    // Mount "Load older messages" (40 px) above the list after the thread is already anchored.
-    leadingHeight = 40;
-    flushSync(() => root.render(<Harness leadingKey="|older|" />));
-    const inner = container.querySelector<HTMLElement>('[data-list]')!;
-    inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile) => {
-      Object.defineProperty(tile, 'offsetHeight', { configurable: true, value: 200 });
-    });
-    const rows = [
-      { index: 0, size: 200 },
-      { index: 1, size: 200 },
-    ];
-    // Leading content added 40 px above the list and marginTop pulled the list up by 40 px:
-    // total scroll content height did not shrink, so useListEndClamp must read 0 px pending shrink.
-    expect(inner.style.marginTop).toBe('-40px');
-    expect(listShrinkNotRendered(inner, rows, readRowFoldPx())).toBe(0);
-  } finally {
-    virtualizer.getVirtualItemForOffset = origGetVirtualItemForOffset;
-    flushSync(() => root.unmount());
-    rect.mockRestore();
-    reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
-  }
 });

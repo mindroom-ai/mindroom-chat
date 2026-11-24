@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -96,15 +96,11 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
 
     const patchedNodes = new WeakSet<HTMLDivElement>();
 
-    function ThreadTimeline({ events }: { events: FakeEvent[] }) {
-      const pendingRoomFoldPxRef = useRef(0);
+    const pendingRoomFoldPxRef = { current: 0 };
+    function RoomTimelineWithLedger({ events }: { events: FakeEvent[] }) {
       const roomFoldPriceRef = useRef(() => ROW_HEIGHT);
       const alive = useCallback(() => true, []);
       const getScrollElement = useCallback(() => scrollElement, []);
-      const threadEventIndexMap = useMemo(
-        () => new Map(events.map((event, index) => [event.getId(), index])),
-        [events]
-      );
       const controller = useTimelineScrollLedgerController({
         alive,
         estimateSize: () => ROW_HEIGHT,
@@ -114,10 +110,6 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
         pendingRoomFoldPxRef,
         roomFoldPriceRef,
         roomId: '!room:example.org',
-        threadEventIndexMap,
-        threadEvents: events,
-        threadId: '$root:example.org',
-        threadInitialRenderMode: 'live',
       });
       const virtualItems = controller.virtualizer.getVirtualItems();
       return (
@@ -173,26 +165,27 @@ describe('status-bar tap end-to-end with real virtualizer and offset ledger', ()
     }
 
     const initialEvents = makeEvents(Array.from({ length: 200 }, (_, i) => `$ev-${i}`));
-    flushSync(() => root.render(<ThreadTimeline events={initialEvents} />));
+    flushSync(() => root.render(<RoomTimelineWithLedger events={initialEvents} />));
     // Allow React passive effects (useEffect) to attach scroll and status-bar listeners.
     await new Promise((resolve) => setTimeout(resolve, 0));
     if (fakeTimers) vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     scrollElement.scrollTop = 6000;
     scrollElement.dispatchEvent(new Event('scroll'));
-    flushSync(() => root.render(<ThreadTimeline events={initialEvents} />));
+    flushSync(() => root.render(<RoomTimelineWithLedger events={initialEvents} />));
 
-    // Scrolled deep into the thread: row 0 is not mounted, row 100 is mounted.
+    // Scrolled deep into the timeline: row 0 is not mounted, row 100 is mounted.
     expect(scrollElement.querySelector('[data-row-index="0"]')).toBeNull();
     const deepRow = scrollElement.querySelector('[data-row-index="100"]');
     expect(deepRow).not.toBeNull();
 
-    // Prepend 5 older events above the anchored viewport to create an unsettled positive ledger.
+    // Prepend 5 older events above the viewport to create an unsettled positive room ledger.
     const prependedEvents = makeEvents([
       ...Array.from({ length: 5 }, (_, i) => `$older-${i}`),
       ...initialEvents.map((event) => event.getId()),
     ]);
+    pendingRoomFoldPxRef.current = 5 * ROW_HEIGHT;
     const rerender = () =>
-      flushSync(() => root.render(<ThreadTimeline events={prependedEvents} />));
+      flushSync(() => root.render(<RoomTimelineWithLedger events={prependedEvents} />));
     rerender();
 
     expect(getInner()?.style.marginTop).toBe(`-${5 * ROW_HEIGHT}px`);
