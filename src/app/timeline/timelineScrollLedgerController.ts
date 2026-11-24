@@ -347,6 +347,19 @@ export const useTimelineScrollLedgerController = ({
     threadEvents,
     threadId,
   });
+  // When a prepend folds rows above a reserve-anchored reply whose start lies below
+  // readerTop, newly mounted prepended rows right above that anchor still belong above
+  // the anchor even though paintedItemEnd > readerTop. Track the anchor index across
+  // mount and pre-paint microtask measurement so their estimate deltas absorb into headroom.
+  const prependAnchorIndex =
+    ownerEnabled &&
+    !resettingLedgerView &&
+    threadLedgerRenderPlan.foldPx !== 0 &&
+    effectiveThreadAnchor
+      ? threadEventIndexMap.get(effectiveThreadAnchor.eventId)
+      : undefined;
+  const pendingPrependAnchorIndexRef = useRef<number | undefined>(undefined);
+  const pendingPrependTokenRef = useRef(0);
   // The content between the banner and the rows (load error, Load Older)
   // moves every row when its height changes, so it is priced like a row. A
   // render that changes what it shows folds all of its committed height, so
@@ -364,7 +377,7 @@ export const useTimelineScrollLedgerController = ({
   const leadingHeld =
     !resettingLedgerView &&
     (threadId
-      ? threadLedgerAnchorRef.current?.threadId === threadId
+      ? (effectiveThreadAnchor ?? threadLedgerAnchorRef.current)?.threadId === threadId
       : !!leadingKey && roomLeadingAboveViewRef.current);
   const leadingFoldPx = leadingHeld ? leadingRenderPx - committedLeading.px : 0;
   // Anchored room rows: rows a render puts above the reader's first visible row are folded,
@@ -413,6 +426,22 @@ export const useTimelineScrollLedgerController = ({
   useInsertionEffect(() => {
     rowFoldPxRef.current += droppedRowFoldPxAtRender;
     droppedRowFoldPxRef.current -= droppedRowFoldPxAtRender;
+    if (resettingLedgerView) {
+      pendingPrependAnchorIndexRef.current = undefined;
+      pendingPrependTokenRef.current += 1;
+    } else if (prependAnchorIndex !== undefined) {
+      pendingPrependAnchorIndexRef.current = prependAnchorIndex;
+      pendingPrependTokenRef.current += 1;
+    }
+  });
+  useLayoutEffect(() => {
+    if (prependAnchorIndex === undefined) return;
+    const token = pendingPrependTokenRef.current;
+    queueMicrotask(() => {
+      if (pendingPrependTokenRef.current === token) {
+        pendingPrependAnchorIndexRef.current = undefined;
+      }
+    });
   });
 
   // Before the fold below takes what this render folded: a held render leaves it pending.
@@ -1271,7 +1300,12 @@ export const useTimelineScrollLedgerController = ({
               measurementsCache: instance.measurementsCache,
             })
           : item.end;
-        if (paintedItemEnd <= readerTop && delta !== 0) {
+        const activePrependAnchorIndex = pendingPrependAnchorIndexRef.current;
+        const abovePrependAnchor =
+          activePrependAnchorIndex !== undefined &&
+          item.index < activePrependAnchorIndex &&
+          item.key !== threadId;
+        if ((paintedItemEnd <= readerTop || abovePrependAnchor) && delta !== 0) {
           enqueueAboveResize(delta, {
             index: item.index,
             key: item.key,
@@ -1309,6 +1343,7 @@ export const useTimelineScrollLedgerController = ({
     ownerEnabled,
     readerTopOffset,
     renderRowMoveBeforePaint,
+    threadId,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
     virtualizer,
