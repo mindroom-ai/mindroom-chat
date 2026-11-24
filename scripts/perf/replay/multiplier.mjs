@@ -207,7 +207,10 @@ function remapContent(content, eventType, ctx) {
     set('com.mindroom.voice_source_event_id', mapEv(content['com.mindroom.voice_source_event_id']));
   }
   if (eventType === 'm.room.pinned_events' && Array.isArray(content.pinned)) {
-    set('pinned', content.pinned.map((id) => mapEv(id)));
+    set(
+      'pinned',
+      content.pinned.map((id) => mapEv(id))
+    );
   }
   if (eventType === 'io.mindroom.thread_summary' && isEventId(content.event_id)) {
     set('event_id', mapEv(content.event_id));

@@ -148,9 +148,7 @@ const parsePositiveNumber = (raw: string | undefined, fallback: number, min: num
   return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
 };
 const REPLAY_CAPTURE = external ? (process.env.PERF_REPLAY_CAPTURE ?? '') : '';
-const MULTIPLY_THREADS = Math.floor(
-  parsePositiveNumber(process.env.PERF_MULTIPLY_THREADS, 1, 1)
-);
+const MULTIPLY_THREADS = Math.floor(parsePositiveNumber(process.env.PERF_MULTIPLY_THREADS, 1, 1));
 const MULTIPLY_ROOMS = Math.floor(parsePositiveNumber(process.env.PERF_MULTIPLY_ROOMS, 1, 1));
 const REPLAY_SPEED = parsePositiveNumber(process.env.PERF_REPLAY_SPEED, 1, 0.01);
 const REPLAY_SERVER = fileURLToPath(

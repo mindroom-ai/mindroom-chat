@@ -513,7 +513,11 @@ function makeFixtureBundle() {
           join: {
             [ROOM_ID]: {
               state: { events: stateEvents },
-              timeline: { events: [rootEv, rep1, rep2, approvalEv], limited: true, prev_batch: 'pb0' },
+              timeline: {
+                events: [rootEv, rep1, rep2, approvalEv],
+                limited: true,
+                prev_batch: 'pb0',
+              },
               ephemeral: { events: [] },
               account_data: { events: [] },
               unread_notifications: { highlight_count: 0, notification_count: 1 },
@@ -719,7 +723,10 @@ test('runCapture enforces GET-only, set_presence=offline, 0700 perms, and downlo
                       msgtype: 'm.file',
                       body: 'Preview...',
                       url: 'mxc://example.test/sidecar1',
-                      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+                      'io.mindroom.long_text': {
+                        version: 2,
+                        encoding: 'matrix_event_content_json',
+                      },
                     },
                   },
                 ],
@@ -749,9 +756,15 @@ test('runCapture enforces GET-only, set_presence=offline, 0700 perms, and downlo
       duration: 0,
     });
     assert.ok(methods.length > 0);
-    assert.ok(methods.every((m) => m === 'GET'), `Non-GET methods used: ${methods.join(',')}`);
+    assert.ok(
+      methods.every((m) => m === 'GET'),
+      `Non-GET methods used: ${methods.join(',')}`
+    );
     assert.ok(syncUrls.length > 0);
-    assert.ok(syncUrls.every((p) => p === 'offline'), `expected set_presence=offline on /sync`);
+    assert.ok(
+      syncUrls.every((p) => p === 'offline'),
+      `expected set_presence=offline on /sync`
+    );
     assert.equal(fs.statSync(outDir).mode & 0o777, 0o700);
     assert.equal(manifest.primaryRoomName, 'Captured Room');
     assert.equal(manifest.stats.blobs, 1);
@@ -966,13 +979,20 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-srv-test-'));
   const blobsDir = path.join(dir, 'blobs');
   fs.mkdirSync(blobsDir, { recursive: true });
-  const longTextPayload = JSON.stringify({ msgtype: 'm.text', body: 'Hydrated long_text sidecar!' });
+  const longTextPayload = JSON.stringify({
+    msgtype: 'm.text',
+    body: 'Hydrated long_text sidecar!',
+  });
   const sha = crypto.createHash('sha256').update(longTextPayload).digest('hex');
   fs.writeFileSync(path.join(blobsDir, sha), longTextPayload);
 
   const bundle = makeFixtureBundle();
   bundle.manifest.blobIndex = {
-    'example.test/lt_blob': { file: sha, contentType: 'application/json', bytes: longTextPayload.length },
+    'example.test/lt_blob': {
+      file: sha,
+      contentType: 'application/json',
+      bytes: longTextPayload.length,
+    },
   };
   const statsFile = path.join(dir, 'stats.jsonl');
 
@@ -997,7 +1017,9 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
     return {
       status: res.status,
       ct,
-      body: ct.includes('application/json') ? await res.json() : Buffer.from(await res.arrayBuffer()),
+      body: ct.includes('application/json')
+        ? await res.json()
+        : Buffer.from(await res.arrayBuffer()),
     };
   };
 
@@ -1063,12 +1085,18 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
     let gotLiveFrame = false;
     let since = savedSince;
     for (let i = 0; i < 6 && !gotLiveFrame; i += 1) {
-      const inc = await api(`/_matrix/client/v3/sync?since=${encodeURIComponent(since)}&timeout=1000`);
+      const inc = await api(
+        `/_matrix/client/v3/sync?since=${encodeURIComponent(since)}&timeout=1000`
+      );
       since = inc.body.next_batch;
       const eps = inc.body.rooms.join[ROOM_ID]?.ephemeral?.events ?? [];
       if (eps.some((e) => e.type === 'io.mindroom.live')) gotLiveFrame = true;
     }
-    assert.equal(gotLiveFrame, true, 'expected incremental /sync to deliver io.mindroom.live frames');
+    assert.equal(
+      gotLiveFrame,
+      true,
+      'expected incremental /sync to deliver io.mindroom.live frames'
+    );
 
     // Warm reload catch-up from savedSince delivers accumulated live events immediately
     const warmCatchup = await api(
@@ -1081,7 +1109,9 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
     );
 
     // /threads returns cloned threads with updated live bundled summary
-    const threads = await api(`/_matrix/client/v1/rooms/${encodeURIComponent(ROOM_ID)}/threads?limit=10`);
+    const threads = await api(
+      `/_matrix/client/v1/rooms/${encodeURIComponent(ROOM_ID)}/threads?limit=10`
+    );
     assert.equal(threads.body.chunk.length, 2);
     assert.ok(threads.body.chunk[0].unsigned['m.relations']['m.thread'].count >= 2);
 

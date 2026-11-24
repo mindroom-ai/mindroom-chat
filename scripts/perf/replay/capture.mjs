@@ -390,8 +390,7 @@ export async function runCapture(options) {
     focusedRoomIds
       .slice()
       .sort(
-        (a, b) =>
-          (roomsCapture[b]?.threads?.length ?? 0) - (roomsCapture[a]?.threads?.length ?? 0)
+        (a, b) => (roomsCapture[b]?.threads?.length ?? 0) - (roomsCapture[a]?.threads?.length ?? 0)
       )[0] ??
     allRoomIds[0] ??
     '';
