@@ -4,7 +4,7 @@
  * attachments (only their names are kept), and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
-import { atomFamily } from 'jotai/utils';
+import { atomFamily } from 'jotai-family';
 import type { Descendant } from 'slate';
 import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
