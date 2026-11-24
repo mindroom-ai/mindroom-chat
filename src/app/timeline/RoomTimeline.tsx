@@ -2310,14 +2310,19 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           className={overlay.Scrollbar}
           label={t('threadNav.messages')}
         />
+        {/* Sits inside Scroll alongside InsetScrollbar for reader-gesture bubbling, while
+            forwarding vertical wheel events to scrollRef because its containing block is the
+            positioned timeline box outside Scroll. */}
+        {minimap.minimapItems.length > 0 && (
+          <TimelineMinimap
+            items={minimap.minimapItems}
+            stripMap={minimap.minimapStripMap}
+            scrollRef={scrollRef}
+            onSelect={minimap.handleMinimapSelect}
+            onScrub={minimap.handleMinimapScrub}
+          />
+        )}
       </Scroll>
-      {minimap.minimapItems.length > 0 && (
-        <TimelineMinimap
-          items={minimap.minimapItems}
-          stripMap={minimap.minimapStripMap}
-          onSelect={minimap.handleMinimapSelect}
-        />
-      )}
       {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
       {feature.forkToRoomDialog}
     </Box>

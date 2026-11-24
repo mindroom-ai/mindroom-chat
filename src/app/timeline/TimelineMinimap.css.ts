@@ -41,6 +41,7 @@ export const MinimapRail = style({
   transform: 'translateY(-50%)',
   width: '1rem',
   cursor: 'pointer',
+  touchAction: 'none',
   background: 'none',
   border: 'none',
   padding: 0,
