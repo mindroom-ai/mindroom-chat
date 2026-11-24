@@ -234,6 +234,7 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
+  let verdictAffected = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -243,13 +244,18 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     if (!remaining.length) unowned.push(mxcUri);
     if (!cached) continue;
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
-    if (!remaining.length) blobs.delete(mxcUri);
-    else if (cached.essential !== essential) blobs.put({ ...cached, essential });
+    if (!remaining.length) {
+      blobs.delete(mxcUri);
+      verdictAffected = true;
+    } else if (cached.essential !== essential) {
+      blobs.put({ ...cached, essential });
+      if (!essential) verdictAffected = true;
+    }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
-  await deleteScaledPictures(blobs, unowned);
-  if (unowned.length) {
-    // Pruning is rare, so dropping every session's verdict avoids threading sessionId here.
+  if ((await deleteScaledPictures(blobs, unowned)) > 0) verdictAffected = true;
+  if (verdictAffected) {
+    // Only cached deletions or newly optional blobs can change a protected eviction verdict.
     transaction.addEventListener('complete', () => invalidateEvictionVerdict(), { once: true });
   }
 };

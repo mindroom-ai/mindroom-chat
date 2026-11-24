@@ -3,6 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as deepTrace from '../../../../diagnostics/deepTrace';
 import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
+import { loadCachedScaledPicture, putCachedScaledPicture } from '../cacheStoreScaledPictures';
 import { EVICTION_PROTECTED_VERDICT_TTL_MS } from '../cacheStoreSchema';
 import * as store from '../index';
 
@@ -487,4 +488,79 @@ it('drops a cached verdict when a redaction prunes protected attachment bytes', 
   });
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: false });
   expect(await store.loadCachedAttachment(session, 'mxc://test/protected')).toBeUndefined();
+});
+
+it('keeps a cached verdict when pruning an uncached attachment reference', async () => {
+  await save('protected', 'room-focused');
+  await saveAttachmentOwner(session, 'room-focused', '$uncached', 1, [
+    { mxcUri: 'mxc://test/uncached', essential: false },
+  ]);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  await saveAttachmentOwner(session, 'room-focused', '$uncached', 2, [], undefined, {
+    redacted: true,
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+});
+
+it('drops a cached verdict when pruning removes a cached scaled picture', async () => {
+  await saveAttachmentOwner(session, 'room-focused', '$scaled', 1, [
+    { mxcUri: 'mxc://test/scaled', essential: false },
+  ]);
+  expect(
+    await putCachedScaledPicture(
+      session,
+      { mxcUri: 'mxc://test/scaled', bytes: new ArrayBuffer(2000), mimeType: 'image/jpeg' },
+      { roomId: 'room-focused', eventId: '$scaled', revisionTs: 1 }
+    )
+  ).toBe(true);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+
+  await saveAttachmentOwner(session, 'room-focused', '$scaled', 2, [], undefined, {
+    redacted: true,
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: false });
+  expect(await loadCachedScaledPicture(session, 'mxc://test/scaled')).toBeUndefined();
+});
+
+it('drops a cached verdict when pruning turns a cached essential attachment optional', async () => {
+  await save('protected', 'room-focused');
+  await saveAttachmentOwner(session, 'room-cold', '$essential', 1, [
+    { mxcUri: 'mxc://test/shared', essential: true },
+  ]);
+  await saveAttachmentOwner(session, 'room-cold', '$optional', 1, [
+    { mxcUri: 'mxc://test/shared', essential: false },
+  ]);
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/shared', bytes: new ArrayBuffer(2000), mimeType: 'text/plain' },
+    { roomId: 'room-cold', eventId: '$essential', revisionTs: 1, essential: true }
+  );
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: true,
+    evictedMxcUris: [],
+  });
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  await saveAttachmentOwner(session, 'room-cold', '$essential', 2, [], undefined, {
+    redacted: true,
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    underPressure: true,
+    evictedMxcUris: ['mxc://test/shared'],
+  });
+  expect(evictionTraces(trace)).toHaveLength(2);
 });
