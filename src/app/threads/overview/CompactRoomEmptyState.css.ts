@@ -28,6 +28,13 @@ export const Root = style({
   textAlign: 'center',
 });
 
+export const LoadingState = style({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: config.space.S200,
+});
+
 export const IconRing = style({
   display: 'inline-flex',
   alignItems: 'center',
@@ -74,7 +81,7 @@ export const SummaryRow = style({
 
 export const Separator = style({
   color: color.Surface.OnContainer,
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
   userSelect: 'none',
 });
 
@@ -98,6 +105,14 @@ export const InlineLink = style([
   },
 ]);
 
+export const PeekSnoozedLink = style([
+  InlineLink,
+  {
+    fontSize: config.fontSize.T200,
+    lineHeight: config.lineHeight.T200,
+  },
+]);
+
 export const Subtitle = style({
   marginBlockStart: config.space.S100,
   maxInlineSize: toRem(360),
@@ -110,6 +125,15 @@ export const Actions = style({
   justifyContent: 'center',
   gap: config.space.S200,
   marginBlockStart: config.space.S400,
+});
+
+export const SecondaryActionButton = style({
+  borderColor: color.SurfaceVariant.ContainerLine,
+  selectors: {
+    '&:hover:not(:disabled), &:active:not(:disabled)': {
+      borderColor: color.SurfaceVariant.ContainerLine,
+    },
+  },
 });
 
 export const PeekSection = style({
@@ -132,28 +156,6 @@ export const PeekLabel = style({
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
 });
-
-export const PeekSnoozedLink = style([
-  DefaultReset,
-  {
-    color: color.Surface.OnContainer,
-    opacity: config.opacity.P400,
-    fontSize: config.fontSize.T200,
-    lineHeight: config.lineHeight.T200,
-    cursor: 'pointer',
-    borderRadius: config.radii.R300,
-    transition: transition(['color', 'opacity']),
-    ':focus-visible': focusRing,
-    selectors: {
-      '&:hover': {
-        opacity: 1,
-        color: color.Primary.Main,
-        textDecoration: 'underline',
-        textUnderlineOffset: toRem(2),
-      },
-    },
-  },
-]);
 
 export const PeekList = style({
   listStyle: 'none',
@@ -235,6 +237,7 @@ export const ReopenButton = style([
   DefaultReset,
   {
     flexShrink: 0,
+    whiteSpace: 'nowrap',
     paddingBlock: config.space.S100,
     paddingInline: config.space.S200,
     borderRadius: config.radii.R300,
@@ -269,6 +272,6 @@ export const WhisperRow = style({
 });
 
 export const WhisperIcon = style({
-  opacity: config.opacity.P300,
+  opacity: config.opacity.P400,
   flexShrink: 0,
 });

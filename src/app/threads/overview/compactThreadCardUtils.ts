@@ -129,6 +129,11 @@ export const getScheduledTimeUpdateInterval = (ts: number, now = Date.now()): nu
   return ONE_HOUR_MS;
 };
 
+export const COMPACT_THREAD_TITLE_LIMIT = 160;
+
+export const truncateCompactThreadText = (value: string, limit: number): string =>
+  value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
+
 export const getCompactThreadTitleText = (
   room: Room,
   presentation: ThreadRecord['presentation'],

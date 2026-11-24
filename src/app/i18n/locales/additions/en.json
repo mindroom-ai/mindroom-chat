@@ -1241,7 +1241,6 @@
         "showAll": "Show all",
         "startNewThreadBelow": "Start a new thread below",
         "recentlyResolved": "Recently resolved",
-        "reopen": "Reopen",
         "noMatchHeading": "No threads match your filters",
         "hiddenByForMe_one": "{{count}} open thread is hidden by For me.",
         "hiddenByForMe_other": "{{count}} open threads are hidden by For me.",

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { Room } from 'matrix-js-sdk';
+import { useRef, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createDefaultThreadFilterState,
@@ -14,6 +15,7 @@ import {
   type CompactRoomEmptyStateProps,
 } from './CompactRoomEmptyState';
 import * as css from './CompactRoomEmptyState.css';
+import { COMPACT_THREAD_TITLE_LIMIT } from './compactThreadCardUtils';
 
 const NOW = Date.UTC(2026, 10, 24, 12, 0, 0);
 
@@ -117,6 +119,7 @@ const renderEmptyState = (overrides: Partial<CompactRoomEmptyStateProps> = {}) =
     onReset: vi.fn(),
     onToggleForMe: vi.fn(),
     onShowSnoozed: vi.fn(),
+    onRestoreFocus: vi.fn(),
     ...overrides,
   };
   return { props, ...render(<CompactRoomEmptyState {...props} />) };
@@ -225,11 +228,13 @@ describe('classifyCompactRoomEmptyState', () => {
 
 describe('CompactRoomEmptyState', () => {
   it('renders Inbox Zero with counts, Show all, recently resolved peek, Reopen, and compose whisper', () => {
+    const longTitle = `${'Release readiness checklist '.repeat(8)}end`;
+    const expectedTruncated = `${longTitle.slice(0, COMPACT_THREAD_TITLE_LIMIT - 3).trimEnd()}...`;
     const records = new Map<string, ThreadRecord>([
       [
         '$r1',
         makeRecord('$r1', {
-          summaryText: 'Deploy checklist',
+          summaryText: longTitle,
           isResolved: true,
           lastActivityTs: NOW - 120_000,
         }),
@@ -259,19 +264,28 @@ describe('CompactRoomEmptyState', () => {
     expect(screen.getByText('3 resolved · 1 snoozed')).toBeTruthy();
     expect(screen.getByText('Start a new thread below')).toBeTruthy();
 
+    const peekRegion = screen.getByRole('region', { name: 'Recently resolved' });
+    expect(peekRegion.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(peekRegion.getAttribute('aria-label')).toBeNull();
+
     fireEvent.click(screen.getByRole('button', { name: 'Show all' }));
     expect(props.onReset).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: '1 snoozed' }));
     expect(props.onShowSnoozed).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByText('Weekly triage')).toBeTruthy();
-    expect(screen.getByText('Deploy checklist')).toBeTruthy();
+    const truncatedNode = screen.getByText(expectedTruncated);
+    expect(truncatedNode.getAttribute('dir')).toBe('auto');
+    expect(truncatedNode.hasAttribute('data-own-direction')).toBe(true);
     expect(screen.queryByText('Older archive')).toBeNull();
 
     const rowButton = screen.getByRole('button', { name: /^Weekly triage/ });
-    const reopenButton = screen.getByRole('button', { name: 'Reopen: Weekly triage' });
+    const reopenButton = screen.getByRole('button', { name: 'Reopen thread: Weekly triage' });
     expect(rowButton.contains(reopenButton)).toBe(false);
+    expect(reopenButton.textContent).toBe('Reopen thread');
+    expect(
+      screen.getByRole('button', { name: `Reopen thread: ${expectedTruncated}` })
+    ).toBeTruthy();
 
     fireEvent.click(rowButton);
     expect(props.onThreadClick).toHaveBeenCalledWith('$r2', 'Weekly triage');
@@ -317,38 +331,60 @@ describe('CompactRoomEmptyState', () => {
       updatingThreadRootIds: new Set(['$updating']),
     });
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Reopen: Local draft' }).disabled
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Reopen thread: Local draft' }).disabled
     ).toBe(true);
     expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Reopen: In flight' }).disabled
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Reopen thread: In flight' }).disabled
     ).toBe(true);
   });
 
-  it('gates the Inbox Zero ring bloom animation on indexPending and reduced motion', () => {
+  it('shows a neutral loading state while indexPending is true and mounts Inbox Zero only once settled', () => {
     setReducedMotion(false);
-    const { container, rerender } = renderEmptyState({ indexPending: false });
-    const ring = () => container.querySelector('[data-empty-state-ring="success"]');
-    expect(ring()?.className).toContain(css.IconRingSuccessAnimated);
+    const partialResolved = new Map<string, ThreadRecord>([
+      ['$r1', makeRecord('$r1', { isResolved: true, lastActivityTs: NOW - 1_000 })],
+    ]);
+    const baseProps: CompactRoomEmptyStateProps = {
+      room: makeRoom(),
+      threadRecordMap: partialResolved,
+      filterState: unresolvedFilter(),
+      now: NOW,
+      canCompose: true,
+      indexPending: true,
+      canToggle: true,
+      updatingThreadRootIds: new Set(),
+      onThreadClick: vi.fn(),
+      onSetResolved: vi.fn(),
+      onReset: vi.fn(),
+      onShowSnoozed: vi.fn(),
+    };
 
+    const { container, rerender } = render(<CompactRoomEmptyState {...baseProps} />);
+    expect(screen.getByRole('status').textContent).toContain('Loading threads');
+    expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
+
+    // An open thread arrives as loading finishes: never celebrated Inbox Zero.
+    const withOpenArrived = new Map<string, ThreadRecord>([
+      ...partialResolved,
+      ['$open-1', makeRecord('$open-1', { summaryText: 'Arrived open thread' })],
+    ]);
     rerender(
       <CompactRoomEmptyState
-        room={makeRoom()}
-        threadRecordMap={
-          new Map([['$r1', makeRecord('$r1', { isResolved: true, lastActivityTs: NOW - 1_000 })]])
-        }
-        filterState={unresolvedFilter()}
-        now={NOW}
-        canCompose={true}
-        indexPending={true}
-        canToggle={true}
-        updatingThreadRootIds={new Set()}
-        onThreadClick={vi.fn()}
-        onSetResolved={vi.fn()}
-        onReset={vi.fn()}
-        onShowSnoozed={vi.fn()}
+        {...baseProps}
+        threadRecordMap={withOpenArrived}
+        indexPending={false}
       />
     );
-    expect(ring()?.className).not.toContain(css.IconRingSuccessAnimated);
+    expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'No threads match your filters' })).toBeTruthy();
+
+    // Settling with 0 open threads mounts Inbox Zero fresh with bloom animation.
+    rerender(<CompactRoomEmptyState {...baseProps} indexPending={true} />);
+    expect(screen.queryByRole('heading', { name: 'All caught up' })).toBeNull();
+    rerender(<CompactRoomEmptyState {...baseProps} indexPending={false} />);
+    expect(screen.getByRole('heading', { name: 'All caught up' })).toBeTruthy();
+    expect(container.querySelector('[data-empty-state-ring="success"]')?.className).toContain(
+      css.IconRingSuccessAnimated
+    );
 
     cleanup();
     setReducedMotion(true);
@@ -358,19 +394,19 @@ describe('CompactRoomEmptyState', () => {
     ).not.toContain(css.IconRingSuccessAnimated);
   });
 
-  it('renders Filtered empty state for For me, open hidden threads, and empty workflow tabs', () => {
+  it('distinguishes For me alone from combined filters and Done/Later tabs without invalid button markup', () => {
     const withOpen = new Map<string, ThreadRecord>([
       ['$open-1', makeRecord('$open-1', { summaryText: 'Open item' })],
       ['$open-2', makeRecord('$open-2', { summaryText: 'Second item' })],
     ]);
-    const { props } = renderEmptyState({
+    const { props, container } = renderEmptyState({
       threadRecordMap: withOpen,
       filterState: unresolvedFilter({ forMe: true }),
     });
 
     expect(screen.getByRole('heading', { name: 'No threads match your filters' })).toBeTruthy();
     expect(screen.getByText('2 open threads are hidden by For me.')).toBeTruthy();
-    expect(screen.queryByText('Start a new thread below')).toBeNull();
+    expect(container.querySelectorAll('button p')).toHaveLength(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Turn off For me' }));
     expect(props.onToggleForMe).toHaveBeenCalledTimes(1);
@@ -378,26 +414,98 @@ describe('CompactRoomEmptyState', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reset all' }));
     expect(props.onReset).toHaveBeenCalledTimes(1);
 
+    // Done tab + For me on must NOT blame For me for open threads.
     cleanup();
+    renderEmptyState({
+      threadRecordMap: withOpen,
+      filterState: {
+        ...selectThreadWorkflowTab(createDefaultThreadFilterState(), 'done'),
+        forMe: true,
+      },
+    });
+    expect(
+      screen.getByText('Adjust or reset your filters to see threads in this room.')
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Turn off For me' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reset all' })).toBeTruthy();
 
+    // Search query + For me on must blame filters generically, not For me alone.
+    cleanup();
+    renderEmptyState({
+      threadRecordMap: withOpen,
+      filterState: unresolvedFilter({ forMe: true, freeText: 'release' }),
+    });
+    expect(screen.getByText('2 open threads are hidden by your filters.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Turn off For me' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Reset all' })).toBeTruthy();
+
+    cleanup();
     const singleOpen = new Map<string, ThreadRecord>([['$open-1', makeRecord('$open-1')]]);
     const generic = renderEmptyState({
       threadRecordMap: singleOpen,
       filterState: unresolvedFilter({ freeText: 'missing' }),
     });
     expect(screen.getByText('1 open thread is hidden by your filters.')).toBeTruthy();
+    expect(generic.container.querySelectorAll('button p')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(generic.props.onReset).toHaveBeenCalledTimes(1);
+  });
 
-    cleanup();
+  it('restores keyboard focus to the persistent list container when Reopen unmounts the empty state', () => {
+    const onSetResolved = vi.fn();
 
-    renderEmptyState({
-      threadRecordMap: new Map([['$s1', makeRecord('$s1', { snoozedUntilTs: NOW + 60_000 })]]),
-      filterState: selectThreadWorkflowTab(createDefaultThreadFilterState(), 'done'),
-    });
-    expect(
-      screen.getByText('Adjust or reset your filters to see threads in this room.')
-    ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Reset filters' })).toBeTruthy();
+    function Host() {
+      const listRef = useRef<HTMLDivElement>(null);
+      const [empty, setEmpty] = useState(true);
+      return (
+        <div ref={listRef} tabIndex={-1} data-testid="persistent-list">
+          {empty ? (
+            <CompactRoomEmptyState
+              room={makeRoom()}
+              threadRecordMap={
+                new Map([
+                  [
+                    '$r1',
+                    makeRecord('$r1', {
+                      summaryText: 'Weekly triage',
+                      isResolved: true,
+                      lastActivityTs: NOW - 60_000,
+                    }),
+                  ],
+                ])
+              }
+              filterState={unresolvedFilter()}
+              now={NOW}
+              canCompose={true}
+              indexPending={false}
+              canToggle={true}
+              updatingThreadRootIds={new Set()}
+              onThreadClick={vi.fn()}
+              onSetResolved={(rootId, resolved) => {
+                onSetResolved(rootId, resolved);
+                setEmpty(false);
+              }}
+              onReset={vi.fn()}
+              onShowSnoozed={vi.fn()}
+              onRestoreFocus={() => listRef.current?.focus({ preventScroll: true })}
+            />
+          ) : (
+            <div>Reopened thread card</div>
+          )}
+        </div>
+      );
+    }
+
+    render(<Host />);
+    const reopen = screen.getByRole('button', { name: 'Reopen thread: Weekly triage' });
+    reopen.focus();
+    expect(document.activeElement).toBe(reopen);
+
+    // Keyboard activation fires a click with detail === 0.
+    fireEvent.click(reopen, { detail: 0 });
+    expect(onSetResolved).toHaveBeenCalledWith('$r1', false);
+    expect(screen.getByText('Reopened thread card')).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByTestId('persistent-list'));
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

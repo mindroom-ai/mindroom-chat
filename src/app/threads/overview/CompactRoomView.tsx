@@ -605,6 +605,9 @@ export function CompactRoomView({
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
   }, []);
+  const restoreListFocus = useCallback(() => {
+    viewRef.current?.focus({ preventScroll: true });
+  }, []);
 
   // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
   // the focus moves on to the next card: under a filter, either may take the card off the list.
@@ -846,6 +849,7 @@ export function CompactRoomView({
               onReset={emptyState.onReset}
               onToggleForMe={emptyState.onToggleForMe}
               onShowSnoozed={emptyState.onShowSnoozed}
+              onRestoreFocus={restoreListFocus}
             />
           ) : (
             <Box className={css.EmptyState}>

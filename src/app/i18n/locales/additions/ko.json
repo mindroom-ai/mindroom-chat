@@ -1204,7 +1204,6 @@
         "showAll": "모두 보기",
         "startNewThreadBelow": "아래에서 새 스레드 시작",
         "recentlyResolved": "최근 해결됨",
-        "reopen": "다시 열기",
         "noMatchHeading": "필터와 일치하는 스레드가 없습니다",
         "hiddenByForMe_other": "열린 스레드 {{count}}개가 '나를 위한 스레드' 필터로 숨겨져 있습니다.",
         "hiddenByFilters_other": "열린 스레드 {{count}}개가 필터로 숨겨져 있습니다.",

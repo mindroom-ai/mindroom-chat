@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import type React from 'react';
+import { useId, useMemo } from 'react';
 import { IconArrowDown, IconCheck, IconFilter } from '@tabler/icons-react';
 import classNames from 'classnames';
-import { Button, Text } from 'folds';
+import { Button, Spinner, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useTranslation } from 'react-i18next';
 import type { ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
@@ -10,9 +11,14 @@ import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
+import { ownDirectionLine } from '../../ui/directional';
 import { motionAllowed } from '../../ui/listMotion';
 import * as css from './CompactRoomEmptyState.css';
-import { getCompactThreadTitleText } from './compactThreadCardUtils';
+import {
+  COMPACT_THREAD_TITLE_LIMIT,
+  getCompactThreadTitleText,
+  truncateCompactThreadText,
+} from './compactThreadCardUtils';
 
 const MAX_RECENTLY_RESOLVED = 2;
 
@@ -34,8 +40,7 @@ export type CompactRoomEmptyStateModel = {
   recentlyResolved: ThreadRecord[];
 };
 
-const hasExtraNarrowingFilter = (filterState: ThreadFilterState): boolean =>
-  filterState.forMe === true ||
+const hasNonForMeNarrowingFilter = (filterState: ThreadFilterState): boolean =>
   (filterState.freeText ?? '').trim() !== '' ||
   (filterState.unsupportedQuery ?? '').trim() !== '' ||
   filterState.tags.size > 0 ||
@@ -44,6 +49,16 @@ const hasExtraNarrowingFilter = (filterState: ThreadFilterState): boolean =>
   filterState.scheduled !== 'any' ||
   filterState.unread !== 'any' ||
   filterState.idle !== 'any';
+
+const hasExtraNarrowingFilter = (filterState: ThreadFilterState): boolean =>
+  filterState.forMe === true || hasNonForMeNarrowingFilter(filterState);
+
+const isForMeOnlyOpenFilter = (filterState: ThreadFilterState): boolean =>
+  filterState.forMe === true &&
+  (filterState.tab === undefined || filterState.tab === 'all') &&
+  filterState.resolved !== 'include' &&
+  filterState.snoozed !== 'include' &&
+  !hasNonForMeNarrowingFilter(filterState);
 
 const isViewingOpenThreads = (filterState: ThreadFilterState): boolean => {
   if (filterState.tab === 'needsYou' || filterState.tab === 'working') {
@@ -54,6 +69,15 @@ const isViewingOpenThreads = (filterState: ThreadFilterState): boolean => {
     filterState.resolved === 'exclude' &&
     filterState.snoozed !== 'include'
   );
+};
+
+const isKeyboardActivated = (event: React.MouseEvent<HTMLButtonElement>): boolean => {
+  if (event.detail === 0) return true;
+  try {
+    return event.currentTarget.matches(':focus-visible');
+  } catch {
+    return false;
+  }
 };
 
 export const classifyCompactRoomEmptyState = (
@@ -109,6 +133,7 @@ type RecentlyResolvedRowProps = {
   updating: boolean;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
   onSetResolved: (threadRootId: string, resolved: boolean) => void;
+  onRestoreFocus?: () => void;
 };
 
 function RecentlyResolvedRow({
@@ -118,15 +143,19 @@ function RecentlyResolvedRow({
   updating,
   onThreadClick,
   onSetResolved,
+  onRestoreFocus,
 }: RecentlyResolvedRowProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const title = getCompactThreadTitleText(room, record.presentation, t);
+  const displayTitle = truncateCompactThreadText(
+    getCompactThreadTitleText(room, record.presentation, t),
+    COMPACT_THREAD_TITLE_LIMIT
+  );
   const lastActivityTs = record.status.lastActivityTs;
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
   const lastActivityTitle =
     lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString(language) : undefined;
-  const reopenText = t('mindroomUi.threads.compactRoomEmptyState.reopen');
+  const reopenLabel = t('threadActions.reopen');
   const reopenDisabled = updating || !isConfirmedMatrixEventId(record.threadRootId);
 
   return (
@@ -141,14 +170,14 @@ function RecentlyResolvedRow({
         <span className={css.PeekCheckIcon} aria-hidden="true">
           <IconCheck size={12} stroke={2.4} />
         </span>
-        <Text as="span" size="T200" className={css.PeekTitle}>
-          {title}
+        <Text as="span" size="T200" className={css.PeekTitle} {...ownDirectionLine}>
+          {displayTitle}
         </Text>
         {relativeTime && (
           <Text
             as="span"
             size="T200"
-            priority="300"
+            priority="400"
             className={css.PeekTime}
             title={lastActivityTitle}
           >
@@ -161,11 +190,13 @@ function RecentlyResolvedRow({
           type="button"
           className={css.ReopenButton}
           disabled={reopenDisabled}
-          title={t('threadActions.reopen')}
-          aria-label={`${reopenText}: ${title}`}
-          onClick={() => onSetResolved(record.threadRootId, false)}
+          aria-label={`${reopenLabel}: ${displayTitle}`}
+          onClick={(event) => {
+            if (isKeyboardActivated(event)) onRestoreFocus?.();
+            onSetResolved(record.threadRootId, false);
+          }}
         >
-          {reopenText}
+          {reopenLabel}
         </button>
       )}
     </li>
@@ -180,6 +211,7 @@ export type CompactRoomEmptyStateProps = CompactRoomEmptyStateConfig & {
   updatingThreadRootIds: ReadonlySet<string>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
   onSetResolved: (threadRootId: string, resolved: boolean) => void;
+  onRestoreFocus?: () => void;
 };
 
 export function CompactRoomEmptyState({
@@ -196,15 +228,38 @@ export function CompactRoomEmptyState({
   onReset,
   onToggleForMe,
   onShowSnoozed,
+  onRestoreFocus,
 }: CompactRoomEmptyStateProps) {
   const { t } = useTranslation();
+  const recentlyResolvedHeadingId = useId();
   const model = useMemo(
     () => classifyCompactRoomEmptyState(threadRecordMap, filterState, now),
     [threadRecordMap, filterState, now]
   );
 
+  const activateWithFocusRestore = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    action: () => void
+  ) => {
+    if (isKeyboardActivated(event)) onRestoreFocus?.();
+    action();
+  };
+
+  if (indexPending) {
+    return (
+      <div key="loading" className={css.Root} data-compact-room-empty-state="loading" role="status">
+        <div className={css.LoadingState}>
+          <Spinner size="400" variant="Secondary" />
+          <Text as="span" size="T200" priority="400">
+            {t('sharedUi.threadsView.loadingThreads')}
+          </Text>
+        </div>
+      </div>
+    );
+  }
+
   if (model.kind === 'inboxZero') {
-    const animateRing = !indexPending && motionAllowed();
+    const animateRing = motionAllowed();
     const summaryParts: string[] = [];
     if (model.resolvedCount > 0) {
       summaryParts.push(
@@ -222,7 +277,7 @@ export function CompactRoomEmptyState({
     }
 
     return (
-      <div className={css.Root} data-compact-room-empty-state="inboxZero">
+      <div key="inboxZero" className={css.Root} data-compact-room-empty-state="inboxZero">
         <div
           className={classNames(
             css.IconRing,
@@ -240,7 +295,7 @@ export function CompactRoomEmptyState({
         <div className={css.SummaryRow}>
           {summaryParts.length > 0 && (
             <>
-              <Text as="span" size="T300" priority="300">
+              <Text as="span" size="T300" priority="400">
                 {summaryParts.join(' · ')}
               </Text>
               <span className={css.Separator} aria-hidden="true">
@@ -248,21 +303,32 @@ export function CompactRoomEmptyState({
               </span>
             </>
           )}
-          <button type="button" className={css.InlineLink} onClick={onReset}>
+          <button
+            type="button"
+            className={css.InlineLink}
+            onClick={(event) => activateWithFocusRestore(event, onReset)}
+          >
             {t('mindroomUi.threads.compactRoomEmptyState.showAll')}
           </button>
         </div>
         {model.resolvedCount > 0 && model.recentlyResolved.length > 0 && (
-          <section
-            className={css.PeekSection}
-            aria-label={t('mindroomUi.threads.compactRoomEmptyState.recentlyResolved')}
-          >
+          <section className={css.PeekSection} aria-labelledby={recentlyResolvedHeadingId}>
             <div className={css.PeekHeader}>
-              <Text as="h3" size="L400" priority="300" className={css.PeekLabel}>
+              <Text
+                id={recentlyResolvedHeadingId}
+                as="h3"
+                size="L400"
+                priority="400"
+                className={css.PeekLabel}
+              >
                 {t('mindroomUi.threads.compactRoomEmptyState.recentlyResolved')}
               </Text>
               {model.snoozedCount > 0 && (
-                <button type="button" className={css.PeekSnoozedLink} onClick={onShowSnoozed}>
+                <button
+                  type="button"
+                  className={css.PeekSnoozedLink}
+                  onClick={(event) => activateWithFocusRestore(event, onShowSnoozed)}
+                >
                   {t('mindroomUi.threads.compactRoomEmptyState.snoozedCount', {
                     count: model.snoozedCount,
                   })}
@@ -279,6 +345,7 @@ export function CompactRoomEmptyState({
                   updating={updatingThreadRootIds.has(record.threadRootId)}
                   onThreadClick={onThreadClick}
                   onSetResolved={onSetResolved}
+                  onRestoreFocus={onRestoreFocus}
                 />
               ))}
             </ul>
@@ -287,7 +354,7 @@ export function CompactRoomEmptyState({
         {canCompose && (
           <div className={css.WhisperRow}>
             <IconArrowDown size={14} stroke={1.8} className={css.WhisperIcon} aria-hidden="true" />
-            <Text as="span" size="T200" priority="300">
+            <Text as="span" size="T200" priority="400">
               {t('mindroomUi.threads.compactRoomEmptyState.startNewThreadBelow')}
             </Text>
           </div>
@@ -297,23 +364,23 @@ export function CompactRoomEmptyState({
   }
 
   const subtitle =
-    filterState.forMe && model.openCount > 0
+    model.openCount > 0 && isForMeOnlyOpenFilter(filterState)
       ? t('mindroomUi.threads.compactRoomEmptyState.hiddenByForMe', { count: model.openCount })
-      : model.openCount > 0
+      : model.openCount > 0 && filterState.tab !== 'done' && filterState.tab !== 'later'
         ? t('mindroomUi.threads.compactRoomEmptyState.hiddenByFilters', {
             count: model.openCount,
           })
         : t('mindroomUi.threads.compactRoomEmptyState.adjustOrResetFilters');
 
   return (
-    <div className={css.Root} data-compact-room-empty-state="filtered">
+    <div key="filtered" className={css.Root} data-compact-room-empty-state="filtered">
       <div className={css.IconRing} data-empty-state-ring="neutral" aria-hidden="true">
         <IconFilter size={19} stroke={1.8} />
       </div>
       <Text as="h2" size="H4" className={css.Heading}>
         {t('mindroomUi.threads.compactRoomEmptyState.noMatchHeading')}
       </Text>
-      <Text as="p" size="T300" priority="300" className={css.Subtitle}>
+      <Text as="p" size="T300" priority="400" className={css.Subtitle}>
         {subtitle}
       </Text>
       <div className={css.Actions}>
@@ -326,9 +393,11 @@ export function CompactRoomEmptyState({
               variant="Primary"
               fill="Soft"
               outlined
-              onClick={onToggleForMe}
+              onClick={(event) => activateWithFocusRestore(event, onToggleForMe)}
             >
-              <Text size="B300">{t('mindroomUi.threads.compactRoomEmptyState.turnOffForMe')}</Text>
+              <Text as="span" size="B300">
+                {t('mindroomUi.threads.compactRoomEmptyState.turnOffForMe')}
+              </Text>
             </Button>
             <Button
               type="button"
@@ -337,9 +406,12 @@ export function CompactRoomEmptyState({
               variant="Secondary"
               fill="None"
               outlined
-              onClick={onReset}
+              className={css.SecondaryActionButton}
+              onClick={(event) => activateWithFocusRestore(event, onReset)}
             >
-              <Text size="B300">{t('mindroomUi.threads.compactRoomEmptyState.resetAll')}</Text>
+              <Text as="span" size="B300">
+                {t('mindroomUi.threads.compactRoomEmptyState.resetAll')}
+              </Text>
             </Button>
           </>
         ) : (
@@ -350,9 +422,11 @@ export function CompactRoomEmptyState({
             variant="Primary"
             fill="Soft"
             outlined
-            onClick={onReset}
+            onClick={(event) => activateWithFocusRestore(event, onReset)}
           >
-            <Text size="B300">{t('mindroomUi.threads.compactRoomEmptyState.resetFilters')}</Text>
+            <Text as="span" size="B300">
+              {t('mindroomUi.threads.compactRoomEmptyState.resetFilters')}
+            </Text>
           </Button>
         )}
       </div>

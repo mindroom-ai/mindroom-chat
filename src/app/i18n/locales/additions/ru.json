@@ -1315,7 +1315,6 @@
         "showAll": "Показать все",
         "startNewThreadBelow": "Начните новую ветку ниже",
         "recentlyResolved": "Недавно решённые",
-        "reopen": "Открыть снова",
         "noMatchHeading": "Нет веток, подходящих под фильтры",
         "hiddenByForMe_one": "{{count}} открытая ветка скрыта фильтром «Для меня».",
         "hiddenByForMe_few": "{{count}} открытые ветки скрыты фильтром «Для меня».",

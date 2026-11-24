@@ -1241,7 +1241,6 @@
         "showAll": "सभी दिखाएँ",
         "startNewThreadBelow": "नीचे एक नया थ्रेड शुरू करें",
         "recentlyResolved": "हाल ही में सुलझे हुए",
-        "reopen": "फिर से खोलें",
         "noMatchHeading": "कोई भी थ्रेड आपके फ़िल्टर से मेल नहीं खाता",
         "hiddenByForMe_one": "{{count}} खुला थ्रेड «मेरे लिए» द्वारा छिपा हुआ है।",
         "hiddenByForMe_other": "{{count}} खुले थ्रेड «मेरे लिए» द्वारा छिपे हुए हैं।",
