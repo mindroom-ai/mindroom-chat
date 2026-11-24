@@ -1027,6 +1027,14 @@
         "scopeOwn": "Bu ileti dizisinde, hitap edebileceğiniz ajan ve ekiplerin gelecekteki yanıtları için geçerlidir.",
         "scopeOther": "Bu ileti dizisinde, {{name}} adlı kişinin hitap edebileceği ajan ve ekiplerin gelecekteki yanıtları için geçerlidir."
       },
+      "triggerWakeMarker": {
+        "triggered": "Tetiklendi",
+        "webhook": "Webhook",
+        "triggerLabel": "Tetikleyici {{id}}",
+        "sourceLabel": "Kaynak {{source}}",
+        "triageLabel": "Triyaj: {{reason}}",
+        "payloadLabel": "Olay yükü JSON"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"

@@ -1008,6 +1008,14 @@
         "scopeOwn": "이 스레드에서 내가 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다.",
         "scopeOther": "이 스레드에서 {{name}} 님이 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다."
       },
+      "triggerWakeMarker": {
+        "triggered": "트리거됨",
+        "webhook": "웹훅",
+        "triggerLabel": "트리거 {{id}}",
+        "sourceLabel": "소스 {{source}}",
+        "triageLabel": "트리아지: {{reason}}",
+        "payloadLabel": "이벤트 페이로드 JSON"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"

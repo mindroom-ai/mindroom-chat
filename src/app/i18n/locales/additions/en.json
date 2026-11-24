@@ -1027,6 +1027,14 @@
         "scopeOwn": "Applies to future replies in this thread from the agents and teams you may address.",
         "scopeOther": "Applies to future replies in this thread from the agents and teams {{name}} may address."
       },
+      "triggerWakeMarker": {
+        "triggered": "Triggered",
+        "webhook": "Webhook",
+        "triggerLabel": "Trigger {{id}}",
+        "sourceLabel": "Source {{source}}",
+        "triageLabel": "Triage: {{reason}}",
+        "payloadLabel": "Event payload JSON"
+      },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"

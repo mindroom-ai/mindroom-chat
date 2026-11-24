@@ -1046,6 +1046,14 @@
         "scopeOwn": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais você pode se dirigir.",
         "scopeOther": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais {{name}} pode se dirigir."
       },
+      "triggerWakeMarker": {
+        "triggered": "Acionado",
+        "webhook": "Webhook",
+        "triggerLabel": "Gatilho {{id}}",
+        "sourceLabel": "Origem {{source}}",
+        "triageLabel": "Triagem: {{reason}}",
+        "payloadLabel": "Carga do evento JSON"
+      },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"

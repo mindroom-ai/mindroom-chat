@@ -189,6 +189,9 @@ vi.mock('../agent-run/TranscribingPlaceholder', () => ({
 vi.mock('../SkillReviewMarker', () => ({
   SkillReviewMarker: () => null,
 }));
+vi.mock('../TriggerWakeMarker', () => ({
+  TriggerWakeMarker: () => null,
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
 }));

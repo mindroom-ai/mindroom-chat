@@ -1027,6 +1027,14 @@
         "scopeOwn": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die je mag aanspreken.",
         "scopeOther": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die {{name}} mag aanspreken."
       },
+      "triggerWakeMarker": {
+        "triggered": "Geactiveerd",
+        "webhook": "Webhook",
+        "triggerLabel": "Trigger {{id}}",
+        "sourceLabel": "Bron {{source}}",
+        "triageLabel": "Triage: {{reason}}",
+        "payloadLabel": "Gebeurtenispayload JSON"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"

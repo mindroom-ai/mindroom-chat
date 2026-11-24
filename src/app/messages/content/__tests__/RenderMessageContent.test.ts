@@ -98,6 +98,9 @@ vi.mock('../../viewers/TextViewer', () => ({
 vi.mock('../renderAgentMessageContent', () => ({
   renderAgentMessageContent: renderAgentMessageContentMock,
 }));
+vi.mock('../../TriggerWakeMarker', () => ({
+  TriggerWakeMarker: () => null,
+}));
 
 vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',

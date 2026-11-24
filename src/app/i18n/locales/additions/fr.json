@@ -1046,6 +1046,14 @@
         "scopeOwn": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels vous pouvez vous adresser.",
         "scopeOther": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels {{name}} peut s’adresser."
       },
+      "triggerWakeMarker": {
+        "triggered": "Déclenché",
+        "webhook": "Webhook",
+        "triggerLabel": "Déclencheur {{id}}",
+        "sourceLabel": "Source {{source}}",
+        "triageLabel": "Triage : {{reason}}",
+        "payloadLabel": "Charge utile de l’événement JSON"
+      },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"

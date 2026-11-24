@@ -1008,6 +1008,14 @@
         "scopeOwn": "适用于此话题中你可以对话的智能体和团队今后的回复。",
         "scopeOther": "适用于此话题中 {{name}} 可以对话的智能体和团队今后的回复。"
       },
+      "triggerWakeMarker": {
+        "triggered": "已触发",
+        "webhook": "Webhook",
+        "triggerLabel": "触发器 {{id}}",
+        "sourceLabel": "来源 {{source}}",
+        "triageLabel": "分流：{{reason}}",
+        "payloadLabel": "事件载荷 JSON"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"

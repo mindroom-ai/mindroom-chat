@@ -95,7 +95,8 @@ export const turnAnswerRank = (
 };
 
 /** How MindRoom marks a message that wakes an agent from outside the thread. */
-const WAKE_UP_KINDS = /^(scheduled|silent_scheduled|external_trigger|hook_dispatch)$/;
+const WAKE_UP_KINDS =
+  /^(scheduled|silent_scheduled|external_trigger|reactive_trigger|hook_dispatch)$/;
 
 /**
  * Whether a row starts its turn (`ThreadTurnRules.startsTurn`): a person's message, or MindRoom's
