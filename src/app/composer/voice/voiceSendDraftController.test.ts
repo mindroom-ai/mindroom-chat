@@ -51,7 +51,7 @@ const journal = vi.hoisted(() => ({
   deleteVoiceRecording: vi.fn(async () => undefined),
   releaseVoiceRecording: vi.fn(),
 }));
-vi.mock('./voiceRecordingJournal', () => journal);
+vi.mock('../capture/captureJournal', () => journal);
 
 it('deletes journal audio only after a successful send, or on discard', async () => {
   const store = createDraftStore();

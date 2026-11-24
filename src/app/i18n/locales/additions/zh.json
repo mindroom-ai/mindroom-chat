@@ -1444,7 +1444,20 @@
       "statusPendingRetry_other": "{{count}} 个片段等待重试",
       "capReached": "已达到 5:00 上限",
       "micInterrupted": "麦克风已断开。请继续或完成。",
-      "failedSummary_other": "无法转写 {{count}} 个片段。"
+      "failedSummary_other": "无法转写 {{count}} 个片段。",
+      "discardDictation": "丢弃听写",
+      "discardConfirmTitle": "丢弃听写？",
+      "discardConfirmBody": "此听写尚未插入或发送。要永久丢弃吗？",
+      "errorTitle": "听写错误",
+      "statusRecovered": "已恢复的听写",
+      "recoveredDuration": "已恢复 · {{time}}",
+      "indicator": {
+        "recording": "正在听写 {{time}}",
+        "paused": "听写已暂停 {{time}}",
+        "recovered": "已恢复的听写 {{time}}",
+        "finishing": "正在完成听写...",
+        "failed": "听写需要注意"
+      }
     }
   },
   "commandPalette": {

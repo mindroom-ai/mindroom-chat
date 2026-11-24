@@ -8,7 +8,7 @@ import { ReactEditor, withReact } from 'slate-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { activeDictationAtom } from '../roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../capture/liveCapture';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
 import type { DictationSession, DictationSnapshot } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
@@ -405,7 +405,7 @@ describe('useRoomInputDictation', () => {
     expect(session.start).toHaveBeenCalledTimes(1);
   });
 
-  it('enforces mutual exclusion with liveVoiceRecordingAtom and activeDictationAtom', async () => {
+  it('enforces mutual exclusion with liveCaptureAtom and activeDictationAtom', async () => {
     const editor = makeSlateEditor('Start');
     Transforms.select(editor, { path: [0, 0], offset: 5 });
     const store = createStore();
@@ -417,13 +417,13 @@ describe('useRoomInputDictation', () => {
 
     // Voice message recording running -> dictation button disabled and start blocked.
     act(() => {
-      store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
+      store.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession });
     });
     expect(btn.disabled).toBe(true);
     expect(getFeature().start()).toBe(false);
 
     act(() => {
-      store.set(liveVoiceRecordingAtom, undefined);
+      store.set(liveCaptureAtom, undefined);
     });
     expect(btn.disabled).toBe(false);
 

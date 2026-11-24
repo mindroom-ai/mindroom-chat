@@ -5,7 +5,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { composersHoldUnsavedWork } from './roomInputDrafts';
 import { useRoomInputVoice } from './useRoomInputVoice';
-import { liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
+import { liveCaptureAtom } from './capture/liveCapture';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voice/voiceCaptureSession';
 
 // A composer's own Discard, through the real recorder and question: confirmed, the recording ends
@@ -74,12 +74,15 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
       })
   );
   const store = createStore();
-  store.set(liveVoiceRecordingAtom, {
-    getSnapshot: () => snapshot,
-    subscribe: () => () => undefined,
-    canStop: () => true,
-    discard,
-  } as unknown as VoiceCaptureSession);
+  store.set(liveCaptureAtom, {
+    kind: 'voice',
+    session: {
+      getSnapshot: () => snapshot,
+      subscribe: () => () => undefined,
+      canStop: () => true,
+      discard,
+    } as unknown as VoiceCaptureSession,
+  });
   render(
     <Provider store={store}>
       <Composer />
@@ -90,7 +93,7 @@ it('keeps its Discard question up, busy, until the disk copy is gone', async () 
   await waitFor(() => expect(question()?.contains(document.activeElement)).toBe(true));
   fireEvent.click(within(question()!).getByRole('button', { name: 'Discard' }));
   expect(discard).toHaveBeenCalledOnce();
-  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+  expect(store.get(liveCaptureAtom)).toBeUndefined();
 
   // The recording is gone from the account; its disk copy is not yet. A reload would offer it
   // again, so the question stays and the app still holds unsaved work.

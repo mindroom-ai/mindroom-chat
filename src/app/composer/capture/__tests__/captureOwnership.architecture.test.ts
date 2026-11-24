@@ -17,13 +17,15 @@ import {
 } from '../../../../test/architecture';
 
 const CAPTURE_OWNER = appFile('composer/voice/voiceCaptureSession.ts');
-const LIVE_OWNER = appFile('composer/voice/liveVoiceRecording.ts');
+const LIVE_OWNER = appFile('composer/capture/liveCapture.ts');
+const CAPTURE_JOURNAL = appFile('composer/capture/captureJournal.ts');
+const CAPTURE_INDICATOR = appFile('composer/capture/LiveCaptureIndicator.tsx');
 const DRAFT_OWNER = appFile('composer/voice/voiceSendDraftController.ts');
 const VOICE_FACADE = appFile('composer/voice/useVoiceRecorder.ts');
 
 const fixtureDirectories: string[] = [];
 const createFixtureDirectory = (): string => {
-  const directory = mkdtempSync(join(tmpdir(), 'guards-voice-ownership-'));
+  const directory = mkdtempSync(join(tmpdir(), 'guards-capture-ownership-'));
   fixtureDirectories.push(directory);
   return directory;
 };
@@ -45,7 +47,7 @@ const constructedIdentifiers = (path: string): string[] => {
 };
 
 /** The composer modules outside `composer/voice/` that a file imports, type-only imports included. */
-const composerDependencies = (path: string): string[] =>
+const composerDependenciesOutsideVoice = (path: string): string[] =>
   [...resolvedDependencies(path)]
     .map(appRelativePath)
     .filter(
@@ -53,21 +55,26 @@ const composerDependencies = (path: string): string[] =>
         dependency.startsWith('composer/') && !dependency.startsWith('composer/voice/')
     );
 
-describe('voice recorder ownership architecture', () => {
-  it('requires the voice owners and composes them in the recorder hook', () => {
-    const owners = [CAPTURE_OWNER, LIVE_OWNER, DRAFT_OWNER, VOICE_FACADE];
+describe('shared live capture and voice ownership architecture', () => {
+  it('requires the capture and voice owners and composes them in the recorder hook', () => {
+    const owners = [
+      CAPTURE_OWNER,
+      LIVE_OWNER,
+      CAPTURE_JOURNAL,
+      CAPTURE_INDICATOR,
+      DRAFT_OWNER,
+      VOICE_FACADE,
+    ];
     expect(owners.filter((path) => !pathExists(path))).toEqual([]);
-    // The hook shows the account's recording and delivers the one its composer claims; it makes
-    // no capture session of its own (below).
+    // The hook shows the account's live recording and delivers the one its composer claims; it
+    // makes no capture session of its own (below).
     expect([...resolvedDependencies(VOICE_FACADE, { includeTypeOnly: false })]).toEqual(
       expect.arrayContaining([LIVE_OWNER, DRAFT_OWNER])
     );
   });
 
-  it('gives the live recording one owner, which knows no destination', () => {
-    // The account owns the live recording; the composer whose Send is pressed owns its delivery.
-    // So no composer makes a capture session: one would end with it.
-    // Named at all, so a session handed to `useState` as an initialiser counts too.
+  it('gives live capture one owner with a hard shell bundle-split boundary', () => {
+    // No composer creates a voice capture session directly: only the dedicated start module does.
     expect(
       walkProductionSources(APP_ROOT)
         .filter((path) => readSource(path).includes('createVoiceCaptureSession'))
@@ -77,28 +84,61 @@ describe('voice recorder ownership architecture', () => {
       'composer/voice/startLiveVoiceRecording.ts',
       'composer/voice/voiceCaptureSession.ts',
     ]);
-    // The owner makes the session it is handed by that one start module.
+    // Only the live capture owner and start module(s) call beginLiveCapture.
     expect(
       walkProductionSources(APP_ROOT)
-        .filter((path) => readSource(path).includes('beginLiveVoiceRecording'))
+        .filter((path) => readSource(path).includes('beginLiveCapture'))
         .map(appRelativePath)
         .sort()
-    ).toEqual([
-      'composer/voice/liveVoiceRecording.ts',
-      'composer/voice/startLiveVoiceRecording.ts',
-    ]);
+    ).toEqual(['composer/capture/liveCapture.ts', 'composer/voice/startLiveVoiceRecording.ts']);
 
-    // Capture and jotai only: no room, thread, draft, Matrix type or React. Capture by its types
-    // alone, so the shell, which loads the owner at once, loads no capture code.
+    // Runtime import is jotai ONLY; capture sessions are import type only so the initial shell
+    // bundle loads zero MediaRecorder, AudioWorklet, Silero VAD, idb, or MatrixClient code.
     expect(
       moduleDependencies(LIVE_OWNER).map(({ specifier, typeOnly }) => ({ specifier, typeOnly }))
     ).toEqual([
       { specifier: 'jotai', typeOnly: false },
-      { specifier: './voiceCaptureSession', typeOnly: true },
+      { specifier: '../dictation/dictationSession', typeOnly: true },
+      { specifier: '../voice/voiceCaptureSession', typeOnly: true },
     ]);
-    expect([...resolvedDependencies(LIVE_OWNER)].map(appRelativePath)).toEqual([
+    expect([...resolvedDependencies(LIVE_OWNER, { includeTypeOnly: false })]).toEqual([]);
+    expect([...resolvedDependencies(LIVE_OWNER)].map(appRelativePath).sort()).toEqual([
+      'composer/dictation/dictationSession.ts',
       'composer/voice/voiceCaptureSession.ts',
     ]);
+  });
+
+  it('keeps LiveCaptureIndicator and captureJournal free of capture engine runtime deps', () => {
+    const indicatorRuntimeLocal = [
+      ...resolvedDependencies(CAPTURE_INDICATOR, { includeTypeOnly: false }),
+    ].map(appRelativePath);
+    const forbiddenIndicatorDeps = [
+      'composer/voice/useVoiceRecorder.ts',
+      'composer/voice/voiceCaptureSession.ts',
+      'composer/voice/startLiveVoiceRecording.ts',
+      'composer/capture/captureJournal.ts',
+      'composer/dictation/dictationSession.ts',
+      'composer/dictation/dictationAudioCapture.ts',
+      'composer/dictation/sileroVad.ts',
+    ];
+    expect(indicatorRuntimeLocal.filter((dep) => forbiddenIndicatorDeps.includes(dep))).toEqual([]);
+
+    const indicatorRuntimeSpecifiers = moduleDependencies(CAPTURE_INDICATOR)
+      .filter((dep) => !dep.typeOnly)
+      .map((dep) => dep.specifier);
+    expect(
+      indicatorRuntimeSpecifiers.filter(
+        (specifier) =>
+          specifier === 'idb' ||
+          specifier === 'matrix-js-sdk' ||
+          specifier.startsWith('matrix-js-sdk/')
+      )
+    ).toEqual([]);
+
+    const journalRuntimeLocal = [
+      ...resolvedDependencies(CAPTURE_JOURNAL, { includeTypeOnly: false }),
+    ].map(appRelativePath);
+    expect(journalRuntimeLocal).toEqual(['composer/voice/voiceRecorderMime.ts']);
   });
 
   it('keeps browser capture separate from durable voice delivery', () => {
@@ -129,10 +169,9 @@ describe('voice recorder ownership architecture', () => {
           specifier.includes('voiceSendDraftController')
       )
     ).toEqual([]);
-    // The rest of the composer (its drafts, send session and input) sits in composer/, around
-    // voice/: durable delivery reaches the drafts there, browser capture reaches none of it.
-    expect(composerDependencies(DRAFT_OWNER)).toContain('composer/roomInputDrafts.ts');
-    expect(composerDependencies(CAPTURE_OWNER)).toEqual([]);
+    // Durable delivery reaches composer drafts and journal; browser capture reaches none of it.
+    expect(composerDependenciesOutsideVoice(DRAFT_OWNER)).toContain('composer/roomInputDrafts.ts');
+    expect(composerDependenciesOutsideVoice(CAPTURE_OWNER)).toEqual([]);
 
     const draftDependencies = moduleDependencies(DRAFT_OWNER);
     expect(

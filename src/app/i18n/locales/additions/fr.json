@@ -1538,7 +1538,20 @@
       "micInterrupted": "Microphone déconnecté. Reprenez ou terminez.",
       "failedSummary_one": "Impossible de transcrire {{count}} segment.",
       "failedSummary_many": "Impossible de transcrire {{count}} segments.",
-      "failedSummary_other": "Impossible de transcrire {{count}} segments."
+      "failedSummary_other": "Impossible de transcrire {{count}} segments.",
+      "discardDictation": "Supprimer la dictée",
+      "discardConfirmTitle": "Supprimer la dictée ?",
+      "discardConfirmBody": "Cette dictée n’a pas encore été insérée ni envoyée. La supprimer définitivement ?",
+      "errorTitle": "Erreur de dictée",
+      "statusRecovered": "Dictée récupérée",
+      "recoveredDuration": "Récupérée · {{time}}",
+      "indicator": {
+        "recording": "Dictée en cours {{time}}",
+        "paused": "Dictée en pause {{time}}",
+        "recovered": "Dictée récupérée {{time}}",
+        "finishing": "Finalisation de la dictée...",
+        "failed": "La dictée requiert votre attention"
+      }
     }
   },
   "commandPalette": {

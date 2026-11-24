@@ -15,7 +15,7 @@ import {
   holdVoiceRecording,
   recoverVoiceRecording,
   releaseVoiceRecording,
-} from './voiceRecordingJournal';
+} from '../capture/captureJournal';
 
 /**
  * A voice message whose send failed stays parked with Retry and Discard until it is sent or

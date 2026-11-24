@@ -15,7 +15,7 @@ import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../composer/capture/liveCapture';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
@@ -731,12 +731,12 @@ it('holds no layout for a voice message being recorded as the second thread clos
   const { rerender } = renderView({ besideWhileSecond: true });
   // The account's recording belongs to no composer: the thread's own shows it once the
   // messages, and their composer, go.
-  act(() => store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession));
+  act(() => store.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession }));
   rerenderView(rerender);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByTestId('messages')).toBeNull();
   expect(storedLayout()).toBeNull();
-  act(() => store.set(liveVoiceRecordingAtom, undefined));
+  act(() => store.set(liveCaptureAtom, undefined));
 });
 it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);

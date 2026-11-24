@@ -1491,7 +1491,20 @@
       "capReached": "5:00 limit reached",
       "micInterrupted": "Microphone disconnected. Resume or finish.",
       "failedSummary_one": "Could not transcribe {{count}} segment.",
-      "failedSummary_other": "Could not transcribe {{count}} segments."
+      "failedSummary_other": "Could not transcribe {{count}} segments.",
+      "discardDictation": "Discard dictation",
+      "discardConfirmTitle": "Discard dictation?",
+      "discardConfirmBody": "This dictation has not been inserted or sent. Discard it permanently?",
+      "errorTitle": "Dictation Error",
+      "statusRecovered": "Recovered dictation",
+      "recoveredDuration": "Recovered · {{time}}",
+      "indicator": {
+        "recording": "Dictating {{time}}",
+        "paused": "Dictation paused {{time}}",
+        "recovered": "Recovered dictation {{time}}",
+        "finishing": "Finishing dictation...",
+        "failed": "Dictation needs attention"
+      }
     }
   },
   "commandPalette": {

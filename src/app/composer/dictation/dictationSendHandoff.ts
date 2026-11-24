@@ -34,7 +34,7 @@ import {
   type RoomInputSendContext,
   type StartRoomInputSendSessionOptions,
 } from '../useRoomInputSendSessionController';
-import { voiceAccountGuard } from '../voice/liveVoiceRecording';
+import { captureAccountGuard } from '../capture/liveCapture';
 import type { DictationFinishResult, DictationSession } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 
@@ -252,7 +252,7 @@ export const startDetachedDictationSend = (
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
   const ownershipKey = input.ownershipKey ?? ownerKey;
   const { roomId, replyDraft } = sendContext;
-  const sameAccount = voiceAccountGuard(store);
+  const sameAccount = captureAccountGuard(store);
   const stagedFiles = input.stagedSnapshot.map((item) => item.file);
   let aborted = false;
   let accountRestored = false;

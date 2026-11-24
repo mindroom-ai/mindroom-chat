@@ -1538,7 +1538,20 @@
       "micInterrupted": "Micrófono desconectado. Reanuda o finaliza.",
       "failedSummary_one": "No se pudo transcribir {{count}} segmento.",
       "failedSummary_many": "No se pudieron transcribir {{count}} segmentos.",
-      "failedSummary_other": "No se pudieron transcribir {{count}} segmentos."
+      "failedSummary_other": "No se pudieron transcribir {{count}} segmentos.",
+      "discardDictation": "Descartar dictado",
+      "discardConfirmTitle": "¿Descartar dictado?",
+      "discardConfirmBody": "Este dictado no se ha insertado ni enviado. ¿Descartarlo permanentemente?",
+      "errorTitle": "Error de dictado",
+      "statusRecovered": "Dictado recuperado",
+      "recoveredDuration": "Recuperado · {{time}}",
+      "indicator": {
+        "recording": "Dictando {{time}}",
+        "paused": "Dictado en pausa {{time}}",
+        "recovered": "Dictado recuperado {{time}}",
+        "finishing": "Finalizando dictado...",
+        "failed": "El dictado requiere atención"
+      }
     }
   },
   "commandPalette": {

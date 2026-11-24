@@ -3,18 +3,18 @@ import { useAtomValue, useStore } from 'jotai';
 import { createFallbackWaveform } from '../../lib/audioWaveform';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
 import {
-  claimLiveVoiceRecording,
-  discardLiveVoiceRecording,
-  liveVoiceRecordingAtom,
-  liveVoiceRecordingErrorAtom,
-  voiceAccountGuard,
-} from './liveVoiceRecording';
+  captureAccountGuard,
+  claimLiveVoice,
+  discardLiveCapture,
+  liveCaptureAtom,
+  liveCaptureErrorAtom,
+} from '../capture/liveCapture';
 import type {
   VoiceCapturePhase,
   VoiceCaptureSession,
   VoiceCaptureSnapshot,
 } from './voiceCaptureSession';
-import { releaseVoiceRecording } from './voiceRecordingJournal';
+import { releaseVoiceRecording } from '../capture/captureJournal';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -66,7 +66,7 @@ type UseVoiceRecorderOptions = {
 };
 
 /**
- * One composer's view of the account's live recording (`liveVoiceRecording.ts`) and of the parked
+ * One composer's view of the account's live recording (`capture/liveCapture.ts`) and of the parked
  * draft: a failed send, or a recovered recording. Mounting or unmounting it never starts or ends
  * a recording.
  */
@@ -84,7 +84,8 @@ export function useVoiceRecorder({
       write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
     })
   );
-  const live = useAtomValue(liveVoiceRecordingAtom);
+  const liveCapture = useAtomValue(liveCaptureAtom);
+  const live = liveCapture?.kind === 'voice' ? liveCapture.session : undefined;
   // The recording this composer's Send claimed. No other composer shows it any more; this one
   // shows it as sending until it is delivered or parked.
   const [claimed, setClaimed] = useState<VoiceCaptureSession>();
@@ -134,9 +135,10 @@ export function useVoiceRecorder({
   const send = useCallback(async (): Promise<boolean> => {
     // Synchronous up to the claim: of two Sends, in any composers, the first takes the recording
     // and the second finds none, before it touches its composer.
-    if (!store.get(liveVoiceRecordingAtom)?.canStop()) return false;
+    const current = store.get(liveCaptureAtom);
+    if (current?.kind !== 'voice' || !current.session.canStop()) return false;
     if (claimSendStop() === false) return false;
-    const session = claimLiveVoiceRecording(store);
+    const session = claimLiveVoice(store, current.session);
     if (!session) {
       notifySendStopFailure();
       return false;
@@ -145,7 +147,7 @@ export function useVoiceRecorder({
     // not the account: once that is left, it writes nothing more.
     const sendRecording = latestOnSendRecordingRef.current;
     const sendContext = latestGetSendContextRef.current();
-    const sameAccount = voiceAccountGuard(store);
+    const sameAccount = captureAccountGuard(store);
     setClaimed(session);
     const settle = () => {
       session.reset();
@@ -154,7 +156,9 @@ export function useVoiceRecorder({
     const result = await session.finish();
     if (result.status !== 'captured' || !sendRecording || !sameAccount()) {
       const { errorMessage: captureError } = session.getSnapshot();
-      if (captureError && sameAccount()) store.set(liveVoiceRecordingErrorAtom, captureError);
+      if (captureError && sameAccount()) {
+        store.set(liveCaptureErrorAtom, { kind: 'voice', message: captureError });
+      }
       // Captured, but not this account's to send any more: its disk copy waits, unlocked.
       if (result.status === 'captured' && result.recording.recordingId)
         releaseVoiceRecording(result.recording.recordingId);
@@ -171,9 +175,20 @@ export function useVoiceRecorder({
     return delivered;
   }, [claimSendStop, draftController, notifySendStopFailure, store]);
 
-  const pause = useCallback(() => store.get(liveVoiceRecordingAtom)?.pause() ?? false, [store]);
-  const resume = useCallback(() => store.get(liveVoiceRecordingAtom)?.resume() ?? false, [store]);
-  const discard = useCallback(() => discardLiveVoiceRecording(store), [store]);
+  const pause = useCallback(() => {
+    const current = store.get(liveCaptureAtom);
+    return current?.kind === 'voice' ? current.session.pause() : false;
+  }, [store]);
+  const resume = useCallback(() => {
+    const current = store.get(liveCaptureAtom);
+    return current?.kind === 'voice' ? current.session.resume() : false;
+  }, [store]);
+  const discard = useCallback(() => {
+    const current = store.get(liveCaptureAtom);
+    return current?.kind === 'voice'
+      ? discardLiveCapture(store, current.session)
+      : Promise.resolve();
+  }, [store]);
 
   const retry = useCallback(async (): Promise<boolean> => {
     const sendRecording = latestOnSendRecordingRef.current;
@@ -183,7 +198,7 @@ export function useVoiceRecorder({
       context: latestGetSendContextRef.current,
       sendRecording,
       onFailure: notifySendStopFailure,
-      sameAccount: voiceAccountGuard(store),
+      sameAccount: captureAccountGuard(store),
     });
   }, [claimSendStop, claimed, draftController, notifySendStopFailure, store]);
 

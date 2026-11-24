@@ -32,7 +32,7 @@ import {
   voiceAutoSendPendingAtom,
   type IReplyDraft,
 } from '../roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../capture/liveCapture';
 import { DictationClient } from './api';
 import { DictationCapsule } from './DictationCapsule';
 import { registerMountedDictationOwner } from './dictationSendHandoff';
@@ -124,7 +124,7 @@ export const useRoomInputDictation = ({
   const activeDictation = useAtomValue(activeDictationAtom);
   const detachedSends = useAtomValue(detachedDictationSendsAtom);
   const detachedEntry = detachedSends.get(sendKey);
-  const liveVoice = useAtomValue(liveVoiceRecordingAtom);
+  const liveCapture = useAtomValue(liveCaptureAtom);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
   const [localNotice, setLocalNotice] = useState<string>();
 
@@ -264,7 +264,7 @@ export const useRoomInputDictation = ({
     const liveSession = sessionBoxRef.current.session;
     if (!confirmed || !liveSession) return false;
     if (
-      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(liveCaptureAtom) !== undefined ||
       store.get(voiceAutoSendPendingAtom) ||
       store.get(activeDictationAtom) !== undefined ||
       store.get(detachedDictationSendsAtom).has(sendKey)
@@ -469,7 +469,7 @@ export const useRoomInputDictation = ({
     !confirmed ||
     !session ||
     detachedEntry !== undefined ||
-    liveVoice !== undefined ||
+    liveCapture !== undefined ||
     voiceAutoSendPending ||
     activeDictation !== undefined;
   const label = t('composer.dictation.label');

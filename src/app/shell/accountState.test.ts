@@ -79,7 +79,7 @@ type Loaded = {
   createStore: typeof CreateStore;
   state: typeof import('./accountState');
   drafts: typeof import('../composer/roomInputDrafts');
-  liveVoice: typeof import('../composer/voice/liveVoiceRecording');
+  liveCapture: typeof import('../composer/capture/liveCapture');
   typing: typeof import('../matrix/state/typingMembers');
   calls: typeof import('../calls/callStore');
   agentCaller: typeof import('../calls/agent/agentCaller');
@@ -116,7 +116,7 @@ beforeAll(async () => {
     createStore: (await import('jotai')).createStore,
     state: await import('./accountState'),
     drafts: await import('../composer/roomInputDrafts'),
-    liveVoice: await import('../composer/voice/liveVoiceRecording'),
+    liveCapture: await import('../composer/capture/liveCapture'),
     typing: await import('../matrix/state/typingMembers'),
     calls: await import('../calls/callStore'),
     agentCaller: await import('../calls/agent/agentCaller'),
@@ -142,11 +142,11 @@ const keptAtoms = (): Map<object, string> =>
       'lists the mounted thread views, each taken out as its composer goes',
     ],
     [
-      loaded.liveVoice.liveVoiceCapsulesShownAtom,
-      'counts the composers showing the recording, each taken out as it goes',
+      loaded.liveCapture.liveCaptureCapsulesShownAtom,
+      'counts the composers showing the live capture, each taken out as it goes',
     ],
     [
-      loaded.liveVoice.voiceDiscardsInFlightAtom,
+      loaded.liveCapture.captureDiscardsInFlightAtom,
       'counts the Discards still deleting a disk copy, each taken out as its deletion settles',
     ],
     [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
@@ -215,7 +215,7 @@ describe('forgetAccountState', () => {
   });
 
   it('puts every module-level atom an account leaves behind back to where it started', () => {
-    const { primitives, createStore, state, drafts, typing, calls, liveVoice } = loaded;
+    const { primitives, createStore, state, drafts, typing, calls, liveCapture } = loaded;
     const store = createStore();
     const forgotten = primitives.filter((entry) => !isKept(entry));
     // Each atom first holds something of the last account, so a forget that writes back what it
@@ -230,9 +230,12 @@ describe('forgetAccountState', () => {
     });
     store.set(calls.activeCallAtom, runningCall().active);
     const endRecording = vi.fn();
-    store.set(liveVoice.liveVoiceRecordingAtom, {
-      reset: endRecording,
-    } as unknown as VoiceCaptureSession);
+    store.set(liveCapture.liveCaptureAtom, {
+      kind: 'voice',
+      session: {
+        reset: endRecording,
+      } as unknown as VoiceCaptureSession,
+    });
     const abortDetachedDictation = vi.fn();
     store.set(
       drafts.detachedDictationSendsAtom,

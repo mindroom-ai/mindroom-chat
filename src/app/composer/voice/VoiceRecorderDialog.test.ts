@@ -5,7 +5,7 @@ import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
-import { discardLiveVoiceRecording, liveVoiceRecordingAtom } from './liveVoiceRecording';
+import { discardLiveCapture, liveCaptureAtom } from '../capture/liveCapture';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 
 const TEST_ROOM_ID = '!room:example.org';
@@ -223,7 +223,7 @@ describe('VoiceRecorderComposer', () => {
   });
 
   afterEach(() => {
-    void discardLiveVoiceRecording(store);
+    void discardLiveCapture(store);
     vi.unstubAllGlobals();
   });
 
@@ -243,7 +243,7 @@ describe('VoiceRecorderComposer', () => {
     await act(async () => {
       renderer = create(renderInProvider(React.createElement(VoiceRecorderComposer, props)));
     });
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     await startRecording();
 
     const restoredDraft = {
@@ -263,7 +263,7 @@ describe('VoiceRecorderComposer', () => {
       undefined,
       destination
     );
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(store.get(pendingVoiceSendDraftAtom)).toBe(restoredDraft);
     renderer.unmount();
   });
@@ -353,11 +353,11 @@ describe('VoiceRecorderComposer', () => {
     });
     await click('Cancel');
     expect(ref.current?.phase()).toBe(phase);
-    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+    expect(store.get(liveCaptureAtom)).toBeDefined();
     await click('Discard voice recording');
     await click('Discard');
     expect(ref.current?.phase()).toBe('idle');
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     renderer.unmount();
   });
 

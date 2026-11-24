@@ -31,7 +31,7 @@ import {
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
-import { liveVoiceRecordingAtom } from '../voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../capture/liveCapture';
 import { voiceDraftRestoresAtom } from '../voice/savedVoiceDraft';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
@@ -673,16 +673,19 @@ vi.mock('../RoomInputExtensions', async () => {
 // The microphone is voiceCaptureSession's to test, and the shared recording useVoiceRecorder's:
 // here the mic button starts a recording at once, which the mocked recorder below shows.
 vi.mock('../voice/startLiveVoiceRecording', async () => {
-  const { liveVoiceRecordingAtom } = await import('../voice/liveVoiceRecording');
+  const { liveCaptureAtom } = await import('../capture/liveCapture');
   return {
     startLiveVoiceRecording: async (store: ReturnType<typeof createStore>) => {
-      if (store.get(liveVoiceRecordingAtom)) return false;
-      store.set(liveVoiceRecordingAtom, {
-        canStop: () => true,
-        discard: async () => false,
-        reset: () => undefined,
-        getSnapshot: () => ({ phase: 'recording' }),
-      } as unknown as VoiceCaptureSession);
+      if (store.get(liveCaptureAtom)) return false;
+      store.set(liveCaptureAtom, {
+        kind: 'voice',
+        session: {
+          canStop: () => true,
+          discard: async () => false,
+          reset: () => undefined,
+          getSnapshot: () => ({ phase: 'recording' }),
+        } as unknown as VoiceCaptureSession,
+      });
       return true;
     },
   };
@@ -691,7 +694,7 @@ vi.mock('../voice/startLiveVoiceRecording', async () => {
 vi.mock('../voice/VoiceRecorderDialog', async () => {
   const { ConversationViewContext } = await import('../../navigation/conversationView');
   const { useStore } = await import('jotai');
-  const { claimLiveVoiceRecording } = await import('../voice/liveVoiceRecording');
+  const { claimLiveVoice } = await import('../capture/liveCapture');
   return {
     VoiceRecorderComposer: React.forwardRef(
       (
@@ -732,7 +735,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
           // As the real recorder: the composer whose Send is pressed takes the account's
           // recording, so no other composer shows or sends it any more.
           send: () => {
-            claimLiveVoiceRecording(store);
+            claimLiveVoice(store);
             return voiceRecorderState.send(view);
           },
           phase: () => 'recording',
@@ -2977,7 +2980,7 @@ describe('RoomInput', () => {
         expect(mic().props.disabled).toBe(true);
         expect(target?.start()).toBe(false);
         await act(async () => mic().props.onClick());
-        expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+        expect(store.get(liveCaptureAtom)).toBeUndefined();
 
         await act(async () => {
           if (outcome === 'failed') read.reject(new Error('IndexedDB read failed'));
@@ -3037,13 +3040,16 @@ describe('RoomInput', () => {
     const target = resolveVoiceComposer();
     // Changes after the press pinned the composer, before its delayed start runs.
     const running = {
-      canStop: () => true,
-      reset: () => undefined,
-    } as unknown as VoiceCaptureSession;
-    await act(async () => store.set(liveVoiceRecordingAtom, running));
+      kind: 'voice' as const,
+      session: {
+        canStop: () => true,
+        reset: () => undefined,
+      } as unknown as VoiceCaptureSession,
+    };
+    await act(async () => store.set(liveCaptureAtom, running));
     expect(target?.start()).toBe(false);
-    expect(store.get(liveVoiceRecordingAtom)).toBe(running);
-    await act(async () => store.set(liveVoiceRecordingAtom, undefined));
+    expect(store.get(liveCaptureAtom)).toBe(running);
+    await act(async () => store.set(liveCaptureAtom, undefined));
     store.set(voiceAutoSendPendingAtom, true);
     expect(target?.start()).toBe(false);
     store.set(voiceAutoSendPendingAtom, false);
@@ -3057,7 +3063,7 @@ describe('RoomInput', () => {
       },
     } as never);
     expect(target?.start()).toBe(false);
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     renderer.unmount();
   });
 
@@ -3141,10 +3147,13 @@ describe('RoomInput', () => {
 
     // A recording starts while the Send waits, as from the room's composer beside the thread.
     const recording = {
-      canStop: () => true,
-      reset: () => undefined,
-    } as unknown as VoiceCaptureSession;
-    await act(async () => store.set(liveVoiceRecordingAtom, recording));
+      kind: 'voice' as const,
+      session: {
+        canStop: () => true,
+        reset: () => undefined,
+      } as unknown as VoiceCaptureSession,
+    };
+    await act(async () => store.set(liveCaptureAtom, recording));
 
     root.confirm('$root');
     await updateRoomInput(renderer, store, { threadId: '$root' });
@@ -3155,7 +3164,7 @@ describe('RoomInput', () => {
     // That Send was pressed without a recording: its text goes out alone, and the recording is
     // still the account's, for a press of its own.
     expect(voiceRecorderState.send).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+    expect(store.get(liveCaptureAtom)).toBe(recording);
     expect(mxState.uploadContent).not.toHaveBeenCalled();
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage).toHaveBeenCalledWith(
@@ -3177,13 +3186,13 @@ describe('RoomInput', () => {
     const { renderer } = await renderRoomInput(store, { threadId: localRootId });
     stageComposerText('Typed under the unsent root');
     await openVoiceRecorder(renderer);
-    const recording = store.get(liveVoiceRecordingAtom);
+    const recording = store.get(liveCaptureAtom);
     expect(recording).toBeDefined();
     await submitComposer();
 
     // The press takes no recording: nothing is sent, parked or locked, and it keeps recording.
     expect(voiceRecorderState.send).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+    expect(store.get(liveCaptureAtom)).toBe(recording);
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     expect(mxState.sendMessage).not.toHaveBeenCalled();
@@ -3196,7 +3205,7 @@ describe('RoomInput', () => {
 
     // The typed text waited for the root and goes out as text alone.
     expect(voiceRecorderState.send).not.toHaveBeenCalled();
-    expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+    expect(store.get(liveCaptureAtom)).toBe(recording);
     expect(mxState.uploadContent).not.toHaveBeenCalled();
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
@@ -3251,7 +3260,7 @@ describe('RoomInput', () => {
       sending = getPrimarySendButton(renderer).props.onClick();
       await Promise.resolve();
     });
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     // The caption stays in thread A's composer: the press takes the audio alone.
     expect(editorMocks.resetEditor).not.toHaveBeenCalled();
 
@@ -3676,7 +3685,7 @@ describe('RoomInput', () => {
     act(() => {
       micButton().props.onClick();
     });
-    const recording = store.get(liveVoiceRecordingAtom);
+    const recording = store.get(liveCaptureAtom);
     expect(recording).toBeDefined();
 
     // On to a thread of another room: a keyed remount takes the first composer away.
@@ -3687,7 +3696,7 @@ describe('RoomInput', () => {
     });
 
     // The same recording runs on, shown by the new composer, whose mic starts no second one.
-    expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+    expect(store.get(liveCaptureAtom)).toBe(recording);
     expect(voiceRecorderState.byView.has(undefined)).toBe(true);
     expect(micButton().props.disabled).toBe(true);
     expect(mxState.uploadContent).not.toHaveBeenCalled();
@@ -3708,7 +3717,7 @@ describe('RoomInput', () => {
     queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 1100);
     await submitComposer();
 
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
     expect(mxState.sendMessage.mock.calls.map((call) => call[0])).toEqual([
       OTHER_ROOM_ID,
       OTHER_ROOM_ID,
@@ -4413,7 +4422,7 @@ describe('RoomInput', () => {
       file = voiceFile()
     ) =>
       act(async () => {
-        store.set(liveVoiceRecordingAtom, undefined);
+        store.set(liveCaptureAtom, undefined);
         store.set(pendingVoiceSendDraftAtom, { file, duration: 900, context });
       });
 
@@ -4450,9 +4459,9 @@ describe('RoomInput', () => {
       expect(new Set(voiceRecorderState.byView.keys())).toEqual(new Set([VIEW, undefined]));
       expect(micOf(renderer, 'view').props.disabled).toBe(true);
       expect(micOf(renderer, 'page').props.disabled).toBe(true);
-      const recording = store.get(liveVoiceRecordingAtom);
+      const recording = store.get(liveCaptureAtom);
       await openRecorder(renderer, 'page');
-      expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+      expect(store.get(liveCaptureAtom)).toBe(recording);
 
       // Started in the thread's view, sent from the room page: it goes to the room's root.
       queueSend(voiceFile());
@@ -4748,14 +4757,14 @@ describe('RoomInput', () => {
       const store = createStore();
       const renderer = await renderComposers(store);
       await openRecorder(renderer, 'view');
-      const recording = store.get(liveVoiceRecordingAtom);
+      const recording = store.get(liveCaptureAtom);
       expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
 
       await act(async () => {
         renderer.update(composersTree(store, null));
       });
 
-      expect(store.get(liveVoiceRecordingAtom)).toBe(recording);
+      expect(store.get(liveCaptureAtom)).toBe(recording);
       expect([...voiceRecorderState.byView.keys()]).toEqual([undefined]);
       expect(micOf(renderer, 'page').props.disabled).toBe(true);
       expect(voiceRecorderState.send).not.toHaveBeenCalled();
@@ -4921,7 +4930,7 @@ describe('RoomInput in a fork draft', () => {
     await submitComposer();
 
     // The recording runs on, for the composer its Send is pressed in.
-    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+    expect(store.get(liveCaptureAtom)).toBeDefined();
     expect(voiceRecorderState.send).not.toHaveBeenCalled();
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({

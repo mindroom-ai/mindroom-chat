@@ -10,18 +10,17 @@ import {
 } from 'react';
 import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue } from 'jotai';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
-import { DiscardVoiceRecordingDialog } from './DiscardVoiceRecordingDialog';
+import { DiscardCaptureDialog } from '../capture/DiscardCaptureDialog';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import * as voiceCapsuleCss from './VoiceRecordingCapsule.css';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
-import { useConversationOutOfSightAtom } from '../../navigation/conversationView';
-import { coverNoticeSlotAtom } from '../../ui/noticeSlots';
-import { liveVoiceCapsulesShownAtom } from './liveVoiceRecording';
+import { liveCaptureAtom } from '../capture/liveCapture';
+import { useLiveCaptureCapsuleVisible } from '../capture/useLiveCaptureCapsuleVisible';
 
 type VoiceRecorderComposerProps = {
   ownsPendingVoiceDraft: boolean;
@@ -109,18 +108,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
-  // The shell's indicator stands in while no composer shows the recording. This one counts while
-  // it is in sight: its conversation is (not behind a side panel or a folded column), and
-  // nothing covers the page (a large dialog such as Settings, a phone's drawer or members sheet).
-  const conversationOutOfSight = useAtomValue(useConversationOutOfSightAtom());
-  const pageCovered = useAtomValue(coverNoticeSlotAtom) !== null;
-  const outOfSight = conversationOutOfSight || pageCovered;
-  const setCapsulesShown = useSetAtom(liveVoiceCapsulesShownAtom);
-  useEffect(() => {
-    if (outOfSight) return undefined;
-    setCapsulesShown((count) => count + 1);
-    return () => setCapsulesShown((count) => count - 1);
-  }, [outOfSight, setCapsulesShown]);
+  const liveCapture = useAtomValue(liveCaptureAtom);
+  useLiveCaptureCapsuleVisible(liveCapture?.kind === 'voice' && !hasPendingSend);
 
   // Any user-initiated retry must clear an existing defer so a follow-up
   // failure with the same canonical message (very common: connection-dropped)
@@ -231,7 +220,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         </OverlayCenter>
       </Overlay>
 
-      <DiscardVoiceRecordingDialog
+      <DiscardCaptureDialog
+        kind="voice"
         open={discardConfirmationOpen}
         onCancel={() => setDiscardConfirmationOpen(false)}
         onDiscard={confirmDiscard}

@@ -114,7 +114,7 @@ const stubLocks = () => {
 };
 
 it('restores the failed-send copy instead of offering the same recording as recovered', async () => {
-  const journal = await import('./voiceRecordingJournal');
+  const journal = await import('../capture/captureJournal');
   stubLocks();
   try {
     const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
@@ -134,14 +134,14 @@ it('restores the failed-send copy instead of offering the same recording as reco
     expect(draft?.errorMessage).toBe('M_UNKNOWN: injected');
     expect(draft?.recovered).toBeFalsy();
   } finally {
-    await journal.clearVoiceRecordings(userId);
+    await journal.clearCaptureJournal(userId);
   }
 });
 
 it.each(['send', 'discard'])(
   'offers a left room’s recording once after reload, then can %s it',
   async (action) => {
-    const journal = await import('./voiceRecordingJournal');
+    const journal = await import('../capture/captureJournal');
     stubLocks();
     try {
       const recording = journal.beginVoiceRecording(userId, Date.now(), 'audio/ogg')!;
@@ -207,7 +207,7 @@ it.each(['send', 'discard'])(
       const next = await reloadPage(() => context);
       expect(next.get(reloadedAtom())).toBeUndefined();
     } finally {
-      await journal.clearVoiceRecordings(userId);
+      await journal.clearCaptureJournal(userId);
     }
   }
 );
