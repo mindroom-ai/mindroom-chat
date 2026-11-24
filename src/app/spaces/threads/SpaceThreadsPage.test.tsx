@@ -12,6 +12,7 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   composerUploadItemsAtom,
@@ -145,6 +146,7 @@ type FakeRoom = Room & {
   setMembers: (next: FakeMemberInput[]) => void;
   setPinnedEventIds: (next: string[]) => void;
   setTimelineEvents: (next: unknown[]) => void;
+  setReadReceipt: (next: { eventId: string; ts: number } | null) => void;
 };
 
 const makeRoom = (
@@ -173,6 +175,7 @@ const makeRoom = (
   ).map(toFakeMember);
   let pinnedEventIds = opts.pinnedEventIds ?? [];
   let timelineEvents = opts.timelineEvents ?? [];
+  let readReceipt: { eventId: string; data: { ts: number } } | null = null;
 
   const powerEvent = {
     getContent: () => ({ users_default: 0, events_default: canSend ? 0 : 50 }),
@@ -213,6 +216,7 @@ const makeRoom = (
     getOldestThreadedReceiptTs: () => 0,
     getThreadUnreadNotificationCount: () => 0,
     getEventReadUpTo: () => null,
+    getReadReceiptForUserId: (userId: string) => (userId === ME ? readReceipt : null),
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     currentState: {
       getStateEvents: (type?: string, stateKey?: string) => {
@@ -239,6 +243,9 @@ const makeRoom = (
     },
     setTimelineEvents: (next: unknown[]) => {
       timelineEvents = next;
+    },
+    setReadReceipt: (next: { eventId: string; ts: number } | null) => {
+      readReceipt = next ? { eventId: next.eventId, data: { ts: next.ts } } : null;
     },
     client: {
       on: vi.fn(),
@@ -698,6 +705,88 @@ describe('SpaceThreadsPage', () => {
       vi.advanceTimersByTime(200);
     });
     expect(screen.getByText('Edited standalone root')).toBeTruthy();
+  });
+
+  it('refreshes unread standalone roots on main-timeline and unthreaded read receipts while ignoring other users and threaded receipts', () => {
+    vi.useFakeTimers();
+    const makeStandalone = (id: string, body: string, ts: number) => ({
+      getId: () => id,
+      getRoomId: () => ROOM_ENG,
+      getType: () => 'm.room.message',
+      getContent: () => ({ msgtype: 'm.text', body }),
+      getSender: () => '@bob:example.org',
+      getTs: () => ts,
+      getRelation: () => undefined,
+      getUnsigned: () => ({}),
+      replacingEvent: () => null,
+      isRedacted: () => false,
+    });
+    const eng = makeRoom(ROOM_ENG, 'Engineering', {
+      hasAgent: true,
+      timelineEvents: [
+        makeStandalone('$unread-root', 'Unread standalone root', NOW),
+        makeStandalone('$unread-root-2', 'Second unread standalone root', NOW + 1000),
+      ],
+    });
+    const { container } = renderSpaceThreads({ rooms: [eng], entries: [] });
+    const cardOf = (id: string) => container.querySelector(`[data-thread-root-id="${id}"]`);
+    expect(cardOf('$unread-root')?.getAttribute('data-thread-unread')).toBe('true');
+    expect(cardOf('$unread-root-2')?.getAttribute('data-thread-unread')).toBe('true');
+
+    // Update underlying room receipt first so only events that schedule a rescan refresh the card.
+    eng.setReadReceipt({ eventId: '$unread-root', ts: NOW });
+
+    // Another user's receipt does not trigger a rescan.
+    act(() => {
+      eng.emit(RoomEvent.Receipt, {
+        getContent: () => ({
+          '$unread-root': { 'm.read': { '@bob:example.org': { ts: NOW } } },
+        }),
+      });
+      vi.advanceTimersByTime(200);
+    });
+    expect(cardOf('$unread-root')?.getAttribute('data-thread-unread')).toBe('true');
+
+    // Current user's threaded receipt does not trigger a rescan.
+    act(() => {
+      eng.emit(RoomEvent.Receipt, {
+        getContent: () => ({
+          '$reply-1': { 'm.read': { [ME]: { ts: NOW, thread_id: '$other-thread' } } },
+        }),
+      });
+      vi.advanceTimersByTime(200);
+    });
+    expect(cardOf('$unread-root')?.getAttribute('data-thread-unread')).toBe('true');
+
+    // Current user's unthreaded receipt schedules a debounced rescan and clears the unread state.
+    act(() => {
+      eng.emit(RoomEvent.Receipt, {
+        getContent: () => ({
+          '$unread-root': { 'm.read': { [ME]: { ts: NOW } } },
+        }),
+      });
+      vi.advanceTimersByTime(100);
+    });
+    expect(cardOf('$unread-root')?.getAttribute('data-thread-unread')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(cardOf('$unread-root')?.getAttribute('data-thread-unread')).toBeNull();
+    expect(cardOf('$unread-root-2')?.getAttribute('data-thread-unread')).toBe('true');
+
+    // Current user's MAIN_ROOM_TIMELINE receipt also schedules a rescan and clears remaining unread.
+    eng.setReadReceipt({ eventId: '$unread-root-2', ts: NOW + 1000 });
+    act(() => {
+      eng.emit(RoomEvent.Receipt, {
+        getContent: () => ({
+          '$unread-root-2': {
+            'm.read': { [ME]: { ts: NOW + 1000, thread_id: MAIN_ROOM_TIMELINE } },
+          },
+        }),
+      });
+      vi.advanceTimersByTime(200);
+    });
+    expect(cardOf('$unread-root-2')?.getAttribute('data-thread-unread')).toBeNull();
   });
 
   it('prunes room selection when a room leaves, hides archived rooms, and updates on renames/members', () => {

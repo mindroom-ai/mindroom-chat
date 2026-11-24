@@ -23,6 +23,7 @@ import {
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
+import { receiptThreadIds } from '../../threads/overview/threadOverviewRefreshCounter';
 import { useJoinedRoomThreadLists } from '../../threads/page/useJoinedRoomThreadLists';
 import { revealDirectionControls } from '../../ui/directional';
 import { getRoomAccentColor, type SpaceRoomItem } from './spaceThreadsModel';
@@ -52,8 +53,8 @@ const shouldTriggerStandaloneRescan = (
 
 /**
  * Resolves visible joined rooms in a Space, paginates their thread lists, tracks live room
- * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption
- * and non-streaming edits on standalone roots).
+ * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption,
+ * non-streaming edits, and main-timeline read receipts).
  */
 export const useSpaceThreadsRooms = (spaceId: string) => {
   const mx = useMatrixClient();
@@ -106,23 +107,31 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   useEffect(() => {
     if (spaceRooms.length === 0) return undefined;
     const roomById = new Map(spaceRooms.map((room) => [room.roomId, room] as const));
+    const myUserId = mx.getUserId?.();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const scheduleRescan = (event: MatrixEvent, room: Room) => {
-      if (
-        !shouldTriggerStandaloneRescan(event, room, store.get(crossRoomThreadIndexAtom).entries)
-      ) {
-        return;
-      }
+    const triggerRescan = () => {
       if (timer !== undefined) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = undefined;
         setTimelineTick((tick) => tick + 1);
       }, ZERO_REPLY_RESCAN_DEBOUNCE_MS);
     };
+    const scheduleRescan = (event: MatrixEvent, room: Room) => {
+      if (
+        !shouldTriggerStandaloneRescan(event, room, store.get(crossRoomThreadIndexAtom).entries)
+      ) {
+        return;
+      }
+      triggerRescan();
+    };
+    const onReceipt = (event: MatrixEvent) => {
+      if (myUserId && receiptThreadIds(event, myUserId) === undefined) triggerRescan();
+    };
     const bindings = spaceRooms.map((room) => {
       const onRoomEvent = (event: MatrixEvent) => scheduleRescan(event, room);
       room.on?.(RoomEvent.Timeline, onRoomEvent);
       room.on?.(RoomEvent.LocalEchoUpdated, onRoomEvent);
+      room.on?.(RoomEvent.Receipt, onReceipt);
       return { room, onRoomEvent };
     });
     const onDecrypted = (event: MatrixEvent) => {
@@ -136,6 +145,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
       bindings.forEach(({ room, onRoomEvent }) => {
         room.removeListener?.(RoomEvent.Timeline, onRoomEvent);
         room.removeListener?.(RoomEvent.LocalEchoUpdated, onRoomEvent);
+        room.removeListener?.(RoomEvent.Receipt, onReceipt);
       });
       mx.removeListener?.(MatrixEventEvent.Decrypted, onDecrypted);
     };
