@@ -1,7 +1,7 @@
 import {
   type RefObject,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -383,7 +383,6 @@ export function InlineCanvasFrame({
   const { t } = useTranslation();
   const config = useClientConfig();
   const mx = useMatrixClient();
-  const openCanvasId = useContext(ChatUiActionContext)?.openCanvasId;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
     const redacted = () => queueMicrotask(refresh);
@@ -408,7 +407,7 @@ export function InlineCanvasFrame({
     remote: config.mindroom?.canvas?.remoteAssets === true,
   };
   if (readOnly) return <PassiveInlineCanvas key={action.eventId} {...props} />;
-  if (openCanvasId === action.eventId)
+  if (use(ChatUiActionContext)?.openCanvasId === action.eventId)
     return (
       <Text size="T300" priority="300" role="status" data-canvas-in-panel>
         {t('mindroomUi.canvas.shownInPanel')}

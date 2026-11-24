@@ -1,6 +1,6 @@
 import React, {
+  use,
   useCallback,
-  useContext,
   useEffect,
   useId,
   useMemo,
@@ -133,7 +133,6 @@ export function ThreadActionsMenu({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const tags = useThreadTags(room, rootId);
-  const secondThread = useContext(SecondThreadContext);
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
@@ -542,6 +541,7 @@ export function ThreadActionsMenu({
       onSelect: onOpenThread,
     });
   }
+  const secondThread = use(SecondThreadContext);
   if (secondThread?.offers(room.roomId, rootId)) {
     items.push({
       action: 'openBeside',

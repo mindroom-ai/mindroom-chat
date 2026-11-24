@@ -1,4 +1,5 @@
 import {
+  use,
   useCallback,
   useContext,
   useEffect,
@@ -115,10 +116,9 @@ function ReasoningTop({ label, open, thinking, onToggle, bulbRef }: ReasoningTop
   // Each click sheds a ripple, as the cog's does: the count keys it, so a new one starts while the
   // last one fades.
   const [ripples, setRipples] = useState(0);
-  const topSeams = !!useContext(ReasoningSegmentsContext)?.compactionsAt.has(0);
   if (label === undefined) {
     const cogRow = cog && <div className={css.CogRow}>{cog}</div>;
-    if (!topSeams) return cogRow;
+    if (!use(ReasoningSegmentsContext)?.compactionsAt.has(0)) return cogRow;
     return (
       <div style={CONTENTS}>
         {cogRow}
