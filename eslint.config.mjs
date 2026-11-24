@@ -158,9 +158,7 @@ export default [
     '**/.*/**',
     '**/.*',
   ]),
-  // Match .eslintrc.cjs: explicit file/lintText checks on .jsx (e.g. surfaceImports.test.ts)
-  // still receive app rules, while package.json "lint" limits directory linting to
-  // .ts,.tsx,.js,.mjs,.cjs (matching scripts/push-gate.sh).
+  // Config covers .jsx for explicit checks; package.json "lint" limits directory globs to .ts,.tsx,.js,.mjs,.cjs.
   ...createCommonConfigs(),
   {
     files: LINTED_FILES,

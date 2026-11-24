@@ -135,7 +135,7 @@
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "fake-indexeddb": "6.2.5",
-    "globals": "17.14.0",
+    "globals": "13.24.0",
     "jsdom": "22.1.0",
     "mime-types": "2.1.35",
     "patch-package": "8.0.1",

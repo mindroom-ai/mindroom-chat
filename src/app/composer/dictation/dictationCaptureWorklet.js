@@ -1,4 +1,4 @@
-/* global AudioWorkletProcessor, registerProcessor, sampleRate */
+/* global sampleRate */
 
 const TARGET_RATE = 16000;
 const FRAME_SAMPLES = 1536;
