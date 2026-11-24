@@ -1,6 +1,6 @@
 export const USAGE_REQUEST = 'io.mindroom.usage.request';
 export const USAGE_RESPONSE = 'io.mindroom.usage.response';
-export const USAGE_TIMEOUT = 12000;
+export const USAGE_TIMEOUT = 20_000;
 export const LOW_QUOTA_THRESHOLD = 15;
 
 export const UNAVAILABLE_REASONS = ['unsupported', 'not_signed_in', 'probe_failed'] as const;

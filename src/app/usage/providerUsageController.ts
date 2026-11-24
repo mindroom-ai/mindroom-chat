@@ -9,6 +9,7 @@ import {
 import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api';
 import type { ReceivedToDeviceMessage } from 'matrix-js-sdk/lib/sync-accumulator';
 import { randomUuid } from '../lib/randomUuid';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import {
   isCurrentModelRuntime,
   joinedModelCandidates,
@@ -330,12 +331,15 @@ export class ProviderUsageController {
       }
     }
 
-    if (run.kind === 'full') this.fullDiscoveryDone = true;
     const uniqueUsers = [...new Set(candidates.flatMap((c) => c.users))];
-    if (uniqueUsers.length === 0) return this.finishRun(run);
+    if (uniqueUsers.length === 0) {
+      if (run.kind === 'full' && rooms.length > 0) this.fullDiscoveryDone = true;
+      return this.finishRun(run);
+    }
 
     const byUser = await signedDevicesByUser(this.mx, uniqueUsers);
     if (!this.active() || !this.runs.has(run)) return;
+    if (run.kind === 'full' && byUser.size > 0) this.fullDiscoveryDone = true;
 
     const plans: Array<{ roomId: string; devices: ModelRuntime[] }> = [];
     for (const { roomId, users, loaded } of candidates) {
@@ -421,9 +425,16 @@ export class ProviderUsageController {
   };
 
   private onMembership = (_event: unknown, member: RoomMember): void => {
-    if (member.membership !== 'join') return;
+    if (member.membership !== 'join' || !this.active()) return;
+    const viewer = this.userId;
+    if (
+      !viewer ||
+      member.userId === viewer ||
+      !isMindroomAgentUserIdForViewer(member.userId, viewer)
+    )
+      return;
     const room = typeof this.mx.getRoom === 'function' ? this.mx.getRoom(member.roomId) : null;
-    if (!room || !joinedModelCandidates(this.mx, room).includes(member.userId)) return;
+    if (!room || !this.isJoinedRoom(room)) return;
     this.probedRooms.delete(room.roomId);
     this.fullDiscoveryDone = false;
     if (this.canAutoProbe())

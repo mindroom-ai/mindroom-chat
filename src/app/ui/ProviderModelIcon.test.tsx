@@ -1,7 +1,7 @@
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { EffortGlyph } from './EffortGlyph';
-import { ProviderModelIcon } from '../ui/ProviderModelIcon';
+import { EffortGlyph } from '../models/EffortGlyph';
+import { ProviderModelIcon } from './ProviderModelIcon';
 
 describe('ProviderModelIcon', () => {
   it.each([

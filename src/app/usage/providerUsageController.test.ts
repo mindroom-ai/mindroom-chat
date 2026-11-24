@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { ClientEvent, MatrixClient, Room, SyncState } from 'matrix-js-sdk';
+import { ClientEvent, MatrixClient, Room, RoomMemberEvent, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { signedModelDevices } from '../matrix/runtimeDeviceTrust';
 import contractFixture from './__fixtures__/providerUsageContract.json';
@@ -568,6 +568,91 @@ describe('ProviderUsageController', () => {
     expect(unrelatedLazy.loadMembersIfNeeded).not.toHaveBeenCalled();
     expect(trustMocks.sentRequests).toHaveLength(1);
     expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!target:example.org');
+
+    release();
+  });
+
+  it('does not scan joined room members on RoomMemberEvent.Membership for ordinary users', async () => {
+    const room = makeRoom('!large:example.org', ['@viewer:example.org', '@alice:example.org']);
+    const getJoinedMembersSpy = vi.spyOn(room, 'getJoinedMembers');
+    const mx = makeClient([room], null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    mx.emit(
+      RoomMemberEvent.Membership,
+      {},
+      { roomId: room.roomId, userId: '@alice:example.org', membership: 'join' }
+    );
+    mx.emit(
+      RoomMemberEvent.Membership,
+      {},
+      { roomId: room.roomId, userId: '@mindroom_bot:foreign.org', membership: 'join' }
+    );
+    mx.emit(
+      RoomMemberEvent.Membership,
+      {},
+      { roomId: room.roomId, userId: '@viewer:example.org', membership: 'join' }
+    );
+    await flushMicrotasks();
+
+    expect(getJoinedMembersSpy).not.toHaveBeenCalled();
+    expect(trustMocks.sentRequests).toHaveLength(0);
+
+    release();
+  });
+
+  it('accepts a valid response arriving at 13s within the client timeout', async () => {
+    const dev = device('@mindroom_dev:example.org', 'DEV1', 'curve-dev-1');
+    trustMocks.signedDevices.set(dev.userId, [dev]);
+    const room = makeRoom('!slow:example.org', ['@viewer:example.org', dev.userId]);
+    const mx = makeClient([room], null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    controller.ensureLoaded();
+    await flushMicrotasks();
+    expect(trustMocks.sentRequests).toHaveLength(1);
+    const requestId = trustMocks.sentRequests[0]!.content.request_id as string;
+
+    vi.advanceTimersByTime(13_000);
+    expect(controller.getSnapshot().loading).toBe(true);
+    expect(controller.getSnapshot().available).toBe(false);
+
+    mx.emit(ClientEvent.ReceivedToDeviceMessage, {
+      message: { type: USAGE_RESPONSE, sender: dev.userId, content: cloneSnapshot(requestId) },
+      encryptionInfo: { sender: dev.userId, senderCurve25519KeyBase64: dev.curveKey },
+    });
+    await flushMicrotasks();
+
+    const state = controller.getSnapshot();
+    expect(state.status).toBe('ready');
+    expect(state.available).toBe(true);
+    expect(state.loading).toBe(false);
+    expect(state.snapshot?.request_id).toBe(requestId);
+    expect(state.snapshot?.accounts).toHaveLength(4);
+
+    release();
+  });
+
+  it('still runs startup auto-probe after cold ensureLoaded() saw no rooms before initial sync', async () => {
+    const dev = device('@mindroom_dev:example.org', 'DEV1', 'curve-dev-1');
+    trustMocks.signedDevices.set(dev.userId, [dev]);
+    const rooms: Room[] = [];
+    const mx = makeClient(rooms, null);
+    const controller = getProviderUsageController(mx);
+    const release = controller.retain();
+
+    controller.ensureLoaded();
+    await flushMicrotasks();
+    expect(trustMocks.sentRequests).toHaveLength(0);
+
+    rooms.push(makeRoom('!synced:example.org', ['@viewer:example.org', dev.userId]));
+    mx.emit(ClientEvent.Sync, SyncState.Prepared);
+    await flushMicrotasks();
+
+    expect(trustMocks.sentRequests).toHaveLength(1);
+    expect(trustMocks.sentRequests[0]!.content.room_id).toBe('!synced:example.org');
 
     release();
   });
