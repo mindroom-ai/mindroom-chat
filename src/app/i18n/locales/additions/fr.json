@@ -385,8 +385,7 @@
       }
     },
     "space": {
-      "overview": "Vue d'ensemble de l'espace",
-      "allThreads": "Tous les fils"
+      "overview": "Vue d'ensemble de l'espace"
     }
   },
   "featureUi": {
@@ -2141,6 +2140,7 @@
       "label": "Salons",
       "ariaLabel": "Filtrer les fils par salon",
       "ariaLabelActive": "Filtrer les fils par salon (sélection : {{number}})",
+      "ariaLabelOne": "Salons : {{room}}",
       "search": "Rechercher des salons",
       "noMatch": "Aucun salon correspondant"
     },

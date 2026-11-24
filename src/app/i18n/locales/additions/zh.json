@@ -361,8 +361,7 @@
       }
     },
     "space": {
-      "overview": "空间概览",
-      "allThreads": "所有话题"
+      "overview": "空间概览"
     }
   },
   "featureUi": {
@@ -2017,6 +2016,7 @@
       "label": "房间",
       "ariaLabel": "按房间过滤讨论串",
       "ariaLabelActive": "按房间过滤讨论串（已选 {{number}} 个）",
+      "ariaLabelOne": "房间：{{room}}",
       "search": "搜索房间",
       "noMatch": "没有匹配的房间"
     },

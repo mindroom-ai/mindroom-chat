@@ -385,8 +385,7 @@
       }
     },
     "space": {
-      "overview": "Resumen del espacio",
-      "allThreads": "Todos los hilos"
+      "overview": "Resumen del espacio"
     }
   },
   "featureUi": {
@@ -2141,6 +2140,7 @@
       "label": "Salas",
       "ariaLabel": "Filtrar hilos por sala",
       "ariaLabelActive": "Filtrar hilos por sala (seleccionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
       "search": "Buscar salas",
       "noMatch": "No hay salas coincidentes"
     },

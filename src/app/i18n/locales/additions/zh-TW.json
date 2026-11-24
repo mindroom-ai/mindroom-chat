@@ -361,8 +361,7 @@
       }
     },
     "space": {
-      "overview": "空間概覽",
-      "allThreads": "所有討論串"
+      "overview": "空間概覽"
     }
   },
   "featureUi": {
@@ -2017,6 +2016,7 @@
       "label": "房間",
       "ariaLabel": "依房間篩選討論串",
       "ariaLabelActive": "依房間篩選討論串（已選 {{number}} 個）",
+      "ariaLabelOne": "房間：{{room}}",
       "search": "搜尋房間",
       "noMatch": "沒有相符的房間"
     },

@@ -373,8 +373,7 @@
       }
     },
     "space": {
-      "overview": "Space-overzicht",
-      "allThreads": "Alle threads"
+      "overview": "Space-overzicht"
     }
   },
   "featureUi": {
@@ -2079,6 +2078,7 @@
       "label": "Kamers",
       "ariaLabel": "Threads filteren op kamer",
       "ariaLabelActive": "Threads filteren op kamer ({{number}} geselecteerd)",
+      "ariaLabelOne": "Kamers: {{room}}",
       "search": "Kamers zoeken",
       "noMatch": "Geen overeenkomende kamers"
     },

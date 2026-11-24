@@ -385,8 +385,7 @@
       }
     },
     "space": {
-      "overview": "Visão geral do espaço",
-      "allThreads": "Todas as conversas"
+      "overview": "Visão geral do espaço"
     }
   },
   "featureUi": {
@@ -2141,6 +2140,7 @@
       "label": "Salas",
       "ariaLabel": "Filtrar tópicos por sala",
       "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
       "search": "Pesquisar salas",
       "noMatch": "Nenhuma sala encontrada"
     },

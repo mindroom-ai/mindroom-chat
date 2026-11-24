@@ -373,8 +373,7 @@
       }
     },
     "space": {
-      "overview": "Alana genel bakış",
-      "allThreads": "Tüm iş parçacıkları"
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -2079,6 +2078,7 @@
       "label": "Odalar",
       "ariaLabel": "Konuları odaya göre filtrele",
       "ariaLabelActive": "Konuları odaya göre filtrele ({{number}} seçili)",
+      "ariaLabelOne": "Odalar: {{room}}",
       "search": "Odaları ara",
       "noMatch": "Eşleşen oda yok"
     },

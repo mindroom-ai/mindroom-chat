@@ -361,8 +361,7 @@
       }
     },
     "space": {
-      "overview": "스페이스 개요",
-      "allThreads": "모든 스레드"
+      "overview": "스페이스 개요"
     }
   },
   "featureUi": {
@@ -2017,6 +2016,7 @@
       "label": "방",
       "ariaLabel": "방으로 스레드 필터링",
       "ariaLabelActive": "방으로 스레드 필터링 ({{number}}개 선택됨)",
+      "ariaLabelOne": "방: {{room}}",
       "search": "방 검색",
       "noMatch": "일치하는 방이 없습니다"
     },

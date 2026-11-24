@@ -385,8 +385,7 @@
       }
     },
     "space": {
-      "overview": "Panoramica dello spazio",
-      "allThreads": "Tutte le discussioni"
+      "overview": "Panoramica dello spazio"
     }
   },
   "featureUi": {
@@ -2141,6 +2140,7 @@
       "label": "Stanze",
       "ariaLabel": "Filtra i thread per stanza",
       "ariaLabelActive": "Filtra i thread per stanza (selezionate: {{number}})",
+      "ariaLabelOne": "Stanze: {{room}}",
       "search": "Cerca stanze",
       "noMatch": "Nessuna stanza corrispondente"
     },

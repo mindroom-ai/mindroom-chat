@@ -135,7 +135,7 @@ export function LobbyHeader({
   const screenSize = useScreenSizeContext();
   const { t } = useTranslation();
   const allThreadsPath = getSpaceThreadsPath(getCanonicalAliasOrRoomId(client, space.roomId));
-  const allThreadsLabel = t('sharedUi.space.allThreads');
+  const allThreadsLabel = t('home.recent.allThreads');
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const openSpaceSettings = useOpenRoomSettings();
 

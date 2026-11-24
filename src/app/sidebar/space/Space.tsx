@@ -301,7 +301,7 @@ export function Space() {
             />
             <SpacePageLink
               icon={Icons.Thread}
-              label={t('sharedUi.space.allThreads')}
+              label={t('home.recent.allThreads')}
               to={getSpaceThreadsPath(spaceIdOrAlias)}
               selected={threadsSelected}
             />

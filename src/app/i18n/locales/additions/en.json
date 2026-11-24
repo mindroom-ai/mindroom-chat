@@ -373,8 +373,7 @@
       }
     },
     "space": {
-      "overview": "Space overview",
-      "allThreads": "All threads"
+      "overview": "Space overview"
     }
   },
   "featureUi": {
@@ -2079,6 +2078,7 @@
       "label": "Rooms",
       "ariaLabel": "Filter threads by room",
       "ariaLabelActive": "Filter threads by room ({{number}} selected)",
+      "ariaLabelOne": "Rooms: {{room}}",
       "search": "Search rooms",
       "noMatch": "No matching rooms"
     },

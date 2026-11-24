@@ -361,8 +361,7 @@
       }
     },
     "space": {
-      "overview": "Ikhtisar space",
-      "allThreads": "Semua utas"
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -2017,6 +2016,7 @@
       "label": "Ruang",
       "ariaLabel": "Filter utas menurut ruang",
       "ariaLabelActive": "Filter utas menurut ruang ({{number}} dipilih)",
+      "ariaLabelOne": "Ruang: {{room}}",
       "search": "Cari ruang",
       "noMatch": "Tidak ada ruang yang cocok"
     },

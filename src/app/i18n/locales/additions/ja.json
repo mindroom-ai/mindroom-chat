@@ -361,8 +361,7 @@
       }
     },
     "space": {
-      "overview": "スペースの概要",
-      "allThreads": "すべてのスレッド"
+      "overview": "スペースの概要"
     }
   },
   "featureUi": {
@@ -2017,6 +2016,7 @@
       "label": "ルーム",
       "ariaLabel": "ルームでスレッドを絞り込む",
       "ariaLabelActive": "ルームでスレッドを絞り込む（{{number}} 件を選択中）",
+      "ariaLabelOne": "ルーム: {{room}}",
       "search": "ルームを検索",
       "noMatch": "一致するルームがありません"
     },

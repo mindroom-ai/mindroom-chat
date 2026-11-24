@@ -373,8 +373,7 @@
       }
     },
     "space": {
-      "overview": "Space-Übersicht",
-      "allThreads": "Alle Threads"
+      "overview": "Space-Übersicht"
     }
   },
   "featureUi": {
@@ -2079,6 +2078,7 @@
       "label": "Räume",
       "ariaLabel": "Threads nach Raum filtern",
       "ariaLabelActive": "Threads nach Raum filtern ({{number}} ausgewählt)",
+      "ariaLabelOne": "Räume: {{room}}",
       "search": "Räume suchen",
       "noMatch": "Keine passenden Räume"
     },

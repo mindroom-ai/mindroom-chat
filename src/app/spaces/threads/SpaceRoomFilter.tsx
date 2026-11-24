@@ -43,10 +43,10 @@ export function SpaceRoomFilter({
   const label = t('spaceThreads.roomFilter.label');
   const ariaLabel = t('spaceThreads.roomFilter.ariaLabel');
   const triggerAriaLabel = soleRoomName
-    ? `${label}: ${soleRoomName}`
+    ? t('spaceThreads.roomFilter.ariaLabelOne', { room: soleRoomName })
     : selectedCount > 0
-    ? t('spaceThreads.roomFilter.ariaLabelActive', { number: selectedCount })
-    : ariaLabel;
+      ? t('spaceThreads.roomFilter.ariaLabelActive', { number: selectedCount })
+      : ariaLabel;
 
   return (
     <ThreadFilterDropdown
