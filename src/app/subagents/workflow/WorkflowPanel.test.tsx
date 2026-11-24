@@ -1123,4 +1123,45 @@ describe('WorkflowPanel', () => {
     expect(within(activeChip).queryByText('500')).toBeNull();
     expect(within(activeChip).queryByText('$0.05')).toBeNull();
   });
+
+  it('hides run and per-node Stop controls when readOnly is true', () => {
+    const { mx, room } = makeClient({
+      jobs: [
+        {
+          jobId: 'job-wf-1',
+          agentId: AGENT,
+          threadId: null,
+          kind: 'workflow',
+          tool: 'workflow',
+          status: 'running',
+          startedAt: '2026-11-23T00:00:00Z',
+          workflow: RUN,
+        },
+      ],
+    });
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n4', { label: 'Audit auth/session.py', status: 'running', job: 'job-agent-4' }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} readOnly />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Audit auth\/session\.py/ }));
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+  });
 });

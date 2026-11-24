@@ -577,7 +577,7 @@ function RoomContent() {
                   workflowPanel.threadId !== undefined ? workflowPanel.threadId : (threadId ?? null)
                 }
                 onClose={workflowPanel.close}
-                readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
+                readOnly={isForkDraft}
               />
             )}
           </Suspense>
