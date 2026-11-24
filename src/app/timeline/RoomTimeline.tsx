@@ -1279,7 +1279,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hiddenIds: threadHiddenIds,
     membershipFoldsRef,
     renderedRoomRowsRef,
-    columnWidth: scrollRef.current?.clientWidth,
+    // Fixed per form factor so splitter drags do not re-estimate unmeasured rows above the reader.
+    columnWidth: phone ? undefined : 960,
   });
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
