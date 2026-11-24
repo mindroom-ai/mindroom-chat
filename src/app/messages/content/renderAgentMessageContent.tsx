@@ -436,6 +436,30 @@ export const renderAgentMessageContent = ({
     ? sanitizeAgentSidecar
     : sanitizeNonAgentSidecar;
 
+  const renderLongTextWakeMarker = (
+    downloadedContent: Record<string, unknown>
+  ): ReactNode | null => {
+    if (highlightRegex || !fromMindroomAgent) return null;
+    const mergedContent = withLiveWrapperContent(
+      transformLongTextContent(downloadedContent),
+      content
+    );
+    const triggerWake = readTriggerWake(mergedContent);
+    if (triggerWake) {
+      return (
+        <TriggerWakeMarker
+          wake={triggerWake}
+          ts={ts ?? mEvent?.getTs()}
+          roomId={roomId ?? mEvent?.getRoomId()}
+        />
+      );
+    }
+    const todoPoke = readTodoPoke(mergedContent);
+    return todoPoke ? (
+      <TodoPokeMarker poke={todoPoke} ts={ts ?? mEvent?.getTs()} senderDisplayName={displayName} />
+    ) : null;
+  };
+
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     downloadedContent,
     props,
@@ -447,27 +471,6 @@ export const renderAgentMessageContent = ({
     // or mocked callers.
     const resolvedContent = transformLongTextContent(downloadedContent);
     const mergedContent = withLiveWrapperContent(resolvedContent, content);
-    const triggerWake =
-      !highlightRegex && fromMindroomAgent ? readTriggerWake(mergedContent) : null;
-    if (triggerWake) {
-      return (
-        <TriggerWakeMarker
-          wake={triggerWake}
-          ts={ts ?? mEvent?.getTs()}
-          roomId={roomId ?? mEvent?.getRoomId()}
-        />
-      );
-    }
-    const todoPoke = !highlightRegex && fromMindroomAgent ? readTodoPoke(mergedContent) : null;
-    if (todoPoke) {
-      return (
-        <TodoPokeMarker
-          poke={todoPoke}
-          ts={ts ?? mEvent?.getTs()}
-          senderDisplayName={displayName}
-        />
-      );
-    }
     return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
@@ -671,6 +674,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
+          renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );
@@ -816,6 +820,7 @@ export const renderAgentMessageContent = ({
           renderAfterBody={(extrasContent, fallbackContent) =>
             renderMessageExtras(extrasContent, [content, fallbackContent])
           }
+          renderOverride={renderLongTextWakeMarker}
           renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
         />
       );

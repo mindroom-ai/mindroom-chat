@@ -24,7 +24,7 @@ const LEGACY_PRIORITY_GAP = /^\s+\[(critical|high|medium|low)\]\s+/i;
 const NEW_PRIORITY_SEP = /\s+—\s+(critical|high|medium|low)\s+·\s+$/i;
 const OVERFLOW_LINE =
   /^(?:-\s+)?(?:…|\.\.\.)and\s+(\d+)\s+more\s+actionable\s+item(?:\(s\)|s)?\.?$/i;
-const MARKDOWN_ESCAPES = /\\([\\`*_[\]~<>])/g;
+const MARKDOWN_ESCAPES = /\\([!"#$%&'()*+,./:;<=>?@[\\\]^_`{|}~-])/g;
 
 const nonEmpty = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -202,7 +202,8 @@ export const readTodoPoke = (content: Record<string, unknown>): TodoPokeInfo | n
   if (!TEXT_MSGTYPES.has(content.msgtype) && !isLongText) return null;
   const rawBody = typeof content.body === 'string' ? content.body : '';
   if (content[TODO_POKE_CONTENT_KEY] !== undefined) {
-    return readStructuredTodoPoke(content[TODO_POKE_CONTENT_KEY], rawBody);
+    const structured = readStructuredTodoPoke(content[TODO_POKE_CONTENT_KEY], rawBody);
+    if (structured) return structured;
   }
   return content[HOOK_SOURCE_KEY] === 'todo_poke' ? readMarkdownTodoPoke(rawBody) : null;
 };

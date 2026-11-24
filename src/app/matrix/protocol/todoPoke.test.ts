@@ -114,11 +114,11 @@ describe('readTodoPoke', () => {
       '@Maya **7 todos ready** — continue with these actionable items:',
       '',
       '- Fix \\*race\\* in \\[auth\\] — v2 with \\\\* and \\`code\\` for @\u200bops — Critical · `f10c3a89`',
-      '- Trim \\_unused\\_ \\~legacy\\~ \\<css\\> rules — low · `73c8a102`',
+      '- \\# Heading and 2\\) Run tests with \\- \\+ \\. — low · `73c8a102`',
       '- ...and 5 more actionable item(s).',
     ].join('\n');
 
-    expect(readTodoPoke({ msgtype: 'm.text', body, [HOOK_SOURCE_KEY]: 'todo_poke' })).toEqual({
+    const expected = {
       assignedAgent: 'Maya',
       totalCount: 7,
       rawBody: body,
@@ -128,9 +128,21 @@ describe('readTodoPoke', () => {
           priority: 'critical',
           title: 'Fix *race* in [auth] — v2 with \\* and `code` for @ops',
         },
-        { id: '73c8a102', priority: 'low', title: 'Trim _unused_ ~legacy~ <css> rules' },
+        { id: '73c8a102', priority: 'low', title: '# Heading and 2) Run tests with - + .' },
       ],
-    });
+    };
+    expect(readTodoPoke({ msgtype: 'm.text', body, [HOOK_SOURCE_KEY]: 'todo_poke' })).toEqual(
+      expected
+    );
+    // Unsupported future structured version falls back to Markdown when hook_source matches.
+    expect(
+      readTodoPoke({
+        msgtype: 'm.text',
+        body,
+        [HOOK_SOURCE_KEY]: 'todo_poke',
+        [TODO_POKE_CONTENT_KEY]: { version: 2, items: [] },
+      })
+    ).toEqual(expected);
   });
 
   it('returns null on corrupted or itemless hook_source todo_poke bodies', () => {

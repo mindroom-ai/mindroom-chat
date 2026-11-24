@@ -11,6 +11,7 @@ import {
   TODO_POKE_CONTENT_KEY,
   type TodoPokeInfo,
 } from '../../matrix/protocol/todoPoke';
+import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { RenderMessageContent } from './RenderMessageContent';
 
 const hydrationMocks = vi.hoisted(() => ({
@@ -129,6 +130,12 @@ describe('RenderMessageContent todo poke', () => {
     await renderPoke(AGENT, /changelog/gi);
     expect(container.querySelector('[data-todo-poke-stub]')).toBeNull();
     expect(container.textContent).toContain('Publish API changelog');
+    const highlighted = Array.from(container.querySelectorAll('span')).find(
+      (span) =>
+        span.textContent === 'changelog' &&
+        (span.className === customHtmlCss.highlightText || span.style.borderRadius === '0.2em')
+    );
+    expect(highlighted).toBeDefined();
 
     await renderPoke('@person:example.org');
     expect(container.querySelector('[data-todo-poke-stub]')).toBeNull();
@@ -161,6 +168,8 @@ describe('RenderMessageContent todo poke', () => {
     const stub = container.querySelector('[data-todo-poke-stub]');
     expect(stub?.getAttribute('data-first-title')).toBe('Publish API changelog for v2.4 release');
     expect(stub?.getAttribute('data-sender')).toBe('Maya');
+    // Bypassing MessageTextBody prevents compounded P400/P300 opacity on hydrated wake markers.
+    expect(stub?.closest('[data-body-direction]')).toBeNull();
 
     await renderPoke(AGENT, undefined, {
       msgtype: 'm.file',

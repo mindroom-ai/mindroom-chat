@@ -26,9 +26,10 @@ export const readAgentNoticeMarker = (
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
   const skillReview = readSkillReviewNotice(content);
   if (skillReview) return <SkillReviewMarker review={skillReview} />;
-  const triggerWake = getLongTextSource(content) ? null : readTriggerWake(content);
+  const hasLongText = getLongTextSource(content) !== undefined;
+  const triggerWake = hasLongText ? null : readTriggerWake(content);
   if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={originTs} roomId={roomId} />;
-  const todoPoke = getLongTextSource(content) ? null : readTodoPoke(content);
+  const todoPoke = hasLongText ? null : readTodoPoke(content);
   if (todoPoke) {
     return <TodoPokeMarker poke={todoPoke} ts={originTs} senderDisplayName={senderDisplayName} />;
   }
