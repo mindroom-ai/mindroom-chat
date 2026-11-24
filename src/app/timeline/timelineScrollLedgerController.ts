@@ -141,7 +141,7 @@ export const useTimelineScrollLedgerController = ({
     : [];
   const roomAnchorDeltaPx =
     anchoringRoomRows && !resettingView
-      ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, priceRoomRowForAnchor).foldPx
+      ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, priceRoomRowForAnchor)
       : 0;
 
   // Core only notifies when visible indices change. A height-only resize
