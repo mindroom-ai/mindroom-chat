@@ -150,14 +150,6 @@ const isClean = (content: unknown, sender: string | undefined): boolean => {
   return !positions && isTrustedAgentSender(sender);
 };
 
-/**
- * Whether an edit can replace its message: its content is not readable yet (still encrypted), or
- * it has an object `m.new_content`. An edit without one is ignored, as the specification says.
- */
-export const isUsableEdit = (edit: MatrixEvent): boolean =>
-  isRecord(edit.getContent()['m.new_content']) ||
-  (edit.isEncrypted() && edit.getClearContent() === null);
-
 type Sanitized = { source: unknown; version: number; result: IContent };
 
 /** One sanitized copy per event and source, so readers keep getting the same object. */
@@ -180,6 +172,31 @@ const wireCache = new WeakMap<MatrixEvent, Sanitized>();
 const originalCache = new WeakMap<MatrixEvent, Sanitized>();
 let installed = false;
 let sdkReplacingEvent: ((this: MatrixEvent) => MatrixEvent | null) | undefined;
+let sdkOriginalContent: typeof MatrixEvent.prototype.getOriginalContent | undefined;
+
+/**
+ * Whether an edit can replace its message: its content is not readable yet (still encrypted), or
+ * it has an object `m.new_content`. An edit without one is ignored, as the specification says.
+ */
+export const isUsableEdit = (edit: MatrixEvent): boolean => {
+  if (
+    sdkOriginalContent &&
+    edit.getContent === MatrixEvent.prototype.getContent &&
+    edit.getOriginalContent === MatrixEvent.prototype.getOriginalContent &&
+    edit.replacingEvent === MatrixEvent.prototype.replacingEvent &&
+    !sdkReplacingEvent?.call(edit)
+  ) {
+    if (!edit.isRedacted()) {
+      const content: unknown = sdkOriginalContent.call(edit);
+      if (isRecord(content) && isRecord(content['m.new_content'])) return true;
+    }
+    return edit.isEncrypted() && edit.getClearContent() === null;
+  }
+  return (
+    isRecord(edit.getContent()['m.new_content']) ||
+    (edit.isEncrypted() && edit.getClearContent() === null)
+  );
+};
 
 /**
  * The edit the SDK applied to `event`, usable or not. Once the guard is installed,
@@ -209,6 +226,7 @@ export const installEventContentGuard = (): void => {
   const sdkReplacing = proto.replacingEvent;
   const sdkMakeReplaced = proto.makeReplaced;
   sdkReplacingEvent = sdkReplacing;
+  sdkOriginalContent = sdkGetOriginalContent;
 
   proto.getWireContent = function getWireContent(this: MatrixEvent): IContent {
     const content: unknown = sdkGetWireContent.call(this);

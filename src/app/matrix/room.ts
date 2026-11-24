@@ -16,7 +16,11 @@ import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { Membership, MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getMxIdLocalPart } from './matrix';
-import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
+import {
+  getSerializedReplacementEventId,
+  getShallowSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from './editEvent';
 import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
@@ -468,27 +472,6 @@ const getRelationEdits = (
   );
 };
 
-/**
- * The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one and
- * the newest one the sync brought.
- */
-const getEditCandidates = (
-  eventId: string,
-  mEvent: MatrixEvent,
-  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
-  serializedReplacementCandidate?: MatrixEvent
-): MatrixEvent[] =>
-  [
-    getAppliedEdit(mEvent) ?? undefined,
-    ...getRelationEdits(eventId, mEvent, timelineSet),
-    serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
-    // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
-    getSyncedEdit(eventId),
-  ].filter(
-    (candidate): candidate is MatrixEvent =>
-      isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
-  );
-
 // Optional call: thread tests pass edit stand-ins without decryption state.
 const isUndecryptable = (edit: MatrixEvent): boolean => !!edit.isDecryptionFailure?.();
 
@@ -500,6 +483,44 @@ const isUnreadableEdit = (edit: MatrixEvent): boolean =>
 /** Whether `getEditedEvent` can show `edit` once it is not redacted: it decrypted and replaces. */
 const isReadableEdit = (edit: MatrixEvent): boolean =>
   !isUnreadableEdit(edit) && isUsableEdit(edit);
+
+/**
+ * The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one and
+ * the newest one the sync brought.
+ */
+const getEditCandidates = (
+  eventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
+  serializedReplacementCandidate?: MatrixEvent
+): MatrixEvent[] => {
+  const candidates: MatrixEvent[] = [];
+  const addCandidate = (candidate: MatrixEvent | undefined | null) => {
+    if (candidate && isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()) {
+      candidates.push(candidate);
+    }
+  };
+  addCandidate(getAppliedEdit(mEvent));
+  for (const edit of getRelationEdits(eventId, mEvent, timelineSet)) {
+    addCandidate(edit);
+  }
+  if (serializedReplacementCandidate) {
+    addCandidate(serializedReplacementCandidate);
+  } else {
+    // Skip allocating a bundled MatrixEvent when an applied or relation edit already holds a
+    // readable copy of the exact same event ID.
+    const bundledId = getSerializedReplacementEventId(mEvent);
+    if (
+      bundledId !== undefined &&
+      !candidates.some((candidate) => candidate.getId() === bundledId && isReadableEdit(candidate))
+    ) {
+      addCandidate(getShallowSerializedReplacementEvent(mEvent));
+    }
+  }
+  // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
+  addCandidate(getSyncedEdit(eventId));
+  return candidates;
+};
 
 /**
  * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's
