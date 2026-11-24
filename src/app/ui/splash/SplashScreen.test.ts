@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SplashScreen } from './SplashScreen';
 
@@ -41,9 +41,12 @@ describe('SplashScreen', () => {
   });
 
   it('uses the MindRoom particle background by default', () => {
-    const renderer = create(
-      React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
+      );
+    });
 
     expect(
       renderer.root.findByProps({
@@ -58,13 +61,16 @@ describe('SplashScreen', () => {
       'data-custom-background': true,
     });
 
-    const renderer = create(
-      React.createElement(
-        SplashScreen,
-        { background: customBackground },
-        React.createElement('span', null, 'Content')
-      )
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          SplashScreen,
+          { background: customBackground },
+          React.createElement('span', null, 'Content')
+        )
+      );
+    });
 
     expect(renderer.root.findByProps({ 'data-custom-background': true })).toBeDefined();
     expect(
@@ -75,9 +81,12 @@ describe('SplashScreen', () => {
   it('uses the hosted renderer without painting an opaque surface over it', () => {
     particleBackgroundMock.persistent = true;
 
-    const renderer = create(
-      React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(SplashScreen, null, React.createElement('span', null, 'Content'))
+      );
+    });
 
     expect(
       renderer.root.findAllByProps({ 'data-mindroom-particle-background': true })
@@ -95,13 +104,16 @@ describe('SplashScreen', () => {
   it.each([null, false])(
     'falls back to the MindRoom particle background when background is %s',
     (background) => {
-      const renderer = create(
-        React.createElement(
-          SplashScreen,
-          { background },
-          React.createElement('span', null, 'Content')
-        )
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            SplashScreen,
+            { background },
+            React.createElement('span', null, 'Content')
+          )
+        );
+      });
 
       expect(
         renderer.root.findByProps({

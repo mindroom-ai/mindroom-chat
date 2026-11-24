@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { lazy, Suspense, type ComponentType } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ShownThreadDetail, ThreadDetailProps } from '../plugins/threadDetails';
@@ -101,5 +101,37 @@ describe('ThreadDetailsList', () => {
     expect(container.querySelector('[data-thread-detail]')?.childNodes).toHaveLength(0);
     expect(shown(container)).toEqual(['first !room:example.org $root']);
     expect(mocks.reportBoundaryError).not.toHaveBeenCalled();
+  });
+
+  it('forwards onClose when given and leaves it undefined when omitted', () => {
+    const seen: Array<(() => void) | undefined> = [];
+    function Probe({ onClose }: ThreadDetailProps) {
+      seen.push(onClose);
+      return onClose ? (
+        <button type="button" onClick={onClose}>
+          Close from detail
+        </button>
+      ) : (
+        <span>Static</span>
+      );
+    }
+
+    renderDetails([detail('probe', Probe)]);
+    expect(seen).toEqual([undefined]);
+    expect(screen.queryByRole('button')).toBeNull();
+    cleanup();
+
+    const onClose = vi.fn();
+    render(
+      <ThreadDetailsList
+        room={room}
+        threadId="$root"
+        onClose={onClose}
+        details={[detail('probe', Probe)]}
+      />
+    );
+    expect(seen).toEqual([undefined, onClose]);
+    fireEvent.click(screen.getByRole('button', { name: 'Close from detail' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

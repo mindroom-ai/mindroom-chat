@@ -110,9 +110,9 @@ type ScrollAnchorMemoryOptions = {
   /** Must stay the same for the component's lifetime. */
   memoryKey: string;
   /** The scroll container, rendered for the component's whole lifetime. */
-  scrollRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
   /** The rows' container, so rows that render or resize late are followed. */
-  contentRef: RefObject<HTMLElement>;
+  contentRef: RefObject<HTMLElement | null>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
   /** Optional handoff for a window that waits for the first write. */
@@ -136,7 +136,7 @@ export function useScrollAnchorMemory({
   ready,
   progress,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
-  const restoreRef = useRef<RestoreState>();
+  const restoreRef = useRef<RestoreState>(undefined);
   const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
   useLayoutEffect(() => {

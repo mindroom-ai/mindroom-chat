@@ -47,7 +47,10 @@ const renderHookHarness = (portalChildren: unknown[] = []) => {
     return null;
   }
 
-  const renderer = create(React.createElement(Harness));
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(React.createElement(Harness));
+  });
 
   return {
     renderer,

@@ -124,7 +124,7 @@ import type { MidTurnMode } from '../preferences/midTurnModes';
 export type RoomInputProps = {
   editor: Editor;
   /** The area that accepts dropped files, usually the whole room view. */
-  fileDropContainerRef: RefObject<HTMLElement>;
+  fileDropContainerRef: RefObject<HTMLElement | null>;
   roomId: string;
   room: Room;
   /** The thread the composer writes to; undefined for the room's main timeline. */
@@ -355,7 +355,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     // In a thread whose root the server has not confirmed, sends wait for it (set further down).
-    const rootConfirmedRef = useRef<(sends: HeldSend[]) => void>();
+    const rootConfirmedRef = useRef<(sends: HeldSend[]) => void>(undefined);
     const { hold: holdForRoot, waiting: waitingForRoot } = useUnconfirmedRootSends({
       room,
       roomId,

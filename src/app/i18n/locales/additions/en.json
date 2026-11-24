@@ -431,7 +431,9 @@
         "search": "Show Search in the sidebar",
         "searchDescription": "The button that opens the command palette. When hidden, open it from the Find anything field or with {{shortcut}}.",
         "localMindroom": "Show Local MindRoom in the sidebar",
-        "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom."
+        "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom.",
+        "usage": "Show Usage in the sidebar",
+        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker."
       },
       "plugins": {
         "title": "Plugins",
@@ -1025,6 +1027,14 @@
         "scopeOwn": "Applies to future replies in this thread from the agents and teams you may address.",
         "scopeOther": "Applies to future replies in this thread from the agents and teams {{name}} may address."
       },
+      "triggerWakeMarker": {
+        "triggered": "Triggered",
+        "webhook": "Webhook",
+        "triggerLabel": "Trigger {{id}}",
+        "sourceLabel": "Source {{source}}",
+        "triageLabel": "Triage: {{reason}}",
+        "payloadLabel": "Event payload JSON"
+      },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
@@ -1376,6 +1386,46 @@
         "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
         "copied": "Request copied. Paste it into your draft."
       }
+    },
+    "usage": {
+      "title": "Usage & Limits",
+      "navLowQuota": "Usage (low quota)",
+      "tabsLimits": "Limits",
+      "tabsTokens": "Tokens & Cost",
+      "refresh": "Refresh",
+      "updatedAgo": "Updated {{time}}",
+      "runtimeLabel": "Runtime",
+      "loading": "Checking provider usage…",
+      "unavailableTitle": "Usage data unavailable",
+      "unavailableBody": "No connected runtime reported provider usage limits for this account.",
+      "retry": "Retry",
+      "partialData": "Partial data — some providers or usage records could not be loaded.",
+      "stale": "Stale",
+      "percentLeft": "{{percent}}% left",
+      "resetsIn": "Resets in {{duration}}",
+      "resetsAt": "Resets {{time}}",
+      "resetsSoon": "Resets soon",
+      "quotaAria": "{{label}}: {{percent}}% remaining",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% remaining, {{reset}}",
+      "noSubscriptionLimit": "No subscription limit",
+      "payAsYouGo": "Pay-as-you-go",
+      "limitsUnavailable": "Usage limits unavailable",
+      "notSignedIn": "Not signed in",
+      "tokens7d": "{{tokens}} tokens (7d)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "7-day total tokens",
+      "totalCost7d": "7-day estimated spend",
+      "dailyChartTitle": "Daily tokens (last 7 days)",
+      "dailyBarAria": "{{day}}: {{tokens}} tokens",
+      "breakdownTitle": "Per-account breakdown",
+      "colAccount": "Account",
+      "colTokens": "7d tokens",
+      "colShare": "Share",
+      "colSpend": "7d spend",
+      "unattributed": "Unattributed",
+      "allUsageAndLimits": "All usage & limits →",
+      "noAccounts": "No provider accounts reported yet.",
+      "noDailyData": "No daily usage recorded in the last 7 days."
     }
   },
   "composer": {
@@ -1981,5 +2031,8 @@
       "action": "Verify this device",
       "text": "Until then it cannot read your encrypted chats."
     }
+  },
+  "nav": {
+    "usage": "Usage"
   }
 }

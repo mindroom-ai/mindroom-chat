@@ -17,7 +17,7 @@ export const isDraftShown = (draftKey: string): boolean => shownDrafts.has(draft
 export const useRoomInputDraft = (editor: Editor, draftKey: string) => {
   const store = useStore();
   const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
-  const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>();
+  const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>(undefined);
   const savingRef = useRef(false);
 
   const saveDraft = useCallback(() => {

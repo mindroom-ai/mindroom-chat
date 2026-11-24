@@ -142,7 +142,7 @@ function NewStep({ onChanged, onCancel, onRunningChange }: NewStepProps) {
   const client = useMatrixClient();
   const alive = useAlive();
   // Kept so that Retry writes under the very key made from the typed password.
-  const newKey = useRef<GeneratedSecretStorageKey>();
+  const newKey = useRef<GeneratedSecretStorageKey>(undefined);
   const [inputError, setInputError] = useState<'tooShort' | 'mismatch'>();
 
   const [state, change] = useAsyncCallback(

@@ -45,7 +45,7 @@ const createClient = () => {
       await reachability
         .fetchFn('https://matrix.example/_matrix/client/v3/rooms/!a/send')
         .catch(() => undefined);
-      await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
+      if (!reachable) await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
     });
   const emitSync = (state: SyncState, previous: SyncState | null, catchingUp?: boolean) =>
     act(() => {
@@ -62,7 +62,9 @@ describe('SyncStatus', () => {
   });
 
   afterEach(() => {
-    renderer?.unmount();
+    act(() => {
+      renderer?.unmount();
+    });
     renderer = undefined;
     media.unavailable = false;
     vi.useRealTimers();

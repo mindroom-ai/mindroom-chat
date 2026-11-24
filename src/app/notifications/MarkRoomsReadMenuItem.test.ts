@@ -67,12 +67,15 @@ describe('MarkRoomsReadMenuItem', () => {
       const onClose = vi.fn();
       state.hideActivity = hideActivity;
       const { MarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
-      const renderer = create(
-        React.createElement(MarkRoomsReadMenuItem, {
-          roomIds: ['!a:example.org', '!b:example.org'],
-          onClose,
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(MarkRoomsReadMenuItem, {
+            roomIds: ['!a:example.org', '!b:example.org'],
+            onClose,
+          })
+        );
+      });
       const button = renderer.root.findByType('button');
 
       await act(() => button.props.onClick());
@@ -98,9 +101,10 @@ describe('MarkRoomsReadMenuItem', () => {
   it('keeps an empty room list tabbable without sending receipts or closing', async () => {
     const onClose = vi.fn();
     const { MarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
-    const renderer = create(
-      React.createElement(MarkRoomsReadMenuItem, { roomIds: [], onClose })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(MarkRoomsReadMenuItem, { roomIds: [], onClose }));
+    });
     const button = renderer.root.findByType('button');
 
     await act(() => button.props.onClick());

@@ -152,7 +152,7 @@ describe('MindroomReasoning', () => {
   const render = (content: Record<string, unknown>, msgType = 'm.text') => {
     act(() => {
       renderer = create(element(content, msgType), {
-        createNodeMock: (node) =>
+        createNodeMock: (node: React.ReactElement<Record<string, unknown>>) =>
           node.type === 'button'
             ? { focus: () => focused.push(node.props.className as string) }
             : null,

@@ -69,7 +69,7 @@ export function RecoveryUnlock({
   const [restore, setRestore] = useState<Restore>();
   const describeFailure = useRecoveryFailureText();
   // The key the last attempt derived: a repair works with it, without asking for it again.
-  const derivedKey = useRef<Uint8Array>();
+  const derivedKey = useRef<Uint8Array>(undefined);
   // Publishing a new identity asks for the account password (or SSO) when the server wants it.
   const { run, prompt } = useAuthenticatedAction();
   const authUploadDeviceSigningKeys = useCallback<UIAuthCallback<void>>(

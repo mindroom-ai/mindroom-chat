@@ -110,9 +110,13 @@ const importFile = async (contents: string, password: string) => {
   act(() => {
     form.props.onSubmit({ preventDefault: vi.fn() });
   });
-  await act(async () => {
-    await vi.waitFor(() => root.findByProps({ role: 'alert' }), { timeout: 20_000 });
-  });
+  await vi.waitFor(
+    async () => {
+      await act(async () => {});
+      root.findByProps({ role: 'alert' });
+    },
+    { timeout: 20_000 }
+  );
   return outcomeOf(root);
 };
 
@@ -163,9 +167,13 @@ describe('LocalKeyBackup export', () => {
       current?.props.onSubmit({ preventDefault: vi.fn() });
     });
     // The form starts the export without returning it; encrypting the file takes a moment.
-    await act(async () => {
-      await vi.waitFor(() => expect(saveFile).toHaveBeenCalled(), { timeout: 20_000 });
-    });
+    await vi.waitFor(
+      async () => {
+        await act(async () => {});
+        expect(saveFile).toHaveBeenCalled();
+      },
+      { timeout: 20_000 }
+    );
     await act(async () => {
       await Promise.resolve();
     });

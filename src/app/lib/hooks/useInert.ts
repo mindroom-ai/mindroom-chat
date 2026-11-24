@@ -5,7 +5,7 @@ import { type RefObject, useLayoutEffect } from 'react';
  * while `inert` is true. React 18 has no prop for the attribute, so it is set on the element
  * itself; `aria-hidden` says the same to tools that do not read `inert`.
  */
-export const useInert = (ref: RefObject<HTMLElement>, inert: boolean): void => {
+export const useInert = (ref: RefObject<HTMLElement | null>, inert: boolean): void => {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return undefined;

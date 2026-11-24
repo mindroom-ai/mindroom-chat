@@ -23,7 +23,7 @@ export function useCanvasSavedState(mx: MatrixClient, canvasId: string): CanvasS
   const latest = useRef<CanvasSaved>({});
   // Saves stay in memory when the saved state could not be read, so they cannot overwrite it.
   const writable = useRef(false);
-  const timer = useRef<number>();
+  const timer = useRef<number>(undefined);
   const flushNow = useRef<() => void>(() => undefined);
 
   useEffect(() => {

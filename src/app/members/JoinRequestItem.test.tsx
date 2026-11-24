@@ -103,15 +103,20 @@ const createKnockingMember = (reason: unknown = 'I would love to join.'): RoomMe
 
 const renderItem = (
   options: { canApprove?: boolean; canDecline?: boolean; reason?: unknown } = {}
-): ReactTestRenderer =>
-  create(
-    <JoinRequestItem
-      room={createRoom()}
-      member={createKnockingMember(options.reason)}
-      canApprove={options.canApprove ?? true}
-      canDecline={options.canDecline ?? true}
-    />
-  );
+): ReactTestRenderer => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <JoinRequestItem
+        room={createRoom()}
+        member={createKnockingMember(options.reason)}
+        canApprove={options.canApprove ?? true}
+        canDecline={options.canDecline ?? true}
+      />
+    );
+  });
+  return renderer;
+};
 
 const textContent = (renderer: ReactTestRenderer): string =>
   renderer.root

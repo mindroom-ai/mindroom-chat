@@ -82,7 +82,7 @@ type CaptureInputProps = {
   entryOwner: RefObject<string | undefined>;
   request: CaptureClient['request'];
   apple: boolean;
-  inputRef: RefObject<HTMLTextAreaElement>;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   onFocus: () => void;
   onToList: () => void;
   onPicker: () => void;

@@ -25,8 +25,8 @@ export function useCanvasStateShare(
   canvasId: string,
   enabled: boolean
 ): (saved: CanvasSaved) => void {
-  const latest = useRef<CanvasSaved>();
-  const timer = useRef<number>();
+  const latest = useRef<CanvasSaved>(undefined);
+  const timer = useRef<number>(undefined);
   const shareNow = useRef<() => void>(() => undefined);
 
   useEffect(() => {

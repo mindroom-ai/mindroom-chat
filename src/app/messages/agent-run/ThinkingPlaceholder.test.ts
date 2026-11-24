@@ -26,20 +26,25 @@ vi.mock('./ShimmerText.css', () => ({
   TextHighlight: 'TextHighlight',
 }));
 
-const renderPlaceholder = (messages?: string[], startedAt?: number) =>
-  create(
-    React.createElement(
-      ClientConfigProvider,
-      {
-        value: {
-          mindroom: {
-            thinkingPlaceholderMessages: messages,
+const renderPlaceholder = (messages?: string[], startedAt?: number) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        ClientConfigProvider,
+        {
+          value: {
+            mindroom: {
+              thinkingPlaceholderMessages: messages,
+            },
           },
         },
-      },
-      React.createElement(ThinkingPlaceholder, { startedAt })
-    )
-  );
+        React.createElement(ThinkingPlaceholder, { startedAt })
+      )
+    );
+  });
+  return renderer;
+};
 
 /** The label in the base text and in the shimmer's highlight copy. */
 const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) =>
@@ -49,9 +54,10 @@ const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) 
 
 describe('resolveThinkingPlaceholderMessages', () => {
   it('uses non-empty configured messages', () => {
-    expect(
-      resolveThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])
-    ).toEqual(['Configured', 'Also configured']);
+    expect(resolveThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])).toEqual([
+      'Configured',
+      'Also configured',
+    ]);
   });
 
   it('falls back to built-in messages when config has no usable messages', () => {

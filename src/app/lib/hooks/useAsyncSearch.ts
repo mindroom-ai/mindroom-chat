@@ -50,13 +50,13 @@ export const useAsyncSearch = <T>(
   options?: AsyncSearchOptions
 ): [AsyncSearchResult<T> | undefined, (query: string) => void, () => void] => {
   const [result, setResult] = useState<AsyncSearchResult<T>>();
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const rankRef = useRef(rank);
   rankRef.current = rank;
   const limit = options?.limit;
-  const queryRef = useRef<string>();
+  const queryRef = useRef<string>(undefined);
 
   const cancel = useCallback(() => {
     if (timerRef.current === undefined) return;

@@ -1,4 +1,4 @@
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider, Trans } from 'react-i18next';
 import { describe, expect, it } from 'vitest';
@@ -18,11 +18,14 @@ describe('auth account links', () => {
       react: { useSuspense: false },
     });
 
-    const renderer = create(
-      <I18nextProvider i18n={language}>
-        <Trans i18nKey={i18nKey} components={{ authLink: <a href="/login">Account action</a> }} />
-      </I18nextProvider>
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <Trans i18nKey={i18nKey} components={{ authLink: <a href="/login">Account action</a> }} />
+        </I18nextProvider>
+      );
+    });
 
     const link = renderer.root.findByType('a');
     expect(link.props.href).toBe('/login');

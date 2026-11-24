@@ -1018,8 +1018,9 @@ describe('thread approval provider rescans', () => {
     act(() => renderer.update(<Both page={false} view />));
     expect(mocks.abort).not.toHaveBeenCalled();
     await act(async () => finish({ events: [event()], repairedEventIds: [] }));
-    expect(current.loading).toBe(false);
     expect(current.records.map((record) => record.eventId)).toEqual(['$approval']);
+    // Discovery finished and queued the follow-up repair load for the pending approval.
+    expect(current.loading).toBe(true);
 
     const aborted = mocks.abort.mock.calls.length;
     act(() => renderer.update(<Both page={false} view={false} />));

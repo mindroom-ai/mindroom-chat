@@ -15,6 +15,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
 export function ThreadDetailsList({
   room,
   threadId,
+  onClose,
   details,
 }: ThreadDetailProps & { details: readonly ShownThreadDetail[] }) {
   return (
@@ -26,7 +27,7 @@ export function ThreadDetailsList({
             onError={(thrown: unknown, info) => reportFailure(tag, thrown, info.componentStack)}
           >
             <Suspense fallback={null}>
-              <Component room={room} threadId={threadId} />
+              <Component room={room} threadId={threadId} onClose={onClose} />
             </Suspense>
           </ErrorBoundary>
         </div>

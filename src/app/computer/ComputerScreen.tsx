@@ -72,7 +72,7 @@ function ComputerScreenWithHandle(
 ) {
   const targetRef = useRef<HTMLDivElement>(null);
   const keyboardInputRef = useRef<HTMLTextAreaElement>(null);
-  const rfbRef = useRef<RfbClient>();
+  const rfbRef = useRef<RfbClient>(undefined);
   const holdingFrameRef = useRef(false);
   const defaultBackgroundRef = useRef('');
   const connectedCallbackRef = useRef(onConnected);
@@ -80,7 +80,7 @@ function ComputerScreenWithHandle(
   const pasteCallbackRef = useRef(onPaste);
   const keyboardCallbackRef = useRef(onKeyboardChange);
   const modeRef = useRef(mode);
-  const showTouchpadPointerRef = useRef<() => void>();
+  const showTouchpadPointerRef = useRef<() => void>(undefined);
 
   connectedCallbackRef.current = onConnected;
   disconnectedCallbackRef.current = onDisconnected;

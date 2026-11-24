@@ -429,7 +429,7 @@ export const useLatestRowPin = ({
  * renders it hidden. iOS only; the timeline's own pins never call it.
  */
 export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
-  const restoreRef = useRef<(() => void) | undefined>();
+  const restoreRef = useRef<(() => void) | undefined>(undefined);
   const restore = useCallback(() => {
     const pendingRestore = restoreRef.current;
     if (!pendingRestore) return;
@@ -497,7 +497,7 @@ export const useGestureBottomPins = ({
  */
 export const useThreadOpenedAtLatest = (viewKey: string, latestPending: boolean) => {
   const viewKeyRef = useLatestRef(viewKey);
-  const openedViewKeyRef = useRef<string>();
+  const openedViewKeyRef = useRef<string>(undefined);
   const openedAtLatestRef = useViewScopedFlag(viewKey);
   const startOpen = useCallback(() => {
     openedViewKeyRef.current = viewKeyRef.current;

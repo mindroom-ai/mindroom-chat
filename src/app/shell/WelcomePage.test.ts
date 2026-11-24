@@ -174,7 +174,10 @@ describe('WelcomePage', () => {
       },
     });
 
-    const renderer = create(React.createElement(WelcomePage));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(WelcomePage));
+    });
 
     const docsLinks = renderer.root.findAll(
       (node) => node.props?.href === 'https://docs.example.test'
@@ -191,7 +194,10 @@ describe('WelcomePage', () => {
       },
     });
 
-    const renderer = create(React.createElement(WelcomePage));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(WelcomePage));
+    });
 
     const docsLinks = renderer.root.findAll(
       (node) => node.props?.href === 'https://docs.example.test'

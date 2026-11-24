@@ -82,17 +82,20 @@ const nonceOfReturn = (): string | null => {
 const renderChecked = (props: Partial<React.ComponentProps<typeof SSOLogin>> = {}) => {
   const held: Array<() => void> = [];
   const check: SsoStartCheck = (start) => held.push(start);
-  const renderer = create(
-    React.createElement(
-      SsoStartCheckProvider,
-      { value: check },
-      React.createElement(SSOLogin, {
-        redirectUrl: 'https://chat.example/login/evil-hs.example/',
-        action: SSOAction.LOGIN,
-        ...props,
-      })
-    )
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(
+        SsoStartCheckProvider,
+        { value: check },
+        React.createElement(SSOLogin, {
+          redirectUrl: 'https://chat.example/login/evil-hs.example/',
+          action: SSOAction.LOGIN,
+          ...props,
+        })
+      )
+    );
+  });
   return { renderer, held };
 };
 

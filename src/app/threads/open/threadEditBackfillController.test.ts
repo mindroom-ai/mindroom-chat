@@ -361,6 +361,8 @@ describe('useThreadEditBackfillController (task #129)', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(React.createElement(OpeningHarness, { reset: false, events: [target] }));
+    });
+    await act(async () => {
       await flush();
       harness.deferreds.get('$same-commit')!.resolve();
       await flush();

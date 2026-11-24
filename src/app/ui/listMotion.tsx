@@ -274,16 +274,16 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * left, always fade on.
  */
 export const useListMotion = (
-  listRef: RefObject<HTMLElement>,
+  listRef: RefObject<HTMLElement | null>,
   order?: string,
   offWindow?: ReadonlySet<string>
 ) => {
-  const beforeRef = useRef<Before>();
+  const beforeRef = useRef<Before>(undefined);
   const runningRef = useRef<Animation[]>([]);
   const offWindowRef = useRef(offWindow);
   offWindowRef.current = offWindow;
   // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
-  const pressRef = useRef<{ id: number; at: number; up?: boolean; held: Animation[] }>();
+  const pressRef = useRef<{ id: number; at: number; up?: boolean; held: Animation[] }>(undefined);
   const read = useCallback(
     () => (listRef.current ? readBefore(listRef.current) : undefined),
     [listRef]

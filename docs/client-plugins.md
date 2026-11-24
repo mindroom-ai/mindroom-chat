@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 67), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 68), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -260,6 +260,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 65 side panels' `title`
 - version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
 - version 67 the declaration's `defaultEnabled`
+- version 68 thread details' `onClose`
 
 ## Page zoom
 
@@ -289,6 +290,7 @@ One-finger touches, such as a scroll or a tap, are never affected.
 The app shares its React, React DOM, matrix-js-sdk, jotai, TanStack Query, React Router (react-router-dom and react-router), i18next and react-i18next, folds, focus-trap, focus-trap-react, dayjs and react-aria, with the packages some of them are built on (scheduler, @tanstack/query-core), with every plugin (`SHARED_PACKAGES` in `scripts/client-plugins.mjs`): in a build and in the dev server, a plugin's imports of them, and those of the packages it installed, resolve as the app's own imports do, to the app's copies in the app's versions, so the state each keeps is one (the Matrix SDK's classes, query caches, atom stores, the router, translations, focus traps, the date locale, the scroll lock, overlay stack and focus scopes of dialogs and menus);
 a CommonJS package's `require` of one gets the module the app imports too.
 React Router is version 7, which folded `@remix-run/router` into `react-router`: the app no longer shares `@remix-run/router`, so a plugin imports helpers such as `matchPath` from `react-router` (or `react-router-dom`), and gives `generatePath` raw values for named parameters, which it encodes itself (encoding them first encodes them twice); a `*` splat passes through unchanged, so it takes a concrete path with each of its segments already encoded, as `pluginRoutePath` (`src/app/plugins/pluginPages.tsx`) asks.
+React and React DOM are version 19.3 (with `scheduler` 0.28): `react-dom/test-utils` drops all legacy helpers and keeps only a deprecated `act` that logs `console.error`, so tests should import `act` from `react`; `useRef` requires an initial value (`useRef<T | null>(null)` or `useRef<T | undefined>(undefined)`), DOM refs use `RefObject<T | null>`, ref callbacks must not return a non-cleanup value (React 19 treats a returned function as a cleanup), `JSX` is imported from `react` (`import type { JSX } from 'react'`) rather than read from the global namespace, and `ReactElement` defaults its props type parameter to `unknown`.
 A build needs none of them installed in the plugin's directory, wherever it is, and does not use a copy installed there (for the plugin's tests, or for one of its packages); an import the app's copy cannot resolve, such as a file only a newer version has, fails the build.
 A plugin directory inside another one belongs to the inner plugin, and the app's own directory inside a plugin directory to the app.
 The dev server pre-bundles the packages a plugin installed without plugin hooks; there an esbuild plugin in `scripts/client-plugins.mjs` resolves their imports and requires of the shared packages.
@@ -522,7 +524,7 @@ A badge that throws shows nothing, and the failure is logged and reported with `
 Thread details (`src/app/plugins/threadDetails.ts`) are the eleventh kind: `ClientPlugin.threadDetails`, a list of `{ shows?, Component }`.
 `shows(room, threadId)`, pure and synchronous, says whether the thread has that detail; without it, every thread does, and one that throws counts as false, logged as "[plugin <id>@<version>] its thread details' shows failed".
 The app reads which details show as a surface opens and keeps that list until it closes; only threads whose root the server confirmed (`$` IDs) have details.
-`Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws rows of text, with no control, no link and nothing focusable.
+`Component` gets `{ room, threadId, onClose }`: the thread's room (matrix-js-sdk's `Room`), the ID of its root event, and an optional `onClose?: () => void` (since version 68). `ThreadActionsMenu` passes `onClose` so details may offer interactive controls that dismiss the menu after an action; hover cards omit `onClose`, where details remain non-interactive rows of text with no control, no link and nothing focusable.
 In the Compact card's hover card and the thread menu, it renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context.
 In the sidebar THREADS hover card, it renders outside a room's page: `useRoomSidePanel` and `useShownThread` return undefined, as on the search page.
 `useRoomNavigate` works on every surface.

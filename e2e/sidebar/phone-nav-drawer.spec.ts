@@ -24,10 +24,10 @@ import {
 // menu button and a sideways swipe put it away. A room has no back chevron; the browser's back
 // returns to the list, which the drawer then holds out, and a swipe from a room's left edge brings
 // the drawer out over the room, also for a room opened from a space's lobby. The drawer rounds only
-// its lower corner over the page (28 px) with a 1 px hairline along the edge facing the page, and no
-// line rules the top bar off from the page. 390 by 844 (and 744 by 1133 for the corner and the bar)
-// with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
-// Playwright's WebKit, in WebKit. Set PHONE_NAV_SHOTS=<directory> to save screenshots.
+// its lower corner over the page (28 px) with no border, and no line rules the top bar off from the
+// page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in Chromium with real
+// touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// PHONE_NAV_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'phone-nav-drawer-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PHONE_NAV_SHOTS;
@@ -414,7 +414,7 @@ const topBarRules = (page: Page) =>
   });
 
 for (const engine of ENGINES) {
-  test(`${engine}: the drawer rounds its free corner with a hairline edge, and no line rules the top bar off`, async ({
+  test(`${engine}: the drawer rounds its free corner with no border, and no line rules the top bar off`, async ({
     browser,
   }, testInfo) => {
     test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
@@ -461,11 +461,11 @@ for (const engine of ENGINES) {
           await expectDrawer(page, false, `the room shows at ${viewport.width} px`);
           expect(await topBarRules(page), 'no line under the top bar').toEqual([]);
           await openDrawer(page);
-          // Only the lower corner over the page is round (28 px) and only the edge facing the page
-          // carries a 1 px hairline: the top meets the bar and the other edges meet the screen.
-          // What the drawer holds is clipped to the rounded corner.
+          // Only the lower corner over the page is round (28 px) and no edge carries a border
+          // against the borderless top bar: the top meets the bar and the other edges meet the
+          // screen. What the drawer holds is clipped to the rounded corner.
           expect(await drawer(page).evaluate(cornersOf)).toEqual([0, 0, PHONE_SHEET_RADIUS, 0]);
-          expect(await drawer(page).evaluate(borderWidthsOf)).toEqual([0, 1, 0, 0]);
+          expect(await drawer(page).evaluate(borderWidthsOf)).toEqual([0, 0, 0, 0]);
           expect(await drawer(page).evaluate((panel) => getComputedStyle(panel).clipPath)).toBe(
             'inset(0px -48px)'
           );
@@ -481,11 +481,11 @@ for (const engine of ENGINES) {
         }
 
         // Right to left, the drawer comes from the right edge, rounds its bottom-left corner, and
-        // draws its 1 px hairline along the left edge facing the page.
+        // stays borderless on every edge.
         await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
         await openDrawer(page);
         expect(await drawer(page).evaluate(cornersOf)).toEqual([0, 0, 0, PHONE_SHEET_RADIUS]);
-        expect(await drawer(page).evaluate(borderWidthsOf)).toEqual([0, 0, 0, 1]);
+        expect(await drawer(page).evaluate(borderWidthsOf)).toEqual([0, 0, 0, 0]);
       } finally {
         await context.close();
       }

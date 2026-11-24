@@ -49,7 +49,10 @@ describe('MatrixId', () => {
 
   it('shows confirmation only after the Matrix ID was copied', async () => {
     mocks.copyToClipboard.mockResolvedValue(true);
-    const renderer = create(<MatrixId />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<MatrixId />);
+    });
 
     expect(buttonText(renderer)).toBe('Copy');
 
@@ -64,7 +67,10 @@ describe('MatrixId', () => {
 
   it('does not claim success when every clipboard path fails', async () => {
     mocks.copyToClipboard.mockResolvedValue(false);
-    const renderer = create(<MatrixId />);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<MatrixId />);
+    });
 
     await act(async () => {
       await renderer.root.findByType('button').props.onClick();

@@ -13,7 +13,10 @@ import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories'
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { blockSelection } from '../../ui/dragSelection';
-import { makeRecentThreadsAtom, type RecentThreadItem } from '../../event-store/threads/recentThreads';
+import {
+  makeRecentThreadsAtom,
+  type RecentThreadItem,
+} from '../../event-store/threads/recentThreads';
 import { RecentThreadEntry } from './RecentThreadEntry';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {
@@ -144,7 +147,7 @@ export function RecentlyOpenedNavCategory({
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const [preferredPanelHeight, setPreferredPanelHeight] = useAtom(panelHeightAtom);
   const [previewPanelHeight, setPreviewPanelHeight] = useState<number>();
-  const dragStateRef = useRef<DragState>();
+  const dragStateRef = useRef<DragState>(undefined);
   const panelHeight = previewPanelHeight ?? preferredPanelHeight;
   const closed = closedCategories.has(RECENTLY_OPENED_NAV_CATEGORY_ID);
   // A drag ends, unsaved, with the handle (the category folded, or the panel gone).

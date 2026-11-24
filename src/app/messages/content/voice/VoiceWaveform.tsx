@@ -111,9 +111,9 @@ const getGlideSteps = (glide: Glide, time: number): number =>
 // (COMPACT_VIEW_STEPS), the bars move by fractions of a pixel, antialiased. Nor is the group a
 // CSS transform animation: browsers may give that its own compositor layer as wide as every bar
 // recorded so far, and iOS WebKit drew such a layer blank for whole glides at some widths (#416).
-const useLiveGlide = (barsRef: RefObject<SVGGElement>, sampleCount: number | undefined) => {
+const useLiveGlide = (barsRef: RefObject<SVGGElement | null>, sampleCount: number | undefined) => {
   const lastCountRef = useRef(sampleCount);
-  const glideRef = useRef<Glide>();
+  const glideRef = useRef<Glide>(undefined);
 
   useLayoutEffect(() => {
     const added =
@@ -168,7 +168,7 @@ const useLiveGlide = (barsRef: RefObject<SVGGElement>, sampleCount: number | und
 // instead. Each render first writes the fill from the last report, so `progress` is a dependency:
 // the effect then redraws from the media before the frame is painted.
 const usePlayedFill = (
-  fillRef: RefObject<SVGSVGElement>,
+  fillRef: RefObject<SVGSVGElement | null>,
   fullWidth: number,
   progress: number,
   getProgress: (() => number) | undefined

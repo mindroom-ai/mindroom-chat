@@ -103,9 +103,11 @@ describe('RoomTimeline across room switches', () => {
   });
 
   it('leaves the room focus to the room view, which skips unsent thread roots', async () => {
-    const engine = wrapWithSyncEngine(React.createElement('div')).props.engine as {
-      noteRoomFocused: (roomId: string, threadId?: string) => void;
-    };
+    const engine = (
+      wrapWithSyncEngine(React.createElement('div')) as React.ReactElement<{
+        engine: { noteRoomFocused: (roomId: string, threadId?: string) => void };
+      }>
+    ).props.engine;
     const noteRoomFocused = vi.spyOn(engine, 'noteRoomFocused');
     const { renderer } = await renderTimeline(makeReadRoom('!a:test'), '~!a:test:txn-root');
 

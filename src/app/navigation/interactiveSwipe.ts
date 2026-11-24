@@ -46,8 +46,8 @@ export interface InteractiveSwipeOptions {
   direction: SwipeDirection;
   priority: number;
   enabled: boolean;
-  elementRef?: RefObject<HTMLElement>;
-  within?: RefObject<Element>;
+  elementRef?: RefObject<HTMLElement | null>;
+  within?: RefObject<Element | null>;
   blockStandaloneWebApp?: boolean;
   cancelCommits?: boolean;
   /** Optional custom blocker; defaults to `hasOpenOverlay(scope)` when omitted. */
@@ -68,8 +68,8 @@ type SwipeRegistration = {
   edge: SwipeEdge;
   direction: SwipeDirection;
   priority: number;
-  elementRef?: RefObject<HTMLElement>;
-  within?: RefObject<Element>;
+  elementRef?: RefObject<HTMLElement | null>;
+  within?: RefObject<Element | null>;
   cancelCommits: boolean;
   isBlockedRef: MutableRefObject<(() => boolean) | undefined>;
   onCommitRef: MutableRefObject<() => void>;

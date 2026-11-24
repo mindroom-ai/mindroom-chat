@@ -175,7 +175,7 @@ const KEYBOARD_REVEAL_GAP = 16;
  * While a field of a form has the focus, the page scrolls the button into view too, as far as the
  * field stays in view.
  */
-const useSubmitAboveKeyboard = (scrollRef: RefObject<HTMLElement>) => {
+const useSubmitAboveKeyboard = (scrollRef: RefObject<HTMLElement | null>) => {
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return undefined;

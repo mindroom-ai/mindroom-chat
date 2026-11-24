@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
 import parse from 'html-react-parser';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

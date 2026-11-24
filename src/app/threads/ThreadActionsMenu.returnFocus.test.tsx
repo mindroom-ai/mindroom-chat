@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import React from 'react';
-import { act } from 'react-dom/test-utils';
+import React, { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { RegisteredPlugin } from '../plugins/registry';
+import type { ThreadDetailProps } from '../plugins/threadDetails';
 import { ThreadActionsMenu } from './ThreadActionsMenu';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
@@ -96,4 +97,70 @@ it('closes on Escape only after its focus trap lets go, so focus can go back to 
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(document.activeElement).toBe(trigger);
   trigger.remove();
+});
+
+it('returns focus to the trigger when a thread detail calls onClose', async () => {
+  const trigger = document.createElement('button');
+  document.body.append(trigger);
+  const onClose = vi.fn();
+  function InteractiveDetail({ onClose: close }: ThreadDetailProps) {
+    return (
+      <button type="button" role="menuitem" onClick={close}>
+        Open pull request
+      </button>
+    );
+  }
+  const plugin: RegisteredPlugin = {
+    id: 'test',
+    tag: 'test@1.0.0',
+    displayName: 'Test',
+    defaultEnabled: true,
+    conversationCovers: [],
+    messageRenderers: [],
+    pages: [],
+    roomHeaderSlot: [],
+    threadHeaderSlot: [],
+    sidePanels: [],
+    headerActions: [],
+    slashCommands: [],
+    roomActions: [],
+    messageLinks: [],
+    threadCardBadges: [],
+    threadDetails: [{ Component: InteractiveDetail }],
+  };
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    if (!open) return null;
+    return (
+      <ThreadActionsMenu
+        room={room}
+        rootId="$root"
+        anchor={{ x: 0, y: 0, width: 0, height: 0 }}
+        onClose={() => {
+          onClose();
+          setOpen(false);
+          trigger.focus();
+        }}
+        plugins={[plugin]}
+      />
+    );
+  }
+  try {
+    act(() => root.render(<Harness />));
+    const button = host.querySelector<HTMLButtonElement>(
+      '[data-thread-details] [role="menuitem"]'
+    )!;
+    act(() => button.focus());
+    expect(document.activeElement).toBe(button);
+
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(trigger);
+  } finally {
+    trigger.remove();
+  }
 });

@@ -263,7 +263,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(innerElement.style.marginTop).toBe('');
       expect(scrollElement.scrollTop).toBe(0);
     } finally {
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -384,7 +386,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(innerElement.style.marginTop).toBe('');
       expect(scrollElement.scrollTop).toBe(130);
     } finally {
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -474,7 +478,9 @@ describe('RoomTimeline ledger lifecycle', () => {
     } finally {
       roomTimelineVirtualizerState.measureElementMock.mockReset();
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -566,7 +572,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(scrollElement.scrollTo).not.toHaveBeenCalled();
     } finally {
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -656,7 +664,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
     } finally {
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -725,6 +735,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         // A crossing event under a live finger must NOT settle: rewriting
         // scrollTop mid-drag reverses the gesture frame (the open-fill's
         // 33k rebase slipped 98px landing on a drag's first in-bounds
@@ -776,6 +788,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         fireScroll(34290);
         await flushAsyncWork(3);
       });
@@ -866,7 +880,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
     } finally {
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -931,6 +947,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         // Boundary settle: one atomic 72px fold + write (34340 + 72).
         fireScroll(34340);
         await flushAsyncWork(3);
@@ -969,7 +987,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
     } finally {
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -1024,6 +1044,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         fireScroll(34340);
         await flushAsyncWork(3);
       });
@@ -1050,6 +1072,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         fireScroll(34340);
         await flushAsyncWork(3);
       });
@@ -1074,6 +1098,8 @@ describe('RoomTimeline ledger lifecycle', () => {
           false
         );
         await flushAsyncWork(3);
+      });
+      await act(async () => {
         fireScroll(34340);
         await flushAsyncWork(3);
       });
@@ -1092,7 +1118,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(scrollWrites).toEqual([34412, 34412, 34412]);
     } finally {
       mockIsIOSWebKit = false;
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -1228,7 +1256,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       releaseOpen();
       afterThreadOpenCacheFirst.delete(threadId);
       threadOpenGates.delete(threadId);
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -1304,7 +1334,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
       expect(scrollToBottomMock.mock.calls).toEqual([]);
     } finally {
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 
@@ -1395,7 +1427,9 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(scrollToBottomMock.mock.calls).toEqual([]);
     } finally {
       threadOpenGates.clear();
-      renderer?.unmount();
+      act(() => {
+        renderer?.unmount();
+      });
     }
   });
 });

@@ -90,7 +90,7 @@ export const useRoomThreadList = (
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
-  const lifecycleAbortControllerRef = useRef<AbortController>();
+  const lifecycleAbortControllerRef = useRef<AbortController>(undefined);
 
   useEffect(() => {
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
@@ -295,7 +295,7 @@ export const useRoomThreadList = (
   const userId = mx.getUserId() ?? '';
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
-  const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>();
+  const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>(undefined);
   const threadUnreads = useMemo(() => {
     // A receipt raises the count and leaves the list as it was.
     void overviewRefreshCounter;

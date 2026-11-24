@@ -21,9 +21,9 @@ export function usePointerLongPress(
   onLongPress: (element: HTMLElement) => void,
   canStart: () => boolean
 ) {
-  const press = useRef<Press>();
+  const press = useRef<Press>(undefined);
   // Set while the end of a press that fired is dropped; stops dropping it.
-  const ending = useRef<() => void>();
+  const ending = useRef<() => void>(undefined);
   const latest = useRef(onLongPress);
   latest.current = onLongPress;
 

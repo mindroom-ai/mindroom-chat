@@ -1,0 +1,130 @@
+diff --git a/node_modules/scheduler/cjs/mindroom-wakeup.js b/node_modules/scheduler/cjs/mindroom-wakeup.js
+new file mode 100644
+index 0000000..b25294c
+--- /dev/null
++++ b/node_modules/scheduler/cjs/mindroom-wakeup.js
+@@ -0,0 +1,78 @@
++'use strict';
++
++// MindRoom: WebKit brokers MessagePorts through its networking process, and
++// when that process exits existing ports silently stop delivering. A lost
++// wakeup would leave Scheduler's isMessageLoopRunning set forever, so replace
++// a channel whose wakeup has not arrived after a timer-driven grace period.
++// Both Scheduler builds use this module so their recovery cannot drift.
++var WAKEUP_TIMEOUT_MS = 250;
++var WAKEUP_REPLACED_EVENT = 'mindroom:scheduler-wakeup-replaced';
++
++function notifyWakeupReplaced(elapsedMs) {
++  try {
++    dispatchEvent(new CustomEvent(WAKEUP_REPLACED_EVENT, { detail: { elapsedMs: elapsedMs } }));
++  } catch (error) {
++    // Diagnostics must not affect scheduling, including where the DOM event API is missing.
++  }
++}
++
++module.exports = function createWakeupScheduler(performWork, setTimer, now) {
++  var receiver = null;
++  var port = null;
++  var pending = false;
++  var postedAt = -1;
++  var watchdogID = -1;
++
++  function receiveWakeup() {
++    pending = false;
++    performWork();
++  }
++
++  function connectWakeupPort() {
++    // A listening port stays alive in WebKit, and a merely delayed wakeup has
++    // been posted again, so close the replaced pair.
++    if (receiver !== null) {
++      receiver.close();
++      port.close();
++    }
++
++    var channel = new MessageChannel();
++    channel.port1.onmessage = receiveWakeup;
++    receiver = channel.port1;
++    port = channel.port2;
++  }
++
++  function armWatchdog(ms) {
++    if (watchdogID === -1) watchdogID = setTimer(checkWakeup, ms);
++  }
++
++  function postWakeup(reconnect) {
++    postedAt = now();
++    // Arm first so a failing port operation still retries.
++    armWatchdog(WAKEUP_TIMEOUT_MS);
++    if (reconnect) connectWakeupPort();
++    port.postMessage(null);
++  }
++
++  function checkWakeup() {
++    watchdogID = -1;
++    if (!pending) return;
++    var elapsed = now() - postedAt;
++
++    if (elapsed < WAKEUP_TIMEOUT_MS) {
++      armWatchdog(WAKEUP_TIMEOUT_MS - elapsed);
++      return;
++    }
++
++    postWakeup(true);
++    notifyWakeupReplaced(elapsed);
++  }
++
++  connectWakeupPort();
++
++  return function schedulePerformWorkUntilDeadline() {
++    if (pending) return;
++    pending = true;
++    postWakeup(false);
++  };
++};
+diff --git a/node_modules/scheduler/cjs/scheduler.development.js b/node_modules/scheduler/cjs/scheduler.development.js
+index 44d756d..5972be4 100644
+--- a/node_modules/scheduler/cjs/scheduler.development.js
++++ b/node_modules/scheduler/cjs/scheduler.development.js
+@@ -218,12 +218,12 @@
+         localSetImmediate(performWorkUntilDeadline);
+       };
+     else if ("undefined" !== typeof MessageChannel) {
+-      var channel = new MessageChannel(),
+-        port = channel.port2;
+-      channel.port1.onmessage = performWorkUntilDeadline;
+-      schedulePerformWorkUntilDeadline = function () {
+-        port.postMessage(null);
+-      };
++      // MindRoom: replace a channel whose wakeup WebKit lost; see mindroom-wakeup.js.
++      schedulePerformWorkUntilDeadline = require("./mindroom-wakeup.js")(
++        performWorkUntilDeadline,
++        localSetTimeout,
++        exports.unstable_now
++      );
+     } else
+       schedulePerformWorkUntilDeadline = function () {
+         localSetTimeout(performWorkUntilDeadline, 0);
+diff --git a/node_modules/scheduler/cjs/scheduler.production.js b/node_modules/scheduler/cjs/scheduler.production.js
+index b6a0584..19c6d5f 100644
+--- a/node_modules/scheduler/cjs/scheduler.production.js
++++ b/node_modules/scheduler/cjs/scheduler.production.js
+@@ -195,12 +195,12 @@ if ("function" === typeof localSetImmediate)
+     localSetImmediate(performWorkUntilDeadline);
+   };
+ else if ("undefined" !== typeof MessageChannel) {
+-  var channel = new MessageChannel(),
+-    port = channel.port2;
+-  channel.port1.onmessage = performWorkUntilDeadline;
+-  schedulePerformWorkUntilDeadline = function () {
+-    port.postMessage(null);
+-  };
++  // MindRoom: replace a channel whose wakeup WebKit lost; see mindroom-wakeup.js.
++  schedulePerformWorkUntilDeadline = require("./mindroom-wakeup.js")(
++    performWorkUntilDeadline,
++    localSetTimeout,
++    exports.unstable_now
++  );
+ } else
+   schedulePerformWorkUntilDeadline = function () {
+     localSetTimeout(performWorkUntilDeadline, 0);

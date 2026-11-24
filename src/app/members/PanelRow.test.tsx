@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Provider, createStore } from 'jotai';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';

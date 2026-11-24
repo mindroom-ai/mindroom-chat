@@ -69,7 +69,7 @@ export function SecondThreadPanel({
 }) {
   const { t } = useTranslation();
   const columnRef = useRef<HTMLDivElement>(null);
-  const focusComposer = useRef<() => void>();
+  const focusComposer = useRef<() => void>(undefined);
   // Whether the focus is in B's tree, its splitter included: React's focus events come through its
   // portals too (its menus and dialogs, drawn outside its nodes). Focus going elsewhere blurs
   // first; a node that goes with B leaves it set.

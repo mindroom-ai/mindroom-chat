@@ -666,7 +666,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       navigateRoomThreadMock(room.roomId, threadRootId);
     });
     let scrollElement = createCompactScrollElement();
-    const createNodeMock = (element: React.ReactElement) => {
+    const createNodeMock = (element: React.ReactElement<any>) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
     };
@@ -721,7 +721,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const room = makeRoom(nextRoomId('room-a'));
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
     let scrollElement = createCompactScrollElement();
-    const createNodeMock = (element: React.ReactElement) => {
+    const createNodeMock = (element: React.ReactElement<any>) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
     };
@@ -770,7 +770,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let scrollElement = createCompactScrollElement();
-    const createNodeMock = (element: React.ReactElement) => {
+    const createNodeMock = (element: React.ReactElement<any>) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
     };
@@ -2183,6 +2183,6 @@ vi.mock('../ThreadView', () => ({
     ...props
   }: {
     header?: React.ReactNode;
-    roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
+    roomHeader?: (headerRef: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
   }) => React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));

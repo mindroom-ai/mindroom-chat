@@ -62,8 +62,8 @@ const SCROLL_TOP_PLACE = { top: `calc(${toRem(54)} + ${config.space.S300})` };
  * above the title's bottom edge), following scrolling and resizing.
  */
 const useScrolledPast = (
-  scrollRef: RefObject<HTMLDivElement>,
-  targetRef: RefObject<HTMLElement>
+  scrollRef: RefObject<HTMLDivElement | null>,
+  targetRef: RefObject<HTMLElement | null>
 ): boolean => {
   const [past, setPast] = useState(false);
   useEffect(() => {
@@ -94,7 +94,7 @@ const useScrolledPast = (
  * The space's picture, name and topic at the top of its lobby. The name is the lobby's section
  * heading (h2); the topic under it is not part of the heading.
  */
-function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement> }) {
+function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement | null> }) {
   const lobbySpace = useSpace();
   // Direction controls in the name and topic show as code points, so they cannot reorder them.
   const topic = useRoomTopic(lobbySpace);

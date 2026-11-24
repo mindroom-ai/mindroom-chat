@@ -72,7 +72,7 @@ const useLiveCallReads = (
   const { apiUrl } = useRoomMindroomServer(mx, roomId);
   const client = useMemo(() => (apiUrl ? sharedClient(mx, apiUrl) : undefined), [apiUrl, mx]);
   const [view, setView] = useState<ReadView>({ state: 'loading' });
-  const lastRead = useRef<LastRead>();
+  const lastRead = useRef<LastRead>(undefined);
   useEffect(() => {
     if (!client || !reading) return undefined;
     // What was read of the room on this server stays while reading pauses, and reads that start

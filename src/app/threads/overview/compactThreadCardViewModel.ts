@@ -312,7 +312,7 @@ export const useCompactThreadCardViewModels = ({
     t: TFunction;
     contextSignature: string;
     models: Map<string, CachedCardViewModel>;
-  }>();
+  }>(undefined);
 
   return useMemo(() => {
     const previousCache = viewModelCacheRef.current;

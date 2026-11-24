@@ -17,7 +17,7 @@ export function useDebounce<A extends unknown[]>(
   options?: DebounceOptions
 ): (...args: A) => void {
   const { wait = 200, immediate = false } = options ?? {};
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(
     () => () => {

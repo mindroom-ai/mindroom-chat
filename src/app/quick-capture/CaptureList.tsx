@@ -37,7 +37,7 @@ type CaptureListProps = {
   items: CaptureItem[];
   request: CaptureClient['request'];
   apple: boolean;
-  listRef: RefObject<HTMLDivElement>;
+  listRef: RefObject<HTMLDivElement | null>;
   peekOpen: boolean;
   onPeek: (open: boolean) => void;
   onZone: (zone: 'list' | 'reply') => void;

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

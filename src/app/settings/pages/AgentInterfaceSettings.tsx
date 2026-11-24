@@ -86,6 +86,11 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
       t('featureUi.settings.sidebar.canvasesDescription'),
     ],
     [
+      'usage',
+      t('featureUi.settings.sidebar.usage'),
+      t('featureUi.settings.sidebar.usageDescription'),
+    ],
+    [
       'explore',
       t('featureUi.settings.sidebar.explore'),
       t('featureUi.settings.sidebar.exploreDescription'),

@@ -9,10 +9,11 @@ vi.mock('html-react-parser', async (importOriginal) => {
   const { createRequire } = await import('node:module');
   const path = await import('node:path');
   const require = createRequire(import.meta.url);
-  const clientHtmlToDOM = require(path.join(
-    path.dirname(require.resolve('html-dom-parser')),
+  const clientModule = require(path.join(
+    path.dirname(require.resolve('html-dom-parser/package.json')),
     'lib/client/html-to-dom.js'
-  )) as typeof import('html-react-parser').htmlToDOM;
+  )) as { default: typeof import('html-react-parser').htmlToDOM };
+  const clientHtmlToDOM = clientModule.default;
   return {
     ...(await importOriginal<typeof import('html-react-parser')>()),
     htmlToDOM: clientHtmlToDOM,

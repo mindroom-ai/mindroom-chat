@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act as domAct } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createRoot, Root } from 'react-dom/client';
-import { act as domAct } from 'react-dom/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { parseToolApprovalContent } from '../matrix/protocol/toolApproval';

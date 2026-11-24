@@ -215,7 +215,7 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   );
   const typing = members.filter(({ userId }) => !onScreen.has(userId));
   const scope = `${room.roomId}\0${threadId ?? ''}`;
-  const emptyInScopeRef = useRef<string>();
+  const emptyInScopeRef = useRef<string>(undefined);
   const isEmpty = typing.length === 0;
   const animateArrive = emptyInScopeRef.current === scope;
   useEffect(() => {

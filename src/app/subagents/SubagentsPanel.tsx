@@ -144,7 +144,7 @@ export function SubagentsPanel({
   // Opened for a sub-agent (Open in the jobs bar), the panel shows its run, once it lists it: the
   // room may first have to show the run's conversation. Each opening asks once.
   const opened = useAtomValue(subagentsPanelAtom);
-  const asked = useRef<typeof opened>();
+  const asked = useRef<typeof opened>(undefined);
   useEffect(() => {
     const wanted = opened?.roomId === room.roomId ? opened.run : undefined;
     const subagent = runs.find(({ run }) => run === wanted)?.meta.subagent;

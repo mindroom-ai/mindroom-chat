@@ -14,7 +14,7 @@ type ModelEffortColumnProps = {
   /** The name in the header: the model the thread runs on. */
   modelName: string;
   disabled: boolean;
-  columnRef: RefObject<HTMLDivElement>;
+  columnRef: RefObject<HTMLDivElement | null>;
   onPick: (level: ReasoningLevel) => void;
   /** A column beside the models, or on a phone a view in their place with a way back to them. */
   mode: 'column' | 'view';
@@ -140,7 +140,7 @@ export function ModelEffortEntry({
   levels: readonly ReasoningLevel[];
   /** None while the agents' levels differ. */
   active?: ReasoningLevel;
-  entryRef: RefObject<HTMLButtonElement>;
+  entryRef: RefObject<HTMLButtonElement | null>;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();

@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import { Suspense, startTransition, useLayoutEffect, useRef } from 'react';
+import { act, Suspense, startTransition, useLayoutEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';

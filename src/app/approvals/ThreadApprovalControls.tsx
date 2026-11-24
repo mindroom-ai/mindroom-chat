@@ -21,7 +21,10 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
-import { getToolApprovalOperationLabel, parseToolApprovalExpiryTimestamp } from '../matrix/protocol/toolApproval';
+import {
+  getToolApprovalOperationLabel,
+  parseToolApprovalExpiryTimestamp,
+} from '../matrix/protocol/toolApproval';
 import { mergeArgumentFields, summarizeArguments } from './argumentFields';
 import { formatApprovalTime, formatExpiryDistance } from './approvalScheduleText';
 import { ApprovalArgumentFields } from './ApprovalArgumentFields';
@@ -61,7 +64,7 @@ export function ApprovalDialog({
   leading?: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-  returnFocus: React.RefObject<HTMLButtonElement>;
+  returnFocus: React.RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();

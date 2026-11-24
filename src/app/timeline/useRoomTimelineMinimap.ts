@@ -7,7 +7,7 @@ import type { OpenRoomEventHandler } from './roomEventOpenController';
 
 type RoomTimelineMinimapOptions = {
   threadEvents: readonly MatrixEvent[];
-  scrollRef: RefObject<HTMLElement>;
+  scrollRef: RefObject<HTMLElement | null>;
   handleOpenEvent: OpenRoomEventHandler;
 };
 

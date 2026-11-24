@@ -273,7 +273,7 @@ export function CallStage(props: CallStageProps) {
   }, [speaker, held, onViewChange]);
 
   // The remote in focus stays there while nobody talks, rather than jumping back to the first.
-  const lastFocus = useRef<string>();
+  const lastFocus = useRef<string>(undefined);
   const focus = pickFocus(people, lastFocus.current);
   useEffect(() => {
     lastFocus.current = focus;

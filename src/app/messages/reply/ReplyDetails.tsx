@@ -2,7 +2,7 @@ import React, { ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { ProviderModelIcon } from '../../models/ProviderModelIcon';
+import { ProviderModelIcon } from '../../ui/ProviderModelIcon';
 import { IconTooltip } from '../../ui/IconTooltip';
 import type { ThreadConversationCost } from '../../event-store/threads/threadConversationCost';
 import { useThreadConversationCost } from '../../event-store/threads/useThreadConversationCost';

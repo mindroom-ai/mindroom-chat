@@ -786,7 +786,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           ),
           ...prependedThreadEvents.slice(1),
         ];
-        await act(async () => {
+        act(() => {
           setThreadEvents(bandPrependedThreadEvents);
           renderer!.update(
             React.createElement(ControlledRoomTimeline, {
@@ -794,6 +794,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
               threadId,
             })
           );
+        });
+        await act(async () => {
           await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(5);
         });
@@ -801,7 +803,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         expect(innerElement.style.marginTop).toBe('');
       } finally {
         roomTimelineVirtualizerState.setOptionsMock.mockReset();
-        renderer?.unmount();
+        act(() => {
+          renderer?.unmount();
+        });
         vi.useRealTimers();
       }
     });
@@ -1200,7 +1204,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         resolvePaginate?.(false);
-        renderer?.unmount();
+        act(() => {
+          renderer?.unmount();
+        });
         vi.useRealTimers();
       }
     });
@@ -1402,7 +1408,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         expect(innerElement.style.marginTop).toBe('');
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
-        renderer?.unmount();
+        act(() => {
+          renderer?.unmount();
+        });
         vi.useRealTimers();
       }
     });
@@ -1609,11 +1617,14 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const room = makeRoom({ liveEvents: [root] });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      const renderer = create(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+      });
 
       const overview = renderer.root.findByType(roomThreadOverviewType);
 
@@ -1802,11 +1813,14 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       threadResolutionMapMock.set(resolvedThread.getId(), { isResolved: true, tags: null });
 
-      const renderer = create(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+      });
 
       expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(2);
     });
@@ -1822,11 +1836,14 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      const renderer = create(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+          })
+        );
+      });
 
       expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
     });
@@ -1844,11 +1861,14 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
       try {
-        const renderer = create(
-          React.createElement(ControlledRoomTimeline, {
-            room,
-          })
-        );
+        let renderer!: ReturnType<typeof create>;
+        act(() => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+            })
+          );
+        });
 
         expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
       } finally {
@@ -2236,12 +2256,15 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      const renderer = create(
-        React.createElement(ControlledRoomTimeline, {
-          room,
-          initialThreadFilter: 'unresolved',
-        })
-      );
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialThreadFilter: 'unresolved',
+          })
+        );
+      });
 
       expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
       expect(renderer.root.findByType(roomThreadOverviewType).props.statusCounts).toEqual({

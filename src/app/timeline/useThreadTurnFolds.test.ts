@@ -215,6 +215,7 @@ describe('startsTurn', () => {
       true,
     ],
     ["an external trigger's message", kind('external_trigger'), true],
+    ["a reactive trigger's message", kind('reactive_trigger'), true],
     ["a hook's dispatch", kind('hook_dispatch'), true],
     [
       "a plugin's relay for a person, such as a comment on a document",

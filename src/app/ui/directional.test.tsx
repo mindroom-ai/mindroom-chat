@@ -195,10 +195,10 @@ describe('TooltipProvider on a touch screen', () => {
     });
     // folds hands its children a ref object and listens on the trigger after the ref is set.
     const foldsRef: { current: Element | null } = { current: null };
-    type Trigger = { ref: (node: Element | null) => void };
+    type Trigger = { props: { ref: (node: Element | null) => void } };
     const { children } = received.tooltip[0] as { children: (ref: unknown) => Trigger };
     const trigger = document.createElement('button');
-    children(foldsRef).ref(trigger);
+    children(foldsRef).props.ref(trigger);
     expect(foldsRef.current).toBe(trigger);
     const cancelled = vi.fn();
     trigger.addEventListener('mouseleave', cancelled);

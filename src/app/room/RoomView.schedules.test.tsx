@@ -74,7 +74,7 @@ vi.mock('./ThreadView', () => ({
     roomHeader,
     focusRef,
   }: {
-    roomHeader?: (headerRef: RefObject<HTMLElement>) => ReactNode;
+    roomHeader?: (headerRef: RefObject<HTMLElement | null>) => ReactNode;
     focusRef?: { current?: () => void };
   }) => {
     if (focusRef) focusRef.current = focusThreadColumn;

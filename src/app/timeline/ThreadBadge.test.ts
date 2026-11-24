@@ -11,14 +11,15 @@ vi.mock('../messages/ThreadIndicator', () => ({
 
 const findElementInNode = (
   node: ReactNode,
-  predicate: (element: ReactElement) => boolean
-): ReactElement | undefined => {
+  predicate: (element: ReactElement<any>) => boolean
+): ReactElement<any> | undefined => {
   if (!React.isValidElement(node)) return undefined;
-  if (predicate(node)) return node;
+  const element = node as ReactElement<any>;
+  if (predicate(element)) return element;
 
-  return React.Children.toArray(node.props.children)
+  return React.Children.toArray(element.props.children)
     .map((child) => findElementInNode(child, predicate))
-    .find((child): child is ReactElement => child !== undefined);
+    .find((child): child is ReactElement<any> => child !== undefined);
 };
 
 const makeEvent = (content: Record<string, unknown>, threadRootId?: string) =>
@@ -137,7 +138,7 @@ describe('renderThreadBadge', () => {
     });
 
     expect(React.isValidElement(badge)).toBe(true);
-    expect((badge as React.ReactElement).props.model).toEqual({
+    expect((badge as React.ReactElement<any>).props.model).toEqual({
       id: { roomId: '!room:example.org', threadRootId: '$root' },
       summaryInfo: undefined,
       recentThreadSummaryText: 'Root body',
@@ -146,7 +147,7 @@ describe('renderThreadBadge', () => {
       isResolved: false,
       isUnread: false,
     });
-    expect((badge as React.ReactElement).props.includeRecentSummaryData).toBe(true);
+    expect((badge as React.ReactElement<any>).props.includeRecentSummaryData).toBe(true);
   });
 
   it('does not render a timeline thread badge without a record', () => {

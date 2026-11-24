@@ -67,7 +67,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   const [preview, setPreview] = useState<WindowRect>();
   const rect = preview ?? settled;
   const bar = isBar(rect);
-  const dragRef = useRef<Drag>();
+  const dragRef = useRef<Drag>(undefined);
   // The settings are the one source of the box: one written during a drag (Expand or Minimize
   // from the call view, a step) ends the drag and shows, and the release saves nothing over it.
   useLayoutEffect(() => {

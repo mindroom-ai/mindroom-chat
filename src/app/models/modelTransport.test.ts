@@ -4,7 +4,7 @@ import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { KeyClaimManager } from 'matrix-js-sdk/lib/rust-crypto/KeyClaimManager';
 import { RustCrypto } from 'matrix-js-sdk/lib/rust-crypto/rust-crypto';
 import { afterEach, expect, it, vi } from 'vitest';
-import { signedModelDevices } from './modelDeviceTrust';
+import { signedModelDevices } from '../matrix/runtimeDeviceTrust';
 import { sendModelRequest } from './modelTransport';
 
 afterEach(() => {

@@ -150,7 +150,10 @@ describe('JoinBeforeNavigate names the room it knows', () => {
   } as unknown as MatrixClient;
 
   const renderPage = (roomIdOrAlias: string, client: MatrixClient) => {
-    const renderer = create(<></>);
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<></>);
+    });
     act(() => {
       renderer.update(
         <MatrixClientProvider value={client}>
@@ -256,7 +259,9 @@ describe('JoinBeforeNavigate names the room it knows', () => {
       } as unknown as MatrixClient;
       const bold = renderPage(room.roomId, client).root.findAll((node) => node.type === 'b');
       expect(bold).toHaveLength(1);
-      expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'title']);
+      // React 19 keeps `ref` (null here) on element props.
+      expect(bold[0]?.props.ref).toBeNull();
+      expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'ref', 'title']);
       expect(bold[0]?.props.title).toBe(inviterId);
       return bold[0]?.children;
     };

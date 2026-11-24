@@ -281,7 +281,7 @@ const renderPrompt = (options: RenderOptions = {}) => {
         </ScreenSizeProvider>
       </Provider>,
       {
-        createNodeMock: (element) => {
+        createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => {
           if (element.type === 'input' && element.props.type === 'search') {
             return { focus: focusInput };
           }

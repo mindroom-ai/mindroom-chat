@@ -15,7 +15,11 @@ const renderPage = (conversationHidden: boolean) =>
     <>
       <SkipToContent />
       <main id={PAGE_MAIN_ID}>
-        <div ref={(element) => element?.toggleAttribute('inert', conversationHidden)}>
+        <div
+          ref={(element) => {
+            element?.toggleAttribute('inert', conversationHidden);
+          }}
+        >
           <h1>Room</h1>
         </div>
         <button type="button">Fill the room with Call</button>

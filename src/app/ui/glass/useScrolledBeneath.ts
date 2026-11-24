@@ -32,7 +32,7 @@ export const useScrolledBeneath = <T extends HTMLElement>(
   enabled: boolean
 ): RefCallback<T> => {
   const element = useRef<T | null>(null);
-  const stop = useRef<(() => void) | undefined>();
+  const stop = useRef<(() => void) | undefined>(undefined);
   useEffect(() => {
     // React 18 StrictMode replays effects without replaying DOM refs.
     if (enabled && element.current && !stop.current) {

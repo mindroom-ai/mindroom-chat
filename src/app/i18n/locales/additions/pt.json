@@ -444,7 +444,9 @@
         "search": "Mostrar Pesquisar na barra lateral",
         "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, abra-a no campo «Encontrar qualquer coisa» ou com {{shortcut}}.",
         "localMindroom": "Mostrar MindRoom local na barra lateral",
-        "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
+        "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local.",
+        "usage": "Mostrar Uso na barra lateral",
+        "usageDescription": "Limites de uso de provedores e gasto de tokens em 7 dias, assim que um runtime os informar. Quando oculto, abra Uso no menu ⋮ em Início ou no seletor de modelos."
       },
       "plugins": {
         "title": "Plugins",
@@ -1044,6 +1046,14 @@
         "scopeOwn": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais você pode se dirigir.",
         "scopeOther": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais {{name}} pode se dirigir."
       },
+      "triggerWakeMarker": {
+        "triggered": "Acionado",
+        "webhook": "Webhook",
+        "triggerLabel": "Gatilho {{id}}",
+        "sourceLabel": "Origem {{source}}",
+        "triageLabel": "Triagem: {{reason}}",
+        "payloadLabel": "Carga do evento JSON"
+      },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"
@@ -1421,6 +1431,46 @@
         "kept": "Seu rascunho ficou como estava. Copie o pedido para adicioná-lo você mesmo.",
         "copied": "Pedido copiado. Cole-o no seu rascunho."
       }
+    },
+    "usage": {
+      "title": "Uso e limites",
+      "navLowQuota": "Uso (cota baixa)",
+      "tabsLimits": "Limites",
+      "tabsTokens": "Tokens e custo",
+      "refresh": "Atualizar",
+      "updatedAgo": "Atualizado {{time}}",
+      "runtimeLabel": "Runtime",
+      "loading": "Verificando uso dos provedores…",
+      "unavailableTitle": "Dados de uso indisponíveis",
+      "unavailableBody": "Nenhum runtime conectado informou limites de uso de provedores para esta conta.",
+      "retry": "Tentar novamente",
+      "partialData": "Dados parciais — alguns provedores ou registros de uso não puderam ser carregados.",
+      "stale": "Desatualizado",
+      "percentLeft": "{{percent}}% restante",
+      "resetsIn": "Reinicia em {{duration}}",
+      "resetsAt": "Reinicia {{time}}",
+      "resetsSoon": "Reinicia em breve",
+      "quotaAria": "{{label}}: {{percent}}% restante",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% restante, {{reset}}",
+      "noSubscriptionLimit": "Sem limite de assinatura",
+      "payAsYouGo": "Pagamento conforme o uso",
+      "limitsUnavailable": "Limites de uso indisponíveis",
+      "notSignedIn": "Não conectado",
+      "tokens7d": "{{tokens}} tokens (7d)",
+      "estimatedCost": "~{{cost}} est.",
+      "totalTokens7d": "Total de tokens (7 dias)",
+      "totalCost7d": "Gasto estimado (7 dias)",
+      "dailyChartTitle": "Tokens diários (últimos 7 dias)",
+      "dailyBarAria": "{{day}}: {{tokens}} tokens",
+      "breakdownTitle": "Detalhamento por conta",
+      "colAccount": "Conta",
+      "colTokens": "Tokens (7d)",
+      "colShare": "Participação",
+      "colSpend": "Gasto (7d)",
+      "unattributed": "Não atribuído",
+      "allUsageAndLimits": "Todo o uso e limites →",
+      "noAccounts": "Nenhuma conta de provedor informada ainda.",
+      "noDailyData": "Nenhum uso diário registrado nos últimos 7 dias."
     }
   },
   "composer": {
@@ -2042,5 +2092,8 @@
       "action": "Verificar este dispositivo",
       "text": "Até lá, ele não consegue ler suas conversas criptografadas."
     }
+  },
+  "nav": {
+    "usage": "Uso"
   }
 }

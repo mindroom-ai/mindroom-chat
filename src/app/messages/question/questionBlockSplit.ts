@@ -1,4 +1,4 @@
-import { htmlToDOM } from 'html-react-parser';
+import { parseHtmlToDom } from '../../rich-text/parseHtml';
 import { isText, type ChildNode } from 'domhandler';
 import {
   INTERACTIVE_INSTRUCTION_TEXT,
@@ -60,7 +60,7 @@ const blockText = (node: ChildNode | undefined, name: string): string | undefine
 /** The ways a line of Markdown may read once rendered: as written, or as the app renders it. */
 const renderings = (markdown: string): string[] => {
   const html = formatMarkdownTextBodyAsHtml(markdown);
-  const rendered = html ? inlineText(htmlToDOM(html)) : undefined;
+  const rendered = html ? inlineText(parseHtmlToDom(html)) : undefined;
   return [normalize(markdown), ...(rendered === undefined ? [] : [normalize(rendered)])];
 };
 
@@ -131,7 +131,7 @@ export const splitQuestionBlock = (
   if (paragraphs.length === 0) return undefined;
   const options = question.options.map((option) => renderings(`${option.key} ${option.label}`));
   const instruction = normalize(INTERACTIVE_INSTRUCTION_TEXT);
-  const all = htmlToDOM(html) as ChildNode[];
+  const all = parseHtmlToDom(html) as ChildNode[];
   const parts = partsOf(all);
   const matches = (text: string | undefined, accepted: string[]) =>
     text !== undefined && accepted.includes(normalize(text));

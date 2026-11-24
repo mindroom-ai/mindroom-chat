@@ -39,7 +39,7 @@ export function SecondThreadDropZone({
   const [over, setOver] = useState(false);
   // Whether the drag may drop here: not one picked up where the zone then showed, until it is
   // anywhere off the zone, so a card's end under the zone does not open in it on a twitch.
-  const armed = useRef<boolean>();
+  const armed = useRef<boolean>(undefined);
   const zoneRef = useRef<HTMLDivElement>(null);
   const onZone = (x: number, y: number) => {
     const box = zoneRef.current?.getBoundingClientRect();

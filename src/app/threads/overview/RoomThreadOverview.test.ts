@@ -132,7 +132,10 @@ const defaultProps = {
 
 describe('RoomThreadOverview', () => {
   it('keeps explicit accessible labels when workflow tabs compress', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
     const tabs = renderer.root.findAll((node) => node.props['data-thread-tab']);
     expect(tabs).toHaveLength(5);
     for (const tab of tabs) {
@@ -143,19 +146,22 @@ describe('RoomThreadOverview', () => {
   });
 
   it('keeps only search and sort controls in agentless rooms', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        hasMindroomAgents: false,
-        availableTags: ['priority'],
-        isThreadSortFrozen: true,
-        state: makeDefaultState({
-          resolved: 'include',
-          sortBy: 'lastReply',
-          tags: new Map([['priority', 'include']]),
-        }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          hasMindroomAgents: false,
+          availableTags: ['priority'],
+          isThreadSortFrozen: true,
+          state: makeDefaultState({
+            resolved: 'include',
+            sortBy: 'lastReply',
+            tags: new Map([['priority', 'include']]),
+          }),
+        })
+      );
+    });
 
     expect(renderer.root.findAll((node) => node.props['data-search-bar'] === 'true')).toHaveLength(
       1
@@ -186,14 +192,17 @@ describe('RoomThreadOverview', () => {
 
   it('renders five labeled workflow segments and selects one', () => {
     const onSelectTab = vi.fn();
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: { ...defaultProps.state, tab: 'needsYou' },
-        onSelectTab,
-        bucketCounts: { needsYou: 2, working: 1, later: 3, done: 4, all: 10 },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: { ...defaultProps.state, tab: 'needsYou' },
+          onSelectTab,
+          bucketCounts: { needsYou: 2, working: 1, later: 3, done: 4, all: 10 },
+        })
+      );
+    });
     const tabs = renderer.root.findAll(
       (node) => node.type === 'button' && !!node.props['data-thread-tab']
     );
@@ -213,7 +222,10 @@ describe('RoomThreadOverview', () => {
   });
 
   it('sort button shows Natural by default', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props['data-sort-by']).toBe('natural');
@@ -222,12 +234,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('sort button shows Last Reply when sortBy is lastReply', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+        })
+      );
+    });
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props['data-sort-by']).toBe('lastReply');
@@ -238,12 +253,15 @@ describe('RoomThreadOverview', () => {
 
   it('sort button calls onSortDirectionChange on click', () => {
     const onSortDirectionChange = vi.fn();
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onSortDirectionChange,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          onSortDirectionChange,
+        })
+      );
+    });
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
 
@@ -257,7 +275,10 @@ describe('RoomThreadOverview', () => {
   });
 
   it('hides the freeze button when sort is natural', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
 
     expect(
       renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
@@ -267,12 +288,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('shows an inactive freeze button for non-natural sorting', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+        })
+      );
+    });
 
     const freezeButton = renderer.root.find(
       (node) => node.props['data-thread-sort-freeze'] === 'true'
@@ -285,13 +309,16 @@ describe('RoomThreadOverview', () => {
   });
 
   it('shows the active freeze button state when sorting is paused', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        isThreadSortFrozen: true,
-        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          isThreadSortFrozen: true,
+          state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+        })
+      );
+    });
 
     const freezeButton = renderer.root.find(
       (node) => node.props['data-thread-sort-freeze'] === 'true'
@@ -306,13 +333,16 @@ describe('RoomThreadOverview', () => {
 
   it('freeze button calls onToggleThreadSortFreeze on click', () => {
     const onToggleThreadSortFreeze = vi.fn();
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
-        onToggleThreadSortFreeze,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: makeDefaultState({ sortBy: 'lastReply', sortDirection: 'desc' }),
+          onToggleThreadSortFreeze,
+        })
+      );
+    });
 
     const freezeButton = renderer.root.find(
       (node) => node.props['data-thread-sort-freeze'] === 'true'
@@ -329,12 +359,15 @@ describe('RoomThreadOverview', () => {
 
   // The sort is not a filter: an active filter lights its own control, not the sort button.
   it('sort button stays plain while a filter is active', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ resolved: 'include' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: makeDefaultState({ resolved: 'include' }),
+        })
+      );
+    });
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
     expect(sortBtn.props.className).not.toContain('SortButtonActive');
@@ -344,7 +377,10 @@ describe('RoomThreadOverview', () => {
 
   it('collapsed search button lights up only for filters just the query shows', () => {
     const searchButtonClass = (state: ThreadFilterState) => {
-      const renderer = create(React.createElement(RoomThreadOverview, { ...defaultProps, state }));
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(RoomThreadOverview, { ...defaultProps, state }));
+      });
       const button = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
       const className = String(button.props.className);
       renderer.unmount();
@@ -363,12 +399,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('renders compact thread count instead of Threads (N)', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        threadCount: 42,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          threadCount: 42,
+        })
+      );
+    });
 
     // Should NOT render old format
     const oldFormat = renderer.root.findAll(
@@ -386,14 +425,17 @@ describe('RoomThreadOverview', () => {
   it('shows zero-results empty state with reset link', () => {
     const onReset = vi.fn();
 
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        threadCount: 0,
-        state: makeDefaultState({ resolved: 'include' }),
-        onReset,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          threadCount: 0,
+          state: makeDefaultState({ resolved: 'include' }),
+          onReset,
+        })
+      );
+    });
 
     const resetBtn = renderer.root.find(
       (node) => node.props['aria-label'] === 'Reset all thread filters'
@@ -410,13 +452,16 @@ describe('RoomThreadOverview', () => {
   });
 
   it('does NOT show empty state when threadCount > 0', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        threadCount: 3,
-        state: makeDefaultState({ resolved: 'include' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          threadCount: 3,
+          state: makeDefaultState({ resolved: 'include' }),
+        })
+      );
+    });
 
     const resetBtns = renderer.root.findAll(
       (node) => node.props['aria-label'] === 'Reset all thread filters'
@@ -427,12 +472,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('does NOT show empty state when no filters active', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        threadCount: 0,
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          threadCount: 0,
+        })
+      );
+    });
 
     const resetBtns = renderer.root.findAll(
       (node) => node.props['aria-label'] === 'Reset all thread filters'
@@ -445,19 +493,22 @@ describe('RoomThreadOverview', () => {
   // ═══ No count badges ═══════════════════════════════════════════════════
 
   it('does NOT render per-icon count badges', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        statusCounts: {
-          resolved: 42,
-          snoozed: 2,
-          streaming: 3,
-          scheduled: 5,
-          unread: 12,
-          idle: 28,
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          statusCounts: {
+            resolved: 42,
+            snoozed: 2,
+            streaming: 3,
+            scheduled: 5,
+            unread: 12,
+            idle: 28,
+          },
+        })
+      );
+    });
 
     const countNodes = renderer.root.findAll(
       (node) => node.props['data-status-count'] !== undefined
@@ -470,7 +521,10 @@ describe('RoomThreadOverview', () => {
   // ═══ Filter bar ═══════════════════════════════════════════════════════
 
   it('renders info button', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
 
     const infoBtn = renderer.root.findAll((node) => node.props['data-info-button'] === 'true');
     expect(infoBtn).toHaveLength(1);
@@ -479,13 +533,23 @@ describe('RoomThreadOverview', () => {
   });
 
   it('opens info popover on click', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        statusCounts: { resolved: 10, snoozed: 1, streaming: 2, scheduled: 1, unread: 3, idle: 5 },
-        tagCounts: { bug: 3, feature: 2 },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          statusCounts: {
+            resolved: 10,
+            snoozed: 1,
+            streaming: 2,
+            scheduled: 1,
+            unread: 3,
+            idle: 5,
+          },
+          tagCounts: { bug: 3, feature: 2 },
+        })
+      );
+    });
 
     const infoBtn = renderer.root.find((node) => node.props['data-info-button'] === 'true');
 
@@ -502,7 +566,10 @@ describe('RoomThreadOverview', () => {
   // ═══ Search bar ═══════════════════════════════════════════════════════
 
   it('renders search toggle button', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
 
     const searchBtn = renderer.root.findAll((node) => node.props['data-search-toggle'] === 'true');
     expect(searchBtn).toHaveLength(1);
@@ -511,7 +578,10 @@ describe('RoomThreadOverview', () => {
   });
 
   it('expands search input on click', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    });
 
     // Initially no input
     let inputs = renderer.root.findAll((node) => node.props['data-search-input'] === 'true');
@@ -533,13 +603,16 @@ describe('RoomThreadOverview', () => {
   it('calls onSearchQueryChange when search input changes', () => {
     const onSearchQueryChange = vi.fn();
 
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onSearchQueryChange,
-        state: makeDefaultState({ freeText: '' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          onSearchQueryChange,
+          state: makeDefaultState({ freeText: '' }),
+        })
+      );
+    });
 
     // Expand search
     const searchBtn = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
@@ -572,7 +645,10 @@ describe('RoomThreadOverview', () => {
       });
     }
 
-    const renderer = create(React.createElement(Harness));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
     act(() => {
       renderer.root.find((node) => node.props['data-search-toggle'] === 'true').props.onClick();
     });
@@ -614,7 +690,10 @@ describe('RoomThreadOverview', () => {
       });
     }
 
-    const renderer = create(React.createElement(Harness));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
     act(() => {
       renderer.root.find((node) => node.props['data-search-toggle'] === 'true').props.onClick();
     });
@@ -633,12 +712,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('renders the search placeholder as visible text instead of a raw unicode escape', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ freeText: '' }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          state: makeDefaultState({ freeText: '' }),
+        })
+      );
+    });
 
     const searchBtn = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
     act(() => {
@@ -666,19 +748,22 @@ describe('RoomThreadOverview', () => {
     tagRow(renderer, tag).find((node) => node.type === 'input');
 
   it('lists the room tags in the Tags dropdown, checked as the tag filters have them', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['blocked', 'priority', 'resolved'],
-        tagCounts: { blocked: 2, priority: 4, resolved: 1 },
-        state: makeDefaultState({
-          tags: new Map([
-            ['resolved', 'include'],
-            ['blocked', 'exclude'],
-          ]),
-        }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          availableTags: ['blocked', 'priority', 'resolved'],
+          tagCounts: { blocked: 2, priority: 4, resolved: 1 },
+          state: makeDefaultState({
+            tags: new Map([
+              ['resolved', 'include'],
+              ['blocked', 'exclude'],
+            ]),
+          }),
+        })
+      );
+    });
 
     const button = renderer.root.find((node) => node.props['data-tag-filter-button'] === 'true');
     expect(button.props['data-tag-filter-count']).toBe(2);
@@ -708,17 +793,20 @@ describe('RoomThreadOverview', () => {
     const onAddTag = vi.fn();
     const onRemoveTag = vi.fn();
 
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onAddTag,
-        onRemoveTag,
-        availableTags: ['blocked', 'resolved'],
-        state: makeDefaultState({
-          tags: new Map([['resolved', 'include']]),
-        }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          onAddTag,
+          onRemoveTag,
+          availableTags: ['blocked', 'resolved'],
+          state: makeDefaultState({
+            tags: new Map([['resolved', 'include']]),
+          }),
+        })
+      );
+    });
 
     openTags(renderer);
     act(() => {
@@ -739,19 +827,22 @@ describe('RoomThreadOverview', () => {
   it('drops every tag filter with the Clear of the Tags dropdown', () => {
     const onClearTags = vi.fn();
 
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onClearTags,
-        availableTags: ['blocked', 'resolved'],
-        state: makeDefaultState({
-          tags: new Map([
-            ['resolved', 'include'],
-            ['blocked', 'include'],
-          ]),
-        }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          onClearTags,
+          availableTags: ['blocked', 'resolved'],
+          state: makeDefaultState({
+            tags: new Map([
+              ['resolved', 'include'],
+              ['blocked', 'include'],
+            ]),
+          }),
+        })
+      );
+    });
 
     openTags(renderer);
     const clear = renderer.root.find((node) => node.props['data-tag-filter-clear'] === 'true');
@@ -764,12 +855,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('shows the Tags dropdown when the room has tags', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['resolved', 'blocked'],
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          availableTags: ['resolved', 'blocked'],
+        })
+      );
+    });
 
     const buttons = renderer.root.findAll(
       (node) => node.props['data-tag-filter-button'] === 'true'
@@ -781,15 +875,18 @@ describe('RoomThreadOverview', () => {
   });
 
   it('keeps the Tags dropdown while a tag filter is active, even with no tags left', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: [],
-        state: makeDefaultState({
-          tags: new Map([['gone', 'include']]),
-        }),
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          availableTags: [],
+          state: makeDefaultState({
+            tags: new Map([['gone', 'include']]),
+          }),
+        })
+      );
+    });
 
     expect(
       renderer.root.findAll((node) => node.props['data-tag-filter-button'] === 'true')
@@ -801,12 +898,15 @@ describe('RoomThreadOverview', () => {
   });
 
   it('hides the Tags dropdown when the room has no tags and none are filtered', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: [],
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(RoomThreadOverview, {
+          ...defaultProps,
+          availableTags: [],
+        })
+      );
+    });
 
     expect(
       renderer.root.findAll((node) => node.props['data-tag-filter-button'] === 'true')

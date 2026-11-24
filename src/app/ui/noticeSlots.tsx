@@ -161,7 +161,7 @@ export const useNoticePresence = (due: boolean, phoneLayer: PhoneLayer): NoticeP
   const placement: NoticePlacement = leftFrom?.placement ?? (listSlot ? 'list' : 'page');
   // The card comes in once where it is placed: rebuilt in a new place of the same kind (the list
   // of another section), it shows at once instead of arriving again.
-  const cameInAt = useRef<NoticePlacement>();
+  const cameInAt = useRef<NoticePlacement>(undefined);
   const settled = cameInAt.current === placement;
   // A phone's drawer or members sheet covers the page's place and makes it inert, where an
   // assistive technology would not read the card out. Due meanwhile, the card waits until they

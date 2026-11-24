@@ -100,7 +100,7 @@ type ReasoningTopProps = {
   /** A comet laps the bulb, as it laps the cog while a call runs. */
   thinking: boolean;
   onToggle: () => void;
-  bulbRef: RefObject<HTMLButtonElement>;
+  bulbRef: RefObject<HTMLButtonElement | null>;
 };
 
 /**

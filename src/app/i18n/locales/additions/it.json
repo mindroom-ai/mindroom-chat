@@ -444,7 +444,9 @@
         "search": "Mostra Cerca nella barra laterale",
         "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, aprila dal campo «Trova qualsiasi cosa» o con {{shortcut}}.",
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
-        "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
+        "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale.",
+        "usage": "Mostra Utilizzo nella barra laterale",
+        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli."
       },
       "plugins": {
         "title": "Plugin",
@@ -1044,6 +1046,14 @@
         "scopeOwn": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui puoi rivolgerti.",
         "scopeOther": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui {{name}} può rivolgersi."
       },
+      "triggerWakeMarker": {
+        "triggered": "Attivato",
+        "webhook": "Webhook",
+        "triggerLabel": "Trigger {{id}}",
+        "sourceLabel": "Origine {{source}}",
+        "triageLabel": "Triage: {{reason}}",
+        "payloadLabel": "Payload dell’evento JSON"
+      },
       "finishedWork": {
         "workedFor": "Ha lavorato per {{duration}}",
         "worked": "Ha lavorato"
@@ -1421,6 +1431,46 @@
         "kept": "La tua bozza è rimasta com’era. Copia la richiesta per aggiungerla tu.",
         "copied": "Richiesta copiata. Incollala nella tua bozza."
       }
+    },
+    "usage": {
+      "title": "Utilizzo e limiti",
+      "navLowQuota": "Utilizzo (quota bassa)",
+      "tabsLimits": "Limiti",
+      "tabsTokens": "Token e costi",
+      "refresh": "Aggiorna",
+      "updatedAgo": "Aggiornato {{time}}",
+      "runtimeLabel": "Runtime",
+      "loading": "Controllo utilizzo provider…",
+      "unavailableTitle": "Dati di utilizzo non disponibili",
+      "unavailableBody": "Nessun runtime connesso ha segnalato limiti di utilizzo per questo account.",
+      "retry": "Riprova",
+      "partialData": "Dati parziali — alcuni provider o record di utilizzo non sono stati caricati.",
+      "stale": "Non aggiornato",
+      "percentLeft": "{{percent}}% rimanente",
+      "resetsIn": "Si ripristina tra {{duration}}",
+      "resetsAt": "Si ripristina {{time}}",
+      "resetsSoon": "Si ripristina a breve",
+      "quotaAria": "{{label}}: {{percent}}% rimanente",
+      "quotaAriaWithReset": "{{label}}: {{percent}}% rimanente, {{reset}}",
+      "noSubscriptionLimit": "Nessun limite di abbonamento",
+      "payAsYouGo": "A consumo",
+      "limitsUnavailable": "Limiti di utilizzo non disponibili",
+      "notSignedIn": "Accesso non effettuato",
+      "tokens7d": "{{tokens}} token (7g)",
+      "estimatedCost": "~{{cost}} stima",
+      "totalTokens7d": "Token totali (7 giorni)",
+      "totalCost7d": "Spesa stimata (7 giorni)",
+      "dailyChartTitle": "Token giornalieri (ultimi 7 giorni)",
+      "dailyBarAria": "{{day}}: {{tokens}} token",
+      "breakdownTitle": "Dettaglio per account",
+      "colAccount": "Account",
+      "colTokens": "Token (7g)",
+      "colShare": "Quota",
+      "colSpend": "Spesa (7g)",
+      "unattributed": "Non attribuito",
+      "allUsageAndLimits": "Tutto l’utilizzo e limiti →",
+      "noAccounts": "Nessun account provider segnalato finora.",
+      "noDailyData": "Nessun utilizzo giornaliero registrato negli ultimi 7 giorni."
     }
   },
   "composer": {
@@ -2042,5 +2092,8 @@
       "action": "Verifica questo dispositivo",
       "text": "Fino ad allora non può leggere le tue chat cifrate."
     }
+  },
+  "nav": {
+    "usage": "Utilizzo"
   }
 }

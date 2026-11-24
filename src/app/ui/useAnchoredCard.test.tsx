@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useAnchoredCard } from './useAnchoredCard';
@@ -18,7 +17,7 @@ function Harness({ closeDelayMs, triggerKey }: { closeDelayMs?: number; triggerK
         key={triggerKey}
         ref={(node) => {
           if (node) node.getBoundingClientRect = () => ({ ...rect } as DOMRect);
-          (triggerRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+          triggerRef.current = node;
         }}
         type="button"
         {...hover}

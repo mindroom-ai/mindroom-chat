@@ -20,7 +20,7 @@ import { READER_INTENT_EVENTS } from './roomTimelineScroll';
  */
 export const useFollowContentGrowth = (
   getScrollElement: () => HTMLElement | null,
-  contentRef: RefObject<HTMLElement>,
+  contentRef: RefObject<HTMLElement | null>,
   isViewportAtBottomNow: () => boolean,
   atLiveEndRef: MutableRefObject<boolean>,
   liveReplies: LiveReplyStore,

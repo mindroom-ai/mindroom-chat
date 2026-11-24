@@ -49,7 +49,7 @@ export const useThreadEditBackfillController = ({
   mx: MatrixClient;
   beginThreadCacheWrite: () => PersistThreadEventCache;
   room: Room;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   notifyThreadEventsChanged: () => void;
   editResetEpoch: number;

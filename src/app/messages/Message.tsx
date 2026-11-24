@@ -688,11 +688,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       },
     });
     // The kind of pointer that pressed in the row, until the focus that press gives arrives.
-    const pressedPointer = useRef<string>();
+    const pressedPointer = useRef<string>(undefined);
     // Whether text was selected when a press that opens a context menu (a right click, or a
     // Control click on macOS) went down, until its contextmenu event. Safari selects the word
     // under the pointer between the two; that word is the click's, not the reader's selection.
-    const selectedAtMenuPress = useRef<boolean>();
+    const selectedAtMenuPress = useRef<boolean>(undefined);
     // Whether a touch or pen press went down while the focus showed the toolbar, until its click.
     const tapWhileShown = useRef(false);
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
@@ -706,7 +706,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     };
     // The kind of pointer that last pressed on the header's time: a touch there unfolds the time,
     // other pointers open the reply details. A touchscreen laptop's primary pointer hovers too.
-    const timePointer = useRef<string>();
+    const timePointer = useRef<string>(undefined);
     const toolbarRef = useRef<HTMLDivElement>(null);
     // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
     // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the

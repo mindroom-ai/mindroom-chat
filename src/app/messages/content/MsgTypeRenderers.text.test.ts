@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MEmote, MLocation, MNotice, MText } from './MsgTypeRenderers';
@@ -23,12 +23,15 @@ vi.mock('../layout/layout', () => ({
 
 /** The white-space of the box that holds the rendered body. */
 const bodyWhiteSpace = (content: Record<string, unknown>): unknown => {
-  const renderer = create(
-    React.createElement(MText, {
-      content: { msgtype: MsgType.Text, ...content },
-      renderBody: ({ body, customBody }) => customBody ?? body,
-    })
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(MText, {
+        content: { msgtype: MsgType.Text, ...content },
+        renderBody: ({ body, customBody }) => customBody ?? body,
+      })
+    );
+  });
   const box = renderer.root.find(
     (node) => typeof node.type === 'string' && node.props.style?.whiteSpace !== undefined
   );
@@ -76,10 +79,15 @@ describe('notices', () => {
       renderer.root.find(
         (node) => typeof node.type === 'string' && node.props['data-body-direction'] !== undefined
       ).props.priority;
-    const renderer = create(message(MsgType.Notice, 'Working on it'));
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(message(MsgType.Notice, 'Working on it'));
+    });
     expect(priority(renderer)).toBe('300');
 
-    renderer.update(message(MsgType.Text, 'Done'));
+    act(() => {
+      renderer.update(message(MsgType.Text, 'Done'));
+    });
     expect(priority(renderer)).toBe('400');
     expect(renderer.root.findByType('span').props['data-first-body']).toBe('Working on it');
     renderer.unmount();
@@ -92,11 +100,14 @@ const showsJumboEmoji = (content: Record<string, unknown>, emote = false): unkno
     content: { msgtype: emote ? MsgType.Emote : MsgType.Text, ...content },
     renderBody: ({ body, customBody }: { body: string; customBody?: string }) => customBody ?? body,
   };
-  const renderer = create(
-    emote
-      ? React.createElement(MEmote, { ...props, displayName: 'Alice' })
-      : React.createElement(MText, props)
-  );
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      emote
+        ? React.createElement(MEmote, { ...props, displayName: 'Alice' })
+        : React.createElement(MText, props)
+    );
+  });
   const box = renderer.root.find(
     (node) => typeof node.type === 'string' && node.props['data-jumbo-emoji'] !== undefined
   );
@@ -134,15 +145,18 @@ describe('emoji-only text message', () => {
 describe('location', () => {
   it('shows the direction controls of its description as code points', () => {
     // Applied, the right-to-left override would show `B4 tsae` as `east 4B`.
-    const renderer = create(
-      React.createElement(MLocation, {
-        content: {
-          msgtype: MsgType.Location,
-          body: 'Meet at gate \u202eB4 tsae\u202c by the lifts',
-          geo_uri: 'geo:52.3702,4.8952',
-        },
-      })
-    );
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(MLocation, {
+          content: {
+            msgtype: MsgType.Location,
+            body: 'Meet at gate \u202eB4 tsae\u202c by the lifts',
+            geo_uri: 'geo:52.3702,4.8952',
+          },
+        })
+      );
+    });
     const text = JSON.stringify(renderer.toJSON());
     renderer.unmount();
     expect(text).toContain('Meet at gate <U+202E>B4 tsae<U+202C> by the lifts');

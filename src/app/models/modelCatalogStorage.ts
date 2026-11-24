@@ -6,7 +6,7 @@ import {
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
 import { modelCatalogStorageKey } from '../preferences/accountStorageKeys';
-import type { ModelRuntime } from './modelDeviceTrust';
+import type { ModelRuntime } from '../matrix/runtimeDeviceTrust';
 import { parseModelCatalogPayload, type ModelCatalogResponse } from './modelProtocol';
 
 /** Display data only. A thread's own verified answer supplies the runtime for commands. */
