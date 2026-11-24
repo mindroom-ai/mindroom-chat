@@ -17,7 +17,11 @@ import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { MidTurnMode } from '../../preferences/midTurnModes';
 import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
-import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
+import {
+  hasMissingPasteAttachmentForText,
+  prepareAndUploadDeferredAttachments,
+  type RoomInputAttachmentAccess,
+} from '../roomInputAttachmentAccess';
 import {
   detachedDictationErrorAtom,
   detachedDictationSendsAtom,
@@ -160,6 +164,10 @@ export type StartDetachedDictationSendInput = {
   restoreReplyDraft: (replyDraft: IReplyDraft) => void;
   restoreRootModelDraft?: (room: Room, content: ThreadModelContent) => void;
   dismissLostNotices?: () => void;
+  /** Uploads a staged attachment right before send when deferred (Home). */
+  uploadItem?: (item: TUploadItem) => Promise<string>;
+  /** Prepares/encrypts deferred staged attachments for `room` right before uploading them. */
+  prepareAttachmentsForSend?: (room: Room, items: TUploadItem[]) => Promise<TUploadItem[]>;
 };
 
 export type HandoffComposerDictationInput = Omit<
@@ -200,7 +208,7 @@ export const handoffComposerDictationSend = (
   const pendingMarks = editor.marks ? { ...editor.marks } : null;
   const savedSelection =
     params.savedSelection ?? (editor.selection ? structuredClone(editor.selection) : null);
-  const { staged, enrolled } = ask ? { staged: [], enrolled: [] } : attachments.snapshot();
+  const { staged, enrolled } = attachments.snapshot();
   const enrolledFiles = new Set(enrolled.map((item) => item.file));
   const stagedSnapshot = staged.filter((item) => !item.prepError && !enrolledFiles.has(item.file));
   const rootModel =
@@ -214,13 +222,16 @@ export const handoffComposerDictationSend = (
       : undefined;
   if (stagedSnapshot.length > 0) {
     attachments.enroll(stagedSnapshot);
-    const roomEncrypted = room.hasEncryptionStateEvent();
-    stagedSnapshot.forEach((item) => {
-      if (roomEncrypted && !item.encInfo) return;
-      if (store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Idle) {
-        void params.uploadItem(item).catch(() => undefined);
-      }
-    });
+    // Deferred composers (Home) wait until Send commits to encrypt and upload for the target room.
+    if (!params.prepareAttachmentsForSend) {
+      const roomEncrypted = room.hasEncryptionStateEvent();
+      stagedSnapshot.forEach((item) => {
+        if (roomEncrypted && !item.encInfo) return;
+        if (store.get(roomUploadAtomFamily(item.file)).status === UploadStatus.Idle) {
+          void params.uploadItem(item).catch(() => undefined);
+        }
+      });
+    }
   }
   const tracksEnrollment =
     stagedSnapshot.length > 0 &&
@@ -256,7 +267,7 @@ export const startDetachedDictationSend = (
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
   const { roomId, replyDraft } = sendContext;
   const sameAccount = captureAccountGuard(store);
-  const stagedFiles = input.stagedSnapshot.map((item) => item.file);
+  const enrolledFileRefs = new Set(input.stagedSnapshot.map((item) => item.file));
   let aborted = false;
   let accountRestored = false;
   const journalId = session.getJournalId();
@@ -266,7 +277,7 @@ export const startDetachedDictationSend = (
   };
 
   const getActiveStaged = (): TUploadItem[] => {
-    if (ask || input.stagedSnapshot.length === 0) return [];
+    if (input.stagedSnapshot.length === 0) return [];
     if (!input.tracksEnrollment) return input.stagedSnapshot;
     const enrolledByFile = new Map(attachments.snapshot(roomId).enrolled.map((i) => [i.file, i]));
     return input.stagedSnapshot
@@ -275,7 +286,7 @@ export const startDetachedDictationSend = (
   };
 
   const clearEnrollments = () => {
-    if (stagedFiles.length > 0) attachments.clearEnrollment(stagedFiles);
+    if (enrolledFileRefs.size > 0) attachments.clearEnrollment([...enrolledFileRefs]);
   };
 
   const clearMatchingError = () => {
@@ -402,7 +413,7 @@ export const startDetachedDictationSend = (
         }
       : undefined;
     const activeStaged = getActiveStaged();
-    if (!textContent && (ask || activeStaged.length === 0)) {
+    if (!textContent && activeStaged.length === 0) {
       restoreDraftAndCleanup(input.docSnapshot);
       deleteJournal();
       const mountedOwner = getMountedOwner(store, ownerKey);
@@ -419,20 +430,69 @@ export const startDetachedDictationSend = (
     }
 
     const liveRoom = mx.getRoom(roomId);
-    if (!liveRoom) {
+    if (!liveRoom || (ask && !ask.canSend(liveRoom))) {
+      restoreDraftAndCleanup(mergedFallback);
+      deleteJournal();
+      return;
+    }
+
+    let sendStaged = activeStaged;
+    if (activeStaged.length > 0 && input.prepareAttachmentsForSend) {
+      const result = await prepareAndUploadDeferredAttachments({
+        room: liveRoom,
+        items: activeStaged,
+        batchItems: activeStaged,
+        textContent,
+        prepareForSend: (targetRoom, items) =>
+          input.prepareAttachmentsForSend!(targetRoom, items ?? activeStaged),
+        uploadItem: input.uploadItem
+          ? (item) =>
+              input.uploadItem!(item).then(
+                () =>
+                  attachments.snapshot(roomId).staged.some((entry) => entry.file === item.file)
+                    ? item
+                    : undefined,
+                () => undefined
+              )
+          : undefined,
+        onPrepared: (prepared) => {
+          prepared.forEach((item) => enrolledFileRefs.add(item.file));
+        },
+        isAborted: () => aborted || !sameAccount(),
+      });
+      if (result.aborted) {
+        clearEnrollments();
+        if (journalId) releaseCapture(journalId);
+        restoreDocOnAccountSwitch();
+        removeEntry();
+        return;
+      }
+      sendStaged = result.uploadedItems;
+      const sendSet = new Set(sendStaged.map((item) => item.file));
+      const dropped = [...enrolledFileRefs].filter((file) => !sendSet.has(file));
+      if (dropped.length > 0) attachments.clearEnrollment(dropped);
+      if (result.missingPasteMarker || (!textContent && sendStaged.length === 0)) {
+        restoreDraftAndCleanup(result.missingPasteMarker ? mergedFallback : input.docSnapshot);
+        deleteJournal();
+        return;
+      }
+    } else if (
+      input.prepareAttachmentsForSend &&
+      hasMissingPasteAttachmentForText(textContent, attachments.snapshot(roomId).staged, [])
+    ) {
       restoreDraftAndCleanup(mergedFallback);
       deleteJournal();
       return;
     }
 
     const effectiveRootModel =
-      skipsRootModel(textContent) && activeStaged.length === 0 ? undefined : input.rootModel;
+      skipsRootModel(textContent) && sendStaged.length === 0 ? undefined : input.rootModel;
     if (input.rootModel && !effectiveRootModel) {
       input.restoreRootModelDraft?.(liveRoom, input.rootModel);
     }
     removeEntry();
     clearMatchingError();
-    if (textContent && !ask) input.dismissLostNotices?.();
+    if (textContent) input.dismissLostNotices?.();
 
     let textConsumed = false;
     const onTextConsumed = () => {
@@ -448,7 +508,8 @@ export const startDetachedDictationSend = (
         midTurnMode: input.midTurnMode,
         explicitMidTurnMode: input.explicitMidTurnMode,
         rootModel: effectiveRootModel ?? null,
-        batch: { fileItems: activeStaged },
+        batch: { fileItems: sendStaged },
+        completeWithinCall: Boolean(ask && sendStaged.length > 0),
         context: {
           ...sendContext,
           room: liveRoom,

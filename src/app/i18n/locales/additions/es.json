@@ -446,7 +446,9 @@
         "localMindroom": "Mostrar MindRoom local en la barra lateral",
         "localMindroomDescription": "Vincula MindRoom en tu ordenador. Si lo ocultas, sigue aquí en Ajustes, en MindRoom local.",
         "usage": "Mostrar Uso en la barra lateral",
-        "usageDescription": "Límites de uso de proveedores y gasto de tokens en 7 días, en cuanto un entorno de ejecución los informe. Si está oculto, abre Uso desde el menú ⋮ en Inicio o en el selector de modelos."
+        "usageDescription": "Límites de uso de proveedores y gasto de tokens en 7 días, en cuanto un entorno de ejecución los informe. Si está oculto, abre Uso desde el menú ⋮ en Inicio o en el selector de modelos.",
+        "help": "Mostrar Ayuda y guías en la barra lateral",
+        "helpDescription": "Guías rápidas, el recorrido y los atajos de teclado. Si lo ocultas, abre el recorrido desde Ajustes, en Acerca de, o desde la paleta de comandos ({{shortcut}}), y los atajos con {{helpShortcut}}."
       },
       "plugins": {
         "title": "Complementos",

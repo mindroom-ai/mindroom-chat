@@ -15,6 +15,7 @@ export const useSettingsSearchValues = (): SettingsSearchValues => {
       username: getMxIdLocalPart(userId) ?? userId,
       sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
       shortcut: getCommandPaletteShortcutLabel(),
+      helpShortcut: formatShortcut('help'),
       voiceKey: formatShortcut('voiceRecord'),
     }),
     [userId]

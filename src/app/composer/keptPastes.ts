@@ -57,10 +57,14 @@ export const keepPasteText = async (
   await withPasteDb((db) => db.put('pastes', { userId, fileName, draftKey, text }));
 };
 
-/** The kept texts of the pastes `fileNames`, by file name; a paste that was not kept is absent. */
+/**
+ * The kept texts of the pastes `fileNames`, by file name; a paste that was not kept (or, when
+ * `draftKey` is given, belongs to another draft) is absent.
+ */
 export const readKeptPasteTexts = async (
   userId: string,
-  fileNames: readonly string[]
+  fileNames: readonly string[],
+  draftKey?: string
 ): Promise<Map<string, string>> => {
   const texts = new Map<string, string>();
   await withPasteDb(async (db) => {
@@ -68,7 +72,9 @@ export const readKeptPasteTexts = async (
       fileNames.map((fileName) => db.get('pastes', [userId, fileName]))
     );
     kept.forEach((paste) => {
-      if (paste) texts.set(paste.fileName, paste.text);
+      if (paste && (draftKey === undefined || paste.draftKey === draftKey)) {
+        texts.set(paste.fileName, paste.text);
+      }
     });
   });
   return texts;

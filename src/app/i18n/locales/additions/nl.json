@@ -433,7 +433,9 @@
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom.",
         "usage": "Verbruik in de zijbalk tonen",
-        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer."
+        "usageDescription": "Gebruikslimieten van aanbieders en 7-daags tokenverbruik zodra een runtime dit meldt. Indien verborgen, open Verbruik via het ⋮-menu in Start of de modelkiezer.",
+        "help": "Hulp & gidsen in de zijbalk tonen",
+        "helpDescription": "Snelle gidsen, de rondleiding en sneltoetsen. Verborgen open je de rondleiding via Instellingen onder Over of het commandopalet ({{shortcut}}), en sneltoetsen met {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plug-ins",

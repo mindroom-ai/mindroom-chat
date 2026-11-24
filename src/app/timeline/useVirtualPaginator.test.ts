@@ -526,6 +526,65 @@ describe('useVirtualPaginator', () => {
     // RAF correction should NOT fire because scrollTop=max and error>0
   });
 
+  it('cancels a pending next-frame correction when another scrollToElement runs or on unmount', () => {
+    const cancelAnimationFrameMock = vi.fn();
+    const queued = new Map<number, FrameRequestCallback>();
+    let nextId = 1;
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      cancelAnimationFrameMock(id);
+      queued.delete(id);
+    });
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      const id = nextId;
+      nextId += 1;
+      queued.set(id, callback);
+      return id;
+    });
+
+    const scrollElement = {
+      scrollTop: 50,
+      scrollHeight: 1000,
+      clientHeight: 200,
+      getBoundingClientRect: () => makeRect(100, 200),
+      scrollBy: vi.fn(),
+    } as unknown as HTMLElement;
+    const firstTarget = {
+      getBoundingClientRect: () => makeRect(250, 20),
+    } as unknown as HTMLElement;
+    const secondTarget = {
+      getBoundingClientRect: () => makeRect(120, 20),
+    } as unknown as HTMLElement;
+    let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+    let renderer!: ReturnType<typeof create>;
+
+    act(() => {
+      renderer = create(
+        React.createElement(PaginatorHarness, {
+          getScrollElement: () => scrollElement,
+          onApi: (api) => {
+            paginator = api;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      paginator?.scrollToElement(firstTarget, { align: 'center', behavior: 'instant' });
+      paginator?.scrollToElement(secondTarget, { align: 'center', behavior: 'instant' });
+    });
+
+    expect(cancelAnimationFrameMock).toHaveBeenCalledTimes(1);
+    expect(cancelAnimationFrameMock).toHaveBeenCalledWith(1);
+    expect([...queued.keys()]).toEqual([2]);
+
+    act(() => {
+      renderer.unmount();
+    });
+    expect(cancelAnimationFrameMock).toHaveBeenCalledTimes(2);
+    expect(cancelAnimationFrameMock).toHaveBeenLastCalledWith(2);
+    expect(queued.size).toBe(0);
+  });
+
   it('preserves the requested focus anchor when retrying pagination after suppression', () => {
     const rangeRef = {
       current: {

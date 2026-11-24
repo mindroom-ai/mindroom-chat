@@ -7,6 +7,7 @@ import { createEditor, Node, Transforms, type Descendant, type Editor } from 'sl
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
+import { createPasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
 import { threadModelContent } from '../../matrix/protocol/threadModel';
 import { UploadStatus, type TUploadItem } from '../../matrix/state/upload';
 import type { SlashCommand } from '../commands/useCommands';
@@ -97,8 +98,13 @@ const makeDoc = (text = ''): Descendant[] => [
 ];
 const readEditorText = (editor: Editor): string =>
   editor.children.map((n) => Node.string(n)).join('\n');
-const makeRoom = (roomId = '!room:example.org', name = 'General'): Room =>
-  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] }) as unknown as Room;
+const makeRoom = (roomId = '!room:example.org', name = 'General', encrypted = false): Room =>
+  ({
+    roomId,
+    name,
+    hasEncryptionStateEvent: () => encrypted,
+    getMembers: () => [],
+  }) as unknown as Room;
 
 const makeMockSession = (
   initialPhase: DictationSnapshot['phase'] = 'recording',
@@ -774,18 +780,43 @@ describe('dictationSendHandoff', () => {
     );
     expect(startSendSession).not.toHaveBeenCalled();
 
-    // Home ask wraps mention, passes beforeSend/onLocalEcho, and clears onSendingChange.
+    // Home ask wraps mention, keeps staged attachments (including empty-speech attachment sends), dismisses lost notices, and tracks lifecycle.
     const onSendingChange = vi.fn();
     const onLocalEcho = vi.fn();
+    const dismissLostNotices = vi.fn();
+    const askFile = new File(['pic'], 'note.png', { type: 'image/png' });
+    const encAskFile = new File(['cipher'], 'note.png', { type: 'application/octet-stream' });
+    const askItem: TUploadItem = {
+      file: askFile,
+      originalFile: askFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const encAskItem: TUploadItem = {
+      file: encAskFile,
+      originalFile: askFile,
+      encInfo: { v: 'v2' } as never,
+      metadata: { markedAsSpoiler: false },
+    };
+    const encRoom = makeRoom('!enc:example.org', 'Encrypted', true);
+    expect(encRoom.hasEncryptionStateEvent()).toBe(true);
+    const { access: askAttachments, getEnrolled: getAskEnrolled } = makeAttachmentAccess([askItem]);
+    const uploadAskItem = vi.fn(async () => 'mxc://example.org/enc-note');
+    const prepareAttachmentsForSend = vi.fn(async (_r: Room, _items: TUploadItem[]) => {
+      askAttachments.append(encRoom.roomId, [encAskItem]);
+      return [encAskItem];
+    });
     const sAsk = makeMockSession();
     startSendSession.mockImplementationOnce(async (opts) => {
-      expect(opts?.beforeSend?.(room)).toBe(true);
-      opts?.onLocalEchoCreated?.('~!room:txn1', room);
+      expect(opts?.beforeSend?.(encRoom)).toBe(true);
+      opts?.onLocalEchoCreated?.('~!room:txn1', encRoom);
     });
-    startDetachedDictationSend(
-      makeStartInput({
+    const askEditor = withInlineElements(createEditor());
+    askEditor.children = makeDoc();
+    handoffComposerDictationSend({
+      ...makeStartInput({
         store,
-        room,
+        room: encRoom,
         session: sAsk.session,
         ownerKey: key,
         parseCommands: false,
@@ -795,18 +826,145 @@ describe('dictationSendHandoff', () => {
           onSendingChange,
           onLocalEcho,
         },
+        attachments: askAttachments,
+        sessions: { startSendSession, restoreText: vi.fn() },
+        dismissLostNotices,
+        prepareAttachmentsForSend,
+      }),
+      editor: askEditor,
+      room: encRoom,
+      roomId: encRoom.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: vi.fn(() => undefined),
+      uploadItem: uploadAskItem,
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+    expect(getAskEnrolled()).toEqual([askItem]);
+    // Deferred upload: nothing uploaded at handoff time before prepareAttachmentsForSend commits.
+    expect(uploadAskItem).not.toHaveBeenCalled();
+    await act(async () => {
+      sAsk.resolveFinish({ status: 'completed', text: 'summarize today' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(prepareAttachmentsForSend).toHaveBeenCalledWith(encRoom, [askItem]);
+    expect(uploadAskItem).toHaveBeenCalledWith(encAskItem);
+    expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain(
+      '@mindroom_helper:example.org'
+    );
+    expect(startSendSession.mock.calls[0]![0]!.batch?.fileItems).toEqual([encAskItem]);
+    expect(startSendSession.mock.calls[0]![0]!.completeWithinCall).toBe(true);
+    expect(dismissLostNotices).toHaveBeenCalledTimes(1);
+    expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', encRoom);
+    expect(onSendingChange).toHaveBeenCalledWith(false);
+
+    const sAskFileOnly = makeMockSession();
+    startDetachedDictationSend(
+      makeStartInput({
+        store,
+        room,
+        session: sAskFileOnly.session,
+        ownerKey: key,
+        parseCommands: false,
+        stagedSnapshot: [askItem],
+        ask: { agentUserId: '@mindroom_helper:example.org', canSend: () => true },
         sessions: { startSendSession, restoreText: vi.fn() },
       })
     );
     await act(async () => {
-      sAsk.resolveFinish({ status: 'completed', text: 'summarize today' });
+      sAskFileOnly.resolveFinish({ status: 'completed', text: '' });
       await Promise.resolve();
     });
-    expect(startSendSession.mock.calls[0]![0]!.textContent?.['m.mentions']?.user_ids).toContain(
-      '@mindroom_helper:example.org'
-    );
-    expect(onLocalEcho).toHaveBeenCalledWith('~!room:txn1', room);
-    expect(onSendingChange).toHaveBeenCalledWith(false);
+    expect(startSendSession.mock.calls[1]![0]!.textContent).toBeUndefined();
+    expect(startSendSession.mock.calls[1]![0]!.batch?.fileItems).toEqual([askItem]);
+
+    // Home Finish & Send: when a large-paste file fails upload, do not send text with a dangling marker.
+    const pasteMeta = {
+      id: 'paste-a3f19c',
+      chars: 20_000,
+      fileName: 'mindroom-paste-a3f19c.txt',
+    };
+    const pasteMarker = createPasteMarker(pasteMeta);
+    const pasteFile = new File(['x'.repeat(100)], pasteMeta.fileName, { type: 'text/plain' });
+    const pasteItem: TUploadItem = {
+      file: pasteFile,
+      originalFile: pasteFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false, mindroomPasteAttachment: pasteMeta },
+    };
+    const { access: pasteAttachments, getEnrolled: getPasteEnrolled } = makeAttachmentAccess([
+      pasteItem,
+    ]);
+    const pasteRestoreText = vi.fn();
+    const pasteOnSendingChange = vi.fn();
+    const pasteUploadItem = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const pastePrepareForSend = vi.fn(async (_r: Room, items: TUploadItem[]) => items);
+    const pasteStartSendSession = vi.fn(async () => undefined);
+    const sAskPasteFail = makeMockSession();
+    const pasteEditor = withInlineElements(createEditor());
+    pasteEditor.children = [
+      {
+        type: 'paragraph',
+        children: [
+          { text: '' },
+          {
+            type: 'paste-marker',
+            id: pasteMeta.id,
+            chars: pasteMeta.chars,
+            fileName: pasteMeta.fileName,
+            marker: pasteMarker,
+            children: [{ text: '' }],
+          },
+          { text: ' ' },
+        ],
+      } as unknown as Descendant,
+    ];
+    handoffComposerDictationSend({
+      ...makeStartInput({
+        store,
+        room,
+        session: sAskPasteFail.session,
+        ownerKey: `${key}:paste-fail`,
+        parseCommands: false,
+        ask: {
+          agentUserId: '@mindroom_helper:example.org',
+          canSend: () => true,
+          onSendingChange: pasteOnSendingChange,
+        },
+        attachments: pasteAttachments,
+        sessions: { startSendSession: pasteStartSendSession, restoreText: pasteRestoreText },
+        prepareAttachmentsForSend: pastePrepareForSend,
+      }),
+      editor: pasteEditor,
+      room,
+      roomId: room.roomId,
+      threadingEnabled: true,
+      commands: {},
+      takeRootModelDraft: vi.fn(() => undefined),
+      uploadItem: pasteUploadItem,
+      clearReplyDraft: vi.fn(),
+      resetComposer: vi.fn(),
+      stopTyping: vi.fn(),
+    });
+    await act(async () => {
+      sAskPasteFail.resolveFinish({ status: 'completed', text: 'summarize this paste' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(pasteUploadItem).toHaveBeenCalledWith(pasteItem);
+    expect(pasteStartSendSession).not.toHaveBeenCalled();
+    expect(pasteRestoreText).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(pasteRestoreText.mock.calls[0]![1])).toContain('summarize this paste');
+    expect(JSON.stringify(pasteRestoreText.mock.calls[0]![1])).toContain(pasteMeta.fileName);
+    expect(getPasteEnrolled()).toEqual([]);
+    expect(pasteOnSendingChange).toHaveBeenLastCalledWith(false);
 
     // Non-collapsed selection replacement off-DOM does not apply pending marks.
     const merged = mergeDictatedDoc(

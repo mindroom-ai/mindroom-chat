@@ -222,4 +222,63 @@ describe('upload card renderers', () => {
       })
     );
   });
+
+  it('defers upload, hides idle encryption error and Retry chip, but still shows too-large and prep errors when autoUpload is false', () => {
+    const file = createFile({ size: 2048 });
+    uploadMock.upload = { file, status: 'idle' };
+
+    // Idle in an encrypted room: no auto-start and no premature encryption error.
+    const idleOut = renderText(
+      React.createElement(UploadCardRenderer, {
+        isEncrypted: true,
+        autoUpload: false,
+        fileItem: {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+      })
+    );
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(idleOut).not.toContain(prepareUploadMessage);
+
+    // Oversized file still reports too-large immediately when autoUpload is false.
+    uploadMock.mediaConfig = { 'm.upload.size': 1024 };
+    const largeOut = renderText(
+      React.createElement(UploadCardRenderer, {
+        autoUpload: false,
+        fileItem: {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+      })
+    );
+    expect(largeOut).toContain('too large');
+
+    // Transient error hides inline Retry chip when autoUpload is false (retry goes through Send).
+    uploadMock.mediaConfig = {};
+    setUploadError(file);
+    const errOut = renderText(
+      React.createElement(UploadCardRenderer, {
+        autoUpload: false,
+        fileItem: {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false },
+        },
+        setMetadata: vi.fn(),
+        onRemove: vi.fn(),
+      })
+    );
+    expect(errOut).toContain(friendlyTransientMessage);
+    expect(errOut).not.toContain('Retry');
+  });
 });

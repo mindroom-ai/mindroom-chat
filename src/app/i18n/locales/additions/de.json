@@ -433,7 +433,9 @@
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“.",
         "usage": "Nutzung in der Seitenleiste anzeigen",
-        "usageDescription": "Anbieter-Nutzungslimits und 7-Tage-Tokenverbrauch, sobald eine Laufzeit sie meldet. Wenn ausgeblendet, öffne Nutzung über das ⋮-Menü in Start oder die Modellauswahl."
+        "usageDescription": "Anbieter-Nutzungslimits und 7-Tage-Tokenverbrauch, sobald eine Laufzeit sie meldet. Wenn ausgeblendet, öffne Nutzung über das ⋮-Menü in Start oder die Modellauswahl.",
+        "help": "Hilfe & Anleitungen in der Seitenleiste anzeigen",
+        "helpDescription": "Kurzanleitungen, die Tour und Tastenkürzel. Ausgeblendet öffnest du die Tour in den Einstellungen unter „Über“ oder über die Befehlspalette ({{shortcut}}) und die Tastenkürzel mit {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",

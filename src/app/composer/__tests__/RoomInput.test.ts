@@ -8,7 +8,7 @@ import { type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
-import { Transforms } from 'slate';
+import { Transforms, type Descendant } from 'slate';
 import * as idb from 'idb';
 import * as keptPastes from '../keptPastes';
 import { RoomInput } from '../RoomInput';
@@ -25,6 +25,7 @@ import {
   IReplyDraft,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
+  composerUploadItemsAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
@@ -38,7 +39,11 @@ import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import type { RoomThreadMode } from '../../matrix/protocol/roomThreadMode';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
-import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
+import {
+  ConversationViewContext,
+  HOME_ASK_VIEW,
+  composerStateKey,
+} from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -348,13 +353,16 @@ vi.mock('../../emoji/board/LazyEmojiBoard', () => ({
 vi.mock('../upload/UploadCardRenderer', () => ({
   UploadCardRenderer: ({
     fileItem,
+    autoUpload = true,
     onRemove,
   }: {
     fileItem: TUploadItem;
+    autoUpload?: boolean;
     onRemove: (file: File) => void;
   }) =>
     React.createElement('button', {
       'aria-label': `Remove upload ${fileItem.file.name}`,
+      'data-auto-upload': String(autoUpload),
       onClick: () => onRemove(fileItem.file),
     }),
 }));
@@ -364,8 +372,21 @@ vi.mock('../upload/UploadBoard', async () => {
   const { useAtomValue } = await import('jotai');
 
   return {
-    UploadBoard: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
-      reactModule.createElement('div', null, header, children),
+    UploadBoard: ({
+      header,
+      children,
+      inline,
+    }: {
+      header?: React.ReactNode;
+      children?: React.ReactNode;
+      inline?: boolean;
+    }) =>
+      reactModule.createElement(
+        'div',
+        { 'data-upload-board-inline': inline ? 'true' : 'false' },
+        header,
+        children
+      ),
     UploadBoardContent: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
     UploadBoardHeader: ({
@@ -477,12 +498,21 @@ vi.mock('../../models/modelController', () => ({
   }),
 }));
 
-vi.mock('../../lib/hooks/useFilePicker', () => ({
-  useFilePicker: () => vi.fn(),
+const fileInputState = vi.hoisted(() => ({
+  pick: vi.fn(),
+  onDrop: undefined as ((files: File[]) => void) | undefined,
+  zoneRef: undefined as React.RefObject<HTMLElement | null> | undefined,
 }));
-
+vi.mock('../../lib/hooks/useFilePicker', () => ({ useFilePicker: () => fileInputState.pick }));
 vi.mock('../../lib/hooks/useFileDrop', () => ({
-  useFileDropZone: () => false,
+  useFileDropZone: (
+    zoneRef: React.RefObject<HTMLElement | null>,
+    onDrop: (files: File[]) => void
+  ) => {
+    fileInputState.zoneRef = zoneRef;
+    fileInputState.onDrop = onDrop;
+    return false;
+  },
 }));
 
 vi.mock('../../preferences/useSetting', () => ({
@@ -953,24 +983,30 @@ const createRoomInputTree = (
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
+    view?: string;
+    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
   }
-) =>
-  React.createElement(
+) => {
+  const input = React.createElement(RoomInput, {
+    key: props?.keyedRoomSubtree ? (props?.roomId ?? ROOM_ID) : undefined,
+    editor: createEditor(),
+    fileDropContainerRef: props?.fileDropContainerRef ?? createRef<HTMLElement>(),
+    roomId: props?.roomId ?? ROOM_ID,
+    room: createRoom(props?.roomId ?? ROOM_ID, props?.encryptedRoom),
+    threadId: props?.threadId,
+    threadingEnabled: props?.threadingEnabled,
+    onRoomMessageSent: props?.onRoomMessageSent,
+    forkFrom: props?.forkFrom,
+    ask: props?.ask,
+  });
+  return React.createElement(
     Provider,
     { store },
-    React.createElement(RoomInput, {
-      key: props?.keyedRoomSubtree ? (props?.roomId ?? ROOM_ID) : undefined,
-      editor: createEditor(),
-      fileDropContainerRef: createRef<HTMLElement>(),
-      roomId: props?.roomId ?? ROOM_ID,
-      room: createRoom(props?.roomId ?? ROOM_ID, props?.encryptedRoom),
-      threadId: props?.threadId,
-      threadingEnabled: props?.threadingEnabled,
-      onRoomMessageSent: props?.onRoomMessageSent,
-      forkFrom: props?.forkFrom,
-      ask: props?.ask,
-    })
+    props?.view
+      ? React.createElement(ConversationViewContext.Provider, { value: props.view }, input)
+      : input
   );
+};
 
 /** Every host node as a rendered element, so the voice key takes the composer. */
 const shownComposer: TestRendererOptions = {
@@ -993,6 +1029,8 @@ const renderRoomInput = async (
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
+    view?: string;
+    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
   },
   options?: TestRendererOptions
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
@@ -1017,6 +1055,8 @@ const updateRoomInput = async (
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
+    view?: string;
+    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
   }
 ) => {
   await act(async () => {
@@ -5265,80 +5305,166 @@ describe("RoomInput as Home's ask field", () => {
     return { store, renderer, fail: () => settle(false), finishUpload: () => settle(true) };
   };
 
-  it('enforces text-only paste/drop, ignores paste chips, skips voice recovery, suppresses typing, and ignores empty send', async () => {
-    const readPastes = vi.spyOn(keptPastes, 'readKeptPasteTexts');
-    try {
-      const onSendingChange = vi.fn();
-      const { renderer, store } = await renderRoomInput(createStore(), {
-        ask: askProps({ onSendingChange }),
-      });
-      expect(store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(false);
-      expect(typingState.hidden).toBe(true);
+  it('accepts drops, pastes, paste chips, and attach button, uses inline board, and sends mentioned attachments without touching room state', async () => {
+    const store = createStore();
+    const roomFile = createUploadItem(new File(['room'], 'room-file.txt', { type: 'text/plain' }));
+    const savedRoomDraft: Descendant[] = [
+      { type: 'paragraph', children: [{ text: 'Room draft' }] },
+    ];
+    store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: [roomFile] });
+    store.set(roomDraft(ROOM_ID), savedRoomDraft);
 
-      // Empty Enter/click does not toggle pending sending state.
-      stageComposerText('');
-      await act(async () => {
-        await getPrimarySendButton(renderer).props.onClick();
-      });
-      expect(onSendingChange).not.toHaveBeenCalled();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    fileInputState.pick.mockReset();
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    expect(store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(false);
+    expect(typingState.hidden).toBe(true);
+    expect(customEditorState.props!.onDrop).toBeUndefined();
+    expect(fileInputState.zoneRef).toBe(dropRef);
 
-      // Drop is refused; paste takes plain text only and drops files / slate fragments.
-      const drop = { preventDefault: vi.fn() };
-      customEditorState.props!.onDrop?.(drop);
-      expect(drop.preventDefault).toHaveBeenCalledTimes(1);
+    stageComposerText('');
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(onSendingChange).not.toHaveBeenCalled();
 
-      const fragmentsBefore = vi.mocked(Transforms.insertFragment).mock.calls.length;
-      const paste = {
-        clipboardData: {
-          files: { length: 1, 0: new File(['secret'], 'mindroom-paste-abc123.txt') },
-          types: ['Files', 'text/plain', 'application/x-slate-fragment'],
-          getData: (type: string) => (type === 'text/plain' ? 'Only these words' : 'a paste chip'),
-        },
+    const attachBtn = renderer.root.find(
+      (n) => n.type === 'button' && n.props['aria-label'] === 'Attach files'
+    );
+    await act(async () => attachBtn.props.onClick());
+    expect(fileInputState.pick).toHaveBeenCalledTimes(1);
+
+    // Drop on unencrypted room -> deferred (zero uploads, autoUpload=false), inline board.
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['secret'], 'dropped.txt', { type: 'text/plain' })]);
+      await Promise.resolve();
+    });
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+    expect(renderer.root.find((n) => n.props['data-upload-board-inline'] === 'true')).toBeTruthy();
+    expect(
+      renderer.root.find((n) => n.props['aria-label'] === 'Remove upload dropped.txt').props[
+        'data-auto-upload'
+      ]
+    ).toBe('false');
+
+    // Switch to encrypted room -> Send encrypts and uploads encrypted bytes while keeping onSendingChange(true) locked until completion.
+    await updateRoomInput(renderer, store, {
+      roomId: OTHER_ROOM_ID,
+      encryptedRoom: true,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const encUpload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(encUpload.promise);
+    let sendEnc!: Promise<void>;
+    await act(async () => {
+      sendEnc = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(onSendingChange.mock.calls).toEqual([[true]]);
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.uploadContent.mock.calls[0]![1]).toMatchObject({
+      includeFilename: false,
+      type: 'application/octet-stream',
+    });
+
+    // Network failure unlocks Home and keeps file staged; switching back to unencrypted room and pressing Send retries cleanly.
+    await act(async () => {
+      encUpload.reject(new Error('offline'));
+      await sendEnc;
+    });
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    await updateRoomInput(renderer, store, {
+      roomId: ROOM_ID,
+      encryptedRoom: false,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/dropped' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      msgtype: 'm.file',
+      body: 'dropped.txt',
+      'm.mentions': { user_ids: [HELPER] },
+    });
+
+    // File paste + large-text paste chip + caption -> all mention agent; room files/draft stay intact.
+    const pastedFile = new File(['pdf'], 'spec.pdf', { type: 'application/pdf' });
+    await act(async () => {
+      await customEditorState.props!.onPaste?.({
+        clipboardData: { files: { length: 1, 0: pastedFile }, getData: () => '' },
         preventDefault: vi.fn(),
-      };
-      await act(async () => {
-        await customEditorState.props!.onPaste?.(paste as never);
+      } as never);
+      await customEditorState.props!.onPaste?.(
+        createTextPasteEvent('line of context\n'.repeat(4000))
+      );
+      await Promise.resolve();
+    });
+    expect(editorMocks.insertNode).toHaveBeenCalledTimes(1);
+    expect(store.get(homeUploadsAtom)).toHaveLength(2);
+    mxState.uploadContent
+      .mockResolvedValueOnce({ content_uri: 'mxc://mindroom/p-0' })
+      .mockResolvedValueOnce({ content_uri: 'mxc://mindroom/p-1' });
+    stageComposerText('Review these');
+    resetEditorOnNextSend();
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(4);
+    for (let i = 1; i <= 3; i += 1) {
+      expect(mxState.sendMessage.mock.calls[i]![1]).toMatchObject({
+        'm.mentions': { user_ids: [HELPER] },
       });
-      expect(paste.preventDefault).toHaveBeenCalledTimes(1);
-      expect(editorMocks.insertText.mock.calls).toEqual([['Only these words']]);
-      expect(editorMocks.insertNode).not.toHaveBeenCalled();
-      expect(vi.mocked(Transforms.insertFragment).mock.calls).toHaveLength(fragmentsBefore);
-      expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    }
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([roomFile]);
+    expect(store.get(roomDraft(ROOM_ID))).toEqual(savedRoomDraft);
+    renderer.unmount();
 
-      // Existing paste-marker chip is not uploaded on send.
-      editorOutputState.emptyEditor = false;
-      editorOutputState.plainText = 'Only these words';
-      customEditorState.editor!.children = [
-        {
-          type: 'paragraph',
-          children: [
-            { text: 'Only these words' },
-            {
-              type: 'paste-marker',
-              fileName: 'mindroom-paste-abc123.txt',
-              children: [{ text: '' }],
-            },
-          ],
-        },
-      ];
-      await submitComposer();
-      await act(async () => Promise.resolve());
-      expect(readPastes).not.toHaveBeenCalled();
-      expect(mxState.uploadContent).not.toHaveBeenCalled();
-      expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
-        msgtype: 'm.text',
-        body: 'Only these words',
+    const room = await renderRoomInput(store);
+    expect(
+      room.renderer.root.find((n) => n.props['data-upload-board-inline'] === 'false')
+    ).toBeTruthy();
+    expect(room.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(true);
+    expect(typingState.hidden).toBeFalsy();
+    room.renderer.unmount();
+  });
+
+  it('does not fire onLocalEcho for a trailing caption after an upload root sends (threaded or room mode)', async () => {
+    for (const threadingEnabled of [true, false]) {
+      const store = createStore();
+      const onLocalEcho = vi.fn();
+      const onRoomMessageSent = vi.fn(() => threadingEnabled);
+      const { renderer } = await renderRoomInput(store, {
+        view: HOME_ASK_VIEW,
+        threadingEnabled,
+        onRoomMessageSent,
+        ask: askProps({ onLocalEcho }),
       });
+      const item = createUploadItem(
+        new File(['data'], `note-${threadingEnabled}.txt`, { type: 'text/plain' })
+      );
+      act(() => {
+        store.set(composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW), {
+          type: 'PUT',
+          item: [item],
+        });
+        store.set(roomUploadAtomFamily(item.file), { mxc: 'mxc://mindroom/note' });
+      });
+      stageComposerText('Follow-up caption');
+      resetEditorOnNextSend();
+      mxState.sendMessage.mockResolvedValueOnce({ event_id: '$upload-root' });
+      await act(async () => getPrimarySendButton(renderer).props.onClick());
+      expect(onRoomMessageSent).toHaveBeenCalledWith('$upload-root');
+      expect(onLocalEcho).not.toHaveBeenCalled();
       renderer.unmount();
-
-      // Normal room composer keeps drop, voice recovery, and typing notices.
-      const room = await renderRoomInput();
-      expect(customEditorState.props!.onDrop).toBeUndefined();
-      expect(room.store.get(voiceDraftRestoresAtom).has(USER_ID)).toBe(true);
-      expect(typingState.hidden).toBeFalsy();
-      room.renderer.unmount();
-    } finally {
-      readPastes.mockRestore();
     }
   });
 
@@ -5403,5 +5529,203 @@ describe("RoomInput as Home's ask field", () => {
     expect(refused.store.get(homeDraft())).toEqual(question);
     refused.renderer.unmount();
     refused.store.set(homeDraft(), []);
+  });
+
+  it('retries a failed attachment-only Home send without re-uploading media', async () => {
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    stageComposerText('');
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['payload'], 'report.txt', { type: 'text/plain' })]);
+      await Promise.resolve();
+    });
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/report-1' });
+    mxState.sendMessage.mockRejectedValueOnce(new Error('transient send failure'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$sent-retry' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false], [true], [false]]);
+    renderer.unmount();
+  });
+
+  it('does not send text with a dangling paste marker when a Home paste attachment upload fails, and restores the draft for retry', async () => {
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(createTextPasteEvent('log line\n'.repeat(4000)));
+      await Promise.resolve();
+    });
+    const pasteNode = editorMocks.insertNode.mock.calls[0]?.[0] as { marker: string };
+    expect(pasteNode?.marker).toBeTruthy();
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    const draftWithChip = [
+      { type: 'paragraph', children: [pasteNode, { text: ' please review' }] },
+    ];
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    editorOutputState.plainText = `${pasteNode.marker} please review`;
+    editorOutputState.customHtml = editorOutputState.plainText;
+    editorOutputState.htmlEqualsPlainText = true;
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+      customEditorState.props!.onChange?.();
+    });
+
+    mxState.uploadContent.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(
+      customEditorState.editor,
+      draftWithChip
+    );
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    // Retry once connectivity returns: restores chip in editor and sends both paste file and text.
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    resetEditorOnNextSend();
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/paste-retry' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('re-encrypts and sends to the new room and agent when retrying a failed Home attachment send after switching rooms', async () => {
+    const OTHER_AGENT = '@mindroom_other:example.org';
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      roomId: ROOM_ID,
+      encryptedRoom: false,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ agentUserId: HELPER, onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    stageComposerText('');
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['secret'], 'brief.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/plain-brief' });
+    mxState.sendMessage.mockRejectedValueOnce(new Error('room A send failed'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0]![0]).toBe(ROOM_ID);
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+
+    // Switch Home destination to encrypted room B with a different agent and retry Send.
+    await updateRoomInput(renderer, store, {
+      roomId: OTHER_ROOM_ID,
+      encryptedRoom: true,
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ agentUserId: OTHER_AGENT, onSendingChange }),
+    });
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/enc-brief' });
+    mxState.sendMessage.mockResolvedValueOnce({ event_id: '$sent-room-b' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+    expect(mxState.uploadContent.mock.calls[1]![1]).toMatchObject({
+      includeFilename: false,
+      type: 'application/octet-stream',
+    });
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mxState.sendMessage.mock.calls[1]![0]).toBe(OTHER_ROOM_ID);
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
+      msgtype: 'm.file',
+      body: 'brief.pdf',
+      'm.mentions': { user_ids: [OTHER_AGENT] },
+      file: expect.objectContaining({ url: 'mxc://mindroom/enc-brief' }),
+    });
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('does not send a dangling paste caption when the paste file sendMessage fails, and restores the draft', async () => {
+    const store = createStore();
+    const onSendingChange = vi.fn();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: askProps({ onSendingChange }),
+    });
+    const homeUploadsAtom = composerUploadItemsAtom(getHomeAskDraftKey(USER_ID), HOME_ASK_VIEW);
+
+    await act(async () => {
+      await customEditorState.props!.onPaste?.(createTextPasteEvent('stack trace\n'.repeat(4000)));
+      await Promise.resolve();
+    });
+    const pasteNode = editorMocks.insertNode.mock.calls[0]?.[0] as { marker: string };
+    expect(pasteNode?.marker).toBeTruthy();
+
+    const draftWithChip = [{ type: 'paragraph', children: [pasteNode, { text: ' explain this' }] }];
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    editorOutputState.plainText = `${pasteNode.marker} explain this`;
+    editorOutputState.customHtml = editorOutputState.plainText;
+    editorOutputState.htmlEqualsPlainText = true;
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      customEditorState.editor!.children = [{ type: 'paragraph', children: [{ text: '' }] }];
+      customEditorState.props!.onChange?.();
+    });
+
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/paste-uploaded' });
+    mxState.sendMessage.mockRejectedValueOnce(new Error('paste sendMessage failed'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    // Paste file uploaded, its sendMessage rejected -> caption was NOT sent and draft was restored.
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(
+      customEditorState.editor,
+      draftWithChip
+    );
+    expect(store.get(homeUploadsAtom)).toHaveLength(1);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    // Retry reuses the already-uploaded paste file and sends both attachment and caption.
+    customEditorState.editor!.children = structuredClone(draftWithChip);
+    resetEditorOnNextSend();
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$paste-root' })
+      .mockResolvedValueOnce({ event_id: '$paste-caption' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(3);
+    expect(store.get(homeUploadsAtom)).toHaveLength(0);
+    renderer.unmount();
   });
 });

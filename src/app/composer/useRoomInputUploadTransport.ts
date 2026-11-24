@@ -75,7 +75,10 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         const { file, originalFile, encInfo } = item;
         uploadContent(mx, file, {
           hideFilename: encInfo !== undefined,
-          fileType: originalFile.type || undefined,
+          fileType:
+            encInfo !== undefined
+              ? file.type || 'application/octet-stream'
+              : originalFile.type || undefined,
           name: originalFile.name,
           onPromise: (request) => store.set(uploadAtom, { promise: request }),
           onProgress: (progress) => store.set(uploadAtom, { progress }),

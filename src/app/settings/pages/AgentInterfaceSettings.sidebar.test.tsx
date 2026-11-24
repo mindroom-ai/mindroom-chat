@@ -28,6 +28,9 @@ vi.mock('../../matrix/hooks/useAccountSettings', () => ({
 vi.mock('../../shortcuts/paletteShortcut', () => ({
   getCommandPaletteShortcutLabel: () => 'Ctrl + K',
 }));
+vi.mock('../../shortcuts/shortcuts', () => ({
+  formatShortcut: () => 'Ctrl+/',
+}));
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
@@ -94,6 +97,7 @@ describe('Settings > General > Sidebar', () => {
       'Show Create Space in the sidebar',
       'Show Search in the sidebar',
       'Show Local MindRoom in the sidebar',
+      'Show Help & guides in the sidebar',
     ]);
   });
 
@@ -103,7 +107,11 @@ describe('Settings > General > Sidebar', () => {
       sidebar: { showThreads: false, showExploreCommunity: false },
       mindroom: { canvas: { enabled: false } },
     });
-    expect(titles(renderer)).toEqual(['Show Usage in the sidebar', 'Show Search in the sidebar']);
+    expect(titles(renderer)).toEqual([
+      'Show Usage in the sidebar',
+      'Show Search in the sidebar',
+      'Show Help & guides in the sidebar',
+    ]);
   });
 
   it('says where each hidden page stays reachable', () => {
@@ -120,6 +128,11 @@ describe('Settings > General > Sidebar', () => {
     expect(description('Show Local MindRoom in the sidebar')).toContain(
       'Settings under Local MindRoom'
     );
+    expect(description('Show Help & guides in the sidebar')).toContain('Settings under About');
+    expect(description('Show Help & guides in the sidebar')).toContain(
+      'command palette (Ctrl + K)'
+    );
+    expect(description('Show Help & guides in the sidebar')).toContain('with Ctrl+/');
   });
 
   it('shows each stored value and writes the switch that was turned', async () => {
@@ -128,6 +141,7 @@ describe('Settings > General > Sidebar', () => {
     expect(toggle('Show Threads in the sidebar').props['aria-checked']).toBe(true);
     expect(toggle('Show Search in the sidebar').props['aria-checked']).toBe(false);
     expect(toggle('Show Explore Community in the sidebar').props['aria-checked']).toBe(false);
+    expect(toggle('Show Help & guides in the sidebar').props['aria-checked']).toBe(true);
 
     await act(async () => {
       toggle('Show Create Space in the sidebar').props.onClick();
@@ -137,5 +151,9 @@ describe('Settings > General > Sidebar', () => {
       toggle('Show Search in the sidebar').props.onClick();
     });
     expect(state.write).toHaveBeenLastCalledWith({ showSearchInSidebar: true });
+    await act(async () => {
+      toggle('Show Help & guides in the sidebar').props.onClick();
+    });
+    expect(state.write).toHaveBeenLastCalledWith({ showHelpInSidebar: false });
   });
 });
