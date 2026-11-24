@@ -3,9 +3,12 @@ import { Box, Switch, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
-import { isPluginEnabled } from '../../plugins/pluginConfig';
+import { isPluginEnabled, isPluginPreferredEnabled } from '../../plugins/pluginConfig';
 import { registeredPlugins } from '../../plugins/registry';
-import { setPluginDisabled } from '../../preferences/accountSettings';
+import {
+  setPluginEnabledPreference,
+  type PluginPreferences,
+} from '../../preferences/accountSettings';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingScopeLabel } from '../../ui/settings/SettingScopeLabel';
 import { ScopeLine } from '../../ui/settings/scopeLabel.css';
@@ -21,26 +24,28 @@ export function Plugins({ requestClose }: SettingsPageProps) {
   const deploymentConfig = useOptionalClientConfig();
   const settings = useAccountSettings();
   const setAccountSettings = useSetAccountSettings();
-  const [pending, setPending] = useState<readonly string[]>();
+  const [pending, setPending] = useState<PluginPreferences>();
   const [saveFailed, setSaveFailed] = useState(false);
   const requestGeneration = useRef(0);
-  const effectiveDisabled = pending ?? settings.disabledPlugins;
-  const latestDisabled = useRef<readonly string[]>(effectiveDisabled);
-  latestDisabled.current = effectiveDisabled;
+  const effectivePrefs: PluginPreferences = pending ?? {
+    disabledPlugins: settings.disabledPlugins,
+    enabledPlugins: settings.enabledPlugins,
+  };
+  const latestPrefs = useRef<PluginPreferences>(effectivePrefs);
+  latestPrefs.current = effectivePrefs;
 
   const plugins = registeredPlugins.filter((plugin) =>
     isPluginEnabled(deploymentConfig, plugin.id)
   );
-  const disabledSet = new Set(effectiveDisabled);
 
   const handleToggle = (pluginId: string, enabled: boolean) => {
     requestGeneration.current += 1;
     const generation = requestGeneration.current;
-    const nextDisabled = setPluginDisabled(latestDisabled.current, pluginId, !enabled);
-    latestDisabled.current = nextDisabled;
-    setPending(nextDisabled);
+    const nextPrefs = setPluginEnabledPreference(latestPrefs.current, pluginId, enabled);
+    latestPrefs.current = nextPrefs;
+    setPending(nextPrefs);
     setSaveFailed(false);
-    setAccountSettings({ disabledPlugins: nextDisabled })
+    setAccountSettings(nextPrefs)
       .catch(() => {
         if (requestGeneration.current === generation) setSaveFailed(true);
       })
@@ -70,7 +75,7 @@ export function Plugins({ requestClose }: SettingsPageProps) {
                     <Switch
                       variant="Primary"
                       aria-label={plugin.displayName}
-                      value={!disabledSet.has(plugin.id)}
+                      value={isPluginPreferredEnabled(plugin, effectivePrefs)}
                       onChange={(enabled) => handleToggle(plugin.id, enabled)}
                     />
                   }

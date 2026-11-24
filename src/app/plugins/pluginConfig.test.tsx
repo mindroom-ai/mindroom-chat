@@ -2,15 +2,27 @@
 import { act, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
+import type { PluginEntry } from './pluginEntries';
 import {
   isPluginEnabled,
+  isPluginPreferredEnabled,
   usePluginClientConfig,
   usePluginConfig,
   withDisabledPlugins,
+  withPluginPreferences,
 } from './pluginConfig';
+
+const mocks = vi.hoisted(() => ({
+  plugins: [] as Pick<PluginEntry, 'id' | 'defaultEnabled'>[],
+}));
+vi.mock('./pluginEntries', () => ({ pluginEntries: mocks.plugins }));
+
+afterEach(() => {
+  mocks.plugins.length = 0;
+});
 
 /** A config.json with this `plugins` section. */
 const withPlugins = (plugins: unknown): ClientConfig => ({ plugins } as unknown as ClientConfig);
@@ -95,8 +107,69 @@ describe('withDisabledPlugins', () => {
   });
 });
 
+describe('isPluginPreferredEnabled', () => {
+  it('applies precedence disabledPlugins > enabledPlugins > defaultEnabled', () => {
+    const on = { id: 'on', defaultEnabled: true };
+    const off = { id: 'off', defaultEnabled: false };
+    const empty = { disabledPlugins: [], enabledPlugins: [] };
+
+    expect(isPluginPreferredEnabled(on, empty)).toBe(true);
+    expect(isPluginPreferredEnabled(off, empty)).toBe(false);
+    expect(isPluginPreferredEnabled(off, { disabledPlugins: [], enabledPlugins: ['off'] })).toBe(
+      true
+    );
+    expect(isPluginPreferredEnabled(on, { disabledPlugins: ['on'], enabledPlugins: [] })).toBe(
+      false
+    );
+    expect(
+      isPluginPreferredEnabled(off, { disabledPlugins: ['off'], enabledPlugins: ['off'] })
+    ).toBe(false);
+  });
+});
+
+describe('withPluginPreferences', () => {
+  it('disables default-off plugins unless opted in and never overrides deployment enabled: false', () => {
+    const plugins = [
+      { id: 'example', defaultEnabled: true },
+      { id: 'opt-in', defaultEnabled: false },
+      { id: 'locked', defaultEnabled: false },
+    ];
+    const deployment = withPlugins({
+      locked: { enabled: false },
+      'opt-in': { label: 'Opt' },
+    });
+
+    const initial = withPluginPreferences(deployment, plugins, {
+      disabledPlugins: [],
+      enabledPlugins: [],
+    });
+    expect(isPluginEnabled(initial, 'example')).toBe(true);
+    expect(isPluginEnabled(initial, 'opt-in')).toBe(false);
+    expect(isPluginEnabled(initial, 'locked')).toBe(false);
+
+    const optedIn = withPluginPreferences(deployment, plugins, {
+      disabledPlugins: [],
+      enabledPlugins: ['opt-in', 'locked'],
+    });
+    expect(optedIn).toBe(deployment);
+    expect(isPluginEnabled(optedIn, 'opt-in')).toBe(true);
+    expect(isPluginEnabled(optedIn, 'locked')).toBe(false);
+
+    const disabledUnlisted = withPluginPreferences(deployment, [], {
+      disabledPlugins: ['extra'],
+      enabledPlugins: [],
+    });
+    expect(isPluginEnabled(disabledUnlisted, 'extra')).toBe(false);
+  });
+});
+
 describe('usePluginClientConfig', () => {
-  it('reacts live to accountSettingsAtom disabledPlugins updates', () => {
+  it('reacts live to accountSettingsAtom disabledPlugins and enabledPlugins updates', () => {
+    mocks.plugins.push(
+      { id: 'example', defaultEnabled: true },
+      { id: 'opt-in', defaultEnabled: false },
+      { id: 'locked', defaultEnabled: false }
+    );
     const store = createStore();
     const deploymentConfig = withPlugins({ locked: { enabled: false }, example: { label: 'Hi' } });
     const { result } = renderHook(() => usePluginClientConfig(), {
@@ -107,20 +180,29 @@ describe('usePluginClientConfig', () => {
       ),
     });
 
-    expect(result.current).toBe(deploymentConfig);
     expect(isPluginEnabled(result.current, 'example')).toBe(true);
+    expect(isPluginEnabled(result.current, 'opt-in')).toBe(false);
     expect(isPluginEnabled(result.current, 'locked')).toBe(false);
 
     act(() => {
-      store.set(accountSettingsAtom, { disabledPlugins: ['example'] });
+      store.set(accountSettingsAtom, {
+        disabledPlugins: ['example'],
+        enabledPlugins: ['opt-in', 'locked'],
+      });
     });
     expect(isPluginEnabled(result.current, 'example')).toBe(false);
+    expect(isPluginEnabled(result.current, 'opt-in')).toBe(true);
     expect(isPluginEnabled(result.current, 'locked')).toBe(false);
 
     act(() => {
-      store.set(accountSettingsAtom, { disabledPlugins: [] });
+      store.set(accountSettingsAtom, {
+        disabledPlugins: [],
+        enabledPlugins: ['opt-in', 'locked'],
+      });
     });
     expect(result.current).toBe(deploymentConfig);
     expect(isPluginEnabled(result.current, 'example')).toBe(true);
+    expect(isPluginEnabled(result.current, 'opt-in')).toBe(true);
+    expect(isPluginEnabled(result.current, 'locked')).toBe(false);
   });
 });

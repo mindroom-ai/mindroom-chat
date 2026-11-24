@@ -144,10 +144,11 @@ describe('readClientPlugins', () => {
       description: '  Helpful description  ',
     });
     const blank = pluginDir({
-      ...declaring({ id: 'blank-meta', name: '   ' }),
+      ...declaring({ id: 'blank-meta', name: '   ', defaultEnabled: true }),
       description: '   ',
     });
-    expect(readClientPlugins(` ${EXAMPLE} ,${other},${blank},`)).toEqual([
+    const optIn = pluginDir(declaring({ id: 'opt-in', defaultEnabled: false }));
+    expect(readClientPlugins(` ${EXAMPLE} ,${other},${blank},${optIn},`)).toEqual([
       {
         id: 'example',
         version: '1.0.0',
@@ -169,6 +170,13 @@ describe('readClientPlugins', () => {
         version: '2.0.0',
         dir: blank,
         entry: path.join(blank, 'index.js'),
+      },
+      {
+        id: 'opt-in',
+        version: '2.0.0',
+        defaultEnabled: false,
+        dir: optIn,
+        entry: path.join(optIn, 'index.js'),
       },
     ]);
   });
@@ -219,6 +227,11 @@ describe('readClientPlugins', () => {
       /build "\.\/build\.mjs" does not exist/,
     ],
     [
+      'a defaultEnabled that is not a boolean',
+      () => pluginDir(declaring({ defaultEnabled: 'false' })),
+      /defaultEnabled "false" is not a boolean/,
+    ],
+    [
       'a build module outside its directory',
       () => {
         const elsewhere = path.join(emptyDir(), 'build.mjs');
@@ -255,18 +268,20 @@ describe('readClientPlugins', () => {
 describe('clientPlugins', () => {
   it('builds each listed plugin into the entries module', async () => {
     const named = pluginDir({
-      ...declaring({ id: 'named-plugin', name: 'Named Plugin' }),
+      ...declaring({ id: 'named-plugin', name: 'Named Plugin', defaultEnabled: true }),
       description: 'Adds a custom view',
     });
+    const optIn = pluginDir(declaring({ id: 'opt-in', defaultEnabled: false }));
     const code = await buildCode(
-      { MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${named}` },
+      { MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${named},${optIn}` },
       { external: packages }
     );
     expect(code).toContain('com.example.greeting');
     expect(code).toMatch(/id: "example",\s*version: "1\.0\.0"/);
     expect(code).toMatch(
-      /id: "named-plugin",\s*version: "2\.0\.0",\s*name: "Named Plugin",\s*description: "Adds a custom view"/
+      /id: "named-plugin",\s*version: "2\.0\.0",\s*name: "Named Plugin",\s*description: "Adds a custom view",\s*plugin:/
     );
+    expect(code).toMatch(/id: "opt-in",\s*version: "2\.0\.0",\s*defaultEnabled: false,/);
     // Its build module (build.mjs) writes its banner's words in place of their marker.
     expect(code).toContain('Example banner in');
     expect(code).not.toContain('EXAMPLE_BANNER');
@@ -313,7 +328,7 @@ describe('clientPlugins', () => {
     );
     const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules));
     // The SDK's exports are the app's own modules, not copies or stand-ins.
-    expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
+    expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginDeploymentConfig.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/matrix/hooks/useRoomMembers.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/ui/MenuEntry.tsx'));
   });

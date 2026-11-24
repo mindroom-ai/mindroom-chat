@@ -1,7 +1,7 @@
 import { useCallback, type ComponentType } from 'react';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled } from './pluginDeploymentConfig';
 import type { RegisteredPlugin } from './registry';
 
 /** What a plugin's link card is given: the link, the room its message is in, and how to close the card. */

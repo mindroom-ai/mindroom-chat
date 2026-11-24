@@ -21,6 +21,7 @@ vi.mock('../plugins/registry', async (importOriginal) => ({
     {
       id: 'cards',
       tag: 'cards@1.0.0',
+      defaultEnabled: true,
       messageRenderers: [
         { match: ({ content }: { content: object }) => CARD_KEY in content, Component: () => null },
         {

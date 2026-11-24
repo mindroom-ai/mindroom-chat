@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 66), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 67), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -259,6 +259,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 64 `ui`'s `MarkdownContent`
 - version 65 side panels' `title`
 - version 66 a message link's `hoverCard`, with `MessageLinkHoverCardProps`
+- version 67 the declaration's `defaultEnabled`
 
 ## Page zoom
 
@@ -316,7 +317,7 @@ A build module is code the build runs, as an entry is code the browser runs: the
 
 An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution, its strings, and an optional `forgetAccount` (account storage, below).
 `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes.
-A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
+A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginDeploymentConfig.ts`).
 
 ## Message renderers
 
@@ -551,7 +552,9 @@ A component that loads its code (a `lazy` component) shows nothing until the cod
 
 `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions across the deployment and omits the plugin from Settings, and `?plugins=off` in the address hides every plugin's for one page load.
 
-Each account can also turn individual deployment-enabled plugins on or off in **Settings -> Plugins** (synced across web, Mac, and iOS in `io.mindroom.settings` as `disabledPlugins`). Turning off a plugin hides all of its contributions immediately for that account, while leaving **Settings -> Plugins** visible so the account can turn it back on. A plugin can set an optional `mindroomClientPlugin.name` in `package.json` for its display label in Settings (otherwise the client formats its kebab-case `id` in Title Case) alongside its optional `package.json` `description`.
+A plugin can also declare an optional boolean `mindroomClientPlugin.defaultEnabled` in `package.json` (since version 67; defaults to `true`, and a non-boolean fails the build). When `defaultEnabled` is `false`, the plugin ships in the build and appears in **Settings -> Plugins** as off by default until the account turns it on.
+
+Each account can turn individual deployment-enabled plugins on or off in **Settings -> Plugins** (synced across web, Mac, and iOS in `io.mindroom.settings` as `disabledPlugins` and `enabledPlugins`). Precedence is: deployment `plugins.<id>.enabled: false` > `disabledPlugins` > `enabledPlugins` > `mindroomClientPlugin.defaultEnabled`. Turning off a plugin hides all of its contributions immediately for that account, while leaving **Settings -> Plugins** visible so the account can turn it back on. A plugin can set an optional `mindroomClientPlugin.name` in `package.json` for its display label in Settings (otherwise the client formats its kebab-case `id` in Title Case) alongside its optional `package.json` `description`.
 
 ## Tests
 

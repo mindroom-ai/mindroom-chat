@@ -76,6 +76,7 @@ it('repositions inside the viewport when a lazy-only detail grows after opening 
       id: 'test',
       tag: 'test@1.0.0',
       displayName: 'Test',
+      defaultEnabled: true,
       conversationCovers: [],
       messageRenderers: [],
       pages: [],

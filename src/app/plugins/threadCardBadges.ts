@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled } from './pluginDeploymentConfig';
 import type { RegisteredPlugin } from './registry';
 
 /** What a thread card badge is given: the thread's room and the ID of its root event. */

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
 import { PLACEMENTS, type HeaderAction } from './headerActions';
-import { isPluginEnabled } from './pluginConfig';
+import { isPluginEnabled } from './pluginDeploymentConfig';
 import { pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 

@@ -43,11 +43,17 @@ vi.mock('../../ui/settings/SettingsCard', () => ({
   SettingsCard: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-const makePlugin = (id: string, displayName: string, description?: string): RegisteredPlugin => ({
+const makePlugin = (
+  id: string,
+  displayName: string,
+  description?: string,
+  defaultEnabled = true
+): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
   displayName,
   ...(description !== undefined ? { description } : {}),
+  defaultEnabled,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
@@ -86,10 +92,10 @@ afterEach(() => {
 });
 
 describe('Plugins settings page', () => {
-  it('renders deployment-enabled plugins with display names and descriptions and excludes deployment-disabled plugins', () => {
+  it('renders deployment-enabled default-on and default-off plugins and excludes deployment-disabled plugins', () => {
     mocks.plugins.push(
       makePlugin('pull-requests', 'Pull Requests', 'Review pull requests in rooms'),
-      makePlugin('thread-usage', 'Thread Usage'),
+      makePlugin('opt-in', 'Opt-in Plugin', 'Off until enabled', false),
       makePlugin('blocked', 'Blocked Plugin', 'Hidden by deployment')
     );
     const deploymentConfig = {
@@ -100,29 +106,29 @@ describe('Plugins settings page', () => {
 
     expect(screen.getByText('Pull Requests')).toBeTruthy();
     expect(screen.getByText('Review pull requests in rooms')).toBeTruthy();
-    expect(screen.getByText('Thread Usage')).toBeTruthy();
+    expect(screen.getByText('Opt-in Plugin')).toBeTruthy();
     expect(screen.queryByText('Blocked Plugin')).toBeNull();
 
     expect(screen.getByRole('switch', { name: 'Pull Requests' }).getAttribute('aria-checked')).toBe(
       'true'
     );
-    expect(screen.getByRole('switch', { name: 'Thread Usage' }).getAttribute('aria-checked')).toBe(
-      'true'
+    expect(screen.getByRole('switch', { name: 'Opt-in Plugin' }).getAttribute('aria-checked')).toBe(
+      'false'
     );
   });
 
-  it('writes disabledPlugins when toggled and keeps all deployment-enabled plugins visible when all are user-disabled', async () => {
+  it('writes disabledPlugins and enabledPlugins atomically when toggled and keeps plugins visible when all are off', async () => {
     mocks.plugins.push(
       makePlugin('pull-requests', 'Pull Requests'),
-      makePlugin('thread-usage', 'Thread Usage')
+      makePlugin('opt-in', 'Opt-in Plugin', undefined, false)
     );
 
-    const { store } = renderPlugins({}, { disabledPlugins: ['pull-requests', 'thread-usage'] });
+    const { store } = renderPlugins({}, { disabledPlugins: ['pull-requests'] });
 
     const prSwitch = screen.getByRole('switch', { name: 'Pull Requests' });
-    const usageSwitch = screen.getByRole('switch', { name: 'Thread Usage' });
+    const optInSwitch = screen.getByRole('switch', { name: 'Opt-in Plugin' });
     expect(prSwitch.getAttribute('aria-checked')).toBe('false');
-    expect(usageSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(optInSwitch.getAttribute('aria-checked')).toBe('false');
 
     mocks.setAccountSettings.mockImplementation(async (patch) => {
       store.set(accountSettingsAtom, {
@@ -132,19 +138,30 @@ describe('Plugins settings page', () => {
     });
 
     await act(async () => {
-      fireEvent.click(prSwitch);
+      fireEvent.click(optInSwitch);
     });
     expect(mocks.setAccountSettings).toHaveBeenCalledWith({
-      disabledPlugins: ['thread-usage'],
+      disabledPlugins: ['pull-requests'],
+      enabledPlugins: ['opt-in'],
+    });
+    expect(prSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(optInSwitch.getAttribute('aria-checked')).toBe('true');
+
+    await act(async () => {
+      fireEvent.click(prSwitch);
+    });
+    expect(mocks.setAccountSettings).toHaveBeenLastCalledWith({
+      disabledPlugins: [],
+      enabledPlugins: ['opt-in', 'pull-requests'],
     });
     expect(prSwitch.getAttribute('aria-checked')).toBe('true');
-    expect(usageSwitch.getAttribute('aria-checked')).toBe('false');
+    expect(optInSwitch.getAttribute('aria-checked')).toBe('true');
   });
 
-  it('composes rapid consecutive toggles without clobbering earlier clicks', async () => {
+  it('composes rapid consecutive toggles across default-on and default-off plugins without clobbering earlier clicks', async () => {
     mocks.plugins.push(
       makePlugin('pull-requests', 'Pull Requests'),
-      makePlugin('thread-usage', 'Thread Usage')
+      makePlugin('opt-in', 'Opt-in Plugin', undefined, false)
     );
 
     const resolvers: Array<() => void> = [];
@@ -158,13 +175,15 @@ describe('Plugins settings page', () => {
     renderPlugins({});
 
     fireEvent.click(screen.getByRole('switch', { name: 'Pull Requests' }));
-    fireEvent.click(screen.getByRole('switch', { name: 'Thread Usage' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Opt-in Plugin' }));
 
     expect(mocks.setAccountSettings).toHaveBeenNthCalledWith(1, {
       disabledPlugins: ['pull-requests'],
+      enabledPlugins: [],
     });
     expect(mocks.setAccountSettings).toHaveBeenNthCalledWith(2, {
-      disabledPlugins: ['pull-requests', 'thread-usage'],
+      disabledPlugins: ['pull-requests'],
+      enabledPlugins: ['opt-in'],
     });
 
     await act(async () => {
