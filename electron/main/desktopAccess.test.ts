@@ -56,6 +56,7 @@ import {
   type DesktopBridgeClient,
 } from './desktopAccess';
 import { loadConsent, setControllerFullAccess } from './desktopAccessConsent';
+import { DesktopHelperError } from './desktopBridgeProcess';
 import { isShellApprovalUrl } from './security';
 
 const tempDirs: string[] = [];
@@ -1367,5 +1368,74 @@ describe('desktopAccess', () => {
     expect(fake2.calls.map((c) => c.action)).not.toContain('grant_control');
     expect(fake2.calls.map((c) => c.action)).not.toContain('grant_shell');
     await access2.stop();
+  });
+
+  it('returns ok: false from revokeAll when the helper refuses remove_controller and leaves a controller behind', async () => {
+    const userDataDir = makeTempDir();
+    const storagePath = makeTempDir();
+    const fake = createFakeBridgeClient(makeBaseStatus());
+    electronMocks.Tray.mockImplementation(function () {
+      return makeFakeTrayInstance();
+    });
+
+    const access = createDesktopAccess({
+      platform: 'darwin',
+      arch: 'arm64',
+      userDataDir,
+      storagePath,
+      preload: '/app/preload.cjs',
+      isQuitting: () => false,
+      resolution: { availability: 'available', binaryPath: '/fake/helper' },
+      createBridgeProcess: ({ onStatus }) => {
+        fake.setOnStatus(onStatus);
+        return fake.client;
+      },
+      onStatusChange: vi.fn(),
+      onOpenMainWindow: vi.fn(),
+      onOpenSettings: vi.fn(),
+    });
+
+    access.noteGesture();
+    const paired = await access.pair({
+      controller: { userId: '@mindroom_general:mindroom.chat', deviceId: 'D1', ed25519: 'k1' },
+      allowedRequesterIds: ['@bas:mindroom.chat'],
+      allowedAgentNames: ['general'],
+      code: 'C1',
+    });
+    expect(paired.ok).toBe(true);
+    if (!paired.ok) return;
+
+    access.noteGesture();
+    expect(
+      (
+        await access.finishSetup({
+          controllerKey: paired.value.controllerKey,
+          agentName: 'General',
+          mode: 'full',
+        })
+      ).ok
+    ).toBe(true);
+
+    // Simulate helper refusing remove_controller while leaving the controller persisted in status.
+    const originalRequest = fake.client.request;
+    fake.client.request = vi.fn(async (action: string, parameters: Record<string, unknown> = {}) => {
+      if (action === 'remove_controller') {
+        throw new DesktopHelperError('config_write_failed', 'Cannot persist native_config.json');
+      }
+      return originalRequest(action, parameters);
+    }) as DesktopBridgeClient['request'];
+
+    access.noteGesture();
+    const revoked = await access.revokeAll();
+    expect(revoked).toEqual({
+      ok: false,
+      code: 'config_write_failed',
+      message: 'Cannot persist native_config.json',
+    });
+    // Local consent is still cleared and live bridge stopped, while the remaining controller stays reported.
+    expect(loadConsent(userDataDir).controllers).toEqual({});
+    expect(fake.currentStatus().bridge.state).toBe('stopped');
+    expect(fake.currentStatus().config.controllers).toHaveLength(1);
+    await access.stop();
   });
 });

@@ -378,9 +378,14 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
     );
     const { previous } = clearAllConsent(options.userDataDir);
     restoreLoginItemIfUnused(previous.managedLoginItem);
+    let removalFailure: unknown;
     if (bridge) {
       if (!bridge.isRunning() && hadNativeConfig) {
-        await bridge.start().catch(() => undefined);
+        try {
+          await bridge.start();
+        } catch (error) {
+          removalFailure ??= error;
+        }
       }
       if (bridge.isRunning()) {
         for (const action of ['revoke_control', 'revoke_shell', 'stop'] as const) {
@@ -398,22 +403,41 @@ export const createDesktopAccess = (options: DesktopAccessOptions): DesktopAcces
           );
           if (!nextController) break;
           attempted.add(nextController.controller_key);
-          const res = await bridge
-            .request<{ status?: DesktopAccessHelperStatus }>('remove_controller', {
-              expected_revision: current.config.revision,
-              controller_key: nextController.controller_key,
-            })
-            .catch(() => undefined);
-          if (res?.status) {
-            latestStatus = res.status;
-            current = res.status;
-          } else {
+          try {
+            const res = await bridge.request<{ status?: DesktopAccessHelperStatus }>(
+              'remove_controller',
+              {
+                expected_revision: current.config.revision,
+                controller_key: nextController.controller_key,
+              }
+            );
+            if (res.status) {
+              latestStatus = res.status;
+              current = res.status;
+            } else {
+              current = await fetchStatus(bridge).catch(() => null);
+            }
+          } catch (error) {
+            removalFailure ??= error;
             current = await fetchStatus(bridge).catch(() => null);
           }
         }
+        if (removalFailure !== undefined || (latestStatus?.config.controllers.length ?? 0) > 0) {
+          await fetchStatus(bridge).catch(() => undefined);
+        }
       }
     }
-    return { ok: true, value: syncUi() };
+    const snapshot = syncUi();
+    if ((latestStatus?.config.controllers.length ?? 0) > 0 || removalFailure !== undefined) {
+      return removalFailure !== undefined
+        ? toError(removalFailure)
+        : {
+            ok: false,
+            code: 'REVOKE_INCOMPLETE',
+            message: 'Some paired controllers could not be removed from this Mac.',
+          };
+    }
+    return { ok: true, value: snapshot };
   };
 
   return {
