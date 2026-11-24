@@ -223,6 +223,7 @@ describe('useAnchoredCard', () => {
   });
 
   it('fires onGone on trigger removal and when the trigger loses its layout boxes', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const makeTrigger = () => {
       const button = document.createElement('button');
       button.getBoundingClientRect = () => ({ ...rect }) as DOMRect;
@@ -240,6 +241,7 @@ describe('useAnchoredCard', () => {
     await act(async () => {
       removable.remove();
       await Promise.resolve();
+      vi.advanceTimersToNextFrame();
     });
     expect(onRemoved).toHaveBeenCalledTimes(1);
     first.unmount();
@@ -254,6 +256,7 @@ describe('useAnchoredCard', () => {
         hideable.getClientRects = () => [] as unknown as DOMRectList;
         hideable.style.display = 'none';
         await Promise.resolve();
+        vi.advanceTimersToNextFrame();
       });
       expect(onHidden).toHaveBeenCalledTimes(1);
     } finally {
