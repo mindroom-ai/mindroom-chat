@@ -11,12 +11,12 @@ import {
   encryptAttachment,
   type EncryptedAttachmentInfo,
 } from 'browser-encrypt-attachment';
-import { isRoomAlias, isRoomId, isUserId } from '../lib/matrixIds';
+import { isEventId, isRoomAlias, isRoomId, isUserId } from '../lib/matrixIds';
 import type { IEncryptedFile, IImageInfo, IVideoInfo } from './types/common';
 import type { MDirectContent } from './types/accountData';
 import { Membership } from './types/room';
 
-export { isRoomAlias, isRoomId, isUserId };
+export { isEventId, isRoomAlias, isRoomId, isUserId };
 export { mxcUrlToHttp } from './mediaUrl';
 
 const splitIdentifier = (id: string): [string, string] | undefined => {

@@ -132,6 +132,31 @@ describe('native Universal Links', () => {
       [`/home/${R}?forkAt=$point`, paths.getHomeRoomPath(R)],
       [`/home/${R}?threadId=bad&forkAt=$point`, paths.getHomeRoomPath(R)],
       [`/home/${R}?threadId=$root&forkAt=bad`, q(paths.getHomeRoomPath(R), { threadId: '$root' })],
+      [
+        `/home/${R}?forkRoom=%21alpha%3Aexample.org&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), {
+          forkRoom: '!alpha:example.org',
+          forkThread: '$root',
+          forkAt: '$point',
+        }),
+      ],
+      [
+        `/home/${R}?forkRoom=%21v12opaque&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), {
+          forkRoom: '!v12opaque',
+          forkThread: '$root',
+          forkAt: '$point',
+        }),
+      ],
+      [`/home/${R}?forkRoom=%21alpha%3Aexample.org&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=bad&forkThread=$root&forkAt=$point`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=$r&forkAt=%24`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?forkRoom=%21a:ex&forkThread=%24&forkAt=$p`, paths.getHomeRoomPath(R)],
+      [`/home/${R}?threadId=&forkRoom=%21a:ex&forkThread=$r&forkAt=$p`, paths.getHomeRoomPath(R)],
+      [
+        `/home/${R}?threadId=$t&forkRoom=%21alpha%3Aexample.org&forkThread=$root&forkAt=$point`,
+        q(paths.getHomeRoomPath(R), { threadId: '$t' }),
+      ],
       ['/direct/%23dm:example.org/$e2', paths.getDirectRoomPath('#dm:example.org', '$e2')],
       [
         `/threads/${R}?threadId=$r2&focusEvent=1`,

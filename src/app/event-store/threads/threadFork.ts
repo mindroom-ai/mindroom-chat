@@ -1,5 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { isEventId, isRoomId } from '../../lib/matrixIds';
 import { THREAD_FORK_KEY } from '../../matrix/protocol/threadFork';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { getThreadTimelineEvents } from '../timeline/linkedTimelines';
@@ -10,19 +11,31 @@ import { eventBelongsToThread } from './threadUtils';
 /** A chain of forks is followed through at most this many parents. */
 export const MAX_FORK_DEPTH = 8;
 
-export type ThreadForkRef = { threadId: string; eventId: string };
+export type ThreadForkRef = { roomId?: string; threadId: string; eventId: string };
 
 export const parseThreadForkRef = (content: unknown): ThreadForkRef | undefined => {
   if (typeof content !== 'object' || content === null) return undefined;
   const raw = (content as Record<string, unknown>)[THREAD_FORK_KEY];
   if (typeof raw !== 'object' || raw === null) return undefined;
-  const { thread_id: threadId, event_id: eventId } = raw as Record<string, unknown>;
-  if (!isConfirmedMatrixEventId(threadId) || !isConfirmedMatrixEventId(eventId)) return undefined;
-  return { threadId, eventId };
+  const {
+    room_id: roomId,
+    thread_id: threadId,
+    event_id: eventId,
+  } = raw as Record<string, unknown>;
+  if (roomId !== undefined && (typeof roomId !== 'string' || !isRoomId(roomId))) return undefined;
+  if (!isEventId(threadId) || !isEventId(eventId)) return undefined;
+  return roomId !== undefined ? { roomId, threadId, eventId } : { threadId, eventId };
 };
 
-export const threadForkContent = (ref: ThreadForkRef): Record<string, unknown> => ({
-  [THREAD_FORK_KEY]: { thread_id: ref.threadId, event_id: ref.eventId },
+export const threadForkContent = (
+  ref: ThreadForkRef,
+  targetRoomId?: string
+): Record<string, unknown> => ({
+  [THREAD_FORK_KEY]: {
+    ...(ref.roomId && ref.roomId !== targetRoomId ? { room_id: ref.roomId } : {}),
+    thread_id: ref.threadId,
+    event_id: ref.eventId,
+  },
 });
 
 /**
@@ -39,7 +52,9 @@ export const keepThreadForkRef = <T extends Record<string, unknown>>(
 
 /** The thread ID a fork draft keeps its composer text under, apart from its thread's own. */
 export const threadForkDraftId = (ref: ThreadForkRef): string =>
-  `fork:${ref.threadId}:${ref.eventId}`;
+  ref.roomId
+    ? `fork:${ref.roomId}:${ref.threadId}:${ref.eventId}`
+    : `fork:${ref.threadId}:${ref.eventId}`;
 
 /** The thread an event belongs to: its thread root, or its own ID when it is one. */
 export const ownThreadId = (event: MatrixEvent): string | undefined =>
@@ -63,11 +78,17 @@ export const cutThreadAtForkPoint = (
  * to say so. Undefined for a local echo and for anything a thread's readers do not count as a
  * message: an edit, a redacted message, another event type.
  */
-export const forkTargetFor = (event: MatrixEvent): ThreadForkRef | undefined => {
+export const forkTargetFor = (
+  event: MatrixEvent,
+  currentRoomId?: string
+): ThreadForkRef | undefined => {
   const eventId = event.getId();
   if (!isConfirmedMatrixEventId(eventId) || event.getType() !== 'm.room.message') return undefined;
   if (event.isRedacted() || event.getRelation()?.rel_type === 'm.replace') return undefined;
-  return { threadId: ownThreadId(event) ?? eventId, eventId };
+  const eventRoomId = event.getRoomId?.();
+  const roomId =
+    eventRoomId && isRoomId(eventRoomId) && eventRoomId !== currentRoomId ? eventRoomId : undefined;
+  return { ...(roomId ? { roomId } : {}), threadId: ownThreadId(event) ?? eventId, eventId };
 };
 
 /**
@@ -81,8 +102,39 @@ export const latestForkPoint = (room: Room, threadId: string): ThreadForkRef | u
   events.sort(compareThreadRenderOrder);
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!;
-    const ref = isThreadSummaryEvent(event) ? undefined : forkTargetFor(event);
+    const ref = isThreadSummaryEvent(event) ? undefined : forkTargetFor(event, room.roomId);
     if (ref?.threadId === threadId) return ref;
   }
   return undefined;
+};
+
+export type CrossRoomForkDraftParams = {
+  sourceRoomId: string;
+  threadId: string;
+  forkAt: string;
+};
+
+/**
+ * Validates the `?forkRoom=&forkThread=&forkAt=` query-param tuple for a cross-room fork draft.
+ * Requires `threadId` to be absent, `forkRoom` to be a valid Matrix room ID (distinct from
+ * `targetRoomId` when provided), and both `forkThread` and `forkAt` to be confirmed event IDs.
+ */
+export const parseCrossRoomForkParams = (
+  params: {
+    hasThreadId?: boolean;
+    threadId?: string | null;
+    forkRoom?: string | null;
+    forkThread?: string | null;
+    forkAt?: string | null;
+  },
+  targetRoomId?: string
+): CrossRoomForkDraftParams | undefined => {
+  if (params.hasThreadId || (params.threadId !== undefined && params.threadId !== null)) {
+    return undefined;
+  }
+  const { forkRoom, forkThread, forkAt } = params;
+  if (!forkRoom || !isRoomId(forkRoom)) return undefined;
+  if (targetRoomId && forkRoom === targetRoomId) return undefined;
+  if (!isEventId(forkThread) || !isEventId(forkAt)) return undefined;
+  return { sourceRoomId: forkRoom, threadId: forkThread, forkAt };
 };

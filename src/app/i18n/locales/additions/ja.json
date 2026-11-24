@@ -1625,7 +1625,17 @@
     "forkThread": "スレッドを分岐",
     "forking": "{{title}} を分岐中",
     "continueInNewThread": "新しいスレッドで続ける",
-    "forkCount_other": "{{count}} 件の分岐"
+    "forkCount_other": "{{count}} 件の分岐",
+    "forkedFromInRoom": "{{room}} の {{title}} から分岐",
+    "forkedFromAnotherRoom": "別のルームから分岐",
+    "forkingIntoRoom": "{{title}} を {{room}} へ分岐中",
+    "forkToRoom": "別のルームへ分岐…",
+    "forkToRoomTitle": "別のルームへ分岐",
+    "forkToRoomSearchPlaceholder": "ルームを検索…",
+    "forkToRoomEmpty": "一致するルームがありません",
+    "forkToRoomAgentWarning": "このルームのエージェントは {{room}} に参加していないため、元のスレッドを参照できません",
+    "forkingFromRoom": "{{room}} から分岐中",
+    "forkDraftAgentWarning": "ここのエージェントは {{room}} に参加していないため、元のスレッドを参照できません"
   },
   "activity": {
     "title": "アクティビティ",

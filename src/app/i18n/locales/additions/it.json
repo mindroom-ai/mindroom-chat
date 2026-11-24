@@ -1729,7 +1729,17 @@
     "continueInNewThread": "Continua in un nuovo thread",
     "forkCount_one": "{{count}} diramazione",
     "forkCount_many": "{{count}} diramazioni",
-    "forkCount_other": "{{count}} diramazioni"
+    "forkCount_other": "{{count}} diramazioni",
+    "forkedFromInRoom": "Diramato da {{title}} in {{room}}",
+    "forkedFromAnotherRoom": "Diramato da un'altra stanza",
+    "forkingIntoRoom": "Diramazione di {{title}} in {{room}}",
+    "forkToRoom": "Dirama in una stanza…",
+    "forkToRoomTitle": "Dirama in una stanza",
+    "forkToRoomSearchPlaceholder": "Cerca stanze…",
+    "forkToRoomEmpty": "Nessuna stanza corrispondente",
+    "forkToRoomAgentWarning": "Gli agenti in questa stanza non sono in {{room}} e non vedranno il thread originale",
+    "forkingFromRoom": "Diramazione da {{room}}",
+    "forkDraftAgentWarning": "Gli agenti qui non sono in {{room}} e non vedranno il thread originale"
   },
   "activity": {
     "title": "Attività",

@@ -1781,7 +1781,17 @@
     "forkCount_one": "{{count}} ответвление",
     "forkCount_few": "{{count}} ответвления",
     "forkCount_many": "{{count}} ответвлений",
-    "forkCount_other": "{{count}} ответвления"
+    "forkCount_other": "{{count}} ответвления",
+    "forkedFromInRoom": "Ответвление от {{title}} в {{room}}",
+    "forkedFromAnotherRoom": "Ответвление из другой комнаты",
+    "forkingIntoRoom": "Создаётся ответвление от {{title}} в {{room}}",
+    "forkToRoom": "Ответвить в комнату…",
+    "forkToRoomTitle": "Ответвить в комнату",
+    "forkToRoomSearchPlaceholder": "Поиск комнат…",
+    "forkToRoomEmpty": "Подходящих комнат не найдено",
+    "forkToRoomAgentWarning": "Агенты в этой комнате не состоят в {{room}} и не увидят исходную ветку",
+    "forkingFromRoom": "Ответвление из {{room}}",
+    "forkDraftAgentWarning": "Агенты здесь не состоят в {{room}} и не увидят исходную ветку"
   },
   "activity": {
     "title": "Активность",

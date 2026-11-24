@@ -1729,7 +1729,17 @@
     "continueInNewThread": "Continuar en un hilo nuevo",
     "forkCount_one": "{{count}} bifurcación",
     "forkCount_many": "{{count}} bifurcaciones",
-    "forkCount_other": "{{count}} bifurcaciones"
+    "forkCount_other": "{{count}} bifurcaciones",
+    "forkedFromInRoom": "Bifurcado de {{title}} en {{room}}",
+    "forkedFromAnotherRoom": "Bifurcado desde otra sala",
+    "forkingIntoRoom": "Bifurcando {{title}} en {{room}}",
+    "forkToRoom": "Bifurcar a sala…",
+    "forkToRoomTitle": "Bifurcar a sala",
+    "forkToRoomSearchPlaceholder": "Buscar salas…",
+    "forkToRoomEmpty": "No hay salas coincidentes",
+    "forkToRoomAgentWarning": "Los agentes en esta sala no están en {{room}} y no verán el hilo original",
+    "forkingFromRoom": "Bifurcando desde {{room}}",
+    "forkDraftAgentWarning": "Los agentes aquí no están en {{room}} y no verán el hilo original"
   },
   "activity": {
     "title": "Actividad",

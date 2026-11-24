@@ -50,7 +50,7 @@ import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
 import { buildImageSlides, ImageSlidesContext } from '../messages/content/imageSlides';
-import { forkPrefixThreadId, rowEditTimelineSet } from './forkPrefixTimelineSet';
+import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from './forkPrefixTimelineSet';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -284,6 +284,8 @@ export type RoomTimelineProps = {
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
    */
   forkAt?: string;
+  /** In a cross-room fork draft, the destination room that "Fork from here" and the divider target. */
+  forkTargetRoom?: Room;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -351,7 +353,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadHeader,
     threadHeaderGapAbove = false,
     forkAt,
+    forkTargetRoom,
   } = props;
+  const crossRoomForkTarget =
+    forkTargetRoom && forkTargetRoom.roomId !== room.roomId ? forkTargetRoom : undefined;
+  const forkTargetRoomName = crossRoomForkTarget
+    ? crossRoomForkTarget.name || crossRoomForkTarget.roomId
+    : undefined;
   const mx = useMatrixClient();
   const alive = useAlive();
   const engine = useSyncEngine();
@@ -781,6 +789,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
 
   const feature = useTimelineMessageFeature({
     room,
+    forkTargetRoom: crossRoomForkTarget,
     editor,
     threadId,
     scrollRef,
@@ -848,16 +857,22 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     return buildImageSlides(
       source.events,
       // As its row does.
-      (event) =>
-        rowEditTimelineSet(
-          room,
-          forkPrefixThreadId(event, event.getId() ?? '', source.forkPrefixEventIds),
+      (event) => {
+        const prefixThreadId = forkPrefixThreadId(
+          event,
+          event.getId() ?? '',
+          source.forkPrefixEventIds
+        );
+        return rowEditTimelineSet(
+          rowEventRoom(mx, room, event, prefixThreadId),
+          prefixThreadId,
           source.rowTimelineSet
-        ),
+        );
+      },
       source.isHiddenByPlugin,
       source.ignoredUsersSet
     );
-  }, [imageSlideSourceRef, room]);
+  }, [imageSlideSourceRef, mx, room]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -2094,9 +2109,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   }
 
   // The fork's divider sits over its first row of its own, after the parent's messages.
+  // For cross-room forks, show the divider even when the prefix is empty (e.g. unjoined parent
+  // room) so the reader still sees "Forked from another room" above the fork root.
   const { parent: forkParent } = forkPrefix;
   const ownStartIndex = threadEventIndexMap.get(ownThreadEvents[0]?.getId() ?? '');
-  const forkStartIndex = forkParent && ownStartIndex ? ownStartIndex : undefined;
+  const isCrossRoomFork = Boolean(forkParent?.roomId && forkParent.roomId !== room.roomId);
+  const forkStartIndex =
+    forkParent && ownStartIndex !== undefined && (ownStartIndex > 0 || isCrossRoomFork)
+      ? ownStartIndex
+      : undefined;
+  const forkParentRoomId = forkParent?.roomId ?? room.roomId;
   const forkDivider =
     forkParent && forkStartIndex !== undefined
       ? {
@@ -2105,8 +2127,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
             <ThreadForkDivider
               room={room}
               parent={forkParent}
-              root={forkPrefix.events.find((event) => event.getId() === forkParent.threadId)}
-              summaryInfo={summaryMap.get(forkParent.threadId)}
+              root={forkPrefix.events.find(
+                (event) =>
+                  event.getId() === forkParent.threadId &&
+                  (event.getRoomId() ?? room.roomId) === forkParentRoomId
+              )}
+              summaryInfo={isCrossRoomFork ? undefined : summaryMap.get(forkParent.threadId)}
             />
           ),
         }
@@ -2122,6 +2148,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               parent={{ threadId, eventId: shownForkPoint }}
               summaryInfo={summaryMap.get(threadId)}
               variant="forking"
+              targetRoomName={forkTargetRoomName}
             />
           ),
         }
@@ -2310,6 +2337,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
         />
       )}
       {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
+      {feature.forkToRoomDialog}
     </Box>
   );
 }
