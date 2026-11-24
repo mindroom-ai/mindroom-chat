@@ -5,6 +5,7 @@ import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkf
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import type { CompactThreadSectionId } from '../../threads/overview/compactThreadSections';
 import * as compactCss from '../../threads/overview/CompactRoomView.css';
 import { CompactThreadCard } from '../../threads/overview/CompactThreadCard';
 import {
@@ -22,9 +23,9 @@ export type SpaceThreadsListProps = {
   entries: readonly CrossRoomThreadIndexEntry[];
   sections: readonly SpaceThreadSection[];
   sectionsEnabled: boolean;
-  foldedSections: readonly ThreadWorkflowBucket[];
+  foldedSections: readonly CompactThreadSectionId[];
   singleBucketTab?: ThreadWorkflowBucket;
-  onToggleSectionFold: (id: ThreadWorkflowBucket) => void;
+  onToggleSectionFold: (id: CompactThreadSectionId) => void;
   roomById: ReadonlyMap<string, Room>;
   roomNameById: ReadonlyMap<string, string>;
   roomAccentById: ReadonlyMap<string, string>;
@@ -117,8 +118,8 @@ export function SpaceThreadsList({
               emptyKey === 'no-rooms'
                 ? 'spaceThreads.empty.noRooms'
                 : emptyKey === 'no-matching'
-                ? 'mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters'
-                : 'spaceThreads.empty.noThreads'
+                  ? 'mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters'
+                  : 'spaceThreads.empty.noThreads'
             )}
           </Text>
         </div>

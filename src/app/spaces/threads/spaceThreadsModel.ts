@@ -6,7 +6,10 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
-import { buildCompactThreadSections } from '../../threads/overview/compactThreadSections';
+import {
+  buildCompactThreadSections,
+  type CompactThreadSectionId,
+} from '../../threads/overview/compactThreadSections';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import {
   selectThreadWorkflowTab,
@@ -23,10 +26,7 @@ import {
   computeThreadWorkflowCounts,
   filterThreadRecordRootIds,
 } from '../../event-store/threads/threadRecordOverview';
-import type {
-  ThreadWorkflowBucket,
-  ThreadWorkflowCounts,
-} from '../../event-store/threads/threadWorkflow';
+import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 
 const ROOM_ACCENT_PALETTE = [
   '#4f8ff7',
@@ -141,19 +141,24 @@ export type FilterAndSortSpaceThreadsOptions = {
   filterState: ThreadFilterState;
   simpleMode: boolean;
   snoozeNow: number;
+  quietNow?: number;
   hasMindroomAgents: boolean;
   roomNameById: ReadonlyMap<string, string>;
   groupSections?: boolean;
   signalsOf?: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
 };
 
-export type SpaceThreadSection = { id: ThreadWorkflowBucket; entries: CrossRoomThreadIndexEntry[] };
+export type SpaceThreadSection = {
+  id: CompactThreadSectionId;
+  entries: CrossRoomThreadIndexEntry[];
+};
 
 export type SpaceThreadsResult = {
   scopedTotalCount: number;
   roomCounts: Map<string, number>;
   entries: CrossRoomThreadIndexEntry[];
   sections: SpaceThreadSection[];
+  nextQuietWakeTs?: number;
   bucketCounts: ThreadWorkflowCounts;
   statusCounts: StatusCounts;
   tagCounts: Record<string, number>;
@@ -183,6 +188,7 @@ export const filterAndSortSpaceThreads = ({
   filterState,
   simpleMode,
   snoozeNow,
+  quietNow = snoozeNow,
   hasMindroomAgents,
   roomNameById,
   groupSections = false,
@@ -258,7 +264,7 @@ export const filterAndSortSpaceThreads = ({
     (a, b) => (a.lastActivityTs - b.lastActivityTs) * direction || a.key.localeCompare(b.key)
   );
 
-  const sections: SpaceThreadSection[] = groupSections
+  const grouped = groupSections
     ? buildCompactThreadSections({
         threadRootIds: filtered.map((entry) => entry.key),
         recordMap: keyedRecordMap,
@@ -266,7 +272,11 @@ export const filterAndSortSpaceThreads = ({
         signalsOf: (entry) => signalsOf?.(entry),
         pinnedRootIds: [],
         now: snoozeNow,
-      }).map((section) => ({
+        quietNow,
+      })
+    : undefined;
+  const sections: SpaceThreadSection[] = grouped
+    ? grouped.sections.map((section) => ({
         id: section.id,
         entries: section.rootIds
           .map((key) => entryByKey.get(key))
@@ -279,6 +289,7 @@ export const filterAndSortSpaceThreads = ({
     roomCounts,
     entries: filtered,
     sections,
+    nextQuietWakeTs: grouped?.nextQuietWakeTs,
     bucketCounts,
     statusCounts,
     tagCounts,

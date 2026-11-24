@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAtom, useAtomValue } from 'jotai';
@@ -55,6 +55,8 @@ import {
 import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
 import * as css from './SpaceThreads.css';
 
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
@@ -80,6 +82,16 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
   const sectionsEnabled = hasMindroomAgents && compactSections.on;
+  const [quietClock, setQuietClock] = useState(() => ({
+    enabled: sectionsEnabled,
+    now: Date.now(),
+  }));
+  if (quietClock.enabled !== sectionsEnabled) {
+    setQuietClock({
+      enabled: sectionsEnabled,
+      now: sectionsEnabled ? Date.now() : quietClock.now,
+    });
+  }
 
   const effectiveSelectedRoomIds = useMemo(
     () => pruneSpaceRoomSelection(selectedRoomIds, roomMeta.orderedIds),
@@ -103,6 +115,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   const snoozeNow = useSnoozeNow(
     useMemo(() => allSpaceEntries.map((entry) => entry.snoozedUntilTs), [allSpaceEntries])
   );
+  const quietNow = Math.max(snoozeNow, quietClock.now);
 
   const result = useMemo(
     () =>
@@ -113,6 +126,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         filterState,
         simpleMode,
         snoozeNow,
+        quietNow,
         hasMindroomAgents,
         roomNameById: roomMeta.nameById,
         groupSections: sectionsEnabled,
@@ -120,7 +134,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           ? (entry) => {
               const room = roomMeta.byId.get(entry.roomId);
               return room
-                ? getThreadSignalsReader(mx).read(room, entry, myUserId, snoozeNow)
+                ? getThreadSignalsReader(mx).read(room, entry, myUserId, quietNow)
                 : undefined;
             }
           : undefined,
@@ -132,6 +146,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       hasMindroomAgents,
       mx,
       myUserId,
+      quietNow,
       roomMeta.byId,
       roomMeta.ids,
       roomMeta.nameById,
@@ -140,6 +155,16 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       snoozeNow,
     ]
   );
+
+  const nextQuietWakeTs = result.nextQuietWakeTs;
+  useEffect(() => {
+    if (!sectionsEnabled || nextQuietWakeTs === undefined) return undefined;
+    const timer = setTimeout(
+      () => setQuietClock({ enabled: true, now: Date.now() }),
+      Math.max(0, Math.min(nextQuietWakeTs - Date.now(), MAX_TIMEOUT_MS))
+    );
+    return () => clearTimeout(timer);
+  }, [nextQuietWakeTs, quietClock.now, sectionsEnabled]);
 
   const effectiveFrozenKeys =
     hasMindroomAgents && !simpleMode && !sectionsEnabled ? frozenKeys : null;
@@ -188,12 +213,12 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   const emptyKey: SpaceThreadsEmptyKey | undefined = showLoading
     ? undefined
     : spaceRooms.length === 0
-    ? 'no-rooms'
-    : allSpaceEntries.length === 0
-    ? 'no-threads'
-    : displayEntries.length === 0 && !overviewShowsFilteredEmpty
-    ? 'no-matching'
-    : undefined;
+      ? 'no-rooms'
+      : allSpaceEntries.length === 0
+        ? 'no-threads'
+        : displayEntries.length === 0 && !overviewShowsFilteredEmpty
+          ? 'no-matching'
+          : undefined;
 
   return (
     <Page ref={pageRef} data-space-threads-page={space.roomId}>
