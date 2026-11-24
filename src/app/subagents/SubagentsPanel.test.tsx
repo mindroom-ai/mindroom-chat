@@ -10,6 +10,7 @@ import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import type { SubagentFrame, SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
+import { MessageTextBody as MessageTextBodyCss } from '../messages/layout/layout.css';
 import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
@@ -38,6 +39,17 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
+const markdownState = vi.hoisted(() => ({ readyOverride: undefined as boolean | undefined }));
+vi.mock('../messages/live/liveMarkdown', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../messages/live/liveMarkdown')>();
+  return {
+    ...actual,
+    useLiveMarkdownReady: (wanted?: boolean) => {
+      const ready = actual.useLiveMarkdownReady(wanted);
+      return markdownState.readyOverride ?? ready;
+    },
+  };
+});
 // The room's background jobs, which an open run's Stop cancels, and whether the viewer may.
 const jobsState = vi.hoisted(() => ({
   jobs: [] as import('../matrix/protocol/backgroundJobsContract').BackgroundJob[],
@@ -195,6 +207,7 @@ beforeEach(() => {
   navigation.navigateRoomThread.mockReset();
   onClose.mockReset();
   edgeSwipe.enabled = false;
+  markdownState.readyOverride = undefined;
   jobsState.jobs = [];
   jobsState.canCancel = true;
   sendEvent.mockReset();
@@ -450,7 +463,7 @@ describe('SubagentsPanel', () => {
 
     open('a');
     const tasks = [...(view()?.querySelectorAll('[data-subagent-task]') ?? [])];
-    expect(tasks.map((task) => task.textContent)).toEqual(['Turn 1.', 'Turn 2.', 'Turn 3.']);
+    expect(tasks.map((task) => task.textContent?.trim())).toEqual(['Turn 1.', 'Turn 2.', 'Turn 3.']);
     const answers = [...(view()?.querySelectorAll('[data-subagent-transcript]') ?? [])];
     expect(answers.map((answer) => answer.textContent?.trim())).toEqual([
       'Answer 1 of a.',
@@ -519,7 +532,7 @@ describe('SubagentsPanel', () => {
     expect(container.querySelector('[data-subagent-now]')?.textContent).toContain(
       'run_shell_command command=git tag'
     );
-    expect(view()?.querySelector('[data-subagent-task]')?.textContent).toBe('Find the tags.');
+    expect(view()?.querySelector('[data-subagent-task]')?.textContent?.trim()).toBe('Find the tags.');
     // The caller's message, then the run's.
     const [asked, answer] = [...(view()?.querySelectorAll('[data-subagent-message]') ?? [])];
     expect(asked?.textContent).toContain('Lead');
@@ -531,6 +544,70 @@ describe('SubagentsPanel', () => {
     expect(calls?.textContent).toContain('Running 1 tool call');
     act(() => calls?.click());
     expect(body?.querySelector('[data-tool-index="1"]')?.textContent).toContain('git tag');
+  });
+
+  it('renders a Markdown task as formatted HTML without pre-wrap', () => {
+    const markdownTask =
+      '> Quoted note from the issue.\n\n## Release checklist\n\n' +
+      'Check **cache TTL** in `config.toml` against [the spec](https://example.org/spec):\n\n' +
+      '- Verify retry backoff\n- Confirm metrics export';
+    ingest('run', meta('running', { task: markdownTask }), docs('Working.'));
+    render();
+    open('run');
+
+    const task = view()?.querySelector<HTMLElement>('[data-subagent-task]');
+    expect(task?.dataset.subagentTurn).toBe('run');
+    expect(task?.getAttribute('dir')).toBe('ltr');
+    expect(task?.dataset.bodyDirection).toBe('ltr');
+    expect(task?.querySelector('blockquote')?.textContent?.trim()).toBe(
+      'Quoted note from the issue.'
+    );
+    expect(task?.querySelector('h2')?.textContent).toBe('Release checklist');
+    expect(task?.querySelector('strong')?.textContent).toBe('cache TTL');
+    expect(task?.querySelector('code')?.textContent).toBe('config.toml');
+    expect([...(task?.querySelectorAll('ul li') ?? [])].map((item) => item.textContent)).toEqual([
+      'Verify retry backoff',
+      'Confirm metrics export',
+    ]);
+    const link = task?.querySelector<HTMLAnchorElement>('a');
+    expect(link?.textContent).toBe('the spec');
+    expect(link?.getAttribute('href')).toBe('https://example.org/spec');
+    expect(task?.classList.contains(MessageTextBodyCss.classNames.variants.preWrap.true)).toBe(
+      false
+    );
+  });
+
+  it('sanitizes HTML in a task and keeps quoted tool markers literal', () => {
+    const taskText =
+      'Inspect this output:\n\n<script>alert(1)</script><iframe src="https://example.org"></iframe>\n\n' +
+      '🔧 `run_shell_command` [1] ⏳';
+    ingest('run', meta('running', { task: taskText }), docs('Checking.'));
+    render();
+    open('run');
+
+    const task = view()?.querySelector<HTMLElement>('[data-subagent-task]');
+    expect(task?.querySelector('script, iframe')).toBeNull();
+    expect(task?.querySelector('[data-message-disclosure], [data-tool-index]')).toBeNull();
+    expect(task?.textContent).toContain('🔧 run_shell_command [1] ⏳');
+  });
+
+  it('uses pre-wrap while the Markdown renderer is not ready, then switches to HTML', () => {
+    markdownState.readyOverride = false;
+    ingest('run', meta('running', { task: '## Plan\n\nKeep **line breaks**.' }), docs('Working.'));
+    render();
+    open('run');
+
+    const preWrapClass = MessageTextBodyCss.classNames.variants.preWrap.true;
+    const task = () => view()?.querySelector<HTMLElement>('[data-subagent-task]');
+    expect(task()?.classList.contains(preWrapClass)).toBe(true);
+    expect(task()?.querySelector('h2, strong')).toBeNull();
+    expect(task()?.textContent).toBe('## Plan\n\nKeep **line breaks**.');
+
+    markdownState.readyOverride = undefined;
+    render();
+    expect(task()?.classList.contains(preWrapClass)).toBe(false);
+    expect(task()?.querySelector('h2')?.textContent).toBe('Plan');
+    expect(task()?.querySelector('strong')?.textContent).toBe('line breaks');
   });
 
   it('shows how long a running tool call has run once it ran 10 seconds, on one ticking clock', () => {
@@ -929,7 +1006,7 @@ describe('SubagentsPanel', () => {
     act(() => openSubagentsPanel(getDefaultStore(), ROOM_ID, '$thread:example.org', 'a'));
     render();
     expect(view()?.dataset.subagentView).toBe('p');
-    expect(scrolled.map((element) => element.textContent)).toEqual(['Plan it.']);
+    expect(scrolled.map((element) => element.textContent?.trim())).toEqual(['Plan it.']);
   });
 
   it('scrolls an open sub-agent to the turn each Open asks for, and not again on frames', () => {
@@ -941,7 +1018,7 @@ describe('SubagentsPanel', () => {
     );
     const scrolled: string[] = [];
     HTMLElement.prototype.scrollIntoView = function scrollIntoView(this: Element) {
-      scrolled.push(this.textContent ?? '');
+      scrolled.push(this.textContent?.trim() ?? '');
     };
     act(() => openSubagentsPanel(getDefaultStore(), ROOM_ID, '$thread:example.org', 'a'));
     render();
