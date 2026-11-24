@@ -1,7 +1,6 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Text } from 'folds';
-import { ClientEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { useCachedThreadRoot } from '../../event-store/sdk/cachedThreadRoots';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import { replaceMatrixUserIdsWithDisplayNames } from '../../event-store/threads/threadMessagePreview';
@@ -9,11 +8,10 @@ import {
   getThreadPrimarySummaryText,
   resolveThreadPresentationSnapshot,
 } from '../../event-store/threads/threadPresentation';
-import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { useJoinedRoom } from '../../matrix/hooks/useJoinedRoom';
 import { useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { ForkIcon } from '../../messages/ForkIcon';
-import { isJoinedRoom } from '../../navigation/routeVisibility';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import * as css from './ThreadForkDivider.css';
 
@@ -28,22 +26,8 @@ export const useForkParentRoom = (
 ): Room | undefined => {
   const mx = useOptionalMatrixClient();
   const isCrossRoom = Boolean(parentRoomId && parentRoomId !== fallbackRoom.roomId);
-  const [, refresh] = useForceUpdate();
-  useEffect(() => {
-    if (!isCrossRoom || !mx || !parentRoomId) return undefined;
-    const onMembership = (changedRoom: Room) => {
-      if (changedRoom.roomId === parentRoomId) refresh();
-    };
-    mx.on(RoomEvent.MyMembership, onMembership);
-    mx.on(ClientEvent.Room, onMembership);
-    return () => {
-      mx.removeListener(RoomEvent.MyMembership, onMembership);
-      mx.removeListener(ClientEvent.Room, onMembership);
-    };
-  }, [isCrossRoom, mx, parentRoomId, refresh]);
-  if (!isCrossRoom || !parentRoomId) return fallbackRoom;
-  const candidate = mx?.getRoom(parentRoomId);
-  return isJoinedRoom(candidate) ? candidate ?? undefined : undefined;
+  const joinedParent = useJoinedRoom(mx, isCrossRoom ? parentRoomId : undefined);
+  return isCrossRoom ? joinedParent : fallbackRoom;
 };
 
 /**

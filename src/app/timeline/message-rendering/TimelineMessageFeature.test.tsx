@@ -1457,4 +1457,60 @@ describe('cross-room fork prefix rows', () => {
       matrixClientMock.getRoom.mockImplementation(() => null);
     }
   });
+
+  it('reuses cached per-room renderers for cross-room rows across re-renders and rebuilds on encryption change', async () => {
+    const { Message } = await import('../../messages/Message');
+    let sourceEncrypted = false;
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    sourceRoom.hasEncryptionStateEvent = () => sourceEncrypted;
+    settingsState.urlPreview = true;
+    settingsState.encUrlPreview = false;
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const firstPrefix = makeEvent('$p1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'First prefix row' },
+      }) as unknown as MatrixEvent;
+      const secondPrefix = makeEvent('$p2', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+        content: { msgtype: 'm.text', body: 'Second prefix row' },
+      }) as unknown as MatrixEvent;
+
+      const { renderer, update } = await mountFeature(
+        [rowFor(firstPrefix, 0), rowFor(secondPrefix, 1)],
+        '$fork',
+        new Set(['$p1', '$p2'])
+      );
+      const initialContents = renderer.root.findAllByType(RenderMessageContent);
+      const initialMessages = renderer.root.findAllByType(Message);
+      const firstLinkifyOpts = initialContents[0]!.props.linkifyOpts;
+      const firstHtmlParser = initialContents[0]!.props.htmlReactParserOptions;
+      const firstOnUserClick = initialMessages[0]!.props.onUserClick;
+      expect(firstLinkifyOpts).toBe(initialContents[1]!.props.linkifyOpts);
+      expect(firstHtmlParser).toBe(initialContents[1]!.props.htmlReactParserOptions);
+      expect(firstOnUserClick).toBe(initialMessages[1]!.props.onUserClick);
+      expect(initialContents[0]!.props.urlPreview).toBe(true);
+
+      // Re-rendering with unchanged inputs reuses the exact same cached renderer objects.
+      update();
+      const rerenderedContent = renderer.root.findAllByType(RenderMessageContent)[0]!;
+      const rerenderedMessage = renderer.root.findAllByType(Message)[0]!;
+      expect(rerenderedContent.props.linkifyOpts).toBe(firstLinkifyOpts);
+      expect(rerenderedContent.props.htmlReactParserOptions).toBe(firstHtmlParser);
+      expect(rerenderedMessage.props.onUserClick).toBe(firstOnUserClick);
+
+      // Flipping the source room's encryption state invalidates its cached entry.
+      sourceEncrypted = true;
+      update();
+      const encryptedContent = renderer.root.findAllByType(RenderMessageContent)[0]!;
+      expect(encryptedContent.props.urlPreview).toBe(false);
+      expect(encryptedContent.props.htmlReactParserOptions).not.toBe(firstHtmlParser);
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
 });

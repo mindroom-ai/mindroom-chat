@@ -13,8 +13,9 @@ import { flushSync } from 'react-dom';
 import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { ClientEvent, RoomEvent, type MatrixEvent, type Room as MatrixRoom } from 'matrix-js-sdk';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box } from 'folds';
+import { useJoinedRoom } from '../matrix/hooks/useJoinedRoom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
@@ -80,7 +81,6 @@ import {
 } from '../event-store/threads/threadRouteUtils';
 import { parseCrossRoomForkParams } from '../event-store/threads/threadFork';
 import { isEventId } from '../lib/matrixIds';
-import { isJoinedRoom } from '../navigation/routeVisibility';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
@@ -272,34 +272,18 @@ function RoomContent() {
       ),
     [forkAt, forkRoom, forkThread, hasThreadId, roomId, routedThreadId]
   );
-  const [forkSourceVersion, setForkSourceVersion] = useState(0);
-  useEffect(() => {
-    const sourceId = rawCrossRoomFork?.sourceRoomId;
-    if (!sourceId) return undefined;
-    const onMembership = (changedRoom: MatrixRoom) => {
-      if (changedRoom.roomId === sourceId) setForkSourceVersion((v) => v + 1);
-    };
-    client.on(RoomEvent.MyMembership, onMembership);
-    client.on(ClientEvent.Room, onMembership);
-    return () => {
-      client.removeListener(RoomEvent.MyMembership, onMembership);
-      client.removeListener(ClientEvent.Room, onMembership);
-    };
-  }, [client, rawCrossRoomFork?.sourceRoomId]);
+  const forkSourceRoom = useJoinedRoom(client, rawCrossRoomFork?.sourceRoomId);
   const crossRoomFork = useMemo(() => {
-    void forkSourceVersion;
-    if (!rawCrossRoomFork) return undefined;
-    const sourceRoom = client.getRoom(rawCrossRoomFork.sourceRoomId);
-    if (!sourceRoom || !isJoinedRoom(sourceRoom) || sourceRoom.isSpaceRoom?.()) return undefined;
-    if (sourceRoom.hasEncryptionStateEvent?.() && !room.hasEncryptionStateEvent?.()) {
+    if (!rawCrossRoomFork || !forkSourceRoom || forkSourceRoom.isSpaceRoom?.()) return undefined;
+    if (forkSourceRoom.hasEncryptionStateEvent?.() && !room.hasEncryptionStateEvent?.()) {
       return undefined;
     }
     return {
-      sourceRoom,
+      sourceRoom: forkSourceRoom,
       threadId: rawCrossRoomFork.threadId,
       forkAt: rawCrossRoomFork.forkAt,
     };
-  }, [client, forkSourceVersion, rawCrossRoomFork, room]);
+  }, [forkSourceRoom, rawCrossRoomFork, room]);
   const sameRoomForkAt =
     routedThreadId && !hasForkRoom && !hasForkThread && isEventId(forkAt) ? forkAt : undefined;
   const isForkDraft = !!sameRoomForkAt || !!crossRoomFork;

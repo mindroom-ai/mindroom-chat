@@ -3,7 +3,6 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
@@ -26,14 +25,11 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useImagePackRooms } from '../../emoji/useImagePackRooms';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
-import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { usePowerLevelsContext } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { useRoomThreadMode } from '../../matrix/hooks/useRoomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
-import { useSpaceOptionally } from '../../matrix/hooks/useSpace';
-import { useOpenUserRoomProfile } from '../../navigation/useUserRoomProfileState';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { isEmptyEditor } from '../../editor/utils';
@@ -46,15 +42,7 @@ import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
-import {
-  factoryRenderLinkifyWithMention,
-  getReactCustomHtmlParser,
-  LINKIFY_OPTS,
-  makeMentionCustomProps,
-  renderMatrixMention,
-} from '../../messages/html/react-custom-html-parser';
-import { isUserId } from '../../lib/matrixIds';
-import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
+import { useRoomMessageRenderers } from './useRoomMessageRenderers';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
@@ -95,7 +83,6 @@ import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
 import { TriggerWakeMarker } from '../../messages/TriggerWakeMarker';
 import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
-import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
@@ -467,46 +454,15 @@ export const useTimelineMessageFeature = ({
     room,
     threadId
   );
-  const useAuthentication = useMediaAuthentication();
   const { dateFormatString, hour24Clock, mediaAutoLoad, urlPreview, encUrlPreview } =
     useMessageDisplaySettings();
-  // Encrypted rooms preview links only when the user allows it: the preview request reveals the
-  // link to the homeserver.
-  const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
-  // Links show their site's icon with previews and media loading on, never in encrypted rooms.
-  const showLinkFavicons = shouldShowLinkFavicons(
-    { mediaAutoLoad, urlPreview },
-    !!room.hasEncryptionStateEvent?.()
-  );
-  // Matrix permalinks in a message open in the app: a person's profile card, or the room and
-  // event (its thread, where the room shows threads) instead of matrix.to in a new tab.
-  const handleMentionClick = useMentionClickHandler(room.roomId);
-  const linkifyOpts = useMemo(
-    () => ({
-      ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention(
-        (href) =>
-          renderMatrixMention(
-            client,
-            room.roomId,
-            href,
-            makeMentionCustomProps(handleMentionClick)
-          ),
-        showLinkFavicons
-      ),
-    }),
-    [client, handleMentionClick, room.roomId, showLinkFavicons]
-  );
-  const htmlReactParserOptions = useMemo(
-    () =>
-      getReactCustomHtmlParser(client, room.roomId, {
-        linkifyOpts,
-        handleMentionClick,
-        useAuthentication,
-        showLinkFavicons,
-      }),
-    [client, handleMentionClick, linkifyOpts, room.roomId, showLinkFavicons, useAuthentication]
-  );
+  const getRoomRenderers = useRoomMessageRenderers({
+    client,
+    roomId: room.roomId,
+    mediaAutoLoad,
+    urlPreview,
+    encUrlPreview,
+  });
 
   const view = useContext(ConversationViewContext);
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
@@ -532,19 +488,6 @@ export const useTimelineMessageFeature = ({
       ReactEditor.focus(editor);
     },
     [editor, navigateRoomThread, room, setReplyDraft]
-  );
-  // The avatar or the name of a message opens the sender's profile card beside it.
-  const openUserProfile = useOpenUserRoomProfile();
-  const spaceRoomId = useSpaceOptionally()?.roomId;
-  const handleSenderClick = useCallback(
-    (evt: React.MouseEvent<HTMLElement>) => {
-      const senderId = evt.currentTarget.getAttribute('data-user-id');
-      if (!senderId) return;
-      evt.stopPropagation();
-      const cardAnchor = evt.currentTarget.getBoundingClientRect();
-      openUserProfile(room.roomId, spaceRoomId, senderId, cardAnchor);
-    },
-    [openUserProfile, room.roomId, spaceRoomId]
   );
   // A thread badge under a room row opens its thread.
   const handleOpenThread = useCallback(
@@ -723,56 +666,13 @@ export const useTimelineMessageFeature = ({
         !threadId && showThreadRepliesInRoom && !replyEventId && event.threadRootId !== eventId
           ? event.threadRootId
           : undefined;
-      // Encrypted source rooms must never leak URL previews or site favicons when rendered inside
-      // an unencrypted target room.
-      const eventEncrypted = !!eventRoom.hasEncryptionStateEvent?.();
-      const eventShowUrlPreview = isCrossRoomRow
-        ? eventEncrypted
-          ? encUrlPreview
-          : urlPreview
-        : showUrlPreview;
-      const eventShowLinkFavicons = isCrossRoomRow
-        ? shouldShowLinkFavicons({ mediaAutoLoad, urlPreview }, eventEncrypted)
-        : showLinkFavicons;
-      const rowHandleMentionClick: React.MouseEventHandler<HTMLElement> = isCrossRoomRow
-        ? (evt) => {
-            const mentionId = evt.currentTarget.getAttribute('data-mention-id');
-            if (mentionId && isUserId(mentionId)) {
-              evt.preventDefault();
-              openUserProfile(
-                eventRoom.roomId,
-                spaceRoomId,
-                mentionId,
-                evt.currentTarget.getBoundingClientRect()
-              );
-              return;
-            }
-            handleMentionClick(evt);
-          }
-        : handleMentionClick;
-      const rowLinkifyOpts = isCrossRoomRow
-        ? {
-            ...LINKIFY_OPTS,
-            render: factoryRenderLinkifyWithMention(
-              (href) =>
-                renderMatrixMention(
-                  client,
-                  eventRoom.roomId,
-                  href,
-                  makeMentionCustomProps(rowHandleMentionClick)
-                ),
-              eventShowLinkFavicons
-            ),
-          }
-        : linkifyOpts;
-      const rowHtmlReactParserOptions = isCrossRoomRow
-        ? getReactCustomHtmlParser(client, eventRoom.roomId, {
-            linkifyOpts: rowLinkifyOpts,
-            handleMentionClick: rowHandleMentionClick,
-            useAuthentication,
-            showLinkFavicons: eventShowLinkFavicons,
-          })
-        : htmlReactParserOptions;
+      const {
+        encrypted: eventEncrypted,
+        showUrlPreview: eventShowUrlPreview,
+        linkifyOpts: rowLinkifyOpts,
+        htmlReactParserOptions: rowHtmlReactParserOptions,
+        openSenderProfile,
+      } = getRoomRenderers(eventRoom);
       const contentProps = {
         mEvent: event,
         eventId,
@@ -846,19 +746,6 @@ export const useTimelineMessageFeature = ({
       const messageForkTarget = threadId ? forkTargetFor(event, room.roomId) : undefined;
       const forkTarget =
         messageForkTarget && forksAnswered && canForkIntoDestRoom ? messageForkTarget : undefined;
-      const openSenderProfile = isCrossRoomRow
-        ? (evt: React.MouseEvent<HTMLElement>) => {
-            const senderId = evt.currentTarget.getAttribute('data-user-id');
-            if (!senderId) return;
-            evt.stopPropagation();
-            openUserProfile(
-              eventRoom.roomId,
-              spaceRoomId,
-              senderId,
-              evt.currentTarget.getBoundingClientRect()
-            );
-          }
-        : handleSenderClick;
       // The forks made at this message, under it in the thread they were forked from: not on the
       // parent's rows shown in a fork, where they would repeat the chip the parent's own view shows.
       const forks = readOnly ? undefined : forksByPoint.get(eventId);
@@ -1046,14 +933,12 @@ export const useTimelineMessageFeature = ({
       forkTargetRoom,
       forksAnswered,
       forksByPoint,
+      getRoomRenderers,
       handleOpenThread,
       handleReplyClick,
-      handleSenderClick,
       hideActivity,
       hour24Clock,
-      htmlReactParserOptions,
       imagePackRooms,
-      linkifyOpts,
       liveExpansionIds,
       mediaAutoLoad,
       messageLayout,
@@ -1065,16 +950,8 @@ export const useTimelineMessageFeature = ({
       readRowQuietMarker,
       room,
       client,
-      encUrlPreview,
-      handleMentionClick,
-      openUserProfile,
-      showLinkFavicons,
       showThreadRepliesInRoom,
-      showUrlPreview,
-      spaceRoomId,
       startFork,
-      urlPreview,
-      useAuthentication,
       threadId,
       toggleReaction,
       userId,

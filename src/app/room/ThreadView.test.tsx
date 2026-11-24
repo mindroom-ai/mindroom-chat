@@ -58,9 +58,10 @@ const state = vi.hoisted(() => ({
 }));
 
 // jsdom lays nothing out, so the menu's focus trap would find no control to hold.
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: unknown }) => children,
-}));
+vi.mock('focus-trap-react', () => {
+  const FocusTrap = ({ children }: { children?: unknown }) => children;
+  return { default: FocusTrap, FocusTrap };
+});
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: state.navigateRoomThread }),
