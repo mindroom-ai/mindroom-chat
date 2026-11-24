@@ -51,6 +51,8 @@ class FakeNotification {
 
   onclick: (() => void) | null = null;
 
+  onclose: (() => void) | null = null;
+
   close = vi.fn();
 
   constructor(public title: string, public options: NotificationOptions) {
@@ -603,15 +605,15 @@ describe('MessageNotificationsFeature', () => {
     });
     try {
       render('/home/');
-      arrive(
-        message({
-          msgtype: 'm.text',
-          body: 'Ping from desktop',
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
-        })
-      );
+      const event = message({
+        msgtype: 'm.text',
+        body: 'Ping from desktop',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      });
+      arrive(event);
 
       const note = defined(FakeNotification.shown[0], 'a notification');
+      expect(note.options.tag).toBe(`${ROOM}:${event.getId()}`);
       act(() => note.onclick?.());
 
       expect(showMainWindow).toHaveBeenCalledOnce();
@@ -619,6 +621,70 @@ describe('MessageNotificationsFeature', () => {
       expect(navigation.thread).toHaveBeenCalledWith(ROOM, '$root');
     } finally {
       Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
+  it('uses per-event tags on desktop, closes the prior room notification, and keeps later clicks working', () => {
+    const showMainWindow = vi.fn(async () => ({ ok: true as const, value: undefined }));
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { showMainWindow, isWindowFocused: () => true },
+    });
+    try {
+      render('/home/');
+      const inThread = (body: string, threadId: string) =>
+        message({
+          msgtype: 'm.text',
+          body,
+          'm.relates_to': { rel_type: 'm.thread', event_id: threadId },
+        });
+      const first = inThread('First ping', '$root-1');
+      const second = inThread('Second ping', '$root-2');
+      const third = inThread('Third ping', '$root-3');
+      arrive(first);
+      arrive(second);
+      const firstNote = defined(FakeNotification.shown[0], 'first notification');
+      const secondNote = defined(FakeNotification.shown[1], 'second notification');
+      expect(firstNote.options.tag).toBe(`${ROOM}:${first.getId()}`);
+      expect(secondNote.options.tag).toBe(`${ROOM}:${second.getId()}`);
+      expect(firstNote.close).toHaveBeenCalledTimes(1);
+      expect(secondNote.close).not.toHaveBeenCalled();
+
+      // A delayed onclose from the closed first notification must not clear the second.
+      firstNote.onclose?.();
+      arrive(third);
+      const thirdNote = defined(FakeNotification.shown[2], 'third notification');
+      expect(thirdNote.options.tag).toBe(`${ROOM}:${third.getId()}`);
+      expect(secondNote.close).toHaveBeenCalledTimes(1);
+
+      act(() => thirdNote.onclick?.());
+      expect(showMainWindow).toHaveBeenCalledOnce();
+      expect(thirdNote.close).toHaveBeenCalledTimes(1);
+      expect(navigation.thread).toHaveBeenCalledWith(ROOM, '$root-3');
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
+  });
+
+  it('uses the latest navigation callback when clicked after a re-render', () => {
+    const originalRoom = navigation.room;
+    const staleNavigate = vi.fn();
+    const latestNavigate = vi.fn();
+    navigation.room = staleNavigate;
+    try {
+      const store = createStore();
+      render('/home/', true, store);
+      arrive(message({ msgtype: 'm.text', body: 'Before re-render' }));
+      const note = defined(FakeNotification.shown[0], 'a notification');
+
+      navigation.room = latestNavigate;
+      act(() => store.set(phoneNavDrawerOpenAtom, true));
+      act(() => note.onclick?.());
+
+      expect(staleNavigate).not.toHaveBeenCalled();
+      expect(latestNavigate).toHaveBeenCalledWith(ROOM);
+    } finally {
+      navigation.room = originalRoom;
     }
   });
 

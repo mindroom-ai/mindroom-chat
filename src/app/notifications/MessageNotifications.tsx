@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useAtomValue } from 'jotai';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +33,7 @@ import {
   getLocalizedThreadMessagePreviewText,
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
-import { desktopBridge, isAppWindowFocused } from '../lib/nativeShell';
+import { desktopBridge, isAppWindowFocused, isDesktopApp } from '../lib/nativeShell';
 import { playChime } from './playChime';
 import { raiseOnce } from './notifiedOnce';
 import {
@@ -96,36 +96,65 @@ type NotifySettings = {
   t: TFunction;
 };
 
-const showNotice = (client: MatrixClient, notice: MessageNotice, settings: NotifySettings) => {
+const showNotice = (
+  client: MatrixClient,
+  notice: MessageNotice,
+  settingsRef: MutableRefObject<NotifySettings | undefined>,
+  activeByRoom: Map<string, Notification>
+) => {
+  const settings = settingsRef.current;
   const room = client.getRoom(notice.roomId);
   const focused = isAppWindowFocused();
-  if (!room || settings.places.some((place) => isNoticeOnScreen(notice, place, focused))) return;
+  if (
+    !settings ||
+    !room ||
+    settings.places.some((place) => isNoticeOnScreen(notice, place, focused))
+  )
+    return;
 
   if (settings.sound && notice.sound) playChime(MessageSound).catch(() => undefined);
 
   const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
   if (!settings.desktop || SystemNotification?.permission !== 'granted') return;
   const announce = () => {
+    const current = settingsRef.current;
+    if (!current) return;
     const { title, body } = describeNotice(
       room,
       notice,
-      settings.directRooms.has(room.roomId),
-      settings.t
+      current.directRooms.has(room.roomId),
+      current.t
     );
-    // One notification per room: a newer message replaces the one before it.
+    const desktop = isDesktopApp();
+    // Electron's CloseNotificationWithId clobbers the new click listener when a tag is reused;
+    // on desktop, give each message its own tag and close the previous room notification.
+    if (desktop) {
+      const previous = activeByRoom.get(notice.roomId);
+      if (previous) {
+        activeByRoom.delete(notice.roomId);
+        previous.close();
+      }
+    }
     const note = new SystemNotification(title, {
       body,
       icon: MINDROOM_FAVICON_SRC,
-      tag: notice.roomId,
+      tag: desktop ? `${notice.roomId}:${notice.eventId}` : notice.roomId,
       silent: true,
     });
+    if (desktop) {
+      activeByRoom.set(notice.roomId, note);
+      note.onclose = () => {
+        if (activeByRoom.get(notice.roomId) === note) activeByRoom.delete(notice.roomId);
+      };
+    }
     note.onclick = () => {
+      if (activeByRoom.get(notice.roomId) === note) activeByRoom.delete(notice.roomId);
       void desktopBridge()
         ?.showMainWindow()
         ?.catch(() => undefined);
       window.focus();
       note.close();
-      settings.open(notice);
+      settingsRef.current?.open(notice);
     };
   };
   // A room not opened yet may lack the members who have not posted lately, and with them the one
@@ -174,20 +203,21 @@ export function MessageNotificationsFeature() {
     // Once per device: across reloads and tabs, and however many times an agent's finished
     // reply arrives. A tab that shows the message claims it too, so no other tab announces it.
     const held = new Set<ReturnType<typeof setTimeout>>();
+    const activeByRoom = new Map<string, Notification>();
     const consider = (event: MatrixEvent, room: Room) => {
       const now = Date.now();
       const notice = readMessageNotice(client, room, event, now);
       if (!notice) return;
       raiseOnce(client.getUserId() ?? '', [notice.eventId], () => {
         if (!isEditEvent(event)) {
-          if (settings.current) showNotice(client, notice, settings.current);
+          showNotice(client, notice, settings, activeByRoom);
           return;
         }
         // An agent's finished reply waits for a receipt from the device that watched it finish.
         const timer = setTimeout(() => {
           held.delete(timer);
-          if (!readMessageNotice(client, room, event, now) || !settings.current) return;
-          showNotice(client, notice, settings.current);
+          if (!readMessageNotice(client, room, event, now)) return;
+          showNotice(client, notice, settings, activeByRoom);
         }, FINISHED_REPLY_HOLD_MS);
         held.add(timer);
       });
@@ -225,6 +255,7 @@ export function MessageNotificationsFeature() {
       // A message still waiting when the account signs out or switches stays quiet.
       decryptions.stop();
       held.forEach((timer) => clearTimeout(timer));
+      activeByRoom.clear();
       client.removeListener(RoomEvent.Timeline, onTimeline);
       client.removeListener(ClientEvent.Event, onSyncEvent);
     };
