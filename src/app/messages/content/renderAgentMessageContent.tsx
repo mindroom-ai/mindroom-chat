@@ -509,7 +509,9 @@ export const renderAgentMessageContent = ({
 
   // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
   // views, such as threads shown in the room, keep the message row with the marker as its body.
-  const notice = fromMindroomAgent ? readAgentNoticeMarker(content, mEvent?.getTs()) : null;
+  // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
+  const notice =
+    fromMindroomAgent && !highlightRegex ? readAgentNoticeMarker(content, mEvent?.getTs()) : null;
   if (notice) return notice;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.

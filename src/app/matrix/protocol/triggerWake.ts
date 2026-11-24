@@ -110,7 +110,8 @@ export const readTriggerWake = (content: Record<string, unknown>): TriggerWakeIn
 
   const rawBody = content.body;
   const { head, rawJson, fromUntrusted } = extractPayload(rawBody.replace(/\r\n?/g, '\n'));
-  const contextMatch = [...head.matchAll(CONTEXT_LINE)].at(-1);
+  const contextMatch =
+    sourceKind === 'reactive' ? [...head.matchAll(CONTEXT_LINE)].at(-1) : undefined;
   const ctx = contextMatch ? parseContextFields(contextMatch[1] ?? '') : {};
   const promptSection =
     contextMatch?.index !== undefined ? head.slice(0, contextMatch.index) : head;

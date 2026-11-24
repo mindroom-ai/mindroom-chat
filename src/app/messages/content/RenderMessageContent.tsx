@@ -173,7 +173,8 @@ function CoreMessageContent({
 
   // Outside an open thread (room timeline, thread roots), a trigger wake still shows as its
   // collapsed marker instead of raw markdown/HTML or wrapped tool/transcript chrome.
-  const triggerWake = fromMindroomAgent ? readTriggerWake(content) : null;
+  // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
+  const triggerWake = !highlightRegex && fromMindroomAgent ? readTriggerWake(content) : null;
   if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={ts} />;
 
   const renderUrlsPreview = urlPreview

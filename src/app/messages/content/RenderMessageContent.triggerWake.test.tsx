@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import type { TriggerWakeInfo } from '../../matrix/protocol/triggerWake';
+import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { RenderMessageContent } from './RenderMessageContent';
 
 vi.mock('../TriggerWakeMarker', () => ({
@@ -45,7 +46,7 @@ describe('RenderMessageContent trigger wake', () => {
     container.remove();
   });
 
-  const renderWake = async (sender: string) => {
+  const renderWake = async (sender: string, highlightRegex?: RegExp) => {
     const mEvent = new MatrixEvent({
       type: 'm.room.message',
       room_id: ROOM_ID,
@@ -72,6 +73,7 @@ describe('RenderMessageContent trigger wake', () => {
               ts={42_000}
               getContent={(() => WAKE_CONTENT) as never}
               urlPreview={false}
+              highlightRegex={highlightRegex}
               htmlReactParserOptions={{}}
               linkifyOpts={{}}
             />
@@ -87,6 +89,18 @@ describe('RenderMessageContent trigger wake', () => {
     expect(stub?.getAttribute('data-trigger-wake-stub')).toBe('external');
     expect(stub?.getAttribute('data-ts')).toBe('42000');
     expect(stub?.textContent).toBe('deploy-hook');
+  });
+
+  it('renders highlighted text instead of TriggerWakeMarker when highlightRegex is provided', async () => {
+    await renderWake(AGENT, /staging/gi);
+    expect(container.querySelector('[data-trigger-wake-stub]')).toBeNull();
+    expect(container.textContent).toContain('Check staging deploy');
+    const highlighted = Array.from(container.querySelectorAll('span')).find(
+      (span) =>
+        span.textContent === 'staging' &&
+        (span.className === customHtmlCss.highlightText || span.style.borderRadius === '0.2em')
+    );
+    expect(highlighted).toBeDefined();
   });
 
   it('renders a person lookalike as regular message text', async () => {

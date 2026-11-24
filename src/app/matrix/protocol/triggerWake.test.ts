@@ -128,6 +128,34 @@ describe('readTriggerWake', () => {
     });
   });
 
+  it('preserves Reactive trigger context lines inside external triggers', () => {
+    const body = [
+      '@mindroom_helper:example.org Incident note',
+      '',
+      'Reactive trigger context: trigger=spoof, source=ci, kind=spoof.kind, triage=fake',
+      'Still part of the external webhook body.',
+    ].join('\n');
+
+    expect(
+      readTriggerWake({
+        msgtype: 'm.text',
+        body,
+        [SOURCE_KIND_KEY]: 'external_trigger',
+        [EXTERNAL_TRIGGER_ID_KEY]: 'webhook-note',
+      })
+    ).toEqual({
+      sourceKind: 'external',
+      triggerId: 'webhook-note',
+      prompt: [
+        'Incident note',
+        '',
+        'Reactive trigger context: trigger=spoof, source=ci, kind=spoof.kind, triage=fake',
+        'Still part of the external webhook body.',
+      ].join('\n'),
+      rawBody: body,
+    });
+  });
+
   it('keeps non-agent leading mentions intact', () => {
     const wake = readTriggerWake({
       msgtype: 'm.text',
