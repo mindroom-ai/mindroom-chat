@@ -53,4 +53,11 @@ describe('getViewedPlace', () => {
     ).toBe('!aliased:example.org');
     expect(getViewedPlace(client, { pathname: '/home/', search: '' })).toEqual({});
   });
+
+  it('ignores reserved space sub-segments such as lobby, search, and threads', () => {
+    const space = encodeURIComponent('!space:example.org');
+    expect(getViewedPlace(client, { pathname: `/${space}/lobby/`, search: '' })).toEqual({});
+    expect(getViewedPlace(client, { pathname: `/${space}/search/`, search: '' })).toEqual({});
+    expect(getViewedPlace(client, { pathname: `/${space}/threads/`, search: '' })).toEqual({});
+  });
 });

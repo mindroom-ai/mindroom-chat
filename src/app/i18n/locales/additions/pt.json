@@ -2178,5 +2178,36 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar tópicos por sala",
+      "ariaLabelActive": "Filtrar tópicos por sala (selecionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Pesquisar salas",
+      "noMatch": "Nenhuma sala encontrada"
+    },
+    "composer": {
+      "postTo": "Enviar para:",
+      "postToRoom": "Enviar para #{{room}}",
+      "chooseRoomAria": "Escolher sala para enviar",
+      "draftPinned": "Rascunho para #{{room}}",
+      "readOnly": "Nenhuma sala neste espaço permite enviar mensagens."
+    },
+    "loading": "Carregando conversas...",
+    "empty": {
+      "noRooms": "Entre em uma sala neste espaço para ver as conversas aqui.",
+      "noThreads": "Ainda não há conversas neste espaço."
+    },
+    "error": {
+      "title": "Não foi possível carregar as conversas do espaço"
+    }
   }
 }

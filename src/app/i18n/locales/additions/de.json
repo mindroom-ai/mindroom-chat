@@ -2113,5 +2113,35 @@
   },
   "nav": {
     "usage": "Nutzung"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} Raum",
+      "roomsCount_other": "{{count}} Räume",
+      "roomsFiltered": "{{active}} von {{total}} Räumen"
+    },
+    "roomFilter": {
+      "label": "Räume",
+      "ariaLabel": "Threads nach Raum filtern",
+      "ariaLabelActive": "Threads nach Raum filtern ({{number}} ausgewählt)",
+      "ariaLabelOne": "Räume: {{room}}",
+      "search": "Räume suchen",
+      "noMatch": "Keine passenden Räume"
+    },
+    "composer": {
+      "postTo": "Senden an:",
+      "postToRoom": "An #{{room}} senden",
+      "chooseRoomAria": "Raum zum Senden auswählen",
+      "draftPinned": "Entwurf für #{{room}}",
+      "readOnly": "In keinem Raum dieses Space sind Nachrichten erlaubt."
+    },
+    "loading": "Threads werden geladen...",
+    "empty": {
+      "noRooms": "Tritt einem Raum in diesem Space bei, um hier Threads zu sehen.",
+      "noThreads": "Noch keine Threads in diesem Space."
+    },
+    "error": {
+      "title": "Space-Threads konnten nicht geladen werden"
+    }
   }
 }

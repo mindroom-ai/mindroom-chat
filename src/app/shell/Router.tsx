@@ -49,6 +49,7 @@ import {
   SPACE_PATH,
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
+  SPACE_THREADS_PATH,
   THREADS_PATH,
   THREADS_ROOM_PATH,
 } from '../routes/paths';
@@ -129,6 +130,7 @@ const Direct = fromPages((pages) => pages.Direct);
 const DirectCreate = fromPages((pages) => pages.DirectCreate);
 const SpaceRouteProvider = fromPages((pages) => pages.SpaceRouteProvider);
 const Lobby = fromPages((pages) => pages.Lobby);
+const SpaceThreadsPage = fromPages((pages) => pages.SpaceThreadsPage);
 const ThreadsNav = fromPages((pages) => pages.ThreadsNav);
 const ThreadsEmpty = fromPages((pages) => pages.ThreadsEmpty);
 const Canvases = fromPages((pages) => pages.Canvases);
@@ -328,6 +330,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
             element={<SectionIndex page={<SpaceLobbyRedirect />} phonePage={<Lobby />} />}
           />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
+          <Route path={SPACE_THREADS_PATH} element={<SpaceThreadsPage />} />
           <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />
           <Route path={SPACE_ROOM_PATH} element={<RoomPage />} />
         </Route>
