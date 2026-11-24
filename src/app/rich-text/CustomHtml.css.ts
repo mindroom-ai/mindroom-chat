@@ -342,3 +342,115 @@ globalStyle(`${Table} th`, {
   fontWeight: config.fontWeight.W600,
   backgroundColor: color.SurfaceVariant.Container,
 });
+
+/** Superscript wrapper around an inline footnote reference (`[1]`). */
+export const FootnoteRef = style({
+  fontSize: '0.75em',
+  lineHeight: 0,
+  verticalAlign: 'super',
+  marginInlineStart: toRem(1),
+});
+
+export const FootnoteRefLink = style({
+  ...surfaceOf(color.Primary),
+  display: 'inline',
+  paddingInline: toRem(3),
+  paddingBlock: toRem(1),
+  borderRadius: CHIP_RADIUS,
+  fontWeight: config.fontWeight.W500,
+  textDecoration: 'none',
+  selectors: {
+    '&:hover': {
+      backgroundColor: color.Primary.ContainerHover,
+      textDecoration: 'underline',
+    },
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
+      outlineOffset: toRem(1),
+    },
+    '&[data-footnote-highlight]': {
+      boxShadow: ring(config.borderWidth.B600, color.Primary.Main),
+    },
+  },
+});
+
+export const FootnotesSep = style({
+  border: 0,
+  borderBlockStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  marginBlockStart: config.space.S300,
+  marginBlockEnd: config.space.S200,
+});
+
+export const Footnotes = style([
+  MarginSpaced,
+  {
+    fontSize: '0.875em',
+    lineHeight: 1.45,
+    color: `color-mix(in srgb, ${color.Surface.OnContainer} 82%, transparent)`,
+  },
+]);
+
+export const FootnotesList = style({
+  margin: 0,
+  paddingInlineStart: toRem(20),
+  listStylePosition: 'outside',
+});
+
+export const FootnoteItem = style({
+  borderRadius: CHIP_RADIUS,
+  paddingInline: config.space.S100,
+  paddingBlock: toRem(2),
+  marginBlock: toRem(2),
+  transition: 'background-color 200ms ease, box-shadow 200ms ease',
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      transition: 'none',
+    },
+  },
+  selectors: {
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
+      outlineOffset: toRem(1),
+    },
+    '&:focus:not(:focus-visible)': {
+      outline: 'none',
+    },
+    '&[data-footnote-highlight]': {
+      ...surfaceOf(color.Primary),
+      boxShadow: ring(config.borderWidth.B300, color.Primary.ContainerLine, true),
+    },
+  },
+});
+
+globalStyle(`${FootnoteItem} > p`, {
+  marginBlock: toRem(2),
+});
+
+globalStyle(`${FootnoteItem} > p:first-child`, {
+  marginBlockStart: 0,
+});
+
+globalStyle(`${FootnoteItem} > p:last-child`, {
+  marginBlockEnd: 0,
+});
+
+export const FootnoteBackref = style({
+  display: 'inline-block',
+  marginInlineStart: config.space.S100,
+  paddingInline: toRem(3),
+  borderRadius: CHIP_RADIUS,
+  color: color.Primary.OnContainer,
+  textDecoration: 'none',
+  opacity: 0.8,
+  selectors: {
+    '&:hover': {
+      opacity: 1,
+      backgroundColor: color.Primary.Container,
+    },
+    '&:focus-visible': {
+      opacity: 1,
+      outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
+      outlineOffset: toRem(1),
+    },
+  },
+});

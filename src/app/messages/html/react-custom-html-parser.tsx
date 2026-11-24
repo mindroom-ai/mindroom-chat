@@ -40,6 +40,8 @@ import {
   getCodeBlockLanguage,
   getCodeBlockLanguageIconToken,
 } from '../../rich-text/code/codeBlockLanguage';
+import { FootnoteItem, FootnoteLink } from '../../rich-text/Footnote';
+import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
@@ -662,6 +664,9 @@ const hasAncestor = (node: ChildNode, names: string[]): boolean => {
   return false;
 };
 
+const hasClass = (classAttr: string | undefined, name: string): boolean =>
+  !!classAttr && classAttr.split(/\s+/).includes(name);
+
 const withoutAttribute = (attribs: Record<string, string>, name: string) => {
   const rest = { ...attribs };
   delete rest[name];
@@ -785,10 +790,56 @@ export const getReactCustomHtmlParser = (
           );
         case 'ol':
           return (
-            <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
+            <ol
+              {...props}
+              className={
+                hasClass(attribs.class, 'footnotes-list')
+                  ? classNames(css.FootnotesList, props.className)
+                  : classNames(css.List, css.MarginSpaced, props.className)
+              }
+            >
               {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
+        case 'li': {
+          const footnoteId = isFootnoteId(attribs.id) ? attribs.id : undefined;
+          if (footnoteId || hasClass(attribs.class, 'footnote-item')) {
+            const { id: _rawId, ...restProps } = props;
+            return (
+              <FootnoteItem
+                {...restProps}
+                footnoteId={footnoteId}
+                className={classNames(css.FootnoteItem, restProps.className)}
+              >
+                {domToReact(children as DOMNode[], parserOptions)}
+              </FootnoteItem>
+            );
+          }
+          return undefined;
+        }
+        case 'sup':
+          if (hasClass(attribs.class, 'footnote-ref')) {
+            return (
+              <sup {...props} className={classNames(css.FootnoteRef, props.className)}>
+                {domToReact(children as DOMNode[], parserOptions)}
+              </sup>
+            );
+          }
+          return undefined;
+        case 'hr':
+          if (hasClass(attribs.class, 'footnotes-sep')) {
+            return <hr {...props} className={classNames(css.FootnotesSep, props.className)} />;
+          }
+          return undefined;
+        case 'section':
+          if (hasClass(attribs.class, 'footnotes')) {
+            return (
+              <section {...props} className={classNames(css.Footnotes, props.className)}>
+                {domToReact(children as DOMNode[], parserOptions)}
+              </section>
+            );
+          }
+          return undefined;
         case 'pre':
           return (
             <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
@@ -807,6 +858,29 @@ export const getReactCustomHtmlParser = (
         case 'a': {
           const { href } = attribs;
           stripLinkTextBidi(children);
+          if (isFootnoteHref(href)) {
+            const isBackref = hasClass(attribs.class, 'footnote-backref');
+            const { id: _rawId, target: _target, rel: _rel, ...restProps } = props;
+            // Keep plain backref text (U+21A9 U+FE0E) intact so emoji scaling does not split U+FE0E.
+            const linkContent =
+              isBackref && children.every(isText)
+                ? textContent(children)
+                : domToReact(children as DOMNode[], parserOptions);
+            return (
+              <FootnoteLink
+                {...restProps}
+                href={href}
+                footnoteId={isFootnoteId(attribs.id) ? attribs.id : undefined}
+                backref={isBackref}
+                className={classNames(
+                  isBackref ? css.FootnoteBackref : css.FootnoteRefLink,
+                  restProps.className
+                )}
+              >
+                {linkContent}
+              </FootnoteLink>
+            );
+          }
           const content = domToReact(children as DOMNode[], parserOptions);
           const hasSpoiler = containsSpoiler(children);
           if (href && testMatrixTo(href)) {
@@ -830,8 +904,12 @@ export const getReactCustomHtmlParser = (
             );
             if (mention) return mention;
           }
+          const { id: _rawId, ...linkProps } = props;
           return (
-            <CheckedMessageLink {...props} showFavicon={!!params.showLinkFavicons && !hasSpoiler}>
+            <CheckedMessageLink
+              {...linkProps}
+              showFavicon={!!params.showLinkFavicons && !hasSpoiler}
+            >
               {content}
             </CheckedMessageLink>
           );

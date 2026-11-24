@@ -10,12 +10,12 @@ import type { MarkdownIt, StateBlock, StateInline } from 'markdown-it';
 
 // The runtime's Matrix-safe tags; a disallowed tag opening a line is escaped before parsing.
 const ALLOWED_TAGS = new Set(
-  'a b blockquote br caption code del details div em font h1 h2 h3 h4 h5 h6 hr i img li ol p pre s span strike strong sub summary sup table tbody td th thead tr u ul'.split(
+  'a b blockquote br caption code del details div em font h1 h2 h3 h4 h5 h6 hr i img li ol p pre s section span strike strong sub summary sup table tbody td th thead tr u ul'.split(
     ' '
   )
 );
 const BLOCK_TAGS =
-  'blockquote caption details div h1 h2 h3 h4 h5 h6 hr li ol p pre table tbody td th thead tr ul';
+  'blockquote caption details div h1 h2 h3 h4 h5 h6 hr li ol p pre section table tbody td th thead tr ul';
 const BLOCK_TAG_ALTERNATION = BLOCK_TAGS.split(' ').join('|');
 
 const RAW_HTML_TAG_LINE_START = /^( {0,3})(<\/?([A-Za-z][A-Za-z0-9-]*)(?:\s[^<>]*)?\/?>)/;
@@ -226,10 +226,18 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
   return true;
 };
 
-const buildRenderer = (MarkdownItConstructor: typeof MarkdownItDefault): MarkdownIt => {
+type FootnotePlugin = (md: MarkdownIt) => void;
+
+const buildRenderer = (
+  MarkdownItConstructor: typeof MarkdownItDefault,
+  footnotePlugin: FootnotePlugin
+): MarkdownIt => {
   // The runtime's sanitizer writes void tags without a closing slash.
   const md = new MarkdownItConstructor('commonmark', { breaks: true, xhtmlOut: false });
   md.enable(['table', 'strikethrough']);
+  md.use(footnotePlugin);
+  // Match backend footnote_plugin(inline=False) so prose/regexes like ^[a-z] stay literal text.
+  md.inline.ruler.disable('footnote_inline');
   md.inline.ruler.before('escape', 'math_inline', mathInline(md));
   md.block.ruler.before('fence', 'math_block', mathBlock);
   md.renderer.rules.math_inline = (tokens, index) =>
@@ -245,9 +253,9 @@ const readyListeners = new Set<() => void>();
 
 /** Loads the renderer on first use, so the main bundle does not carry it. */
 export const loadLiveMarkdown = (): Promise<void> => {
-  loading ??= import('markdown-it').then(
-    ({ default: MarkdownItConstructor }) => {
-      renderer = buildRenderer(MarkdownItConstructor);
+  loading ??= Promise.all([import('markdown-it'), import('markdown-it-footnote')]).then(
+    ([{ default: MarkdownItConstructor }, { default: footnotePlugin }]) => {
+      renderer = buildRenderer(MarkdownItConstructor, footnotePlugin);
       readyListeners.forEach((listener) => listener());
     },
     (error: unknown) => {
