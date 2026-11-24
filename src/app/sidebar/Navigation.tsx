@@ -1,4 +1,12 @@
-import { ReactElement, ReactNode, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import {
+  ReactElement,
+  ReactNode,
+  startTransition,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import { PageRoot } from '../ui/page/Page';
@@ -103,7 +111,9 @@ export function CollapsibleSidebarNav() {
         setCollapsed(!collapsed);
         return true;
       }
-      if (collapsed) setCollapsed(false);
+      // Batch uncollapsing with React Router's transition navigation so the old page does not
+      // open and clear `opening` before the new page mounts.
+      if (collapsed) startTransition(() => setCollapsed(false));
       return false;
     },
     [canCollapse, collapsed, setCollapsed]
