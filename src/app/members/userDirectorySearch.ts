@@ -186,7 +186,8 @@ const matchSingleEditFallback = (
   for (const token of prepared.text.split(TOKEN_SEPARATOR)) {
     if (token.length === 0) continue;
     if (token.length >= MIN_ONE_EDIT_LENGTH) {
-      const tokenPenalty = Math.min(tokenIndex, ONE_EDIT_TOKEN_PENALTY_CAP) * ONE_EDIT_TOKEN_PENALTY;
+      const tokenPenalty =
+        Math.min(tokenIndex, ONE_EDIT_TOKEN_PENALTY_CAP) * ONE_EDIT_TOKEN_PENALTY;
       if (Math.abs(word.length - token.length) <= 1 && typosBetween(word, token, 1) === 1) {
         bestDetail = Math.max(bestDetail, tokenPenalty);
       } else if (hasSingleEditPrefixMatch(word, token)) {
