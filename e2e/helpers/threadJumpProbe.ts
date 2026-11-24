@@ -265,10 +265,17 @@ export const installThreadJumpProbe = () => {
       const first = args[0];
       const top =
         typeof first === 'object' && first !== null ? (first as { top?: number }).top : args[1];
+      let delta = 0;
       if (typeof top === 'number') {
-        recordWrite(this, name === 'scrollBy' ? this.scrollTop + top : top, name);
+        delta = recordWrite(this, name === 'scrollBy' ? this.scrollTop + top : top, name);
       }
       orig.apply(this, args);
+      if (probe.stallMs > 0 && Math.abs(delta) >= 48) {
+        const until = performance.now() + probe.stallMs;
+        while (performance.now() < until) {
+          // Keeps the main thread busy.
+        }
+      }
     };
   });
   window.addEventListener(
