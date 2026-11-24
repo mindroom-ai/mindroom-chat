@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../../', import.meta.url)) });
 const consumerPath = 'src/app/ui/glass/SurfaceConsumer.tsx';
@@ -13,6 +13,12 @@ async function lint(source: string, filePath = consumerPath) {
 }
 
 describe('shared surface import boundary', () => {
+  // ESLint 10 flat config loads eslint-plugin-react-hooks 7 (Babel/Hermes) on the first call,
+  // which can pass Vitest's 5 s default under a full-suite run.
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(consumerPath);
+  }, 30_000);
+
   it.each([
     "import { Menu } from 'folds';\n\nexport { Menu };",
     "import { MenuItem } from 'folds';\n\nexport { MenuItem };",

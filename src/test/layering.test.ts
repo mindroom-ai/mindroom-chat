@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   APP_ROOT,
   REPO_ROOT,
@@ -55,6 +55,12 @@ async function layeringOptions(path: string): Promise<LayeringOptions | undefine
 }
 
 describe('domain layering lint', () => {
+  // ESLint 10 flat config loads eslint-plugin-react-hooks 7 (Babel/Hermes) on the first call,
+  // which can pass Vitest's 5 s default under a full-suite run.
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(probeIn('lib'));
+  }, 30_000);
+
   it.each<[string, string, Extension]>([
     ['lib', 'shell', '.tsx'],
     ['lib', 'shell', '.ts'],

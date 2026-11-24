@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { ESLint } from 'eslint';
 import ts from 'typescript';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CLIENT_PLUGIN_API_VERSION, SHARED_PACKAGES } from '../../scripts/client-plugins.mjs';
 import { TYPE_AWARE_RULES } from '../../scripts/eslint-shared.mjs';
 
@@ -128,6 +128,10 @@ describe('eslint.config.plugin.mjs', () => {
       rules: Object.fromEntries(Object.keys(TYPE_AWARE_RULES).map((rule) => [rule, 'off'])),
     },
   });
+  beforeAll(async () => {
+    await eslint.calculateConfigForFile(path.join(dir, 'src/panel.tsx'));
+  }, 30_000);
+
   const lint = async (source: string, file = 'src/panel.tsx') => {
     const [result] = await eslint.lintText(source, { filePath: path.join(dir, file) });
     expect(result?.fatalErrorCount).toBe(0);
