@@ -214,7 +214,7 @@ describe('PhoneMembersSheet', () => {
       vi.advanceTimersToNextFrame();
     });
 
-    expect(panel.style.translate).toBe('60px 0');
+    expect(panel.style.translate).toBe('60px');
     expect(scrim.style.opacity).toBe('0.8');
     expect(panel.hasAttribute('data-swiping')).toBe(true);
     expect(scrim.hasAttribute('data-swiping')).toBe(true);
@@ -252,7 +252,7 @@ describe('PhoneMembersSheet', () => {
       dispatchTouch(panel, 'touchmove', [{ clientX: 240, clientY: 200 }], 220);
       vi.advanceTimersToNextFrame();
     });
-    expect(panel.style.translate).toBe('150px 0');
+    expect(panel.style.translate).toBe('150px');
     expect(scrim.style.opacity).toBe('0.5');
 
     act(() => {
@@ -300,7 +300,7 @@ describe('PhoneMembersSheet', () => {
         dispatchTouch(panel, 'touchmove', [{ clientX: 100, clientY: 200 }], 200);
         vi.advanceTimersToNextFrame();
       });
-      expect(panel.style.translate).toBe('-130px 0');
+      expect(panel.style.translate).toBe('-130px');
 
       act(() => {
         dispatchTouch(panel, 'touchend', [], 220);

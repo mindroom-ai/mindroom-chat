@@ -32,7 +32,7 @@ vi.mock('folds', async (importOriginal) => {
 });
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -129,14 +129,14 @@ const reaction = (sender: string, id = `$${sender}`) =>
     getTs: () => 0,
     getRelation: () => ({ rel_type: 'm.annotation' }),
     isRedacted: () => false,
-  } as MatrixEvent);
+  }) as MatrixEvent;
 const stops = (senders: string[]) =>
   new MockRelations([['🛑', new Set(senders.map((sender) => reaction(sender)))]]);
 const streamingReply = () =>
   ({
     getSender: () => AGENT,
     getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
-  } as MatrixEvent);
+  }) as MatrixEvent;
 const stopProps = (relations: MockRelations, targetEvent: MatrixEvent, onReactionToggle: Mock) => ({
   room: {} as never,
   mEventId: '$event',

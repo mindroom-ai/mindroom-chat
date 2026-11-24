@@ -771,6 +771,8 @@ describe('a focus request on the mounted Compact room', () => {
   beforeEach(() => {
     inset = 0;
     state.unreachable = false;
+    // jsdom 31 reports CSS.supports('overflow-anchor', 'auto') === true without scroll anchoring.
+    vi.stubGlobal('CSS', { supports: (property: string) => property !== 'overflow-anchor' });
     layout = stubCompactLayout({
       width: () => 300,
       clientHeight: VIEW_HEIGHT,

@@ -36,7 +36,8 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
       {(state, retry, viaServers, resolvedRoomId) => {
         const summary = state.status === AsyncStatus.Success ? state.data : undefined;
         const avatarUrl = summary?.avatar_url
-          ? mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
+          ? (mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ??
+            undefined)
           : undefined;
         const listing = { name: summary?.name, topic: summary?.topic, avatarUrl };
         const facts = { memberCount: summary?.num_joined_members, roomType: summary?.room_type };
@@ -47,7 +48,7 @@ function FeaturedCard({ roomIdOrAlias, space }: { roomIdOrAlias: string; space: 
             roomIdOrAlias={roomIdOrAlias}
             roomId={summary?.room_id ?? resolvedRoomId}
             allRooms={joinedRoomIds}
-            joinRule={summary ? summary.join_rule ?? JoinRule.Public : undefined}
+            joinRule={summary ? (summary.join_rule ?? JoinRule.Public) : undefined}
             accessStatus={state.status}
             onAccessRetry={retry}
             viaServers={viaServers}

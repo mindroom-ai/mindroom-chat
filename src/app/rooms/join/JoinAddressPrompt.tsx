@@ -1,7 +1,7 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { JoinRule, MatrixError } from 'matrix-js-sdk';
@@ -53,7 +53,7 @@ const useAvatarUrl = () => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   return (mxc: string | undefined) =>
-    mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, 96, 96, 'crop') ?? undefined : undefined;
+    mxc ? (mxcUrlToHttp(mx, mxc, useAuthentication, 96, 96, 'crop') ?? undefined) : undefined;
 };
 
 /** The room a pasted address points at, with the name and topic its summary gives. */

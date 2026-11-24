@@ -36,7 +36,7 @@ const makeEvent = ({
     getUnsigned: () => undefined,
     isRedacted: () => false,
     isRedaction: () => false,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const makeRoom = ({
   rootEvent,
@@ -56,7 +56,7 @@ const makeRoom = ({
       },
     })),
     getMember: vi.fn(() => undefined),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('buildThreadRecord', () => {
   it('shares one visible-reply snapshot within a build and refreshes it after redaction', () => {
@@ -108,7 +108,7 @@ describe('buildThreadRecord', () => {
     ({
       ...makeEvent({ eventId: '$root', body: 'Root' }),
       getUnsigned: () => ({ 'm.relations': { 'm.thread': { count } } }),
-    } as unknown as MatrixEvent);
+    }) as unknown as MatrixEvent;
 
   const makeSdkThread = (rootEvent: MatrixEvent, events: MatrixEvent[], length: number) =>
     ({
@@ -125,7 +125,7 @@ describe('buildThreadRecord', () => {
         }),
         relations: { getChildEventsForEvent: () => undefined },
       }),
-    } as unknown as ReturnType<Room['getThread']>);
+    }) as unknown as ReturnType<Room['getThread']>;
 
   const makeReplies = (count: number) =>
     Array.from({ length: count }, (_, index) =>

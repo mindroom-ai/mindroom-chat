@@ -20,9 +20,7 @@ import { filterInviteUserCandidates } from './userDirectorySearch';
 import * as css from './MembersDrawer.css';
 
 type InviteState =
-  | { status: 'inviting' }
-  | { status: 'invited' }
-  | { status: 'failed'; error: unknown };
+  { status: 'inviting' } | { status: 'invited' } | { status: 'failed'; error: unknown };
 
 /** Someone the section offers: a directory match, or a typed user ID the directory does not list. */
 type Candidate = { user: ServerUserDirectoryUser; listed: boolean };
@@ -98,7 +96,7 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
   const { user, listed, state } = row;
   const name = rowName(row);
   const avatarSrc = user.avatarMxcUrl
-    ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined)
     : undefined;
   const failure = state?.status === 'failed' ? { error: state.error } : undefined;
   const inviting = state?.status === 'inviting';

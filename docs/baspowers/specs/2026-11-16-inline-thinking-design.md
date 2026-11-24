@@ -44,7 +44,7 @@ Success:
 
 - `text` and `duration_ms` keep their current meaning, so old clients keep working.
 - `start` is the segment's first position in `text`, in UTF-16 code units (as live splices count). Starts are strictly increasing, and the first is 0. A segment runs to the next one's `start`, or to the end of `text`; the client trims the `\n\n` separator off its end.
-- `after_tool` is the number of visible tool calls started before the segment began, so `after_tool: n` places the segment right after the marker `🔧 \`name\` [n]`, and `0` means the top of the reply. It is `len(tool_trace)` at the segment's start when the agent shows tool calls, and `0` when it hides them, because then the body has no markers.
+- `after_tool` is the number of visible tool calls started before the segment began, so `after_tool: n` places the segment right after the marker `🔧 \`name\` [n]`, and `0`means the top of the reply. It is`len(tool_trace)`at the segment's start when the agent shows tool calls, and`0` when it hides them, because then the body has no markers.
 - `duration_ms` is the segment's own observed time. The segments' durations add up to the top-level `duration_ms` (it may differ by up to one millisecond per segment, from rounding).
 
 Segments do not repeat the text, so the event grows by about 50 bytes per segment.

@@ -123,8 +123,7 @@ const recentEntry = (storage: Record<string, unknown>, userId: string, roomId: s
 
 const replyEntry = (storage: Record<string, unknown>, userId: string, roomId: string) =>
   storage[`roomInputReply:${JSON.stringify([userId, roomId])}`] as
-    | { eventId?: string; body?: string; formattedBody?: string }
-    | undefined;
+    { eventId?: string; body?: string; formattedBody?: string } | undefined;
 
 /** Whether `stored` (any JSON) holds `word` anywhere. */
 const holds = (stored: unknown, word: string): boolean =>

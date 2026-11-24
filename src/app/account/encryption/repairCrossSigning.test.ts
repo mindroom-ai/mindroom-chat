@@ -22,10 +22,10 @@ const makeCrypto = () => ({
 });
 
 const clientWith = (crypto: ReturnType<typeof makeCrypto> | undefined) =>
-  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as unknown as Pick<
+  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' }) as unknown as Pick<
     MatrixClient,
     'getCrypto' | 'getSafeUserId'
-  >);
+  >;
 
 const KEY = new Uint8Array([7, 7, 7]);
 const auth = vi.fn();

@@ -8,7 +8,10 @@ import {
 } from '../../matrix/protocol/aiRun';
 import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 
-export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
+export const formatAiRunNumber = (
+  value: number | undefined,
+  locale?: string
+): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
 
 /** A large count in the reader's short style, such as 61.4M. */
@@ -178,15 +181,15 @@ export const hasRenderableAiRunDetails = (info: AiRunInfo): boolean => {
   const status = info.status?.toLowerCase();
   return Boolean(
     getAiRunCompactModelLabel(info) ||
-      isFlaggedAiRunStatus(status) ||
-      info.costUsd !== undefined ||
-      info.subagentsCostUsd !== undefined ||
-      getAiRunTokenParts(info) ||
-      getAiRunContextLabel(info) ||
-      info.toolCount !== undefined ||
-      formatAiRunTimeToFirstToken(info.timeToFirstToken) ||
-      info.modelConfig ||
-      info.runId ||
-      info.sessionId
+    isFlaggedAiRunStatus(status) ||
+    info.costUsd !== undefined ||
+    info.subagentsCostUsd !== undefined ||
+    getAiRunTokenParts(info) ||
+    getAiRunContextLabel(info) ||
+    info.toolCount !== undefined ||
+    formatAiRunTimeToFirstToken(info.timeToFirstToken) ||
+    info.modelConfig ||
+    info.runId ||
+    info.sessionId
   );
 };

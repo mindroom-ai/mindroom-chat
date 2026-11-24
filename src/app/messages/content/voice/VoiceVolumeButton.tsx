@@ -1,7 +1,7 @@
 import { MouseEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom } from 'jotai';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { Range } from 'react-range';
 import { Icon, Icons, RectCords } from 'folds';
 import { PopOut } from '../../../ui/directional';

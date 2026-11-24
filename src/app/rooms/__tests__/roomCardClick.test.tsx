@@ -12,7 +12,7 @@ import { RoomCard } from '../RoomCard';
 // joined room, Join or Request to join for one the person is not in.
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
@@ -31,7 +31,7 @@ const makeClient = () =>
     knockRoom: vi.fn(() => new Promise(() => undefined)),
     on: vi.fn(),
     removeListener: vi.fn(),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const renderCard = (
   mx: MatrixClient,
@@ -51,7 +51,7 @@ const renderCard = (
         joinRule={JoinRule.Public}
         accessStatus={AsyncStatus.Success}
         onView={onView}
-        renderTopicViewer={(_name, topic) => <p>{topic}</p>}
+        renderTopicViewer={(_name: string, topic: string) => <p>{topic}</p>}
         {...props}
       />
     </MatrixClientProvider>

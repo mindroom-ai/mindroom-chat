@@ -36,11 +36,13 @@
 ### Task 1: Move `command-palette` above `settings`
 
 **Files:**
+
 - Move: `src/app/command-palette/commandPaletteShortcut.ts` to `src/app/shortcuts/paletteShortcut.ts` (`git mv`, content unchanged)
 - Modify: the importers and the tests that mock its path (`grep -rn "commandPaletteShortcut'" src e2e`): `command-palette/CommandPalette.tsx`, `CommandPaletteSearchField.tsx`, `CommandPaletteSidebarTab.tsx`, `settings/Settings.tsx`, `settings/pages/AgentInterfaceSettings.tsx`, and the mocks in `CommandPalette.test.ts`, `CommandPaletteRenderer.test.ts`, `commandPaletteItems.tour.test.tsx`, `AgentInterfaceSettings.sidebar.test.tsx`
 - Modify: `.eslintrc.cjs` (`LAYERS`), `docs/architecture.md` ("Layers" table)
 
 **Interfaces:**
+
 - Produces: `getCommandPaletteShortcutLabel`, `getCommandPaletteAriaKeyShortcuts` from `src/app/shortcuts/paletteShortcut.ts`. `command-palette` may import `settings`, `tour`, `room`, `local-mindroom` and everything below.
 
 - [ ] **Step 1:** In `.eslintrc.cjs` change the two lines `['command-palette', 'local-mindroom', 'room'], ['settings', 'tour'],` to `['local-mindroom', 'room'], ['settings', 'tour'], ['command-palette'],`. In `docs/architecture.md` renumber the table: 11 `local-mindroom`, `room`; 12 `settings`, `tour`; 13 `command-palette`; 14 `sidebar`; 15 `shell`; 16 `src/index.tsx`, `src/client-sdk`.
@@ -52,11 +54,13 @@
 ### Task 2: Rows that show a state, a choice, a page and keys
 
 **Files:**
+
 - Modify: `src/app/command-palette/commandPaletteTypes.ts`, `CommandPaletteList.tsx`, `CommandPalette.css.ts`
 - Modify: `src/app/i18n/locales/additions/en.json` and the 16 overlays
 - Test: `src/app/command-palette/CommandPaletteList.test.ts` (add the new class names to its css mock and `Check`, `ChevronRight` to its folds `Icons` mock if it has one)
 
 **Interfaces:**
+
 - Produces, in `commandPaletteTypes.ts`:
 
 ```ts
@@ -105,10 +109,12 @@ export type CommandPalettePage = {
 ### Task 3: Pages and rows that keep the palette open
 
 **Files:**
+
 - Modify: `src/app/command-palette/commandPaletteItems.ts` (types only), `CommandPalette.tsx`, `CommandPalette.css.ts`
 - Test: `src/app/command-palette/CommandPalette.test.ts` (extend `FIXTURE_SOURCE`; fix every other fixture of `CommandPaletteSource`: `grep -rln "CommandPaletteSource" src`)
 
 **Interfaces:**
+
 - Consumes: Task 2's types.
 - Produces, in `commandPaletteItems.ts`:
 
@@ -122,7 +128,8 @@ export type CommandPaletteSource = {
   threads: ...; rooms: ...; getUsers: ...; // unchanged
 };
 ```
-  Until Task 7, `useCommandPaletteSource` returns `searchActions: actions` and three pages with their title (`t('settings.general.appearance.theme')`, `t('settings.general.messages.messageLayout')`, `t('settings.general.language.appLanguage')`) and no items.
+
+Until Task 7, `useCommandPaletteSource` returns `searchActions: actions` and three pages with their title (`t('settings.general.appearance.theme')`, `t('settings.general.messages.messageLayout')`, `t('settings.general.language.appLanguage')`) and no items.
 
 - [ ] **Step 1: Failing tests** in `CommandPalette.test.ts`. Fixture: `actions` gains `{ id: 'page-theme', kind: 'action', title: 'Theme', page: 'theme', sortRank: 5 }`; `pages.theme = { title: 'Theme', items: [light (current: false, sortRank 3), dark (current: true, sortRank 2), dracula (current: false, sortRank 1)] }` each with an `onSelect` spy; `searchActions` = the actions plus `{ id: 'setting:markdown', kind: 'action', title: 'Markdown Formatting', state: 'on', keepOpen: true, onSelect: spy }` and `{ id: 'room-command:viewSwitch', kind: 'action', title: 'Compact view', state: 'on', onSelect: spy }` and the three choices. Tests:
   - "Enter on a page row opens the page": on the Actions tab, highlight `page-theme`, Enter. The options are exactly Light, Dark, Dracula in that order; the highlighted one is Dark (the current choice); no `[role="tab"]` is rendered; `[data-page-chip]` shows `Theme`; the input is empty; `requestClose` not called.
@@ -152,10 +159,12 @@ export type CommandPaletteSource = {
 ### Task 4: Page rows and the system theme rule
 
 **Files:**
+
 - Create: `src/app/command-palette/commandPalettePages.ts`, `commandPalettePages.test.ts`
 - Modify: `src/app/theme/useTheme.ts`, `src/app/theme/useTheme.test.ts`, `src/app/settings/pages/Appearance.tsx`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -195,10 +204,12 @@ export const LAYOUT_CHOICES; // was module-private; unchanged value
 ### Task 5: Settings as rows, and Settings opening at a setting
 
 **Files:**
+
 - Create: `src/app/command-palette/commandPaletteSettings.ts`, `commandPaletteSettings.test.ts`, `src/app/settings/useSettingsSearchValues.ts`
 - Modify: `src/app/settings/settingsSearchIndex.ts` (+ its test), `src/app/settings/Settings.tsx`, `SettingsModalRenderer.tsx` (+ its test), `src/app/navigation/settingsModal.ts`, `src/app/preferences/settings.ts`
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -239,12 +250,13 @@ export const getCommandPaletteSettingRows = (
   values?: SettingsSearchValues
 ): CommandPaletteSettingRow[];
 ```
+
 - Switch map (setting id to field): `enterForNewline` `enterForNewline`; `markdown` `isMarkdown`; `hideMembershipEvents`; `hideNickAvatarEvents`; `showToolCalls`; `mediaAutoLoad` `mediaAutoLoad` inverted; `urlPreview`; `hideActivity`; `encUrlPreview`; `developerTools`; `showHiddenEvents`; `errorReports` `sendErrorReports`; `notificationSound` `isNotificationSounds`.
 - Left out (covered elsewhere): `systemTheme`, `theme`, `lightTheme`, `darkTheme`, `messageLayout`, `language`, `tour`.
-- A row's `item`: `id: 'setting:<id>'`, `title` the label, `description` the location joined with ` › `, `keywords` the search words plus the description, `tag: t('settings.title')`, `icon: Icons.Setting`, `sortRank: 0`, and for a switch `state` (`stored[key] !== !!inverted ? 'on' : 'off'`) with `keepOpen: true`.
+- A row's `item`: `id: 'setting:<id>'`, `title` the label, `description` the location joined with `›`, `keywords` the search words plus the description, `tag: t('settings.title')`, `icon: Icons.Setting`, `sortRank: 0`, and for a switch `state` (`stored[key] !== !!inverted ? 'on' : 'off'`) with `keepOpen: true`.
 
 - [ ] **Step 1: Failing tests.**
-  - `commandPaletteSettings.test.ts` with the real registry (`getShownSettings(context)`) and a `t` that returns the key: every key of `COMMAND_PALETTE_SETTING_SWITCHES` is a registry setting id; `markdown` with `isMarkdown: true` has `state: 'on'` and `keepOpen: true`; `mediaAutoLoad` with `mediaAutoLoad: true` has `state: 'off'`; `pageZoom` has no `state`, no `keepOpen` and no `switch`; none of the seven left-out ids has a row; with `developerTools: false` in the context `accessToken` has no row (Review Focus 4); a row's description joins its page label and group label with ` › `; every row has the tag and `sortRank: 0`.
+  - `commandPaletteSettings.test.ts` with the real registry (`getShownSettings(context)`) and a `t` that returns the key: every key of `COMMAND_PALETTE_SETTING_SWITCHES` is a registry setting id; `markdown` with `isMarkdown: true` has `state: 'on'` and `keepOpen: true`; `mediaAutoLoad` with `mediaAutoLoad: true` has `state: 'off'`; `pageZoom` has no `state`, no `keepOpen` and no `switch`; none of the seven left-out ids has a row; with `developerTools: false` in the context `accessToken` has no row (Review Focus 4); a row's description joins its page label and group label with `›`; every row has the tag and `sortRank: 0`.
   - `settingsSearchIndex.test.ts`: `getSettingText` returns the label, the split search words and the location `[page, group, Advanced]` without repeats, for one plain and one advanced setting.
   - `SettingsModalRenderer.test.ts`: a state with `initialSetting: 'pageZoom'` reaches `Settings` as that prop.
 - [ ] **Step 2:** Run the three files. Expected: FAIL.
@@ -255,11 +267,13 @@ export const getCommandPaletteSettingRows = (
 ### Task 6: The open room's header publishes its commands
 
 **Files:**
+
 - Create: `src/app/navigation/roomCommands.ts`, `roomCommands.test.tsx`
 - Modify: `src/app/room/RoomViewHeader.tsx`
 - Test: `src/app/room/RoomViewHeader.commands.test.tsx` (copy the mocks of `RoomViewHeader.filterButton.test.tsx`)
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -278,7 +292,8 @@ export const useRoomCommands = (commands: readonly RoomCommand[]): void;
 /** The commands of the room header on screen now; none without one. */
 export const getRoomCommands = (): readonly RoomCommand[];
 ```
-  Module-level state like `shortcuts/useShortcut.ts` (a stack of refs written on render, pushed and removed in an effect), no atom.
+
+Module-level state like `shortcuts/useShortcut.ts` (a stack of refs written on render, pushed and removed in an effect), no atom.
 
 - [ ] **Step 1: Failing tests.**
   - `roomCommands.test.tsx` (jsdom): no component mounted gives `[]`; a mounted one gives its latest commands after a re-render with new ones; of two mounted the later one is read; unmounting it reads the first again; unmounting both gives `[]`.
@@ -291,10 +306,12 @@ export const getRoomCommands = (): readonly RoomCommand[];
 ### Task 7: The rows wired to the app
 
 **Files:**
+
 - Create: `src/app/command-palette/useCommandPaletteCommands.ts`, `useCommandPaletteCommands.test.tsx`
 - Modify: `src/app/command-palette/commandPaletteActions.ts` (+ test), `commandPaletteItems.ts`, `commandPaletteItems.tour.test.tsx` (mock `./useCommandPaletteCommands` to empty rows and empty pages)
 
 **Interfaces:**
+
 - Consumes: Tasks 2 to 6.
 - Produces:
 
@@ -314,6 +331,7 @@ export const useCommandPaletteCommands = (options: {
   threadId: string | undefined;
 }): CommandPaletteCommands;
 ```
+
 - `commandPaletteActions.ts`: `actionItem`'s options also take `icon`, `shortcut`, `page`. New quick action ids `page-theme` (title `settings.general.appearance.theme`, rank 25, icon `Sun`, keywords `['appearance', 'dark', 'light', 'colors']`), `page-message-layout` (`settings.general.messages.messageLayout`, rank 18, icon `Message`, keywords `['modern', 'compact', 'bubble']`), `page-language` (`settings.general.language.appLanguage`, rank 17, icon `Globe`, keywords `['locale', 'translation']`), each with its `page`. Shortcuts: `open-settings` gets `settings`; `resolve-current-thread` and `unresolve-current-thread` get `resolveThread`. Icons: `open-settings` `Setting`, `go-home` `Home`, `go-direct` `Message`, `go-activity` `Bell`, `create-room` `HashPlus`, `create-space` `SpacePlus`, `toggle-theme` `Sun`, the tours `Info`, `logout` `Power`, `mark-current-room-read` `CheckTwice`, `copy-current-room-link` `Link`, `open-current-room-settings` `Setting`, resolve and unresolve `Check`.
 - The hook's rows:
   - Settings: `getCommandPaletteSettingRows(getShownSettings(useSettingsContext()), useAtomValue(settingsAtom), t, useSettingsSearchValues())`. A switch row's `onSelect` writes `store.set(settingsAtom, { ...store.get(settingsAtom), [key]: !store.get(settingsAtom)[key] })`; another row's sets `settingsModalAtom` to `{ initialPage: setting.page, initialSetting: setting.id, requestId: 'palette:' + setting.id }`.
@@ -346,6 +364,7 @@ export const useCommandPaletteCommands = (options: {
 ### Task 8: End-to-end spec, full check
 
 **Files:**
+
 - Create: `e2e/command-palette/command-palette-commands.spec.ts` (accounts, login and `pressPaletteShortcut` as in `e2e/command-palette/command-palette-topics.spec.ts`)
 
 - [ ] **Step 1:** Write the spec, one test each:

@@ -176,7 +176,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [, options] = scrollToFn.mock.calls[0] as [
         number,
-        { adjustments?: number; behavior?: ScrollBehavior }
+        { adjustments?: number; behavior?: ScrollBehavior },
       ];
       expect(options.adjustments).toBe(BANKED_ERROR);
     });

@@ -123,9 +123,8 @@ vi.mock('./ConversationCover', async () => {
 });
 vi.mock('../timeline/RoomTimeline', async () => {
   const { useLayoutEffect, useState } = await import('react');
-  const { compactCardNavigation, compactCardsIn, focusCompactCard } = await import(
-    '../threads/overview/compactCardKeys'
-  );
+  const { compactCardNavigation, compactCardsIn, focusCompactCard } =
+    await import('../threads/overview/compactCardKeys');
   // A Compact list shows its cards a pass after it mounts, in the same task (RoomTimeline).
   function Cards({ ids }: { ids: string[] }) {
     const [shown, setShown] = useState(false);

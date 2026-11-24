@@ -39,7 +39,7 @@ const makeEntry = ({
     isResolved,
     roomName: key,
     threadRootId: key,
-  } as CrossRoomThreadIndexEntry);
+  }) as CrossRoomThreadIndexEntry;
 
 describe('matchesSidebarThreadInvolvement', () => {
   const entries = [
@@ -180,7 +180,7 @@ const makeSectionEntry = ({
       status: { isStreaming, hasPendingSend, scheduledTaskCount, nextScheduledTs, replyCount },
       cache: oldestTs !== undefined ? { oldestTs } : {},
     },
-  } as CrossRoomThreadIndexEntry);
+  }) as CrossRoomThreadIndexEntry;
 
 const NO_SIGNALS = () => undefined;
 

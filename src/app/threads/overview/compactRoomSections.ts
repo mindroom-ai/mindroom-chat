@@ -19,8 +19,7 @@ const COMPACT_ROOM_SECTIONS_VERSION = 2;
 export type CompactRoomSections = { on: boolean; folded: CompactThreadSectionId[] };
 
 export type CompactRoomSectionsAction =
-  | { type: 'SET_ON'; on: boolean }
-  | { type: 'TOGGLE_FOLD'; id: CompactThreadSectionId };
+  { type: 'SET_ON'; on: boolean } | { type: 'TOGGLE_FOLD'; id: CompactThreadSectionId };
 
 type CompactRoomSectionsAtom = WritableAtom<CompactRoomSections, [CompactRoomSectionsAction], void>;
 

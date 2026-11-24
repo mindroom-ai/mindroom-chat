@@ -6,7 +6,7 @@ import { DialogOpenerContext, ModalLayer } from './ModalLayer';
 
 // jsdom lays nothing out, so focus-trap finds no tabbable node; the trap is not under test here.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 afterEach(cleanup);

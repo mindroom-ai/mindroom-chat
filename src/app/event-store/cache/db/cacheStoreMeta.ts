@@ -102,8 +102,7 @@ export const updateRoomOfflineProgress = async (
   sessionId: string,
   roomId: string,
   patch:
-    | Partial<RoomOfflineProgress>
-    | ((current: RoomOfflineProgress) => Partial<RoomOfflineProgress>),
+    Partial<RoomOfflineProgress> | ((current: RoomOfflineProgress) => Partial<RoomOfflineProgress>),
   lease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
 ): Promise<boolean> => {
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return false;

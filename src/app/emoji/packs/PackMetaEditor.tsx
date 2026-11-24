@@ -34,7 +34,7 @@ export function PackAvatar({
   const client = useMatrixClient();
   const authenticated = useMediaAuthentication();
   const src = mxc
-    ? mxcUrlToHttp(client, mxc, authenticated, 96, 96, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, mxc, authenticated, 96, 96, 'crop') ?? undefined)
     : undefined;
   return (
     <Avatar size={size} radii="300">

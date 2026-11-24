@@ -18,7 +18,7 @@ export class MatrixRtcKeyProvider extends BaseKeyProvider {
   }
 
   async setParticipantKey(key: Uint8Array, keyIndex: number, participantIdentity: string) {
-    const raw = key.buffer.slice(key.byteOffset, key.byteOffset + key.byteLength);
+    const raw = new Uint8Array(key).buffer;
     const material = await createKeyMaterialFromBuffer(raw);
     this.onSetEncryptionKey(material, participantIdentity, keyIndex);
   }

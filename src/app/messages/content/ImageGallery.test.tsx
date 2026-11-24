@@ -27,7 +27,7 @@ vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['pi
 vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
 vi.mock('./heicDecode', () => ({ decodeHeicBlob }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  FocusTrap: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
 
 const ROOM = '!room:example.org';

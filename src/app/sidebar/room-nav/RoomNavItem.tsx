@@ -2,7 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
 import { useTranslation } from 'react-i18next';
 import { RoomType, type Room } from 'matrix-js-sdk';
@@ -113,7 +113,8 @@ function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
   const isSpace = room.getType() === RoomType.Space;
 
   let src = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
+    ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ??
+      undefined)
     : undefined;
   // A partner without an avatar shows the room's own, which is only looked up then.
   if (!src && personAvatar) src = getRoomAvatarUrl(mx, room, AVATAR_SIZE, useAuthentication);

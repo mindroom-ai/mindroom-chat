@@ -95,8 +95,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       panelDisposals: 0,
       computerPanelThreads: [] as Array<string | undefined>,
       routedEvent: undefined as
-        | undefined
-        | { getId: () => string; threadRootId?: string; isSending: () => boolean },
+        undefined | { getId: () => string; threadRootId?: string; isSending: () => boolean },
       clientConfig: { mindroom: {} },
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as
@@ -148,7 +147,7 @@ vi.mock('../MessageLinkCards', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) =>
+  FocusTrap: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));

@@ -41,15 +41,14 @@ const record = (rootId: string, status: Partial<ThreadStatusSnapshot> = {}): Thr
     threadRootId: rootId,
     status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: {},
-  } as unknown as ThreadRecord);
+  }) as unknown as ThreadRecord;
 
 const recordsOf = (...items: ThreadRecord[]) =>
   new Map(items.map((item) => [item.threadRootId, item] as const));
 
 const wrapperOf =
   (store: ReturnType<typeof createStore>) =>
-  ({ children }: { children: ReactNode }) =>
-    <Provider store={store}>{children}</Provider>;
+  ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
 
 describe('useCompactThreadSections', () => {
   afterEach(() => {
@@ -121,7 +120,7 @@ describe('useCompactThreadSections', () => {
         roomId: ROOM_ID,
         threadRootId: rootId,
         resolvedTs,
-      } as CrossRoomThreadIndexEntry);
+      }) as CrossRoomThreadIndexEntry;
     store.set(crossRoomThreadIndexAtom, {
       ...emptyCrossRoomThreadIndexSnapshot(),
       entries: new Map(
@@ -271,9 +270,7 @@ describe('useCompactThreadSections', () => {
     const hour = 60 * minute;
     vi.setSystemTime(openedAt);
     const { room: timedRoom } = room();
-    const records = recordsOf(
-      record('$due', { lastActivityTs: openedAt + hour - QUIET_AFTER_MS })
-    );
+    const records = recordsOf(record('$due', { lastActivityTs: openedAt + hour - QUIET_AFTER_MS }));
 
     const { result, rerender } = renderHook(
       ({ now }: { now: number | undefined }) =>

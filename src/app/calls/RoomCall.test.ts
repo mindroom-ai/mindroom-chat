@@ -2652,7 +2652,9 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
       isMicrophoneEnabled: true,
       audioTrackPublications: new Map(),
       getTrackPublication: (source: string) =>
-        source === 'screen_share' && screenTrack ? { isMuted: false, track: screenTrack } : undefined,
+        source === 'screen_share' && screenTrack
+          ? { isMuted: false, track: screenTrack }
+          : undefined,
     });
     media.remoteParticipants.set(
       `${ME}:${DEVICE}-screen`,
@@ -2698,9 +2700,9 @@ describe('RoomCall native whole-phone screen share and companion folding', () =>
       screen: bobScreenTrack,
       screenParentDeviceId: 'BOB_PHONE',
     });
-    expect(afterFlicker.find((p) => p.key === '@carol:example.com:CAROL_PHONE-screen')).toMatchObject(
-      { screenParentDeviceId: 'CAROL_PHONE' }
-    );
+    expect(
+      afterFlicker.find((p) => p.key === '@carol:example.com:CAROL_PHONE-screen')
+    ).toMatchObject({ screenParentDeviceId: 'CAROL_PHONE' });
   });
 
   it('skips resending primary media keys to screen-only companion memberships', async () => {

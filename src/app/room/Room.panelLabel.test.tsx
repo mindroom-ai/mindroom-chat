@@ -79,8 +79,8 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
   usePowerLevels: () => ({}),
 }));
 vi.mock('../config/useClientConfig', () => ({
-  useClientConfig: () => ({} as ClientConfig),
-  useOptionalClientConfig: () => ({} as ClientConfig),
+  useClientConfig: () => ({}) as ClientConfig,
+  useOptionalClientConfig: () => ({}) as ClientConfig,
 }));
 vi.mock('../computer/useAgentServers', () => ({
   useRoomAgentServers: () => [],

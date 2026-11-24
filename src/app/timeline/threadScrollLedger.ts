@@ -18,8 +18,7 @@ export type ThreadLedgerAnchor = {
 };
 
 export type ThreadLedgerFoldProbe =
-  | 'threadPrependFoldAnchorFallback'
-  | 'threadPrependFoldAnchorLost';
+  'threadPrependFoldAnchorFallback' | 'threadPrependFoldAnchorLost';
 
 export type ThreadLedgerRenderPlan = {
   foldPx: number;

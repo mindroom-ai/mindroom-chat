@@ -19,8 +19,8 @@ after the emoji"). Room thread mode may move here later, in its own pull request
 
 ## Settings
 
-| State key | Value | Cap | Meaning |
-|---|---|---|---|
+| State key                     | Value     | Cap              | Meaning                                                                                 |
+| ----------------------------- | --------- | ---------------- | --------------------------------------------------------------------------------------- |
 | `thread_summary_instructions` | free text | 2,000 characters | Extra rules for this room's automatic thread titles, appended to the title instructions |
 
 ### `thread_summary_instructions` (backend)

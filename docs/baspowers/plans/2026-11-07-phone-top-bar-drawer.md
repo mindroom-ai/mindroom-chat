@@ -33,11 +33,13 @@
 ### Task 1: Drawer state, open/close rule, section-root route handle (later replaced: the index page marks its entry, `useMarkPhoneSectionRoot`; see the spec)
 
 **Files:**
+
 - Create: `src/app/navigation/phoneNavDrawer.ts`, `src/app/navigation/phoneNavDrawer.test.ts`
 - Create: `src/app/routes/sectionRoot.ts`
 - Modify: `src/app/navigation/useEdgeSwipe.ts` (no swipe while the drawer is open), its test
 
 **Interfaces:**
+
 - Produces: `phoneNavDrawerOpenAtom: PrimitiveAtom<boolean>`; `nextPhoneNavDrawerOpen(open: boolean, sectionRoot: boolean, action: NavigationType): boolean`; `SECTION_ROOT_HANDLE: { readonly sectionRoot: true }`; `isSectionRootHandle(handle: unknown): boolean`.
 
 - [ ] Step 1: tests `nextPhoneNavDrawerOpen`: section root opens for PUSH, POP and REPLACE; non-root closes for PUSH and POP; non-root keeps `open` (true stays true, false stays false) for REPLACE. `isSectionRootHandle(SECTION_ROOT_HANDLE)` true, `undefined`/`{}` false.
@@ -48,10 +50,12 @@
 ### Task 2: Drawer, layout tree, portal, routes
 
 **Files:**
+
 - Create: `src/app/sidebar/PhoneNavDrawer.tsx`, `src/app/sidebar/PhoneNavDrawer.css.ts`
 - Modify: `src/app/sidebar/MobileFriendly.tsx` (keep `MobileFriendlyPageNav`; drop `MobileFriendlyClientNav`), `src/app/sidebar/Navigation.tsx`, `src/app/shell/ClientLayout.tsx`, `src/app/shell/Router.tsx` (index routes get `handle={SECTION_ROOT_HANDLE}` and render their pages directly), `src/app/shell/clientPages.tsx` (delete `SectionIndex`), `src/app/ui/page/Page.tsx` (no divider logic change needed; check)
 
 **Interfaces:**
+
 - Produces: `PhoneNavDrawer({ nav }: { nav: ReactNode })`; `PhoneNavSlotContext: Context<HTMLElement | null>`; `usePhoneNavDrawerRule(): void` (inside the drawer: `useLocation().key`, `useNavigationType()`, `useMatches()`).
 - Consumes: Task 1.
 
@@ -65,10 +69,12 @@
 ### Task 3: Top bar
 
 **Files:**
+
 - Create: `src/app/sidebar/PhoneTopBar.tsx`, `src/app/sidebar/PhoneTopBar.css.ts`, `src/app/sidebar/PhoneTopBar.test.tsx`
 - Modify: `src/app/sidebar/rail/SettingsTab.tsx` (`placement?: 'rail' | 'bar'`), `src/app/account/switcher/AccountMenu.tsx` (`position?: 'Right' | 'Bottom'`, default `Right`), `src/app/sidebar/SidebarNav.tsx` (no `SearchTab`, `SettingsTab` on phones), `src/app/i18n` locale files for new strings
 
 **Interfaces:**
+
 - Produces: `PhoneTopBar()`.
 - Consumes: Task 1 atom; `commandPaletteOpenAtom`, `getCommandPaletteShortcutLabel`, `getCommandPaletteAriaKeyShortcuts`; `allRoomsAtom`, `useRoomsUnread`, `roomToUnreadAtom`.
 
@@ -79,6 +85,7 @@
 ### Task 4: Room header on phones (dropped: the room keeps its back chevron, see the spec's decision note)
 
 **Files:**
+
 - Modify: `src/app/room/RoomViewHeader.tsx` (avatar on every size; delete `leaveRoom`, `sectionPathOf` and the phone `PhoneBackButton`; edge swipe opens the drawer), its tests
 
 - [ ] Step 1: update the header tests that expect a phone back button to expect the avatar and no "Back" button.
@@ -87,6 +94,7 @@
 ### Task 5: e2e and docs
 
 **Files:**
+
 - Create: `e2e/sidebar/phone-nav-drawer.spec.ts`
 - Modify: phone specs the full-suite diff shows failing because of the new model (start with `e2e/ui/phone-back-button.spec.ts`, `e2e/sidebar/phone-back-path.spec.ts`, `e2e/sidebar/phone-room-edge-swipe.spec.ts`, `e2e/sidebar/drawer-motion.spec.ts`)
 - Modify: `AGENTS.md` (Product line on phones)

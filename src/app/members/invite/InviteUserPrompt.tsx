@@ -1,7 +1,7 @@
 import { ChangeEvent, KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import classNames from 'classnames';
 import {
   Avatar,
@@ -69,9 +69,7 @@ import * as css from './InviteUserPrompt.css';
 type InviteFilter = 'all' | 'people' | 'agents';
 type RowSection = 'direct' | 'directory' | 'search';
 type AttemptState =
-  | { status: 'inviting' }
-  | { status: 'invited' }
-  | { status: 'failed'; error: unknown };
+  { status: 'inviting' } | { status: 'invited' } | { status: 'failed'; error: unknown };
 type Candidate = { user: ServerUserDirectoryUser; listed: boolean; section: RowSection };
 type Attempt = Candidate & { index: number; reason?: string; state: AttemptState };
 type InviteRow = Candidate & { reason?: string; state?: AttemptState };
@@ -159,7 +157,7 @@ function InviteDirectoryRow({
   const name = listed ? getDisplayName(user) : user.userId;
   const isAgent = isMindroomAgentUserIdForViewer(user.userId, viewerId);
   const avatarSrc = user.avatarMxcUrl
-    ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined)
     : undefined;
   const status = state?.status;
   const disabled = status === 'inviting' || status === 'invited';
@@ -174,14 +172,14 @@ function InviteDirectoryRow({
     status === 'invited'
       ? t('featureUi.room.membersDrawer.inviteSent')
       : status === 'failed'
-      ? t('sharedUi.roomCard.retry')
-      : t('featureUi.room.membersDrawer.invite');
+        ? t('sharedUi.roomCard.retry')
+        : t('featureUi.room.membersDrawer.invite');
   const ariaLabel =
     status === 'invited'
       ? undefined
       : status === 'failed'
-      ? t('sharedUi.inviteUserPrompt.retryUser', { user: name })
-      : t('featureUi.room.membersDrawer.inviteUser', { user: name });
+        ? t('sharedUi.inviteUserPrompt.retryUser', { user: name })
+        : t('featureUi.room.membersDrawer.inviteUser', { user: name });
 
   return (
     <li className={css.Row}>
@@ -551,7 +549,7 @@ export function InviteUserPrompt({ room, requestClose }: { room: Room; requestCl
       [targetId]: {
         ...candidate,
         section: options?.clearQuery ? 'search' : candidate.section,
-        index: options?.clearQuery ? pinnedIndex : cur[targetId]?.index ?? index,
+        index: options?.clearQuery ? pinnedIndex : (cur[targetId]?.index ?? index),
         reason,
         state: { status: 'inviting' },
       },

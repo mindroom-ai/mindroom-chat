@@ -99,8 +99,7 @@ const {
     openCreateSpaceMock: vi.fn(),
     dragGroup: {
       canMoveRoom: undefined as
-        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
-        | undefined,
+        ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean) | undefined,
       onMoveRoom: undefined as
         | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => void | Promise<void>)
         | undefined,
@@ -148,7 +147,7 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
   useMatch: () => null,
 }));
-vi.mock('focus-trap-react', () => ({ default: passthrough }));
+vi.mock('focus-trap-react', () => ({ FocusTrap: passthrough }));
 vi.mock('../../ui/page/Page', () => ({
   PageNav: passthrough,
   PageNavContent: ({
@@ -807,8 +806,7 @@ describe('Space navigation', () => {
     expect(joinedRow.props['data-remove-from-space']).toBe(space);
     expect(designReviewRow.props['data-remove-from-space']).toBe(design);
     const subRoomEl = subRooms.renderRoom?.(rooms.of(designReview)) as
-      | React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }>
-      | undefined;
+      React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }> | undefined;
     expect(subRoomEl?.props.subRoom).toBe(true);
     expect(subRoomEl?.props.removeFromSpaceId).toBeUndefined();
 

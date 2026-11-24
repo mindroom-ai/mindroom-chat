@@ -512,7 +512,7 @@ describe('the live transcript in the floating window', () => {
     render(windowWith({ width: 400, height: 480 }));
     const split = document.querySelector<HTMLElement>('[data-call-transcript-layout]')!;
     split.getBoundingClientRect = () =>
-      ({ left: 0, top: 100, right: 380, bottom: 400, width: 380, height: 300 } as DOMRect);
+      ({ left: 0, top: 100, right: 380, bottom: 400, width: 380, height: 300 }) as DOMRect;
     const pointer = { pointerId: 3, isPrimary: true, button: 0 };
 
     const pressed = fireEvent.pointerDown(divider()!, { ...pointer, clientY: 280 });
@@ -540,7 +540,7 @@ describe('the live transcript in the floating window', () => {
     const { rerender } = render(windowWith({ width: 400, height: 480 }));
     const split = document.querySelector<HTMLElement>('[data-call-transcript-layout]')!;
     split.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 } as DOMRect);
+      ({ left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 }) as DOMRect;
     const pointer = { pointerId: 4, isPrimary: true, button: 0 };
     fireEvent.pointerDown(divider()!, { ...pointer, clientY: 180 });
     fireEvent.pointerMove(divider()!, { ...pointer, clientY: 90 });

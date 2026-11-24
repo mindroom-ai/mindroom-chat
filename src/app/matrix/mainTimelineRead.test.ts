@@ -212,5 +212,4 @@ describe('main timeline read state', () => {
       vi.restoreAllMocks();
     }
   });
-
 });

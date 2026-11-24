@@ -28,7 +28,7 @@ const makeRoom = ({ roomVersion = '11', creator, members = {}, powerLevels }: Ro
         },
       }),
     }),
-  } as unknown as Room);
+  }) as unknown as Room;
 
 describe('getSenderNameTone', () => {
   it('leads with the creators of rooms that privilege them', () => {

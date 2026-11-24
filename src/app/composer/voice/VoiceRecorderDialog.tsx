@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';

@@ -50,7 +50,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
   const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
   const avatarMxc = member.getMxcAvatarUrl();
   const avatarUrl = avatarMxc
-    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined)
     : undefined;
   const requestTs = member.events.member?.getTs();
   const age = useRelativeTime(requestTs);

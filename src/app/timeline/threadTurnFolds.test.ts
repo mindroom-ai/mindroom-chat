@@ -191,7 +191,7 @@ describe('threadRowAuthor', () => {
       getStateKey: () => stateKey,
       isRedacted: () => redacted,
       isDecryptionFailure: () => failed,
-    } as unknown as MatrixEvent);
+    }) as unknown as MatrixEvent;
   const AGENT = '@mindroom_helper:example.org';
 
   it.each<[string, MatrixEvent, string]>([

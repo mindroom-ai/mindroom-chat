@@ -84,7 +84,7 @@ export const threadQuietActivityTs = ({
   isStreaming,
   now,
 }: ThreadQuietActivityInput): number => {
-  const news = isStreaming ? 0 : newsTs ?? 0;
+  const news = isStreaming ? 0 : (newsTs ?? 0);
   const expiredSnooze = snoozedUntilTs !== undefined && snoozedUntilTs <= now ? snoozedUntilTs : 0;
   return Math.max(outcomeTs ?? 0, news, lastActivityTs ?? 0, expiredSnooze);
 };

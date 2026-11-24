@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
 import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { ThreadBadge } from './ThreadBadge';
 
@@ -25,6 +25,16 @@ const badge = (summaryInfo?: ThreadSummaryInfo, onClick = vi.fn()) => (
 );
 
 describe('ThreadBadge titles', () => {
+  let layoutStyle: HTMLStyleElement;
+  beforeAll(() => {
+    // Production flex/grid CSS blockifies icon items; jsdom 31 defaults unstyled svg to inline.
+    layoutStyle = document.createElement('style');
+    layoutStyle.textContent = '[role="img"] { display: inline-block; }';
+    document.head.appendChild(layoutStyle);
+  });
+  afterAll(() => {
+    layoutStyle.remove();
+  });
   afterEach(() => {
     cleanup();
     vi.useRealTimers();

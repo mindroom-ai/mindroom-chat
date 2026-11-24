@@ -31,7 +31,10 @@ test.describe('live smoke', () => {
 
   test('auth shell renders', async ({ page }) => {
     const homeserver = getHomeserver();
-    const normalizedHomeserver = homeserver.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+    const normalizedHomeserver = homeserver
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '')
+      .toLowerCase();
     await page.goto(buildLoginPath(homeserver));
 
     await expect(page.locator('input[name="serverInput"]')).toBeVisible();
@@ -56,7 +59,10 @@ test.describe('live smoke', () => {
   test('SSO providers visible (if configured)', async ({ page }) => {
     const homeserver = getHomeserver();
     await page.goto(buildLoginPath(homeserver));
-    const normalizedHomeserver = homeserver.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+    const normalizedHomeserver = homeserver
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '')
+      .toLowerCase();
     const hasSso = await anyAuthProviderVisible(page);
 
     if (normalizedHomeserver === 'mindroom.chat') {

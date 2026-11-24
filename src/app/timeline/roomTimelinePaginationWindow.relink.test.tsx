@@ -33,7 +33,7 @@ const liveTimeline = (events: MatrixEvent[]) =>
     getPaginationToken: (direction: Direction) =>
       direction === Direction.Backward ? 'prev-batch' : null,
     getNeighbouringTimeline: () => null,
-  } as never);
+  }) as never;
 
 const filterOpts: RecalibrateFilterOpts = {
   room,

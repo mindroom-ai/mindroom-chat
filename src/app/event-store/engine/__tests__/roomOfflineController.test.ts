@@ -1310,7 +1310,7 @@ it('second idle focus does not rewrite complete retained history or attachment b
   const f = fixture();
   const timeline = f.room.getLiveTimeline();
   f.room.getLiveTimeline = () =>
-    ({ ...timeline, getEvents: () => [new MatrixEvent(body)] } as never);
+    ({ ...timeline, getEvents: () => [new MatrixEvent(body)] }) as never;
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved full body' })))
@@ -1322,12 +1322,14 @@ it('second idle focus does not rewrite complete retained history or attachment b
   );
   const writes: string[] = [];
   const original = IDBObjectStore.prototype.put;
-  const spy = vi
-    .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
-      writes.push(this.name);
-      return original.call(this, value, key);
-    });
+  const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function countWrites(
+    this: IDBObjectStore,
+    value,
+    key
+  ) {
+    writes.push(this.name);
+    return original.call(this, value, key);
+  });
   try {
     engine.clearRoomFocus(roomId);
     engine.noteRoomFocused(roomId);
@@ -1353,20 +1355,23 @@ it('streamed replacements persist and hydrate only the latest compacted body', a
   vi.stubGlobal('fetch', fetch);
   const writes: string[] = [];
   const original = IDBObjectStore.prototype.put;
-  const spy = vi
-    .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
-      writes.push(this.name);
-      return original.call(this, value, key);
-    });
+  const spy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function countWrites(
+    this: IDBObjectStore,
+    value,
+    key
+  ) {
+    writes.push(this.name);
+    return original.call(this, value, key);
+  });
   const scans: string[] = [];
   const originalGetAll = IDBIndex.prototype.getAll;
-  const scan = vi
-    .spyOn(IDBIndex.prototype, 'getAll')
-    .mockImplementation(function countReads(this: IDBIndex, ...args) {
-      if (this.objectStore.name === 'attachment_references') scans.push(this.name);
-      return originalGetAll.apply(this, args);
-    });
+  const scan = vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function countReads(
+    this: IDBIndex,
+    ...args
+  ) {
+    if (this.objectStore.name === 'attachment_references') scans.push(this.name);
+    return originalGetAll.apply(this, args);
+  });
   try {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     for (let i = 1; i <= 20; i += 1) {
@@ -1622,12 +1627,13 @@ it.each([false, true])(
     if (saved) await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
     const scans: string[] = [];
     const original = IDBIndex.prototype.openCursor;
-    const spy = vi
-      .spyOn(IDBIndex.prototype, 'openCursor')
-      .mockImplementation(function countReads(this: IDBIndex, ...args) {
-        scans.push(this.name);
-        return original.apply(this, args);
-      });
+    const spy = vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function countReads(
+      this: IDBIndex,
+      ...args
+    ) {
+      scans.push(this.name);
+      return original.apply(this, args);
+    });
     try {
       await persistRoomChunkWithPreferLive({
         mx: f.mx,
@@ -1685,9 +1691,9 @@ it('keeps captured thread scope when a compacted target loses its live relation'
     vi.useRealTimers();
     await vi.waitFor(async () =>
       expect(
-        (
-          await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$thread', 20)
-        ).events.map((event) => event.event_id)
+        (await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$thread', 20)).events.map(
+          (event) => event.event_id
+        )
       ).toEqual(['$reply'])
     );
   } finally {
@@ -1729,12 +1735,13 @@ it.each([false, true])(
     expect(root.getContent()).toEqual({});
     const scans: string[] = [];
     const original = IDBIndex.prototype.openCursor;
-    const spy = vi
-      .spyOn(IDBIndex.prototype, 'openCursor')
-      .mockImplementation(function countScans(this: IDBIndex, ...args) {
-        scans.push(this.name);
-        return original.apply(this, args);
-      });
+    const spy = vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementation(function countScans(
+      this: IDBIndex,
+      ...args
+    ) {
+      scans.push(this.name);
+      return original.apply(this, args);
+    });
     try {
       await persistRoomChunkWithPreferLive({
         mx: f.mx,

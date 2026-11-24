@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import { DialogCloseButton } from '../ui/DialogChrome';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavHeader, PageRoot } from '../ui/page/Page';
 import { NavCategoryHeader } from '../ui/nav/NavCategoryHeader';

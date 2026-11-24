@@ -38,7 +38,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('./viewers/EventSourceViewer', () => ({
   EventSourceViewer: ({ name }: { name: string }) => <div data-viewer-name={name} />,
