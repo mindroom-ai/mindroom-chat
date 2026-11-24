@@ -327,7 +327,10 @@ export const useDetailsRevealOnOpen = (): ((node: HTMLDetailsElement | null) => 
             ? event.target.parentElement
             : null;
       const summary = target?.closest('summary');
-      if (!summary || summary.parentElement !== node) return;
+      const hasDirectSummary = Array.from(node.children).some((el) => el.tagName === 'SUMMARY');
+      const isDirectToggle =
+        summary?.parentElement === node || (!hasDirectSummary && event.target === node);
+      if (!isDirectToggle) return;
       if (node.open) {
         armed = false;
         stopReveal();

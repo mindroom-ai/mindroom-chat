@@ -358,5 +358,44 @@ describe('scheduleDisclosureReveal', () => {
       flushFrame();
       expect(scroller.scrollTop).toBe(346);
     });
+
+    it('reveals a <details> with no explicit <summary> child when clicked directly', () => {
+      const { scroller, rows } = createFixture();
+      const host = document.createElement('div');
+      rows.append(host);
+      root = createRoot(host);
+      act(() =>
+        root!.render(
+          createElement(
+            TestDetails,
+            { id: 'implicit-summary' },
+            createElement('p', { id: 'body' }, 'Body text')
+          )
+        )
+      );
+
+      const details = host.querySelector<HTMLDetailsElement>('#implicit-summary')!;
+      const body = host.querySelector<HTMLElement>('#body')!;
+      details.getBoundingClientRect = () => rect(560 - scroller.scrollTop, 210);
+
+      // Clicking body content inside <details> does not arm reveal.
+      act(() => {
+        body.click();
+        details.open = true;
+        details.dispatchEvent(new Event('toggle'));
+      });
+      flushFrame();
+      expect(scroller.scrollTop).toBe(200);
+
+      // Reset closed, then click the <details> element itself (browser-generated Details toggle).
+      details.open = false;
+      act(() => {
+        details.click();
+        details.open = true;
+        details.dispatchEvent(new Event('toggle'));
+      });
+      flushFrame();
+      expect(scroller.scrollTop).toBe(266);
+    });
   });
 });

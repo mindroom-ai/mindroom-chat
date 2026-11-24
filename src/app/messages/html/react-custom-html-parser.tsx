@@ -42,7 +42,7 @@ import {
 } from '../../rich-text/code/codeBlockLanguage';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
-import { useDetailsRevealOnOpen } from '../../ui/disclosureReveal';
+import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
@@ -429,6 +429,9 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   const { t } = useTranslation();
   const [wrap, setWrap] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  const codeScrollRef = useRef<HTMLDivElement>(null);
+  const armReveal = useRevealOnOpen(expanded, expandButtonRef, codeScrollRef);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
@@ -545,11 +548,15 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
           </button>
           {long && (
             <button
+              ref={expandButtonRef}
               type="button"
               className={css.CodeBlockAction}
               aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
               aria-expanded={expanded}
-              onClick={() => setExpanded((value) => !value)}
+              onClick={() => {
+                if (!expanded) armReveal();
+                setExpanded((value) => !value);
+              }}
             >
               {expanded ? <CollapseIcon /> : <ExpandIcon />}
             </button>
@@ -567,6 +574,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
       {/* Native scroll areas need a tab stop for keyboard scrolling. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
       <div
+        ref={codeScrollRef}
         className={css.CodeBlockScroll}
         // Collapsed, the block shows its first lines and scrolls through the rest in place.
         style={collapsed ? { maxHeight: `${COLLAPSED_LINES * 1.5}em` } : undefined}
@@ -583,15 +591,16 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   );
 }
 
-/**
- * A Matrix spoiler (`data-mx-spoiler`, whose value is an optional reason): hidden until clicked
- * or activated with the keyboard. Links inside never load a site icon, even once revealed.
- */
+/** Native `<details>` disclosure with clamped scroll reveal when opened by the reader. */
 function RevealDetails(props: ComponentPropsWithoutRef<'details'>) {
   const revealRef = useDetailsRevealOnOpen();
   return <details {...props} ref={revealRef} />;
 }
 
+/**
+ * A Matrix spoiler (`data-mx-spoiler`, whose value is an optional reason): hidden until clicked
+ * or activated with the keyboard. Links inside never load a site icon, even once revealed.
+ */
 function Spoiler({ reason, children }: { reason?: string; children: ReactNode }) {
   const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
