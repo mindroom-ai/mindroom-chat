@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
-import type { RegisteredPlugin } from './registry';
+import type { PluginEntry } from './pluginEntries';
 import {
   isPluginEnabled,
   isPluginPreferredEnabled,
@@ -16,9 +16,9 @@ import {
 } from './pluginConfig';
 
 const mocks = vi.hoisted(() => ({
-  plugins: [] as Pick<RegisteredPlugin, 'id' | 'defaultEnabled'>[],
+  plugins: [] as Pick<PluginEntry, 'id' | 'defaultEnabled'>[],
 }));
-vi.mock('./registry', () => ({ registeredPlugins: mocks.plugins }));
+vi.mock('./pluginEntries', () => ({ pluginEntries: mocks.plugins }));
 
 afterEach(() => {
   mocks.plugins.length = 0;

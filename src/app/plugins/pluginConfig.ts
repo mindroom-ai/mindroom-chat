@@ -3,7 +3,7 @@ import { useOptionalClientConfig, type ClientConfig } from '../config/useClientC
 import { isRecord } from '../lib/isRecord';
 import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 import type { PluginPreferences } from '../preferences/accountSettings';
-import { registeredPlugins, type RegisteredPlugin } from './registry';
+import { pluginEntries, type PluginEntry } from './pluginEntries';
 
 export { isPluginEnabled, usePluginConfig } from './pluginDeploymentConfig';
 
@@ -13,12 +13,12 @@ export { isPluginEnabled, usePluginConfig } from './pluginDeploymentConfig';
  * `plugin.defaultEnabled`.
  */
 export const isPluginPreferredEnabled = (
-  plugin: Pick<RegisteredPlugin, 'id' | 'defaultEnabled'>,
+  plugin: Pick<PluginEntry, 'id' | 'defaultEnabled'>,
   preferences: PluginPreferences
 ): boolean => {
   if (preferences.disabledPlugins.includes(plugin.id)) return false;
   if (preferences.enabledPlugins.includes(plugin.id)) return true;
-  return plugin.defaultEnabled;
+  return plugin.defaultEnabled !== false;
 };
 
 /**
@@ -52,7 +52,7 @@ export const withDisabledPlugins = (
  */
 export const withPluginPreferences = (
   config: ClientConfig | undefined,
-  plugins: readonly Pick<RegisteredPlugin, 'id' | 'defaultEnabled'>[],
+  plugins: readonly Pick<PluginEntry, 'id' | 'defaultEnabled'>[],
   preferences: PluginPreferences
 ): ClientConfig | undefined => {
   const disabledIds = new Set<string>(preferences.disabledPlugins);
@@ -73,7 +73,7 @@ export const usePluginClientConfig = (): ClientConfig | undefined => {
   const config = useOptionalClientConfig();
   const { disabledPlugins, enabledPlugins } = useAccountSettings();
   return useMemo(
-    () => withPluginPreferences(config, registeredPlugins, { disabledPlugins, enabledPlugins }),
+    () => withPluginPreferences(config, pluginEntries, { disabledPlugins, enabledPlugins }),
     [config, disabledPlugins, enabledPlugins]
   );
 };
