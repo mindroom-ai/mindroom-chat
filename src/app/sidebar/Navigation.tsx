@@ -111,8 +111,7 @@ export function CollapsibleSidebarNav() {
         setCollapsed(!collapsed);
         return true;
       }
-      // Batch uncollapsing with React Router's transition navigation so the old page does not
-      // open and clear `opening` before the new page mounts.
+      // Commit the expand after the navigation so the page that mounts with it animates it in.
       if (collapsed) startTransition(() => setCollapsed(false));
       return false;
     },
