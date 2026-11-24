@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { sendCallKey, type CallKeyDelivery } from './callKeyProvider';
+import { createKeyMaterialFromBuffer } from 'livekit-client';
+import { MatrixRtcKeyProvider, sendCallKey, type CallKeyDelivery } from './callKeyProvider';
 
 const agent = { userId: '@agent:test', deviceId: 'AGENTDEVICE' };
 
@@ -108,5 +109,49 @@ describe('sendCallKey', () => {
         member: { claimed_device_id: 'IPHONE-screen', id: '@alice:example.com:IPHONE-screen' },
       })
     );
+  });
+});
+
+describe('MatrixRtcKeyProvider', () => {
+  it('derives key material from only a Buffer view slice, not its backing pool allocation', async () => {
+    const provider = new MatrixRtcKeyProvider();
+    const pool = new Uint8Array(64).fill(0xaa);
+    const expected = Array.from({ length: 32 }, (_, i) => i + 1);
+    pool.set(expected, 8);
+    // Node Buffer overrides Uint8Array.prototype.slice to return a view on the same backing buffer.
+    const bufferView = Buffer.from(pool.buffer, 8, 32);
+    expect(bufferView.buffer.byteLength).toBe(64);
+    expect(bufferView.byteOffset).toBe(8);
+    expect(bufferView.byteLength).toBe(32);
+
+    const importKeySpy = vi.spyOn(crypto.subtle, 'importKey');
+    try {
+      await provider.setParticipantKey(bufferView, 2, '@alice:test:DEV');
+      expect(importKeySpy).toHaveBeenCalledTimes(1);
+      const raw = importKeySpy.mock.calls[0]?.[1];
+      expect(raw).toBeInstanceOf(ArrayBuffer);
+      if (!(raw instanceof ArrayBuffer)) throw new Error('expected ArrayBuffer');
+      expect(Array.from(new Uint8Array(raw))).toEqual(expected);
+
+      const [stored] = provider.getKeys();
+      expect(stored).toBeDefined();
+      if (!stored) throw new Error('expected stored key');
+      expect(stored.participantIdentity).toBe('@alice:test:DEV');
+      expect(stored.keyIndex).toBe(2);
+      const standalone = await createKeyMaterialFromBuffer(new Uint8Array(expected).buffer);
+      const params: HkdfParams = {
+        name: 'HKDF',
+        hash: 'SHA-256',
+        salt: new Uint8Array(16),
+        info: new Uint8Array([1, 2, 3]),
+      };
+      const [fromView, fromStandalone] = await Promise.all([
+        crypto.subtle.deriveBits(params, stored.key, 256),
+        crypto.subtle.deriveBits(params, standalone, 256),
+      ]);
+      expect(new Uint8Array(fromView)).toEqual(new Uint8Array(fromStandalone));
+    } finally {
+      importKeySpy.mockRestore();
+    }
   });
 });
