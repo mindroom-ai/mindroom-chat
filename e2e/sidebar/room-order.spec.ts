@@ -85,6 +85,8 @@ const dragOnto = async (
   await page.mouse.move(target.x + target.width / 2, target.y + target.height * 0.1, { steps: 12 });
   await whileOver?.();
   await page.mouse.up();
+  // Wait past @dnd-kit's 50 ms post-drag click guard (DRAG_LIBRARY_CLICK_GUARD_MS).
+  await page.waitForTimeout(80);
 };
 
 /** The rail, the page navigation and the top of the content, for the L19 screenshots. */
@@ -311,6 +313,7 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   // Drag Birch above Alder to create a saved Custom order for Grove.
   await dragOnto(page, row(page, 'Grove', birch), row(page, 'Grove', alder));
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([birch, alder, cedar, dahlia]);
+  await expect.poll(() => savedLists(account)).toEqual({ [grove]: [birch, alder] });
 
   // Open Grove's Sort rooms menu: enable Show activity times, then switch to Recent activity.
   const groveNav = page.getByRole('navigation', { name: 'Grove', exact: true });
@@ -363,17 +366,24 @@ test('sorts by recent activity with activity times, preserves custom order, and 
   await page.getByRole('menuitemradio', { name: 'Match space (Recent)' }).click();
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([alder, birch, dahlia, cedar]);
 
-  // Switching Grove back to Custom order restores the preserved [birch, alder] order.
+  // Switching Grove back to Custom order restores Grove's [birch, alder] and freezes Canopy's [dahlia, cedar].
   await groveNav.getByRole('button', { name: 'Sort rooms' }).click();
   await expect(page.getByRole('menuitemradio', { name: /Custom order/ })).toContainText('Saved');
   await page.getByRole('menuitemradio', { name: /Custom order/ }).click();
-  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([birch, alder, cedar, dahlia]);
+  await expect.poll(() => rowOrder(page, 'Grove')).toEqual([birch, alder, dahlia, cedar]);
+  await expect
+    .poll(() => savedRoomOrder(account))
+    .toEqual({
+      lists: { [grove]: [birch, alder], [canopy]: [dahlia, cedar] },
+      modes: { [grove]: 'manual', [canopy]: 'inherit' },
+      showTimes: { [grove]: true },
+    });
 
   // Reload preserves the mode and activity times.
   await page.reload();
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
-    .toEqual([birch, alder, cedar, dahlia]);
+    .toEqual([birch, alder, dahlia, cedar]);
   await page.mouse.move(0, 0);
   await expect(row(page, 'Grove', birch).locator('[data-room-activity-time]')).toBeVisible();
 });

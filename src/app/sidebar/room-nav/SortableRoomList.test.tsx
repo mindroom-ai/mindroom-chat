@@ -399,7 +399,7 @@ describe('SortableRoomGroup', () => {
     act(() => {
       birchLink.dispatchEvent(
         new KeyboardEvent('keydown', {
-          key: 'ArrowDown',
+          key: 'ArrowUp',
           ctrlKey: true,
           shiftKey: true,
           bubbles: true,

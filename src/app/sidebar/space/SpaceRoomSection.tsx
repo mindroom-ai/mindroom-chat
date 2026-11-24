@@ -72,6 +72,36 @@ const walkChain = (
   return chain;
 };
 
+const inheritsFromSpace = (
+  section: Pick<RenderedSpaceRoomSection, 'spaceId' | 'inheritFrom'>,
+  targetSpaceId: string,
+  hasExplicitMode: (listId: string) => boolean
+): boolean => {
+  if (section.spaceId === targetSpaceId || hasExplicitMode(section.spaceId)) return false;
+  const targetIndex = section.inheritFrom?.indexOf(targetSpaceId) ?? -1;
+  if (targetIndex < 0) return false;
+  return section
+    .inheritFrom!.slice(0, targetIndex)
+    .every((ancestorId) => !hasExplicitMode(ancestorId));
+};
+
+const collectInheritedOrders = (
+  sections: readonly Pick<RenderedSpaceRoomSection, 'spaceId' | 'inheritFrom' | 'orderedTop'>[],
+  targetSpaceId: string,
+  hasExplicitMode: (listId: string) => boolean
+): Record<string, readonly string[]> | undefined => {
+  const inherited: Record<string, readonly string[]> = {};
+  sections.forEach((section) => {
+    if (
+      section.orderedTop.length > 0 &&
+      inheritsFromSpace(section, targetSpaceId, hasExplicitMode)
+    ) {
+      inherited[section.spaceId] = section.orderedTop;
+    }
+  });
+  return Object.keys(inherited).length > 0 ? inherited : undefined;
+};
+
 export type SpaceSortControl = {
   mode: RoomSortMode;
   showTimes: boolean;
@@ -186,6 +216,7 @@ export function useSpaceRoomSections(
     [client, joinedRoomSet, parentSpaceId, roomToParents, spaceId]
   );
 
+  const sectionsRef = useRef<RenderedSpaceRoomSection[]>([]);
   const sections = useMemo<RenderedSpaceRoomSection[]>(() => {
     void activityVersion;
     return rawSections.map((section) => {
@@ -223,7 +254,18 @@ export function useSpaceRoomSections(
             showTimes,
             hasSavedOrder: roomOrders.hasSavedOrder(section.spaceId),
             onModeChange: (nextMode) =>
-              roomOrders.setMode(section.spaceId, nextMode, list.orderedTop),
+              roomOrders.setMode(
+                section.spaceId,
+                nextMode,
+                list.orderedTop,
+                nextMode === 'manual'
+                  ? collectInheritedOrders(
+                      sectionsRef.current,
+                      section.spaceId,
+                      roomOrders.hasExplicitMode
+                    )
+                  : undefined
+              ),
             onShowTimesChange: (show) =>
               roomOrders.setShowTimes(section.spaceId, show, inheritFrom),
             onResetOverride: () => roomOrders.resetSubspaceOverride(section.spaceId),
@@ -261,7 +303,6 @@ export function useSpaceRoomSections(
   const movingRoomIdsRef = useRef(new Set<string>());
   const roomOrdersRef = useRef(roomOrders);
   roomOrdersRef.current = roomOrders;
-  const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
   const canMoveRoom = useCallback(
@@ -308,7 +349,15 @@ export function useSpaceRoomSections(
     mode: roomOrders.modeOf(spaceId, rootInheritFrom),
     showTimes: roomOrders.showTimesOf(spaceId, rootInheritFrom),
     hasSavedOrder: roomOrders.hasSavedOrder(spaceId),
-    setMode: (nextMode) => roomOrders.setMode(spaceId, nextMode, rootSection?.orderedTop),
+    setMode: (nextMode) =>
+      roomOrders.setMode(
+        spaceId,
+        nextMode,
+        rootSection?.orderedTop,
+        nextMode === 'manual'
+          ? collectInheritedOrders(sections, spaceId, roomOrders.hasExplicitMode)
+          : undefined
+      ),
     setShowTimes: (show) => roomOrders.setShowTimes(spaceId, show, rootInheritFrom),
   };
 

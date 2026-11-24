@@ -406,6 +406,43 @@ describe('useRoomOrders sort modes, showTimes, inheritance, and rollback', () =>
     });
   });
 
+  it('snapshots inheriting sub-spaces on first switch to Custom without breaking inheritance', () => {
+    const harness = mount({
+      lists: { '!savedSub': ['!p', '!q'] },
+      modes: { '!root': 'recent', '!overridden': 'name', '!savedSub': 'inherit' },
+    });
+
+    // Empty root + inheriting !sub with no saved list freezes !sub with mode "inherit" atomically,
+    // leaving explicitly overridden and already-saved sub-spaces untouched.
+    act(() =>
+      harness.orders.setMode('!root', 'manual', [], {
+        '!sub': ['!zebra', '!alder'],
+        '!overridden': ['!y', '!x'],
+        '!savedSub': ['!q', '!p'],
+        '!emptySub': [],
+      })
+    );
+    expect(harness.setAccountData).toHaveBeenCalledTimes(1);
+    expect(harness.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: { '!savedSub': ['!p', '!q'], '!sub': ['!zebra', '!alder'] },
+      modes: {
+        '!root': 'manual',
+        '!overridden': 'name',
+        '!savedSub': 'inherit',
+        '!sub': 'inherit',
+      },
+    });
+    expect(harness.orders.hasExplicitMode('!sub')).toBe(false);
+    expect(harness.orders.modeOf('!sub', ['!root'])).toBe('manual');
+    expect(harness.orders.orderOf('!sub', ['!alder', '!zebra'])).toEqual(['!zebra', '!alder']);
+
+    // Switching root back to A to Z / Recent still carries down to !sub.
+    act(() => harness.orders.setMode('!root', 'name'));
+    expect(harness.orders.modeOf('!sub', ['!root'])).toBe('name');
+    act(() => harness.orders.setMode('!root', 'recent'));
+    expect(harness.orders.modeOf('!sub', ['!root'])).toBe('recent');
+  });
+
   it('reverts optimistic pending state if setAccountData rejects', async () => {
     let rejectSave!: (err: Error) => void;
     const setAccountData = vi.fn(

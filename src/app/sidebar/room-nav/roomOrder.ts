@@ -162,7 +162,12 @@ export type RoomOrders = {
   showTimesOf: (listId: string, inheritFrom?: readonly string[]) => boolean;
   hasSavedOrder: (listId: string) => boolean;
   save: (listId: string, order: string[]) => void;
-  setMode: (listId: string, mode: RoomSortMode, currentOrder?: readonly string[]) => void;
+  setMode: (
+    listId: string,
+    mode: RoomSortMode,
+    currentOrder?: readonly string[],
+    inheritedOrders?: Readonly<Record<string, readonly string[]>>
+  ) => void;
   setShowTimes: (listId: string, show: boolean, inheritFrom?: readonly string[]) => void;
   resetSubspaceOverride: (subspaceId: string) => void;
   appendRoom: (
@@ -268,12 +273,25 @@ export const useRoomOrders = (): RoomOrders => {
       showTimesOf,
       hasSavedOrder,
       save: (id, order) => write({ lists: { [id]: order }, modes: { [id]: 'manual' } }),
-      setMode: (id, mode, currentOrder) => {
-        const freeze =
-          mode === 'manual' && !hasSavedOrder(id) && currentOrder && currentOrder.length > 0;
+      setMode: (id, mode, currentOrder, inheritedOrders) => {
+        const lists: Record<string, readonly string[]> = {};
+        const modes: Record<string, StoredRoomSortMode> = { [id]: mode };
+        if (mode === 'manual') {
+          if (!hasSavedOrder(id) && currentOrder && currentOrder.length > 0) {
+            lists[id] = currentOrder;
+          }
+          if (inheritedOrders) {
+            Object.entries(inheritedOrders).forEach(([subId, order]) => {
+              if (subId === id || order.length === 0) return;
+              if (explicitModeOf(subId) !== undefined || hasSavedOrder(subId)) return;
+              lists[subId] = order;
+              modes[subId] = 'inherit';
+            });
+          }
+        }
         write({
-          modes: { [id]: mode },
-          ...(freeze ? { lists: { [id]: currentOrder } } : undefined),
+          modes,
+          ...(Object.keys(lists).length > 0 ? { lists } : undefined),
         });
       },
       setShowTimes: (id, show, inheritFrom) => {
