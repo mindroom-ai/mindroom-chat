@@ -51,7 +51,7 @@ const renderCard = (
         joinRule={JoinRule.Public}
         accessStatus={AsyncStatus.Success}
         onView={onView}
-        renderTopicViewer={(_name, topic) => <p>{topic}</p>}
+        renderTopicViewer={(_name: string, topic: string) => <p>{topic}</p>}
         {...props}
       />
     </MatrixClientProvider>

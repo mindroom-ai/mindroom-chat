@@ -192,7 +192,7 @@ const agentSpeaks = async (page: Page, { within = 20_000, pause = 1_500, longest
 const transcribe = async (webm: Buffer): Promise<string> => {
   const form = new FormData();
   form.append('model', 'gpt-4o-transcribe');
-  form.append('file', new Blob([webm], { type: 'audio/webm' }), 'agent.webm');
+  form.append('file', new Blob([new Uint8Array(webm)], { type: 'audio/webm' }), 'agent.webm');
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY ?? ''}` },

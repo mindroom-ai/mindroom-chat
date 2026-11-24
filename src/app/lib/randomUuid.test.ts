@@ -18,7 +18,8 @@ describe('randomUuid', () => {
   it('builds a version 4 UUID without crypto.randomUUID (plain HTTP from another device)', () => {
     const { crypto } = globalThis;
     vi.stubGlobal('crypto', {
-      getRandomValues: <T extends ArrayBufferView>(array: T): T => crypto.getRandomValues(array),
+      getRandomValues: <T extends ArrayBufferView<ArrayBuffer>>(array: T): T =>
+        crypto.getRandomValues(array),
     });
     const ids = Array.from({ length: 64 }, () => randomUuid());
     for (const id of ids) expect(id).toMatch(UUID_V4);
