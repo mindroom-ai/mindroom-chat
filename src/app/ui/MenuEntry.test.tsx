@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import axe from 'axe-core';
 import { Icons } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Menu } from './glass/GlassPrimitives';
 import { MenuEntry, MenuGroup, MenuSwitchEntry } from './MenuEntry';
+import * as css from './MenuEntry.css';
 
 vi.unmock('./glass/GlassPrimitives');
 
@@ -37,7 +39,7 @@ describe('MenuGroup', () => {
 });
 
 describe('MenuSwitchEntry', () => {
-  it('renders a menuitemcheckbox with an aria-hidden switch and toggles on click, Enter and Space', () => {
+  it('renders a menuitemcheckbox with a disabled aria-hidden switch and toggles on click, Enter and Space', () => {
     const onToggle = vi.fn();
     const { rerender } = render(
       <Menu>
@@ -57,7 +59,16 @@ describe('MenuSwitchEntry', () => {
     expect(item.getAttribute('aria-checked')).toBe('false');
     expect(item.getAttribute('tabindex')).toBe('0');
     expect(item.hasAttribute('data-tool-calls-toggle')).toBe(true);
-    expect(item.querySelector('[aria-hidden="true"][tabindex="-1"]')).not.toBeNull();
+
+    const innerSwitch = item.querySelector<HTMLButtonElement>('button[role="switch"]');
+    expect(innerSwitch).not.toBeNull();
+    expect(innerSwitch?.disabled).toBe(true);
+    expect(innerSwitch?.getAttribute('aria-hidden')).toBe('true');
+    expect(innerSwitch?.getAttribute('tabindex')).toBe('-1');
+    expect(innerSwitch?.classList.contains(css.DecorativeSwitch)).toBe(true);
+
+    innerSwitch?.focus();
+    expect(document.activeElement).not.toBe(innerSwitch);
 
     fireEvent.click(item);
     expect(onToggle).toHaveBeenCalledTimes(1);
@@ -97,5 +108,19 @@ describe('MenuSwitchEntry', () => {
     expect(
       screen.getByRole('menuitemcheckbox', { name: 'Show Tool Calls' }).getAttribute('aria-checked')
     ).toBe('true');
+  });
+
+  it('has zero axe nested-interactive violations when rendered inside a Menu', async () => {
+    const { container } = render(
+      <Menu>
+        <MenuGroup>
+          <MenuSwitchEntry label="Show Tool Calls" checked={false} onToggle={vi.fn()} />
+          <MenuSwitchEntry label="Compact Mode" checked onToggle={vi.fn()} />
+        </MenuGroup>
+      </Menu>
+    );
+
+    const results = await axe.run(container, { runOnly: ['nested-interactive'] });
+    expect(results.violations).toEqual([]);
   });
 });

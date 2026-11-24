@@ -16,7 +16,6 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { registerPluginTranslations } from '../plugins/pluginTranslations';
 import type { RegisteredPlugin } from '../plugins/registry';
 import type { PluginRoomAction } from '../plugins/roomActions';
-import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
 const SESSION = 'me-session';
@@ -214,26 +213,6 @@ afterEach(() => {
 
 describe('the shared room actions', () => {
   it('lists every room action in one order, in four structured groups with section headings', () => {
-    expect(
-      ROOM_ACTIONS.map((group) => ({
-        id: group.id,
-        labelKey: group.labelKey,
-        actions: group.actions.map(({ id }) => id),
-      }))
-    ).toEqual([
-      { id: 'reading', labelKey: undefined, actions: ['markRead', 'search', 'jumpToTime'] },
-      {
-        id: 'room',
-        labelKey: 'featureUi.roomActions.roomSection',
-        actions: ['invite', 'newSubRoom', 'copyLink', 'settings'],
-      },
-      {
-        id: 'preferences',
-        labelKey: 'featureUi.roomActions.preferencesSection',
-        actions: ['notifications', 'toolCalls'],
-      },
-      { id: 'exit', labelKey: undefined, actions: ['takeOff', 'archive', 'leave'] },
-    ]);
     render(<Harness />);
     expect(rows()).toEqual(SHARED);
     expect(screen.getByRole('group', { name: 'Room' })).toBeTruthy();

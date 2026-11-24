@@ -149,9 +149,10 @@ export function MenuSwitchEntry({
         <Switch
           value={checked}
           variant="Primary"
+          disabled
           tabIndex={-1}
           aria-hidden="true"
-          style={{ pointerEvents: 'none' }}
+          className={css.DecorativeSwitch}
         />
       }
       onClick={onToggle}
