@@ -108,7 +108,16 @@ export function WorkflowRunCard({
               size="300"
               variant="Secondary"
               fill="Soft"
-              onClick={() => openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId)}
+              onClick={() => {
+                getWorkflowRunStore(mx).showCard(
+                  roomId,
+                  sender ?? '',
+                  card,
+                  cardObservedAt,
+                  threadId
+                );
+                openWorkflowRunPanel(jotaiStore, roomId, card.run, threadId);
+              }}
             >
               <Text size="B300">{t('mindroomUi.workflowRun.graph')}</Text>
             </Button>

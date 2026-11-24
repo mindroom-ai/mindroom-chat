@@ -351,4 +351,90 @@ describe('WorkflowRunStore', () => {
     expect(view?.counts.completed).toBe(45);
     expect(view?.stale).toBe(true);
   });
+
+  it('frees unpinned card graphs on room leave, retention expiry, and LRU cap while keeping pinned panel graphs', () => {
+    vi.useFakeTimers();
+    const store = new WorkflowRunStore();
+    const makeCardFor = (hex: string) =>
+      parseWorkflowRunCard({
+        [WORKFLOW_RUN_CONTENT_KEY]: {
+          run: `wf-${hex.padStart(32, '0')}`,
+          job_id: null,
+          requester: '@alex:example.org',
+          title: `Run ${hex}`,
+          status: 'completed',
+          counts: {
+            queued: 0,
+            running: 0,
+            waiting: 0,
+            completed: 1,
+            failed: 0,
+            indeterminate: 0,
+            cached: 0,
+          },
+          usage: {
+            input_tokens: 100,
+            output_tokens: 10,
+            tool_calls: 1,
+            cost_usd: '0.01',
+            cost_unknown: false,
+          },
+          phases: ['Audit'],
+          attempt: 1,
+          started_at: 1795389735,
+          ended_at: 1795389800,
+          error: null,
+          large: false,
+          graph: {
+            phases: ['Audit'],
+            groups: [],
+            nodes: [],
+            edges: [],
+            omitted: {
+              queued: 0,
+              running: 0,
+              waiting: 0,
+              completed: 0,
+              failed: 0,
+              edges: 0,
+              groups: 0,
+              phases: 0,
+              log: 0,
+            },
+            log: [],
+          },
+        },
+      })!;
+
+    // 1. Unobserved card-only slot expires after retention.
+    const c1 = makeCardFor('1');
+    store.showCard(ROOM, AGENT, c1, 1000);
+    expect(store.getView(ROOM, c1.run)?.graph).toBeDefined();
+    vi.advanceTimersByTime(WORKFLOW_RUN_KEPT_MS);
+    expect(store.getView(ROOM, c1.run)).toBeUndefined();
+
+    // 2. Leaving the room (last subscriber unsubscribes) frees unpinned card-only slots, keeps pinned ones.
+    const c2 = makeCardFor('2');
+    const cPinned = makeCardFor('3');
+    const unsub = store.subscribe(ROOM, () => undefined);
+    store.showCard(ROOM, AGENT, c2, 2000);
+    store.showCard(ROOM, AGENT, cPinned, 2000);
+    const unpin = store.pin(ROOM, cPinned.run);
+    unsub();
+    expect(store.getView(ROOM, c2.run)).toBeUndefined();
+    expect(store.getView(ROOM, cPinned.run)?.graph).toBeDefined();
+
+    // 3. Pinned graph survives 24h and LRU pressure, then expires once unpinned.
+    for (let i = 10; i < 45; i += 1) {
+      store.showCard(ROOM, AGENT, makeCardFor(i.toString(16)), 3000 + i);
+    }
+    expect(store.getView(ROOM, cPinned.run)?.graph).toBeDefined();
+    expect(store.getView(ROOM, makeCardFor('a').run)).toBeUndefined();
+    expect(store.getView(ROOM, makeCardFor('2c').run)?.graph).toBeDefined();
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    expect(store.getView(ROOM, cPinned.run)?.graph).toBeDefined();
+    unpin();
+    vi.advanceTimersByTime(WORKFLOW_RUN_KEPT_MS);
+    expect(store.getView(ROOM, cPinned.run)).toBeUndefined();
+  });
 });

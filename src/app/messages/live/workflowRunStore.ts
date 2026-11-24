@@ -13,6 +13,7 @@ import { nextStreamEntry } from './liveReplyStore';
 
 export const WORKFLOW_RUN_FRESHNESS_MS = 30_000;
 export const WORKFLOW_RUN_KEPT_MS = 30 * 60 * 1000;
+const MAX_CACHED_CARDS = 24;
 
 export type WorkflowRunEntry = {
   roomId: string;
@@ -102,6 +103,10 @@ export class WorkflowRunStore {
 
   private readonly listeners = new Map<string, Set<() => void>>();
 
+  private readonly cardOrder = new Set<string>();
+
+  private readonly pins = new Map<string, number>();
+
   private slot(roomId: string, run: string): RunSlot {
     let runs = this.rooms.get(roomId);
     if (!runs) this.rooms.set(roomId, (runs = new Map()));
@@ -151,7 +156,28 @@ export class WorkflowRunStore {
       return;
     const s = this.slot(roomId, card.run);
     s.card = { sender, card, receivedAt, threadId };
+    const key = runKey(roomId, card.run);
+    this.cardOrder.delete(key);
+    this.cardOrder.add(key);
+    if (!s.live) this.scheduleExpiry(roomId, card.run, WORKFLOW_RUN_KEPT_MS);
+    this.evictCards();
     this.changed(roomId, s);
+  }
+
+  /** Keeps a run's card graph retained while an inspector/panel is open on it. */
+  public pin(roomId: string, run: string): () => void {
+    const key = runKey(roomId, run);
+    this.pins.set(key, (this.pins.get(key) ?? 0) + 1);
+    return () => {
+      const next = (this.pins.get(key) ?? 1) - 1;
+      if (next > 0) this.pins.set(key, next);
+      else {
+        this.pins.delete(key);
+        const s = this.rooms.get(roomId)?.get(run);
+        if (s?.card && !s.live) this.scheduleExpiry(roomId, run, WORKFLOW_RUN_KEPT_MS);
+        this.evictCards();
+      }
+    };
   }
 
   public get(roomId: string, run: string) {
@@ -174,7 +200,10 @@ export class WorkflowRunStore {
     this.listeners.set(roomId, set);
     return () => {
       set.delete(listener);
-      if (set.size === 0 && this.listeners.get(roomId) === set) this.listeners.delete(roomId);
+      if (set.size === 0 && this.listeners.get(roomId) === set) {
+        this.listeners.delete(roomId);
+        this.releaseRoomCards(roomId);
+      }
     };
   }
 
@@ -183,33 +212,80 @@ export class WorkflowRunStore {
     this.timers.forEach((t) => clearTimeout(t));
     this.timers.clear();
     this.rooms.clear();
+    this.cardOrder.clear();
+    this.pins.clear();
     roomIds.forEach((id) => this.listeners.get(id)?.forEach((fn) => fn()));
   }
 
-  private scheduleTimer(entry: WorkflowRunEntry): void {
-    const key = runKey(entry.roomId, entry.run);
+  private scheduleExpiry(roomId: string, run: string, delay: number): void {
+    const key = runKey(roomId, run);
     clearTimeout(this.timers.get(key));
+    this.timers.set(
+      key,
+      setTimeout(() => this.onTimer(roomId, run), delay)
+    );
+  }
+
+  private scheduleTimer(entry: WorkflowRunEntry): void {
     const delay =
       !entry.stale && isLiveWorkflowRunStatus(entry.meta.status)
         ? WORKFLOW_RUN_FRESHNESS_MS
         : WORKFLOW_RUN_KEPT_MS;
-    this.timers.set(
-      key,
-      setTimeout(() => this.onTimer(entry.roomId, entry.run), delay)
-    );
+    this.scheduleExpiry(entry.roomId, entry.run, delay);
+  }
+
+  private dropCard(roomId: string, run: string): void {
+    const key = runKey(roomId, run);
+    this.cardOrder.delete(key);
+    const runs = this.rooms.get(roomId);
+    const s = runs?.get(run);
+    if (!s?.card) return;
+    s.card = undefined;
+    if (!s.live) {
+      clearTimeout(this.timers.get(key));
+      this.timers.delete(key);
+      runs?.delete(run);
+      if (runs && !runs.size) this.rooms.delete(roomId);
+    }
+    this.changed(roomId, s);
+  }
+
+  private releaseRoomCards(roomId: string): void {
+    const runs = this.rooms.get(roomId);
+    if (!runs) return;
+    for (const [run, s] of [...runs]) {
+      if (s.card && !s.live && !this.pins.has(runKey(roomId, run))) this.dropCard(roomId, run);
+    }
+  }
+
+  private evictCards(): void {
+    for (const key of this.cardOrder) {
+      if (this.cardOrder.size <= MAX_CACHED_CARDS) break;
+      if (this.pins.has(key)) continue;
+      const sep = key.indexOf('\0');
+      if (sep > 0) this.dropCard(key.slice(0, sep), key.slice(sep + 1));
+    }
   }
 
   private onTimer(roomId: string, run: string): void {
-    this.timers.delete(runKey(roomId, run));
+    const key = runKey(roomId, run);
+    this.timers.delete(key);
     const runs = this.rooms.get(roomId);
     const s = runs?.get(run);
-    if (!s?.live) return;
-    if (!s.live.stale && isLiveWorkflowRunStatus(s.live.meta.status)) {
+    if (!s) return;
+    if (s.live && !s.live.stale && isLiveWorkflowRunStatus(s.live.meta.status)) {
       s.live = { ...s.live, stale: true };
       this.scheduleTimer(s.live);
-    } else {
-      s.live = undefined;
-      if (!s.card) runs?.delete(run);
+      this.changed(roomId, s);
+      return;
+    }
+    s.live = undefined;
+    if (s.card && !this.pins.has(key)) {
+      s.card = undefined;
+      this.cardOrder.delete(key);
+    }
+    if (!s.card) {
+      runs?.delete(run);
       if (runs && !runs.size) this.rooms.delete(roomId);
     }
     this.changed(roomId, s);

@@ -10,7 +10,7 @@ import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs'
 import { isLiveWorkflowRunStatus } from '../../matrix/protocol/workflowFrame';
 import { stopBackgroundJobs } from '../../matrix/send/cancelBackgroundJob';
 import { type SubagentRun, useRoomSubagentRuns } from '../../messages/live/subagentRunStore';
-import { useWorkflowRun } from '../../messages/live/workflowRunStore';
+import { getWorkflowRunStore, useWorkflowRun } from '../../messages/live/workflowRunStore';
 import {
   workflowNodeStatusLabel,
   workflowRunHeading,
@@ -64,6 +64,7 @@ export function WorkflowPanel({
   const mx = useMatrixClient();
   const jotaiStore = useStore();
   const entry = useWorkflowRun(room.roomId, run);
+  useEffect(() => getWorkflowRunStore(mx).pin(room.roomId, run), [mx, room.roomId, run]);
   const subagentRuns = useRoomSubagentRuns(room.roomId);
   const { jobs } = useRoomBackgroundJobs(room);
   const canCancel = useCanCancelBackgroundJob(room, readOnly);
