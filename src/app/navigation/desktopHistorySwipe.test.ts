@@ -18,13 +18,14 @@ const def = (obj: object, prop: PropertyKey, value: unknown) =>
 const pill = () => document.querySelector<HTMLElement>('[data-desktop-history-swipe]');
 const phase = (p: 'begin' | 'end') => emit({ type: 'scroll-gesture', phase: p });
 const counts = () => [backSpy.mock.calls.length, forwardSpy.mock.calls.length];
-const install = (o: SwipeOpts = {}) => {
+const install = (o: SwipeOpts = {}, enabled = true) => {
   const stop = installDesktopHistorySwipe(window, {
     isMac: () => true,
     allowUntrusted: true,
     ...o,
   });
   cleanups.push(stop);
+  if (enabled) emit({ type: 'swipe-tracking', enabled: true });
   return stop;
 };
 const installBridge = () => {
@@ -98,6 +99,30 @@ describe('installDesktopHistorySwipe', () => {
     emit({ type: 'swipe', direction: 'left' });
     expect(counts()).toEqual([0, 0]);
     expect(pill()).toBeNull();
+  });
+
+  it('stays disabled when subscribing after did-finish-load sent false while discrete swipe still works', () => {
+    // did-finish-load emitted swipe-tracking=false before the renderer subscribed
+    emit({ type: 'swipe-tracking', enabled: false });
+    install({}, false);
+
+    // Default-disabled + gestureScrollBegin resending false must not navigate or show indicator
+    BACK.forEach((w) => wheel(w));
+    phase('end');
+    emit({ type: 'swipe-tracking', enabled: false });
+    BACK.forEach((w) => wheel(w));
+    phase('end');
+    expect(counts()).toEqual([0, 0]);
+    expect(pill()).toBeNull();
+
+    // Discrete AppKit swipe still works independently of two-finger scroll tracking
+    emit({ type: 'swipe', direction: 'left' });
+    expect(counts()).toEqual([1, 0]);
+
+    // Once gestureScrollBegin syncs swipe-tracking=true, two-finger swipe works
+    emit({ type: 'swipe-tracking', enabled: true });
+    swipe(BACK);
+    expect(counts()).toEqual([2, 0]);
   });
 
   it('navigates back and forward in LTR/RTL with lazy edge indicator and cleanup', () => {

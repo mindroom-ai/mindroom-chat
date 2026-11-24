@@ -24,19 +24,16 @@ export const attachTrackpadSwipe = (
   const send = (payload: DesktopShellEvent): void => {
     if (!win.isDestroyed()) win.webContents.send('desktop:shell-event', payload);
   };
-  let lastEnabled: boolean | undefined;
-  const sync = (): void => {
-    lastEnabled = isEnabled();
-    send({ type: 'swipe-tracking', enabled: lastEnabled });
+  const sync = (): boolean => {
+    const enabled = isEnabled();
+    send({ type: 'swipe-tracking', enabled });
+    return enabled;
   };
   win.webContents.on('did-finish-load', sync);
   win.on('focus', sync);
   win.webContents.on('input-event', (_e, input) => {
     if (input.type === 'gestureScrollBegin') {
-      const enabled = isEnabled();
-      if (enabled !== lastEnabled) send({ type: 'swipe-tracking', enabled });
-      lastEnabled = enabled;
-      if (enabled) send({ type: 'scroll-gesture', phase: 'begin' });
+      if (sync()) send({ type: 'scroll-gesture', phase: 'begin' });
     } else if (input.type === 'gestureScrollEnd') send({ type: 'scroll-gesture', phase: 'end' });
   });
   win.on('swipe', (_e, direction) => {

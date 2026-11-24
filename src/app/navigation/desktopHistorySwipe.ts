@@ -89,7 +89,7 @@ export const installDesktopHistorySwipe = (
   const { allowUntrusted = false, now = () => Date.now() } = options;
   const { document: doc, history } = target;
   const indicator = createIndicator(doc);
-  let enabled = true;
+  let enabled = false;
   let lastCommitAt = -Infinity;
   let gesture: SwipeGesture | null = null;
   const reset = (next: SwipeGesture | null = null): void => {

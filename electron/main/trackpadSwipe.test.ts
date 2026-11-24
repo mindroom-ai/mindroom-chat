@@ -42,7 +42,7 @@ describe('attachTrackpadSwipe', () => {
     expect(isEnabled).not.toHaveBeenCalled();
   });
 
-  it('syncs swipe-tracking on load, focus, and live changes on gestureScrollBegin', () => {
+  it('always syncs swipe-tracking on load, focus, and every gestureScrollBegin', () => {
     let enabled = true;
     const win = makeWin();
     attachTrackpadSwipe(win, { platform: 'darwin', isSwipeTrackingEnabled: () => enabled });
@@ -55,8 +55,10 @@ describe('attachTrackpadSwipe', () => {
     expect(win.sent).toEqual([
       { type: 'swipe-tracking', enabled: true },
       { type: 'swipe-tracking', enabled: false },
+      { type: 'swipe-tracking', enabled: false },
       { type: 'swipe-tracking', enabled: true },
       { type: 'scroll-gesture', phase: 'begin' },
+      { type: 'swipe-tracking', enabled: true },
       { type: 'scroll-gesture', phase: 'begin' },
     ]);
   });
@@ -76,6 +78,7 @@ describe('attachTrackpadSwipe', () => {
       'gestureScrollEnd'
     );
     expect(win.sent).toEqual([
+      { type: 'swipe-tracking', enabled: true },
       { type: 'scroll-gesture', phase: 'begin' },
       { type: 'scroll-gesture', phase: 'end' },
     ]);
