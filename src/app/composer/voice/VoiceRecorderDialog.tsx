@@ -1,13 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import {
-  type ForwardRefRenderFunction,
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from 'react';
+import { type Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import { FocusTrap } from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
@@ -35,6 +27,7 @@ type VoiceRecorderComposerProps = {
     context: PendingVoiceSendContext
   ) => Promise<void> | void;
   getSendContext: () => PendingVoiceSendContext;
+  ref?: Ref<VoiceRecorderComposerHandle>;
 };
 
 export type VoiceRecorderComposerHandle = {
@@ -48,21 +41,16 @@ export type VoiceRecorderComposerHandle = {
  * screen shows alike, or of this composer's parked draft with its failure and discard dialogs.
  * It mounts while there is one to show and starts or ends nothing by mounting.
  */
-const VoiceRecorderComposerRender: ForwardRefRenderFunction<
-  VoiceRecorderComposerHandle,
-  VoiceRecorderComposerProps
-> = (
-  {
-    ownsPendingVoiceDraft,
-    sendDisabled,
-    onSendStopRequest,
-    onSendStopFailure,
-    onRetryRequest,
-    onSendRecording,
-    getSendContext,
-  },
-  ref
-) => {
+export function VoiceRecorderComposer({
+  ownsPendingVoiceDraft,
+  sendDisabled,
+  onSendStopRequest,
+  onSendStopFailure,
+  onRetryRequest,
+  onSendRecording,
+  getSendContext,
+  ref,
+}: VoiceRecorderComposerProps) {
   const { t } = useTranslation();
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
@@ -243,6 +231,4 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
       </div>
     </>
   );
-};
-
-export const VoiceRecorderComposer = forwardRef(VoiceRecorderComposerRender);
+}

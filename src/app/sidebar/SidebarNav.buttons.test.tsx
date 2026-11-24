@@ -17,9 +17,8 @@ function tab(name: string) {
 }
 
 vi.mock('folds', () => ({
-  Scroll: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(({ children }, ref) =>
-    React.createElement('div', { ref }, children)
-  ),
+  Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
+    React.createElement('div', { ref }, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem', () => ({
@@ -119,6 +118,7 @@ const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['createSpace', 'showCreateSpaceInSidebar'],
   ['search', 'showSearchInSidebar'],
   ['localMindroom', 'showLocalMindroomInSidebar'],
+  ['help', 'showHelpInSidebar'],
 ];
 
 /** Every switch turned on, as an account that chose to show them all has stored. */
@@ -126,12 +126,17 @@ const ALL_ON: Partial<AccountSettings> = Object.fromEntries(
   SWITCHES.map(([, setting]) => [setting, true])
 );
 
+/** Every switch turned off, including Help & guides which starts enabled by default. */
+const ALL_OFF: Partial<AccountSettings> = Object.fromEntries(
+  SWITCHES.map(([, setting]) => [setting, false])
+);
+
 describe('SidebarNav buttons a person can hide', () => {
   afterEach(() => {
     state.settings = {};
   });
 
-  it('shows none of the optional buttons for an account that never set them', () => {
+  it('shows Help & guides by default and none of the opt-in buttons for an account that never set them', () => {
     expect(renderedTabs().tabs).toEqual([
       'home',
       'direct',
@@ -173,10 +178,10 @@ describe('SidebarNav buttons a person can hide', () => {
   });
 
   it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {
-    state.settings = { [setting]: true };
+    state.settings = { ...ALL_OFF, [setting]: true };
     const { tabs } = renderedTabs();
     expect(tabs).toContain(button);
-    expect(tabs).toHaveLength(8);
+    expect(tabs).toHaveLength(7);
   });
 
   it('keeps the rule above Explore and Create Space while one of them shows', () => {

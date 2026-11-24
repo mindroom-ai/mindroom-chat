@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, createClient, MatrixEvent, SyncState } from 'matrix-js-sdk';
-import { startClient } from './clientSyncPolicy';
+import { buildSyncFilter, startClient, SYNC_EPHEMERAL_TYPES } from './clientSyncPolicy';
 import { closeClient } from './closeClient';
 
 const stateEvent = (eventId: string) =>
@@ -15,6 +15,16 @@ const stateEvent = (eventId: string) =>
   });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('sync filter', () => {
+  it('asks the homeserver for workflow frames', () => {
+    const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@me:example.org' });
+    expect(SYNC_EPHEMERAL_TYPES).toContain('io.mindroom.workflow');
+    expect(buildSyncFilter(mx).getDefinition().room?.ephemeral?.types).toContain(
+      'io.mindroom.workflow'
+    );
+  });
+});
 
 describe('startClient', () => {
   // The page's listener reaches the client: while it stays, the page keeps a client it is done

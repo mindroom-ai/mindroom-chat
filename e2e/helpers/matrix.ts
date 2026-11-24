@@ -461,11 +461,11 @@ export const sendStateEvent = async (
   );
 };
 
-/** Allows level-0 members (agents) to publish `io.mindroom.active_runs` state in `roomId`. */
-export const allowActiveRunsState = async (
+const allowMemberStateEvent = async (
   homeserver: string,
   accessToken: string,
-  roomId: string
+  roomId: string,
+  eventType: string
 ): Promise<void> => {
   const powerLevels = await matrixFetch<Record<string, unknown>>(
     homeserver,
@@ -476,10 +476,26 @@ export const allowActiveRunsState = async (
     ...powerLevels,
     events: {
       ...(powerLevels.events as Record<string, number> | undefined),
-      'io.mindroom.active_runs': 0,
+      [eventType]: 0,
     },
   });
 };
+
+/** Allows level-0 members (agents) to publish `io.mindroom.active_runs` state in `roomId`. */
+export const allowActiveRunsState = (
+  homeserver: string,
+  accessToken: string,
+  roomId: string
+): Promise<void> =>
+  allowMemberStateEvent(homeserver, accessToken, roomId, 'io.mindroom.active_runs');
+
+/** Allows level-0 members (agents) to publish `io.mindroom.background_jobs` state in `roomId`. */
+export const allowBackgroundJobsState = (
+  homeserver: string,
+  accessToken: string,
+  roomId: string
+): Promise<void> =>
+  allowMemberStateEvent(homeserver, accessToken, roomId, 'io.mindroom.background_jobs');
 
 /** Publishes a simulated agent's `io.mindroom.active_runs` state for `threadIds` (`[]` clears). */
 export const publishActiveRuns = async (

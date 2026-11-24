@@ -84,6 +84,7 @@ export type RoomViewThreadState = {
   effectiveThreadId?: string;
   handleAddTag: (tag: string) => void;
   handleSelectTab: (tab: ThreadWorkflowTab) => void;
+  handleShowSnoozed: () => void;
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
@@ -490,6 +491,15 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
+  const handleShowSnoozed = useCallback(() => {
+    const base = flushPendingSearchQuery();
+    if (!simpleMode && hasMindroomAgents) {
+      setThreadFilterState(selectThreadWorkflowTab(base, 'later'));
+      return;
+    }
+    setThreadFilterState({ ...base, snoozed: 'any' });
+  }, [flushPendingSearchQuery, hasMindroomAgents, setThreadFilterState, simpleMode]);
+
   const handleRoomMessageSent = useCallback(
     (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
@@ -566,6 +576,7 @@ export const useRoomViewThreadState = ({
     effectiveThreadId,
     handleAddTag,
     handleSelectTab,
+    handleShowSnoozed,
     handleClearPeople,
     handleClearTags,
     handleExitThread,

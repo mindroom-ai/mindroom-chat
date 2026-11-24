@@ -14,12 +14,11 @@ import {
   UploadStatus,
   useBindUploadAtom,
 } from '../../matrix/state/upload';
+import { getTooLargeError, MEDIA_UPLOAD_SIZE_KEY } from '../roomInputAttachmentAccess';
 import { roomUploadAtomFamily } from '../roomInputDrafts';
 import { getMatrixUploadErrorMessage, toMatrixUploadError } from '../../matrix/matrix';
 import { bytesToSize } from '../../lib/common';
 import { revealDirectionControls } from '../../ui/directional';
-
-const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size';
 
 /** The icon for a file by its MIME type. */
 export const getFileTypeIcon = (mimeType: string): IconSrc => {
@@ -31,17 +30,7 @@ export const getFileTypeIcon = (mimeType: string): IconSrc => {
 
 const fileNameOf = (file: { name?: string }): string => file.name ?? '';
 
-/**
- * An error that blocks the upload before it starts: the file is larger than the server accepts.
- * The message names both sizes.
- */
-export const getTooLargeError = (
-  fileSize: number,
-  maxUploadSize: number | undefined
-): MatrixError | undefined =>
-  maxUploadSize !== undefined && fileSize > maxUploadSize
-    ? toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload')
-    : undefined;
+export { getTooLargeError };
 
 type UploadStatusLineProps = {
   upload: Upload;
@@ -97,12 +86,18 @@ type UploadHandlers = {
 };
 
 // With `isEncrypted`, a file that is not encrypted must never upload.
-type UploadCardRendererProps = UploadHandlers & { fileItem: TUploadItem; isEncrypted?: boolean };
+type UploadCardRendererProps = UploadHandlers & {
+  fileItem: TUploadItem;
+  isEncrypted?: boolean;
+  /** Starts uploading on mount; false defers encryption and upload until Send (Home). */
+  autoUpload?: boolean;
+};
 
-/** A staged composer attachment: uploads it at once and shows progress, errors and options. */
+/** A staged composer attachment: uploads on mount (unless deferred) and shows progress, errors and options. */
 export const UploadCardRenderer = ({
   fileItem,
   isEncrypted,
+  autoUpload = true,
   setMetadata,
   onRemove,
 }: UploadCardRendererProps) => {
@@ -112,20 +107,19 @@ export const UploadCardRenderer = ({
   const { file, originalFile, metadata, encInfo, prepError } = fileItem;
 
   // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
-  const blockUploadError = useMemo(
+  const unencryptedError = useMemo(
     () =>
-      prepError ??
-      (isEncrypted && !encInfo
+      isEncrypted && !encInfo
         ? toMatrixUploadError(new Error('The file was not encrypted.'), 'create')
-        : undefined),
-    [prepError, isEncrypted, encInfo]
+        : undefined,
+    [isEncrypted, encInfo]
   );
   const tooLargeError = useMemo(
     () => getTooLargeError(file.size, maxUploadSize),
     [file.size, maxUploadSize]
   );
 
-  const blocked = blockUploadError ?? tooLargeError;
+  const bindBlockError = prepError ?? unencryptedError ?? tooLargeError;
   const { upload, startUpload, cancelUpload } = useBindUploadAtom(
     client,
     roomUploadAtomFamily(file),
@@ -134,15 +128,23 @@ export const UploadCardRenderer = ({
       hideFilename: encInfo !== undefined,
       // A file over the server's limit fails at once instead of waiting: a send in progress
       // skips failed files and goes on with the rest and the caption.
-      blockUploadError: blocked,
+      blockUploadError: bindBlockError,
     }
   );
 
+  // Deferred uploads stay unencrypted while Idle until Send commits to the destination room.
+  const blockUploadError =
+    prepError ??
+    (autoUpload || upload.status === UploadStatus.Loading || upload.status === UploadStatus.Success
+      ? unencryptedError
+      : undefined);
+  const blocked = blockUploadError ?? tooLargeError;
+
   useEffect(() => {
     // A file that could not be prepared already carries its error and must never start.
-    if (blockUploadError || upload.status !== UploadStatus.Idle) return;
+    if (!autoUpload || blockUploadError || upload.status !== UploadStatus.Idle) return;
     void startUpload();
-  }, [blockUploadError, upload.status, startUpload]);
+  }, [autoUpload, blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
     void cancelUpload();
@@ -200,7 +202,7 @@ export const UploadCardRenderer = ({
           upload={upload}
           blockedError={blocked}
           maxUploadSize={maxUploadSize}
-          onRetry={() => void startUpload()}
+          onRetry={autoUpload ? () => void startUpload() : undefined}
           retryLabel={t('sharedUi.uploadCardRenderer.retry')}
         />
       }

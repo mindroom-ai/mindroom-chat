@@ -252,7 +252,8 @@ export function SubagentsPanel({
   // On a phone the panel covers the conversation, whose thread then leaves its back swipe: inside a
   // Room, Room owns closing from the list while a detail run outranks it to go back interactively.
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  useEdgeSwipeBack(open ? back : onClose, mobile && (!!open || !use(RoomPanelEdgeSwipeContext)), {
+  const handledByRoom = mobile && !open && use(RoomPanelEdgeSwipeContext);
+  useEdgeSwipeBack(open ? back : onClose, mobile && !handledByRoom, {
     priority: open ? SWIPE_PRIORITY.PANEL_INNER : SWIPE_PRIORITY.PANEL,
     begin: open ? beginDetailBack : undefined,
   });

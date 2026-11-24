@@ -40,6 +40,11 @@ export const Cards = style({
   position: 'relative',
 });
 
+// Expands the empty card container to fill the visible canvas so the empty state centers cleanly.
+export const CardsEmpty = style({
+  flex: '1 0 auto',
+});
+
 // What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
 const hoverTint = createVar();
 

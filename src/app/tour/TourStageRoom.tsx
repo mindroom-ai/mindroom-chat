@@ -30,7 +30,7 @@ import * as overviewCss from '../threads/overview/RoomThreadOverview.css';
 import * as bannerCss from '../threads/ThreadContextBanner.css';
 import { ThreadStreamingDot } from '../threads/ThreadStreamingDot';
 import { IconButton as GlassIconButton, Menu } from '../ui/glass/GlassPrimitives';
-import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup, MenuSwitchEntry } from '../ui/MenuEntry';
 import {
   Sidebar,
   SidebarAvatar,
@@ -208,10 +208,10 @@ function RoomMenu({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
             onSelect={nothing}
             {...mark(live, 'filterButton')}
           />
-          <MenuEntry
+          <MenuSwitchEntry
             label={t('mindroomUi.messages.showToolCalls')}
-            icon={Icons.Terminal}
-            onSelect={nothing}
+            checked={false}
+            onToggle={nothing}
           />
         </MenuGroup>
       </Menu>
@@ -273,12 +273,6 @@ function CardMenu({ phone, live }: Pick<RoomProps, 'phone' | 'live'>) {
     <div className={classNames(css.CardMenu, phone && css.PhoneCardMenu)} data-tour-card-menu="">
       <Menu className={glassDenseOverBackdrop}>
         <MenuGroup>
-          <MenuEntry label={t('threadActions.tags')} icon={Icons.Bookmark} onSelect={nothing} />
-          <MenuEntry
-            label={t('threadActions.editSummary')}
-            icon={Icons.Pencil}
-            onSelect={nothing}
-          />
           <MenuEntry label={t('thread.resolve')} icon={Icons.CheckTwice} onSelect={nothing} />
           <MenuEntry
             label={t('thread.snooze')}
@@ -287,6 +281,12 @@ function CardMenu({ phone, live }: Pick<RoomProps, 'phone' | 'live'>) {
             {...mark(live, 'menuSnooze')}
           />
           <MenuEntry label={t('threadNav.pin')} icon={Icons.Pin} onSelect={nothing} />
+          <MenuEntry label={t('threadActions.tags')} icon={Icons.Bookmark} onSelect={nothing} />
+          <MenuEntry
+            label={t('threadActions.editSummary')}
+            icon={Icons.Pencil}
+            onSelect={nothing}
+          />
           <MenuEntry label={t('threadActions.copy')} icon={Icons.Link} onSelect={nothing} />
         </MenuGroup>
       </Menu>

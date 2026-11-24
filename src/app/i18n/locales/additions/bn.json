@@ -433,7 +433,9 @@
         "localMindroom": "সাইডবারে স্থানীয় MindRoom দেখান",
         "localMindroomDescription": "আপনার কম্পিউটারে চলা MindRoom যুক্ত করে। লুকানো থাকলে এটি এখানে সেটিংসে স্থানীয় MindRoom-এর অধীনে থাকে।",
         "usage": "সাইডবারে ব্যবহার দেখান",
-        "usageDescription": "কোনো রানটাইম রিপোর্ট করলে প্রোভাইডার ব্যবহারের সীমা ও ৭ দিনের টোকেন খরচ দেখায়। লুকানো থাকলে হোমের ⋮ মেনু বা মডেল পিকার থেকে ব্যবহার খুলুন।"
+        "usageDescription": "কোনো রানটাইম রিপোর্ট করলে প্রোভাইডার ব্যবহারের সীমা ও ৭ দিনের টোকেন খরচ দেখায়। লুকানো থাকলে হোমের ⋮ মেনু বা মডেল পিকার থেকে ব্যবহার খুলুন।",
+        "help": "সাইডবারে সাহায্য ও গাইড দেখান",
+        "helpDescription": "দ্রুত গাইড, ট্যুর এবং কিবোর্ড শর্টকাট। লুকানো থাকলে সেটিংসে অ্যাপ সম্পর্কে বা কমান্ড প্যালেট ({{shortcut}}) থেকে ট্যুর এবং {{helpShortcut}} দিয়ে শর্টকাট খুলুন।"
       },
       "plugins": {
         "title": "প্লাগইন",
@@ -722,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
-      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়",
+      "viewSection": "প্রদর্শন",
+      "roomSection": "রুম",
+      "preferencesSection": "পছন্দসমূহ",
+      "notificationModeAll": "সব",
+      "notificationModeMentions": "উল্লেখ"
     },
     "phoneNav": {
       "navigation": "নেভিগেশন"
@@ -1198,7 +1205,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "কমপ্যাক্ট ভিউ",
-        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
+        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)",
+        "mindroomSettings": "MindRoom সেটিংস"
       },
       "roomThreadOverview": {
         "advancedFilters": "উন্নত ফিল্টার",
@@ -1231,6 +1239,25 @@
         "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
         "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন",
         "showFullMessage": "পুরো বার্তা দেখুন"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "সব কাজ শেষ",
+        "resolvedCount_one": "{{count}}টি সমাধান করা হয়েছে",
+        "resolvedCount_other": "{{count}}টি সমাধান করা হয়েছে",
+        "snoozedCount_one": "{{count}}টি স্থগিত",
+        "snoozedCount_other": "{{count}}টি স্থগিত",
+        "showAll": "সব দেখান",
+        "startNewThreadBelow": "নিচে একটি নতুন থ্রেড শুরু করুন",
+        "recentlyResolved": "সম্প্রতি সমাধান করা হয়েছে",
+        "noMatchHeading": "কোনো থ্রেড আপনার ফিল্টারের সাথে মেলে না",
+        "hiddenByForMe_one": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByForMe_other": "{{count}}টি খোলা থ্রেড «আমার জন্য» দ্বারা লুকানো আছে।",
+        "hiddenByFilters_one": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "hiddenByFilters_other": "{{count}}টি খোলা থ্রেড আপনার ফিল্টার দ্বারা লুকানো আছে।",
+        "adjustOrResetFilters": "এই রুমের থ্রেড দেখতে আপনার ফিল্টার সামঞ্জস্য বা রিসেট করুন।",
+        "turnOffForMe": "«আমার জন্য» বন্ধ করুন",
+        "resetAll": "সব রিসেট করুন",
+        "resetFilters": "ফিল্টার রিসেট করুন"
       }
     },
     "computer": {
@@ -1259,7 +1286,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
+      "awaitingAnswer": "আপনার উত্তরের অপেক্ষায়: {{tool}}",
       "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "groupWorkflows": "ওয়ার্কফ্লো · {{number}}",
       "groupSubagents": "সাব-এজেন্ট · {{number}}",
       "groupTools": "টুল · {{number}}",
       "tools_one": "{{count}}টি টুল",
@@ -1304,6 +1333,95 @@
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
       "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+    },
+    "workflowRun": {
+      "title": "ওয়ার্কফ্লো",
+      "status": {
+        "starting": "শুরু হচ্ছে",
+        "running": "চলছে",
+        "waiting": "আপনার অপেক্ষায়",
+        "completed": "সম্পন্ন",
+        "failed": "ব্যর্থ",
+        "cancelled": "বাতিল",
+        "interrupted": "বিঘ্নিত"
+      },
+      "counts": "{{done}} সম্পন্ন, {{running}} চলছে, {{waiting}} অপেক্ষায়",
+      "reused": "পুনরায় ব্যবহৃত: {{count}}",
+      "cost": "এখন পর্যন্ত {{spent}}, মোট প্রায় {{projected}}",
+      "costAtLeast": "এখন পর্যন্ত অন্তত {{spent}}",
+      "largeRun": "বড় রান",
+      "attempt": "চেষ্টা {{number}}",
+      "stop": "থামান",
+      "stopping": "থামানো হচ্ছে…",
+      "resume": "পুনরায় চালু করুন",
+      "runAgain": "আবার চালান",
+      "starting": "শুরু হচ্ছে…",
+      "failedCount_one": "{{count}}টি ব্যর্থ",
+      "failedCount_other": "{{count}}টি ব্যর্থ",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "ইতিমধ্যেই উত্তর দেওয়া হয়েছে।",
+          "noLongerOpen": "এই প্রশ্নটি আর খোলা নেই।",
+          "notAnOption": "এটি কোনো বিকল্প নয়।",
+          "notForYou": "শুধু যিনি রান শুরু করেছেন তিনিই উত্তর দিতে পারবেন।"
+        },
+        "noReply": "এখনো কোনো উত্তর আসেনি। আবার চেষ্টা করুন।",
+        "placeholder": "আপনার উত্তর লিখুন",
+        "send": "পাঠান",
+        "answered": "উত্তর দেওয়া হয়েছে: {{answer}}",
+        "cancelled": "বাতিল",
+        "onlyRequester": "শুধু {{name}} উত্তর দিতে পারবেন।"
+      },
+      "graph": "গ্রাফ",
+      "panel": {
+        "close": "বন্ধ করুন",
+        "resize": "ওয়ার্কফ্লো প্যানেলের আকার পরিবর্তন করুন",
+        "hide": "ওয়ার্কফ্লো লুকান",
+        "waitingForUpdate": "রানের পরবর্তী আপডেটের অপেক্ষায়…",
+        "stale": "আপডেট হচ্ছে না। শেষ আপডেট {{time}}।",
+        "log": "লগ",
+        "showMore": "আরও {{count}}টি দেখান",
+        "omitted": {
+          "queued_one": "এবং আরও {{count}}টি সারিতে",
+          "queued_other": "এবং আরও {{count}}টি সারিতে",
+          "running_one": "এবং আরও {{count}}টি চলছে",
+          "running_other": "এবং আরও {{count}}টি চলছে",
+          "waiting_one": "এবং আরও {{count}}টি অপেক্ষায়",
+          "waiting_other": "এবং আরও {{count}}টি অপেক্ষায়",
+          "failed_one": "এবং আরও {{count}}টি ব্যর্থ",
+          "failed_other": "এবং আরও {{count}}টি ব্যর্থ",
+          "done_one": "এবং আরও {{count}}টি সম্পন্ন",
+          "done_other": "এবং আরও {{count}}টি সম্পন্ন"
+        },
+        "askAgent": "বাকিগুলোর জন্য {{agent}}-কে জিজ্ঞাসা করুন।"
+      },
+      "group": {
+        "foreach": "প্রতিটির জন্য",
+        "parallel": "সমান্তরাল",
+        "run": "সংরক্ষিত ওয়ার্কফ্লো",
+        "workflow": "ভেতরের ওয়ার্কফ্লো",
+        "progress": "{{total}}-এর মধ্যে {{done}}",
+        "failed": "ব্যর্থ: {{count}}"
+      },
+      "node": {
+        "reused": "শেষ রান থেকে পুনরায় ব্যবহৃত",
+        "queued": "সারিতে",
+        "mayHaveRun": "চালানো হয়ে থাকতে পারে",
+        "waitingOn": {
+          "user": "আপনার উত্তরের অপেক্ষায়",
+          "approval": "অনুমোদনের অপেক্ষায়",
+          "peer": "একটি বার্তার অপেক্ষায়"
+        },
+        "sessionTurns_one": "{{count}}টি পালা",
+        "sessionTurns_other": "{{count}}টি পালা",
+        "result": "ফলাফল",
+        "error": "ত্রুটি",
+        "messages": "বার্তা",
+        "messagesTo": "{{name}}-এর কাছে বার্তা: {{count}}",
+        "open": "খুলুন",
+        "detailsUnavailable": "রিলোডের পরে বিস্তারিত আর উপলব্ধ নেই।",
+        "stop": "এজেন্ট থামান"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
@@ -1547,7 +1665,9 @@
     },
     "actions": {
       "goActivity": "কার্যকলাপে যান",
-      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে"
+      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে",
+      "openCurrentRoomMindroomSettings": "MindRoom রুম সেটিংস খুলুন",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} এর জন্য MindRoom সেটিংস খুলুন"
     },
     "recentVisits": {
       "recentlyOpened": "সম্প্রতি খোলা হয়েছে",
@@ -2043,7 +2163,11 @@
     "done": "সম্পন্ন"
   },
   "threadActions": {
-    "openBeside": "দ্বিতীয় কলামে খুলুন"
+    "openBeside": "দ্বিতীয় কলামে খুলুন",
+    "detailsSection": "বিবরণ",
+    "forkAndShareSection": "শাখা তৈরি ও শেয়ার",
+    "shareSection": "শেয়ার",
+    "viewSection": "প্রদর্শন"
   },
   "roomSchedules": {
     "thisThread": "এই থ্রেড",

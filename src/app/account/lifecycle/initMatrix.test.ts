@@ -1069,7 +1069,13 @@ describe('startClient', () => {
           lazy_load_members: true,
         },
         ephemeral: {
-          types: ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'],
+          types: [
+            'm.typing',
+            'm.receipt',
+            'io.mindroom.live',
+            'io.mindroom.subagents',
+            'io.mindroom.workflow',
+          ],
         },
       },
     });

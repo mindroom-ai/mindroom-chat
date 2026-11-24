@@ -48,13 +48,13 @@ test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
  */
 const ENTRIES = [
   'Mark as Read',
-  'Notifications',
+  'Message Search',
+  'Jump to Time',
   'Invite',
   'New Sub-room',
   'Copy Link',
   'Room Settings',
-  'Message Search',
-  'Jump to Time',
+  'Notifications',
   'Archive Room',
   'Leave Room',
 ];

@@ -21,6 +21,7 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { RunLogo } from '../subagents/RunLogo';
 import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
+import { workflowRunCountsLine } from '../messages/workflow-run/workflowRunLabels';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
 import * as css from './BackgroundJobsBar.css';
 import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';
@@ -218,18 +219,32 @@ export function BackgroundJobRow({
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
+  const workflowMeta = item.workflowRun?.meta;
   const modelLabel = meta?.model && getAiRunCompactModelLabel(meta.model);
   const task = meta?.task?.split('\n', 1)[0];
-  const [calls, tokens, cost] = useUsageCells(meta?.usage);
+  const [calls, tokens, cost] = useUsageCells(workflowMeta?.usage ?? meta?.usage);
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = item.subagent ? described || name : (item.plainName ?? name);
+  const isWorkflow = item.workflow !== undefined;
+  const headline = isWorkflow
+    ? item.name
+    : item.subagent
+      ? described || name
+      : (item.plainName ?? name);
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;
-  const doing = item.activity?.preview;
-  const waiting = item.waiting && !item.stopping;
+  const workflowCounts =
+    isWorkflow && workflowMeta ? workflowRunCountsLine(workflowMeta.counts, t) : undefined;
+  const doing = workflowCounts ?? item.activity?.preview;
+  const waitingLabel = !item.stopping
+    ? item.waiting
+      ? t('mindroomUi.backgroundJobs.waiting')
+      : item.workflowWaiting
+        ? t('mindroomUi.workflowRun.node.waitingOn.user')
+        : undefined
+    : undefined;
   const detail = details && ((described && meta) || tool || doing);
   const headlineTitle = meta?.task || item.name;
   let title: ReactNode = (
@@ -272,7 +287,7 @@ export function BackgroundJobRow({
     <Element
       className={classNames(folded ? css.Folded : css.Job, nested && css.Nested)}
       style={nested ? ({ '--job-depth': item.depth } as CSSProperties) : undefined}
-      data-job-kind={item.subagent ? 'subagent' : 'tool'}
+      data-job-kind={isWorkflow ? 'workflow' : item.subagent ? 'subagent' : 'tool'}
       data-job-depth={item.depth}
       data-job-folded={folded ? '' : undefined}
     >
@@ -280,12 +295,12 @@ export function BackgroundJobRow({
       <span className={folded ? css.FoldedText : css.JobText}>
         <span className={css.Headline}>
           {title}
-          {waiting && (
-            <span className={css.Pill.waiting} title={t('mindroomUi.backgroundJobs.waiting')}>
+          {waitingLabel && (
+            <span className={css.Pill.waiting} title={waitingLabel}>
               <span className={css.PillIcon}>
                 <IconAlertCircle size={14} stroke={1.8} aria-hidden />
               </span>
-              <span className={css.PillText}>{t('mindroomUi.backgroundJobs.waiting')}</span>
+              <span className={css.PillText}>{waitingLabel}</span>
             </span>
           )}
           {item.finished && (

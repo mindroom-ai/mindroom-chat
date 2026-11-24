@@ -73,12 +73,10 @@ vi.mock('folds', () => ({
   }) => <button {...props}>{children}</button>,
   color: { Critical: { Main: 'red' } },
   Icon: () => <span />,
-  IconButton: React.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
-    ({ children, ...props }, ref) => (
-      <button {...props} ref={ref}>
-        {children}
-      </button>
-    )
+  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
+    <button {...props} ref={ref}>
+      {children}
+    </button>
   ),
   Icons: { Cross: 'Cross', Category: 'Category' },
   // Icon buttons name themselves in tooltips; render only the trigger.

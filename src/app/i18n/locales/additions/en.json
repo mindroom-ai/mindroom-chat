@@ -433,7 +433,9 @@
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom.",
         "usage": "Show Usage in the sidebar",
-        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker."
+        "usageDescription": "Provider usage limits and 7-day token spend, once a runtime reports them. When hidden, open Usage from the ⋮ menu in Home or the model picker.",
+        "help": "Show Help & guides in the sidebar",
+        "helpDescription": "Quick guides, the tour, and keyboard shortcuts. When hidden, open the tour from Settings under About or the command palette ({{shortcut}}), and shortcuts with {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugins",
@@ -722,7 +724,12 @@
     },
     "roomActions": {
       "noInvitePermission": "You don't have permission to invite",
-      "searchEncrypted": "Not available in encrypted rooms"
+      "searchEncrypted": "Not available in encrypted rooms",
+      "viewSection": "View",
+      "roomSection": "Room",
+      "preferencesSection": "Preferences",
+      "notificationModeAll": "All",
+      "notificationModeMentions": "Mentions"
     },
     "phoneNav": {
       "navigation": "Navigation"
@@ -951,7 +958,7 @@
       "approvalDecisionControls": {
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
       },
-      "showToolCalls": "Show tool calls",
+      "showToolCalls": "Show Tool Calls",
       "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there.",
       "secretRequestCard": {
         "label": "Key request",
@@ -1198,7 +1205,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Compact view",
-        "threadFiltersActive": "Thread filters (active)"
+        "threadFiltersActive": "Thread filters (active)",
+        "mindroomSettings": "MindRoom Settings"
       },
       "roomThreadOverview": {
         "advancedFilters": "Advanced filters",
@@ -1231,6 +1239,25 @@
         "expandAllLong": "Expand all long messages",
         "collapseAllLong": "Collapse all long messages",
         "showFullMessage": "Show full message"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "All caught up",
+        "resolvedCount_one": "{{count}} resolved",
+        "resolvedCount_other": "{{count}} resolved",
+        "snoozedCount_one": "{{count}} snoozed",
+        "snoozedCount_other": "{{count}} snoozed",
+        "showAll": "Show all",
+        "startNewThreadBelow": "Start a new thread below",
+        "recentlyResolved": "Recently resolved",
+        "noMatchHeading": "No threads match your filters",
+        "hiddenByForMe_one": "{{count}} open thread is hidden by For me.",
+        "hiddenByForMe_other": "{{count}} open threads are hidden by For me.",
+        "hiddenByFilters_one": "{{count}} open thread is hidden by your filters.",
+        "hiddenByFilters_other": "{{count}} open threads are hidden by your filters.",
+        "adjustOrResetFilters": "Adjust or reset your filters to see threads in this room.",
+        "turnOffForMe": "Turn off For me",
+        "resetAll": "Reset all",
+        "resetFilters": "Reset filters"
       }
     },
     "computer": {
@@ -1259,7 +1286,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
+      "awaitingAnswer": "Waiting for your answer: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-agents · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1304,6 +1333,95 @@
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
       "jobTotalFinished_other": "{{count}} background jobs finished"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starting",
+        "running": "Running",
+        "waiting": "Waiting for you",
+        "completed": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "counts": "{{done}} done, {{running}} running, {{waiting}} waiting",
+      "reused": "Reused: {{count}}",
+      "cost": "{{spent}} so far, about {{projected}} in total",
+      "costAtLeast": "at least {{spent}} so far",
+      "largeRun": "Large run",
+      "attempt": "Attempt {{number}}",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "resume": "Resume",
+      "runAgain": "Run again",
+      "starting": "Starting…",
+      "failedCount_one": "{{count}} failed",
+      "failedCount_other": "{{count}} failed",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Already answered.",
+          "noLongerOpen": "This question is no longer open.",
+          "notAnOption": "That is not one of the options.",
+          "notForYou": "Only the person who started the run can answer."
+        },
+        "noReply": "No reply yet. Try again.",
+        "placeholder": "Type your answer",
+        "send": "Send",
+        "answered": "Answered: {{answer}}",
+        "cancelled": "Cancelled",
+        "onlyRequester": "Only {{name}} can answer."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Close",
+        "resize": "Resize workflow panel",
+        "hide": "Hide workflow",
+        "waitingForUpdate": "Waiting for the run's next update…",
+        "stale": "Not updating. Last update {{time}}.",
+        "log": "Log",
+        "showMore": "Show {{count}} more",
+        "omitted": {
+          "queued_one": "and {{count}} more queued",
+          "queued_other": "and {{count}} more queued",
+          "running_one": "and {{count}} more running",
+          "running_other": "and {{count}} more running",
+          "waiting_one": "and {{count}} more waiting",
+          "waiting_other": "and {{count}} more waiting",
+          "failed_one": "and {{count}} more failed",
+          "failed_other": "and {{count}} more failed",
+          "done_one": "and {{count}} more done",
+          "done_other": "and {{count}} more done"
+        },
+        "askAgent": "Ask {{agent}} for the rest."
+      },
+      "group": {
+        "foreach": "For each",
+        "parallel": "Parallel",
+        "run": "Saved workflow",
+        "workflow": "Nested workflow",
+        "progress": "{{done}} of {{total}}",
+        "failed": "Failed: {{count}}"
+      },
+      "node": {
+        "reused": "Reused from the last run",
+        "queued": "Queued",
+        "mayHaveRun": "May have run",
+        "waitingOn": {
+          "user": "Waiting for your answer",
+          "approval": "Waiting for approval",
+          "peer": "Waiting for a message"
+        },
+        "sessionTurns_one": "{{count}} turn",
+        "sessionTurns_other": "{{count}} turns",
+        "result": "Result",
+        "error": "Error",
+        "messages": "Messages",
+        "messagesTo": "Messages to {{name}}: {{count}}",
+        "open": "Open",
+        "detailsUnavailable": "Details are no longer available after reload.",
+        "stop": "Stop agent"
+      }
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1547,7 +1665,9 @@
     },
     "actions": {
       "goActivity": "Go to Activity",
-      "goActivityDescription": "Mentions, replies and what waits for you"
+      "goActivityDescription": "Mentions, replies and what waits for you",
+      "openCurrentRoomMindroomSettings": "Open MindRoom Room Settings",
+      "openCurrentRoomMindroomSettingsDescription": "Open MindRoom settings for {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Recently opened",
@@ -2043,7 +2163,11 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open in second column"
+    "openBeside": "Open in second column",
+    "detailsSection": "Details",
+    "forkAndShareSection": "Fork & Share",
+    "shareSection": "Share",
+    "viewSection": "View"
   },
   "roomSchedules": {
     "thisThread": "This thread",

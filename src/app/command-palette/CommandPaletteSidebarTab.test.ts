@@ -55,14 +55,13 @@ vi.mock('../ui/sidebar/SidebarItem', () => ({
       React.createElement('div', { 'data-tooltip': true }, tooltip),
       children(() => undefined)
     ),
-  SidebarAvatar: React.forwardRef<
-    HTMLButtonElement,
-    React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      children: React.ReactNode;
-    }
-  >(({ children, ...props }, ref) =>
-    React.createElement('button', { ref, type: 'button', ...props }, children)
-  ),
+  SidebarAvatar: ({
+    children,
+    ref,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    children: React.ReactNode;
+  }) => React.createElement('button', { ref, type: 'button', ...props }, children),
 }));
 
 const renderSearchTab = (open = false) => {

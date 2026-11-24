@@ -420,7 +420,9 @@
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。",
         "usage": "在側邊欄顯示用量",
-        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。"
+        "usageDescription": "執行環境回報後顯示供應商配額限制與 7 天權杖消耗。隱藏時可從首頁的 ⋮ 選單或模型選擇器開啟用量。",
+        "help": "在側邊欄顯示說明與指南",
+        "helpDescription": "快速指南、導覽與鍵盤快速鍵。隱藏後，可從設定中的「關於」或命令面板（{{shortcut}}）開啟導覽，並可按 {{helpShortcut}} 開啟快速鍵。"
       },
       "plugins": {
         "title": "外掛程式",
@@ -705,7 +707,12 @@
     },
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
-      "searchEncrypted": "在加密房間中無法使用"
+      "searchEncrypted": "在加密房間中無法使用",
+      "viewSection": "檢視",
+      "roomSection": "房間",
+      "preferencesSection": "偏好設定",
+      "notificationModeAll": "全部",
+      "notificationModeMentions": "提及"
     },
     "phoneNav": {
       "navigation": "導覽"
@@ -1163,7 +1170,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "緊湊檢視",
-        "threadFiltersActive": "討論串篩選器（已啟用）"
+        "threadFiltersActive": "討論串篩選器（已啟用）",
+        "mindroomSettings": "MindRoom 設定"
       },
       "roomThreadOverview": {
         "advancedFilters": "進階篩選器",
@@ -1196,6 +1204,21 @@
         "expandAllLong": "展開所有長訊息",
         "collapseAllLong": "收合所有長訊息",
         "showFullMessage": "顯示完整訊息"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "已全部處理完畢",
+        "resolvedCount_other": "{{count}} 個已解決",
+        "snoozedCount_other": "{{count}} 個已延後",
+        "showAll": "顯示全部",
+        "startNewThreadBelow": "在下方開始新討論串",
+        "recentlyResolved": "最近已解決",
+        "noMatchHeading": "沒有符合篩選條件的討論串",
+        "hiddenByForMe_other": "{{count}} 個未解決的討論串被「與我相關」隱藏。",
+        "hiddenByFilters_other": "{{count}} 個未解決的討論串被篩選條件隱藏。",
+        "adjustOrResetFilters": "調整或重設篩選條件以檢視此聊天室中的討論串。",
+        "turnOffForMe": "關閉「與我相關」",
+        "resetAll": "全部重設",
+        "resetFilters": "重設篩選條件"
       }
     },
     "computer": {
@@ -1224,7 +1247,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成",
+      "groupWorkflows": "工作流程 · {{number}}",
       "groupSubagents": "子代理 · {{number}}",
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
@@ -1264,6 +1289,88 @@
       },
       "jobTotal_other": "{{count}} 個背景工作",
       "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+    },
+    "workflowRun": {
+      "title": "工作流程",
+      "status": {
+        "starting": "正在啟動",
+        "running": "執行中",
+        "waiting": "等待回覆",
+        "completed": "已完成",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "interrupted": "已中斷"
+      },
+      "counts": "{{done}} 已完成，{{running}} 執行中，{{waiting}} 等待中",
+      "reused": "已重複使用：{{count}}",
+      "cost": "目前已花費 {{spent}}，預計總計約 {{projected}}",
+      "costAtLeast": "目前已花費至少 {{spent}}",
+      "largeRun": "大型執行",
+      "attempt": "第 {{number}} 次嘗試",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "resume": "繼續",
+      "runAgain": "再次執行",
+      "starting": "正在啟動…",
+      "failedCount_other": "{{count}} 項失敗",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "已經回答過了。",
+          "noLongerOpen": "此問題已關閉。",
+          "notAnOption": "這不是可選項之一。",
+          "notForYou": "只有發起此執行的人可以回答。"
+        },
+        "noReply": "尚未收到回覆，請重試。",
+        "placeholder": "輸入你的回答",
+        "send": "傳送",
+        "answered": "已回答：{{answer}}",
+        "cancelled": "已取消",
+        "onlyRequester": "只有 {{name}} 可以回答。"
+      },
+      "graph": "圖譜",
+      "panel": {
+        "close": "關閉",
+        "resize": "調整工作流程面板大小",
+        "hide": "隱藏工作流程",
+        "waitingForUpdate": "正在等待下一次更新…",
+        "stale": "未在更新。上次更新於 {{time}}。",
+        "log": "日誌",
+        "showMore": "再顯示 {{count}} 項",
+        "omitted": {
+          "queued_other": "另有 {{count}} 項排隊中",
+          "running_other": "另有 {{count}} 項執行中",
+          "waiting_other": "另有 {{count}} 項等待中",
+          "failed_other": "另有 {{count}} 項失敗",
+          "done_other": "另有 {{count}} 項已完成"
+        },
+        "askAgent": "其餘詳情可詢問 {{agent}}。"
+      },
+      "group": {
+        "foreach": "逐一執行",
+        "parallel": "平行",
+        "run": "已儲存的工作流程",
+        "workflow": "巢狀工作流程",
+        "progress": "{{done}} / {{total}}",
+        "failed": "失敗：{{count}}"
+      },
+      "node": {
+        "reused": "重複使用了上次執行結果",
+        "queued": "排隊中",
+        "mayHaveRun": "可能已執行",
+        "waitingOn": {
+          "user": "等待你的回答",
+          "approval": "等待核准",
+          "peer": "等待訊息"
+        },
+        "sessionTurns_other": "{{count}} 輪",
+        "result": "結果",
+        "error": "錯誤",
+        "messages": "訊息",
+        "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
+        "open": "開啟",
+        "detailsUnavailable": "重新載入後已無法查看詳細資料。",
+        "stop": "停止代理"
+      }
     },
     "subagents": {
       "title": "子代理",
@@ -1500,7 +1607,9 @@
     },
     "actions": {
       "goActivity": "前往動態",
-      "goActivityDescription": "提及、回覆和等待你處理的事項"
+      "goActivityDescription": "提及、回覆和等待你處理的事項",
+      "openCurrentRoomMindroomSettings": "開啟 MindRoom 房間設定",
+      "openCurrentRoomMindroomSettingsDescription": "開啟 {{room}} 的 MindRoom 設定"
     },
     "recentVisits": {
       "recentlyOpened": "最近開啟",
@@ -1978,7 +2087,11 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二欄開啟"
+    "openBeside": "在第二欄開啟",
+    "detailsSection": "詳細資料",
+    "forkAndShareSection": "分支與分享",
+    "shareSection": "分享",
+    "viewSection": "檢視"
   },
   "roomSchedules": {
     "thisThread": "此討論串",

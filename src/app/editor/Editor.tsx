@@ -4,6 +4,7 @@ import React, {
   DragEventHandler,
   KeyboardEventHandler,
   ReactNode,
+  type Ref,
   useCallback,
   useMemo,
   useState,
@@ -263,6 +264,7 @@ type CustomEditorProps = EditorSlots & {
   onPaste?: ClipboardEventHandler<HTMLDivElement>;
   /** Takes a drop before Slate does; one it prevents inserts nothing. */
   onDrop?: DragEventHandler<HTMLDivElement>;
+  ref?: Ref<HTMLDivElement>;
 };
 
 // Module-level renderers keep one identity for every editor, so Slate never re-renders for them.
@@ -301,7 +303,7 @@ function EditorControls({ children, className }: { children?: ReactNode; classNa
 }
 
 /** The composer text box: Slate editing between optional leading and trailing controls. */
-export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
+export function CustomEditor({ ref, ...props }: CustomEditorProps) {
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, onDrop, initialValue = emptyDocument } = props;
@@ -407,5 +409,4 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       </Slate>
     </div>
   );
-});
-CustomEditor.displayName = 'CustomEditor';
+}

@@ -44,6 +44,16 @@ export const useRoomTimelineMinimap = ({
     },
     [handleOpenEvent]
   );
+  const handleMinimapScrub = useCallback(
+    (item: TimelineMinimapItem) => {
+      void handleOpenEvent(item.id, false, undefined, {
+        behavior: 'instant',
+        stopInView: false,
+        updateFocus: false,
+      });
+    },
+    [handleOpenEvent]
+  );
 
-  return { minimapStripMap, minimapItems, handleMinimapSelect };
+  return { minimapStripMap, minimapItems, handleMinimapSelect, handleMinimapScrub };
 };

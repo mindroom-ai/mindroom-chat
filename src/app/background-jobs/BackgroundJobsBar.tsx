@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { openSubagentsPanel } from '../navigation/subagentsPanel';
+import { openWorkflowRunPanel } from '../navigation/workflowPanel';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
@@ -90,9 +91,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const lookups = useJobLookups(room, jobs, details && (expanded || !several));
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
-  const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
+  const endedAt = ({ finished, run, workflowRun, jobId }: BackgroundJobsBarItem) => {
     if (finished && !ended.has(jobId))
-      ended.set(jobId, (run?.meta.endedAt ?? Date.now() / 1000) * 1000);
+      ended.set(
+        jobId,
+        (workflowRun?.meta.endedAt ?? run?.meta.endedAt ?? Date.now() / 1000) * 1000
+      );
     return finished ? ended.get(jobId) : undefined;
   };
   const anchor = useRef<HTMLDivElement>(null);
@@ -243,8 +247,14 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   };
   const [single] = model.items;
   const finished = model.items.every((item) => item.finished);
-  // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
+  // A workflow job opens the Workflow graph panel; a sub-agent job opens the Sub-agents panel.
   const openRun = (item: BackgroundJobsBarItem) => {
+    if (item.workflow !== undefined) {
+      const runId = item.workflowRun?.run || item.workflow;
+      return runId
+        ? () => openWorkflowRunPanel(store, room.roomId, runId, item.threadId)
+        : undefined;
+    }
     const run = item.run?.run;
     return run && (() => openSubagentsPanel(store, room.roomId, item.threadId, run));
   };
@@ -371,9 +381,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   {model.groups.length > 1 ? (
                     <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
                       {t(
-                        group.kind === 'subagent'
-                          ? 'mindroomUi.backgroundJobs.groupSubagents'
-                          : 'mindroomUi.backgroundJobs.groupTools',
+                        group.kind === 'workflow'
+                          ? 'mindroomUi.backgroundJobs.groupWorkflows'
+                          : group.kind === 'subagent'
+                            ? 'mindroomUi.backgroundJobs.groupSubagents'
+                            : 'mindroomUi.backgroundJobs.groupTools',
                         { number: group.items.length }
                       )}
                     </h3>
@@ -383,7 +395,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   {details &&
                     (['calls', 'tokens', 'cost'] as const).map((column) => (
                       <span key={column} className={css.StatColumn} aria-hidden>
-                        {group.kind === 'subagent' &&
+                        {(group.kind === 'subagent' || group.kind === 'workflow') &&
                           t(`mindroomUi.backgroundJobs.column.${column}`)}
                       </span>
                     ))}

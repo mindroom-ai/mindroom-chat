@@ -71,23 +71,23 @@ type Case = {
   encrypted: boolean;
 };
 
-const item = (name: string, reason = ''): Item => ({
+const item = (name: string, reason = '', disabled = reason !== ''): Item => ({
   name,
   role: 'menuitem',
-  disabled: reason !== '',
+  disabled,
   reason,
 });
 
 /** The entries every room menu shares, in their order. */
 const sharedItems = ({ canInvite, newSubRoom, removeFromSpace, encrypted }: Case): Item[] => [
   item('Mark as Read'),
-  item('Notifications'),
+  item('Message Search', encrypted ? NO_SEARCH : ''),
+  item('Jump to Time'),
   item('Invite', canInvite ? '' : NO_INVITE),
   ...(newSubRoom === undefined ? [] : [item('New Sub-room', newSubRoom)]),
   item('Copy Link'),
   item('Room Settings'),
-  item('Message Search', encrypted ? NO_SEARCH : ''),
-  item('Jump to Time'),
+  item('Notifications', 'Default', false),
   ...(removeFromSpace === undefined ? [] : [item(`Remove from ${removeFromSpace}`)]),
   item('Archive Room'),
   item('Leave Room'),
@@ -418,7 +418,7 @@ const checkKeyboard = async (page: Page, room: Case) => {
   await page.keyboard.press('Enter');
   await expect(roomMenu(page)).toBeVisible();
   const invite = roomMenu(page).getByRole('menuitem', { name: 'Invite', exact: true });
-  for (let step = 0; step < 4; step += 1) {
+  for (let step = 0; step < 5; step += 1) {
     // eslint-disable-next-line no-await-in-loop
     if (await invite.evaluate((row) => row === document.activeElement)) break;
     // eslint-disable-next-line no-await-in-loop

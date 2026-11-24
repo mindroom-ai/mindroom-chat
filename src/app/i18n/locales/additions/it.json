@@ -446,7 +446,9 @@
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale.",
         "usage": "Mostra Utilizzo nella barra laterale",
-        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli."
+        "usageDescription": "Limiti di utilizzo dei provider e consumo di token in 7 giorni, non appena un runtime li segnala. Quando è nascosto, apri Utilizzo dal menu ⋮ in Home o dal selettore dei modelli.",
+        "help": "Mostra Aiuto e guide nella barra laterale",
+        "helpDescription": "Guide rapide, tour e scorciatoie da tastiera. Se nascosto, apri il tour nelle Impostazioni, in Informazioni, o dalla tavolozza dei comandi ({{shortcut}}), e le scorciatoie con {{helpShortcut}}."
       },
       "plugins": {
         "title": "Plugin",
@@ -739,7 +741,12 @@
     },
     "roomActions": {
       "noInvitePermission": "Non hai il permesso di invitare",
-      "searchEncrypted": "Non disponibile nelle stanze cifrate"
+      "searchEncrypted": "Non disponibile nelle stanze cifrate",
+      "viewSection": "Vista",
+      "roomSection": "Stanza",
+      "preferencesSection": "Preferenze",
+      "notificationModeAll": "Tutti",
+      "notificationModeMentions": "Menzioni"
     },
     "phoneNav": {
       "navigation": "Navigazione"
@@ -1233,7 +1240,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compatta",
-        "threadFiltersActive": "Filtri dei thread (attivi)"
+        "threadFiltersActive": "Filtri dei thread (attivi)",
+        "mindroomSettings": "Impostazioni MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtri avanzati",
@@ -1266,6 +1274,29 @@
         "expandAllLong": "Espandi tutti i messaggi lunghi",
         "collapseAllLong": "Comprimi tutti i messaggi lunghi",
         "showFullMessage": "Mostra messaggio completo"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tutto in ordine",
+        "resolvedCount_one": "{{count}} risolto",
+        "resolvedCount_many": "{{count}} risolti",
+        "resolvedCount_other": "{{count}} risolti",
+        "snoozedCount_one": "{{count}} posticipato",
+        "snoozedCount_many": "{{count}} posticipati",
+        "snoozedCount_other": "{{count}} posticipati",
+        "showAll": "Mostra tutti",
+        "startNewThreadBelow": "Inizia un nuovo thread qui sotto",
+        "recentlyResolved": "Risolti di recente",
+        "noMatchHeading": "Nessun thread corrisponde ai tuoi filtri",
+        "hiddenByForMe_one": "{{count}} thread aperto è nascosto da Per me.",
+        "hiddenByForMe_many": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByForMe_other": "{{count}} thread aperti sono nascosti da Per me.",
+        "hiddenByFilters_one": "{{count}} thread aperto è nascosto dai tuoi filtri.",
+        "hiddenByFilters_many": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "hiddenByFilters_other": "{{count}} thread aperti sono nascosti dai tuoi filtri.",
+        "adjustOrResetFilters": "Modifica o ripristina i filtri per vedere i thread in questa stanza.",
+        "turnOffForMe": "Disattiva Per me",
+        "resetAll": "Ripristina tutto",
+        "resetFilters": "Ripristina filtri"
       }
     },
     "computer": {
@@ -1294,7 +1325,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
       "finished": "Completato: {{tool}}",
+      "awaitingAnswer": "In attesa della tua risposta: {{tool}}",
       "jobCountFinished": "{{count}} attività in background completate",
+      "groupWorkflows": "Flussi di lavoro · {{number}}",
       "groupSubagents": "Sottoagenti · {{number}}",
       "groupTools": "Strumenti · {{number}}",
       "tools_one": "{{count}} strumento",
@@ -1344,6 +1377,102 @@
       "jobTotalFinished_one": "{{count}} attività in background completata",
       "jobTotalFinished_many": "{{count}} attività in background completate",
       "jobTotalFinished_other": "{{count}} attività in background completate"
+    },
+    "workflowRun": {
+      "title": "Flusso di lavoro",
+      "status": {
+        "starting": "Avvio",
+        "running": "In esecuzione",
+        "waiting": "In attesa di te",
+        "completed": "Fatto",
+        "failed": "Non riuscito",
+        "cancelled": "Annullato",
+        "interrupted": "Interrotto"
+      },
+      "counts": "{{done}} completati, {{running}} in corso, {{waiting}} in attesa",
+      "reused": "Riutilizzati: {{count}}",
+      "cost": "{{spent}} finora, circa {{projected}} in totale",
+      "costAtLeast": "almeno {{spent}} finora",
+      "largeRun": "Esecuzione ampia",
+      "attempt": "Tentativo {{number}}",
+      "stop": "Ferma",
+      "stopping": "Arresto…",
+      "resume": "Riprendi",
+      "runAgain": "Esegui di nuovo",
+      "starting": "Avvio…",
+      "failedCount_one": "{{count}} non riusciti",
+      "failedCount_many": "{{count}} non riusciti",
+      "failedCount_other": "{{count}} non riusciti",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Già risposto.",
+          "noLongerOpen": "Questa domanda non è più aperta.",
+          "notAnOption": "Non è una delle opzioni.",
+          "notForYou": "Solo chi ha avviato l'esecuzione può rispondere."
+        },
+        "noReply": "Nessuna risposta ancora. Riprova.",
+        "placeholder": "Scrivi la tua risposta",
+        "send": "Invia",
+        "answered": "Risposto: {{answer}}",
+        "cancelled": "Annullato",
+        "onlyRequester": "Solo {{name}} può rispondere."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Chiudi",
+        "resize": "Ridimensiona il pannello flusso di lavoro",
+        "hide": "Nascondi flusso di lavoro",
+        "waitingForUpdate": "In attesa del prossimo aggiornamento dell'esecuzione…",
+        "stale": "Nessun aggiornamento. Ultimo aggiornamento {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostra altri {{count}}",
+        "omitted": {
+          "queued_one": "e altri {{count}} in coda",
+          "queued_many": "e altri {{count}} in coda",
+          "queued_other": "e altri {{count}} in coda",
+          "running_one": "e altri {{count}} in corso",
+          "running_many": "e altri {{count}} in corso",
+          "running_other": "e altri {{count}} in corso",
+          "waiting_one": "e altri {{count}} in attesa",
+          "waiting_many": "e altri {{count}} in attesa",
+          "waiting_other": "e altri {{count}} in attesa",
+          "failed_one": "e altri {{count}} non riusciti",
+          "failed_many": "e altri {{count}} non riusciti",
+          "failed_other": "e altri {{count}} non riusciti",
+          "done_one": "e altri {{count}} completati",
+          "done_many": "e altri {{count}} completati",
+          "done_other": "e altri {{count}} completati"
+        },
+        "askAgent": "Chiedi il resto a {{agent}}."
+      },
+      "group": {
+        "foreach": "Per ciascuno",
+        "parallel": "Parallelo",
+        "run": "Flusso salvato",
+        "workflow": "Flusso annidato",
+        "progress": "{{done}} di {{total}}",
+        "failed": "Non riusciti: {{count}}"
+      },
+      "node": {
+        "reused": "Riutilizzato dall'ultima esecuzione",
+        "queued": "In coda",
+        "mayHaveRun": "Potrebbe essere stato eseguito",
+        "waitingOn": {
+          "user": "In attesa della tua risposta",
+          "approval": "In attesa di approvazione",
+          "peer": "In attesa di un messaggio"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turni",
+        "sessionTurns_other": "{{count}} turni",
+        "result": "Risultato",
+        "error": "Errore",
+        "messages": "Messaggi",
+        "messagesTo": "Messaggi a {{name}}: {{count}}",
+        "open": "Apri",
+        "detailsUnavailable": "I dettagli non sono più disponibili dopo il ricaricamento.",
+        "stop": "Ferma agente"
+      }
     },
     "subagents": {
       "title": "Sottoagenti",
@@ -1594,7 +1723,9 @@
     },
     "actions": {
       "goActivity": "Vai ad Attività",
-      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
+      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta",
+      "openCurrentRoomMindroomSettings": "Apri le impostazioni MindRoom della stanza",
+      "openCurrentRoomMindroomSettingsDescription": "Apri le impostazioni MindRoom di {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Elementi aperti di recente",
@@ -2108,7 +2239,11 @@
     "done": "Fatti"
   },
   "threadActions": {
-    "openBeside": "Apri nella seconda colonna"
+    "openBeside": "Apri nella seconda colonna",
+    "detailsSection": "Dettagli",
+    "forkAndShareSection": "Dirama e condividi",
+    "shareSection": "Condividi",
+    "viewSection": "Vista"
   },
   "roomSchedules": {
     "thisThread": "Questo thread",

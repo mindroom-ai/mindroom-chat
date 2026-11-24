@@ -23,12 +23,12 @@ vi.mock('folds', async () => {
     Box: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('div', null, children),
     Icon: ({ src }: { src: string }) => reactModule.createElement('span', { 'data-icon': src }),
-    IconButton: reactModule.forwardRef<
-      HTMLButtonElement,
-      React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }
-    >(({ children, ...props }, ref) =>
-      reactModule.createElement('button', { ref, type: 'button', ...props }, children)
-    ),
+    IconButton: ({
+      children,
+      ref,
+      ...props
+    }: React.ComponentPropsWithRef<'button'> & { children?: React.ReactNode }) =>
+      reactModule.createElement('button', { ref, type: 'button', ...props }, children),
     Icons: {
       ArrowGoLeft: 'ArrowGoLeft',
       ArrowLeft: 'ArrowLeft',

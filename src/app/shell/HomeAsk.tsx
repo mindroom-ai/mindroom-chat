@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar, Icons, Text } from 'folds';
 import { useAtomValue, useStore } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { UserAvatar } from '../avatars/UserAvatar';
 import { ComposerMenuButton, ComposerRadioMenuEntry } from '../composer/ComposerMenuButton';
 import { RoomInput } from '../composer/RoomInput';
 import {
+  composerUploadItemsAtom,
   getHomeAskDraftKey,
   type HomeAskDestination,
   homeAskDestinationAtomFamily,
@@ -51,7 +52,13 @@ import * as css from './Home.css';
 type BadgeProps = { id: string; name: string; mxc?: string; src?: string; square?: boolean };
 type Place = { roomId: string | null; isDirect: boolean };
 type OpenFn = (roomId: string, eventId: string) => void;
-type FieldProps = { agents: HomeAgent[]; first: HomeAgent; failedNotice: ReactNode; open: OpenFn };
+type FieldProps = {
+  agents: HomeAgent[];
+  first: HomeAgent;
+  failedNotice: ReactNode;
+  open: OpenFn;
+  fileDropContainerRef?: RefObject<HTMLElement | null>;
+};
 
 export function Badge({ id, name, mxc, src, square }: BadgeProps) {
   const mx = useMatrixClient();
@@ -138,7 +145,13 @@ const useHomeAskPendingNotice = (open: OpenFn): ReactNode => {
   );
 };
 
-export function HomeAsk({ agents }: { agents: HomeAgent[] }) {
+export function HomeAsk({
+  agents,
+  fileDropContainerRef,
+}: {
+  agents: HomeAgent[];
+  fileDropContainerRef?: RefObject<HTMLElement | null>;
+}) {
   const mx = useMatrixClient();
   const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
   const open = useCallback<OpenFn>(
@@ -151,20 +164,28 @@ export function HomeAsk({ agents }: { agents: HomeAgent[] }) {
   const failedNotice = useHomeAskPendingNotice(open);
   const first = agents[0];
   return first ? (
-    <HomeAskField agents={agents} first={first} failedNotice={failedNotice} open={open} />
+    <HomeAskField
+      agents={agents}
+      first={first}
+      failedNotice={failedNotice}
+      open={open}
+      fileDropContainerRef={fileDropContainerRef}
+    />
   ) : (
     <>{failedNotice}</>
   );
 }
 
-function HomeAskField({ agents, first, failedNotice, open }: FieldProps) {
+function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef }: FieldProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const store = useStore();
   const editor = useEditor();
   const version = useCapabilities()['m.room_versions']?.default;
   const userId = mx.getSafeUserId();
-  const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(userId));
+  const draftKey = getHomeAskDraftKey(userId);
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+  const uploadsAtom = composerUploadItemsAtom(draftKey, HOME_ASK_VIEW);
   const destinationAtom = homeAskDestinationAtomFamily(userId);
   const pendingAtom = homeAskPendingAtomFamily(userId);
   const sending = useAtomValue(pendingAtom)?.state === 'sending';
@@ -173,27 +194,32 @@ function HomeAskField({ agents, first, failedNotice, open }: FieldProps) {
     if (sent?.state === 'sending') {
       return { agentId: sent.agentId, roomId: sent.roomId, isDirect: sent.isDirect };
     }
-    if (store.get(draftAtom).length === 0) return undefined;
-    return store.get(destinationAtom) ?? { agentId: '', roomId: null };
+    const hasDraft = store.get(draftAtom).length > 0;
+    const hasFiles = store.get(uploadsAtom).length > 0;
+    if (!hasDraft && !hasFiles) return undefined;
+    return store.get(destinationAtom) ?? (hasDraft ? { agentId: '', roomId: null } : undefined);
   });
   const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
   const alive = useAlive();
   const [focusOnMount, setFocusOnMount] = useState(false);
   const typed = useAtomValue(draftAtom).length > 0;
+  const hasStagedFiles = useAtomValue(uploadsAtom).length > 0;
   const selected = choice ?? destinationOf(first, first.defaultRoomId ?? null);
   const agent = agents.find((c) => c.userId === selected.agentId) ?? goneAgent(selected.agentId);
   const agentId = agent.userId;
   const { roomId } = selected;
   const isDirect = !!selected.isDirect;
   const starting = starts[agentId];
-  // Freeze destination on the first keystroke so background ranking updates don't redirect a draft.
-  if (typed && !choice) setChoice(store.get(destinationAtom) ?? { agentId: '', roomId: null });
+  // Freeze destination on the first keystroke or staged file so background ranking updates do not redirect a draft.
+  if ((typed || hasStagedFiles) && !choice) {
+    setChoice(store.get(destinationAtom) ?? (typed ? { agentId: '', roomId: null } : selected));
+  }
   useEffect(() => {
     if (agentId) store.set(destinationAtom, { agentId, roomId, isDirect });
   }, [agentId, destinationAtom, isDirect, roomId, store]);
   const selection = useRef({ agentId, roomId, isDirect });
   selection.current = { agentId, roomId, isDirect };
-  const noDrop = useRef<HTMLElement>(null);
+  const askRef = useRef<HTMLDivElement>(null);
   const agentPickerRef = useRef<HTMLButtonElement | null>(null);
   const roomPickerRef = useRef<HTMLButtonElement | null>(null);
   const refocusRef = useRef<'agent' | 'room' | null>(null);
@@ -369,20 +395,20 @@ function HomeAskField({ agents, first, failedNotice, open }: FieldProps) {
     placeholder;
 
   return (
-    <div className={css.Ask}>
+    <div ref={askRef} className={css.Ask}>
       {composerRoom ? (
         <ConversationViewContext value={HOME_ASK_VIEW}>
           <RoomInput
             editor={editor}
             room={composerRoom}
             roomId={composerRoom.roomId}
-            fileDropContainerRef={noDrop}
+            threadingEnabled={getRoomThreadMode(composerRoom) !== 'room'}
+            fileDropContainerRef={fileDropContainerRef ?? askRef}
             onRoomMessageSent={(eventId) => {
-              if (!isLocalEchoEventId(eventId)) {
-                store.set(pendingAtom, undefined);
-                open(composerRoom.roomId, eventId);
-              }
-              return false;
+              if (isLocalEchoEventId(eventId)) return false;
+              store.set(pendingAtom, undefined);
+              open(composerRoom.roomId, eventId);
+              return getRoomThreadMode(composerRoom) !== 'room';
             }}
             ask={{
               agentUserId: agentId,

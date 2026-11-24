@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
-import { matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { allowBackgroundJobsState, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePanels';
 
 // The jobs bar's rows join each job to what the client holds of it: a sub-agent job, by the
@@ -113,26 +113,7 @@ const row = (bar: Locator, kind: 'subagent' | 'tool', depth = 0) =>
   bar.locator(`li[data-job-kind="${kind}"][data-job-depth="${depth}"]`);
 
 async function allowBackgroundJobs(room: Awaited<ReturnType<typeof openPanelRoom>>) {
-  const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
-  const powerLevels = await matrixFetch<Record<string, unknown>>(
-    DISPOSABLE_HOMESERVER,
-    powerLevelsPath,
-    { accessToken: room.viewer.accessToken }
-  );
-  await sendStateEvent(
-    DISPOSABLE_HOMESERVER,
-    room.viewer.accessToken,
-    room.roomId,
-    'm.room.power_levels',
-    '',
-    {
-      ...powerLevels,
-      events: {
-        ...(powerLevels.events as Record<string, number>),
-        'io.mindroom.background_jobs': 0,
-      },
-    }
-  );
+  await allowBackgroundJobsState(DISPOSABLE_HOMESERVER, room.viewer.accessToken, room.roomId);
 }
 
 test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
@@ -391,4 +372,138 @@ test('a folded quiet bar cuts its title short before the time, with Open, Thread
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await folded.screenshot({ path: testInfo.outputPath('jobs-bar-quiet-phone-folded.png') });
+});
+
+test('shows a workflow job as its own row whose counts follow a workflow delta', async ({
+  context,
+  page,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Disposable homeserver is not running');
+  test.setTimeout(3 * 60_000);
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
+  await allowBackgroundJobs(room);
+  const runId = 'wf-11111111111111111111111111111111';
+  const startedAt = Math.floor(Date.now() / 1000) - 20;
+
+  await sendStateEvent(
+    DISPOSABLE_HOMESERVER,
+    room.agent.accessToken,
+    room.roomId,
+    'io.mindroom.background_jobs',
+    room.agent.userId,
+    {
+      jobs: [
+        {
+          job_id: 'job-wf-rich-1',
+          thread_id: room.rootId,
+          kind: 'workflow',
+          tool: 'workflow',
+          status: 'running',
+          started_at: new Date(startedAt * 1000).toISOString(),
+          workflow: runId,
+        },
+      ],
+    }
+  );
+
+  const sendWorkflowFrame = async (seq: number, body: Record<string, unknown>) => {
+    const response = await fetch(
+      `${DISPOSABLE_HOMESERVER}/_matrix/client/unstable/org.matrix.msc2477/rooms/${encodeURIComponent(
+        room.roomId
+      )}/ephemeral/io.mindroom.workflow/workflow.${runId}.${seq}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${room.agent.accessToken}`,
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) throw new Error(`Workflow frame refused: ${response.status}`);
+  };
+
+  const baseMeta = {
+    agent: 'panels',
+    thread_id: room.rootId,
+    title: 'Audit the sample module',
+    status: 'running',
+    attempt: 1,
+    started_at: startedAt,
+    ended_at: null,
+    max_concurrent: 8,
+    max_cost_usd: null,
+    large: false,
+    counts: {
+      queued: 1,
+      running: 2,
+      waiting: 0,
+      completed: 1,
+      failed: 0,
+      indeterminate: 0,
+      cached: 0,
+    },
+    usage: {
+      input_tokens: 12000,
+      output_tokens: 1500,
+      tool_calls: 4,
+      cost_usd: 0.08,
+      attempt_cost_usd: 0.08,
+      projected_cost_usd: 0.16,
+      cost_unknown: false,
+    },
+  };
+
+  await sendWorkflowFrame(1, {
+    v: 1,
+    run: runId,
+    sid: SID,
+    seq: 1,
+    meta: baseMeta,
+    snapshot: {
+      phases: ['Audit'],
+      groups: [],
+      nodes: [],
+      edges: [],
+      omitted: {
+        queued: 0,
+        running: 0,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        edges: 0,
+        groups: 0,
+        phases: 0,
+        log: 0,
+      },
+      log: [],
+    },
+  });
+
+  const row = page.locator('[data-job-kind="workflow"]');
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  await expect(row).toContainText('Audit the sample module');
+  await expect(row).toContainText('1 done, 2 running, 0 waiting');
+
+  await sendWorkflowFrame(2, {
+    v: 1,
+    run: runId,
+    sid: SID,
+    seq: 2,
+    meta: {
+      ...baseMeta,
+      counts: {
+        queued: 0,
+        running: 1,
+        waiting: 0,
+        completed: 3,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+    },
+    delta: {},
+  });
+
+  await expect(row).toContainText('3 done, 1 running, 0 waiting', { timeout: 15_000 });
 });

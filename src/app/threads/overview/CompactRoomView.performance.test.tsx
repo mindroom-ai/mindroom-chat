@@ -23,12 +23,10 @@ vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
   const react = await import('react');
   // Forwards its ref like folds' IconButton, which the action tooltips attach to.
-  const ActionControl = react.forwardRef<HTMLButtonElement, React.ComponentProps<'button'>>(
-    (props, ref) => {
-      state.actionRenderProps(props);
-      return react.createElement('button', { ...props, ref });
-    }
-  );
+  const ActionControl = ({ ref, ...props }: React.ComponentPropsWithRef<'button'>) => {
+    state.actionRenderProps(props);
+    return react.createElement('button', { ...props, ref });
+  };
 
   return {
     ...actual,
