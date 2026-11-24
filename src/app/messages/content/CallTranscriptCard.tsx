@@ -160,7 +160,7 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
   const name = (room && getMemberDisplayName(room, sender)) ?? getMxIdLocalPart(sender) ?? sender;
   const avatarMxc = room ? getMemberAvatarMxc(room, sender) : undefined;
   const avatarSrc = avatarMxc
-    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 48, 48, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 48, 48, 'crop') ?? undefined)
     : undefined;
 
   return (

@@ -194,7 +194,7 @@ export const useRoomViewThreadState = ({
   const threadRootId = useThreadRootEvent(room, threadId);
   const effectiveThreadId = threadRootId ?? threadId;
   const resolvedThreadRootEvent = effectiveThreadId
-    ? room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId)
+    ? (room.getThread(effectiveThreadId)?.rootEvent ?? room.findEventById(effectiveThreadId))
     : undefined;
   const threadSummaryInfo = effectiveThreadId ? summaryMap.get(effectiveThreadId) : undefined;
   const recentThreadSummaryText = useMemo(

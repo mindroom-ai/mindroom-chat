@@ -190,10 +190,13 @@ export const useCloudflareAccessSignInRequired = (baseUrl: string | undefined): 
     const waitForExpiry = () => {
       const delay = token ? (tokenExpiresAt(token) ?? 0) - Date.now() : 0;
       if (delay <= 0) return;
-      timer = setTimeout(() => {
-        update();
-        waitForExpiry();
-      }, Math.min(delay, MAX_TIMER_DELAY_MS));
+      timer = setTimeout(
+        () => {
+          update();
+          waitForExpiry();
+        },
+        Math.min(delay, MAX_TIMER_DELAY_MS)
+      );
     };
     waitForExpiry();
     return () => {

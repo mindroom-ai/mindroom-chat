@@ -10,7 +10,7 @@ const makeClient = (): MatrixClient =>
     decryptEventIfNeeded: async () => undefined,
     getUserId: () => '@alice:example.org',
     supportsThreads: () => true,
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const makeRoom = () => new Room('!room:example.org', makeClient(), '@alice:example.org');
 

@@ -32,9 +32,7 @@ describe('pasteAttachmentMarker', () => {
   });
 
   it('rejects malformed markers', () => {
-    expect(parsePasteMarker('[[mindroom-paste id=bad chars=11 file="x.txt"]]')).toBe(
-      undefined
-    );
+    expect(parsePasteMarker('[[mindroom-paste id=bad chars=11 file="x.txt"]]')).toBe(undefined);
     expect(
       parsePasteMarker(
         '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":"NaN","file":"x.txt"}]]'

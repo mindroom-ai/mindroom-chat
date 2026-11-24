@@ -109,9 +109,9 @@ test('an offline start keeps the language: its catalog and its overlay of added 
   await expect
     .poll(
       async () =>
-        (
-          await cachedPaths(page, 'mindroom-build-assets')
-        ).filter((path) => /^\/assets\/de-[^/]+\.js$/.test(path)).length,
+        (await cachedPaths(page, 'mindroom-build-assets')).filter((path) =>
+          /^\/assets\/de-[^/]+\.js$/.test(path)
+        ).length,
       { timeout: 30_000 }
     )
     .toBe(1);

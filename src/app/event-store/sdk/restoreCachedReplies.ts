@@ -23,8 +23,7 @@ const statusOf = (content: unknown): string | undefined =>
 
 const relatedId = (event: SavedEvent, relType: string): string | undefined => {
   const rel = event.content?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: unknown }
-    | undefined;
+    { rel_type?: string; event_id?: unknown } | undefined;
   return rel?.rel_type === relType && typeof rel.event_id === 'string' ? rel.event_id : undefined;
 };
 

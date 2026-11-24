@@ -239,7 +239,7 @@ export const waitForScrollQuiescence = (
     function onWheel(event: WheelEvent) {
       const scroller = event.currentTarget as Element;
       if (event.ctrlKey || !canScroll(scroller, event.deltaY)) return;
-      for (let node = event.target as Element | null; node && node !== scroller; ) {
+      for (let node = event.target as Element | null; node && node !== scroller;) {
         const overflowY = canScroll(node, event.deltaY) && getComputedStyle(node).overflowY;
         if (overflowY === 'auto' || overflowY === 'scroll') return;
         node = node.parentElement;

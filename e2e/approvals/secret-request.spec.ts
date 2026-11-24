@@ -824,10 +824,11 @@ test('a request waits as a row under its reply, then moves into the reply at its
   await expect(lineButton).toBeFocused();
   await expect(lineButton).toHaveText('SUDO_PASSWORDSent · kept 15 minutes');
   const order = await reply.evaluate((element) =>
-    [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map((node) =>
-      node.hasAttribute('data-secret-request-line')
-        ? 'secret'
-        : (node.textContent ?? '').replace(/shell.*$/, '').trim()
+    [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map(
+      (node) =>
+        node.hasAttribute('data-secret-request-line')
+          ? 'secret'
+          : (node.textContent ?? '').replace(/shell.*$/, '').trim()
     )
   );
   expect(order).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);

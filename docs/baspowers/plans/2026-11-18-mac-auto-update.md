@@ -39,10 +39,12 @@
 ### Task 1: The pinned Sparkle and the updater bundle's code
 
 **Files:**
+
 - Create: `scripts/fetch-sparkle.sh`, `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift`, `ios/MacUpdater/MindRoomMacUpdater.swift`, `ios/MacUpdater/Info.plist`, `ios/MacUpdaterTests/Contract.swift`, `licenses/Sparkle-MIT.txt`, `src/app/native/macUpdaterScripts.test.ts`
 - Modify: `.gitignore`, `NOTICE`, `scripts/test-macos-support.sh`, `docs/development.md` (the **Mac** bullet: `scripts/fetch-sparkle.sh` joins the steps before `xcodebuild`)
 
 **Interfaces:**
+
 - Produces: `scripts/fetch-sparkle.sh` (no arguments, run from anywhere) leaves `ios/MacUpdater/Sparkle/Sparkle.framework`, `ios/MacUpdater/Sparkle/bin/generate_appcast`, `ios/MacUpdater/Sparkle/LICENSE` and `ios/MacUpdater/Sparkle/.version` (content `2.10.1`).
 - Produces, in `MindRoomMacUpdaterProtocol.swift`:
 
@@ -98,10 +100,12 @@ it('downloads nothing when the pinned version is there', () => {
 ### Task 2: `App` embeds and starts the updater; the Store app stays free of it
 
 **Files:**
+
 - Create: `scripts/macos-updater-info-plist.sh`, `ios/App/App/MacUpdater.swift`, `src/app/native/macCatalystUpdater.test.ts`
 - Modify: `ios/App/App.xcodeproj/project.pbxproj`, `ios/App/App/AppDelegate.swift`, `scripts/build-macos-app.sh`, `scripts/macos-store-preflight.mjs`, `src/app/native/macStorePreflight.test.ts`, `src/app/native/macCatalystRelease.test.ts`, `src/app/native/macUpdaterScripts.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1's protocol, sources and `scripts/fetch-sparkle.sh`.
 - Produces, in `MacUpdater.swift` (whole file under the compile condition of Global Constraints):
 
@@ -126,15 +130,26 @@ enum MacUpdater {
 In `macUpdaterScripts.test.ts` (stub `plutil` records its arguments; `KEY` is 43 base64 characters and `=`):
 
 ```ts
-const env = { IS_MACCATALYST: 'YES', MINDROOM_UPDATE_FEED_URL: 'https://example.invalid/appcast.xml',
-  MINDROOM_UPDATE_PUBLIC_KEY: KEY, TARGET_BUILD_DIR: '/b', INFOPLIST_PATH: 'A.app/Contents/Info.plist' };
+const env = {
+  IS_MACCATALYST: 'YES',
+  MINDROOM_UPDATE_FEED_URL: 'https://example.invalid/appcast.xml',
+  MINDROOM_UPDATE_PUBLIC_KEY: KEY,
+  TARGET_BUILD_DIR: '/b',
+  INFOPLIST_PATH: 'A.app/Contents/Info.plist',
+};
 it('writes the six keys into the built Mac app, also a second time', () => {
   const { run } = fixture();
   run('scripts/macos-updater-info-plist.sh', env);
   const result = run('scripts/macos-updater-info-plist.sh', env);
   expect(result.status).toBe(0);
   expect(result.commands.slice(-6).map(({ args }) => args)).toEqual([
-    ['-replace', 'SUFeedURL', '-string', env.MINDROOM_UPDATE_FEED_URL, '/b/A.app/Contents/Info.plist'],
+    [
+      '-replace',
+      'SUFeedURL',
+      '-string',
+      env.MINDROOM_UPDATE_FEED_URL,
+      '/b/A.app/Contents/Info.plist',
+    ],
     ['-replace', 'SUPublicEDKey', '-string', KEY, '/b/A.app/Contents/Info.plist'],
     ['-replace', 'SUEnableAutomaticChecks', '-bool', 'YES', '/b/A.app/Contents/Info.plist'],
     ['-replace', 'SUAutomaticallyUpdate', '-bool', 'YES', '/b/A.app/Contents/Info.plist'],
@@ -143,13 +158,18 @@ it('writes the six keys into the built Mac app, also a second time', () => {
   ]);
 });
 it.each([{ IS_MACCATALYST: 'NO' }, { IS_MACCATALYST: '' }, { MINDROOM_UPDATE_FEED_URL: '' }])(
-  'writes nothing for %o', (override) => {
+  'writes nothing for %o',
+  (override) => {
     const result = fixture().run('scripts/macos-updater-info-plist.sh', { ...env, ...override });
     expect(result.status).toBe(0);
     expect(result.commands).toEqual([]);
-  });
+  }
+);
 it('fails the build for a feed without a valid public key', () => {
-  const result = fixture().run('scripts/macos-updater-info-plist.sh', { ...env, MINDROOM_UPDATE_PUBLIC_KEY: 'short' });
+  const result = fixture().run('scripts/macos-updater-info-plist.sh', {
+    ...env,
+    MINDROOM_UPDATE_PUBLIC_KEY: 'short',
+  });
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('MINDROOM_UPDATE_PUBLIC_KEY');
   expect(result.commands).toEqual([]);
@@ -160,19 +180,31 @@ In `macStorePreflight.test.ts`:
 
 ```ts
 it('rejects any trace of the updater', () => {
-  expect(macStoreUpdaterProblems({ paths: ['Contents/MacOS/MindRoom.chat'], infoKeys: ['CFBundleName', 'SUPPORTED'], strings: ['uiWindow'] })).toEqual([]);
-  expect(macStoreUpdaterProblems({
-    paths: ['Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Sparkle'],
-    infoKeys: ['SUFeedURL'], strings: ['SPUUpdater'],
-  })).toHaveLength(3);
+  expect(
+    macStoreUpdaterProblems({
+      paths: ['Contents/MacOS/MindRoom.chat'],
+      infoKeys: ['CFBundleName', 'SUPPORTED'],
+      strings: ['uiWindow'],
+    })
+  ).toEqual([]);
+  expect(
+    macStoreUpdaterProblems({
+      paths: [
+        'Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Sparkle',
+      ],
+      infoKeys: ['SUFeedURL'],
+      strings: ['SPUUpdater'],
+    })
+  ).toHaveLength(3);
 });
 ```
 
 In the new `macCatalystUpdater.test.ts` (reads `project.pbxproj` and the Swift sources as text; write a helper that returns one target's `PBXNativeTarget` block by name):
-  - the `MindRoomMacUpdater` target's settings: `PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-updater"`, `SDKROOT = macosx`, `MACOSX_DEPLOYMENT_TARGET = 13.3`, `@loader_path/../Frameworks` in `LD_RUNPATH_SEARCH_PATHS`;
-  - `App`'s block lists the phases `Embed Mac Updater` and `Add the updater's Info.plist keys` and a dependency whose `PBXTargetDependency` has `platformFilter = maccatalyst`; the build file `MindRoomMacUpdater.bundle in Embed Mac Updater` has `platformFilter = maccatalyst`;
-  - `AppStoreMac`'s block names neither phase, and no build file of its Sources phase is `MacUpdater.swift` or `MindRoomMacUpdaterProtocol.swift`;
-  - `MacUpdater.swift` starts with `#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE`; `AppDelegate.swift` contains `MacUpdater.start()` between `#if !MINDROOM_MAC_APP_STORE` and its `#endif`.
+
+- the `MindRoomMacUpdater` target's settings: `PRODUCT_BUNDLE_IDENTIFIER = "chat.mindroom.app.mac-updater"`, `SDKROOT = macosx`, `MACOSX_DEPLOYMENT_TARGET = 13.3`, `@loader_path/../Frameworks` in `LD_RUNPATH_SEARCH_PATHS`;
+- `App`'s block lists the phases `Embed Mac Updater` and `Add the updater's Info.plist keys` and a dependency whose `PBXTargetDependency` has `platformFilter = maccatalyst`; the build file `MindRoomMacUpdater.bundle in Embed Mac Updater` has `platformFilter = maccatalyst`;
+- `AppStoreMac`'s block names neither phase, and no build file of its Sources phase is `MacUpdater.swift` or `MindRoomMacUpdaterProtocol.swift`;
+- `MacUpdater.swift` starts with `#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE`; `AppDelegate.swift` contains `MacUpdater.start()` between `#if !MINDROOM_MAC_APP_STORE` and its `#endif`.
 
 In `macCatalystRelease.test.ts`: the fixture gets a recording stub `scripts/fetch-sparkle.sh` (as it has for `scripts/watch/build-sdk.sh`), and the test at `:110` also expects `fetch-sparkle.sh` to run before `npx cap sync ios`.
 
@@ -202,6 +234,7 @@ XCODE_XCCONFIG_FILE=/tmp/mac-update-run/probe.xcconfig build && plutil -p "$app/
 ```
 
 Expected: both builds succeed, the first app has no `SUFeedURL` (the bundle is there but never started), the last line prints `6`, and `plutil -p` shows the six values of Global Constraints.
+
 - [ ] **Step 10: Commit:** `feat(macos): the app embeds and starts the updater outside the Store`.
 - [ ] **Step 11: The real artifacts without it, on the M2, at that commit** (the Store script needs a clean, committed checkout). Record each output for the pull request.
   - Store: `MARKETING_VERSION=2026.11.9 CURRENT_PROJECT_VERSION=1 scripts/build-macos-store.sh --unsigned` ends with `structure checks passed`. With `store=build/mac-app-store/MindRoomChat.xcarchive/Products/Applications/MindRoom.chat.app`: `find "$store" -iname '*sparkle*' -o -iname '*MacUpdater*'` prints nothing, `plutil -p "$store/Contents/Info.plist" | grep -c '"SU[A-Z][a-z]'` prints `0`, `otool -L "$store/Contents/MacOS/MindRoom.chat" | grep -ci sparkle` prints `0`.
@@ -211,10 +244,12 @@ Expected: both builds succeed, the first app has no `SUFeedURL` (the bundle is t
 ### Task 3: The plugin and the card
 
 **Files:**
+
 - Create: `ios/App/App/MindRoomUpdatePlugin.swift`, `src/app/native/nativeUpdate.ts`, `src/app/native/nativeUpdate.test.ts`, `src/app/native/nativeUpdateIOSContract.test.ts`
 - Modify: `ios/App/App/MindRoomBridgeViewController.swift`, `ios/App/App.xcodeproj/project.pbxproj` (the plugin in `App`'s Sources), `src/app/config/appUpdate.ts`, `src/app/config/appUpdate.test.ts`, `src/index.tsx`, `src/index.test.ts` (mock the new module as it mocks `appUpdate`), `src/app/native/macCatalystUpdater.test.ts` (the Store Sources check also names `MindRoomUpdatePlugin.swift`), `docs/client-plugins.md`, comments in `src/app/shell/NewVersionNotice.tsx`, `src/app/ui/PartUnavailable.tsx` and `src/client-sdk/core.ts`
 
 **Interfaces:**
+
 - Consumes: `MacUpdater.readyVersion`, `MacUpdater.install()` (Task 2).
 - Produces, in `appUpdate.ts`:
 
@@ -232,7 +267,8 @@ export const setAppUpdate = (update?: AppUpdate): void
 
 ```ts
 it('is ready at once, tells the card once, and leaves when it is withdrawn', async () => {
-  const { getNewVersion, getReadyVersion, setAppUpdate, subscribeToNewVersion } = await loadAppUpdate();
+  const { getNewVersion, getReadyVersion, setAppUpdate, subscribeToNewVersion } =
+    await loadAppUpdate();
   const listener = vi.fn();
   subscribeToNewVersion(listener);
   setAppUpdate({ version: v10, install: never });
@@ -244,14 +280,21 @@ it('is ready at once, tells the card once, and leaves when it is withdrawn', asy
   expect([getNewVersion(), getReadyVersion()]).toEqual([undefined, undefined]);
   expect(listener).toHaveBeenCalledTimes(2);
 });
-it.each([['never answers', never], ['answers, and the app stays', async () => undefined]])(
-  'bounds the whole attempt when the install %s, shares it, and can try again', async (_name, answer) => {
+it.each([
+  ['never answers', never],
+  ['answers, and the app stays', async () => undefined],
+])(
+  'bounds the whole attempt when the install %s, shares it, and can try again',
+  async (_name, answer) => {
     const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
     const install = vi.fn(answer);
     const reload = vi.fn();
     setAppUpdate({ version: v10, install });
     const started = Date.now();
-    const attempts = [reloadForNewVersion({ timeoutMs: 30, reload }), reloadForNewVersion({ timeoutMs: 30, reload })];
+    const attempts = [
+      reloadForNewVersion({ timeoutMs: 30, reload }),
+      reloadForNewVersion({ timeoutMs: 30, reload }),
+    ];
     await expect(Promise.all(attempts)).rejects.toThrow('did not restart');
     expect(Date.now() - started).toBeLessThan(1000);
     expect(install).toHaveBeenCalledOnce();
@@ -259,12 +302,15 @@ it.each([['never answers', never], ['answers, and the app stays', async () => un
     await expect(reloadForNewVersion({ timeoutMs: 30, reload })).rejects.toThrow('did not restart');
     expect(install).toHaveBeenCalledTimes(2);
     expect(reload).not.toHaveBeenCalled();
-  });
+  }
+);
 it('forgets an update the app says is not ready, and reloads the page from then on', async () => {
   const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
   const reload = vi.fn();
   setAppUpdate({ version: v10, install: () => Promise.reject(notReady()) });
-  await expect(reloadForNewVersion({ timeoutMs: 60_000, reload })).rejects.toThrow('No update is ready');
+  await expect(reloadForNewVersion({ timeoutMs: 60_000, reload })).rejects.toThrow(
+    'No update is ready'
+  );
   expect(getReadyVersion()).toBeUndefined();
   await reloadForNewVersion({ timeoutMs: 10, reload });
   expect(reload).toHaveBeenCalledOnce();
@@ -272,16 +318,23 @@ it('forgets an update the app says is not ready, and reloads the page from then 
 it('keeps the update after any other rejection', async () => {
   const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
   setAppUpdate({ version: v10, install: () => Promise.reject(new Error('bridge')) });
-  await expect(reloadForNewVersion({ timeoutMs: 60_000, reload: vi.fn() })).rejects.toThrow('bridge');
+  await expect(reloadForNewVersion({ timeoutMs: 60_000, reload: vi.fn() })).rejects.toThrow(
+    'bridge'
+  );
   expect(getReadyVersion()).toBe(v10);
 });
 it('lets nothing an old attempt hears clear a newer offer', async () => {
   const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
   const refusals: (() => void)[] = [];
-  const install = () => new Promise<void>((_, reject) => { refusals.push(() => reject(notReady())); });
+  const install = () =>
+    new Promise<void>((_, reject) => {
+      refusals.push(() => reject(notReady()));
+    });
   // Timed out, then replaced, then refused.
   setAppUpdate({ version: v10, install });
-  await expect(reloadForNewVersion({ timeoutMs: 20, reload: vi.fn() })).rejects.toThrow('did not restart');
+  await expect(reloadForNewVersion({ timeoutMs: 20, reload: vi.fn() })).rejects.toThrow(
+    'did not restart'
+  );
   setAppUpdate({ version: '2026.11.11', install: never });
   refusals[0]!();
   // Replaced while it ran, then refused before its timeout.
@@ -309,7 +362,10 @@ it('takes an update that was staged before the page started', async () => {
   plugin.status.mockResolvedValue({ version: '2026.11.10' });
   const stop = watchNativeUpdate();
   await settle();
-  expect(setAppUpdate).toHaveBeenLastCalledWith({ version: '2026.11.10', install: expect.any(Function) });
+  expect(setAppUpdate).toHaveBeenLastCalledWith({
+    version: '2026.11.10',
+    install: expect.any(Function),
+  });
   await vi.mocked(setAppUpdate).mock.lastCall![0]!.install();
   expect(plugin.install).toHaveBeenCalledOnce();
   stop();
@@ -322,7 +378,10 @@ it('follows staging and withdrawal while shown, rests while hidden, and stops', 
   expect(setAppUpdate).toHaveBeenLastCalledWith(undefined);
   plugin.status.mockResolvedValue({ version: '2026.11.10' });
   await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
-  expect(setAppUpdate).toHaveBeenLastCalledWith({ version: '2026.11.10', install: expect.any(Function) });
+  expect(setAppUpdate).toHaveBeenLastCalledWith({
+    version: '2026.11.10',
+    install: expect.any(Function),
+  });
   // A failed question changes nothing.
   plugin.status.mockRejectedValue(new Error('bridge'));
   await vi.advanceTimersByTimeAsync(NATIVE_UPDATE_POLL_MS);
@@ -344,10 +403,16 @@ it('follows staging and withdrawal while shown, rests while hidden, and stops', 
 `nativeUpdateIOSContract.test.ts` (sources as text, as `nativeWatchIOSContract.test.ts`):
 
 ```ts
-expect(pluginSource.trimStart().startsWith('#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE')).toBe(true);
+expect(
+  pluginSource
+    .trimStart()
+    .startsWith('#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE')
+).toBe(true);
 expect(pluginSource).toContain('public let jsName = "MindRoomUpdate"');
 ['status', 'install'].forEach((method) => {
-  expect(pluginSource).toContain(`CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`);
+  expect(pluginSource).toContain(
+    `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
+  );
   expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
 });
 expect(pluginSource).toContain('call.reject("No update is ready", "NOT_READY")');
@@ -376,10 +441,12 @@ expect(bridgeSource).toContain(
 ### Task 4: Each release's `appcast.xml`, and the checks of the signed app
 
 **Files:**
+
 - Create: `scripts/macos-appcast.sh`
 - Modify: `scripts/build-macos-app.sh`, `.github/workflows/macos.yml`, `src/app/native/macUpdaterScripts.test.ts`, `src/app/native/macCatalystRelease.test.ts`, `src/app/native/macCatalystUpdater.test.ts`
 
 **Interfaces:**
+
 - Produces: `scripts/macos-appcast.sh <dmg> <download-url-prefix> <version> <appcast-path>`, the private key on standard input. Exit 0 only with an `appcast.xml` at `<appcast-path>` that has exactly one enclosure, whose `url` is `<download-url-prefix>MindRoom.dmg`, whose `length` is the DMG's size, with a non-empty `sparkle:edSignature`, in an item with `<sparkle:version><version></sparkle:version>`.
 - Produces: every release with a `MindRoom.dmg` also has the `appcast.xml` that signs it (Task 5 relies on it).
 
@@ -389,7 +456,12 @@ expect(bridgeSource).toContain(
 
 ```ts
 const args = ['MindRoom.dmg', 'https://example.invalid/v2026.11.10/', '2026.11.10', 'appcast.xml'];
-const item = ({ version = '2026.11.10', url = 'https://example.invalid/v2026.11.10/MindRoom.dmg', length = 3, signature = 's1g=' } = {}) =>
+const item = ({
+  version = '2026.11.10',
+  url = 'https://example.invalid/v2026.11.10/MindRoom.dmg',
+  length = 3,
+  signature = 's1g=',
+} = {}) =>
   `<item><title>${version}</title><sparkle:version>${version}</sparkle:version><enclosure url="${url}" length="${length}" type="application/octet-stream" sparkle:edSignature="${signature}"/></item>`;
 // What generate_appcast writes: RSS with Sparkle's namespace.
 const feed = (...items: string[]) =>
@@ -438,9 +510,13 @@ expect(workflow.match(/secrets\.SPARKLE_ED_PRIVATE_KEY/g)).toHaveLength(2);
 expect(workflow).toContain("HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}");
 expect(workflow).toContain('| env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh ');
 // The DMG goes up last: a release that has it has the appcast.xml that signs it.
-const upload = workflow.slice(workflow.indexOf('- name: Attach the appcast and the DMG to the release\n'));
+const upload = workflow.slice(
+  workflow.indexOf('- name: Attach the appcast and the DMG to the release\n')
+);
 expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeGreaterThan(-1);
-expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(upload.indexOf('build/macos/MindRoom.dmg'));
+expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(
+  upload.indexOf('build/macos/MindRoom.dmg')
+);
 ```
 
 - [ ] **Step 2: Run them, expect failure.**
@@ -454,14 +530,15 @@ expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(upload.
 - [ ] **Step 6: Run** the three vitest files: PASS. `just lint`, `just strict`: clean.
 - [ ] **Step 7: Commit:** `feat(macos): every release carries its signed appcast`.
 
-
 ### Task 5: The feed job
 
 **Files:**
+
 - Create: `scripts/macos-publish-appcast.sh`, `src/app/native/macPublishAppcast.test.ts`
 - Modify: `.github/workflows/macos.yml`, `src/app/native/macCatalystUpdater.test.ts`, `docs/ios-release.md`
 
 **Interfaces:**
+
 - Consumes: Task 4's releases (a `MindRoom.dmg` implies its `appcast.xml`).
 - Produces: `scripts/macos-publish-appcast.sh <tag>` (environment: `GH_TOKEN`, `GITHUB_REPOSITORY`). Exit 0 when the feed on `mac-appcast` names `<tag>` or a newer release, or `<tag>` is not ready; exit 1 when it could not find that out or could not publish.
 - Its only calls to GitHub, which the test's stub answers:
@@ -475,7 +552,7 @@ expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(upload.
   - `gh`: `view` prints the asset names of the release's folder, or fails with `release not found` on stderr when the folder is missing, or with `HTTP 502` when `TEST_FAIL` is `view:<release>`; `download` copies; `create` makes the folder; `upload` deletes the asset and then copies the file, except that the first `TEST_UPLOAD_FAILS` uploads fail after the delete.
   - `curl`: prints the feed's asset, except that the first `TEST_URL_LAGS` calls print `old`.
   - `sleep`: returns at once.
-  `appcast(version)` is Task 4's `feed(item({ version }))`; `release(tag, assets)` makes `github/<tag>/` with those assets, an `appcast.xml` being `appcast(tag.slice(1))`; `ready(tag)` is `release(tag, ['MindRoom.dmg', 'appcast.xml'])`; `live(version?)` makes `github/mac-appcast/` with that feed (none: an empty release); `feedNow()` reads the feed asset or `undefined`; `uploads(result)` counts the logged `upload` calls.
+    `appcast(version)` is Task 4's `feed(item({ version }))`; `release(tag, assets)` makes `github/<tag>/` with those assets, an `appcast.xml` being `appcast(tag.slice(1))`; `ready(tag)` is `release(tag, ['MindRoom.dmg', 'appcast.xml'])`; `live(version?)` makes `github/mac-appcast/` with that feed (none: an empty release); `feedNow()` reads the feed asset or `undefined`; `uploads(result)` counts the logged `upload` calls.
 
 ```ts
 it.each([
@@ -485,7 +562,14 @@ it.each([
   ['a newer month', '2026.11.99', 'v2026.12.0', {}, 1, '2026.12.0'],
   ['an older release whose run finishes last', '2026.11.10', 'v2026.11.9', {}, 0, '2026.11.10'],
   ['the same release again', '2026.11.10', 'v2026.11.10', {}, 0, '2026.11.10'],
-  ['an upload that fails once', '2026.11.9', 'v2026.11.10', { TEST_UPLOAD_FAILS: '1' }, 2, '2026.11.10'],
+  [
+    'an upload that fails once',
+    '2026.11.9',
+    'v2026.11.10',
+    { TEST_UPLOAD_FAILS: '1' },
+    2,
+    '2026.11.10',
+  ],
   ['a URL that lags', '2026.11.9', 'v2026.11.10', { TEST_URL_LAGS: '3' }, 1, '2026.11.10'],
 ])('%s', (_name, before, tag, env, uploadCount, after) => {
   const github = fixture();
@@ -528,13 +612,17 @@ it.each([
 ```ts
 expect(feed).toContain('needs: dmg');
 // Also after a dmg job that failed at the tap: the DMG is up then.
-expect(feed).toContain("if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}");
+expect(feed).toContain(
+  "if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}"
+);
 expect(feed).toMatch(/concurrency:\n\s+group: mac-appcast\n\s+cancel-in-progress: false/);
 expect(feed).toContain('scripts/macos-publish-appcast.sh "$RELEASE_TAG"');
 expect(feed).not.toContain('secrets.');
 // Nothing but a release tag signs or writes: no other input, and every writing step asks for the tag.
 expect(Object.keys(parsed.on.workflow_dispatch.inputs)).toEqual(['tag']);
-writingSteps(parsed.jobs.dmg).forEach((step) => expect(step.if).toMatch(/env\.RELEASE_TAG|steps\.newest\.outputs\.newest/));
+writingSteps(parsed.jobs.dmg).forEach((step) =>
+  expect(step.if).toMatch(/env\.RELEASE_TAG|steps\.newest\.outputs\.newest/)
+);
 ```
 
 (`parsed` is the workflow read with the `yaml` package of `package.json`; `writingSteps` are the steps whose `run` holds `gh release upload`, `gh release create` or `homebrew-tap`.)
@@ -546,7 +634,7 @@ writingSteps(parsed.jobs.dmg).forEach((step) => expect(step.if).toMatch(/env\.RE
   3. When it has `appcast.xml`: download it; identical bytes (`cmp -s`): say so, exit 0; read each file's `<sparkle:version>` with `sed`; when `sort -V` puts the feed's version last, say `The feed stays at <version>.` and exit 0.
   4. Upload with `--clobber`, up to three times, 10 s apart; all failed: `::error::The update feed could not be published and may be missing. Re-run this job: it needs no rebuild.` and exit 1.
   5. Then only read: up to 24 times, 5 s apart, until `curl`'s output is the new file (`cmp -s -`): say `The feed is now <tag>.` and exit 0; never: `::error::The feed was uploaded, but its URL does not serve it yet.` and exit 1.
-  Every "say" goes to standard output and to `$GITHUB_STEP_SUMMARY` when that is set.
+     Every "say" goes to standard output and to `$GITHUB_STEP_SUMMARY` when that is set.
 - [ ] **Step 4: The `feed` job in `macos.yml`,** after `dmg`: name `Publish the update feed`; `needs`, `if` and `concurrency` of the test; `runs-on: ubuntu-24.04`; `timeout-minutes: 10`; `permissions: contents: write`; env `RELEASE_TAG` as the `dmg` job's. A comment as `image.yml:125-130`: one at a time across every release's run; it publishes its release only above what the feed names, so the order runs finish in does not matter, and a re-run repairs a failed publication without a rebuild. Steps: `actions/checkout@v7` (`persist-credentials: false`), then `scripts/macos-publish-appcast.sh "$RELEASE_TAG"` with `GH_TOKEN: ${{ github.token }}`. The workflow's header comment gains the appcast and the feed.
 - [ ] **Step 5: `docs/ios-release.md`,** a subsection `### Updates` at the end of "Mac DMG", from the spec: what the app does; each release's `appcast.xml` and the feed on `mac-appcast` (the rule, one job at a time, independent of the tap, the accepted limits); recovery (a feed job that failed: **Re-run failed jobs**, or the next release; an `appcast.xml` without a DMG: re-run the `dmg` job, after deleting a `starter` DMG by hand if the upload left one; a DMG is never replaced); the six keys and where they come from; the secret (also in the list of secrets); how Bas made the key and how a lost key is replaced (the spec's "Signing"); the fail-closed points; that a change to signing, the updater bundle or Sparkle's version needs one signed build before it merges, and how this one was made (Task 7); the one manual install; the Homebrew follow-up; that builds without the feed setting never start the updater; that a later rise of the minimum macOS version needs a second item in the feed. In "Mac DMG", "publish nothing" for a failed job is true only before the first upload; say so.
 - [ ] **Step 6: Run** the vitest files of this task: PASS. `bash -n scripts/macos-publish-appcast.sh`; `just lint`, `just strict`: clean.
@@ -559,7 +647,7 @@ No file of the branch changes. The harness lives in the M2's worktree only: one 
 - [ ] **Step 1: Prepare the M2** (Global Constraints first). Worktree at the branch head; apply the harness in `AppDelegate.application(_:didFinishLaunchingWithOptions:)`, inside the Catalyst block, active only when the environment has `MINDROOM_HARNESS_SCRIPT`:
   - it skips `MacScreenshot.clearFolder()`, the hot key, the front-process follower and the mouse monitor, so the test app touches nothing another MindRoom on this Mac shares;
   - two `DispatchSource.makeSignalSource` sources on the main queue (after `signal(SIGUSR1, SIG_IGN)` and `signal(SIGUSR2, SIG_IGN)`), kept in static variables. `SIGUSR1`: read the file that variable names, evaluate it in the main window's web view (`(QuickCapture.mainScene?.windows.first?.rootViewController as? CAPBridgeViewController)?.webView`), and `NSLog("MindRoom harness: %@", ...)` the result or the error. `SIGUSR2`: what the Quit menu item does: `terminate:` sent to `NSApplication.sharedApplication` through the Objective-C runtime, as `MacWindowing.swift:26-56` reaches AppKit.
-  Then `npm ci`; `npm run build:ios`; `scripts/watch/build-sdk.sh --fetch`; `scripts/fetch-sparkle.sh`; `npx cap sync ios`; and, as one script whose `trap ... EXIT` kills the server, the sampler and the app by PID and removes `$run`:
+    Then `npm ci`; `npm run build:ios`; `scripts/watch/build-sdk.sh --fetch`; `scripts/fetch-sparkle.sh`; `npx cap sync ios`; and, as one script whose `trap ... EXIT` kills the server, the sampler and the app by PID and removes `$run`:
 
 ```bash
 run=$(mktemp -d /tmp/mac-update-run.XXXXXX); mkdir -p "$run/v1" "$run/v2" "$run/feed" "$run/feed-c" "$run/app"
@@ -604,6 +692,7 @@ logged() { grep -q "$1" "$2"; }
 ```
 
 Expected: `grep -c '<sparkle:version>2026.11.10</sparkle:version>' "$run/feed/appcast.xml"` prints `1`; the two feeds differ only in the signature. `$run/windows.swift <pid>`: every half second it prints, when it changed, the sorted `layer width x height` of the on-screen windows (`CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)`) whose `kCGWindowOwnerPID` is that PID or whose owner is named `Updater` or `Autoupdate`; its first line is the baseline. Check first that, started over ssh, it lists a running app's main window; if not, start it with `launchctl asuser "$(id -u)"`; if that lists nothing either, report the "no other window" checks as not made.
+
 - [ ] **Step 2: Run A: silent staging, the card, a reloaded page, Reload.** `serve "$run/feed"`; `start a`. In order, each with its output recorded:
   1. `within 180 logged 'MindRoom update ready: 2026.11.10' "$run/a.log"`; `http.log` has `GET /appcast.xml` and `GET /MindRoom.dmg` with 200; `a.windows` holds its baseline alone: the main window.
   2. Within 70 s (the page asks once a minute), `ask "document.querySelector('[data-new-version-card]')?.innerText ?? 'no card'" a` logs the card's text with `Reload`.
@@ -620,6 +709,7 @@ Expected: `grep -c '<sparkle:version>2026.11.10</sparkle:version>' "$run/feed/ap
 Blocked until Bas has sent the public key and confirmed that the secret `SPARKLE_ED_PRIVATE_KEY` is set (the spec's "Keys and secrets"). Every other task is independent of it.
 
 **Files:**
+
 - Modify: `ios/App/App.xcodeproj/project.pbxproj`, `scripts/build-macos-app.sh`, `src/app/native/macCatalystUpdater.test.ts`, `src/app/native/macCatalystRelease.test.ts`
 
 - [ ] **Step 1: Failing tests.** `macCatalystUpdater.test.ts`: `App`'s Release configuration has `MINDROOM_UPDATE_FEED_URL` equal to the feed of Global Constraints and a `MINDROOM_UPDATE_PUBLIC_KEY` that matches `/^[A-Za-z0-9+/]{43}=$/`; its Debug configuration and every other target have neither. `macCatalystRelease.test.ts` (the `plutil` stub answers `-extract <key> raw` from `TEST_PLIST`, a JSON object that defaults to the six values of Global Constraints with the fixture's key; the fixture's archived and exported apps gain the folder `Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework`): an unsigned run with `SUScheduledCheckInterval: '86400'` in `TEST_PLIST`, one without `SUPublicEDKey`, and one whose archived app lacks that folder each fail before `dmgbuild`.

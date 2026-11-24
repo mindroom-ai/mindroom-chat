@@ -34,11 +34,13 @@
 ### Task 1 (backend repo `~/repos/worktrees/mindroom-inline-canvas`): `show_canvas(inline=...)`
 
 **Files:**
+
 - Modify: `src/mindroom/custom_tools/chat_ui.py` (`show_canvas`, `_canvas_metadata`, `_FUNCTION_INSTRUCTIONS["show_canvas"]`, docstring)
 - Modify: `tests/chat_ui_contract_fixture.py` and whatever regenerates the Chat contract fixture (`src/app/ui-actions/__fixtures__/chatUiBackendContract.json` in the Chat repo; read `tests/test_chat_ui_contract_fixture.py` to learn how)
 - Test: `tests/test_chat_ui_tools.py`
 
 **Interfaces:**
+
 - Produces: request data field `"inline": True` (absent when false), beside `"share_state"`.
 
 - [ ] Write failing tests in `tests/test_chat_ui_tools.py`: `test_show_canvas_inline_marks_request` (first show with `inline=True` sends data containing `"inline": True`; without it the key is absent), `test_show_canvas_update_keeps_original_inline` (update of an inline canvas keeps `"inline": True` even when called with `inline=False`; update of a panel canvas called with `inline=True` stays without it). Model them on the existing `share_state` tests.
@@ -51,11 +53,13 @@
 ### Task 2 (Chat): protocol field
 
 **Files:**
+
 - Modify: `src/app/matrix/protocol/chatUiProtocol.ts` (type `ChatUiAction` show_canvas branch, `AUTHORITY_FIELDS`, the `share_state` read near line 270)
 - Modify: `src/app/ui-actions/__fixtures__/chatUiBackendContract.json` (from Task 1's output) and the test that reads it
 - Test: `src/app/matrix/protocol/chatUiProtocol.test.ts`
 
 **Interfaces:**
+
 - Produces: `show_canvas` action has `inline?: true`.
 
 - [ ] Failing tests: a request with `inline: true` reads as `{ ..., inline: true }`; without it `inline` is undefined; an edit whose data changes `inline` is rejected like a `share_state` change.
@@ -65,10 +69,12 @@
 ### Task 3 (Chat): size message and inline page style
 
 **Files:**
+
 - Modify: `src/app/messages/canvas/canvasDocument.ts`
 - Test: `src/app/messages/canvas/canvasDocument.test.ts`
 
 **Interfaces:**
+
 - Produces: `CANVAS_SIZE_MESSAGE = 'mindroom.canvas.size'`; `readCanvasSize(event: MessageEvent, frame: Window | null | undefined): number | undefined` (same source/origin checks as `readCanvasSubmission`; returns a finite positive height); `buildCanvasDocument(..., saved, inline = false)` and `buildCanvasPage(..., saved, inline = false)`; `clampInlineCanvasHeight(height: number): number` (`min(20000, max(80, ceil(height)))`).
 
 - [ ] Failing tests: bridge script contains a `ResizeObserver` that posts `CANVAS_SIZE_MESSAGE` (assert on the built page string like existing tests do); `readCanvasSize` accepts `{type, version: 1, height: 412.3}` from the frame with origin `'null'` and rejects other sources, origins, versions, `NaN`, `0`, negative; `clampInlineCanvasHeight` maps `10 -> 80`, `412.3 -> 413`, `50000 -> 20000`; with `inline=true` the base style has `background:transparent` and `padding:8px`, without it the style is unchanged.
@@ -78,11 +84,13 @@
 ### Task 4 (Chat): inline frame in the canvas notice
 
 **Files:**
+
 - Create: `src/app/messages/canvas/InlineCanvasFrame.tsx`, `src/app/messages/canvas/InlineCanvasFrame.css.ts` if styles are needed
 - Modify: `src/app/messages/content/renderAgentMessageContent.tsx` (canvas notice branch, about line 448)
 - Test: `src/app/messages/canvas/InlineCanvasFrame.test.tsx`, `src/app/messages/content/renderAgentMessageContent.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 2 `inline`, Task 3 `buildCanvasDocument(..., inline)`, `readCanvasSize`, `clampInlineCanvasHeight`, `canvasFrameWindow`, `CANVAS_WRAPPER_SANDBOX`; `useCanvasPage` (`src/app/canvas/useCanvasPage.ts`); theme the way `RoomCanvasPanel.tsx` gets it (`useTheme`, `readCanvasTheme`, the one-frame-later re-read); libraries and enabled flags the way `Room.tsx` reads `clientConfig.mindroom?.canvas`.
 - Produces: `InlineCanvasFrame({ event }: { event: MatrixEvent })`, rendering nothing unless the event's chat UI action is an enabled inline `show_canvas`.
 
@@ -93,6 +101,7 @@
 ### Task 5 (Chat): no auto open for inline canvases, screenshots
 
 **Files:**
+
 - Modify: `src/app/ui-actions/chatUiController.ts` (auto-open decision near `autoOpenFromHomeservers`)
 - Test: `src/app/ui-actions/chatUiController.test.ts`; throwaway `e2e/canvas/zz-inline-canvas-shots.spec.ts` (never committed)
 

@@ -157,7 +157,7 @@ const createTestRoom = (roomId: string, name?: string): Room =>
   ({
     roomId,
     name: name ?? roomId,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const createTestSendContext = (
   roomId: string = ROOM_ID,

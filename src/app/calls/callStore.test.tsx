@@ -114,7 +114,7 @@ describe('useCallActions endCall', () => {
         agentUserId: '@mindroom_helper:calls.test',
         origin: { roomId: '!planning:calls.test' },
       }),
-    } as unknown as ActiveCall);
+    }) as unknown as ActiveCall;
 
   it("closes the agent call's panel in its conversation, which would show that room's own call", async () => {
     const store = createStore();
@@ -199,14 +199,14 @@ describe('useCallActions leaveRoom', () => {
         }),
       },
       onEnded: vi.fn(async () => undefined),
-    } as unknown as ActiveCall);
+    }) as unknown as ActiveCall;
   const clientThatNotes = (steps: string[]) =>
     ({
       leave: vi.fn(async (roomId: string) => {
         steps.push(`left ${roomId}`);
         return {};
       }),
-    } as unknown as MatrixClient);
+    }) as unknown as MatrixClient;
 
   it("ends this device's call in the room before leaving the room, which would refuse its withdrawal", async () => {
     const store = createStore();
@@ -269,7 +269,7 @@ const runningClient = (out = new Map<string, 'leave' | null>()) =>
       const membership = out.has(roomId) ? out.get(roomId) : 'join';
       return membership === null ? null : { roomId, getMyMembership: () => membership };
     },
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 describe('useCallActions startCall', () => {
   // Without a lock manager unless a test brings one (Node has its own since version 24).
@@ -306,7 +306,7 @@ describe('useCallActions startCall', () => {
       roomId: '!call:calls.test',
       loadMembersIfNeeded: async () => undefined,
       getLiveTimeline: () => ({ getEvents: () => [] }),
-    } as unknown as Room);
+    }) as unknown as Room;
 
   it('gives up as failed when loading the call engine stalls, then starts on retry once it loads', async () => {
     vi.useFakeTimers();
@@ -764,7 +764,7 @@ describe('useInCall', () => {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
-      getState: () => ({ phase } as CallState),
+      getState: () => ({ phase }) as CallState,
     };
     const store = createStore();
     const seen: boolean[] = [];

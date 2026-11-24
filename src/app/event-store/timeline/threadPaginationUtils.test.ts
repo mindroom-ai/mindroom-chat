@@ -6,11 +6,7 @@ import {
 } from './threadPaginationUtils';
 
 // Minimal MatrixEvent-like stub for testing
-const makeEvent = (
-  eventId: string,
-  threadRootId: string | undefined,
-  ts: number
-) => ({
+const makeEvent = (eventId: string, threadRootId: string | undefined, ts: number) => ({
   getId: () => eventId,
   getTs: () => ts,
   threadRootId,
@@ -49,10 +45,7 @@ describe('findEarliestLoadedThreadReplyByCacheOrder', () => {
   });
 
   it('excludes the thread root from selection', () => {
-    const events = [
-      makeEvent('$root', undefined, 50),
-      makeEvent('$reply', '$root', 200),
-    ];
+    const events = [makeEvent('$root', undefined, 50), makeEvent('$reply', '$root', 200)];
     const result = findEarliestLoadedThreadReplyByCacheOrder(events as any, threadId);
     expect(result?.getId()).toBe('$reply');
   });
@@ -143,14 +136,10 @@ describe('reconcileThreadBackwardPagination', () => {
     const setHasMore = vi.fn();
 
     // Should not throw when timeline is undefined
-    expect(() =>
-      reconcileThreadBackwardPagination(undefined, null, setHasMore)
-    ).not.toThrow();
+    expect(() => reconcileThreadBackwardPagination(undefined, null, setHasMore)).not.toThrow();
     expect(setHasMore).toHaveBeenCalledWith(false);
 
-    expect(() =>
-      reconcileThreadBackwardPagination(undefined, 'token', setHasMore)
-    ).not.toThrow();
+    expect(() => reconcileThreadBackwardPagination(undefined, 'token', setHasMore)).not.toThrow();
     expect(setHasMore).toHaveBeenCalledWith(true);
   });
 

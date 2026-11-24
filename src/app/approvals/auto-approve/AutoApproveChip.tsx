@@ -102,7 +102,9 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
               <ApprovalGroup key={requesterId}>
                 <b>
                   <IsolatedText
-                    text={own ? t('mindroomUi.autoApprove.you') : userDisplayName(room, requesterId)}
+                    text={
+                      own ? t('mindroomUi.autoApprove.you') : userDisplayName(room, requesterId)
+                    }
                   />
                 </b>
                 <small>

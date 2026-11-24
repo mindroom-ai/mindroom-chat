@@ -9,14 +9,14 @@ const item = (event: Record<string, unknown>, latestEdit: Record<string, unknown
     decryptionFailure: false,
     event,
     latestEdit,
-  } satisfies BugReportEvent);
+  }) satisfies BugReportEvent;
 
 const report = (events: BugReportEvent[]) =>
   ({
     type: 'io.mindroom.bug_report',
     target: { eventId: '$reply' },
     events,
-  } as unknown as BugReport);
+  }) as unknown as BugReport;
 
 describe('withoutMessageText', () => {
   it('keeps each message event but only its msgtype and relation', () => {

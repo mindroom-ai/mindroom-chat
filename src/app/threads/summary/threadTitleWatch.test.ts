@@ -109,7 +109,7 @@ const membership = (userId: string): IEvent =>
     state_key: userId,
     origin_server_ts: 0,
     content: { membership: 'join' },
-  } as IEvent);
+  }) as IEvent;
 
 const settle = async () => {
   for (let i = 0; i < 20; i += 1) {

@@ -29,7 +29,7 @@ const makeFakeEvent = (raw: Partial<IEvent>): MatrixEvent =>
     getContent: () => raw.content ?? {},
     getWireContent: () => raw.content ?? {},
     event: raw,
-  } as unknown as MatrixEvent);
+  }) as unknown as MatrixEvent;
 
 const reply = (id: string, ts: number, unsigned?: IEvent['unsigned']): Partial<IEvent> => ({
   event_id: id,
@@ -61,7 +61,7 @@ const redacted = (raw: Partial<IEvent>): Partial<IEvent> =>
     ...raw,
     content: {},
     unsigned: { redacted_because: { event_id: '$redaction' } },
-  } as Partial<IEvent>);
+  }) as Partial<IEvent>;
 
 const reconcile = async (
   cachedEvents: Partial<IEvent>[],

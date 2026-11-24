@@ -19,7 +19,7 @@ const QUIET = '@mindroom_quiet:example.org';
 vi.mock('./useAgentServers', () => ({ useBindsOpenIdTokens: () => true }));
 
 const member = (userId: string, membership = 'join') =>
-  ({ userId, membership, name: userId.slice(1, userId.indexOf(':')) } as RoomMember);
+  ({ userId, membership, name: userId.slice(1, userId.indexOf(':')) }) as RoomMember;
 
 // Ann, a person, an invited agent and three joined agents: the helper's and the coder's servers
 // have a computer, the quiet one's has none.

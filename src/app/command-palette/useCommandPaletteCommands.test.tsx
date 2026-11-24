@@ -99,7 +99,7 @@ const makeRoom = ({ callRoom = false } = {}) =>
     roomId: '!general:example.org',
     name: 'General',
     isCallRoom: () => callRoom,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const render = ({ room = makeRoom(), inRoom = true, threadId = '$thread' } = {}) => {
   const store = createStore();

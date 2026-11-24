@@ -8,7 +8,7 @@ const membership = (userId: string, deviceId: string, createdTs: number, expired
     deviceId,
     createdTs: () => createdTs,
     isExpired: () => expired,
-  } as unknown as CallMembership);
+  }) as unknown as CallMembership;
 
 describe('call memberships', () => {
   const session = {

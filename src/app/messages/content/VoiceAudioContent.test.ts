@@ -243,21 +243,21 @@ describe('VoiceAudioContent', () => {
     ) {
       return pausedState.get(this) ?? true;
     });
-    playSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'play')
-      .mockImplementation(function (this: HTMLMediaElement) {
-        pausedState.set(this, false);
-        this.dispatchEvent(new Event('play'));
-        this.dispatchEvent(new Event('playing'));
-        return Promise.resolve();
-      });
-    pauseSpy = vi
-      .spyOn(HTMLMediaElement.prototype, 'pause')
-      .mockImplementation(function (this: HTMLMediaElement) {
-        const wasPlaying = !(pausedState.get(this) ?? true);
-        pausedState.set(this, true);
-        if (wasPlaying) this.dispatchEvent(new Event('pause'));
-      });
+    playSpy = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      pausedState.set(this, false);
+      this.dispatchEvent(new Event('play'));
+      this.dispatchEvent(new Event('playing'));
+      return Promise.resolve();
+    });
+    pauseSpy = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      const wasPlaying = !(pausedState.get(this) ?? true);
+      pausedState.set(this, true);
+      if (wasPlaying) this.dispatchEvent(new Event('pause'));
+    });
     vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(function (
       this: HTMLMediaElement
     ) {
@@ -703,7 +703,7 @@ describe('VoiceAudioContent', () => {
   it('closes the volume popover when the trigger is clicked again', () => {
     const volumeTriggerNode = document.createElement('button');
     volumeTriggerNode.getBoundingClientRect = () =>
-      ({ left: 0, top: 0, width: 44, height: 44 } as DOMRect);
+      ({ left: 0, top: 0, width: 44, height: 44 }) as DOMRect;
 
     renderer = createMounted(renderVoiceAudio(), {
       createNodeMock: (element: React.ReactElement<Record<string, unknown>>) => {

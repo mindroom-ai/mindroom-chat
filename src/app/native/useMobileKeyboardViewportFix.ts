@@ -83,7 +83,7 @@ export function useMobileKeyboardViewportFix(): void {
       const layoutHeight =
         innerHeight !== undefined && clientHeight !== undefined
           ? Math.max(innerHeight, clientHeight)
-          : innerHeight ?? clientHeight;
+          : (innerHeight ?? clientHeight);
 
       if (nativeLayoutHeightForced) {
         keyboardGeometryActive = false;

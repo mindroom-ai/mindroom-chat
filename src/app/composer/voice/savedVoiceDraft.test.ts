@@ -174,9 +174,8 @@ it.each(['send', 'discard'])(
       expect(offerContext).toHaveBeenCalledOnce();
       expect(await recovered?.file.text()).toBe('journal audio');
 
-      const { createVoiceSendDraftController: createController } = await import(
-        './voiceSendDraftController'
-      );
+      const { createVoiceSendDraftController: createController } =
+        await import('./voiceSendDraftController');
       const controller = createController({
         read: () => store.get(atom),
         write: (draft) => store.set(atom, draft),

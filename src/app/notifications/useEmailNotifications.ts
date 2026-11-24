@@ -16,7 +16,7 @@ type EmailNotificationsState = {
  */
 export const useEmailNotifications = (): [
   EmailNotificationsState | null | undefined,
-  () => void
+  () => void,
 ] => {
   const mx = useMatrixClient();
   const alive = useAlive();

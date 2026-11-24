@@ -24,7 +24,20 @@ Nothing new on the wire.
 The router's reply to an applied change carries `io.mindroom.model_selection_result`, as the picker's always has (MindRoom's `docs/architecture/matrix.md`, "Thread Changes and Acknowledgements"):
 
 ```json
-{"io.mindroom.model_selection_result":{"version":1,"command_event_id":"$command","room_id":"!room:example.org","thread_id":"$root","runtime_user_id":"@mindroom_router:example.org","runtime_device_id":"ROUTER_DEVICE","operation":"set","model":"fast@high","status":"applied","override":"fast@high"}}
+{
+  "io.mindroom.model_selection_result": {
+    "version": 1,
+    "command_event_id": "$command",
+    "room_id": "!room:example.org",
+    "thread_id": "$root",
+    "runtime_user_id": "@mindroom_router:example.org",
+    "runtime_device_id": "ROUTER_DEVICE",
+    "operation": "set",
+    "model": "fast@high",
+    "status": "applied",
+    "override": "fast@high"
+  }
+}
 ```
 
 The backend change adds the same result to the reply of a typed `!model <key>` and `!model reset` that was applied.

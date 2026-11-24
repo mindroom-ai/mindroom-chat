@@ -29,9 +29,8 @@ vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({
 }));
 
 vi.mock('../../../matrix/room', async () => {
-  const actual = await vi.importActual<typeof import('../../../matrix/room')>(
-    '../../../matrix/room'
-  );
+  const actual =
+    await vi.importActual<typeof import('../../../matrix/room')>('../../../matrix/room');
   return { ...actual, getRoomAvatarUrl: () => undefined };
 });
 
@@ -57,7 +56,7 @@ const summaryOf = (roomId: string, name: string, joinRule: string): IHierarchyRo
     num_joined_members: 4,
     join_rule: joinRule,
     children_state: [],
-  } as unknown as IHierarchyRoom);
+  }) as unknown as IHierarchyRoom;
 
 const client = () =>
   ({
@@ -69,7 +68,7 @@ const client = () =>
     knockRoom: vi.fn(() => new Promise(() => undefined)),
     on: vi.fn(),
     removeListener: vi.fn(),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 /** A room the client knows, with the user's membership in it. */
 const knownRoom = (membership: string, joinRule: JoinRule): Room =>
@@ -78,7 +77,7 @@ const knownRoom = (membership: string, joinRule: JoinRule): Room =>
     name: 'Harbor Plans',
     getMyMembership: () => membership,
     getJoinRule: () => joinRule,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 let mx: MatrixClient;
 

@@ -9,9 +9,7 @@ import { isVisibleThreadReplyEventType } from '../../event-store/threads/threadU
 
 /** Where a time lands in a room: an event, or why there is none to show. */
 export type TimeLookup =
-  | { kind: 'found'; eventId: string }
-  | { kind: 'unsupported' }
-  | { kind: 'notFound' };
+  { kind: 'found'; eventId: string } | { kind: 'unsupported' } | { kind: 'notFound' };
 
 const errcodeOf = (error: unknown): string | undefined =>
   error instanceof MatrixError ? error.errcode : undefined;

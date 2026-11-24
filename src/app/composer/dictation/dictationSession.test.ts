@@ -480,7 +480,7 @@ describe('createDictationSession', () => {
     const session = createDictationSession({
       client: { transcribe: vi.fn() },
       getUserMedia: async () =>
-        ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+        ({ getAudioTracks: () => [track], getTracks: () => [track] }) as unknown as MediaStream,
       createAudioContext: () => fakeContext,
       loadVad: async () => makeVad(),
     });
@@ -536,7 +536,7 @@ describe('createDictationSession', () => {
       const session = createDictationSession({
         client: { transcribe: vi.fn() },
         getUserMedia: async () =>
-          ({ getAudioTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream),
+          ({ getAudioTracks: () => [track], getTracks: () => [track] }) as unknown as MediaStream,
         createAudioContext: () => fakeContext,
         loadVad: async () => makeVad(),
       });

@@ -192,10 +192,10 @@ export function UsageTokensView({
                     {account.cost_usd_7d === null
                       ? '—'
                       : account.cost_estimated
-                      ? t('mindroomUi.usage.estimatedCost', {
-                          cost: formatUsd(account.cost_usd_7d, language),
-                        })
-                      : formatUsd(account.cost_usd_7d, language)}
+                        ? t('mindroomUi.usage.estimatedCost', {
+                            cost: formatUsd(account.cost_usd_7d, language),
+                          })
+                        : formatUsd(account.cost_usd_7d, language)}
                   </td>
                 </tr>
               ))}

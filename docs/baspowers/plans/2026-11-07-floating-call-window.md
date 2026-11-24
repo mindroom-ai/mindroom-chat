@@ -36,10 +36,12 @@
 ### Task 1: Window geometry
 
 **Files:**
+
 - Create: `src/app/calls/window/callWindowGeometry.ts`
 - Test: `src/app/calls/window/callWindowGeometry.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type WindowRect = { x: number; y: number; width: number; height: number }` (viewport pixels, `x` from the left edge)
   - `type ViewportSize = { width: number; height: number }`
@@ -58,8 +60,18 @@
 
 ```ts
 it('places the default window 16 px from the bottom and end edges', () => {
-  expect(defaultRect({ width: 1440, height: 900 }, false)).toEqual({ x: 1024, y: 404, width: 400, height: 480 });
-  expect(defaultRect({ width: 1440, height: 900 }, true)).toEqual({ x: 16, y: 404, width: 400, height: 480 });
+  expect(defaultRect({ width: 1440, height: 900 }, false)).toEqual({
+    x: 1024,
+    y: 404,
+    width: 400,
+    height: 480,
+  });
+  expect(defaultRect({ width: 1440, height: 900 }, true)).toEqual({
+    x: 16,
+    y: 404,
+    width: 400,
+    height: 480,
+  });
 });
 it('keeps a moved window 8 px inside and sticks it to an edge within 16 px', () => {
   const start = { x: 500, y: 300, width: 400, height: 480 };
@@ -68,23 +80,43 @@ it('keeps a moved window 8 px inside and sticks it to an edge within 16 px', () 
   expect(moveRect(start, -470, 0, VP).x).toBe(30); // 22 px from the margin line: free
   expect(moveRect(start, 0, 5000, VP).y).toBe(900 - 480 - 8);
 });
-it.each(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const)('resizes from %s and keeps the opposite edge', (edge) => { /* opposite edges unchanged */ });
-it('never resizes below 340 px wide', () => { expect(resizeRect(R, 'w', 500, 0, VP).width).toBe(340); });
+it.each(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const)(
+  'resizes from %s and keeps the opposite edge',
+  (edge) => {
+    /* opposite edges unchanged */
+  }
+);
+it('never resizes below 340 px wide', () => {
+  expect(resizeRect(R, 'w', 500, 0, VP).width).toBe(340);
+});
 it('turns into the 56 px bar under 120 px tall and grows back past it', () => {
-  expect(resizeRect(R, 's', 0, -400, VP).height).toBe(56);   // 80 px tall: bar
-  expect(resizeRect(R, 's', 0, -300, VP).height).toBe(220);  // 180 px: minimum expanded height
+  expect(resizeRect(R, 's', 0, -400, VP).height).toBe(56); // 80 px tall: bar
+  expect(resizeRect(R, 's', 0, -300, VP).height).toBe(220); // 180 px: minimum expanded height
   expect(resizeRect({ ...R, height: 56 }, 's', 0, 200, VP).height).toBe(256);
 });
-it('drops a bar into the nearest corner', () => { /* bar centred left-top goes to (8, 8); right-bottom to (W-w-8, H-56-8) */ });
+it('drops a bar into the nearest corner', () => {
+  /* bar centred left-top goes to (8, 8); right-bottom to (W-w-8, H-56-8) */
+});
 it('fits a stored rectangle from a bigger screen inside the viewport', () => {
-  expect(clampToViewport({ x: 2400, y: 1300, width: 3000, height: 2000 }, VP)).toEqual({ x: 8, y: 8, width: 1424, height: 884 });
+  expect(clampToViewport({ x: 2400, y: 1300, width: 3000, height: 2000 }, VP)).toEqual({
+    x: 8,
+    y: 8,
+    width: 1424,
+    height: 884,
+  });
 });
 it('keeps the distance to the nearer edges when the viewport changes', () => {
   // 16 px from right and bottom before; 16 px from right and bottom after.
-  expect(fitToViewport({ x: 1024, y: 404, width: 400, height: 480 }, VP, { width: 1000, height: 700 })).toEqual({ x: 584, y: 204, width: 400, height: 480 });
+  expect(
+    fitToViewport({ x: 1024, y: 404, width: 400, height: 480 }, VP, { width: 1000, height: 700 })
+  ).toEqual({ x: 584, y: 204, width: 400, height: 480 });
 });
-it('shrinks to the viewport less the margins when the viewport is smaller than the window', () => { /* 300 by 200 viewport: width 284, height 184, x 8, y 8 */ });
-it('moves 16 px per arrow and resizes with Shift, inside the viewport', () => { /* keyStep cases */ });
+it('shrinks to the viewport less the margins when the viewport is smaller than the window', () => {
+  /* 300 by 200 viewport: width 284, height 184, x 8, y 8 */
+});
+it('moves 16 px per arrow and resizes with Shift, inside the viewport', () => {
+  /* keyStep cases */
+});
 ```
 
 - [ ] **Step 2:** Run `npx vitest run src/app/calls/window/callWindowGeometry.test.ts`. Expected: FAIL, module not found.
@@ -95,11 +127,13 @@ it('moves 16 px per arrow and resizes with Shift, inside the viewport', () => { 
 ### Task 2: Per-account window settings
 
 **Files:**
+
 - Create: `src/app/calls/window/callWindowState.ts`
 - Modify: `src/app/account/lifecycle/sessionCleanup.ts` (call the clear beside `clearRecentlyOpenedPanelHeightStore(userId)`), `src/app/account/lifecycle/sessionCleanup.test.ts`
 - Test: `src/app/calls/window/callWindowState.test.ts`
 
 **Interfaces:**
+
 - Consumes: `WindowRect`, `isBar` from Task 1.
 - Produces:
   - `type CallWindowMode = 'floating' | 'docked'`
@@ -121,11 +155,13 @@ it('moves 16 px per arrow and resizes with Shift, inside the viewport', () => { 
 ### Task 3: The stage (video tiles or voice)
 
 **Files:**
+
 - Create: `src/app/calls/stageLayout.ts`, `src/app/calls/CallStage.tsx`, `src/app/calls/CallStage.css.ts`
 - Modify: `src/app/calls/CallPanel.tsx` (the `<ul className={css.Tiles}>` block becomes `<CallStage …/>`; camera and screen share buttons no longer depend on `!agentCall`), `src/app/calls/CallPanel.css.ts` (drop `Tiles` if unused), `src/app/i18n/locales/additions/en.json`
 - Test: `src/app/calls/stageLayout.test.ts`, `src/app/calls/CallStage.test.tsx`, existing `src/app/calls/*.test.tsx` that assert agent controls
 
 **Interfaces:**
+
 - Consumes: `CallParticipant` from `RoomCall.ts`; `CallTile`, `ScreenTile`, `CallMemberAvatar` from `CallTile.tsx`.
 - Produces:
   - `SPEAKER_VIEW_MIN_TILE = 100`
@@ -146,7 +182,12 @@ for (let columns = 1; columns <= count; columns += 1) {
   if (size > best.size) best = { columns, cw, ch, size };
 }
 const tileWidth = Math.min(best.cw, (best.ch * 16) / 9);
-return { columns: best.columns, tileWidth, tileHeight: Math.min(best.ch, tileWidth), size: best.size };
+return {
+  columns: best.columns,
+  tileWidth,
+  tileHeight: Math.min(best.ch, tileWidth),
+  size: best.size,
+};
 ```
 
 - [ ] **Step 1: Write the failing tests.** `stageLayout.test.ts`: four tiles in 384 by 189 give 2 columns, tile about 162.7 by 91.5 (`toBeCloseTo`); one tile in 600 by 200 is 355 wide at most (16:9 cap); four tiles in 300 by 120 have `size < SPEAKER_VIEW_MIN_TILE`; `pickFocus` with a screen, with a speaking remote, keeping `previous`, falling back to the first remote. `CallStage.test.tsx` (jsdom, mock `ResizeObserver` to report the size the case needs): no video shows `data-call-stage="voice"` with one 64 px avatar and no name for one other participant, names for two others; the status reads "Mind is speaking" while Mind speaks, "You are muted" with the microphone off, else "Listening"; a camera on shows `data-call-stage="video"` with a tile per participant (`data-call-tile`); a screen share shows speaker view with the screen in focus and the own camera inset (`data-call-inset`); `speakerView` true shows speaker view; the awaited agent shows on the voice stage, waiting.
@@ -158,10 +199,12 @@ return { columns: best.columns, tileWidth, tileHeight: Math.min(best.ch, tileWid
 ### Task 4: The floating frame
 
 **Files:**
+
 - Create: `src/app/calls/window/FloatingCallWindow.tsx`, `src/app/calls/window/FloatingCallWindow.css.ts`, `src/app/calls/window/callWindowFrame.ts`
 - Test: `src/app/calls/window/FloatingCallWindow.test.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 1 geometry; Task 2 `useCallWindowSettings`, `minimizedSettings`, `expandedSettings`.
 - Produces:
   - `type CallWindowFrame = { bar: boolean; minimize: () => void; expand: () => void }`
@@ -186,11 +229,13 @@ return { columns: best.columns, tileWidth, tileHeight: Math.min(best.ch, tileWid
 ### Task 5: Host, docking and the call view's title bar
 
 **Files:**
+
 - Create: `src/app/calls/CallPanelPart.tsx` (move `CallPanelUnavailable` and the lazy `CallPanel` part out of `src/app/room/Room.tsx`), `src/app/calls/window/CallWindowHost.tsx`
 - Modify: `src/app/calls/CallFeatures.tsx` (render `<CallWindowHost />`), `src/app/room/Room.tsx` (import the part; the call panel entry is `open: callOpen && (mobile || mode === 'docked')`), `src/app/calls/CallPanel.tsx` and `.css.ts` (title bar: handle attribute, buttons, bar content), `src/app/calls/ActiveCallTab.tsx`, `src/app/i18n/locales/additions/en.json`
 - Test: `src/app/calls/window/CallWindowHost.test.tsx`, `src/app/room/Room.sidePanels.test.tsx`, `src/app/room/Room.callPanelUnavailable.test.tsx`, `src/app/calls/CallPanel.window.test.tsx`, `src/app/calls/ActiveCallTab.test.tsx` (new or existing)
 
 **Interfaces:**
+
 - Consumes: `CallStage`, `hasVideo` (Task 3); `FloatingCallWindow`, `useCallWindowFrame` (Task 4); `useCallWindowSettings`, `expandedSettings` (Task 2); `callPanelRoomAtom`, `useActiveCall`, `callHomeRoomId` (`callStore.ts`); `useRoomNavigate` (`navigation`); `usePowerLevels`, `PowerLevelsContextProvider` (`matrix/hooks/usePowerLevels`).
 - Produces: `CallPanelPart` (the lazy part, same props as `CallPanel`) and `CallPanelUnavailable` exported from `CallPanelPart.tsx`; `CallWindowHost()`.
 
@@ -210,6 +255,7 @@ Behavior to build (spec "Where the call view shows" and "Inside the call view"):
 ### Task 6: Translations
 
 **Files:**
+
 - Modify: `src/app/i18n/locales/additions/{ar,bn,de,es,fr,hi,id,it,ja,ko,nl,pt,ru,tr,zh,zh-TW}.json`
 
 - [ ] **Step 1:** Run `npx vitest run src/app/i18n/localeAdditions.test.ts`. Expected: FAIL, the overlays lack the new `featureUi.calls.window.*` and `featureUi.calls.stage.*` keys.
@@ -220,6 +266,7 @@ Behavior to build (spec "Where the call view shows" and "Inside the call view"):
 ### Task 7: End-to-end
 
 **Files:**
+
 - Create: `e2e/calls/call-window.spec.ts`
 - Modify: `e2e/calls/calls.spec.ts` (the chunk-failure test finds the fallback under `getByTestId('call-window')`), any other spec that reads `resizable-call-panel` on desktop (`git grep -n "resizable-call-panel" e2e`)
 

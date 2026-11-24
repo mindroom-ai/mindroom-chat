@@ -65,9 +65,7 @@ describe('buildEditContent', () => {
     const replacement = edit['m.new_content'] as Record<string, unknown>;
     // Chat reads the edited message out of that file too.
     const source = getLongTextSource(replacement)!;
-    expect(await hydrateLongTextSource(source, async () => uploaded, {})).toEqual(
-      longContent
-    );
+    expect(await hydrateLongTextSource(source, async () => uploaded, {})).toEqual(longContent);
     expect(replacement).toMatchObject({
       msgtype: 'm.file',
       url: 'mxc://example.org/sidecar',

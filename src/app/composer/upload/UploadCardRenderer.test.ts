@@ -107,7 +107,7 @@ const createFile = (overrides: Partial<TUploadContent> = {}): TUploadContent =>
     size: 1024,
     type: 'image/png',
     ...overrides,
-  } as TUploadContent);
+  }) as TUploadContent;
 
 const setUploadError = (
   file: TUploadContent,

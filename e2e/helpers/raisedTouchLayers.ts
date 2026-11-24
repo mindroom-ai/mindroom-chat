@@ -6,18 +6,21 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
     const selector =
       'button, a[href], summary, input, select, textarea, [role="button"], [contenteditable="true"]';
     const modal = document.querySelector('[role="dialog"][aria-modal="true"]');
-    const controls = Array.from(
-      document.querySelectorAll<HTMLElement>(selector)
-    ).filter((element) => {
-      if (element.closest('[aria-hidden="true"], [inert]')) return false;
-      // A modal backdrop blocks the background even when it has no aria-hidden attribute.
-      if (modal && !modal.contains(element)) return false;
-      const box = element.getBoundingClientRect();
-      return (
-        box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < innerHeight &&
-        getComputedStyle(element).visibility === 'visible'
-      );
-    });
+    const controls = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(
+      (element) => {
+        if (element.closest('[aria-hidden="true"], [inert]')) return false;
+        // A modal backdrop blocks the background even when it has no aria-hidden attribute.
+        if (modal && !modal.contains(element)) return false;
+        const box = element.getBoundingClientRect();
+        return (
+          box.width > 0 &&
+          box.height > 0 &&
+          box.bottom > 0 &&
+          box.top < innerHeight &&
+          getComputedStyle(element).visibility === 'visible'
+        );
+      }
+    );
     const describe = (element: HTMLElement) =>
       element.getAttribute('aria-label') ?? element.textContent?.trim().slice(0, 70);
     const conflicts: string[] = [];
@@ -25,7 +28,8 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
       if (!(Number(getComputedStyle(control).zIndex) >= 1)) return;
       for (const pseudo of ['::before', '::after']) {
         const css = getComputedStyle(control, pseudo);
-        if (css.content !== '""' || css.position !== 'absolute' || css.pointerEvents === 'none') continue;
+        if (css.content !== '""' || css.position !== 'absolute' || css.pointerEvents === 'none')
+          continue;
         const box = control.getBoundingClientRect();
         const left = box.left + control.clientLeft + parseFloat(css.left);
         const top = box.top + control.clientTop + parseFloat(css.top);
@@ -37,7 +41,8 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
           if (
             Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
             Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5
-          ) conflicts.push(`${describe(control)} overlaps ${describe(other)}`);
+          )
+            conflicts.push(`${describe(control)} overlaps ${describe(other)}`);
         });
       }
     });

@@ -80,7 +80,7 @@ const responseWith = (eventId: string, body: string): ISearchResponse =>
         ],
       },
     },
-  } as unknown as ISearchResponse);
+  }) as unknown as ISearchResponse;
 
 const store = createStore();
 

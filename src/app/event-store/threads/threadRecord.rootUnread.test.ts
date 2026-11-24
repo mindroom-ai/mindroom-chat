@@ -30,7 +30,7 @@ const makeRoom = (rootEvent: MatrixEvent, receiptTs?: number): Room =>
       receiptTs !== undefined && type === ReceiptType.Read
         ? { eventId: '$older', data: { ts: receiptTs, thread_id: 'main' } }
         : null,
-  } as unknown as Room);
+  }) as unknown as Room;
 
 const isUnread = (rootEvent: MatrixEvent, receiptTs?: number) =>
   buildThreadRecord({
