@@ -111,27 +111,36 @@ const stripLeadingMarker = (
   }
 
   // Drop blank lines (`<br>` or newline-only text) immediately following the marker line.
-  while (rest.length > 0) {
-    const head = rest[0];
+  let start = 0;
+  let trimmedHead: Text | undefined;
+  while (start < rest.length) {
+    const head = rest[start];
     if (!head) break;
     if (isBr(head) || isWhitespaceText(head)) {
-      rest = rest.slice(1);
+      start += 1;
       continue;
     }
     if (isText(head)) {
       const trimmed = trimLeadingBlankLines(head.data);
       if (trimmed !== head.data) {
-        rest =
-          trimmed === ''
-            ? rest.slice(1)
-            : [createTextWithSameParent(head, trimmed), ...rest.slice(1)];
-        continue;
+        if (trimmed === '') {
+          start += 1;
+          continue;
+        }
+        trimmedHead = createTextWithSameParent(head, trimmed);
       }
     }
     break;
   }
 
-  return { type, remaining: rest };
+  const remaining =
+    trimmedHead !== undefined
+      ? [trimmedHead, ...rest.slice(start + 1)]
+      : start > 0
+        ? rest.slice(start)
+        : rest;
+
+  return { type, remaining };
 };
 
 /**
@@ -177,13 +186,16 @@ export const extractCallout = (children: ChildNode[]): ParsedCallout | undefined
 type CalloutProps = ComponentPropsWithoutRef<'aside'> & {
   type: CalloutType;
   children?: ReactNode;
+  /** Optional renderer for the localized title (e.g. search-match highlighting). */
+  renderTitle?: (title: string) => ReactNode;
 };
 
 /** Renders a GitHub-style alert callout with a semantic tone, icon, localized title, and body. */
-export function Callout({ type, children, className, ...props }: CalloutProps) {
+export function Callout({ type, children, className, renderTitle, ...props }: CalloutProps) {
   const { t } = useTranslation();
   const titleId = useId();
   const Icon = CALLOUT_ICONS[type];
+  const title = t(CALLOUT_TITLE_KEYS[type]);
   const hasBody = React.Children.toArray(children).length > 0;
 
   return (
@@ -196,9 +208,13 @@ export function Callout({ type, children, className, ...props }: CalloutProps) {
     >
       <div id={titleId} className={css.Header({ tone: type })}>
         <Icon size={16} stroke={1.8} className={css.Icon} aria-hidden="true" />
-        <span>{t(CALLOUT_TITLE_KEYS[type])}</span>
+        <span>{renderTitle ? renderTitle(title) : title}</span>
       </div>
-      {hasBody && <div className={css.Body}>{children}</div>}
+      {hasBody && (
+        <div className={css.Body} dir="auto">
+          {children}
+        </div>
+      )}
     </aside>
   );
 }

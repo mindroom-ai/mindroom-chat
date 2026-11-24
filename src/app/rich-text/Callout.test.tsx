@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import parseDOM from 'html-dom-parser';
 import { isTag, isText, type Element } from 'domhandler';
 import { cleanup, render } from '@testing-library/react';
@@ -127,10 +126,29 @@ describe('Callout', () => {
       expect(labelledBy).toBeTruthy();
       const header = labelledBy ? container.querySelector(`[id="${labelledBy}"]`) : null;
       expect(header?.textContent).toBe(title);
+      expect(header?.getAttribute('dir')).toBeNull();
       expect(header?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
-      expect(aside?.textContent).toContain('Body copy');
+      const body = aside?.children[1];
+      expect(body?.getAttribute('dir')).toBe('auto');
+      expect(body?.textContent).toBe('Body copy');
     }
   );
+
+  it('sets dir="auto" on the body for RTL text without forcing header direction', () => {
+    const { container } = render(
+      <div dir="ltr">
+        <Callout type="note">
+          <p>مرحبا بالعالم</p>
+        </Callout>
+      </div>
+    );
+    const aside = container.querySelector('aside');
+    const header = aside?.children[0];
+    const body = aside?.children[1];
+    expect(header?.getAttribute('dir')).toBeNull();
+    expect(body?.getAttribute('dir')).toBe('auto');
+    expect(body?.textContent).toBe('مرحبا بالعالم');
+  });
 
   it('omits the body container when rendered without children', () => {
     const { container } = render(<Callout type="note" />);

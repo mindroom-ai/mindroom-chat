@@ -770,14 +770,20 @@ export const getReactCustomHtmlParser = (
             </p>
           );
         case 'blockquote': {
-          const callout = extractCallout(children);
+          const callout = hasAncestor(domNode, ['blockquote', 'li'])
+            ? undefined
+            : extractCallout(children);
           if (callout) {
             const calloutProps = attributesToProps(withoutAttribute(attribs, 'cite'));
+            const { highlightRegex } = params;
             return (
               <Callout
                 {...calloutProps}
                 type={callout.type}
                 className={classNames(css.MarginSpaced, calloutProps.className)}
+                renderTitle={
+                  highlightRegex ? (title) => renderStyledText(title, highlightRegex) : undefined
+                }
               >
                 {callout.bodyNodes.length > 0
                   ? domToReact(callout.bodyNodes as DOMNode[], parserOptions)

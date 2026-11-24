@@ -23,6 +23,12 @@ const calloutTone = (tone: AccentTone) => {
   };
 };
 
+// Blends the accent foreground toward Surface.OnContainer so titles keep >= 4.5:1 contrast
+// even inside 75%-opacity m.notice messages (such as Tip on the Silver palette).
+const headerTone = (tone: AccentTone) => ({
+  color: `color-mix(in srgb, ${tone.OnContainer} 60%, ${color.Surface.OnContainer})`,
+});
+
 export const Callout = recipe({
   base: {
     display: 'flex',
@@ -56,11 +62,11 @@ export const Header = recipe({
   },
   variants: {
     tone: {
-      note: { color: color.Primary.OnContainer },
-      tip: { color: color.Success.OnContainer },
-      important: { color: color.Secondary.OnContainer },
-      warning: { color: color.Warning.OnContainer },
-      caution: { color: color.Critical.OnContainer },
+      note: headerTone(color.Primary),
+      tip: headerTone(color.Success),
+      important: headerTone(color.Secondary),
+      warning: headerTone(color.Warning),
+      caution: headerTone(color.Critical),
     },
   },
 });

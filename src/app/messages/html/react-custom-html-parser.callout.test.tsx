@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import parse from 'html-react-parser';
 import MarkdownIt from 'markdown-it';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -8,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { LINKIFY_OPTS, getReactCustomHtmlParser } from './react-custom-html-parser';
 import { toMatrixCustomHTML } from '../../editor/output';
 import { BlockType } from '../../editor/types';
+import * as customHtmlCss from '../../rich-text/CustomHtml.css';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 
 afterEach(cleanup);
@@ -48,7 +48,7 @@ describe('GitHub alert callouts in custom HTML parser', () => {
     expect(callout?.textContent).toContain('Useful details.');
   });
 
-  it('renders multi-paragraph callouts with lists, fenced code, nested quotes, and nested callouts', () => {
+  it('renders multi-paragraph callouts with lists, fenced code, and plain nested quotes', () => {
     const markdown = [
       '> [!WARNING]',
       '>',
@@ -62,9 +62,6 @@ describe('GitHub alert callouts in custom HTML parser', () => {
       '> ```',
       '>',
       '> > Regular nested quote',
-      '>',
-      '> > [!TIP]',
-      '> > Nested tip',
     ].join('\n');
     const { container } = renderMessageHtml(md.render(markdown));
 
@@ -73,9 +70,29 @@ describe('GitHub alert callouts in custom HTML parser', () => {
     expect(outer?.querySelectorAll('li')).toHaveLength(2);
     expect(outer?.querySelector('pre code')?.textContent).toContain('const x = 1;');
     expect(outer?.querySelector('blockquote')?.textContent).toContain('Regular nested quote');
-    const nested = outer?.querySelector('aside[data-callout-type="tip"]');
-    expect(nested?.textContent).toContain('Tip');
-    expect(nested?.textContent).toContain('Nested tip');
+  });
+
+  it('keeps nested alerts inside blockquotes and lists as plain blockquotes', () => {
+    const nestedInCallout = [
+      '> [!WARNING]',
+      '>',
+      '> > [!TIP]',
+      '> > Nested tip stays a quote',
+    ].join('\n');
+    const { container: nestedContainer } = renderMessageHtml(md.render(nestedInCallout));
+    const outer = nestedContainer.querySelector('aside[data-callout-type="warning"]');
+    expect(outer).not.toBeNull();
+    expect(outer?.querySelector('aside[data-callout-type="tip"]')).toBeNull();
+    const nestedBq = outer?.querySelector('blockquote');
+    expect(nestedBq?.textContent).toContain('[!TIP]');
+    expect(nestedBq?.textContent).toContain('Nested tip stays a quote');
+
+    const nestedInList = ['- > [!TIP]', '  > Alert inside list item'].join('\n');
+    const { container: listContainer } = renderMessageHtml(md.render(nestedInList));
+    expect(listContainer.querySelector('aside[data-callout-type]')).toBeNull();
+    const listBq = listContainer.querySelector('li blockquote');
+    expect(listBq?.textContent).toContain('[!TIP]');
+    expect(listBq?.textContent).toContain('Alert inside list item');
   });
 
   it('renders human composer markdown quotes, Slate quote blocks, and direct-text callouts', () => {
@@ -136,6 +153,15 @@ describe('GitHub alert callouts in custom HTML parser', () => {
     expect(container.querySelector('blockquote')).not.toBeNull();
   });
 
+  it('highlights search matches in the localized callout title', () => {
+    const { container } = renderMessageHtml(md.render('> [!WARNING]\n> Disk full.'), /warning/i);
+    const callout = container.querySelector('aside[data-callout-type="warning"]');
+    const labelledBy = callout?.getAttribute('aria-labelledby');
+    const header = labelledBy ? container.querySelector(`[id="${labelledBy}"]`) : null;
+    const highlightedTitle = header?.querySelector(`span.${customHtmlCss.highlightText}`);
+    expect(highlightedTitle?.textContent).toBe('Warning');
+  });
+
   it('preserves links, mentions, spoilers, math, inline code, tables, RTL controls, and highlights inside callouts', () => {
     const html = [
       '<blockquote>',
@@ -161,9 +187,7 @@ describe('GitHub alert callouts in custom HTML parser', () => {
     expect(callout?.querySelector('table td')?.textContent).toBe('Cell');
     expect(callout?.textContent).toContain('<U+202E>text');
 
-    const highlighted = Array.from(callout?.querySelectorAll('span') ?? []).find(
-      (el) => el.textContent === 'matchword' && el.className !== ''
-    );
-    expect(highlighted).toBeDefined();
+    const highlightedBody = callout?.querySelector(`span.${customHtmlCss.highlightText}`);
+    expect(highlightedBody?.textContent).toBe('matchword');
   });
 });
