@@ -878,7 +878,7 @@ describe('WorkflowPanel', () => {
           width: 100,
           height: 30,
           toJSON: () => ({}),
-        } as DOMRect;
+        };
       });
     try {
       const nodes = Array.from({ length: 25 }, (_, i) =>
