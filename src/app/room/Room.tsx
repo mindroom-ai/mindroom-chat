@@ -656,7 +656,7 @@ function RoomContent() {
   );
   // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
   // conversation, so the panel lists its run.
-  const showSubagentsConversation = useEffectEvent((openedThreadId: string | undefined) => {
+  const showSubagentsConversation = useEffectEvent((openedThreadId: string | null | undefined) => {
     const target = conversationToShow(openedThreadId, threadId, viewMode === 'classic');
     if (target === null) navigateRoom(roomId);
     else if (target !== undefined) navigateRoomThread(roomId, target);
