@@ -199,8 +199,8 @@ export function useLiveAnchor(
       });
     };
 
+    document.addEventListener('load', schedule, { capture: true, passive: true });
     window.addEventListener('scroll', schedule, { capture: true, passive: true });
-    window.addEventListener('load', schedule, { capture: true, passive: true });
     window.addEventListener('resize', schedule, { passive: true });
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', schedule, { passive: true });
@@ -213,8 +213,8 @@ export function useLiveAnchor(
       disposed = true;
       syncObservedRef.current = undefined;
       cancelFrame();
+      document.removeEventListener('load', schedule, { capture: true });
       window.removeEventListener('scroll', schedule, { capture: true });
-      window.removeEventListener('load', schedule, { capture: true });
       window.removeEventListener('resize', schedule);
       viewport?.removeEventListener('resize', schedule);
       viewport?.removeEventListener('scroll', schedule);
