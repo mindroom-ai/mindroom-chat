@@ -1269,6 +1269,29 @@
         "expandAllLong": "Déplier tous les messages longs",
         "collapseAllLong": "Replier tous les messages longs",
         "showFullMessage": "Afficher le message complet"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Tout est à jour",
+        "resolvedCount_one": "{{count}} résolu",
+        "resolvedCount_many": "{{count}} résolus",
+        "resolvedCount_other": "{{count}} résolus",
+        "snoozedCount_one": "{{count}} reporté",
+        "snoozedCount_many": "{{count}} reportés",
+        "snoozedCount_other": "{{count}} reportés",
+        "showAll": "Tout afficher",
+        "startNewThreadBelow": "Démarrez un nouveau fil ci-dessous",
+        "recentlyResolved": "Récemment résolus",
+        "noMatchHeading": "Aucun fil ne correspond à vos filtres",
+        "hiddenByForMe_one": "{{count}} fil ouvert est masqué par Pour moi.",
+        "hiddenByForMe_many": "{{count}} fils ouverts sont masqués par Pour moi.",
+        "hiddenByForMe_other": "{{count}} fils ouverts sont masqués par Pour moi.",
+        "hiddenByFilters_one": "{{count}} fil ouvert est masqué par vos filtres.",
+        "hiddenByFilters_many": "{{count}} fils ouverts sont masqués par vos filtres.",
+        "hiddenByFilters_other": "{{count}} fils ouverts sont masqués par vos filtres.",
+        "adjustOrResetFilters": "Modifiez ou réinitialisez vos filtres pour voir les fils de ce salon.",
+        "turnOffForMe": "Désactiver Pour moi",
+        "resetAll": "Tout réinitialiser",
+        "resetFilters": "Réinitialiser les filtres"
       }
     },
     "computer": {

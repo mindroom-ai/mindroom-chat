@@ -1199,6 +1199,21 @@
         "expandAllLong": "長いメッセージをすべて展開",
         "collapseAllLong": "長いメッセージをすべて折りたたむ",
         "showFullMessage": "メッセージ全体を表示"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "すべて完了しました",
+        "resolvedCount_other": "{{count}} 件解決済み",
+        "snoozedCount_other": "{{count}} 件スヌーズ中",
+        "showAll": "すべて表示",
+        "startNewThreadBelow": "下で新しいスレッドを開始",
+        "recentlyResolved": "最近解決済み",
+        "noMatchHeading": "フィルターに一致するスレッドはありません",
+        "hiddenByForMe_other": "{{count}} 件の未解決スレッドが「自分向け」で非表示になっています。",
+        "hiddenByFilters_other": "{{count}} 件の未解決スレッドがフィルターで非表示になっています。",
+        "adjustOrResetFilters": "このルームのスレッドを表示するには、フィルターを調整またはリセットしてください。",
+        "turnOffForMe": "「自分向け」をオフにする",
+        "resetAll": "すべてリセット",
+        "resetFilters": "フィルターをリセット"
       }
     },
     "computer": {

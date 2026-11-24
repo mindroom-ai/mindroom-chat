@@ -1199,6 +1199,21 @@
         "expandAllLong": "Bentangkan semua pesan panjang",
         "collapseAllLong": "Ciutkan semua pesan panjang",
         "showFullMessage": "Tampilkan pesan lengkap"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Semua sudah beres",
+        "resolvedCount_other": "{{count}} selesai",
+        "snoozedCount_other": "{{count}} ditunda",
+        "showAll": "Tampilkan semua",
+        "startNewThreadBelow": "Mulai utas baru di bawah",
+        "recentlyResolved": "Baru diselesaikan",
+        "noMatchHeading": "Tidak ada utas yang cocok dengan filter Anda",
+        "hiddenByForMe_other": "{{count}} utas terbuka disembunyikan oleh Untuk saya.",
+        "hiddenByFilters_other": "{{count}} utas terbuka disembunyikan oleh filter Anda.",
+        "adjustOrResetFilters": "Sesuaikan atau atur ulang filter Anda untuk melihat utas di ruang ini.",
+        "turnOffForMe": "Matikan Untuk saya",
+        "resetAll": "Atur ulang semua",
+        "resetFilters": "Atur ulang filter"
       }
     },
     "computer": {

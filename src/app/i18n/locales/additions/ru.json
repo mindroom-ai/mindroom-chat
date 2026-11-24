@@ -1304,6 +1304,33 @@
         "expandAllLong": "Развернуть все длинные сообщения",
         "collapseAllLong": "Свернуть все длинные сообщения",
         "showFullMessage": "Показать сообщение полностью"
+      },
+      "compactRoomEmptyState": {
+        "allCaughtUp": "Всё разобрано",
+        "resolvedCount_one": "{{count}} решена",
+        "resolvedCount_few": "{{count}} решены",
+        "resolvedCount_many": "{{count}} решено",
+        "resolvedCount_other": "{{count}} решено",
+        "snoozedCount_one": "{{count}} отложена",
+        "snoozedCount_few": "{{count}} отложены",
+        "snoozedCount_many": "{{count}} отложено",
+        "snoozedCount_other": "{{count}} отложено",
+        "showAll": "Показать все",
+        "startNewThreadBelow": "Начните новую ветку ниже",
+        "recentlyResolved": "Недавно решённые",
+        "noMatchHeading": "Нет веток, подходящих под фильтры",
+        "hiddenByForMe_one": "{{count}} открытая ветка скрыта фильтром «Для меня».",
+        "hiddenByForMe_few": "{{count}} открытые ветки скрыты фильтром «Для меня».",
+        "hiddenByForMe_many": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByForMe_other": "{{count}} открытых веток скрыто фильтром «Для меня».",
+        "hiddenByFilters_one": "{{count}} открытая ветка скрыта вашими фильтрами.",
+        "hiddenByFilters_few": "{{count}} открытые ветки скрыты вашими фильтрами.",
+        "hiddenByFilters_many": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "hiddenByFilters_other": "{{count}} открытых веток скрыто вашими фильтрами.",
+        "adjustOrResetFilters": "Измените или сбросьте фильтры, чтобы увидеть ветки в этой комнате.",
+        "turnOffForMe": "Отключить «Для меня»",
+        "resetAll": "Сбросить все",
+        "resetFilters": "Сбросить фильтры"
       }
     },
     "computer": {
