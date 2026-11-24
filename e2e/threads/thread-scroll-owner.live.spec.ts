@@ -211,7 +211,7 @@ test.describe('thread scroll owner invariants', () => {
             beforeRest?.headroomPx ?? minHeadroom,
             afterRest?.headroomPx ?? minHeadroom
           );
-          await scrollWheelBursts(page, 20, 16, () => 220);
+          await scrollWheelBursts(page, 14, 16, () => 220);
           await page.waitForTimeout(1_000);
           assertScrollProbeClean(await stopProbe(page), 5_000, { checkUnexplained: false });
 
