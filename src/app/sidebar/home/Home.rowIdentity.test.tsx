@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { allRoomsAtom } from '../../matrix/state/roomList';
+import { mDirectAtom } from '../../matrix/state/mDirectList';
+import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { Home } from './Home';
 import { getHomeRoomPath } from '../../routes/pathUtils';
 
 // A room row keeps state of its own, such as an open Leave prompt. When the list changes under
 // it, that state must stay with its room, not with the row's position.
 
-const { listed, passthrough, subRooms, virtualizerKeys } = vi.hoisted(() => ({
-  listed: { roomIds: [] as string[] },
+const { passthrough, subRooms, virtualizerKeys } = vi.hoisted(() => ({
   subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
   virtualizerKeys: { keyOf: undefined as ((index: number) => unknown) | undefined },
   passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -48,6 +51,8 @@ vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   },
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
+  SortableRoomGroup: passthrough,
+  useRoomSectionDrop: () => ({}),
   SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
   SortableRoomRow: ({
@@ -75,13 +80,17 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
     getRoom: (roomId: string) => ({
       roomId,
       name: roomId.slice(1),
+      isSpaceRoom: () => false,
+      getMyMembership: () => 'join',
       getCanonicalAlias: () => null,
+      getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => undefined }) }),
     }),
     getSafeUserId: () => '@alice:example.org',
     // No room order saved: the list is A to Z.
     getAccountData: () => undefined,
     on: () => undefined,
     off: () => undefined,
+    removeListener: () => undefined,
   }),
 }));
 vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
@@ -128,7 +137,6 @@ vi.mock('../threads/RecentlyOpenedNavCategory', () => ({
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
   MarkRoomsReadMenuItem: () => null,
 }));
-vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => listed.roomIds }));
 
 const rows = (renderer: ReactTestRenderer) =>
   renderer.root
@@ -140,6 +148,14 @@ const rows = (renderer: ReactTestRenderer) =>
       subRoom: node.props['data-sub-room'] as boolean | undefined,
     }));
 
+const makeStore = (roomIds: string[]) => {
+  const store = createStore();
+  store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: roomIds });
+  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+  store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map(), chatRooms: [] });
+  return store;
+};
+
 describe('Home room rows', () => {
   let renderer: ReactTestRenderer | undefined;
 
@@ -150,14 +166,19 @@ describe('Home room rows', () => {
   });
 
   it('keep their state with their room when a room joins above them', () => {
-    listed.roomIds = ['!bees', '!compost'];
+    const store = makeStore(['!bees', '!compost']);
     act(() => {
-      renderer = create(<Home />);
+      renderer = create(
+        <Provider store={store}>
+          <Home />
+        </Provider>
+      );
     });
     expect(rows(renderer!).map((row) => row.room)).toEqual(['!bees', '!compost']);
 
-    listed.roomIds = ['!bees', '!compost', '!apples'];
-    act(() => renderer?.update(<Home />));
+    act(() => {
+      store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: ['!bees', '!compost', '!apples'] });
+    });
 
     const shown = rows(renderer!);
     expect(shown.map((row) => row.room)).toEqual(['!apples', '!bees', '!compost']);
@@ -166,18 +187,26 @@ describe('Home room rows', () => {
   });
 
   it('measure rows by room, whose height grows with the sub-rooms under them', () => {
-    listed.roomIds = ['!bees', '!compost'];
+    const store = makeStore(['!bees', '!compost']);
     act(() => {
-      renderer = create(<Home />);
+      renderer = create(
+        <Provider store={store}>
+          <Home />
+        </Provider>
+      );
     });
 
     expect([0, 1].map((index) => virtualizerKeys.keyOf?.(index))).toEqual(['!bees', '!compost']);
   });
 
   it('frame the hash of the rows under a room, not of the rows on their own', () => {
-    listed.roomIds = ['!bees'];
+    const store = makeStore(['!bees']);
     act(() => {
-      renderer = create(<Home />);
+      renderer = create(
+        <Provider store={store}>
+          <Home />
+        </Provider>
+      );
     });
 
     expect(rows(renderer!).map((row) => row.subRoom)).toEqual([undefined]);

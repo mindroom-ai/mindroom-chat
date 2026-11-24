@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -31,12 +31,10 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useSelectedSpace } from '../../navigation/useSelectedSpace';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
-import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
-import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
+import { getRoomAvatarUrl } from '../../matrix/room';
 import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
@@ -58,11 +56,7 @@ import {
   type SidebarItem as SidebarEntry,
   commitSidebarReorder,
 } from '../../spaces/sidebarReorder';
-import {
-  getShownSidebarItems,
-  useSavedSidebarItems,
-  useTopLevelSpaceIds,
-} from '../../spaces/sidebarSpaces';
+import { useShownSidebarItems } from '../../spaces/sidebarSpaces';
 import * as css from './SpaceTabs.css';
 import { revealDirectionControls } from '../../ui/directional';
 
@@ -83,17 +77,6 @@ type DragData = { drag: SidebarDragItem };
 
 const readDrag = (data: unknown): SidebarDragItem | undefined =>
   (data as { current?: DragData } | undefined)?.current?.drag;
-
-// One local order atom per account, made once, so every rail of that account shares it.
-const spaceOrderAtoms = new Map<string, SpaceOrderAtom>();
-const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
-  let orderAtom = spaceOrderAtoms.get(userId);
-  if (!orderAtom) {
-    orderAtom = makeSpaceOrderAtom(userId);
-    spaceOrderAtoms.set(userId, orderAtom);
-  }
-  return orderAtom;
-};
 
 /** Folders open in the rail in this session, by folder ID. */
 export const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
@@ -377,36 +360,12 @@ type SpaceTabsProps = {
 export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const joinedRoomIds = useAtomValue(allRoomsAtom);
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   const selectedSpaceId = useSelectedSpace();
-  const saved = useSavedSidebarItems();
-  const [localOrder, setLocalOrder] = useAtom(spaceOrderAtomFor(client.getSafeUserId()));
+  const { items, saved, topLevelSpaces, joinedSpaces, setLocalOrder } = useShownSidebarItems();
   const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
   const [hint, setHint] = useState<{ id: string; at: DropAt }>();
   const stackRef = useRef<HTMLDivElement>(null);
-
-  const joinedSpaces = useMemo(
-    () =>
-      new Map(
-        joinedRoomIds
-          .map((roomId) => client.getRoom(roomId))
-          .filter((room): room is Room => !!room && isSpace(room))
-          .map((room) => [room.roomId, room])
-      ),
-    [client, joinedRoomIds]
-  );
-  const topLevelSpaces = useTopLevelSpaceIds();
-  const items = useMemo(
-    () =>
-      getShownSidebarItems({
-        saved,
-        topLevelSpaces,
-        isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
-        localOrder,
-      }),
-    [saved, topLevelSpaces, joinedSpaces, localOrder]
-  );
 
   // A mouse drags after a short move; a finger moves on after a long press (which opens a space's
   // menu), so a swipe still scrolls the rail.
