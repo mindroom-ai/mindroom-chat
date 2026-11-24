@@ -552,7 +552,7 @@ export function CompactRoomView({
   };
   const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
   const menuModel =
-    menu?.roomId === room.roomId ? modelByRootId.get(menu.rootId) ?? menu.viewModel : undefined;
+    menu?.roomId === room.roomId ? (modelByRootId.get(menu.rootId) ?? menu.viewModel) : undefined;
   useLayoutEffect(() => {
     menuRef.current = undefined;
     setMenu(undefined);

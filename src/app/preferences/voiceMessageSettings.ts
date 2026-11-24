@@ -6,7 +6,7 @@ import {
 } from '../lib/state/atomWithLocalStorage';
 
 export const VOICE_PLAYBACK_RATES = [1, 1.5, 2] as const;
-export type VoicePlaybackRate = typeof VOICE_PLAYBACK_RATES[number];
+export type VoicePlaybackRate = (typeof VOICE_PLAYBACK_RATES)[number];
 
 export const DEFAULT_VOICE_PLAYBACK_RATE: VoicePlaybackRate = 1;
 export const VOICE_PLAYBACK_RATE_STORAGE_KEY = 'voiceMessagePlaybackRate';

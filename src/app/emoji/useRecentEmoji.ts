@@ -5,11 +5,7 @@ import { matchesEnum } from '../lib/matchesEnum';
 import type { ImagePack } from './custom/ImagePack';
 import type { IEmoji } from './emoji';
 import { useEmojiData } from './emojiData';
-import {
-  type RecentEmoji,
-  type UnnamedEmoji,
-  resolveRecentEmoji,
-} from './recent-emoji-list';
+import { type RecentEmoji, type UnnamedEmoji, resolveRecentEmoji } from './recent-emoji-list';
 
 export type { RecentEmoji } from './recent-emoji-list';
 

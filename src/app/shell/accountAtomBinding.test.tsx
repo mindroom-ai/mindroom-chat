@@ -3,7 +3,10 @@ import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
-import { roomIdToTypingMembersAtom, useBindRoomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
+import {
+  roomIdToTypingMembersAtom,
+  useBindRoomIdToTypingMembersAtom,
+} from '../matrix/state/typingMembers';
 
 enableMapSet();
 

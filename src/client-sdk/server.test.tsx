@@ -93,7 +93,7 @@ const fakeFetch = () => {
 let mx: MatrixClient;
 /** A new signed-in account: sessions are kept per account. */
 const newAccount = () =>
-  ({ getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient);
+  ({ getRoom: () => null, getSafeUserId: () => '@ann:example.org' }) as unknown as MatrixClient;
 
 // The room's published server is trusted (`mindroom.computers.trustedApiUrls`), so it counts beside a
 // configured one.

@@ -1,4 +1,11 @@
-import { expect, test, type Browser, type Page, type Request, type Response } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -30,7 +37,8 @@ const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Ops Review';
 /** More than the first sync's timeline window. */
 const LATER_MESSAGES = 40;
-const FINISHED = 'The migration note is at the top and both missing entries are in the release notes.';
+const FINISHED =
+  'The migration note is at the top and both missing entries are in the release notes.';
 
 type Account = MatrixSession & { username: string };
 
@@ -141,7 +149,9 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     await page.bringToFront();
 
     // Opening the first thread reads it up to its finishing edit, on the room's path.
-    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(opened.rootId)}`);
+    await page.goto(
+      `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(opened.rootId)}`
+    );
     await expect(page.getByText(`${FINISHED} (Is the changelog ready?)`).last()).toBeVisible({
       timeout: 60_000,
     });
@@ -176,7 +186,10 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('receipts on bundled finishing edits go to the room (Chromium)', async ({ browser, baseURL }) => {
+test('receipts on bundled finishing edits go to the room (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
   test.setTimeout(240_000);
   await run(browser, baseURL, 'chromium');
 });

@@ -18,7 +18,10 @@
 
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Direction, EventType, type Room } from 'matrix-js-sdk';
-import { getEarliestLoadedRoomEvent, loadRoomCachedBackStateSnapshot } from '../event-store/cache/eventRepository';
+import {
+  getEarliestLoadedRoomEvent,
+  loadRoomCachedBackStateSnapshot,
+} from '../event-store/cache/eventRepository';
 import type { Timeline } from '../event-store/timeline/timelinePagination';
 import { logTimelineDebug } from '../diagnostics/timelineDebug';
 

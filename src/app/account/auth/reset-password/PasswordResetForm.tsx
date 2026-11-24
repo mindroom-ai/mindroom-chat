@@ -37,8 +37,7 @@ async function fetchSsoProviderNames(
 ): Promise<string | undefined> {
   const flows = await mx.loginFlows().catch(() => undefined);
   const sso = flows?.flows.find((flow) => flow.type === 'm.login.sso') as
-    | { identity_providers?: IIdentityProvider[] }
-    | undefined;
+    { identity_providers?: IIdentityProvider[] } | undefined;
   return sso ? getSsoProviderNames(sso.identity_providers) : undefined;
 }
 
@@ -113,8 +112,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
     requestState.status === AsyncStatus.Error
       ? (requestState.error as Partial<MatrixError>)
       : resetState.status === AsyncStatus.Error
-      ? (resetState.error as Partial<MatrixError>)
-      : undefined;
+        ? (resetState.error as Partial<MatrixError>)
+        : undefined;
   const busy =
     requestState.status === AsyncStatus.Loading || resetState.status === AsyncStatus.Loading;
 

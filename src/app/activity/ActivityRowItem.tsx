@@ -299,7 +299,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const lead = actorIds[0];
   const avatarMxc = room && lead ? getMemberAvatarMxc(room, lead) : undefined;
   const avatarUrl = avatarMxc
-    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined
+    ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, 48, 48, 'crop') ?? undefined)
     : undefined;
   const suffix = sentenceSuffix(t, row);
   const kind = KIND_ICONS[row.kind];

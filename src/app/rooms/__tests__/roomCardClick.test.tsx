@@ -31,7 +31,7 @@ const makeClient = () =>
     knockRoom: vi.fn(() => new Promise(() => undefined)),
     on: vi.fn(),
     removeListener: vi.fn(),
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const renderCard = (
   mx: MatrixClient,

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { Membership } from '../matrix/types/room';
 import { MembershipFilter } from './useMemberFilter';
 
-const memberWithMembership = (membership: Membership): RoomMember => ({ membership } as RoomMember);
+const memberWithMembership = (membership: Membership): RoomMember => ({ membership }) as RoomMember;
 
 describe('MembershipFilter', () => {
   it('matches only pending knock memberships as join requests', () => {

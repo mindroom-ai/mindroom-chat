@@ -805,7 +805,9 @@ describe('InviteUserPrompt (Option A — Instant Directory Sheet)', () => {
         n.type === 'input'
     );
     expect(
-      footerControls.map((n) => (n.type === 'input' ? 'input' : n.props.role ?? n.props.className))
+      footerControls.map((n) =>
+        n.type === 'input' ? 'input' : (n.props.role ?? n.props.className)
+      )
     ).toEqual(['switch', 'InviteNoteToggle', 'input']);
 
     // Collapsing skips sending the note.

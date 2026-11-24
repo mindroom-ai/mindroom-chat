@@ -18,7 +18,7 @@ const makeSummaryEvent = (summaryText: string, generatedAt: string, messageCount
         message_count: messageCount,
       },
     }),
-  } as never);
+  }) as never;
 
 const SummaryPublishHarness = ({
   onStoreThreadSummary,

@@ -33,7 +33,7 @@ export function ModelBadge({ info }: { info: AiRunInfo }) {
   const fullModelLabel =
     info.modelDisplayName && modelDetails && modelDetails !== label
       ? `${label} · ${modelDetails}`
-      : modelDetails ?? label;
+      : (modelDetails ?? label);
 
   return (
     <TipButton

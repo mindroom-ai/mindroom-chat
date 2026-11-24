@@ -801,7 +801,7 @@ describe('ThreadContextBanner rendering', () => {
               .forEach((name) => classes.add(name));
           },
           querySelector: (selector: string) =>
-            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
+            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions })[selector] ?? null,
         };
         lastRow = node;
         return node;

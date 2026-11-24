@@ -20,12 +20,7 @@ export type DictationTranscribeResult = {
 };
 
 export type DictationRefusalCode =
-  | 'forbidden'
-  | 'not-found'
-  | 'invalid'
-  | 'too-many-requests'
-  | 'unavailable'
-  | 'too-large';
+  'forbidden' | 'not-found' | 'invalid' | 'too-many-requests' | 'unavailable' | 'too-large';
 
 export class DictationApiError extends MindroomServerError {
   readonly code?: DictationRefusalCode;

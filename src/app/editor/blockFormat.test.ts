@@ -4,7 +4,7 @@ import { getActiveBlockFormat, toggleBlockFormat } from './blockFormat';
 import { BlockType } from './types';
 
 const line = (text: string, type: string = BlockType.Paragraph) =>
-  ({ type, children: [{ text }] } as Descendant);
+  ({ type, children: [{ text }] }) as Descendant;
 
 // An editor holding `children`, with the selection from the start of block `from` to the end of
 // block `to` (top-level indexes; nested lines are selected through their container).

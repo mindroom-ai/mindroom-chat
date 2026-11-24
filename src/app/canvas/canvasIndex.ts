@@ -272,7 +272,7 @@ export function useHasListedCanvases(mx: MatrixClient): boolean {
       ),
     [sessionId]
   );
-  return listed?.sessionId === sessionId ? listed.value : listedBySession.get(sessionId) ?? false;
+  return listed?.sessionId === sessionId ? listed.value : (listedBySession.get(sessionId) ?? false);
 }
 
 /**

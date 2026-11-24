@@ -169,9 +169,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
 
   it('limits thread relation requests to one SDK adapter and two fallback call sites', () => {
     // Parse only the files that name a relations call: parsing all of src/app is slow.
-    const files = tsFiles().filter((file) =>
-      readFileSync(file, 'utf8').includes('Relations')
-    );
+    const files = tsFiles().filter((file) => readFileSync(file, 'utf8').includes('Relations'));
     const perFileCounts: Record<string, number> = {};
     for (const file of files) {
       const rel = relative(treeRoot, file).replace(/\\/g, '/');

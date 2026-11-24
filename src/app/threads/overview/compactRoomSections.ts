@@ -19,8 +19,7 @@ const COMPACT_ROOM_SECTIONS = 'compactRoomSections';
 export type CompactRoomSections = { on: boolean; folded: ThreadWorkflowBucket[] };
 
 export type CompactRoomSectionsAction =
-  | { type: 'SET_ON'; on: boolean }
-  | { type: 'TOGGLE_FOLD'; id: ThreadWorkflowBucket };
+  { type: 'SET_ON'; on: boolean } | { type: 'TOGGLE_FOLD'; id: ThreadWorkflowBucket };
 
 type CompactRoomSectionsAtom = WritableAtom<CompactRoomSections, [CompactRoomSectionsAction], void>;
 

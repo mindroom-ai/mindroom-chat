@@ -26,7 +26,7 @@ const makeClient = (entries: Record<string, { name: string; space?: boolean }>):
         }),
       };
     },
-  } as unknown as MatrixClient);
+  }) as unknown as MatrixClient;
 
 const makeParents = (entries: Record<string, string[]>): RoomToParents =>
   new Map(Object.entries(entries).map(([roomId, parents]) => [roomId, new Set(parents)]));

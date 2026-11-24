@@ -208,8 +208,7 @@ export class NativeScreenShareSession {
   private existingCompanionCreatedTs(): number {
     const userId = this.opts.mx.getSafeUserId();
     const existing = this.opts.session.memberships.find(
-      (membership) =>
-        membership.userId === userId && membership.deviceId === this.screenDeviceId
+      (membership) => membership.userId === userId && membership.deviceId === this.screenDeviceId
     );
     const ts = existing?.createdTs();
     return typeof ts === 'number' && ts > 0 ? ts : this.broadcastStartedAt;
@@ -232,7 +231,11 @@ export class NativeScreenShareSession {
       'm.call.intent': 'video',
       focus_active: { type: 'livekit', focus_selection: 'multi_sfu' },
       foci_preferred: [
-        { type: 'livekit', livekit_service_url: this.opts.serviceUrl, livekit_alias: this.opts.room.roomId },
+        {
+          type: 'livekit',
+          livekit_service_url: this.opts.serviceUrl,
+          livekit_alias: this.opts.room.roomId,
+        },
       ],
       [SCREEN_ONLY_MEMBER_KEY]: true,
       [SCREEN_PARENT_DEVICE_KEY]: this.opts.primaryDeviceId,
@@ -293,7 +296,8 @@ export class NativeScreenShareSession {
     try {
       do {
         this.rolloutPending = false;
-        if (this.closed || !this.broadcasting || !this.currentKey || this.generation === undefined) return;
+        if (this.closed || !this.broadcasting || !this.currentKey || this.generation === undefined)
+          return;
         const currentPeers = this.readRealPeers();
         const anyLeft = [...this.knownPeers.entries()].some(
           ([id, prev]) => currentPeers.get(id)?.createdTs !== prev.createdTs
@@ -340,7 +344,11 @@ export class NativeScreenShareSession {
     });
     if (this.closed || !this.broadcasting || this.generation === undefined) return;
     await this.plugin
-      .setKey({ generation: this.generation, keyBase64: encodeBase64(nextKey), keyIndex: nextIndex })
+      .setKey({
+        generation: this.generation,
+        keyBase64: encodeBase64(nextKey),
+        keyIndex: nextIndex,
+      })
       .catch(() => undefined);
   }
 

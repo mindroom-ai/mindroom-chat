@@ -119,7 +119,7 @@ const entryFor = (streaming: boolean) =>
     generation: 0,
     isInvolved: true,
     threadRecord: { status: { isStreaming: streaming } },
-  } as unknown as CrossRoomThreadIndexEntry);
+  }) as unknown as CrossRoomThreadIndexEntry;
 
 const textOf = (renderer: ReactTestRenderer): string[] =>
   renderer.root

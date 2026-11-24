@@ -1239,8 +1239,8 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         const target = movedFocus
           ? members
           : remaining === 1
-          ? opener
-          : host.querySelector('[data-room-more-options]');
+            ? opener
+            : host.querySelector('[data-room-more-options]');
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         expect(document.activeElement).toBe(target);
         props.canvases = canvases;

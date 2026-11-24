@@ -188,8 +188,7 @@ const linesOf = (log: Locator, name: string) =>
 
 const callContent = (event: MatrixEvent) =>
   event.content['io.mindroom.call'] as
-    | { call_id: string; duration_seconds?: number; transcript_event_id?: string }
-    | undefined;
+    { call_id: string; duration_seconds?: number; transcript_event_id?: string } | undefined;
 
 test("two people in a call are transcribed under their names, Pause leaves a gap, and the notes arrive in the row's thread", async ({
   page,

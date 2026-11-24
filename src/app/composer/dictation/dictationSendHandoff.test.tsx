@@ -85,7 +85,7 @@ const makeDoc = (text = ''): Descendant[] => [
 const readEditorText = (editor: Editor): string =>
   editor.children.map((n) => Node.string(n)).join('\n');
 const makeRoom = (roomId = '!room:example.org', name = 'General'): Room =>
-  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] } as unknown as Room);
+  ({ roomId, name, hasEncryptionStateEvent: () => false, getMembers: () => [] }) as unknown as Room;
 
 const makeMockSession = (initialPhase: DictationSnapshot['phase'] = 'recording') => {
   const listeners = new Set<() => void>();

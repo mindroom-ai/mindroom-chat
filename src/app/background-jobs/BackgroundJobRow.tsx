@@ -224,7 +224,7 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = item.subagent ? described || name : item.plainName ?? name;
+  const headline = item.subagent ? described || name : (item.plainName ?? name);
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;

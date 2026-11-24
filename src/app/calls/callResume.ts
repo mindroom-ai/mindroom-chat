@@ -191,7 +191,7 @@ export const deviceInCallElsewhere = async (mx: MatrixClient): Promise<boolean> 
   if (!locks || !deviceId) return false;
   const name = deviceCallLock(mx.getSafeUserId(), deviceId);
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
-  const { held = [], pending = [] } = await locks.query().catch(() => ({} as LockManagerSnapshot));
+  const { held = [], pending = [] } = await locks.query().catch(() => ({}) as LockManagerSnapshot);
   const requests = [...held, ...pending].filter((lock) => lock.name === name).length;
   return requests > (requestsHere.get(name) ?? 0);
 };

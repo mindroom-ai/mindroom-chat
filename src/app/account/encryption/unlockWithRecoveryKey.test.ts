@@ -21,7 +21,7 @@ const cryptoWith = (privateKeysInSecretStorage: boolean) => ({
 });
 
 const client = (crypto: unknown) =>
-  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org', http: {} } as never);
+  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org', http: {} }) as never;
 
 beforeEach(() => {
   vi.mocked(storePrivateKey).mockClear();

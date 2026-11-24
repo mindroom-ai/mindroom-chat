@@ -240,8 +240,8 @@ const toViewModel = (sample: Sample, index: number): CompactThreadCardViewModel 
     attentionState: sample.isResolved
       ? 'resolved'
       : sample.isStreaming
-      ? 'streaming'
-      : 'needs-attention',
+        ? 'streaming'
+        : 'needs-attention',
     attentionStatusText: '',
     participants: sample.participants ?? [mind],
     tags: sample.tags ?? [],

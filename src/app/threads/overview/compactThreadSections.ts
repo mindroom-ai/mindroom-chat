@@ -72,7 +72,7 @@ export const buildCompactThreadSections = ({
       const signals = entry && signalsOf(entry);
       // A reply that still streams counts from when it was sent (`activityOf`), not by its
       // newest edit (`newsTs`), so a thread that needs you keeps its place at every chunk.
-      const newsTs = item.status.isStreaming ? 0 : signals?.newsTs ?? 0;
+      const newsTs = item.status.isStreaming ? 0 : (signals?.newsTs ?? 0);
       const ts = Math.max(signals?.outcome?.ts ?? 0, newsTs, activityOf(item));
       return [item, ts] as const;
     })

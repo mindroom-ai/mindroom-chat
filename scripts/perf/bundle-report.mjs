@@ -47,7 +47,9 @@ const staticImports = (file) => {
   const found = new Set();
   for (const match of code.matchAll(STATIC_IMPORT)) {
     if (match[1].startsWith('.') || match[1].startsWith('/'))
-      found.add(path.resolve(path.dirname(file), match[1].startsWith('/') ? `${dist}${match[1]}` : match[1]));
+      found.add(
+        path.resolve(path.dirname(file), match[1].startsWith('/') ? `${dist}${match[1]}` : match[1])
+      );
   }
   return [...found];
 };
@@ -61,9 +63,7 @@ const entries = tags
 const preloads = tags
   .filter((tag) => /rel="modulepreload"/.test(tag))
   .map((tag) => attr(tag, 'href'));
-const styles = tags
-  .filter((tag) => /rel="stylesheet"/.test(tag))
-  .map((tag) => attr(tag, 'href'));
+const styles = tags.filter((tag) => /rel="stylesheet"/.test(tag)).map((tag) => attr(tag, 'href'));
 const local = (url) => path.join(dist, url.replace(/^\//, ''));
 
 const initial = new Set();
@@ -104,17 +104,29 @@ const table = (list) =>
 const summary = {
   entry: entryRow?.file,
   initialFiles: initialRows.length,
-  initialJs: { raw: sum(initialJs, 'raw'), gzip: sum(initialJs, 'gzip'), brotli: sum(initialJs, 'brotli') },
+  initialJs: {
+    raw: sum(initialJs, 'raw'),
+    gzip: sum(initialJs, 'gzip'),
+    brotli: sum(initialJs, 'brotli'),
+  },
   initialCss: {
-    raw: sum(initialRows.filter((row) => row.file.endsWith('.css')), 'raw'),
-    gzip: sum(initialRows.filter((row) => row.file.endsWith('.css')), 'gzip'),
+    raw: sum(
+      initialRows.filter((row) => row.file.endsWith('.css')),
+      'raw'
+    ),
+    gzip: sum(
+      initialRows.filter((row) => row.file.endsWith('.css')),
+      'gzip'
+    ),
   },
   entryJs: entryRow ? { raw: entryRow.raw, gzip: entryRow.gzip, brotli: entryRow.brotli } : null,
   allJs: { raw: sum(jsRows, 'raw'), files: jsRows.length },
 };
 
 console.log(`Initial load (before the entry runs): ${initialRows.length} files`);
-console.log(`${'file'.padEnd(58)} ${'raw'.padStart(12)} ${'gzip'.padStart(11)} ${'brotli'.padStart(11)}`);
+console.log(
+  `${'file'.padEnd(58)} ${'raw'.padStart(12)} ${'gzip'.padStart(11)} ${'brotli'.padStart(11)}`
+);
 console.log(table(initialRows));
 console.log(
   `initial JS: ${kb(summary.initialJs.raw)} raw, ${kb(summary.initialJs.gzip)} gzip, ${kb(
@@ -236,7 +248,10 @@ if (process.env.MINDROOM_CLIENT_PLUGINS) {
   }
   if (mapped) {
     summary.clientPlugins = Object.fromEntries(
-      plugins.map(({ id, code }) => [id, { raw: Buffer.byteLength(code), gzip: gzipSync(code, { level: 9 }).length }])
+      plugins.map(({ id, code }) => [
+        id,
+        { raw: Buffer.byteLength(code), gzip: gzipSync(code, { level: 9 }).length },
+      ])
     );
     console.log(`\nClient plugins (minified JS, from the source maps):`);
     console.log(`${'plugin'.padEnd(58)} ${'raw'.padStart(12)} ${'gzip'.padStart(11)}`);

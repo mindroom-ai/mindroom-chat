@@ -63,8 +63,7 @@ export const loadCachedAttachment = async (
     if (!db) return undefined;
     const transaction = db.transaction(ATTACHMENTS_STORE, 'readonly');
     return (await requestResult(transaction.objectStore(ATTACHMENTS_STORE).get(mxcUri))) as
-      | CachedAttachmentRecord
-      | undefined;
+      CachedAttachmentRecord | undefined;
   } catch {
     return undefined;
   }
@@ -117,24 +116,22 @@ const putAttachmentTransaction = async (
         lastAccessedAt: now,
         essential: previous?.essential === true || options.essential === true,
       };
-      const updated = references.map(
-        (row): CachedAttachmentReferenceRecord => ({
-          ...row,
-          byteLength: record.byteLength,
-          updatedAt: now,
-          status:
-            record.byteLength <= (row.maxBytes ?? Infinity) &&
-            (!row.essential ||
-              row.status === 'cached' ||
-              (options.essential &&
-                row.roomId === options.roomId &&
-                row.eventId === options.eventId &&
-                row.revisionTs === options.revisionTs &&
-                (row.revisionId ?? '') === (options.revisionId ?? '')))
-              ? 'cached'
-              : 'missing',
-        })
-      );
+      const updated = references.map((row): CachedAttachmentReferenceRecord => ({
+        ...row,
+        byteLength: record.byteLength,
+        updatedAt: now,
+        status:
+          record.byteLength <= (row.maxBytes ?? Infinity) &&
+          (!row.essential ||
+            row.status === 'cached' ||
+            (options.essential &&
+              row.roomId === options.roomId &&
+              row.eventId === options.eventId &&
+              row.revisionTs === options.revisionTs &&
+              (row.revisionId ?? '') === (options.revisionId ?? '')))
+            ? 'cached'
+            : 'missing',
+      }));
       updated.forEach((row) => refs.put(row));
       if (references.length)
         record.essential = updated.some((row) => row.essential && row.status === 'cached');
@@ -320,8 +317,7 @@ export const replaceCachedAttachmentReferences = async (
   removed.forEach((row) => refs.delete(row.referenceKey));
   for (const input of entries) {
     const cached = (await requestResult(blobs.get(input.mxcUri))) as
-      | CachedAttachmentRecord
-      | undefined;
+      CachedAttachmentRecord | undefined;
     const validated = owned.some(
       (row) =>
         row.mxcUri === input.mxcUri &&

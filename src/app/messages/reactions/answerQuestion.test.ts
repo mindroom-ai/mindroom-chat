@@ -10,7 +10,7 @@ const client = () =>
     getUserId: () => ME,
     makeTxnId: () => 'txn1',
     sendEvent: vi.fn(async () => ({ event_id: '$sent' })),
-  } as unknown as MatrixClient & { sendEvent: ReturnType<typeof vi.fn> });
+  }) as unknown as MatrixClient & { sendEvent: ReturnType<typeof vi.fn> };
 
 describe('answerQuestion', () => {
   const question = {
@@ -38,7 +38,7 @@ describe('answerQuestion', () => {
             reactions.length ? { getRelations: () => reactions } : undefined,
         },
       }),
-    } as unknown as Room);
+    }) as unknown as Room;
 
   it('answers with the option reaction in the thread', async () => {
     const mx = client();

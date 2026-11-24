@@ -28,7 +28,7 @@ const storage = (): Storage => {
 };
 
 const answer = (config: ClientConfig): Response =>
-  ({ ok: true, status: 200, type: 'basic', json: async () => config } as Response);
+  ({ ok: true, status: 200, type: 'basic', json: async () => config }) as Response;
 
 const cached: ClientConfig = {
   homeserverList: ['https://matrix.example.test'],

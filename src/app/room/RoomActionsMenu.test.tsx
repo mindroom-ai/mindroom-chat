@@ -421,15 +421,14 @@ describe("plugins' entries", () => {
   const choose = (name: string) => fireEvent.click(screen.getByRole('menuitem', { name }));
 
   /** A dialog that names the room it was shown for. */
-  const exampleDialog = (named: Room) => (close: () => void) =>
-    (
-      <div role="dialog" aria-label="Example dialog">
-        <p>Example dialog of {named.name}</p>
-        <button type="button" onClick={close}>
-          Close example dialog
-        </button>
-      </div>
-    );
+  const exampleDialog = (named: Room) => (close: () => void) => (
+    <div role="dialog" aria-label="Example dialog">
+      <p>Example dialog of {named.name}</p>
+      <button type="button" onClick={close}>
+        Close example dialog
+      </button>
+    </div>
+  );
 
   it('lists them in a group of their own, after the first group and before Remove from, Archive and Leave, in a row menu and in the room header menu', () => {
     buildWith(entry(), entry({ id: 'other', label: 'other' }));

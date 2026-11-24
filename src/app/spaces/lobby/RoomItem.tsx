@@ -78,10 +78,10 @@ export function RoomItemCard({
   );
   const topic = summary?.topic && revealDirectionControls(summary.topic);
   const avatarSrc = summary?.avatar_url
-    ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined)
     : localRoom
-    ? getRoomAvatarUrl(client, localRoom, 96, authenticated)
-    : undefined;
+      ? getRoomAvatarUrl(client, localRoom, 96, authenticated)
+      : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 
   return (

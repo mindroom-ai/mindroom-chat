@@ -31,10 +31,7 @@ export type RoomInputSendStep =
   | { kind: 'wait' }
   | { kind: 'complete' };
 
-const hasMatchingReplyRelation = (
-  expected?: IEventRelation,
-  current?: IEventRelation
-): boolean => {
+const hasMatchingReplyRelation = (expected?: IEventRelation, current?: IEventRelation): boolean => {
   if (!expected && !current) return true;
   if (!expected || !current) return false;
 
@@ -46,10 +43,7 @@ const hasMatchingReplyRelation = (
   );
 };
 
-export const hasMatchingReplyDraft = (
-  expected?: IReplyDraft,
-  current?: IReplyDraft
-): boolean => {
+export const hasMatchingReplyDraft = (expected?: IReplyDraft, current?: IReplyDraft): boolean => {
   if (!expected && !current) return true;
   if (!expected || !current) return false;
 
@@ -68,9 +62,9 @@ export const hasExplicitThreadContext = (
   threadingEnabled &&
   Boolean(
     threadId ||
-      (replyDraft?.relation?.rel_type === RelationType.Thread &&
-        typeof replyDraft.relation.event_id === 'string' &&
-        replyDraft.relation.event_id.length > 0)
+    (replyDraft?.relation?.rel_type === RelationType.Thread &&
+      typeof replyDraft.relation.event_id === 'string' &&
+      replyDraft.relation.event_id.length > 0)
   );
 
 export const getRoomInputSendMode = ({
@@ -270,8 +264,7 @@ export const isRoomInputSendSessionStalled = (
   if (session.blockedRoot) return true;
   const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
   return getPendingFiles(session, activeFiles).every(
-    (file) =>
-      session.failedFiles.has(file) || uploadMap.get(file)?.status === UploadStatus.Error
+    (file) => session.failedFiles.has(file) || uploadMap.get(file)?.status === UploadStatus.Error
   );
 };
 
@@ -281,8 +274,7 @@ type RelationSession = Pick<RoomInputSendSessionState, 'mode' | 'rootEventId'> &
   threadingEnabled?: boolean;
 };
 
-const allowThreadRelation = (session: RelationSession): boolean =>
-  session.threadingEnabled ?? true;
+const allowThreadRelation = (session: RelationSession): boolean => session.threadingEnabled ?? true;
 
 export const getTextRelationForSendSession = (session: RelationSession) => {
   if (session.mode === 'existing-thread') {
@@ -304,10 +296,7 @@ export const getTextRelationForSendSession = (session: RelationSession) => {
   });
 };
 
-export const getUploadRelationForSendSession = (
-  session: RelationSession,
-  isRoot: boolean
-) => {
+export const getUploadRelationForSendSession = (session: RelationSession, isRoot: boolean) => {
   if (session.mode === 'existing-thread') {
     return getMessageRelation(
       session.replyDraft?.eventId,

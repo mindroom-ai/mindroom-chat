@@ -187,7 +187,10 @@ it('drops a person’s notice when their message arrives, but not an agent’s',
   serverTyping([AGENT, PERSON]);
 
   // An agent keeps one notice for all its replies in the room, also through its other messages.
-  await message(AGENT, '$placeholder', { body: 'Thinking...', 'io.mindroom.stream_status': 'pending' });
+  await message(AGENT, '$placeholder', {
+    body: 'Thinking...',
+    'io.mindroom.stream_status': 'pending',
+  });
   await message(AGENT, '$title', { msgtype: 'm.notice', body: 'Harbor report' });
   expect(shown()).toEqual([AGENT, PERSON]);
 

@@ -408,8 +408,7 @@ const draftAfterReload: Check = async (page, world, { form, tag, where }) => {
   await sendComposer(page, form);
   const sent = await sentEvent(world.admin.accessToken, world.roomId, caption);
   const relation = sent.content['m.relates_to'] as
-    | { 'm.in_reply_to'?: { event_id?: string } }
-    | undefined;
+    { 'm.in_reply_to'?: { event_id?: string } } | undefined;
   expect(relation?.['m.in_reply_to']?.event_id, `${where}: sent as the reply`).toBe(originalId);
   await expect(notice, `${where}: sending answers the notice`).toHaveCount(0);
   await expect(cancelReply).toHaveCount(0);

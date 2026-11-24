@@ -47,8 +47,8 @@ const quotaFillColor = (tone: QuotaTone, provider?: string): string =>
   tone === 'critical'
     ? color.Critical.Main
     : tone === 'warning'
-    ? color.Warning.Main
-    : providerAccentColor(provider);
+      ? color.Warning.Main
+      : providerAccentColor(provider);
 
 export const accountChartColor = (
   account: Pick<ProviderAccountUsage, 'provider'>,

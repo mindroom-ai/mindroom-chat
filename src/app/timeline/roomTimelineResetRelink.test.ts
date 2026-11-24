@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Timeline } from '../event-store/timeline/timelinePagination';
 import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 
-const makeEventTimeline = (): EventTimeline => ({ __timeline: true } as unknown as EventTimeline);
+const makeEventTimeline = (): EventTimeline => ({ __timeline: true }) as unknown as EventTimeline;
 
 const makeRoom = (initialLiveTimeline: EventTimeline) => {
   let liveTimeline = initialLiveTimeline;

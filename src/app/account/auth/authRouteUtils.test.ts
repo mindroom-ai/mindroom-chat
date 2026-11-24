@@ -22,8 +22,6 @@ describe('buildAuthRoutePath', () => {
         registrationAllowed: true,
         server: 'https://mindroom.chat',
       })
-    ).toBe(
-      '/register/https%3A%2F%2Fmindroom.chat?email=test%40example.com&addAccount=1#oidc'
-    );
+    ).toBe('/register/https%3A%2F%2Fmindroom.chat?email=test%40example.com&addAccount=1#oidc');
   });
 });

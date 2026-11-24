@@ -130,9 +130,9 @@ test('an approval nobody answers expires and says so', async ({ page, stack }) =
   await expect(page.getByRole('region', { name: 'Thread approvals' })).toBeHidden({
     timeout: 30_000,
   });
-  await expect(page.getByRole('button', { name: /untag_thread expired|Approval expired/ })).toBeVisible(
-    { timeout: 30_000 }
-  );
+  await expect(
+    page.getByRole('button', { name: /untag_thread expired|Approval expired/ })
+  ).toBeVisible({ timeout: 30_000 });
   // The tag stays, since the call never ran.
   await expect(page.getByRole('button', { name: 'Remove stub-tag tag' })).toBeVisible();
 });

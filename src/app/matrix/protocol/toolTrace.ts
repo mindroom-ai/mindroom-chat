@@ -66,7 +66,9 @@ export const runningToolCalls = (
   events: readonly ToolTraceEvent[] | undefined,
   streaming: boolean
 ): { count: number; names: string[] } => {
-  const running = streaming ? events?.filter(({ type }) => type === 'tool_call_started') ?? [] : [];
+  const running = streaming
+    ? (events?.filter(({ type }) => type === 'tool_call_started') ?? [])
+    : [];
   const names = running.flatMap(({ tool_name: name }) =>
     typeof name === 'string' && name ? [name] : []
   );

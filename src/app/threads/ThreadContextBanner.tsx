@@ -482,8 +482,8 @@ export function ThreadContextBanner({
           headerModel.isResolved
             ? css.BannerResolved
             : snoozedText
-            ? css.BannerSnoozed
-            : css.Banner,
+              ? css.BannerSnoozed
+              : css.Banner,
           collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
@@ -795,7 +795,7 @@ export function ThreadContextBanner({
                   <IconTooltip
                     label={
                       headerModel.isResolved
-                        ? resolvedByLabel ?? t('thread.resolved')
+                        ? (resolvedByLabel ?? t('thread.resolved'))
                         : t('thread.resolve')
                     }
                     hint={

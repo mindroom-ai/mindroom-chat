@@ -214,7 +214,7 @@ export function SpaceItemCard({
 
   const spaceName = revealDirectionControls(summary?.name || summary?.canonical_alias || roomId);
   const avatarSrc = summary?.avatar_url
-    ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
+    ? (mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined)
     : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 

@@ -1011,7 +1011,7 @@ function useCardMotion(box: RefObject<HTMLElement | null>, moves: boolean) {
       const width = element.offsetWidth;
       const size = (pixels: number) => ({ width: pixels, gap: 0 });
       // In from nothing, or from the width of the panel whose place it takes; out to nothing.
-      const from = phase === 'swap' ? lastWidth?.current ?? width : 0;
+      const from = phase === 'swap' ? (lastWidth?.current ?? width) : 0;
       motion.current =
         phase === 'exit'
           ? animatePanel(element, size(now ?? width), size(0), true)

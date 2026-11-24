@@ -53,7 +53,9 @@ const scrollUntil = async (page: Page, deltaY: number, until: (gap: number) => b
       async () => {
         const gap = await scrollGap(page);
         if (!until(gap)) {
-          await (await scroller(page)).evaluate((element, delta) => {
+          await (
+            await scroller(page)
+          ).evaluate((element, delta) => {
             element.scrollBy(0, delta);
           }, deltaY);
           await page.waitForTimeout(200);

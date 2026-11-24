@@ -48,11 +48,13 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
   const imageMxc = typeof preview?.['og:image'] === 'string' ? preview['og:image'] : undefined;
   const thumbnail = useAvatarImage(
     imageMxc
-      ? mxcUrlToHttp(mx, imageMxc, useAuthentication, 256, 256, 'scale', false) ?? undefined
+      ? (mxcUrlToHttp(mx, imageMxc, useAuthentication, 256, 256, 'scale', false) ?? undefined)
       : undefined
   );
   const original = useAvatarImage(
-    imageMxc && viewerOpen ? mxcUrlToHttp(mx, imageMxc, useAuthentication) ?? undefined : undefined
+    imageMxc && viewerOpen
+      ? (mxcUrlToHttp(mx, imageMxc, useAuthentication) ?? undefined)
+      : undefined
   );
 
   // Nothing shows until a preview arrives: a placeholder would leave the row, and move what is

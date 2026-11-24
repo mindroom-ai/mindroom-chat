@@ -53,7 +53,7 @@ describe('thread relation tiles', () => {
           rootEvent,
           events: events.slice(1),
           getUnfilteredTimelineSet: () => timelineSet,
-        } as never);
+        }) as never;
       threadRenderStateMock.threadEvents = events;
       threadRenderStateMock.threadEventIndexMapRef.current = new Map(
         events.map((event, index) => [event.getId(), index])

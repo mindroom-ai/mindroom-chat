@@ -281,32 +281,40 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       open: async (page) => {
         await go(page, threadUrl(stack, seeded.thread));
         // An early reply leaves enough content below it to scroll its badge up to the banner.
-        const rowId = await page.getByRole('button', { name: /^Model: / }).first().evaluate(
-          (element) => element.closest('[data-message-id]')?.getAttribute('data-message-id')
-        );
+        const rowId = await page
+          .getByRole('button', { name: /^Model: / })
+          .first()
+          .evaluate((element) =>
+            element.closest('[data-message-id]')?.getAttribute('data-message-id')
+          );
         if (!rowId) throw new Error('Missing badge message');
         // Keep this message selected when virtualization mounts earlier rows during the scroll.
-        const badge = page.locator(`[data-message-id="${rowId}"]`)
+        const badge = page
+          .locator(`[data-message-id="${rowId}"]`)
           .getByRole('button', { name: /^Model: / });
         await badge.scrollIntoViewIfNeeded();
         await badge.evaluate((element) => {
           const banner = document.querySelector('[data-thread-context-banner]');
           if (!banner) throw new Error('Missing thread banner');
           for (let node = element.parentElement; node; node = node.parentElement) {
-            if (/auto|scroll/.test(getComputedStyle(node).overflowY) &&
-                node.scrollHeight > node.clientHeight) {
-              node.scrollTop += element.getBoundingClientRect().top -
-                banner.getBoundingClientRect().bottom - 1;
+            if (
+              /auto|scroll/.test(getComputedStyle(node).overflowY) &&
+              node.scrollHeight > node.clientHeight
+            ) {
+              node.scrollTop +=
+                element.getBoundingClientRect().top - banner.getBoundingClientRect().bottom - 1;
               return;
             }
           }
           throw new Error('Missing thread scroller');
         });
-        await expect.poll(async () => {
-          const box = await badge.boundingBox();
-          const banner = await page.locator('[data-thread-context-banner]').boundingBox();
-          return box && banner ? Math.abs(box.y - banner.y - banner.height - 1) : Infinity;
-        }).toBeLessThan(2);
+        await expect
+          .poll(async () => {
+            const box = await badge.boundingBox();
+            const banner = await page.locator('[data-thread-context-banner]').boundingBox();
+            return box && banner ? Math.abs(box.y - banner.y - banner.height - 1) : Infinity;
+          })
+          .toBeLessThan(2);
       },
     },
     {
@@ -401,10 +409,12 @@ const checkScreen = async (page: Page, screen: Screen, engine: string) => {
     // All visible controls participate, including Back in the banner above message rows.
     // eslint-disable-next-line no-await-in-loop
     const conflicts = await raisedTouchConflicts(page);
-    expect.soft(conflicts, `${where}: no raised layer intersects another interactive element`)
+    expect
+      .soft(conflicts, `${where}: no raised layer intersects another interactive element`)
       .toEqual([]);
     // eslint-disable-next-line no-await-in-loop
-    expect.soft(await grownPills(page), `${where}: pills keep their size in 44 px targets`)
+    expect
+      .soft(await grownPills(page), `${where}: pills keep their size in 44 px targets`)
       .toEqual([]);
     // eslint-disable-next-line no-await-in-loop
     const { checked, misses } = await measureHitAreas(page);

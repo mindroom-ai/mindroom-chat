@@ -201,7 +201,7 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     threadId:
       parsedTopLevelThreadId !== undefined
         ? parsedTopLevelThreadId
-        : parsedWorkflow?.threadId ?? null,
+        : (parsedWorkflow?.threadId ?? null),
     newThread: parsedTopLevelNewThread ?? parsedWorkflow?.newThread ?? false,
     executeAt: parsedTopLevelExecuteAt ?? parsedWorkflow?.executeAt ?? null,
     ...(cronDescription ? { cronDescription } : {}),
