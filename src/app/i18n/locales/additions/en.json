@@ -1203,7 +1203,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Compact view",
-        "threadFiltersActive": "Thread filters (active)"
+        "threadFiltersActive": "Thread filters (active)",
+        "mindroomSettings": "MindRoom Settings"
       },
       "roomThreadOverview": {
         "advancedFilters": "Advanced filters",
@@ -1264,7 +1265,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
+      "awaitingAnswer": "Waiting for your answer: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished",
+      "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-agents · {{number}}",
       "groupTools": "Tools · {{number}}",
       "tools_one": "{{count}} tool",
@@ -1309,6 +1312,95 @@
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
       "jobTotalFinished_other": "{{count}} background jobs finished"
+    },
+    "workflowRun": {
+      "title": "Workflow",
+      "status": {
+        "starting": "Starting",
+        "running": "Running",
+        "waiting": "Waiting for you",
+        "completed": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted"
+      },
+      "counts": "{{done}} done, {{running}} running, {{waiting}} waiting",
+      "reused": "Reused: {{count}}",
+      "cost": "{{spent}} so far, about {{projected}} in total",
+      "costAtLeast": "at least {{spent}} so far",
+      "largeRun": "Large run",
+      "attempt": "Attempt {{number}}",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "resume": "Resume",
+      "runAgain": "Run again",
+      "starting": "Starting…",
+      "failedCount_one": "{{count}} failed",
+      "failedCount_other": "{{count}} failed",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Already answered.",
+          "noLongerOpen": "This question is no longer open.",
+          "notAnOption": "That is not one of the options.",
+          "notForYou": "Only the person who started the run can answer."
+        },
+        "noReply": "No reply yet. Try again.",
+        "placeholder": "Type your answer",
+        "send": "Send",
+        "answered": "Answered: {{answer}}",
+        "cancelled": "Cancelled",
+        "onlyRequester": "Only {{name}} can answer."
+      },
+      "graph": "Graph",
+      "panel": {
+        "close": "Close",
+        "resize": "Resize workflow panel",
+        "hide": "Hide workflow",
+        "waitingForUpdate": "Waiting for the run's next update…",
+        "stale": "Not updating. Last update {{time}}.",
+        "log": "Log",
+        "showMore": "Show {{count}} more",
+        "omitted": {
+          "queued_one": "and {{count}} more queued",
+          "queued_other": "and {{count}} more queued",
+          "running_one": "and {{count}} more running",
+          "running_other": "and {{count}} more running",
+          "waiting_one": "and {{count}} more waiting",
+          "waiting_other": "and {{count}} more waiting",
+          "failed_one": "and {{count}} more failed",
+          "failed_other": "and {{count}} more failed",
+          "done_one": "and {{count}} more done",
+          "done_other": "and {{count}} more done"
+        },
+        "askAgent": "Ask {{agent}} for the rest."
+      },
+      "group": {
+        "foreach": "For each",
+        "parallel": "Parallel",
+        "run": "Saved workflow",
+        "workflow": "Nested workflow",
+        "progress": "{{done}} of {{total}}",
+        "failed": "Failed: {{count}}"
+      },
+      "node": {
+        "reused": "Reused from the last run",
+        "queued": "Queued",
+        "mayHaveRun": "May have run",
+        "waitingOn": {
+          "user": "Waiting for your answer",
+          "approval": "Waiting for approval",
+          "peer": "Waiting for a message"
+        },
+        "sessionTurns_one": "{{count}} turn",
+        "sessionTurns_other": "{{count}} turns",
+        "result": "Result",
+        "error": "Error",
+        "messages": "Messages",
+        "messagesTo": "Messages to {{name}}: {{count}}",
+        "open": "Open",
+        "detailsUnavailable": "Details are no longer available after reload.",
+        "stop": "Stop agent"
+      }
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1552,7 +1644,9 @@
     },
     "actions": {
       "goActivity": "Go to Activity",
-      "goActivityDescription": "Mentions, replies and what waits for you"
+      "goActivityDescription": "Mentions, replies and what waits for you",
+      "openCurrentRoomMindroomSettings": "Open MindRoom Room Settings",
+      "openCurrentRoomMindroomSettingsDescription": "Open MindRoom settings for {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Recently opened",
@@ -1707,8 +1801,7 @@
       "replyAndOthers_one": "{{name}} and {{count}} other replied",
       "replyAndOthers_other": "{{name}} and {{count}} others replied",
       "finished": "{{name}} finished",
-      "stopped": "{{name}} stopped",
-      "youReplied": "You replied"
+      "stopped": "{{name}} stopped"
     },
     "newCount_one": "{{count}} new",
     "newCount_other": "{{count}} new",
@@ -2122,5 +2215,35 @@
   },
   "nav": {
     "usage": "Usage"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} room",
+      "roomsCount_other": "{{count}} rooms",
+      "roomsFiltered": "{{active}} of {{total}} rooms"
+    },
+    "roomFilter": {
+      "label": "Rooms",
+      "ariaLabel": "Filter threads by room",
+      "ariaLabelActive": "Filter threads by room ({{number}} selected)",
+      "ariaLabelOne": "Rooms: {{room}}",
+      "search": "Search rooms",
+      "noMatch": "No matching rooms"
+    },
+    "composer": {
+      "postTo": "Post to:",
+      "postToRoom": "Post to #{{room}}",
+      "chooseRoomAria": "Choose room to post to",
+      "draftPinned": "Draft for #{{room}}",
+      "readOnly": "No rooms in this space allow posting."
+    },
+    "loading": "Loading threads...",
+    "empty": {
+      "noRooms": "Join a room in this space to see threads here.",
+      "noThreads": "No threads in this space yet."
+    },
+    "error": {
+      "title": "Could not load space threads"
+    }
   }
 }

@@ -7,6 +7,7 @@ import {
   fieldStateOf,
   findShortcut,
   formatShortcut,
+  matchesHotkey,
   matchesKeys,
   matchesShortcut,
   moveStep,
@@ -120,6 +121,37 @@ describe('matchesKeys', () => {
     expect(
       matchesKeys(press({ key: 'Dead', code: 'Backslash', metaKey: true }), 'mod+\\', true)
     ).toBe(true);
+  });
+});
+
+describe('matchesHotkey', () => {
+  it('matches mod+enter with Meta on Apple platforms and Ctrl elsewhere', () => {
+    expect(matchesHotkey('mod+enter', { key: 'Enter', metaKey: true }, true)).toBe(true);
+    expect(matchesHotkey('mod+enter', { key: 'Enter', ctrlKey: true }, true)).toBe(false);
+    expect(matchesHotkey('mod+enter', { key: 'Enter', ctrlKey: true }, false)).toBe(true);
+    expect(matchesHotkey('mod+enter', { key: 'Enter', metaKey: true }, false)).toBe(false);
+  });
+
+  it('matches minimal synthetic events without optional modifier or code fields', () => {
+    expect(matchesHotkey('enter', { key: 'Enter' })).toBe(true);
+    expect(matchesHotkey('shift+enter', { key: 'Enter' })).toBe(false);
+    expect(matchesHotkey('shift+enter', { key: 'Enter', shiftKey: true })).toBe(true);
+    expect(matchesHotkey('escape', { key: 'Escape' })).toBe(true);
+    expect(matchesHotkey('arrowdown', { key: 'ArrowDown' })).toBe(true);
+  });
+
+  it('falls back to code for non-ASCII letter keys', () => {
+    expect(matchesHotkey('mod+b', { key: 'и', code: 'KeyB', ctrlKey: true }, false)).toBe(true);
+    expect(matchesHotkey('mod+b', { key: 'и', code: 'KeyB', metaKey: true }, true)).toBe(true);
+    expect(matchesHotkey('mod+b', { key: 'и', ctrlKey: true }, false)).toBe(false);
+  });
+
+  it('matches any chord in a list of keys', () => {
+    expect(matchesHotkey(['enter', 'space'], { key: 'Enter' })).toBe(true);
+    expect(matchesHotkey(['enter', 'space'], { key: ' ' })).toBe(true);
+    expect(matchesHotkey(['enter', 'space'], { key: ' ', shiftKey: true })).toBe(false);
+    expect(matchesHotkey(['arrowup', 'arrowdown'], { key: 'ArrowUp' })).toBe(true);
+    expect(matchesHotkey(['arrowup', 'arrowdown'], { key: 'ArrowLeft' })).toBe(false);
   });
 });
 

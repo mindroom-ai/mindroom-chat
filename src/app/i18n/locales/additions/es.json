@@ -1238,7 +1238,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "Vista compacta",
-        "threadFiltersActive": "Filtros de hilos (activos)"
+        "threadFiltersActive": "Filtros de hilos (activos)",
+        "mindroomSettings": "Ajustes de MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtros avanzados",
@@ -1299,7 +1300,9 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tareas en segundo plano (se muestran {{shown}})",
       "finished": "Terminado: {{tool}}",
+      "awaitingAnswer": "Esperando tu respuesta: {{tool}}",
       "jobCountFinished": "{{count}} tareas en segundo plano terminadas",
+      "groupWorkflows": "Flujos de trabajo · {{number}}",
       "groupSubagents": "Subagentes · {{number}}",
       "groupTools": "Herramientas · {{number}}",
       "tools_one": "{{count}} herramienta",
@@ -1349,6 +1352,102 @@
       "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
       "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
       "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
+    },
+    "workflowRun": {
+      "title": "Flujo de trabajo",
+      "status": {
+        "starting": "Iniciando",
+        "running": "En curso",
+        "waiting": "Esperando tu respuesta",
+        "completed": "Listo",
+        "failed": "Con error",
+        "cancelled": "Cancelado",
+        "interrupted": "Interrumpido"
+      },
+      "counts": "{{done}} completados, {{running}} en curso, {{waiting}} en espera",
+      "reused": "Reutilizados: {{count}}",
+      "cost": "{{spent}} hasta ahora, unos {{projected}} en total",
+      "costAtLeast": "al menos {{spent}} hasta ahora",
+      "largeRun": "Ejecución grande",
+      "attempt": "Intento {{number}}",
+      "stop": "Detener",
+      "stopping": "Deteniendo…",
+      "resume": "Reanudar",
+      "runAgain": "Ejecutar de nuevo",
+      "starting": "Iniciando…",
+      "failedCount_one": "{{count}} fallidos",
+      "failedCount_many": "{{count}} fallidos",
+      "failedCount_other": "{{count}} fallidos",
+      "question": {
+        "rejected": {
+          "alreadyAnswered": "Ya se respondió.",
+          "noLongerOpen": "Esta pregunta ya no está abierta.",
+          "notAnOption": "Esa no es una de las opciones.",
+          "notForYou": "Solo quien inició la ejecución puede responder."
+        },
+        "noReply": "Sin respuesta todavía. Inténtalo de nuevo.",
+        "placeholder": "Escribe tu respuesta",
+        "send": "Enviar",
+        "answered": "Respondido: {{answer}}",
+        "cancelled": "Cancelado",
+        "onlyRequester": "Solo {{name}} puede responder."
+      },
+      "graph": "Grafo",
+      "panel": {
+        "close": "Cerrar",
+        "resize": "Cambiar tamaño del panel de flujo de trabajo",
+        "hide": "Ocultar flujo de trabajo",
+        "waitingForUpdate": "Esperando la próxima actualización de la ejecución…",
+        "stale": "Sin actualizarse. Última actualización {{time}}.",
+        "log": "Registro",
+        "showMore": "Mostrar {{count}} más",
+        "omitted": {
+          "queued_one": "y {{count}} más en cola",
+          "queued_many": "y {{count}} más en cola",
+          "queued_other": "y {{count}} más en cola",
+          "running_one": "y {{count}} más en curso",
+          "running_many": "y {{count}} más en curso",
+          "running_other": "y {{count}} más en curso",
+          "waiting_one": "y {{count}} más en espera",
+          "waiting_many": "y {{count}} más en espera",
+          "waiting_other": "y {{count}} más en espera",
+          "failed_one": "y {{count}} más fallidos",
+          "failed_many": "y {{count}} más fallidos",
+          "failed_other": "y {{count}} más fallidos",
+          "done_one": "y {{count}} más completados",
+          "done_many": "y {{count}} más completados",
+          "done_other": "y {{count}} más completados"
+        },
+        "askAgent": "Pregunta a {{agent}} por el resto."
+      },
+      "group": {
+        "foreach": "Para cada uno",
+        "parallel": "Paralelo",
+        "run": "Flujo guardado",
+        "workflow": "Flujo anidado",
+        "progress": "{{done}} de {{total}}",
+        "failed": "Fallidos: {{count}}"
+      },
+      "node": {
+        "reused": "Reutilizado de la última ejecución",
+        "queued": "En cola",
+        "mayHaveRun": "Pudo haberse ejecutado",
+        "waitingOn": {
+          "user": "Esperando tu respuesta",
+          "approval": "Esperando aprobación",
+          "peer": "Esperando un mensaje"
+        },
+        "sessionTurns_one": "{{count}} turno",
+        "sessionTurns_many": "{{count}} turnos",
+        "sessionTurns_other": "{{count}} turnos",
+        "result": "Resultado",
+        "error": "Error",
+        "messages": "Mensajes",
+        "messagesTo": "Mensajes a {{name}}: {{count}}",
+        "open": "Abrir",
+        "detailsUnavailable": "Los detalles ya no están disponibles tras recargar.",
+        "stop": "Detener agente"
+      }
     },
     "subagents": {
       "title": "Subagentes",
@@ -1599,7 +1698,9 @@
     },
     "actions": {
       "goActivity": "Ir a Actividad",
-      "goActivityDescription": "Menciones, respuestas y lo que te espera"
+      "goActivityDescription": "Menciones, respuestas y lo que te espera",
+      "openCurrentRoomMindroomSettings": "Abrir los ajustes de MindRoom de la sala",
+      "openCurrentRoomMindroomSettingsDescription": "Abrir los ajustes de MindRoom de {{room}}"
     },
     "recentVisits": {
       "recentlyOpened": "Elementos abiertos recientemente",
@@ -1756,8 +1857,7 @@
       "replyAndOthers_many": "{{name}} y {{count}} más respondieron",
       "replyAndOthers_other": "{{name}} y {{count}} más respondieron",
       "finished": "{{name}} terminó",
-      "stopped": "{{name}} se detuvo",
-      "youReplied": "Respondiste"
+      "stopped": "{{name}} se detuvo"
     },
     "newCount_one": "{{count}} nuevo",
     "newCount_many": "{{count}} nuevos",
@@ -2187,5 +2287,36 @@
   },
   "nav": {
     "usage": "Uso"
+  },
+  "spaceThreads": {
+    "header": {
+      "roomsCount_one": "{{count}} sala",
+      "roomsCount_many": "{{count}} salas",
+      "roomsCount_other": "{{count}} salas",
+      "roomsFiltered": "{{active}} de {{total}} salas"
+    },
+    "roomFilter": {
+      "label": "Salas",
+      "ariaLabel": "Filtrar hilos por sala",
+      "ariaLabelActive": "Filtrar hilos por sala (seleccionadas: {{number}})",
+      "ariaLabelOne": "Salas: {{room}}",
+      "search": "Buscar salas",
+      "noMatch": "No hay salas coincidentes"
+    },
+    "composer": {
+      "postTo": "Publicar en:",
+      "postToRoom": "Publicar en #{{room}}",
+      "chooseRoomAria": "Elegir sala para publicar",
+      "draftPinned": "Borrador para #{{room}}",
+      "readOnly": "Ninguna sala de este espacio permite publicar."
+    },
+    "loading": "Cargando hilos...",
+    "empty": {
+      "noRooms": "Únete a una sala en este espacio para ver los hilos aquí.",
+      "noThreads": "Todavía no hay hilos en este espacio."
+    },
+    "error": {
+      "title": "No se pudieron cargar los hilos del espacio"
+    }
   }
 }

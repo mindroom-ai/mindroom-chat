@@ -76,6 +76,12 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
   Staged: 'Staged',
   Data: 'Data',
   StickyAnswer: 'StickyAnswer',
+  InlineCard: 'InlineCard',
+  InlineCardHeader: 'InlineCardHeader',
+  InlineCardTitle: 'InlineCardTitle',
+  InlineCardAction: 'InlineCardAction',
+  InlineCardNote: 'InlineCardNote',
+  InlineCardBody: 'InlineCardBody',
 }));
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {

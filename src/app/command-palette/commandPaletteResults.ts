@@ -9,7 +9,7 @@ import {
   type CommandPaletteMarks,
   type CommandPaletteMatch,
 } from './commandPaletteSearch';
-import { MATCH_SCORE } from './fuzzyMatch';
+import { MATCH_SCORE } from '../lib/fuzzyMatch';
 import type {
   CommandPaletteSectionId,
   CommandPaletteTab,

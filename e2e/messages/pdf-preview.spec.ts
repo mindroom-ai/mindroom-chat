@@ -202,7 +202,7 @@ const expectSharpPreview = async (page: Page, scale: number) => {
   expect(await page.evaluate(() => devicePixelRatio)).toBe(scale);
 
   // The browser's viewer runs in a frame of its own inside the app's frame page.
-  const holder = (await frameElement.elementHandle())!;
+  const holder = await frameElement.elementHandle();
   const framePage = (await holder.contentFrame())!;
   await expect(framePage.locator('embed[type="application/pdf"]')).toBeAttached();
   await expect

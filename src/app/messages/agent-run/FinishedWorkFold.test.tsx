@@ -1,7 +1,10 @@
 import type { JSX } from 'react';
 // @vitest-environment jsdom
+import { act as domAct } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isDisclosureRevealActive } from '../../ui/disclosureReveal';
 import { ExpandAllInitContext, ManualExpansionStateContext } from '../manualExpansionState';
 import { FinishedWorkFold } from './FinishedWorkFold';
 
@@ -260,6 +263,96 @@ describe('FinishedWorkFold', () => {
       const state = new Map([[key, true]]);
       render(withExpandAll(key, false, state));
       expect(toggle().props['aria-expanded']).toBe(true);
+    });
+  });
+
+  describe('scroll reveal on open', () => {
+    let scroller: HTMLDivElement | undefined;
+    let host: HTMLDivElement | undefined;
+    let domRoot: Root | undefined;
+    let frames: FrameRequestCallback[];
+
+    const rect = (top: number, height: number): DOMRect => ({
+      top,
+      bottom: top + height,
+      left: 0,
+      right: 400,
+      width: 400,
+      height,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+
+    const mountInScroller = (element: JSX.Element) => {
+      if (!scroller) {
+        frames = [];
+        vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frames.push(cb));
+        vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+          if (id > 0 && id <= frames.length) frames[id - 1] = () => {};
+        });
+        scroller = document.createElement('div');
+        scroller.style.overflowY = 'auto';
+        scroller.style.scrollPaddingTop = '54px';
+        scroller.style.scrollPaddingBottom = '96px';
+        scroller.scrollTop = 200;
+        scroller.getBoundingClientRect = () => rect(0, 600);
+        host = document.createElement('div');
+        scroller.append(host);
+        document.body.append(scroller);
+        domRoot = createRoot(host);
+      }
+      domAct(() => domRoot!.render(element));
+    };
+
+    afterEach(() => {
+      domAct(() => domRoot?.unmount());
+      scroller?.remove();
+      domRoot = undefined;
+      host = undefined;
+      scroller = undefined;
+    });
+
+    it('reveals only on user click open and never on remount, expand all, or collapse', () => {
+      const remountKey = nextKey();
+      mountInScroller(
+        <ManualExpansionStateContext.Provider value={new Map([[remountKey, true]])}>
+          {fold(remountKey)}
+        </ManualExpansionStateContext.Provider>
+      );
+      expect(isDisclosureRevealActive(scroller!)).toBe(false);
+
+      const expandKey = nextKey();
+      mountInScroller(
+        <ExpandAllInitContext.Provider value={undefined}>
+          {fold(expandKey)}
+        </ExpandAllInitContext.Provider>
+      );
+      mountInScroller(
+        <ExpandAllInitContext.Provider value={true}>
+          {fold(expandKey)}
+        </ExpandAllInitContext.Provider>
+      );
+      expect(isDisclosureRevealActive(scroller!)).toBe(false);
+
+      const clickKey = nextKey();
+      mountInScroller(fold(clickKey));
+      const button = host!.querySelector<HTMLButtonElement>('button[data-work-fold]')!;
+      button.getBoundingClientRect = () => rect(560 - scroller!.scrollTop, 28);
+
+      domAct(() => button.click());
+      const work = host!.querySelector<HTMLElement>('.Work')!;
+      work.getBoundingClientRect = () => rect(590 - scroller!.scrollTop, 180);
+      expect(isDisclosureRevealActive(scroller!)).toBe(true);
+
+      frames.splice(0).forEach((cb) => cb(16));
+      expect(scroller!.scrollTop).toBe(266);
+      expect(isDisclosureRevealActive(scroller!)).toBe(true);
+
+      domAct(() => button.click());
+      expect(isDisclosureRevealActive(scroller!)).toBe(false);
+      frames.splice(0).forEach((cb) => cb(16));
+      expect(scroller!.scrollTop).toBe(266);
     });
   });
 });

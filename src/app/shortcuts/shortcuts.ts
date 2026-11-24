@@ -287,13 +287,13 @@ export const SHORTCUTS: Readonly<Record<ShortcutId, ShortcutDefinition>> = DEFIN
 
 export const SHORTCUT_IDS = Object.keys(SHORTCUTS) as ShortcutId[];
 
-/** ⌘ on macOS, iPhone and iPad (as is-hotkey reads `mod`), Ctrl elsewhere. */
+/** ⌘ on macOS, iPhone and iPad (the platform meaning of `mod`), Ctrl elsewhere. */
 export const usesCommandKey = (): boolean => isMacOS() || isIOS();
 
 type ParsedKeys = { ctrl: boolean; mod: boolean; alt: boolean; shift: boolean; key: string };
 
 const parseKeys = (keys: string): ParsedKeys => {
-  const parts = keys.split('+');
+  const parts = keys.toLowerCase().split('+');
   const key = parts[parts.length - 1] ?? '';
   return {
     ctrl: parts.includes('ctrl'),
@@ -310,9 +310,14 @@ const NAMED_KEYS: Record<string, string> = {
   down: 'ArrowDown',
   left: 'ArrowLeft',
   right: 'ArrowRight',
+  arrowup: 'ArrowUp',
+  arrowdown: 'ArrowDown',
+  arrowleft: 'ArrowLeft',
+  arrowright: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
   space: ' ',
+  tab: 'Tab',
 };
 
 /**
@@ -346,26 +351,52 @@ export type KeyEventLike = Pick<
   'key' | 'code' | 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'
 >;
 
+export type HotkeyEventLike = {
+  key: string;
+  code?: string;
+  altKey?: boolean;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  shiftKey?: boolean;
+};
+
 /** Whether the key event is the chord `keys` on a platform that does (`apple`) or does not use ⌘. */
-export const matchesKeys = (event: KeyEventLike, keys: string, apple: boolean): boolean => {
+export const matchesKeys = (event: HotkeyEventLike, keys: string, apple: boolean): boolean => {
+  if (!event.key) return false;
   const spec = parseKeys(keys);
   const ctrl = spec.ctrl || (!apple && spec.mod);
   const meta = apple && spec.mod;
-  if (event.ctrlKey !== ctrl || event.metaKey !== meta || event.altKey !== spec.alt) return false;
+  const shift = Boolean(event.shiftKey);
+  if (
+    Boolean(event.ctrlKey) !== ctrl ||
+    Boolean(event.metaKey) !== meta ||
+    Boolean(event.altKey) !== spec.alt
+  ) {
+    return false;
+  }
   const named = NAMED_KEYS[spec.key];
-  if (named) return event.shiftKey === spec.shift && event.key === named;
+  if (named) return shift === spec.shift && event.key === named;
   const byCode = typesNonAscii(event.key);
   if (/^[a-z]$/.test(spec.key)) {
-    if (event.shiftKey !== spec.shift) return false;
+    if (shift !== spec.shift) return false;
     return byCode
       ? event.code === `Key${spec.key.toUpperCase()}`
       : event.key.toLowerCase() === spec.key;
   }
   // Some layouts need Shift for the character itself (German types `/` with Shift and 7).
-  if (event.key === spec.key || event.key === SAME_KEY[spec.key])
-    return spec.shift ? event.shiftKey : true;
-  return byCode && event.shiftKey === spec.shift && event.code === PUNCTUATION_CODES[spec.key];
+  if (event.key === spec.key || event.key === SAME_KEY[spec.key]) return spec.shift ? shift : true;
+  return byCode && shift === spec.shift && event.code === PUNCTUATION_CODES[spec.key];
 };
+
+/** Whether the key event matches a hotkey chord (or any chord in a list). */
+export const matchesHotkey = (
+  keys: string | readonly string[],
+  event: HotkeyEventLike,
+  apple: boolean = usesCommandKey()
+): boolean =>
+  typeof keys === 'string'
+    ? matchesKeys(event, keys, apple)
+    : keys.some((chord) => matchesKeys(event, chord, apple));
 
 export const matchesShortcut = (
   event: KeyEventLike,

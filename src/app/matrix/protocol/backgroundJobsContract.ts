@@ -21,6 +21,8 @@ export type BackgroundJob = {
   run?: string;
   /** A tool job's call, as the agent reply's tool trace names it. */
   toolCallId?: string;
+  /** A workflow job's run ID (`wf-...`), whose frames carry it as `run`. */
+  workflow?: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -42,7 +44,7 @@ const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined =>
     return undefined;
   }
   // Join keys MindRoom before them sends none; one that is malformed is left out, not the job.
-  const { subagent, run, tool_call_id: toolCallId } = value;
+  const { subagent, run, tool_call_id: toolCallId, workflow } = value;
   return {
     jobId,
     agentId,
@@ -54,6 +56,7 @@ const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined =>
     ...(isKey(subagent) ? { subagent } : {}),
     ...(isKey(run) ? { run } : {}),
     ...(isKey(toolCallId) ? { toolCallId } : {}),
+    ...(isKey(workflow) ? { workflow } : {}),
   };
 };
 

@@ -362,4 +362,148 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(presented?.title).toBe('Running: run_tests');
     expect(presented?.heading).toBe('1 background job');
   });
+
+  it('lists a workflow run as one row of the workflow group beside ordinary sub-agents', () => {
+    const runId = 'wf-11111111111111111111111111111111';
+    const workflowEntry = {
+      roomId: '!room:example.org',
+      sender: '@mindroom_panels:example.org',
+      run: runId,
+      sid: '1795389735000-a1b2c3d4',
+      seq: 1,
+      meta: {
+        agent: 'panels',
+        threadId: '$thread',
+        title: 'Audit the sample module',
+        status: 'waiting' as const,
+        attempt: 1,
+        startedAt: 1795389735,
+        endedAt: null,
+        large: false,
+        counts: {
+          queued: 0,
+          running: 2,
+          waiting: 1,
+          completed: 3,
+          failed: 0,
+          indeterminate: 0,
+          cached: 0,
+        },
+        usage: {
+          inputTokens: 1000,
+          outputTokens: 200,
+          toolCalls: 4,
+          costUsd: 0.05,
+          projectedCostUsd: 0.1,
+          costUnknown: false,
+        },
+      },
+      graph: {
+        phases: ['Audit'],
+        groups: [],
+        nodes: [],
+        edges: [],
+        log: [],
+        omitted: {
+          queued: 0,
+          running: 0,
+          waiting: 0,
+          completed: 0,
+          failed: 0,
+          edges: 0,
+          groups: 0,
+          phases: 0,
+          log: 0,
+        },
+      },
+      lastFrameAt: 1000,
+      stale: false,
+    };
+    const model = presentBackgroundJobs(
+      [
+        job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId }),
+        job('job_sub', { kind: 'subagent', tool: 'researcher' }),
+      ],
+      none,
+      t,
+      2,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, workflowEntry]]) }
+    );
+    expect(model?.groups.map((group) => group.kind)).toEqual(['workflow', 'subagent']);
+    expect(model?.items[0]).toMatchObject({
+      jobId: 'job_wf',
+      name: 'Audit the sample module',
+      state: 'waiting',
+      waiting: false,
+      workflowWaiting: true,
+    });
+    // Workflow ask_user wait is not an approval wait; folded summary counts workflows with tools.
+    expect(model?.summary).toEqual({ subagents: 1, tools: 1, waiting: 0 });
+
+    // Single workflow waiting on an answer uses its dedicated localized title key.
+    const singleWaiting = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, workflowEntry]]) }
+    );
+    expect(singleWaiting?.title).toBe('Waiting for your answer: Audit the sample module');
+
+    // Peer-only wait is not a human wait; approval wait counts as waiting for approval.
+    const peerEntry = {
+      ...workflowEntry,
+      graph: {
+        ...workflowEntry.graph,
+        nodes: [
+          {
+            id: 'n1',
+            kind: 'agent',
+            label: 'Wait peer',
+            name: null,
+            phase: 0,
+            group: null,
+            status: 'waiting' as const,
+            waitingOn: 'peer' as const,
+            session: null,
+            turns: 1,
+            startedAt: 100,
+            endedAt: null,
+            cached: false,
+            error: null,
+          },
+        ],
+      },
+    };
+    const peerModel = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, peerEntry]]) }
+    );
+    expect(peerModel?.items[0]).toMatchObject({
+      state: 'running',
+      waiting: false,
+      workflowWaiting: false,
+    });
+    expect(peerModel?.summary.waiting).toBe(0);
+
+    const approvalEntry = {
+      ...peerEntry,
+      graph: {
+        ...peerEntry.graph,
+        nodes: [{ ...peerEntry.graph.nodes[0]!, waitingOn: 'approval' as const }],
+      },
+    };
+    const approvalModel = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, approvalEntry]]) }
+    );
+    expect(approvalModel?.items[0]).toMatchObject({ state: 'waiting', waiting: true });
+    expect(approvalModel?.summary.waiting).toBe(1);
+  });
 });

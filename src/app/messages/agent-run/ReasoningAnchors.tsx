@@ -68,7 +68,8 @@ export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
   const { t } = useTranslation();
   const reasoning = useContext(ReasoningSegmentsContext);
   if (!reasoning?.open) return null;
-  const { segments, placement, hide, liveIndex, htmlReactParserOptions } = reasoning;
+  const { segments, placement, hide, liveIndex, htmlReactParserOptions, registerSegment } =
+    reasoning;
   const hideLabel = t('mindroomUi.messages.mindroomReasoning.hide');
   return (
     <>
@@ -83,7 +84,7 @@ export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
           });
         }
         return (
-          <div key={index} className={css.Segment}>
+          <div key={index} ref={registerSegment} className={css.Segment}>
             <button type="button" className={css.Rail} aria-label={hideLabel} onClick={hide} />
             <div className={css.Body}>
               <span className={css.Label}>{label}</span>

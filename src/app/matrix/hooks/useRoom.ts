@@ -13,9 +13,12 @@ export const RoomProvider = providedRoom.Provider;
 /** Marks the provided room as a direct room (`m.direct`). */
 export const IsDirectRoomProvider = directFlag.Provider;
 
+/** The room from the nearest `RoomProvider`, or undefined outside one. */
+export const useRoomOptionally = (): Room | undefined => useContext(providedRoom);
+
 /** The room from the nearest `RoomProvider`; throws when there is none. */
 export const useRoom = (): Room => {
-  const room = useContext(providedRoom);
+  const room = useRoomOptionally();
   if (room === undefined) {
     throw new Error('useRoom() was called outside a RoomProvider');
   }

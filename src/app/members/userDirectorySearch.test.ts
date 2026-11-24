@@ -74,6 +74,82 @@ describe('rankUsers', () => {
     expect(rankUsers(users, 'alcie').map((user) => user.userId)).toContain('@alice:example.org');
   });
 
+  it('matches single-edit typos in short names in the directory fallback', () => {
+    const john: ServerUserDirectoryUser = { userId: '@john:example.org', displayName: 'John' };
+    const sam: ServerUserDirectoryUser = { userId: '@sam:example.org', displayName: 'Sam' };
+    const tom: ServerUserDirectoryUser = { userId: '@tom:example.org', displayName: 'Tom' };
+    expect(rankUsers([...users, john], 'jphn').map((user) => user.userId)).toEqual([
+      '@john:example.org',
+    ]);
+    expect(rankUsers([...users, sam], 'saam').map((user) => user.userId)).toEqual([
+      '@sam:example.org',
+    ]);
+    expect(rankUsers([...users, tom], 'tmo').map((user) => user.userId)).toEqual([
+      '@tom:example.org',
+    ]);
+
+    // Stronger fuzzy matches (e.g. a transposition) rank above a one-edit fallback,
+    // and display-name fallback hits outrank localpart-token fallback hits.
+    expect(
+      rankUsers(
+        [
+          john,
+          { userId: '@john_doe:example.org', displayName: 'Unrelated' },
+          { userId: '@jpnh:example.org', displayName: 'Jpnh' },
+        ],
+        'jphn'
+      ).map((user) => user.userId)
+    ).toEqual(['@jpnh:example.org', '@john:example.org', '@john_doe:example.org']);
+
+    // Literal hits still suppress one-edit fallback matches.
+    expect(
+      rankUsers([john, { userId: '@jphn:example.org', displayName: 'Jphn' }], 'jphn').map(
+        (user) => user.userId
+      )
+    ).toEqual(['@jphn:example.org']);
+
+    // One-edit fallback also matches prefixes of longer names (e.g. typing "jphn" for "Johnson"),
+    // while keeping whole-token typo hits ranked above prefix typo hits at the same word position.
+    const johnson: ServerUserDirectoryUser = {
+      userId: '@johnson:example.org',
+      displayName: 'Johnson',
+    };
+    expect(rankUsers([johnson], 'jphn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson], 'jhn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson], 'joohn').map((user) => user.userId)).toEqual([
+      '@johnson:example.org',
+    ]);
+    expect(rankUsers([johnson, john], 'jphn').map((user) => user.userId)).toEqual([
+      '@john:example.org',
+      '@johnson:example.org',
+    ]);
+
+    // Punctuated names match across punctuation variants and typos in the fallback
+    // (e.g. straight vs curly apostrophe, hyphenated names with a typo).
+    const oconnor: ServerUserDirectoryUser = {
+      userId: '@user12:example.org',
+      displayName: 'O’Connor',
+    };
+    const anneMarie: ServerUserDirectoryUser = {
+      userId: '@user13:example.org',
+      displayName: 'Anne-Marie',
+    };
+    expect(rankUsers([oconnor], "O'Connor").map((user) => user.userId)).toEqual([
+      '@user12:example.org',
+    ]);
+    expect(rankUsers([anneMarie], 'anne-marei').map((user) => user.userId)).toEqual([
+      '@user13:example.org',
+    ]);
+
+    // One-edit fallback requires length >= 3 and never matches the homeserver domain.
+    expect(rankUsers([{ userId: '@bo:example.org', displayName: 'Bo' }], 'bp')).toEqual([]);
+    expect(rankUsers([john], 'orb')).toEqual([]);
+  });
+
   it('ranks exact localpart and MXID matches above weak display-name matches', () => {
     const exactUser = { userId: '@casey:example.org', displayName: 'Unrelated' };
     const weakDisplayMatch = {
@@ -90,7 +166,7 @@ describe('rankUsers', () => {
     ).toBe('@casey:example.org');
   });
 
-  it('promotes an exact MXID even when stronger display-name Fuse matches exceed the visible limit', () => {
+  it('promotes an exact MXID even when many display-name matches exceed the visible limit', () => {
     const exactUser = { userId: '@alice:example.org', displayName: 'Unrelated' };
     const displayNameMatches = Array.from(
       { length: INVITE_AUTOCOMPLETE_LIMIT * 3 },
@@ -134,6 +210,18 @@ describe('rankUsers', () => {
     ).map((user) => user.userId);
 
     expect(results[0]).toBe('@alice:example.org');
+  });
+
+  it('breaks within-tier ties by fuzzy match quality before userId order', () => {
+    expect(
+      rankUsers(
+        [
+          { userId: '@armindas:example.org', displayName: 'Armindas' },
+          { userId: '@dominic:example.org', displayName: 'Dominic Mindler' },
+        ],
+        'mind'
+      ).map((user) => user.userId)
+    ).toEqual(['@dominic:example.org', '@armindas:example.org']);
   });
 
   it('falls back to a deterministic userId tiebreak', () => {
@@ -264,7 +352,7 @@ describe('rankUsers with spaced queries', () => {
 
     // Both display names are exact matches — one against the raw query, one
     // against its compacted form — so both rank tier 0; the compact user's
-    // shorter-pattern Fuse score then breaks the tie ahead of the userId
+    // single-word exact fuzzy score then breaks the tie ahead of the userId
     // comparison. Without dual-form ranking the compact user falls to the
     // fuzzy-only tier and is left out instead.
     expect(results).toEqual(['@compact:example.org', '@spaced:example.org']);

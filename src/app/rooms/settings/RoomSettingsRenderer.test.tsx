@@ -6,6 +6,7 @@ import { createStore, Provider } from 'jotai';
 import { MatrixClient, MatrixEvent, MemoryStore, Room } from 'matrix-js-sdk';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
+import { MINDROOM_FAVICON_SRC } from '../../ui/branding/branding';
 import { RoomSettingsRenderer } from './RoomSettingsRenderer';
 
 const ME = '@me:test';
@@ -140,11 +141,29 @@ describe('room and space settings dialog', () => {
     expect(parts()).toEqual({ permissions: 'true' });
   });
 
-  it("lists a room's MindRoom page and opens it", () => {
+  it("lists a room's MindRoom page second after General with the MindRoom icon and opens it", () => {
     act(() => openSettings(ROOM));
-    act(() => menuEntry('MindRoom').click());
+
+    const navButtons = [...host.querySelectorAll('nav button')];
+    expect(navButtons.map((button) => button.textContent)).toEqual([
+      'General',
+      'MindRoom',
+      'Members',
+      'Permissions',
+      'Emojis & Stickers',
+      'Developer Tools',
+    ]);
+    const mindroomButton = menuEntry('MindRoom');
+    expect(mindroomButton.querySelector('svg image')?.getAttribute('href')).toBe(
+      MINDROOM_FAVICON_SRC
+    );
+
+    act(() => mindroomButton.click());
 
     expect(parts()).toEqual({ mindroom: 'false' });
+    expect(menuEntry('MindRoom').querySelector('svg image')?.getAttribute('href')).toBe(
+      MINDROOM_FAVICON_SRC
+    );
   });
 
   it('leaves the MindRoom page out of a space, which opens on General when asked for it', () => {

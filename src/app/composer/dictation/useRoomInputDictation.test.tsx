@@ -25,6 +25,7 @@ import {
   detachedDictationSendsAtom,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
+  voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
 import { voiceDraftRestoresAtom } from '../voice/savedVoiceDraft';
 import type { VoiceCaptureSession } from '../voice/voiceCaptureSession';
@@ -910,12 +911,14 @@ describe('useRoomInputDictation', () => {
       expect(focusSpy).toHaveBeenCalledTimes(1);
       expect(focusSpy).toHaveBeenLastCalledWith(editor);
 
-      // Mod+Shift+D while focused also restores focus on Finish.
+      // Mod+Shift+D while focused focuses on start and restores focus on Finish.
       focusSpy.mockClear();
       input.focus();
       await act(async () => {
         fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
       });
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+      focusSpy.mockClear();
       await act(async () => {
         fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
       });
@@ -1134,6 +1137,229 @@ describe('useRoomInputDictation', () => {
     expect(readText(roomEditor)).toBe('Room into room');
     expect(readText(threadEditor)).toBe('Thread into thread');
     view.unmount();
+  });
+
+  it('starts dictation unfocused via Mod+Shift+D, focuses end of draft, allows Escape cancel, and restores focus on Finish', async () => {
+    const editor = makeSlateEditor('Draft');
+    editor.marks = { spoiler: true };
+    expect(editor.selection).toBeNull();
+    const store = createStore();
+    const { session } = createMockSession();
+
+    renderHarness(editor, store, session);
+    const input = screen.getByTestId('editor-focus');
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => {
+      input.focus();
+    });
+    expect(document.activeElement).toBe(document.body);
+
+    const startEvent = new KeyboardEvent('keydown', {
+      key: 'D',
+      code: 'KeyD',
+      ctrlKey: true,
+      shiftKey: true,
+      cancelable: true,
+    });
+    await act(async () => {
+      window.dispatchEvent(startEvent);
+    });
+    expect(startEvent.defaultPrevented).toBe(true);
+    expect(session.start).toHaveBeenCalledTimes(1);
+    expect(focusSpy).toHaveBeenCalledWith(editor);
+    expect(document.activeElement).toBe(input);
+    expect(editor.selection).toEqual({
+      anchor: { path: [0, 0], offset: 5 },
+      focus: { path: [0, 0], offset: 5 },
+    });
+    expect(editor.marks).toEqual({ spoiler: true });
+
+    // Escape now reaches the focused composer, opens discard confirmation, and restores focus.
+    focusSpy.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'Escape' });
+    });
+    await confirmDiscardDialog();
+    expect(session.discard).toHaveBeenCalledTimes(1);
+    expect(focusSpy).toHaveBeenCalledWith(editor);
+
+    // Starting unfocused again with null selection pins end-of-draft RangeRef so selecting text
+    // mid-dictation still appends at the end and restores focus on Finish.
+    (document.activeElement as HTMLElement | null)?.blur();
+    editor.selection = null;
+    expect(document.activeElement).toBe(document.body);
+    focusSpy.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    Transforms.select(editor, {
+      anchor: { path: [0, 0], offset: 0 },
+      focus: { path: [0, 0], offset: 5 },
+    });
+    focusSpy.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(session.finish).toHaveBeenCalledTimes(1);
+    expect(readText(editor)).toBe('Draft dictated words');
+    expect(focusSpy).toHaveBeenCalledWith(editor);
+  });
+
+  it('targets unfocused Mod+Shift+D start by focused container, else thread, in a multi-composer layout', async () => {
+    const store = createStore();
+    const roomEditor = makeSlateEditor('Room');
+    const threadEditor = makeSlateEditor('Thread');
+    const roomMock = createMockSession();
+    const threadMock = createMockSession();
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+
+    function MultiComposer() {
+      const roomContainerRef = useRef<HTMLDivElement | null>(null);
+      const roomRef = useRef<HTMLDivElement | null>(null);
+      const threadContainerRef = useRef<HTMLDivElement | null>(null);
+      const threadRef = useRef<HTMLDivElement | null>(null);
+      useRoomInputDictation({
+        editor: roomEditor,
+        roomId: '!room:example.org',
+        ownerKey: 'room-composer',
+        rootRef: roomRef,
+        containerRef: roomContainerRef,
+        createSession: () => roomMock.session,
+      });
+      useRoomInputDictation({
+        editor: threadEditor,
+        roomId: '!room:example.org',
+        threadId: '$thread-1',
+        thread: true,
+        ownerKey: 'thread-composer',
+        rootRef: threadRef,
+        containerRef: threadContainerRef,
+        createSession: () => threadMock.session,
+      });
+      return (
+        <div>
+          <div ref={roomContainerRef}>
+            <button type="button" data-testid="room-timeline">
+              Room message
+            </button>
+            <div ref={roomRef} />
+          </div>
+          <div ref={threadContainerRef}>
+            <button type="button" data-testid="thread-timeline">
+              Thread message
+            </button>
+            <div ref={threadRef} />
+          </div>
+        </div>
+      );
+    }
+
+    render(
+      <Provider store={store}>
+        <MultiComposer />
+      </Provider>
+    );
+
+    // 1. Nothing focused -> thread composer starts.
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(threadMock.session.start).toHaveBeenCalledTimes(1);
+    expect(roomMock.session.start).not.toHaveBeenCalled();
+    expect(focusSpy).toHaveBeenLastCalledWith(threadEditor);
+    act(() => {
+      store.set(liveCaptureAtom, undefined);
+    });
+
+    // 2. Focus inside room container (outside composer) -> room composer starts.
+    screen.getByTestId('room-timeline').focus();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(roomMock.session.start).toHaveBeenCalledTimes(1);
+    expect(threadMock.session.start).toHaveBeenCalledTimes(1);
+    expect(focusSpy).toHaveBeenLastCalledWith(roomEditor);
+    act(() => {
+      store.set(liveCaptureAtom, undefined);
+    });
+
+    // 3. Focus inside thread container (outside composer) -> thread composer starts.
+    screen.getByTestId('thread-timeline').focus();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'D', code: 'KeyD', ctrlKey: true, shiftKey: true });
+    });
+    expect(threadMock.session.start).toHaveBeenCalledTimes(2);
+    expect(roomMock.session.start).toHaveBeenCalledTimes(1);
+    expect(focusSpy).toHaveBeenLastCalledWith(threadEditor);
+  });
+
+  it('guards unfocused Mod+Shift+D when unconfirmed, blocked, in computer focus, or over an overlay', () => {
+    const editor = makeSlateEditor('Draft');
+    const store = createStore();
+    const { session } = createMockSession();
+    const focusSpy = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+
+    const { forceRerender } = renderHarness(editor, store, session);
+    const dispatchDictate = () => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'D',
+        code: 'KeyD',
+        ctrlKey: true,
+        shiftKey: true,
+        cancelable: true,
+      });
+      act(() => {
+        window.dispatchEvent(event);
+      });
+      return event;
+    };
+
+    // Unconfirmed dictation server.
+    serverMock.confirmed = false;
+    forceRerender();
+    expect(dispatchDictate().defaultPrevented).toBe(false);
+    serverMock.confirmed = true;
+    forceRerender();
+
+    // Blocked by an active voice capture.
+    act(() => {
+      store.set(liveCaptureAtom, { kind: 'voice', session: {} as VoiceCaptureSession });
+    });
+    expect(dispatchDictate().defaultPrevented).toBe(false);
+    act(() => {
+      store.set(liveCaptureAtom, undefined);
+    });
+
+    // Blocked inside start() while a voice auto-send is pending: key is swallowed for a confirmed
+    // composer so the browser shortcut does not fire, without starting or focusing.
+    act(() => {
+      store.set(voiceAutoSendPendingAtom, true);
+    });
+    expect(dispatchDictate().defaultPrevented).toBe(true);
+    act(() => {
+      store.set(voiceAutoSendPendingAtom, false);
+    });
+
+    // Focus owned by the Computer surface.
+    const computerSurface = document.createElement('div');
+    computerSurface.setAttribute('data-mindroom-computer-input', 'true');
+    const computerBtn = document.createElement('button');
+    computerSurface.append(computerBtn);
+    document.body.append(computerSurface);
+    try {
+      computerBtn.focus();
+      expect(dispatchDictate().defaultPrevented).toBe(false);
+    } finally {
+      computerSurface.remove();
+    }
+
+    // Overlay (dialog / menu / command palette) is open.
+    serverMock.overlay = 'other';
+    expect(dispatchDictate().defaultPrevented).toBe(false);
+
+    expect(session.start).not.toHaveBeenCalled();
+    expect(focusSpy).not.toHaveBeenCalled();
   });
 
   it('delivers mid-Finish (✓) text into originating draftKey when navigating away and releases on account switch', async () => {

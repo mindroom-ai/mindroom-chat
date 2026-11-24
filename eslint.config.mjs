@@ -6,6 +6,7 @@ import { globalIgnores } from 'eslint/config';
 import {
   DIRECTIONAL_COMPONENTS,
   LINTED_FILES,
+  RUNTIME_GLOBALS,
   TYPE_AWARE_RULES,
   createCommonConfigs,
   logicalSidesOverrides,
@@ -160,6 +161,65 @@ export default [
   ]),
   // Config covers .jsx for explicit checks; package.json "lint" limits directory globs to .ts,.tsx,.js,.mjs,.cjs.
   ...createCommonConfigs(),
+  {
+    name: 'mindroom/node-globals',
+    files: [
+      'scripts/**/*.{js,mjs,cjs}',
+      '*.config.{js,mjs,cjs}',
+      'eslint.config*.mjs',
+      'electron/*.{js,mjs,cjs}',
+      'electron/main/**/*.{js,mjs,cjs}',
+      'e2e/helpers/**/*.{js,mjs,cjs}',
+      'e2e/rtc/**/*.{js,mjs,cjs}',
+      'e2e/fixtures/live/**/*.{js,mjs,cjs}',
+      'src/app/plugins/__fixtures__/example-plugin/build.mjs',
+    ],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.node,
+    },
+  },
+  {
+    name: 'mindroom/browser-globals',
+    files: [
+      'src/**/*.{js,jsx,mjs,cjs}',
+      'public/**/*.js',
+      'ios/Tests/public/**/*.js',
+      'e2e/fixtures/**/*.{js,jsx,mjs}',
+    ],
+    ignores: [
+      'src/**/*Worklet.js',
+      'src/sw/**',
+      'src/app/plugins/__fixtures__/example-plugin/build.mjs',
+      'e2e/fixtures/live/**',
+    ],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.browser,
+    },
+  },
+  {
+    name: 'mindroom/audioworklet-globals',
+    files: ['src/**/*Worklet.js'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.audioWorklet,
+    },
+  },
+  {
+    name: 'mindroom/preload-globals',
+    files: ['electron/preload.{ts,js,mjs,cjs}'],
+    languageOptions: {
+      globals: {
+        ...RUNTIME_GLOBALS.browser,
+        ...RUNTIME_GLOBALS.node,
+      },
+    },
+  },
+  {
+    name: 'mindroom/serviceworker-globals',
+    files: ['src/sw/**/*.{ts,js,mjs}'],
+    languageOptions: {
+      globals: RUNTIME_GLOBALS.serviceworker,
+    },
+  },
   {
     files: LINTED_FILES,
     rules: {

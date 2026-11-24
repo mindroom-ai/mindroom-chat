@@ -1,7 +1,7 @@
 import { KeySymbol } from '../lib/key-symbol';
 import { isIOS, isMacOS } from '../lib/user-agent';
 
-// is-hotkey reads `mod+k` as Command on Apple platforms, iPhone and iPad included.
+// `mod+k` is Command on Apple platforms, iPhone and iPad included.
 const usesCommandKey = (): boolean => isMacOS() || isIOS();
 
 export const getCommandPaletteShortcutLabel = (): string =>

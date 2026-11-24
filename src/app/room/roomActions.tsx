@@ -1,9 +1,10 @@
-import { lazy, useId, type ComponentType, type ReactNode } from 'react';
+import { lazy, useEffect, useId, type ComponentType, type ReactNode } from 'react';
 import type { ParseKeys } from 'i18next';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { Box, Icon, Icons, Spinner, Text } from 'folds';
 import { MenuEntry, MenuSwitchEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -29,7 +30,13 @@ import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { isInSpace } from '../matrix/state/spaceAncestors';
 import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
+import { RoomSettingsPage } from '../navigation/roomSettingsState';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
+import {
+  invalidateRoomMindroomAgent,
+  useRoomHasMindroomAgent,
+} from '../navigation/useRoomViewMode';
+import { MindroomIcon } from '../ui/branding/MindroomIcon';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
@@ -352,6 +359,51 @@ function SettingsEntry({ room, close }: RoomActionProps) {
   );
 }
 
+function MindroomSettingsEntry({ room, close }: RoomActionProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const openRoomSettings = useOpenRoomSettings();
+  const space = room.isSpaceRoom();
+  const hasMindroomAgent = useRoomHasMindroomAgent(room.roomId, !space);
+
+  useEffect(() => {
+    if (
+      space ||
+      hasMindroomAgent ||
+      room.membersLoaded?.() ||
+      typeof room.loadMembersIfNeeded !== 'function'
+    ) {
+      return undefined;
+    }
+    let disposed = false;
+    void room
+      .loadMembersIfNeeded()
+      .then(() => {
+        invalidateRoomMindroomAgent(client, room.roomId);
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          logger.warn('[MindroomSettingsEntry] Failed to load room members', error);
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [client, hasMindroomAgent, room, space]);
+
+  if (space || !hasMindroomAgent) return null;
+  return (
+    <MenuEntry
+      icon={MindroomIcon}
+      label={t('mindroomUi.threads.mindroomRoomViewHeader.mindroomSettings')}
+      onSelect={() => {
+        close();
+        openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage);
+      }}
+    />
+  );
+}
+
 /** Searches the room's messages; the server cannot read an encrypted room's. */
 function SearchEntry({ room, spaceId, close }: RoomActionProps) {
   const { t } = useTranslation();
@@ -443,6 +495,7 @@ export const ROOM_ACTIONS: readonly RoomActionGroup[] = [
       { id: 'newSubRoom', Entry: NewSubRoomEntry },
       { id: 'copyLink', Entry: CopyLinkEntry },
       { id: 'settings', Entry: SettingsEntry },
+      { id: 'mindroomSettings', Entry: MindroomSettingsEntry },
     ],
   },
   {

@@ -9,7 +9,7 @@ import React, {
   type FocusEvent,
 } from 'react';
 import { FocusTrap } from 'focus-trap-react';
-import { isHotkey } from 'is-hotkey';
+import { matchesHotkey } from '../../shortcuts/shortcuts';
 import { Header, Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuRoleProvider } from '../../ui/glass/menuBehaviour';
 import { PageScroll } from '../../ui/page/PageScroll';
@@ -28,8 +28,8 @@ const keepTextBoxFocus = (event: React.MouseEvent) => event.preventDefault();
 type TrapOptions = NonNullable<React.ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
 
 // Arrow keys step through the items like Tab does; the trap wraps at both ends.
-const isArrowDown = (evt: KeyboardEvent) => isHotkey('arrowdown', evt);
-const isArrowUp = (evt: KeyboardEvent) => isHotkey('arrowup', evt);
+const isArrowDown = (evt: KeyboardEvent) => matchesHotkey('arrowdown', evt);
+const isArrowUp = (evt: KeyboardEvent) => matchesHotkey('arrowup', evt);
 
 /** The index of the option that holds `node` in `listbox`, or undefined. */
 const optionIndex = (listbox: HTMLElement, node: EventTarget | null): number | undefined => {

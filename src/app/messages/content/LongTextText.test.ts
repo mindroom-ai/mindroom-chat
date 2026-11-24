@@ -202,6 +202,12 @@ vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => n
 vi.mock('../../approvals/SecretRequestCard', () => ({
   SecretRequestCard: () => null,
 }));
+vi.mock('../workflow-run/WorkflowRunCard', () => ({
+  WorkflowRunCard: () => null,
+}));
+vi.mock('../workflow-run/WorkflowQuestionCard', () => ({
+  WorkflowQuestionCard: () => null,
+}));
 vi.mock('./CallTranscriptCard', () => ({
   CallTranscriptCard: () => null,
 }));
