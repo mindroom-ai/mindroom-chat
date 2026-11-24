@@ -12,6 +12,7 @@ import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
 import { ServerAccounts } from '../server-admin/ServerAccounts';
 import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
+import { ThisMacSettingsPage } from '../desktop-access/ThisMacSettingsPage';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
@@ -93,6 +94,8 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <ConnectionsSettingsPage requestClose={requestClose} />;
     case 'computers':
       return <ComputersSettingsPage requestClose={requestClose} />;
+    case 'thisMac':
+      return <ThisMacSettingsPage requestClose={requestClose} />;
     case 'mindroom.local-mindroom':
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
     case 'archived-rooms':
@@ -237,7 +240,8 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
       context.native,
       context.serverAdmin,
       context.nativeIOS,
-      context.hasPlugins
+      context.hasPlugins,
+      context.desktopAccess
     )
   );
   const [query, setQuery] = useState('');
@@ -278,9 +282,11 @@ export function Settings({ initialPage, initialSetting, requestClose }: Settings
         context.native,
         context.serverAdmin,
         context.nativeIOS,
-        context.hasPlugins
+        context.hasPlugins,
+        context.desktopAccess
       ),
     [
+      context.desktopAccess,
       context.hasPlugins,
       context.localMindroom,
       context.native,

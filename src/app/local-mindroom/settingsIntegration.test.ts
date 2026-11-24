@@ -133,6 +133,33 @@ describe('resolveSettingsInitialPage', () => {
     ).toBe(SettingsPages.AppearancePage);
   });
 
+  it('opens This Mac only when desktopAccess is true', () => {
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.ThisMacPage,
+        ScreenSize.Desktop,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true
+      )
+    ).toBe(SettingsPages.ThisMacPage);
+    expect(
+      resolveSettingsInitialPage(
+        SettingsPages.ThisMacPage,
+        ScreenSize.Desktop,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      )
+    ).toBe(SettingsPages.AppearancePage);
+  });
+
   it('keeps mobile settings closed when no initial page is requested', () => {
     expect(resolveSettingsInitialPage(undefined, ScreenSize.Mobile, false)).toBeUndefined();
   });

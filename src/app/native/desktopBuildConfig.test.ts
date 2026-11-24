@@ -376,11 +376,13 @@ describe('scripts/desktop-helper-pin.json and scripts/fetch-desktop-helper.mjs',
     const pin = readHelperPin(resolve('scripts/desktop-helper-pin.json'));
     expect(pin).toMatchObject({
       repo: 'mindroom-ai/mindroom',
-      tag: 'v2026.11.568',
+      tag: 'v2026.11.572',
       asset: 'MindRoom-Desktop-Helper-arm64.tar.gz',
+      sha256: '32fa53d617c9e2af1c0263931b7675294e940e2d18d3869ca1dc488b3ede6204',
       bundleId: 'chat.mindroom.desktophelper',
       teamId: 'DNA6966LGZ',
     });
+    expect(pin.sha256).not.toBe(PENDING_SHA256);
     expect(pin.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 

@@ -16,6 +16,8 @@ export const CONNECT_PATH = '/connect/';
 export const INVITE_PATH = '/invite/';
 /** The quick capture widget (quick-capture/QuickCapturePage.tsx), served by the signed-in app. */
 export const QUICK_CAPTURE_PATH = '/quick-capture/';
+/** The floating shell-approval window (desktop-access/ShellApprovalView.tsx), outside Matrix sign-in. */
+export const SHELL_APPROVAL_PATH = '/shell-approval/';
 export const CONNECTIONS_PATH = '/connections/';
 
 export const HOME_PATH = '/home/';

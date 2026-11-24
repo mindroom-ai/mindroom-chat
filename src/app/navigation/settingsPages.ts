@@ -13,6 +13,7 @@ export const SettingsPages = {
   LanguagePage: 'language',
   ConnectionsPage: 'connections',
   ComputersPage: 'computers',
+  ThisMacPage: 'thisMac',
   LocalMindroomPage: 'mindroom.local-mindroom',
   ArchivedRoomsPage: 'archived-rooms',
   StoragePage: 'storage',

@@ -30,6 +30,7 @@ const PAGE_ICONS: Record<SettingsPageId, IconSrc> = {
   language: Icons.Globe,
   connections: Icons.Link,
   computers: Icons.Monitor,
+  thisMac: Icons.Monitor,
   'mindroom.local-mindroom': Icons.Server,
   'archived-rooms': Icons.Inbox,
   'server-accounts': Icons.ShieldUser,
@@ -48,7 +49,8 @@ export const getSettingsMenuItems = (
   native = false,
   serverAdmin = false,
   nativeIOS = false,
-  hasPlugins = false
+  hasPlugins = false,
+  desktopAccess = false
 ): SettingsMenuItem[] =>
   getShownSettingsPages({
     native,
@@ -56,6 +58,7 @@ export const getSettingsMenuItems = (
     localMindroom: showLocalMindroom,
     serverAdmin,
     hasPlugins,
+    desktopAccess,
   }).map((page) => ({
     page: page.id,
     group: page.group,
@@ -75,7 +78,8 @@ export const resolveSettingsInitialPage = (
   native = false,
   serverAdmin = false,
   nativeIOS = false,
-  hasPlugins = false
+  hasPlugins = false,
+  desktopAccess = false
 ): SettingsPageId | undefined => {
   if (initialPage === undefined) {
     return screenSize === ScreenSize.Mobile ? undefined : DEFAULT_SETTINGS_PAGE;
@@ -89,6 +93,7 @@ export const resolveSettingsInitialPage = (
       localMindroom: showLocalMindroom,
       serverAdmin,
       hasPlugins,
+      desktopAccess,
     });
   return shown ? page : DEFAULT_SETTINGS_PAGE;
 };

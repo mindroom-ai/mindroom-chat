@@ -32,6 +32,7 @@ const WEB: SettingsContext = {
   nativeUpdate: false,
   macApp: false,
   hasPlugins: false,
+  desktopAccess: false,
 };
 
 const ids = (query: string, translate = english) =>

@@ -44,7 +44,7 @@ import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
 import { markServiceWorkerUnavailable } from './app/matrix/hooks/useMediaAuthentication';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
-import { isQuickCapturePath } from './app/routes/pathUtils';
+import { isAuxiliaryWindowPath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 import { leavePage } from './boot/inviteFragment';
 import { markPageStartup } from './app/lib/startupTimeline';
@@ -74,7 +74,7 @@ const startDiagnostics = (): void => {
   // for one that ended unexpectedly.
   if (
     (isNativeIOS() || isDesktopApp() || getDebugModeEnabled()) &&
-    !isQuickCapturePath(window.location.pathname)
+    !isAuxiliaryWindowPath(window.location.pathname)
   ) {
     runSafely('flight recorder', startFlightRecorder);
     runSafely('deep trace recorder', () => {
@@ -125,7 +125,7 @@ const prepareDocument = (): void => {
     // Capacitor's App plugin reports the SSO and pairing links the native app opens with. The
     // quick capture widget's web view leaves them to the main one: followed there, a link would
     // take the widget's window away from the widget, to a second copy of the app.
-    if (isNativeApp() && !isQuickCapturePath(window.location.pathname)) {
+    if (isNativeApp() && !isAuxiliaryWindowPath(window.location.pathname)) {
       registerNativeAppUrlCallbacks(desktopBridge()?.appUrl ?? NativeApp);
     }
   });

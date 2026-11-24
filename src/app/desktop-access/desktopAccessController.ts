@@ -68,15 +68,16 @@ export const unwrapDesktopResult = <T>(result: DesktopResult<T>): T => {
  * every second while Accessibility is not granted (with `pollAccessibility`), so the row turns
  * green the moment the user allows it in System Settings.
  */
-export const useDesktopAccessSnapshot = ({ pollAccessibility = false } = {}) => {
+export const useDesktopAccessSnapshot = ({ pollAccessibility = false, enabled = true } = {}) => {
   const bridge = desktopBridge();
   const access = bridge?.desktopAccess;
+  const active = enabled && access !== undefined;
   const [snapshot, setSnapshot] = useState<DesktopAccessSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(access !== undefined);
+  const [loading, setLoading] = useState(active);
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (!access) return;
+    if (!active || !access) return;
     try {
       setSnapshot(unwrapDesktopResult(await access.status()));
       setError(null);
@@ -85,17 +86,21 @@ export const useDesktopAccessSnapshot = ({ pollAccessibility = false } = {}) => 
     } finally {
       setLoading(false);
     }
-  }, [access]);
+  }, [access, active]);
 
   useEffect(() => {
+    if (!active) return undefined;
     void refresh();
     return bridge?.onShellEvent((event) => {
       if (event.type === 'desktop-access-status') void refresh();
     });
-  }, [bridge, refresh]);
+  }, [active, bridge, refresh]);
 
   const polling =
-    pollAccessibility && snapshot !== null && snapshot.permissions.accessibility !== 'granted';
+    active &&
+    pollAccessibility &&
+    snapshot !== null &&
+    snapshot.permissions.accessibility !== 'granted';
   useEffect(() => {
     if (!polling) return undefined;
     const timer = setInterval(() => void refresh(), ACCESSIBILITY_POLL_MS);

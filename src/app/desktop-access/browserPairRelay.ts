@@ -72,9 +72,13 @@ export const registerThisMacDevice = async (
 };
 
 /** The account's other Macs that run MindRoom Chat and are still cross-signed devices of it. */
-export const useRegisteredMacDevices = (mx: MatrixClient): MacDeviceEntry[] => {
+export const useRegisteredMacDevices = (mx: MatrixClient, enabled = true): MacDeviceEntry[] => {
   const [devices, setDevices] = useState<MacDeviceEntry[]>([]);
   useEffect(() => {
+    if (!enabled) {
+      setDevices([]);
+      return undefined;
+    }
     let current = true;
     const load = async (): Promise<void> => {
       const userId = mx.getUserId();
@@ -93,7 +97,7 @@ export const useRegisteredMacDevices = (mx: MatrixClient): MacDeviceEntry[] => {
       current = false;
       mx.removeListener(ClientEvent.AccountData, onAccountData);
     };
-  }, [mx]);
+  }, [enabled, mx]);
   return devices;
 };
 

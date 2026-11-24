@@ -27,6 +27,12 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
+import { isDesktopAccessAvailable } from '../lib/nativeShell';
+import { useOffersMacApp } from '../native/macApp';
+import { useRegisteredMacDevices } from '../desktop-access/browserPairRelay';
+import { useDesktopAccessSnapshot } from '../desktop-access/desktopAccessController';
+import { findPairedController, resolveRoomAgents } from '../desktop-access/desktopAccessHelpers';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import {
@@ -260,6 +266,45 @@ function RoomContent() {
   }, [setViewMode, threadLinkInFullView]);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const setSettingsModal = useSetAtom(settingsModalAtom);
+  const setDesktopAccessModal = useSetAtom(desktopAccessModalAtom);
+  const desktopAccessAvailable = isDesktopAccessAvailable();
+  const offersMacApp = useOffersMacApp();
+  const roomAgents = useMemo(() => resolveRoomAgents(members, ownUserId), [members, ownUserId]);
+  const registeredMacDevices = useRegisteredMacDevices(
+    client,
+    roomAgents.length > 0 && !desktopAccessAvailable && !offersMacApp
+  );
+  const { snapshot: desktopAccessSnapshot } = useDesktopAccessSnapshot({
+    pollAccessibility: false,
+    enabled: desktopAccessAvailable && roomAgents.length > 0,
+  });
+  const canGiveMacAccess =
+    roomAgents.length > 0 &&
+    (desktopAccessAvailable || registeredMacDevices.length > 0 || offersMacApp);
+  const macAccessActive = useMemo(() => {
+    if (!desktopAccessAvailable || !desktopAccessSnapshot) return false;
+    const bridgeState = desktopAccessSnapshot.status?.bridge.state;
+    const active =
+      bridgeState === 'observe_only' ||
+      bridgeState === 'control' ||
+      Boolean(desktopAccessSnapshot.status?.shell.ready);
+    if (!active) return false;
+    return roomAgents.some(
+      (agent) => findPairedController(desktopAccessSnapshot, agent.userId, agent.agentName) !== undefined
+    );
+  }, [desktopAccessAvailable, desktopAccessSnapshot, roomAgents]);
+  const onOpenMacAccess = useCallback(() => {
+    const [onlyAgent] = roomAgents;
+    if (roomAgents.length === 1 && onlyAgent) {
+      setDesktopAccessModal({
+        roomId,
+        agentUserId: onlyAgent.userId,
+        agentName: onlyAgent.agentName,
+      });
+      return;
+    }
+    setDesktopAccessModal({ roomId });
+  }, [roomAgents, roomId, setDesktopAccessModal]);
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
   const threadId = useThreadRootEvent(room, routedThreadId);
@@ -1081,6 +1126,9 @@ function RoomContent() {
     computerOpen,
     computerShown,
     onComputerToggle,
+    canGiveMacAccess,
+    macAccessActive,
+    onOpenMacAccess,
     canvases: canvasEnabled && !inCall ? conversationCanvases : undefined,
     openCanvasId,
     onCanvasOpen,

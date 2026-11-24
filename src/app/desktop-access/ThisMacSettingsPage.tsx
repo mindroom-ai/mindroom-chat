@@ -110,6 +110,7 @@ export function ThisMacSettingsPage({ requestClose }: SettingsPageProps) {
     >
       <SettingsSection>
         <SettingTile
+          focusId="thisMacAccess"
           title={dt('featureUi.desktopAccess.settings.statusTitle', 'Mac Computer Access')}
           description={
             available
@@ -132,24 +133,26 @@ export function ThisMacSettingsPage({ requestClose }: SettingsPageProps) {
                 </Text>
               </span>
               {canRevoke && (
-                <Button
-                  type="button"
-                  size="300"
-                  radii="300"
-                  variant="Critical"
-                  fill="Soft"
-                  disabled={busyKey !== null}
-                  before={busyKey === 'revokeAll' ? <Spinner size="100" /> : undefined}
-                  onClick={() =>
-                    void runAction('revokeAll', async () =>
-                      unwrapDesktopResult(await requireDesktopAccess().revokeAll())
-                    )
-                  }
-                >
-                  <Text size="B300">
-                    {dt('featureUi.desktopAccess.settings.revokeAll', 'Revoke All Access')}
-                  </Text>
-                </Button>
+                <span data-setting-id="thisMacRevokeAll">
+                  <Button
+                    type="button"
+                    size="300"
+                    radii="300"
+                    variant="Critical"
+                    fill="Soft"
+                    disabled={busyKey !== null}
+                    before={busyKey === 'revokeAll' ? <Spinner size="100" /> : undefined}
+                    onClick={() =>
+                      void runAction('revokeAll', async () =>
+                        unwrapDesktopResult(await requireDesktopAccess().revokeAll())
+                      )
+                    }
+                  >
+                    <Text size="B300">
+                      {dt('featureUi.desktopAccess.settings.revokeAll', 'Revoke All Access')}
+                    </Text>
+                  </Button>
+                </span>
               )}
             </Box>
           }

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { MatrixClient } from 'matrix-js-sdk';
+import type { MatrixClient, RoomMember } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import type { DesktopAccessControllerConfig, DesktopAccessSnapshot } from '../lib/desktopBridge';
 import { getMxIdLocalPart } from '../matrix/matrix';
@@ -45,15 +45,15 @@ export const extractAgentName = (userId: string): string => {
     : localpart;
 };
 
-/** Joined MindRoom agents in a room on the viewer's homeserver, excluding the router owner ID. */
-export const getRoomMindroomAgents = (mx: MatrixClient, roomId: string): RoomMindroomAgent[] => {
-  const room = mx.getRoom(roomId);
-  const viewerUserId = mx.getUserId() ?? undefined;
-  if (!room) return [];
-
+/** Resolves joined MindRoom agents from room members on the viewer's homeserver, excluding the router owner ID. */
+export const resolveRoomAgents = (
+  members: readonly Pick<RoomMember, 'userId' | 'name' | 'membership'>[],
+  viewerUserId?: string
+): RoomMindroomAgent[] => {
   const seen = new Set<string>();
   const agents: RoomMindroomAgent[] = [];
-  for (const member of room.getJoinedMembers()) {
+  for (const member of members) {
+    if (member.membership !== 'join') continue;
     const { userId } = member;
     if (
       seen.has(userId) ||
@@ -72,6 +72,13 @@ export const getRoomMindroomAgents = (mx: MatrixClient, roomId: string): RoomMin
     });
   }
   return agents.sort((a, b) => a.agentName.localeCompare(b.agentName));
+};
+
+/** Joined MindRoom agents in a room on the viewer's homeserver, excluding the router owner ID. */
+export const getRoomMindroomAgents = (mx: MatrixClient, roomId: string): RoomMindroomAgent[] => {
+  const room = mx.getRoom(roomId);
+  if (!room) return [];
+  return resolveRoomAgents(room.getJoinedMembers(), mx.getUserId() ?? undefined);
 };
 
 /** Finds the paired controller entry for an agent, matching by user ID first or agent name. */

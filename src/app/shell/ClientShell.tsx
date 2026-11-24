@@ -25,6 +25,8 @@ import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 import { ModeratorGrantErrorNotice } from '../members/invite/ModeratorGrantErrorNotice';
 import { DictationSendErrorNotice } from '../composer/dictation/DictationSendErrorNotice';
+import { DesktopAccessModalRenderer } from '../desktop-access/DesktopAccessModal';
+import { IncomingPairInviteModal } from '../desktop-access/IncomingPairInviteModal';
 import { MacAppOffer } from './MacAppOffer';
 import { SkipToContent } from './SkipToContent';
 
@@ -67,6 +69,8 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <SkipToContent />
           {children}
           <SettingsModalRenderer />
+          <DesktopAccessModalRenderer />
+          <IncomingPairInviteModal />
           <RoomSettingsRenderer />
           <CreateRoomModalRenderer />
           <CreateSpaceModalRenderer />

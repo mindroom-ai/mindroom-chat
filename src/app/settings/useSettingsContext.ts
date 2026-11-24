@@ -1,4 +1,4 @@
-import { isBundledApp, isDesktopApp } from '../lib/nativeShell';
+import { isBundledApp, isDesktopAccessAvailable, isDesktopApp } from '../lib/nativeShell';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { useOffersMacApp } from '../native/macApp';
@@ -42,5 +42,6 @@ export const useSettingsContext = (): SettingsContext => {
     nativeUpdate: isNativeUpdateAvailable(),
     macApp,
     hasPlugins,
+    desktopAccess: isDesktopAccessAvailable(),
   };
 };

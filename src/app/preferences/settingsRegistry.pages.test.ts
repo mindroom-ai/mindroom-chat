@@ -42,6 +42,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
   language: ['settings/pages/LanguageRegion.tsx', 'settings/pages/DateFormatSetting.tsx'],
   connections: ['settings/pages/AgentSettingsPages.tsx', 'connections/ConnectionsSettings.tsx'],
   computers: ['settings/pages/AgentSettingsPages.tsx', 'computer/ComputerSettings.tsx'],
+  thisMac: ['desktop-access/ThisMacSettingsPage.tsx'],
   'mindroom.local-mindroom': ['local-mindroom/LocalMindroom.tsx'],
   'archived-rooms': ['rooms/archive/ArchivedRoomsPage.tsx'],
   'server-accounts': ['server-admin/ServerAccounts.tsx', 'server-admin/ServerAccountDetail.tsx'],

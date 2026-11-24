@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useStore } from 'jotai';
+import { useSetAtom, useStore } from 'jotai';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
 import { ActivityRowsFeature } from '../activity/ActivityRowsFeature';
@@ -27,6 +27,30 @@ import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
 import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
 import { QuickCaptureHost } from '../quick-capture/QuickCaptureHost';
 import { WatchHandoffFeature } from '../account/watch/WatchHandoffFeature';
+import { DesktopMacRelayFeature } from '../desktop-access/macPairInvite';
+import { desktopBridge } from '../lib/nativeShell';
+import { settingsModalAtom } from '../navigation/settingsModal';
+import { SettingsPages } from '../navigation/settingsPages';
+
+let desktopSettingsRequestSeq = 0;
+
+/** Opens Settings -> This Mac when the macOS menu-bar tray requests it. */
+export function DesktopAccessShellEventsFeature() {
+  const setSettingsModal = useSetAtom(settingsModalAtom);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return undefined;
+    return bridge.onShellEvent((event) => {
+      if (event.type !== 'open-desktop-access-settings') return;
+      desktopSettingsRequestSeq += 1;
+      setSettingsModal({
+        initialPage: SettingsPages.ThisMacPage,
+        requestId: `desktop-access-settings-${desktopSettingsRequestSeq}`,
+      });
+    });
+  }, [setSettingsModal]);
+  return null;
+}
 
 /** The account's stores keep no text read out of its encrypted rooms. */
 function EncryptedRoomTextOffDiskFeature() {
@@ -111,6 +135,8 @@ export function ClientNonUIFeatures() {
       <DictationRecoveryFeature />
       <QuickCaptureHost />
       <WatchHandoffFeature />
+      <DesktopMacRelayFeature />
+      <DesktopAccessShellEventsFeature />
     </>
   );
 }

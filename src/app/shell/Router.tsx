@@ -41,6 +41,7 @@ import {
   LOGIN_PATH,
   PLUGIN_ROOT_PATH,
   QUICK_CAPTURE_PATH,
+  SHELL_APPROVAL_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -160,6 +161,19 @@ const QuickCapturePage = fromModule(
   (page) => page.QuickCapturePage
 );
 
+// The floating shell-approval window runs no Matrix client, so it loads on its own, outside ClientRoot.
+type ShellApprovalModule = typeof import('../desktop-access/ShellApprovalView');
+let shellApprovalModule: ShellApprovalModule | undefined;
+const ShellApprovalView = fromModule(
+  () => shellApprovalModule,
+  () =>
+    import('../desktop-access/ShellApprovalView').then((page) => {
+      shellApprovalModule = page;
+      return page;
+    }),
+  (page) => page.ShellApprovalView
+);
+
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
 
 /** A room address: the MindRoom room view once joined, else its summary. */
@@ -243,6 +257,15 @@ export const createRouter = (clientConfig: ClientConfig) => {
         element={
           <Suspense fallback={null}>
             <QuickCapturePage />
+          </Suspense>
+        }
+      />
+      {/* The floating shell-approval window renders immediately without waiting for Matrix login. */}
+      <Route
+        path={SHELL_APPROVAL_PATH}
+        element={
+          <Suspense fallback={null}>
+            <ShellApprovalView />
           </Suspense>
         }
       />

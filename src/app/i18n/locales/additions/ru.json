@@ -930,6 +930,164 @@
         "startEntireScreenShare": "Поделиться всем экраном",
         "stopEntireScreenShare": "Остановить показ всего экрана"
       }
+    },
+    "desktopAccess": {
+      "actions": {
+        "allowFullAccess": "Allow Full Access",
+        "cancel": "Cancel",
+        "chooseLimits": "Choose limits...",
+        "close": "Close",
+        "disconnect": "Disconnect",
+        "done": "Done",
+        "editLimits": "Edit limits...",
+        "switchToFull": "Switch to Full Access"
+      },
+      "banner": {
+        "restrictedActive": "Restricted access active on this Mac.",
+        "shellReadyWaitingPermissions": "Shell ready - Waiting for macOS screen & input permissions",
+        "waitingPermissions": "Waiting for macOS screen & input permissions"
+      },
+      "browser": {
+        "brewHint": "Or install with Homebrew:",
+        "confirmOnMac": "Confirm this code on {{mac}} to approve access.",
+        "copied": "Copied",
+        "copyCommand": "Copy command",
+        "copyFailed": "Copy failed",
+        "downloadMacApp": "Download MindRoom Chat for Mac",
+        "noMacDescription": "To give {{agent}} access to your Mac, sign in with this account in MindRoom Chat for Mac.",
+        "paired": "{{agent}} is now paired with {{mac}}.",
+        "relayDescription": "Send a pairing request to {{mac}}. You will confirm the 6-digit code and choose Full Access or limits on your Mac.",
+        "selectMac": "Choose a Mac",
+        "sendToMac": "Send to {{mac}}",
+        "waitingOnMac": "Waiting for confirmation on {{mac}}..."
+      },
+      "consent": {
+        "fullDisclosure": "{{agent}} can see your screen, control every app, and run shell commands as your macOS user without asking, including after restart. Stop anytime from the menu bar.",
+        "upgradeHeading": "Switching to Full Access"
+      },
+      "empty": {
+        "noAgents": "No MindRoom agents found in this room."
+      },
+      "incoming": {
+        "decline": "Decline",
+        "failedTitle": "Could not pair {{agent}}",
+        "sasHint": "Make sure this 6-digit code matches {{requester}} before approving.",
+        "title": "Pair {{agent}} from {{requester}}?"
+      },
+      "limits": {
+        "addFolder": "Add folder...",
+        "allowShellOnMac": "Allow shell commands on this Mac",
+        "foldersLabel": "Read-only folders",
+        "fullNote": "Full Access until revoked enables full-screen control and auto-approved shell until revoked.",
+        "fullScreen": "Full screen (primary-screen)",
+        "gui15m": "Allow control for 15 min",
+        "gui1h": "Allow control for 1 hour",
+        "guiFull": "Full Access until revoked",
+        "guiLabel": "Screen & input control",
+        "guiObserve": "Observe only",
+        "installedApps": "Allowed Mac apps",
+        "loadingApps": "Loading installed apps...",
+        "needCapability": "Enable full screen, at least one app, a folder, or shell commands.",
+        "noAppsFound": "No installed Mac apps found.",
+        "noFolders": "No read-only folders added.",
+        "perAgentHeading": "Control & shell approval for {{agent}} (per-agent)",
+        "removeFolder": "Remove",
+        "save": "Allow with limits",
+        "saveChanges": "Save limits",
+        "sharedHeading": "Shared apps, folders & shell on this Mac (applies to all paired agents)",
+        "sharedWithOthersHint": "Shared with other paired agents on this Mac",
+        "shell15m": "Auto-approve for 15 min",
+        "shell1h": "Auto-approve for 1 hour",
+        "shellApprovalLabel": "Shell approval",
+        "shellAsk": "Ask before each command",
+        "shellDisabledHint": "Turn on \"Allow shell commands on this Mac\" below to configure shell approval.",
+        "shellUntilRevoked": "Auto-approve until revoked"
+      },
+      "permissions": {
+        "accessibility": "Accessibility",
+        "accessibilityGrantedHint": "Keyboard and mouse control allowed.",
+        "accessibilityMissingHint": "Allows keyboard and mouse control. Updates automatically once enabled.",
+        "allowAccessibility": "Allow Accessibility",
+        "allowScreenRecording": "Allow Screen Recording",
+        "allowed": "Allowed",
+        "relaunchToActivate": "Relaunch to activate screen control",
+        "screenRecording": "Screen Recording",
+        "screenRecordingGrantedHint": "Screen viewing allowed.",
+        "screenRecordingMissingHint": "Allows paired agents to see your screen.",
+        "screenRecordingRelaunchHint": "Relaunch MindRoom Chat once so macOS activates Screen Recording."
+      },
+      "picker": {
+        "subtitle": "Choose which agent in this room should connect to this Mac."
+      },
+      "roomHeader": {
+        "giveAccess": "Give Mac Access",
+        "manageAccess": "Mac Access"
+      },
+      "sas": {
+        "label": "Verification code"
+      },
+      "settings": {
+        "bridgeState": "Bridge state",
+        "helperVersion": "Helper version",
+        "keywords": "mac, computer access, desktop control, shell, accessibility, screen recording, permissions",
+        "lastError": "Last error",
+        "manage": "Manage",
+        "noPairedAgentsDescription": "Open a room with an agent and choose Give Mac Access to connect it.",
+        "noPairedAgentsTitle": "No agents paired yet",
+        "notSignedIn": "Not signed in",
+        "pairedAgentsTitle": "Paired agents",
+        "permissionsTitle": "macOS Permissions",
+        "revokeAll": "Revoke All Access",
+        "revokeAllDescription": "Disconnect all paired agents and immediately stop computer access on this Mac.",
+        "runningShellTitle": "Running shell commands",
+        "savedSession": "Saved Matrix session",
+        "sectionTitle": "This Mac",
+        "statusActive": "Active",
+        "statusDescription": "Control which MindRoom agents can see and control this Mac.",
+        "statusStopped": "Stopped",
+        "statusTitle": "Mac Computer Access",
+        "statusUnavailable": "Not available on this Mac",
+        "stopCommand": "Stop",
+        "title": "This Mac",
+        "unavailableDescription": "Mac Computer Access requires MindRoom Chat for Mac on Apple Silicon.",
+        "unknown": "Unknown"
+      },
+      "shellApproval": {
+        "approveOnce": "Approve once",
+        "approveOnceCountdown": "Approve once ({{seconds}})",
+        "autoApprove15m": "Auto-approve 15 min",
+        "autoApprove15mCountdown": "Auto-approve 15 min ({{seconds}})",
+        "cwdLabel": "Working directory",
+        "deny": "Deny",
+        "empty": "No shell command is waiting for approval.",
+        "title": "Approve shell command?"
+      },
+      "status": {
+        "fullAccess": "Full Access",
+        "fullAccessActive": "Full Access active",
+        "permissionsNeeded": "Permissions needed",
+        "restricted": "Restricted",
+        "shellReady": "Shell ready"
+      },
+      "steps": {
+        "confirming": "Confirming pairing...",
+        "finishing": "Activating access...",
+        "pairing": "Pairing with {{agent}}...",
+        "requestingOffer": "Contacting {{agent}}...",
+        "signingIn": "Signing in on this Mac..."
+      },
+      "title": {
+        "allowFull": "Allow {{agent}} full access to this Mac?",
+        "browserPair": "Give {{agent}} access to your Mac",
+        "chooseLimits": "Choose limits for {{agent}}",
+        "default": "Mac Computer Access",
+        "editLimits": "Edit limits for {{agent}}",
+        "manageAgent": "{{agent}} on this Mac",
+        "pickAgent": "Give an agent access to this Mac"
+      },
+      "unavailable": {
+        "description": "Mac Computer Access is not available on this device."
+      }
     }
   },
   "mindroomUi": {
