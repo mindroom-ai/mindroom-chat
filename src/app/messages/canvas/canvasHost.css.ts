@@ -44,3 +44,48 @@ export const StickyAnswer = style({
   position: 'sticky',
   zIndex: 1,
 });
+
+// No overflow: hidden; CanvasAnswerBar's StickyAnswer uses position: sticky.
+export const InlineCard = style({
+  backgroundColor: color.Surface.Container,
+  border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  borderRadius: config.radii.R400,
+  boxSizing: 'border-box',
+  marginBlockStart: config.space.S100,
+  minWidth: 0,
+  width: '100%',
+});
+
+export const InlineCardHeader = style({
+  alignItems: 'center',
+  backgroundColor: color.SurfaceVariant.Container,
+  borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  borderStartEndRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
+  borderStartStartRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
+  display: 'flex',
+  gap: config.space.S200,
+  justifyContent: 'space-between',
+  padding: `${config.space.S200} ${config.space.S300}`,
+});
+
+export const InlineCardTitle = style({
+  alignItems: 'center',
+  display: 'flex',
+  flex: '1 1 auto',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+
+export const InlineCardAction = style({
+  flexShrink: 0,
+});
+
+export const InlineCardNote = style({
+  backgroundColor: color.SurfaceVariant.Container,
+  borderBottom: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  padding: `${config.space.S100} ${config.space.S300}`,
+});
+
+export const InlineCardBody = style({
+  padding: config.space.S200,
+});

@@ -431,6 +431,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const [startup, setStartup] = useState<StartupState>({ status: 'loading' });
   const [engine, setEngine] = useState<SyncEngine>();
   const [sync, setSync] = useState<SyncProgress>(NO_SYNC_YET);
+  const [cancelling, setCancelling] = useState(false);
   const [queryClient] = useState(() => new QueryClient());
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
@@ -545,10 +546,10 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
 
-  if (startup.status === 'error' && startup.error instanceof MissingCryptoStoreError) {
-    return <EncryptionKeysLost session={session} />;
-  }
-  if (startup.status === 'error') {
+  if (!cancelling && startup.status === 'error') {
+    if (startup.error instanceof MissingCryptoStoreError) {
+      return <EncryptionKeysLost session={session} />;
+    }
     return (
       <StartupFailure session={session} mx={startup.mx} error={startup.error} onRetry={retry} />
     );
@@ -559,7 +560,12 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SpecVersions baseUrl={session.baseUrl} allowCachedContent={sync.restoredRooms}>
+      <SpecVersions
+        baseUrl={session.baseUrl}
+        allowCachedContent={sync.restoredRooms}
+        mx={mx}
+        onCancellingChange={setCancelling}
+      >
         {mx && shellEngine && shellReady ? (
           // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
           <Suspense fallback={<StartupSplash session={session} mx={mx} />}>
