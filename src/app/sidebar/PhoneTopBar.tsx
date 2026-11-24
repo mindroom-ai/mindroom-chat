@@ -20,6 +20,7 @@ import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useRoomsUnread } from '../matrix/state/useUnread';
 import { useActivityBadge } from '../activity/useActivityRows';
 import { ActivitySheet } from '../activity/ActivitySheet';
+import { HelpTab } from './rail/HelpTab';
 import { SettingsTab } from './rail/SettingsTab';
 import { ActivityBadge } from './rail/ActivityTab';
 import * as css from './PhoneTopBar.css';
@@ -166,6 +167,7 @@ export function PhoneTopBar() {
         <MenuButton />
         <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
         <ActivityBell />
+        <HelpTab inTopBar className={css.BarControl} />
         <SettingsTab inTopBar className={css.BarControl} />
       </div>
       <PhoneReturnToCall />

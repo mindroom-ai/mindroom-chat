@@ -50,24 +50,41 @@ function withFakeIOSUserAgent<T>(fn: () => T): T {
 
 type ScrollCallback = (offset: number, isScrolling: boolean) => void;
 
-// virtual-core keeps its banked iOS adjustment compile-time private; the
+// virtual-core keeps its held iOS/wheel adjustment compile-time private; the
 // contract must observe it (same escape hatch virtual-core's own tests use).
 const bankedAdjustment = (virtualizer: Virtualizer<Element, Element>): number =>
-  (virtualizer as unknown as { _iosDeferredAdjustment: number })._iosDeferredAdjustment;
+  (virtualizer as unknown as { _holdOffset: number })._holdOffset;
 
-function makeVirtualizer(scrollToFn: Mock) {
+function makeVirtualizer(scrollToFn: Mock, options?: { anchorTo?: 'start' | 'end' }) {
   let scrollCallback: ScrollCallback | null = null;
-  const makeScrollElement = () => ({
-    scrollTop: START_OFFSET,
-    scrollLeft: 0,
-    scrollHeight: COUNT * ROW_ESTIMATE,
-    clientHeight: 600,
-    offsetHeight: 600,
-  });
+  const makeScrollElement = () => {
+    const listeners = new Map<string, Set<EventListener>>();
+    return {
+      scrollTop: START_OFFSET,
+      scrollLeft: 0,
+      scrollHeight: COUNT * ROW_ESTIMATE,
+      clientHeight: 600,
+      offsetHeight: 600,
+      ownerDocument: { defaultView: window },
+      addEventListener: (type: string, fn: EventListener) => {
+        const set = listeners.get(type) ?? new Set();
+        set.add(fn);
+        listeners.set(type, set);
+      },
+      removeEventListener: (type: string, fn: EventListener) => {
+        listeners.get(type)?.delete(fn);
+      },
+      dispatchEvent: (event: Event) => {
+        listeners.get(event.type)?.forEach((fn) => fn(event));
+        return true;
+      },
+    };
+  };
   const holder = { element: makeScrollElement() };
   const virtualizer = new Virtualizer<Element, Element>({
     count: COUNT,
     estimateSize: () => ROW_ESTIMATE,
+    anchorTo: options?.anchorTo,
     getScrollElement: () => holder.element as unknown as Element,
     scrollToFn,
     observeElementRect: () => {},
@@ -109,10 +126,12 @@ const adjustmentWrites = (scrollToFn: Mock) =>
 // estimate — the exact shape of the device report.
 function runUpwardFlickSequence(
   virtualizer: Virtualizer<Element, Element>,
-  scroll: ScrollCallback
+  scroll: ScrollCallback,
+  element?: { dispatchEvent: (event: Event) => boolean }
 ) {
   let offset = START_OFFSET;
   let index = Math.floor(START_OFFSET / ROW_ESTIMATE) - 1;
+  element?.dispatchEvent(new Event('touchstart'));
   for (let flick = 0; flick < FLICKS; flick += 1) {
     for (let step = 0; step < STEPS_PER_FLICK; step += 1) {
       offset -= 40;
@@ -128,7 +147,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
   it('issues no scroll writes during the stream and banks nothing to replay at quiescence', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
-      const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+      const { virtualizer, scroll, holder } = makeVirtualizer(scrollToFn);
       const droppedDeltas: number[] = [];
       virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook(
         {
@@ -137,7 +156,8 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
         }
       );
 
-      const endOffset = runUpwardFlickSequence(virtualizer, scroll);
+      const endOffset = runUpwardFlickSequence(virtualizer, scroll, holder.element);
+      holder.element.dispatchEvent(new Event('touchend'));
       expect(scrollToFn).not.toHaveBeenCalled();
       expect(bankedAdjustment(virtualizer)).toBe(0);
 
@@ -163,23 +183,26 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     });
   });
 
-  it('detector: without the hook, virtual-core banks the whole gesture and replays it as one lurch', () => {
-    withFakeIOSUserAgent(() => {
-      const scrollToFn = vi.fn();
-      const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+  it('detector: without the hook, virtual-core holds the gesture in _holdOffset and flushes at rest', () => {
+    vi.useFakeTimers();
+    try {
+      withFakeIOSUserAgent(() => {
+        const scrollToFn = vi.fn();
+        const { virtualizer, scroll, holder } = makeVirtualizer(scrollToFn);
 
-      const endOffset = runUpwardFlickSequence(virtualizer, scroll);
-      expect(scrollToFn).not.toHaveBeenCalled();
-      expect(bankedAdjustment(virtualizer)).toBe(BANKED_ERROR);
+        const endOffset = runUpwardFlickSequence(virtualizer, scroll, holder.element);
+        expect(scrollToFn).not.toHaveBeenCalled();
+        expect(bankedAdjustment(virtualizer)).toBe(BANKED_ERROR);
 
-      scroll(endOffset, false);
-      expect(scrollToFn).toHaveBeenCalledTimes(1);
-      const [, options] = scrollToFn.mock.calls[0] as [
-        number,
-        { adjustments?: number; behavior?: ScrollBehavior },
-      ];
-      expect(options.adjustments).toBe(BANKED_ERROR);
-    });
+        holder.element.dispatchEvent(new Event('touchend'));
+        scroll(endOffset, false);
+        vi.advanceTimersByTime(200);
+        expect(scrollToFn).toHaveBeenCalledTimes(1);
+        expect(bankedAdjustment(virtualizer)).toBe(0);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never writes on iOS even when quiet — the correction is ledgered instead', () => {
@@ -235,20 +258,16 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     });
   });
 
-  it('patch guard: cleanup() resets banked iOS deferral state on scroll-element swap', () => {
-    // Pins the patch-package fix for TanStack/virtual#1220
-    // (patches/@tanstack+virtual-core+3.17.3.patch). If a dependency bump
-    // drops the patch without the upstream fix present, the stale bank
-    // survives the swap and this fails.
+  it('cleanup() resets held iOS and wheel deferral state on scroll-element swap', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();
-      const { virtualizer, scroll, swapToFreshElement } = makeVirtualizer(scrollToFn);
+      const { virtualizer, scroll, swapToFreshElement, holder } = makeVirtualizer(scrollToFn);
 
-      runUpwardFlickSequence(virtualizer, scroll);
+      runUpwardFlickSequence(virtualizer, scroll, holder.element);
       expect(bankedAdjustment(virtualizer)).toBe(BANKED_ERROR);
 
       // Thread switch mid-flick: the scroller remounts while a deferral is
-      // banked. The bank was computed against the OLD element's content and
+      // held. The hold was computed against the OLD element's content and
       // must not survive into the new one.
       swapToFreshElement();
       expect(bankedAdjustment(virtualizer)).toBe(0);
@@ -257,6 +276,61 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       scroll(START_OFFSET, false);
       expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
     });
+  });
+
+  it('wheel-hold patch defers scrollTop writes on anchorTo end lists during wheel and motion tail, flushing at rest', () => {
+    vi.useFakeTimers();
+    try {
+      const scrollToFn = vi.fn();
+      const { virtualizer, holder } = makeVirtualizer(scrollToFn, { anchorTo: 'end' });
+
+      holder.element.dispatchEvent(new Event('wheel'));
+      virtualizer.resizeItem(10, ROW_ACTUAL);
+      expect(scrollToFn).not.toHaveBeenCalled();
+      expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
+
+      // Silent compositor travel observed when the 150ms timer expires defers flush by 50ms.
+      holder.element.scrollTop = START_OFFSET - 120;
+      vi.advanceTimersByTime(150);
+      expect(scrollToFn).not.toHaveBeenCalled();
+      expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
+
+      // Once scrollTop is still for 50ms, the hold flushes from the live offset.
+      vi.advanceTimersByTime(50);
+      expect(bankedAdjustment(virtualizer)).toBe(0);
+      expect(scrollToFn).toHaveBeenCalledTimes(1);
+      const [flushedOffset] = scrollToFn.mock.calls[0] as [number];
+      expect(flushedOffset).toBe(START_OFFSET - 120 + (ROW_ACTUAL - ROW_ESTIMATE));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('wheel-hold patch caps motion-tail deferral at 1s so continuous scrollTop writes cannot hold indefinitely', () => {
+    vi.useFakeTimers();
+    try {
+      const scrollToFn = vi.fn();
+      const { virtualizer, holder } = makeVirtualizer(scrollToFn, { anchorTo: 'end' });
+
+      holder.element.dispatchEvent(new Event('wheel'));
+      virtualizer.resizeItem(10, ROW_ACTUAL);
+      expect(bankedAdjustment(virtualizer)).toBe(ROW_ACTUAL - ROW_ESTIMATE);
+
+      // Keep mutating scrollTop on every timer tick past 1s since the wheel event.
+      holder.element.scrollTop -= 10;
+      vi.advanceTimersByTime(150);
+      expect(scrollToFn).not.toHaveBeenCalled();
+      for (let elapsed = 150; elapsed < 1000; elapsed += 50) {
+        holder.element.scrollTop -= 10;
+        vi.advanceTimersByTime(50);
+      }
+      expect(bankedAdjustment(virtualizer)).toBe(0);
+      expect(scrollToFn).toHaveBeenCalledTimes(1);
+      const [flushedOffset] = scrollToFn.mock.calls[0] as [number];
+      expect(flushedOffset).toBe(holder.element.scrollTop + (ROW_ACTUAL - ROW_ESTIMATE));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ledgers a giant desktop correction while scrolling backward instead of snapping down', () => {
@@ -407,27 +481,108 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(unrenderedPx).toBe(-80);
   });
 
-  it('judges a resize against the row painted at the viewport top, below content above the list', () => {
-    // 200px of banner and Load Older sit above the list, which virtual-core's
-    // offsets do not include: at scrollTop 1500 the reader sees offset 1300.
-    // A row that resizes inside those 200px is in view and must reflow.
-    const scrollToFn = vi.fn();
-    const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
-    const droppedDeltas: number[] = [];
-    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
-      isIOSWebKitDevice: () => false,
-      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
-      viewportTopOffset: (scrollOffset) => scrollOffset - 200,
-    });
-    scroll(1500, false);
+  it.each([
+    { label: 'quiet', withForwardWheel: false },
+    { label: 'forward wheel', withForwardWheel: true },
+  ])(
+    'keeps the room anchor ($label) when two rows above the reader grow in one ResizeObserver report',
+    ({ withForwardWheel }) => {
+      // In virtual-core 3.19, once the first row in a ResizeObserver batch
+      // applies a sync scroll adjustment, resizeItem refreshes measurementsCache
+      // before judging the second row, so its end already includes the first
+      // row's growth. On room lists (anchorTo: 'start'), wheel-hold must not
+      // arm, so the first write lands in DOM scrollTop before the second row
+      // is judged against refreshed bounds.
+      let observerCallback: ResizeObserverCallback | undefined;
+      class BatchResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          observerCallback = callback;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+      vi.stubGlobal('ResizeObserver', BatchResizeObserver);
+      if (withForwardWheel) vi.useFakeTimers();
+      try {
+        const elementRef: { current?: { scrollTop: number } } = {};
+        const scrollToFn = vi.fn((offset: number, options: { adjustments?: number }) => {
+          if (elementRef.current) {
+            elementRef.current.scrollTop = offset + (options.adjustments ?? 0);
+          }
+        });
+        const { virtualizer, scroll, holder } = makeVirtualizer(scrollToFn);
+        elementRef.current = holder.element;
+        let unrenderedPx = 0;
+        virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+          buildMeasurementScrollCorrectionHook({
+            isIOSWebKitDevice: () => false,
+            onDroppedCorrection: () => {},
+            onAppliedCorrection: (deltaPx) => {
+              unrenderedPx += deltaPx;
+            },
+            unrenderedCorrectionPx: () => unrenderedPx,
+          });
 
-    virtualizer.resizeItem(1350 / ROW_ESTIMATE, ROW_ACTUAL);
-    expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
-    // A row that ends above the painted viewport top still keeps the reader.
-    virtualizer.resizeItem(1200 / ROW_ESTIMATE, ROW_ACTUAL);
-    expect(adjustmentWrites(scrollToFn)).toHaveLength(1);
-    expect(droppedDeltas).toEqual([]);
-  });
+        const makeRowNode = (index: number, height: number) => {
+          const node = document.createElement('div');
+          node.setAttribute('data-index', String(index));
+          Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+          document.body.appendChild(node);
+          node.getBoundingClientRect = () => ({
+            height,
+            width: 390,
+            top: 0,
+            left: 0,
+            bottom: height,
+            right: 390,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          });
+          return node;
+        };
+
+        const lastRowAbove = START_OFFSET / ROW_ESTIMATE - 1;
+        const rowA = makeRowNode(lastRowAbove - 1, ROW_ESTIMATE);
+        const rowB = makeRowNode(lastRowAbove, ROW_ESTIMATE);
+        virtualizer.measureElement(rowA);
+        virtualizer.measureElement(rowB);
+        expect(observerCallback).toBeDefined();
+
+        if (withForwardWheel) {
+          scroll(START_OFFSET - 40, true);
+          scroll(START_OFFSET, true);
+          holder.element.dispatchEvent(new Event('wheel'));
+        }
+
+        // Both rows grow by +100px in a single ResizeObserver delivery.
+        const grownHeight = ROW_ESTIMATE + 100;
+        observerCallback!(
+          [
+            {
+              target: rowA,
+              borderBoxSize: [{ inlineSize: 390, blockSize: grownHeight }],
+            } as unknown as ResizeObserverEntry,
+            {
+              target: rowB,
+              borderBoxSize: [{ inlineSize: 390, blockSize: grownHeight }],
+            } as unknown as ResizeObserverEntry,
+          ],
+          {} as ResizeObserver
+        );
+
+        if (withForwardWheel) vi.advanceTimersByTime(300);
+
+        expect(holder.element.scrollTop).toBe(START_OFFSET + 200);
+        expect(unrenderedPx).toBe(200);
+      } finally {
+        if (withForwardWheel) vi.useRealTimers();
+        document.body.replaceChildren();
+        vi.unstubAllGlobals();
+      }
+    }
+  );
 
   // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
   // round-8 transform compensation shifted PAINT while the window math

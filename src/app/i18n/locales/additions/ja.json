@@ -690,7 +690,18 @@
       "manage": "管理"
     },
     "roomOrder": {
-      "sortByName": "ルームを A から Z の順に並べる"
+      "sortRooms": "ルームを並べ替え",
+      "sortHeading": "ルームを並べ替え",
+      "displayHeading": "表示",
+      "recentActivity": "最近のアクティビティ",
+      "aToZ": "A から Z",
+      "customOrder": "カスタム順",
+      "saved": "保存済み",
+      "showActivityTimes": "最終更新時刻を表示",
+      "matchSpace": "スペースに合わせる ({{mode}})",
+      "shortRecent": "最近",
+      "shortName": "A–Z",
+      "shortManual": "カスタム"
     },
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
@@ -1528,7 +1539,20 @@
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
-      "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。"
+      "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。",
+      "discardDictation": "音声入力を破棄",
+      "discardConfirmTitle": "音声入力を破棄しますか？",
+      "discardConfirmBody": "この音声入力はまだ挿入または送信されていません。完全に破棄しますか？",
+      "errorTitle": "音声入力エラー",
+      "statusRecovered": "復元された音声入力",
+      "recoveredDuration": "復元済み · {{time}}",
+      "indicator": {
+        "recording": "音声入力中 {{time}}",
+        "paused": "音声入力を一時停止中 {{time}}",
+        "recovered": "復元された音声入力 {{time}}",
+        "finishing": "音声入力を完了処理中...",
+        "failed": "音声入力を確認してください"
+      }
     }
   },
   "commandPalette": {
@@ -1634,6 +1658,7 @@
       "needsYou": "あなたの対応待ち",
       "working": "作業中",
       "later": "後で",
+      "quiet": "休止中",
       "done": "完了",
       "all": "すべて",
       "description": {
@@ -1961,6 +1986,38 @@
       "settingsKeywords": "ツアー, チュートリアル, ガイド, ヘルプ, 使い方, 入門, スレッド",
       "howThreadsWork": "スレッドのしくみ",
       "noThreadsHint": "下の入力欄からメッセージを送ると、スレッドが始まります。"
+    },
+    "help": {
+      "button": "ヘルプとガイド",
+      "buttonWithTip": "ヘルプとガイド（ヒント1件）",
+      "title": "ヘルプとガイド",
+      "subtitle": "クイックガイド",
+      "oneTip": "ヒント1件",
+      "suggested": "おすすめのヒント",
+      "showHow": "方法を見る",
+      "dismissTip": "ヒントを閉じる",
+      "guidesHeading": "UIガイド",
+      "guides": {
+        "conversation": "スレッドのしくみ",
+        "resolve": "終わったものは解決する",
+        "filters": "解決済みのスレッドを探す",
+        "snooze": "あとで対応するようスヌーズ",
+        "pinAndTag": "ピン留めとタグ付け",
+        "views": "コンパクト表示とスレッド表示",
+        "activity": "アクティビティと承認"
+      },
+      "fullTour": "フルツアー",
+      "shortcuts": "ショートカット"
+    },
+    "tips": {
+      "resolve": {
+        "title": "終わったスレッドを解決する",
+        "cardTitle": "終わったスレッドを解決する",
+        "roomSummary_other": "このルームに未解決スレッドが{{count}}件、解決済みはまだありません",
+        "allSummary_other": "未解決スレッドが{{count}}件、解決済みはまだありません",
+        "cardTextRoom_other": "このルームに未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。",
+        "cardTextAll_other": "未解決スレッドが{{count}}件あり、まだ解決済みがありません。終わったものを解決して一覧を整理できます。"
+      }
     }
   },
   "threadNav": {
@@ -1975,6 +2032,7 @@
       "working": "作業中",
       "later": "後で",
       "idle": "待機中",
+      "quiet": "休止中",
       "resolved": "解決済み"
     },
     "live": {

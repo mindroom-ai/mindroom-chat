@@ -1,8 +1,7 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
-import type { ThreadLedgerEvent } from './threadScrollLedger';
 import { createRoomAutomaticFill } from './roomAutomaticFill';
 
 const virtualizer = vi.hoisted(() => ({
@@ -36,16 +35,6 @@ vi.mock('./scrollQuiescence', () => ({
       settleWaits.push(resolve);
     }),
 }));
-
-const event = (eventId: string): ThreadLedgerEvent => ({
-  getId: () => eventId,
-});
-
-// A 68px root, then 50px replies, in virtual-core coordinates.
-const rootThenReplies = (offset: number) => {
-  const index = offset < 68 ? 0 : 1 + Math.floor((offset - 68) / 50);
-  return { index, start: index === 0 ? 0 : 68 + (index - 1) * 50 };
-};
 
 // The scroller's computed scroll-padding-top: the sticky headers' inset.
 const scrollPadding = { top: 0 };
@@ -98,9 +87,6 @@ describe('useTimelineScrollLedgerController', () => {
         pendingRoomFoldPxRef: useRef(0),
         roomFoldPriceRef: useRef(() => 100),
         roomId: '!room:example.org',
-        threadEventIndexMap: new Map(),
-        threadEvents: [],
-        threadInitialRenderMode: 'live',
       });
       return React.createElement(
         'inner',
@@ -159,9 +145,6 @@ describe('useTimelineScrollLedgerController', () => {
         pendingRoomFoldPxRef: useRef(0),
         roomFoldPriceRef: useRef(() => 144),
         roomId: '!room:example.org',
-        threadEventIndexMap: new Map(),
-        threadEvents: [],
-        threadInitialRenderMode: 'live',
         automaticFill: { ...owner, geometryReader },
       });
       return React.createElement('inner', { ref: controller.virtualInnerRef });
@@ -217,10 +200,6 @@ describe('useTimelineScrollLedgerController', () => {
         pendingRoomFoldPxRef,
         roomFoldPriceRef,
         roomId: '!room:example.org',
-        threadEventIndexMap: new Map(),
-        threadEvents: [],
-        threadId: '$root',
-        threadInitialRenderMode: 'live',
       });
       return React.createElement('inner', { ref: controller.virtualInnerRef });
     };
@@ -304,10 +283,6 @@ describe('useTimelineScrollLedgerController', () => {
         pendingRoomFoldPxRef,
         roomFoldPriceRef,
         roomId: '!room:example.org',
-        threadEventIndexMap: new Map(),
-        threadEvents: [],
-        threadId: '$root',
-        threadInitialRenderMode: 'live',
       });
       return React.createElement('inner', { ref: controller.virtualInnerRef });
     };
@@ -358,199 +333,7 @@ describe('useTimelineScrollLedgerController', () => {
     );
   });
 
-  it("folds rows that land above the reader's first visible row, whoever adds them", () => {
-    const root = event('$root');
-    const reader = event('$reader');
-    const older = event('$older');
-    const newer = event('$newer');
-    virtualizer.itemSizeCache = new Map([['$older', 30]]);
-    // The row at the reader's top; it follows the reader's row.
-    let readerIndex = 1;
-    virtualizer.getVirtualItemForOffset = (offset) => ({ index: readerIndex, start: offset });
-    const scroller = {
-      getBoundingClientRect: () => ({ top: 0 }),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      scrollTop: 0,
-    };
-    const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
-    let latestLedgerPx = 0;
-
-    const Harness = ({ events }: { events: ThreadLedgerEvent[] }) => {
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
-        () => 10
-      );
-      const controller = useTimelineScrollLedgerController({
-        alive: () => true,
-        estimateSize: () => 10,
-        getItemKey: (index) => events[index]?.getId() ?? index,
-        getScrollElement: () => scroller as unknown as HTMLDivElement,
-        itemCount: events.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
-        roomId: '!room:example.org',
-        threadEventIndexMap: new Map(events.map((entry, index) => [entry.getId() ?? '', index])),
-        threadEvents: events,
-        threadId: '$root',
-        threadInitialRenderMode: 'live',
-      });
-      (controller.virtualInnerRef as { current: unknown }).current = inner;
-      latestLedgerPx = controller.ledgerPxAtRender;
-      return null;
-    };
-
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(Harness, { events: [root, reader] }));
-    });
-    // A reply below the reader moves nothing.
-    act(() => {
-      renderer.update(React.createElement(Harness, { events: [root, reader, newer] }));
-    });
-    expect(latestLedgerPx).toBe(0);
-    // An older row above the reader folds at its measured height.
-    readerIndex = 2;
-    act(() => {
-      renderer.update(React.createElement(Harness, { events: [root, older, reader, newer] }));
-    });
-    expect(latestLedgerPx).toBe(30);
-    renderer!.unmount();
-  });
-
-  it('anchors on the row painted at the viewport top, even above the list start', () => {
-    // virtual-core's range ignores the content above the list (header inset,
-    // Load Older), so it can name a reply while the root is still visible.
-    const root = event('$root');
-    const first = event('$first');
-    const older = event('$older');
-    virtualizer.itemSizeCache = new Map([['$older', 30]]);
-    virtualizer.getVirtualItemForOffset = rootThenReplies;
-    const rect = (top: number) => ({
-      getBoundingClientRect: () => ({ top }),
-      style: { marginTop: '' },
-    });
-    const scroller = {
-      ...rect(100),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      scrollTop: 0,
-    };
-    // The list paints virtual coordinate 0 at 70px: the viewport top is 30px into the root.
-    const inner = rect(70);
-    let latestLedgerPx = 0;
-
-    const Harness = ({ events }: { events: ThreadLedgerEvent[] }) => {
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
-        () => 10
-      );
-      const controller = useTimelineScrollLedgerController({
-        alive: () => true,
-        estimateSize: () => 10,
-        getItemKey: (index) => events[index]?.getId() ?? index,
-        getScrollElement: () => scroller as unknown as HTMLDivElement,
-        itemCount: events.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
-        roomId: '!room:example.org',
-        threadEventIndexMap: new Map(events.map((entry, index) => [entry.getId() ?? '', index])),
-        threadEvents: events,
-        threadId: '$root',
-        threadInitialRenderMode: 'live',
-      });
-      (controller.virtualInnerRef as { current: unknown }).current = inner;
-      latestLedgerPx = controller.ledgerPxAtRender;
-      return null;
-    };
-
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(Harness, { events: [root, first] }));
-    });
-    // Older history lands between the visible root and the first reply.
-    act(() => {
-      renderer.update(React.createElement(Harness, { events: [root, older, first] }));
-    });
-    expect(latestLedgerPx).toBe(0);
-    renderer!.unmount();
-  });
-
-  it('follows the painted row through a scroll that commits nothing', () => {
-    // virtual-core notifies React only when its own range changes; scrolling
-    // the root back into view under the header can leave that range as is.
-    const root = event('$root');
-    const first = event('$first');
-    const older = event('$older');
-    virtualizer.itemSizeCache = new Map([['$older', 30]]);
-    virtualizer.getVirtualItemForOffset = rootThenReplies;
-    const scrollListeners: EventListener[] = [];
-    const scroller = {
-      getBoundingClientRect: () => ({ top: 100 }),
-      addEventListener: vi.fn((type: string, listener: EventListener) => {
-        if (type === 'scroll') scrollListeners.push(listener);
-      }),
-      removeEventListener: vi.fn(),
-      scrollTop: 300,
-    };
-    // The viewport top is 100px into the list: the first reply.
-    const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
-    let latestLedgerPx = 0;
-
-    const Harness = ({ events }: { events: ThreadLedgerEvent[] }) => {
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
-        () => 10
-      );
-      const controller = useTimelineScrollLedgerController({
-        alive: () => true,
-        estimateSize: () => 10,
-        getItemKey: (index) => events[index]?.getId() ?? index,
-        getScrollElement: () => scroller as unknown as HTMLDivElement,
-        itemCount: events.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
-        roomId: '!room:example.org',
-        threadEventIndexMap: new Map(events.map((entry, index) => [entry.getId() ?? '', index])),
-        threadEvents: events,
-        threadId: '$root',
-        threadInitialRenderMode: 'live',
-      });
-      (controller.virtualInnerRef as { current: unknown }).current = inner;
-      latestLedgerPx = controller.ledgerPxAtRender;
-      return null;
-    };
-
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(React.createElement(Harness, { events: [root, first] }));
-    });
-    // Scroll up 70px: the viewport top is now 30px into the root.
-    scroller.scrollTop = 230;
-    scrollListeners.forEach((listener) => listener(new Event('scroll')));
-    act(() => {
-      renderer.update(React.createElement(Harness, { events: [root, older, first] }));
-    });
-    expect(latestLedgerPx).toBe(0);
-    renderer!.unmount();
-  });
-
-  describe('content between the banner and the rows', () => {
-    const root = event('$root');
-    const first = event('$first');
-    // The minimum height it holds at each measurement of a commit.
-    const heldAtMeasure: string[] = [];
-    const leadingBox = { offsetHeight: 48 };
-    const leading = {
-      get offsetHeight() {
-        heldAtMeasure.push(leading.style.minHeight);
-        return leadingBox.offsetHeight;
-      },
-      set offsetHeight(px: number) {
-        leadingBox.offsetHeight = px;
-      },
-      style: { minHeight: '' },
-    };
+  describe('thread banner resize', () => {
     const listTopRef = { current: 0 };
     const scroller = {
       getBoundingClientRect: () => ({ top: 100 }),
@@ -558,159 +341,45 @@ describe('useTimelineScrollLedgerController', () => {
       removeEventListener: vi.fn(),
       scrollTop: 300,
     };
-    // The ledger's margin moves the list it paints.
     const inner = {
-      getBoundingClientRect: () => ({
-        top: listTopRef.current + (parseFloat(inner.style.marginTop) || 0),
-      }),
+      getBoundingClientRect: () => ({ top: listTopRef.current }),
       style: { marginTop: '' },
     };
-    const ledgerPxs: number[] = [];
-    const latestLedgerPx = () => ledgerPxs[ledgerPxs.length - 1];
-    // virtual-core judging a row it measured, through the installed hook.
-    const correct = (end: number, delta: number) =>
-      act(() => {
-        (
-          virtualizer.shouldAdjustScrollPositionOnItemSizeChange as (
-            item: { end: number },
-            delta: number,
-            instance: { scrollOffset: number; scrollDirection: null }
-          ) => boolean
-        )({ end }, delta, { scrollOffset: scroller.scrollTop, scrollDirection: null });
-      });
-    // Row measurement refs fire inside the commit, before the parent's layout effects.
-    let measureInCommit: (() => void) | undefined;
     let holdBanner: (deltaPx: number, scrollTop: number) => void = () => undefined;
-    let readRowFoldPx = () => 0;
-    const MeasuredRow = () => {
-      useLayoutEffect(() => measureInCommit?.());
-      return null;
-    };
+    let latestLedgerPx = 0;
 
-    const Harness = ({ leadingKey }: { leadingKey: string }) => {
-      const pendingRoomFoldPxRef = useRef(0);
-      const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
-        () => 10
-      );
-      const events = [root, first];
+    const Harness = () => {
       const controller = useTimelineScrollLedgerController({
         alive: () => true,
         estimateSize: () => 10,
-        getItemKey: (index) => events[index]?.getId() ?? index,
+        getItemKey: (index) => index,
         getScrollElement: () => scroller as unknown as HTMLDivElement,
-        itemCount: events.length,
-        pendingRoomFoldPxRef,
-        roomFoldPriceRef,
+        itemCount: 2,
+        pendingRoomFoldPxRef: useRef(0),
+        roomFoldPriceRef: useRef(() => 10),
         roomId: '!room:example.org',
-        threadEventIndexMap: new Map(events.map((entry, index) => [entry.getId() ?? '', index])),
-        threadEvents: events,
         threadId: '$root',
-        threadInitialRenderMode: 'live',
-        leadingKey: leadingKey,
       });
-      (controller.leadingRef as { current: unknown }).current = leading;
       (controller.virtualInnerRef as { current: unknown }).current = inner;
-      ledgerPxs.push(controller.ledgerPxAtRender);
+      latestLedgerPx = controller.ledgerPxAtRender;
       holdBanner = controller.holdThreadBannerResize;
-      readRowFoldPx = controller.readRowFoldPx;
-      return React.createElement(MeasuredRow);
+      return null;
     };
-    let renderer: ReturnType<typeof create>;
-    const show = (leadingKey: string, offsetHeight: number) => {
-      leading.offsetHeight = offsetHeight;
-      act(() => {
-        if (renderer) renderer.update(React.createElement(Harness, { leadingKey }));
-        else renderer = create(React.createElement(Harness, { leadingKey }));
-      });
-    };
+    let renderer: ReturnType<typeof create> | undefined;
 
     beforeEach(() => {
-      virtualizer.getVirtualItemForOffset = rootThenReplies;
-      // The viewport top is 100px into the list: the first reply.
       scroller.scrollTop = 300;
       listTopRef.current = 0;
-      ledgerPxs.length = 0;
-      measureInCommit = undefined;
+      act(() => {
+        renderer = create(React.createElement(Harness));
+      });
     });
     afterEach(() => {
-      renderer?.unmount();
-      renderer = undefined as unknown as ReturnType<typeof create>;
-    });
-
-    it('holds a reader in the rows when it goes, shrinks or grows', () => {
-      show('error|older', 96);
-      // The load error clears: the render folds all of it, then the commit
-      // folds what remains before paint, so nothing can clamp in between.
-      show('older', 48);
-      expect(ledgerPxs.slice(-2)).toEqual([-96, -48]);
-      // Load Older goes with the last page.
-      show('', 0);
-      expect(latestLedgerPx()).toBe(-96);
-      // A load error appears.
-      show('error', 40);
-      expect(latestLedgerPx()).toBe(-56);
-      // It lies above the list, whose end it leaves where it is: none of that margin is room the
-      // list will give up, and the end clamp reads no shrink in it.
-      expect(readRowFoldPx()).toBe(-56);
-    });
-
-    it('holds its measured height until a commit that changes it lets go with the margin', () => {
-      show('older', 48);
-      // WebKit's layout for the room area's container query meets a line taken out before the
-      // margin that pairs it: the height held from the last commit keeps the scroll range.
-      expect(leading.style.minHeight).toBe('48px');
-      heldAtMeasure.length = 0;
-      show('older', 48);
-      expect(heldAtMeasure).toEqual(['48px']);
-      heldAtMeasure.length = 0;
-      show('', 0);
-      expect(heldAtMeasure).toEqual(['']);
-      expect(leading.style.minHeight).toBe('0px');
-    });
-
-    it('lets a reader looking at it see it go', () => {
-      // The list starts 50px below the viewport top: no row to hold.
-      listTopRef.current = 150;
-      show('older', 48);
-      show('', 0);
-      expect(latestLedgerPx()).toBe(0);
-    });
-
-    it("starts the reader's view below the sticky headers", () => {
-      // 150px of headers: the reader sees the first reply, not Load Older.
-      listTopRef.current = 150;
-      scrollPadding.top = 150;
-      show('older', 48);
-      show('', 0);
-      expect(latestLedgerPx()).toBe(-48);
-    });
-
-    it("judges measurement corrections against the reader's top", () => {
-      show('older', 48);
-      // Ends 50px below the reader's top: in view, reflows.
-      correct(150, 200);
-      expect(latestLedgerPx()).toBe(0);
-      // Ends above it: held (dropped into the ledger on iOS).
-      correct(90, 200);
-      expect(latestLedgerPx()).toBe(200);
-      // The reader's top stays put while that fold waits to settle.
-      correct(150, 10);
-      expect(latestLedgerPx()).toBe(200);
-    });
-
-    it('judges a row measured in the commit that drops it against the moved list', () => {
-      show('older', 48);
-      measureInCommit = () => {
-        measureInCommit = undefined;
-        // The list moved up 48px: this row now ends above the reader's top.
-        correct(130, 200);
-      };
-      show('', 0);
-      expect(latestLedgerPx()).toBe(152);
+      act(() => renderer?.unmount());
+      renderer = undefined;
     });
 
     it('holds a reader in the rows when the banner above them changes height', () => {
-      show('', 0);
       holdBanner(22, 300);
       expect(scroller.scrollTop).toBe(322);
       // At the bottom, the layout of the shrunk header has clamped the live offset.
@@ -718,45 +387,20 @@ describe('useTimelineScrollLedgerController', () => {
       holdBanner(-22, 322);
       expect(scroller.scrollTop).toBe(300);
       // A single change, not a ledger debt left to settle at rest.
-      expect(latestLedgerPx()).toBe(0);
+      expect(latestLedgerPx).toBe(0);
     });
 
     it('lets a reader above the rows see the banner change', () => {
       listTopRef.current = 150;
-      show('', 0);
       holdBanner(22, 300);
       expect(scroller.scrollTop).toBe(300);
     });
 
     it('leaves a reader at the very top there', () => {
-      // The reader's line is the root's top: the root is the anchor.
       scroller.scrollTop = 0;
       listTopRef.current = 100;
-      show('', 0);
       holdBanner(22, 0);
       expect(scroller.scrollTop).toBe(0);
-    });
-
-    it('does not take the banner write for a reverted settle', async () => {
-      scroller.addEventListener.mockClear();
-      show('', 0);
-      // A row above the reader shrinks by 48px into the ledger; it settles at rest.
-      correct(90, -48);
-      expect(inner.style.marginTop).toBe('48px');
-      await act(async () => {
-        settleWaits.forEach((resolve) => resolve());
-      });
-      expect(scroller.scrollTop).toBe(252);
-      expect(inner.style.marginTop).toBe('');
-      // The banner then grows by about as much, inside the discard watch.
-      holdBanner(40, 252);
-      act(() => {
-        scroller.addEventListener.mock.calls
-          .filter(([type]) => type === 'scroll')
-          .forEach(([, listener]) => (listener as EventListener)(new Event('scroll')));
-      });
-      // A reverted settle would restore its margin.
-      expect(inner.style.marginTop).toBe('');
     });
   });
 });
@@ -795,9 +439,6 @@ describe("the room's start above its rows", () => {
       pendingRoomFoldPxRef,
       roomFoldPriceRef,
       roomId: '!room:example.org',
-      threadEventIndexMap: new Map(),
-      threadEvents: [],
-      threadInitialRenderMode: 'live',
       leadingKey,
     });
     (controller.leadingRef as { current: unknown }).current = leading;

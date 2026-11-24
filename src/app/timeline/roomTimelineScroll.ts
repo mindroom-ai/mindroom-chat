@@ -343,17 +343,6 @@ export const useThreadReturnPlace = ({
 };
 
 /**
- * Ends the scroll the virtual list still reconciles. virtual-core (3.17.3) keeps the row or offset
- * it was last asked to scroll to (`scrollState`) and, until it lands there or 5 s pass, scrolls
- * there again whenever that target moves (`reconcileScroll`): a row that arrives or changes size
- * in that time would pull a reader who has scrolled away back to it. It has no public way to drop
- * that scroll; its `cleanup` clears the same field.
- */
-const endVirtualListScroll = (virtualizer: object) => {
-  (virtualizer as { scrollState?: unknown }).scrollState = null;
-};
-
-/**
  * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
  * virtual list scrolls to its last row (to its top when its newest row is first), and an open
  * thread to the end of its scroll area. A pin
@@ -375,7 +364,7 @@ export const useLatestRowPin = ({
    */
   surface: 'room' | 'thread' | undefined;
   itemCount: number;
-  virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>;
+  virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>;
   /** Whether this commit keeps the list's old height over rows that changed size. */
   listHeightHeld?: boolean;
 }) => {
@@ -385,7 +374,7 @@ export const useLatestRowPin = ({
   // was last sent to. A thread's gestures have their own rule for the pins (useGestureBottomPins'
   // onThreadGesture).
   const onGesture = useCallback(() => {
-    endVirtualListScroll(virtualizerRef.current);
+    virtualizerRef.current.cancelScroll();
     if (surfaceRef.current === 'room') onReaderGesture();
   }, [onReaderGesture, surfaceRef, virtualizerRef]);
   const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onGesture });
@@ -456,6 +445,7 @@ export const useGestureBottomPins = ({
   scrollToBottomRef,
   readerScrolledRef,
   onFirstGesture,
+  onThreadTakeover,
 }: {
   backController: ThreadBackPaginationController;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
@@ -463,17 +453,21 @@ export const useGestureBottomPins = ({
   readerScrolledRef: MutableRefObject<ViewScopedFlag>;
   /** Runs once per view, at the reader's first gesture. */
   onFirstGesture: () => void;
+  /** Cancels any active programmatic scroll when the reader gestures in a thread. */
+  onThreadTakeover?: () => void;
 }) => {
   // The request count when the reader last touched, scrolled or pressed a key.
   const countAtGestureRef = useRef<number | undefined>(undefined);
+  const onThreadTakeoverRef = useLatestRef(onThreadTakeover);
   const onThreadGesture = useCallback(() => {
+    onThreadTakeoverRef.current?.();
     const { count } = scrollToBottomRef.current;
     backController.cancelOpenBottomPin(count);
     countAtGestureRef.current = count;
     if (readerScrolledRef.current.value) return;
     readerScrolledRef.current.value = true;
     onFirstGesture();
-  }, [backController, onFirstGesture, readerScrolledRef, scrollToBottomRef]);
+  }, [backController, onFirstGesture, onThreadTakeoverRef, readerScrolledRef, scrollToBottomRef]);
   /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
   const onRoomGesture = useCallback(() => {
     countAtGestureRef.current = scrollToBottomRef.current.count;
@@ -550,7 +544,7 @@ type RoomRowLookup = {
  * it keeps its place, the reader scrolls, or another jump starts. A thread's rows are all in the
  * list.
  * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own. Each
- * jump also ends the scroll the virtual list still reconciles (`endVirtualListScroll`): a bottom
+ * jump also ends the scroll the virtual list still reconciles (`cancelScroll`): a bottom
  * pin's, or its own `scrollToIndex` that brought a far row in, whose place for the row leaves out
  * the offset ledger's shift. Left running, it scrolled there again when a row measured after the
  * jump had aligned its row (Jump to Unread left the "New messages" line under the composer, or
@@ -562,21 +556,25 @@ export const useTimelineRowJumps = ({
   activeRangeRef,
   virtualizerRef,
   threadEventIndexMapRef,
+  threadLeadingOffsetRef,
   onJump,
   rows,
 }: {
   paginatorScrollToItem: ScrollToItem;
   paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
-  virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
+  virtualizerRef: MutableRefObject<
+    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
+  >;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadLeadingOffsetRef?: MutableRefObject<number>;
   onJump: () => void;
   rows: RoomRowLookup;
 }) => {
   const jumpCountRef = useRef(0);
   const rowsRef = useLatestRef(rows);
   const jumped = useCallback(() => {
-    endVirtualListScroll(virtualizerRef.current);
+    virtualizerRef.current.cancelScroll();
     onJump();
   }, [onJump, virtualizerRef]);
   const scrollToElement = useCallback<ScrollToElement>(
@@ -710,10 +708,12 @@ export const useTimelineRowJumps = ({
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
       jumped();
-      virtualizerRef.current.scrollToIndex(index, { align: 'center' });
+      virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
+        align: 'center',
+      });
       return true;
     },
-    [jumped, threadEventIndexMapRef, virtualizerRef]
+    [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };

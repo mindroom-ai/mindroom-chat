@@ -117,8 +117,8 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     threadRecord: { status: { isStreaming: false }, cache: {} },
   }) as unknown as CrossRoomThreadIndexEntry;
 
-const older = makeEntry('!room:example.org', '$older', 10);
-const newer = makeEntry('!newer-room:example.org', '$newer', 20);
+const older = makeEntry('!room:example.org', '$older', MINUTE_NOW - 20);
+const newer = makeEntry('!newer-room:example.org', '$newer', MINUTE_NOW - 10);
 
 describe('ThreadNavCategory', () => {
   let renderer: ReactTestRenderer | undefined;

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   classifyThreadWorkflow,
+  isQuietThread,
   isWaitingOnYou,
+  nextThreadQuietTs,
+  QUIET_AFTER_MS,
+  threadQuietActivityTs,
   threadReturnTs,
   type ThreadWorkflowStatus,
 } from './threadWorkflow';
@@ -124,5 +128,77 @@ describe('the workflow cases shared with the backend', () => {
     } else {
       expect(expected.back_at).toBeUndefined();
     }
+  });
+});
+
+describe('quiet thread rules', () => {
+  const NOW = 10 * QUIET_AFTER_MS;
+  const oldTs = NOW - QUIET_AFTER_MS;
+
+  it('computes quiet activity time from outcome, non-streaming news, activity and expired snooze', () => {
+    expect(
+      threadQuietActivityTs({ lastActivityTs: 100, newsTs: 300, isStreaming: true, now: 500 })
+    ).toBe(100);
+    expect(
+      threadQuietActivityTs({ lastActivityTs: 100, newsTs: 300, outcomeTs: 400, now: 500 })
+    ).toBe(400);
+    expect(threadQuietActivityTs({ lastActivityTs: 100, snoozedUntilTs: 450, now: 500 })).toBe(450);
+    expect(threadQuietActivityTs({ lastActivityTs: 100, snoozedUntilTs: 600, now: 500 })).toBe(100);
+  });
+
+  it('folds read inactive threads at the 5-day boundary, respects disqualifiers, missing signals and expired snoozes', () => {
+    expect(isQuietThread({ lastActivityTs: oldTs + 1 }, NOW)).toBe(false);
+    expect(isQuietThread({ lastActivityTs: oldTs }, NOW)).toBe(true);
+    expect(isQuietThread({ lastActivityTs: 0 }, NOW)).toBe(false);
+    expect(isQuietThread({ lastActivityTs: oldTs, replyCount: 0 }, NOW)).toBe(true);
+    expect(isQuietThread({ lastActivityTs: oldTs, replyCount: 2 }, NOW)).toBe(false);
+    expect(
+      isQuietThread({ lastActivityTs: oldTs, replyCount: 2, signals: { newCount: 0 } }, NOW)
+    ).toBe(true);
+    expect(isQuietThread({ lastActivityTs: 1, snoozedUntilTs: oldTs + 1 }, NOW)).toBe(false);
+    expect(isQuietThread({ lastActivityTs: 1, snoozedUntilTs: oldTs + 1 }, NOW + 1)).toBe(true);
+
+    const disqualifiers = [
+      { isPinned: true },
+      { isUnread: true },
+      { hasPendingSend: true },
+      { hasFailedSend: true },
+      { hasBackgroundApproval: true },
+      { signals: { pendingApproval: {} } },
+      { signals: { pendingQuestion: {} } },
+      { signals: { newCount: 1 } },
+      { signals: { mentionedMe: true } },
+    ];
+    for (const extra of disqualifiers) {
+      expect(isQuietThread({ lastActivityTs: oldTs, ...extra }, NOW)).toBe(false);
+    }
+  });
+
+  it('computes nextThreadQuietTs for countdowns and waiting threads', () => {
+    expect(nextThreadQuietTs({ lastActivityTs: oldTs + 10 }, NOW)).toBe(NOW + 10);
+    expect(nextThreadQuietTs({ lastActivityTs: oldTs }, NOW)).toBeUndefined();
+    expect(nextThreadQuietTs({ lastActivityTs: oldTs + 10, isPinned: true }, NOW)).toBeUndefined();
+    expect(nextThreadQuietTs({ lastActivityTs: oldTs + 10, isUnread: true }, NOW)).toBeUndefined();
+    expect(
+      nextThreadQuietTs({ lastActivityTs: oldTs + 10, signals: { newCount: 1 } }, NOW)
+    ).toBeUndefined();
+    expect(
+      nextThreadQuietTs({ lastActivityTs: oldTs + 10, signals: { mentionedMe: true } }, NOW)
+    ).toBeUndefined();
+    expect(
+      nextThreadQuietTs({ lastActivityTs: oldTs + 10, signals: { pendingApproval: {} } }, NOW)
+    ).toBeUndefined();
+    expect(
+      nextThreadQuietTs(
+        { lastActivityTs: oldTs, signals: { pendingQuestion: {}, waitsUntil: NOW + 50 } },
+        NOW
+      )
+    ).toBe(NOW + 50);
+    expect(
+      nextThreadQuietTs(
+        { lastActivityTs: oldTs + 100, signals: { pendingApproval: {}, waitsUntil: NOW + 50 } },
+        NOW
+      )
+    ).toBe(NOW + 100);
   });
 });

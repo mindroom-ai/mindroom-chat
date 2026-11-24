@@ -551,18 +551,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await expect(page.locator('[data-thread-count]')).toHaveAttribute('data-thread-count', '151', {
       timeout: 60_000,
     });
-    // The open's last hydration fold settles at rest; the ride is sized from the settled window.
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (
-              document.querySelector('[data-message-item]')?.closest('[data-index]')
-                ?.parentElement as HTMLElement | null
-            )?.style.marginTop ?? 'no list'
-        )
-      )
-      .toBe('');
+    await page.waitForTimeout(300);
     await throttleCpu(page, 4);
 
     // Continuous ride to the very top of the window: pauses below the
@@ -603,11 +592,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     expect(report.boundaryDriver?.minTop).toBe(0);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
-    expect(maxLedger).toBeGreaterThan(48);
-    expect(report.probes.ledgerBoundarySettles).toBeGreaterThan(0);
-    // THE invariant: no blank debt zone, no content shifts - even at the
-    // boundary. (Boundary settles are allowed writes; they are visually
-    // exact pairs and the jump budget verifies that.)
+    // THE black-box invariant: no blank band and no content shifts, even at the top boundary.
     expect(analysis.maxGapPx).toBeLessThan(FULL_RIDE_BUDGETS.maxGapPx);
     expect(analysis.maxJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.maxJumpPx);
     expect(analysis.totalJumpPx).toBeLessThan(FULL_RIDE_BUDGETS.totalJumpPx);

@@ -6,7 +6,7 @@ import type {
   PendingVoiceSendInFlight,
 } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
-import { deleteVoiceRecording, releaseVoiceRecording } from './voiceRecordingJournal';
+import { deleteCapture, releaseCapture } from '../capture/captureJournal';
 import { clearSavedVoiceDraft } from './savedVoiceDraft';
 
 const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
@@ -62,7 +62,7 @@ const createRetryToken = (): PendingVoiceSendInFlight => ({
 /** The draft was sent or discarded: its disk copies go. */
 const forgetDraft = async ({ context, file, recordingId }: PendingVoiceSendDraft) => {
   await clearSavedVoiceDraft(context.ownerSessionId, recordingId ?? file.name);
-  await deleteVoiceRecording(recordingId);
+  await deleteCapture(recordingId);
 };
 
 export const createVoiceSendDraftController = (
@@ -77,7 +77,7 @@ export const createVoiceSendDraftController = (
   ) => {
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
-      await deleteVoiceRecording(recording.recordingId);
+      await deleteCapture(recording.recordingId);
       // This was a live recording, not a retry. A draft restored meanwhile is not consumed.
       return true;
     } catch (error) {
@@ -85,7 +85,7 @@ export const createVoiceSendDraftController = (
         drafts.write({ ...recording, context, errorMessage: getVoiceSendErrorMessage(error) });
       } else if (recording.recordingId) {
         // The account was left: its disk copy waits, unlocked, for that account to recover.
-        releaseVoiceRecording(recording.recordingId);
+        releaseCapture(recording.recordingId);
       }
       attempt.onFailure();
       return false;
@@ -133,7 +133,7 @@ export const createVoiceSendDraftController = (
           // The account was left: nothing is parked under the next one. The disk copy waits,
           // unlocked, for that account to recover.
           if (ours) drafts.write(undefined);
-          if (draft.recordingId) releaseVoiceRecording(draft.recordingId);
+          if (draft.recordingId) releaseCapture(draft.recordingId);
           attempt.onFailure();
           return false;
         }

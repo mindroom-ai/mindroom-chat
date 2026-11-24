@@ -15,7 +15,7 @@
 
 </div>
 
-https://github.com/user-attachments/assets/7d36fe22-5a47-4a01-bf4e-82b7b05dcca5
+https://github.com/user-attachments/assets/75280c7d-abc2-47f5-8c85-8bcbc5cd40c6
 
 ## What it is
 

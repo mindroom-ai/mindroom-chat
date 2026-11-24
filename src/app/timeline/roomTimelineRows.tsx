@@ -183,11 +183,15 @@ const TURN_BREAK_ESTIMATE_PX = 42;
  * over this render's pricing, and a fold priced apart from the rows the virtual list then lays out
  * moves the reader.
  */
+export const THREAD_LOAD_OLDER_KEY = '__thread_load_older__';
+const THREAD_LOAD_OLDER_ESTIMATE_PX = 40;
+
 export const timelineRowSizing = ({
   threadId,
   compactLayout,
   showThreadRepliesInRoom,
   threadEvents,
+  hasThreadLoadOlder = false,
   roomWindowRows,
   windowStart,
   roomRowsRef,
@@ -202,6 +206,8 @@ export const timelineRowSizing = ({
   compactLayout: boolean;
   showThreadRepliesInRoom: boolean;
   threadEvents: MatrixEvent[];
+  /** Whether index 0 of the thread virtualizer is the Load Older chip. */
+  hasThreadLoadOlder?: boolean;
   roomWindowRows: MatrixEvent[];
   windowStart: number;
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
@@ -219,6 +225,7 @@ export const timelineRowSizing = ({
   /** The room's list as it last rendered (`useMembershipFoldRowSizes`). */
   renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
 }) => {
+  const threadLeadingOffset = threadId && hasThreadLoadOlder ? 1 : 0;
   const estimateSize = (index?: number): number => {
     if (!threadId) {
       const rows = roomRowsRef.current;
@@ -247,7 +254,8 @@ export const timelineRowSizing = ({
         breakPx
       );
     }
-    const event = index === undefined ? undefined : threadEvents[index];
+    if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_ESTIMATE_PX;
+    const event = index === undefined ? undefined : threadEvents[index - threadLeadingOffset];
     if (!event) {
       return compactLayout
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
@@ -261,8 +269,9 @@ export const timelineRowSizing = ({
     return open ? row + TURN_BREAK_ESTIMATE_PX : row;
   };
   const getItemKey = (index: number): string | number => {
-    const event = threadId ? threadEvents[index] : roomWindowRows[index];
-    return event?.getId() ?? (threadId ? index : windowStart + index);
+    if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_KEY;
+    const event = threadId ? threadEvents[index - threadLeadingOffset] : roomWindowRows[index];
+    return event?.getId() ?? (threadId ? index - threadLeadingOffset : windowStart + index);
   };
   return { estimateSize, getItemKey };
 };
@@ -386,6 +395,7 @@ export const renderTimelineTiles = ({
   forkingDivider,
   turnFolds,
   membershipFolds,
+  threadLoadOlderNode,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -393,6 +403,8 @@ export const renderTimelineTiles = ({
   virtualItems: VirtualItem[];
   threadId: string | undefined;
   threadEvents: MatrixEvent[];
+  /** When set in a thread, index 0 renders this Load Older chip as a virtual tile. */
+  threadLoadOlderNode?: ReactNode;
   roomWindowRows: MatrixEvent[];
   roomRowEntries: TimelineEventEntry[];
   windowStart: number;
@@ -432,6 +444,7 @@ export const renderTimelineTiles = ({
   measureElement: (node: Element | null) => void;
   ledgerPxAtRender: number;
 }): ReactNode[] => {
+  const threadLeadingOffset = threadId && threadLoadOlderNode ? 1 : 0;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
   // A folded turn's rows show nothing, the one that draws its break included.
@@ -453,7 +466,9 @@ export const renderTimelineTiles = ({
   const membershipFoldAt = (event: MatrixEvent | undefined) =>
     threadId ? undefined : membershipFolds?.view.breaks.get(event?.getId() ?? '');
   const rowContexts = foldTimelineRowContexts({
-    indexes: virtualItems.map((item) => item.index),
+    indexes: virtualItems
+      .filter((item) => item.index >= threadLeadingOffset)
+      .map((item) => item.index - threadLeadingOffset),
     getEvent: getRowEvent,
     isSkipped: isRowHidden,
     isFoldBreak: membershipFolds
@@ -472,7 +487,20 @@ export const renderTimelineTiles = ({
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
-    const event = getRowEvent(item.index);
+    if (threadLeadingOffset && item.index === 0) {
+      return (
+        <VirtualTile
+          key={item.key}
+          ref={measureElement}
+          virtualItem={item}
+          style={{ top: item.start + ledgerPxAtRender }}
+        >
+          {threadLoadOlderNode}
+        </VirtualTile>
+      );
+    }
+    const eventIndex = item.index - threadLeadingOffset;
+    const event = getRowEvent(eventIndex);
     if (!event) return null;
     // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
     // its tile mounted until measuring corrects it.
@@ -481,7 +509,7 @@ export const renderTimelineTiles = ({
     if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.view.hiddenIds.has(id))) {
       return null;
     }
-    const context = rowContexts.get(item.index);
+    const context = rowContexts.get(eventIndex);
     // Outside the row's boundary, so the break keeps its focus when its fold opens or closes.
     const turnBreak = turnFolds?.view.breaks.get(id);
     const membershipFold = membershipFoldAt(event);
@@ -519,7 +547,7 @@ export const renderTimelineTiles = ({
       const row: TimelineMessageRow = {
         eventId: id,
         event,
-        index: item.index,
+        index: eventIndex,
         timelineSet,
         collapse: context.collapse,
         highlighted: focusItem?.eventId === id && focusItem.highlight,
@@ -535,7 +563,7 @@ export const renderTimelineTiles = ({
       // A fork draft's line goes under its fork point, or under the run of markers it is in.
       const forkingHere =
         forkingDivider !== undefined &&
-        (forkingDivider.index === item.index ||
+        (forkingDivider.index === eventIndex ||
           !!context.quietRunIndexes?.includes(forkingDivider.index));
       // A row that fails to render shows as broken; the rows around it stay.
       content = (
@@ -545,7 +573,7 @@ export const renderTimelineTiles = ({
             if (rendered === null) return null;
             return (
               <>
-                {forkDivider?.index === item.index && forkDivider.node}
+                {forkDivider?.index === eventIndex && forkDivider.node}
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
                 {rendered}
