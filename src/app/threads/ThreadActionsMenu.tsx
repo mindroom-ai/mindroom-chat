@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useContext,
   useEffect,
   useId,
@@ -142,6 +143,7 @@ export function ThreadActionsMenu({
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const closeFromDetail = useCallback(() => onCloseRef.current(), []);
   const [dialog, setDialog] = useState<OpenDialog>();
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
@@ -710,7 +712,12 @@ export function ThreadActionsMenu({
                     data-thread-details=""
                     style={{ maxWidth: toRem(320), padding: config.space.S300 }}
                   >
-                    <ThreadDetailsList room={room} threadId={rootId} details={details} />
+                    <ThreadDetailsList
+                      room={room}
+                      threadId={rootId}
+                      details={details}
+                      onClose={closeFromDetail}
+                    />
                   </div>
                   <Line variant="Surface" size="300" />
                 </div>

@@ -108,4 +108,15 @@ describe('ThreadNavPluginDetails', () => {
 
     expect(shown(container)).toEqual(['panel none']);
   });
+
+  it('omits onClose so sidebar hover card details stay non-interactive', () => {
+    const seen: Array<(() => void) | undefined> = [];
+    const Probe = ({ onClose }: ThreadDetailProps) => {
+      seen.push(onClose);
+      return <span data-detail>Static</span>;
+    };
+    renderDetails([plugin('test', [{ Component: Probe }])]);
+
+    expect(seen).toEqual([undefined]);
+  });
 });
