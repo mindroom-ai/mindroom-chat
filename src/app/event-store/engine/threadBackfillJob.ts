@@ -21,7 +21,10 @@
  */
 
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { fetchAllThreadRelations, type ThreadRelationPageResult } from './threadRelationsFetcher';
+import {
+  fetchAllThreadRelations,
+  type ThreadRelationPageResult,
+} from './threadRelationsFetcher';
 import type { BackfillJobPriority, BackfillScheduler } from './backfillScheduler';
 
 const THREAD_BACKFILL_BATCH_SIZE = 200;

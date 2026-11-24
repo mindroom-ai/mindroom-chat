@@ -15,7 +15,7 @@ const makeOwner = (frame: { url: string; origin: string }, destroyed = false) =>
   ({
     mainFrame: frame,
     isDestroyed: () => destroyed,
-  }) as unknown as Electron.WebContents;
+  } as unknown as Electron.WebContents);
 
 describe('ipc', () => {
   afterEach(() => {

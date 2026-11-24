@@ -14,7 +14,7 @@ export function ApprovalReviewCall({
   const { t } = useTranslation();
   const { record, action, now } = controls;
   const pending = isApprovalPending(record, action, now);
-  const status = pending ? (action?.status ?? 'pending') : record.approval.status;
+  const status = pending ? action?.status ?? 'pending' : record.approval.status;
   const statusLabel = t(`mindroomUi.messages.approvalReviewCall.status.${status}`);
   return (
     <div className={single ? css.SingleCall : css.Call} data-approval-id={record.eventId}>

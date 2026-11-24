@@ -33,8 +33,9 @@ importBeforeTests(() => import('../RoomTimeline'));
 describe('thread summary markers', () => {
   it('hides a repeated summary and marks the others in an open thread', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const { ThreadSummaryMarker } =
-      await import('../../messages/thread-summary/ThreadSummaryMarker');
+    const { ThreadSummaryMarker } = await import(
+      '../../messages/thread-summary/ThreadSummaryMarker'
+    );
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
     const events = [
       rootEvent,
@@ -55,7 +56,7 @@ describe('thread summary markers', () => {
         rootEvent,
         events: events.slice(1),
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     threadRenderStateMock.threadEvents = events;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       events.map((event, index) => [event.getId(), index])
@@ -102,7 +103,7 @@ describe('thread summary markers', () => {
         rootEvent,
         events: events.slice(1),
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     threadRenderStateMock.threadEvents = events;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       events.map((event, index) => [event.getId(), index])
@@ -129,8 +130,9 @@ describe('thread summary markers', () => {
 
   it('compares a summary by its latest edit, as its row shows it', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const { ThreadSummaryMarker } =
-      await import('../../messages/thread-summary/ThreadSummaryMarker');
+    const { ThreadSummaryMarker } = await import(
+      '../../messages/thread-summary/ThreadSummaryMarker'
+    );
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
     const edited = summary('$s2', 'Push bug', 3_000);
     // The shared fixture's getEditedEvent returns this, as the SDK's replacement.
@@ -161,7 +163,7 @@ describe('thread summary markers', () => {
         rootEvent,
         events: events.slice(1),
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     threadRenderStateMock.threadEvents = events;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       events.map((event, index) => [event.getId(), index])
@@ -188,8 +190,9 @@ describe('thread summary markers', () => {
 
   it('shows a title and the skill review notice after it side by side in one row', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const { ThreadSummaryMarker } =
-      await import('../../messages/thread-summary/ThreadSummaryMarker');
+    const { ThreadSummaryMarker } = await import(
+      '../../messages/thread-summary/ThreadSummaryMarker'
+    );
     const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
     const review = makeEvent('$review', {
@@ -219,7 +222,7 @@ describe('thread summary markers', () => {
         rootEvent,
         events: events.slice(1),
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     threadRenderStateMock.threadEvents = events;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       events.map((event, index) => [event.getId(), index])
@@ -266,7 +269,7 @@ describe('thread summary markers', () => {
         rootEvent: events[0],
         events: events.slice(1),
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     const show = () => {
       threadRenderStateMock.threadEvents = [...events] as never;
       threadRenderStateMock.threadEventIndexMapRef.current = new Map(

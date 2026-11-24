@@ -57,7 +57,8 @@ const canViewerGrantLevel = (
   powerOf(viewerId, levels, creators) >= level;
 
 export type RoomModeratorGrantDecision =
-  { readonly kind: 'grant'; readonly level: number } | { readonly kind: 'forbidden' };
+  | { readonly kind: 'grant'; readonly level: number }
+  | { readonly kind: 'forbidden' };
 
 /** Evaluates whether `viewerId` can grant agent moderator rights in a v10+ non-Space room. */
 export const evaluateRoomModeratorGrant = (

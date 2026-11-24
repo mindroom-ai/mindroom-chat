@@ -135,13 +135,10 @@ const check = async (
       expect(rows.hovered, `${engine} ${device}: a hovered row is tinted`).not.toBe(rows.rest);
     }
 
-    await page.evaluate(
-      (route) => {
-        window.history.pushState(null, '', route);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      },
-      `/home/${encodeURIComponent(world.roomId)}`
-    );
+    await page.evaluate((route) => {
+      window.history.pushState(null, '', route);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, `/home/${encodeURIComponent(world.roomId)}`);
     await setRoomCompact(page, true);
     const cards = page.locator('button[data-thread-root-id]');
     await expect(cards).toHaveCount(QUESTIONS.length, { timeout: 60_000 });

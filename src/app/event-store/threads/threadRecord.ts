@@ -201,8 +201,8 @@ const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEve
   thread?.events && thread.events.length > 0
     ? thread.events
     : thread?.timeline && thread.timeline.length > 0
-      ? thread.timeline
-      : undefined;
+    ? thread.timeline
+    : undefined;
 
 const isPendingThreadEvent = (event: MatrixEvent | undefined): boolean =>
   isPendingLocalEchoEvent(event) || isPendingLocalEchoEvent(event?.replacingEvent?.());
@@ -246,7 +246,8 @@ export const getThreadReplyCount = (
 
 export const getKnownThreadReplyCount = (mEvent: MatrixEvent): number | undefined => {
   const threadMeta = mEvent.getUnsigned()?.['m.relations']?.['m.thread'] as
-    { count?: unknown; c?: unknown } | undefined;
+    | { count?: unknown; c?: unknown }
+    | undefined;
   if (typeof threadMeta?.count === 'number') return threadMeta.count;
   if (typeof threadMeta?.c === 'number') return threadMeta.c;
 

@@ -112,13 +112,10 @@ const jumpToLatest = (page: Page) => page.getByRole('button', { name: 'Jump to L
 const newestRow = (page: Page) => page.getByText(message(40), { exact: true });
 
 const openRoom = async (page: Page, world: World) => {
-  await page.evaluate(
-    (to) => {
-      window.history.pushState(null, '', to);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/home/${encodeURIComponent(world.roomId)}`
-  );
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
   await expect(newestRow(page)).toBeVisible({ timeout: 60_000 });
   await expect(jumpToLatest(page)).toBeHidden({ timeout: 15_000 });
 };
@@ -240,13 +237,10 @@ const checkCompactSendKeepsFocus = async (page: Page, world: World, engine: stri
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.evaluate(
-    (to) => {
-      window.history.pushState(null, '', to);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/home/${encodeURIComponent(world.roomId)}`
-  );
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
   await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
@@ -279,13 +273,10 @@ const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: s
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.evaluate(
-    (to) => {
-      window.history.pushState(null, '', to);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    },
-    `/${encodeURIComponent(world.roomId)}`
-  );
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/${encodeURIComponent(world.roomId)}`);
   await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
   expect(new URL(page.url()).pathname, `${engine}: the link opens the room on Home`).toMatch(
     /^\/home\//

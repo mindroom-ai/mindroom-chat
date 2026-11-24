@@ -1,10 +1,6 @@
 import { type MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makeEvent,
-  makeRoom,
-  makeTimeline,
-} from '../../timeline/test-utils/RoomTimeline.test.shared';
+import { makeEvent, makeRoom, makeTimeline } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from '../../event-store/cache/threadCacheCoverage';
 import { runThreadOpenCacheFirst, type ScheduleReconcileFn } from './threadOpenCacheFirst';
 import * as timelineDebug from '../../diagnostics/timelineDebug';

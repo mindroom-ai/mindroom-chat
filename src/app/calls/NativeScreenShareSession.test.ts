@@ -35,7 +35,7 @@ const makeMembership = (
     createdTs: () => createdTs,
     isExpired: () => false,
     applicationData: { type: 'm.call', ...extra },
-  }) as unknown as CallMembership;
+  } as unknown as CallMembership);
 
 const alice = (createdTs = 100) => makeMembership(ALICE, 'IPHONE', createdTs);
 const bob = (createdTs = 200) => makeMembership(BOB, 'BOBDEV', createdTs);
@@ -153,9 +153,9 @@ describe('NativeScreenShareSession', () => {
   });
 
   it('matches MembershipManager state-key formatting across room versions', () => {
-    expect(companionMembershipStateKey({ getVersion: () => '11' }, ALICE, 'IPHONE-screen')).toBe(
-      `_${ALICE}_IPHONE-screen_m.call`
-    );
+    expect(
+      companionMembershipStateKey({ getVersion: () => '11' }, ALICE, 'IPHONE-screen')
+    ).toBe(`_${ALICE}_IPHONE-screen_m.call`);
     expect(
       companionMembershipStateKey(
         { getVersion: () => 'org.matrix.msc3757.11' },
@@ -204,11 +204,7 @@ describe('NativeScreenShareSession', () => {
 
     expect(fx.share.isBroadcasting).toBe(true);
     expect(fx.onStateChange).toHaveBeenCalledWith('broadcasting');
-    expect(fx.onScreenKey).toHaveBeenCalledWith(
-      expect.any(Uint8Array),
-      0,
-      `${ALICE}:IPHONE-screen`
-    );
+    expect(fx.onScreenKey).toHaveBeenCalledWith(expect.any(Uint8Array), 0, `${ALICE}:IPHONE-screen`);
     expect(fx.sendStateEvent).toHaveBeenCalledTimes(1);
     expect(fx.sendStateEvent).toHaveBeenCalledWith(
       ROOM_ID,

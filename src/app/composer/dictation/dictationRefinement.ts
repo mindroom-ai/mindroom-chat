@@ -131,10 +131,10 @@ const planMergedGroup = (segments: readonly SliceableSegment[]) => {
       segments.length === 1
         ? 'only'
         : i === 0
-          ? 'first'
-          : i === segments.length - 1
-            ? 'last'
-            : 'middle'
+        ? 'first'
+        : i === segments.length - 1
+        ? 'last'
+        : 'middle'
     )
   );
   let totalFrames = 0;

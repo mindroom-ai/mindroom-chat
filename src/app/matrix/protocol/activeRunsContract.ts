@@ -29,13 +29,10 @@ export const createExpiryTimer = (onExpire: () => void) => {
     timer =
       nextExpiryTs === undefined
         ? undefined
-        : setTimeout(
-            () => {
-              timer = armedExpiry = undefined;
-              onExpire();
-            },
-            Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_TIMEOUT_MS))
-          );
+        : setTimeout(() => {
+            timer = armedExpiry = undefined;
+            onExpire();
+          }, Math.max(0, Math.min(nextExpiryTs - Date.now(), MAX_TIMEOUT_MS)));
   };
   return { arm, clear };
 };
@@ -142,12 +139,12 @@ export const roomActiveRuns = (room: Room | null, now = Date.now()): ActiveRunsS
     sameRunList && prev.snapshot.nextExpiryTs === next.nextExpiryTs
       ? prev.snapshot
       : sameThreads
-        ? {
-            runs: sameRunList ? prev.snapshot.runs : next.runs,
-            threads: prev.snapshot.threads,
-            nextExpiryTs: next.nextExpiryTs,
-          }
-        : next;
+      ? {
+          runs: sameRunList ? prev.snapshot.runs : next.runs,
+          threads: prev.snapshot.threads,
+          nextExpiryTs: next.nextExpiryTs,
+        }
+      : next;
   cache.set(room, { events, contents, validFrom: now, snapshot });
   return snapshot;
 };

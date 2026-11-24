@@ -23,13 +23,13 @@ const event = ({
     getSender: () => sender,
     getWireContent: () => wireContent,
     threadRootId,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const roomWithEvent = (replyEvent: MatrixEvent | undefined) =>
   ({
     findEventById: vi.fn(() => replyEvent),
     getUnfilteredTimelineSet: vi.fn(() => ({})),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('buildRoomTimelineReplyDraft', () => {
   beforeEach(() => {
@@ -44,16 +44,18 @@ describe('buildRoomTimelineReplyDraft', () => {
       wireContent: { 'm.relates_to': relation },
     });
 
-    expect(buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual({
-      draft: {
-        userId: '@sender:server',
-        eventId: '$reply',
-        body: 'hello',
-        formattedBody: '<b>hello</b>',
-        relation,
-      },
-      threadRootId: '$reply',
-    });
+    expect(buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual(
+      {
+        draft: {
+          userId: '@sender:server',
+          eventId: '$reply',
+          body: 'hello',
+          formattedBody: '<b>hello</b>',
+          relation,
+        },
+        threadRootId: '$reply',
+      }
+    );
   });
 
   it('uses edited message content when an edit exists', () => {

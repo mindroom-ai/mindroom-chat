@@ -201,7 +201,7 @@ export const recalibrateTimelinePagination = (
     const rowsOf = (timeline: EventTimeline) => countRows([timeline], rowFilter);
     const previousCountOf = (timeline: EventTimeline) => {
       const index = chainBefore.indexOf(timeline);
-      return index === -1 ? 0 : (previousCounts[index] ?? 0);
+      return index === -1 ? 0 : previousCounts[index] ?? 0;
     };
 
     // Rows added on the anchor's side: the anchor itself and everything beyond it.
@@ -210,8 +210,8 @@ export const recalibrateTimelinePagination = (
       anchorIndex === -1
         ? []
         : backwards
-          ? nextLinkedTimelines.slice(0, anchorIndex + 1)
-          : nextLinkedTimelines.slice(anchorIndex);
+        ? nextLinkedTimelines.slice(0, anchorIndex + 1)
+        : nextLinkedTimelines.slice(anchorIndex);
     const added = grown.reduce(
       (total, timeline) => total + Math.max(rowsOf(timeline) - previousCountOf(timeline), 0),
       0

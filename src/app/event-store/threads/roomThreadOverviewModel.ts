@@ -7,7 +7,12 @@ import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFi
 export type TriState = 'any' | 'include' | 'exclude';
 
 export type ThreadFilterKey =
-  'resolved' | 'snoozed' | 'streaming' | 'scheduled' | 'unread' | 'idle';
+  | 'resolved'
+  | 'snoozed'
+  | 'streaming'
+  | 'scheduled'
+  | 'unread'
+  | 'idle';
 export const THREAD_FILTER_KEYS: ThreadFilterKey[] = [
   'resolved',
   'snoozed',
@@ -114,8 +119,8 @@ export const serializeThreadFilterState = (
     sortBy === 'natural'
       ? 'desc'
       : isSortDirection(state.sortDirection)
-        ? state.sortDirection
-        : 'desc';
+      ? state.sortDirection
+      : 'desc';
   const freeText = typeof state.freeText === 'string' ? state.freeText : '';
   const unsupportedQuery = typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
   const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';

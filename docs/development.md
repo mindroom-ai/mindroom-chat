@@ -12,7 +12,7 @@ just install   # npm ci; applies patches/ with patch-package
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
+Without Nix, use Node 24.15+ or 26+ (`package.json` `engines`; jsdom 31 requires `^24.15.0 || >=26` and some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
 
 The dev server answers `/config.json` with `config/mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
 
@@ -51,15 +51,17 @@ A client plugin ([client-plugins.md](client-plugins.md)) can live in a repositor
   ```
 
   The base has the app's compiler options, `paths` for `@mindroom/client-sdk/*` (`testing` included), for each package the app shares with plugins, for `vitest`, and for the end-to-end specs `@mindroom/e2e/*` (the app's `e2e/helpers/`) and `@playwright/test`, all to the app's copies, and the app's ambient types (`types` `node`, from the app's `typeRoots`; a plugin with global types of its own sets both). A plugin's own `paths` replace the base's rather than adding to them, so a plugin that maps names of its own, such as the package names of its build module's aliases, repeats the base's entries with `./.mindroom-chat/` before each, the two of `@playwright/test` in their order: TypeScript takes its types from the first, and Playwright, which reads these `paths` as it loads the specs, its module from the second. `.mindroom-chat/node_modules/.bin/tsc -p tsconfig.json` checks the plugin and the app modules the SDK reaches, and `tsc -p tsconfig.strict.json` the same with the strict flags, which the app's own files pass in the app's `just strict`.
-- **Lint.** The plugin's `.eslintrc.cjs` extends `.eslintrc.plugin.cjs`, the rules of the app's own code without its layers: logical sides in styles, `PopOut` from the SDK rather than folds, the React, hooks and accessibility rules, and the type-aware rules with the types of the plugin's `tsconfig.strict.json`. One more rule refuses an import that reaches the app's `src/` or `e2e/` by its path rather than through `@mindroom/client-sdk/<subpath>`, or in the plugin's specs `@mindroom/e2e/<helper>`. Files in the plugin's `e2e/` are tests, as the app's own specs are: they may use `any` and launch WebKit only through `@mindroom/e2e/webkit`. ESLint 8 loads its plugins from the directory `--resolve-plugins-relative-to` names, so the plugin runs the app's ESLint from its own directory:
+- **Lint.** The plugin's `eslint.config.mjs` re-exports `eslint.config.plugin.mjs`, the ESLint 10 flat config with the rules of the app's own code without its layers: logical sides in styles, `PopOut` from the SDK rather than folds, the React, hooks and accessibility rules, and the type-aware rules with the types of the plugin's `tsconfig.strict.json`. One more rule refuses an import that reaches the app's `src/` or `e2e/` by its path rather than through `@mindroom/client-sdk/<subpath>`, or in the plugin's specs `@mindroom/e2e/<helper>`. Files in the plugin's `e2e/` are tests, as the app's own specs are: they may use `any` and launch WebKit only through `@mindroom/e2e/webkit`. Flat config resolves its plugins directly from `.mindroom-chat` without `--resolve-plugins-relative-to` or `--ext`:
 
   ```js
-  module.exports = { root: true, extends: ['./.mindroom-chat/.eslintrc.plugin.cjs'] };
+  export { default } from './.mindroom-chat/eslint.config.plugin.mjs';
   ```
 
   ```bash
-  .mindroom-chat/node_modules/.bin/eslint --resolve-plugins-relative-to .mindroom-chat --ext .ts,.tsx src
+  .mindroom-chat/node_modules/.bin/eslint src
   ```
+
+  Append `e2e` when the plugin has an `e2e/` directory.
 
 - **Unit tests.** From the checkout, `MINDROOM_CLIENT_PLUGINS=<plugin directory> MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1 npx vitest run` runs the plugin's tests alone, with its build module's hooks, so the names its `resolveId` maps resolve as in the build (`vitest.config.ts`); without `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY` they run with the app's. Tests of the checkout inside the plugin's directory never run as the plugin's.
 - **Build.** `MINDROOM_CLIENT_PLUGINS=<plugin directory> just build` in the checkout, or the image's `MINDROOM_CLIENT_PLUGINS` build argument (`docker/Dockerfile`).

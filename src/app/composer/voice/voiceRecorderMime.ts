@@ -9,9 +9,7 @@ const PREFERRED_VOICE_RECORDER_MIME_TYPES = [
 
 export const DEFAULT_VOICE_RECORDER_MIME_TYPE = PREFERRED_VOICE_RECORDER_MIME_TYPES[0];
 
-export const getPreferredRecorderMimeTypes = (): string[] => [
-  ...PREFERRED_VOICE_RECORDER_MIME_TYPES,
-];
+export const getPreferredRecorderMimeTypes = (): string[] => [...PREFERRED_VOICE_RECORDER_MIME_TYPES];
 
 export const getSupportedRecorderMimeType = (): string | undefined => {
   if (typeof MediaRecorder === 'undefined') return undefined;

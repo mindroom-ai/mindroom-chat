@@ -183,13 +183,10 @@ for (const viewport of [
       await expect(roomLink).toBeVisible({ timeout: 60_000 });
       await roomLink.click();
       await page.waitForURL((url) => url.pathname === roomPath);
-      await page.evaluate(
-        (url) => {
-          window.history.pushState(null, '', url);
-          window.dispatchEvent(new PopStateEvent('popstate'));
-        },
-        `${roomPath}?threadId=${encodeURIComponent(rootId)}`
-      );
+      await page.evaluate((url) => {
+        window.history.pushState(null, '', url);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, `${roomPath}?threadId=${encodeURIComponent(rootId)}`);
 
       const tool = page.getByRole('button', { name: /^Ran 1 tool call/ });
       const approval = page.getByRole('button', { name: /^You approved save_note/ });

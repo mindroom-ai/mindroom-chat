@@ -34,7 +34,8 @@ const chipOf = async (renderer: Renderer, eventId: string) => {
   const message = renderer.root.findByProps({ 'data-message-id': eventId });
   const reactions = (message.props as { reactions?: ReactNode }).reactions;
   return findElement(reactions, (element) => element.type === ThreadBadge)?.props as
-    { model: { replyCount: number; isResolved: boolean } } | undefined;
+    | { model: { replyCount: number; isResolved: boolean } }
+    | undefined;
 };
 
 const reply = (eventId: string, rootId: string) =>

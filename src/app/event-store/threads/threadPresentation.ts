@@ -164,14 +164,14 @@ export const resolveThreadPresentationSnapshot = ({
   // not write it (P2-e2ee-F005).
   const lastEvent = preferCachedReply
     ? undefined
-    : (latestPreviewEvent ??
-      (fallbackLatestReplyPreviewText ? undefined : replyEvents[replyEvents.length - 1]));
+    : latestPreviewEvent ??
+      (fallbackLatestReplyPreviewText ? undefined : replyEvents[replyEvents.length - 1]);
   const lastSenderId =
     lastEvent?.getSender?.() ??
     fallbackLastSenderId ??
     fallbackParticipantIds?.find((candidateId) => !!candidateId);
   const lastSenderDisplayName = lastSenderId
-    ? (getMemberDisplayName(room, lastSenderId) ?? lastSenderId)
+    ? getMemberDisplayName(room, lastSenderId) ?? lastSenderId
     : undefined;
   const summaryInfo = resolveThreadSummaryInfo({
     preferredSummaryInfo: pickLatestThreadSummaryInfo(

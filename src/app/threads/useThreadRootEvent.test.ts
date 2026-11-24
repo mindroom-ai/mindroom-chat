@@ -23,7 +23,7 @@ const makeEvent = (
         : {},
     isSending: () => options?.isSending ?? false,
     threadRootId: options?.threadRootId,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const makeRoom = ({
   events = [],
@@ -56,7 +56,7 @@ describe('useThreadRootEvent', () => {
   it('uses a known SDK root without scanning other threads on mount or updates', async () => {
     const room = makeRoom();
     const root = makeEvent('$root');
-    room.getThread = () => ({ id: '$root', rootEvent: root }) as Thread;
+    room.getThread = () => ({ id: '$root', rootEvent: root } as Thread);
     const lookup = vi.spyOn(room, 'findEventById');
     const observed: Array<string | undefined> = [];
     const HookProbe = () => {
@@ -88,7 +88,7 @@ describe('useThreadRootEvent', () => {
       renderer = create(React.createElement(HookProbe));
     });
     expect(observed).toEqual(['$root']);
-    room.getThread = () => ({ id: '$root', rootEvent: makeEvent('$root') }) as Thread;
+    room.getThread = () => ({ id: '$root', rootEvent: makeEvent('$root') } as Thread);
     await act(async () => {
       room.__listeners.get(ThreadEvent.New)?.();
     });

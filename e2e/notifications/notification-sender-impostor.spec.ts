@@ -314,7 +314,7 @@ const showsUserIdWhole = (page: Page, text: string, userId: string) =>
         { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
         row.getBoundingClientRect(),
       ];
-      for (let element = node.parentElement; element && element !== row;) {
+      for (let element = node.parentElement; element && element !== row; ) {
         const style = getComputedStyle(element);
         const clipsX = style.overflowX !== 'visible';
         const clipsY = style.overflowY !== 'visible';

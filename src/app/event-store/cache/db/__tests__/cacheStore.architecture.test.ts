@@ -19,10 +19,7 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 const APP_ROOT = path.resolve(HERE, '..', '..', '..', '..');
 const MESSAGES_DIR = path.resolve(APP_ROOT, 'messages');
 const SELF_FILE = path.resolve(HERE, 'cacheStore.architecture.test.ts');
-const ATTACHMENT_REPOSITORY_FILE = path.resolve(
-  APP_ROOT,
-  'event-store/cache/attachmentRepository.ts'
-);
+const ATTACHMENT_REPOSITORY_FILE = path.resolve(APP_ROOT, 'event-store/cache/attachmentRepository.ts');
 
 const walkSourceFiles = (rootDir: string): string[] => {
   const files: string[] = [];

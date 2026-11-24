@@ -82,10 +82,7 @@ const showInApp = (page: Page, url: string) =>
 
 /** Moves the loaded client to a thread of `roomId`. */
 const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
-  await showInApp(
-    page,
-    `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
-  );
+  await showInApp(page, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
 };
 

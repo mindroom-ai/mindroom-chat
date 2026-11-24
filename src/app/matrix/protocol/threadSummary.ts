@@ -208,8 +208,8 @@ export const getThreadSummaryInfo = (
   const hasNewContent = isRecord(content['m.new_content']);
   const summaryBody = getThreadSummaryBody(content);
   const summaryText = hasNewContent
-    ? (summaryBody ?? asNonEmptyString(metadata.summary))
-    : (asNonEmptyString(metadata.summary) ?? summaryBody);
+    ? summaryBody ?? asNonEmptyString(metadata.summary)
+    : asNonEmptyString(metadata.summary) ?? summaryBody;
 
   return {
     ...(metadata.model === 'manual' ? { isManual: true } : {}),

@@ -35,9 +35,7 @@ test('sending in a long thread follows the new message and the streaming reply',
   await openLobby(page, stack);
   const rootId = await startThread(stack, `${uniqueWord('follow')} #long`);
   await showThread(page, stack, rootId);
-  const long = await waitForAgentReply(stack, rootId, (body) =>
-    body.includes('End of the long reply')
-  );
+  const long = await waitForAgentReply(stack, rootId, (body) => body.includes('End of the long reply'));
   const longRow = messageRow(page, long.event_id);
   await expect(longRow).toContainText('End of the long reply', { timeout: 30_000 });
 

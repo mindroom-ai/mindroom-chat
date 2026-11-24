@@ -232,7 +232,7 @@ export const Header = as<'header', HeaderProps>(
     const isFlat = flat ?? (scrollHeader || (!enclosingSurface && !appearance && neutral));
     const surface = useSurface(
       ref,
-      isFlat ? 'plain' : (appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass')),
+      isFlat ? 'plain' : appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass'),
       'panel',
       variant
     );

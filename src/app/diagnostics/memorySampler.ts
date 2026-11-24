@@ -21,7 +21,12 @@ export const MEMORY_SAMPLE_INTERVAL_MS = 60_000;
 
 /** Why a sample was taken; recorded as a `reason_<reason>` flag, since trace data keeps no text. */
 export type MemorySampleReason =
-  'start' | 'interval' | 'hidden' | 'thread_open' | 'plugin_panel_open' | 'plugin_panel_close';
+  | 'start'
+  | 'interval'
+  | 'hidden'
+  | 'thread_open'
+  | 'plugin_panel_open'
+  | 'plugin_panel_close';
 
 /** Reads one counter; undefined where it does not apply. It must not walk events or allocate much. */
 export type MemoryGauge = () => number | undefined;

@@ -51,12 +51,12 @@ const entryOf = (threadRootId: string, generation = 1) =>
     generation,
     isResolved: false,
     isInvolved: true,
-  }) as CrossRoomThreadIndexEntry;
+  } as CrossRoomThreadIndexEntry);
 
 const receiptOf = (threadId: string) =>
   ({
     getContent: () => ({ $read: { 'm.read': { [ME]: { ts: 1, thread_id: threadId } } } }),
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 /**
  * A client with one room whose thread index holds `indexed`, and its chips as the timeline renders

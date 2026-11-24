@@ -2,7 +2,10 @@ import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { Membership } from '../matrix/types/room';
-import { INVITE_AUTOCOMPLETE_LIMIT, type ServerUserDirectoryUser } from './userDirectoryCache';
+import {
+  INVITE_AUTOCOMPLETE_LIMIT,
+  type ServerUserDirectoryUser,
+} from './userDirectoryCache';
 import {
   filterInviteUserCandidates,
   getUserDirectoryQueryVariants,

@@ -29,7 +29,7 @@ const event = (fields: {
     isRedacted: () => false,
     isRedaction: () => false,
     status: null,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 // A thread nobody has loaded since a reload knows its reply only from the root's summary, and when
 // the agent titled the thread last, that summary's newest event is the title notice, which is no

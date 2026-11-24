@@ -43,7 +43,7 @@ const makeRoom = (
     getCanonicalAlias: () => alias,
     getAltAliases: () => [],
     isSpaceRoom: () => isSpace,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const rooms = [
   makeRoom(SPACE_ID, { isSpace: true }),

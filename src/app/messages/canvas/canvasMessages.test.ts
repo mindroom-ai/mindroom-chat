@@ -14,7 +14,7 @@ import {
 
 const frame = {} as Window;
 const message = (data: unknown, overrides: Partial<MessageEvent> = {}) =>
-  ({ data, origin: 'null', source: frame, ...overrides }) as MessageEvent;
+  ({ data, origin: 'null', source: frame, ...overrides } as MessageEvent);
 const submit = (extra: Record<string, unknown> = {}) => ({
   type: 'mindroom.canvas.submit',
   version: 1,

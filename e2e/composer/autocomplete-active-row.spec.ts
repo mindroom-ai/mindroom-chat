@@ -49,10 +49,7 @@ const firstRowIsActive = async (page: Page, kind: string) => {
   expect(await options.count(), `${kind}: options`).toBeGreaterThan(1);
   const states = await selected(listbox);
   expect(states[0], `${kind}: first selected`).toBe('true');
-  expect(
-    states.slice(1).every((state) => state === 'false'),
-    `${kind}: only the first`
-  ).toBe(true);
+  expect(states.slice(1).every((state) => state === 'false'), `${kind}: only the first`).toBe(true);
   const composer = page.locator('[data-editable-name="RoomInput"]');
   const firstId = await options.first().getAttribute('id');
   expect(firstId, `${kind}: option id`).toBeTruthy();

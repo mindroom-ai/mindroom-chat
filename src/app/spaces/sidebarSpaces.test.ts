@@ -95,7 +95,7 @@ describe('sortSpacesByAge', () => {
           }),
         }),
       }),
-    }) as unknown as MatrixClient;
+    } as unknown as MatrixClient);
 
   it('puts the oldest space first, whatever order the client got them in', () => {
     // The server's first sync lists rooms by room ID.

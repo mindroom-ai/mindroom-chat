@@ -11,8 +11,9 @@ import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
+  const original = await importOriginal<
+    typeof import('../../event-store/threads/roomThreadList')
+  >();
   return {
     ...original,
     loadRoomThreads: vi.fn(),
@@ -50,7 +51,7 @@ const makeRoom = () =>
     on: vi.fn(),
     removeListener: vi.fn(),
     threadsTimelineSets: [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 afterEach(() => {
   mockedLoadRoomThreads.mockReset();

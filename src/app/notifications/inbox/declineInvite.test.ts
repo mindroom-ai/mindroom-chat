@@ -3,10 +3,10 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { declineInvite } from './declineInvite';
 
 const clientWith = (leave: () => Promise<unknown>, forget: () => Promise<unknown>) =>
-  ({ leave: vi.fn(leave), forget: vi.fn(forget) }) as unknown as MatrixClient & {
+  ({ leave: vi.fn(leave), forget: vi.fn(forget) } as unknown as MatrixClient & {
     leave: ReturnType<typeof vi.fn>;
     forget: ReturnType<typeof vi.fn>;
-  };
+  });
 
 describe('declineInvite', () => {
   it('leaves the room and then forgets it', async () => {

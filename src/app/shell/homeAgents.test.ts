@@ -61,7 +61,7 @@ const event = (
     isDecryptionFailure: () => opts.failed ?? false,
     getRelation: () => (opts.relType ? { rel_type: opts.relType } : null),
     getContent: () => content,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const room = (roomId: string, spec: RoomSpec = {}) => {
   const { agents = [], messages = [], threads = {}, members = {}, state = {}, count = 3 } = spec;
@@ -119,7 +119,7 @@ const client = (rooms: Room[], direct: unknown = {}) =>
   ({
     getRoom: (roomId: string) => rooms.find((r) => r.roomId === roomId) ?? null,
     getAccountData: () => ({ getContent: () => direct }),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 const thread = (
   roomId: string,
@@ -140,7 +140,7 @@ const thread = (
         replyParticipantIds: [HELPER],
       },
     },
-  }) as unknown as CrossRoomThreadIndexEntry;
+  } as unknown as CrossRoomThreadIndexEntry);
 
 const ids = (rooms: Room[]) => rooms.map((r) => r.roomId);
 

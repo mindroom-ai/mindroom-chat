@@ -100,8 +100,9 @@ const rowCount = (menu: Locator) =>
         element.querySelectorAll(
           '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
         )
-      ).filter((row) => row.closest('[role="menu"]') === element && row.getClientRects().length > 0)
-        .length
+      ).filter(
+        (row) => row.closest('[role="menu"]') === element && row.getClientRects().length > 0
+      ).length
   );
 
 /** Critical and serious axe-core findings inside the open menu. */

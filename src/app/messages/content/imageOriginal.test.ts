@@ -21,14 +21,8 @@ const load = (url: string, mimeType = 'image/heic', signal?: AbortSignal) =>
 const makeHeicBlob = (brand = 'heic'): Blob => {
   const bytes = new Uint8Array(20);
   bytes[3] = 20;
-  bytes.set(
-    [...'ftyp', ...brand].map((ch) => ch.charCodeAt(0)),
-    4
-  );
-  bytes.set(
-    [...'mif1'].map((ch) => ch.charCodeAt(0)),
-    16
-  );
+  bytes.set([...'ftyp', ...brand].map((ch) => ch.charCodeAt(0)), 4);
+  bytes.set([...'mif1'].map((ch) => ch.charCodeAt(0)), 16);
   return new Blob([bytes], { type: 'image/heic' });
 };
 

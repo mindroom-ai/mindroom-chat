@@ -55,7 +55,8 @@ const waitForLimitedSync = (page: Page, roomId: string) =>
     async (response) => {
       if (!response.url().includes('/sync?') || response.status() !== 200) return false;
       const data = (await response.json().catch(() => undefined)) as
-        { rooms?: { join?: Record<string, { timeline?: { limited?: boolean } }> } } | undefined;
+        | { rooms?: { join?: Record<string, { timeline?: { limited?: boolean } }> } }
+        | undefined;
       return data?.rooms?.join?.[roomId]?.timeline?.limited === true;
     },
     { timeout: 120_000 }

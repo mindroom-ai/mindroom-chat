@@ -89,7 +89,7 @@ const roomHolding = (roomId: string, eventIds: string[] = []) =>
             content: { msgtype: 'm.text', body: 'Root' },
           })
         : undefined,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 let room = roomHolding(ROOM_ID);
 
@@ -574,7 +574,7 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     expect(scene).not.toBeNull();
 
     scene!.update(90, 90 / 390);
-    expect(page.style.translate).toBe('90px 0');
+    expect(page.style.translate).toBe('90px');
 
     await scene!.settle(false, 0, 90);
     scene!.cleanup(false);

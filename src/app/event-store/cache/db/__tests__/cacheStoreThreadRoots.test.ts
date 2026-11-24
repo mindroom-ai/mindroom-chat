@@ -106,7 +106,8 @@ const summaryOf = async () => {
 
 const statusOf = (event: Partial<IEvent> | undefined) => {
   const replacement = event?.unsigned?.['m.relations']?.['m.replace'] as
-    Partial<IEvent> | undefined;
+    | Partial<IEvent>
+    | undefined;
   const newContent = replacement?.content?.['m.new_content'] as Record<string, unknown> | undefined;
   return newContent?.['io.mindroom.stream_status'] ?? event?.content?.['io.mindroom.stream_status'];
 };
@@ -319,7 +320,8 @@ describe('a cached thread whose root is another room’s', () => {
       await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', '$room-no-room'))
     ).toBeDefined();
     const roomMeta = (await read(META_STORE, buildMetaKey(ROOM_ID, ''))) as
-      CachedMetaRecord | undefined;
+      | CachedMetaRecord
+      | undefined;
     expect(Object.keys(roomMeta?.beforeTokens ?? {})).toEqual([ROOT_ID]);
     expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$foreign'))).toBe(
       undefined
@@ -329,7 +331,8 @@ describe('a cached thread whose root is another room’s', () => {
       await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$no-room'))
     ).toBeDefined();
     const meta = (await read(META_STORE, buildMetaKey(ROOM_ID, ROOT_ID))) as
-      CachedMetaRecord | undefined;
+      | CachedMetaRecord
+      | undefined;
     expect(meta?.rootEvent).toBeUndefined();
   });
 

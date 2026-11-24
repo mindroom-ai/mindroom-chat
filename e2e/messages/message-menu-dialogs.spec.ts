@@ -98,12 +98,14 @@ type World = Awaited<ReturnType<typeof seed>>;
 
 /** Where every message menu on the page is, for a failure message. */
 const menuBoxes = (page: Page) =>
-  page.getByRole('menu').evaluateAll((menus) =>
-    menus.map((menu) => {
-      const { left, top, width, height } = menu.getBoundingClientRect();
-      return { left, top, width, height };
-    })
-  );
+  page
+    .getByRole('menu')
+    .evaluateAll((menus) =>
+      menus.map((menu) => {
+        const { left, top, width, height } = menu.getBoundingClientRect();
+        return { left, top, width, height };
+      })
+    );
 
 const check = async (page: Page, world: World, label: string, phone: boolean) => {
   await page.evaluate(
@@ -125,7 +127,11 @@ const check = async (page: Page, world: World, label: string, phone: boolean) =>
           // Off the text, at the row's empty start: a long press on the text selects it instead.
           'long press',
           () =>
-            touch(row, [{ type: 'start' }, { type: 'wait', ms: 800 }, { type: 'end' }], 'start'),
+            touch(
+              row,
+              [{ type: 'start' }, { type: 'wait', ms: 800 }, { type: 'end' }],
+              'start'
+            ),
         ],
         [
           'More Options',

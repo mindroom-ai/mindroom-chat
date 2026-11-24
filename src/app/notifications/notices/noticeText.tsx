@@ -1,5 +1,10 @@
 import { ReactNode } from 'react';
-import { type DOMNode, Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import {
+  type DOMNode,
+  Element,
+  HTMLReactParserOptions,
+  domToReact,
+} from 'html-react-parser';
 import { parseInlineMDWithRules } from '../../rich-text/markdown/inline/parser';
 import {
   BoldRule,

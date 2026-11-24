@@ -81,11 +81,11 @@ const makeFakeEvent = ({
           },
         }
       : replaceTargetId
-        ? {
-            'm.new_content': { body: 'new body', msgtype: 'm.text' },
-            'm.relates_to': { rel_type: 'm.replace', event_id: replaceTargetId },
-          }
-        : {},
+      ? {
+          'm.new_content': { body: 'new body', msgtype: 'm.text' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: replaceTargetId },
+        }
+      : {},
   };
   return {
     getId: () => id,
@@ -99,8 +99,8 @@ const makeFakeEvent = ({
       reactionTargetId
         ? { rel_type: 'm.annotation', event_id: reactionTargetId, key: '👍' }
         : replaceTargetId
-          ? { rel_type: 'm.replace', event_id: replaceTargetId }
-          : null,
+        ? { rel_type: 'm.replace', event_id: replaceTargetId }
+        : null,
     getUnsigned: () => raw.unsigned ?? {},
     setUnsigned: (unsigned: IEvent['unsigned']) => {
       raw.unsigned = unsigned;
@@ -170,7 +170,7 @@ const makeFakeRoom = (): Room =>
     roomId: '!room:example',
     findEventById: () => null,
     getThread: () => undefined,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const flushMicrotasks = async (): Promise<void> => {
   for (let i = 0; i < 8; i += 1) {

@@ -13,7 +13,7 @@ const avatarEvent = (url?: string): MatrixEvent =>
     getRoomId: () => ROOM_ID,
     getStateKey: () => '',
     getType: () => StateEvent.RoomAvatar,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 function AvatarHarness({ room, dm }: { room: Room; dm?: boolean }) {
   return <span>{useRoomAvatar(room, dm) ?? 'none'}</span>;

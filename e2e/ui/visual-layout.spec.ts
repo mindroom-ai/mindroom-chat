@@ -257,7 +257,7 @@ const merge = (base: Locale, extra: Locale): Locale =>
   Object.fromEntries(
     [...new Set([...Object.keys(base), ...Object.keys(extra)])].map((key) => {
       const [a, b] = [base[key], extra[key]];
-      return [key, typeof a === 'object' && typeof b === 'object' ? merge(a, b) : (b ?? a!)];
+      return [key, typeof a === 'object' && typeof b === 'object' ? merge(a, b) : b ?? a!];
     })
   );
 /** The interface's strings, as the app merges them: the locale, then its additions. */

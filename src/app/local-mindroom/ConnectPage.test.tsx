@@ -15,12 +15,7 @@ import {
 import { useClientConfig } from '../config/useClientConfig';
 import { createMatrixClient } from '../matrix/client/matrixClientFactory';
 import { getAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
-import {
-  getActiveSession,
-  getSessionStore,
-  putSession,
-  removeSession,
-} from '../matrix/session/sessions';
+import { getActiveSession, getSessionStore, putSession, removeSession } from '../matrix/session/sessions';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');

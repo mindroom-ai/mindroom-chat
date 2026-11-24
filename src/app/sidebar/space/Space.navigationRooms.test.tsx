@@ -99,7 +99,8 @@ const {
     openCreateSpaceMock: vi.fn(),
     dragGroup: {
       canMoveRoom: undefined as
-        ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean) | undefined,
+        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
+        | undefined,
       onMoveRoom: undefined as
         | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => void | Promise<void>)
         | undefined,
@@ -806,7 +807,8 @@ describe('Space navigation', () => {
     expect(joinedRow.props['data-remove-from-space']).toBe(space);
     expect(designReviewRow.props['data-remove-from-space']).toBe(design);
     const subRoomEl = subRooms.renderRoom?.(rooms.of(designReview)) as
-      React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }> | undefined;
+      | React.ReactElement<{ removeFromSpaceId?: string; subRoom?: boolean }>
+      | undefined;
     expect(subRoomEl?.props.subRoom).toBe(true);
     expect(subRoomEl?.props.removeFromSpaceId).toBeUndefined();
 

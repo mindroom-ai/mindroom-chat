@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Avatar, Box, Icon, Icons, Scroll, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
@@ -29,7 +29,7 @@ function SenderRow({ room, userId }: { room: Room; userId: string }) {
   const authenticatedMedia = useMediaAuthentication();
   const avatarMxc = getMemberAvatarMxc(room, userId);
   const avatarSrc = avatarMxc
-    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined)
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
   const name = getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
 
@@ -62,7 +62,7 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
-  const groups = useRelations(relations, useCallback(getReactionGroups, []));
+  const groups = useRelations(relations, getReactionGroups);
   const [selectedKey, setSelectedKey] = useState<string>();
 
   const selected = groups.find(([key]) => key === selectedKey) ?? groups[0];

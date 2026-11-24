@@ -154,8 +154,9 @@ describe('shouldUseMediaAuthentication', () => {
         },
       },
     });
-    const { desktopMediaAuthReady, startDesktopMediaAuth } =
-      await import('../../native/desktopMediaAuth');
+    const { desktopMediaAuthReady, startDesktopMediaAuth } = await import(
+      '../../native/desktopMediaAuth'
+    );
     const { useMediaAuthentication: useMediaAuth } = await import('./useMediaAuthentication');
     const store = {
       session: undefined as { baseUrl: string; userId: string; accessToken: string } | undefined,

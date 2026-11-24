@@ -31,7 +31,7 @@ const reply = (sender: string, rootId = ROOT, extra: Record<string, unknown> = {
     },
   });
 
-const fakeRoom = () => ({ roomId: '!room:example.org' }) as Room;
+const fakeRoom = () => ({ roomId: '!room:example.org' } as Room);
 
 describe('collectThreadWriterIds', () => {
   it('names each replier once, newest first, for the asked thread only', () => {

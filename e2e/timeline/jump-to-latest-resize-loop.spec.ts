@@ -55,8 +55,7 @@ const seedRoom = async (name: string) => {
     const who = index % 3 === 0 ? reader : writer;
     let body = `Entry ${index}: crane two loaded the containers for berth four.`;
     if (index % 5 === 0) body = `Entry ${index}: ${REPORT.repeat(4)}`;
-    if (index % 9 === 0)
-      body = `Entry ${index}: the berth plan is at https://example.org/berths/${index}`;
+    if (index % 9 === 0) body = `Entry ${index}: the berth plan is at https://example.org/berths/${index}`;
     if (index % 13 === 0) body = `Entry ${index}: full report.\n\n${REPORT.repeat(12)}`;
     // eslint-disable-next-line no-await-in-loop
     newest = await sendRoomMessage(HOMESERVER, who.accessToken, roomId, {

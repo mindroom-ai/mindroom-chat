@@ -21,7 +21,7 @@ export function CreateSpaceModalRenderer() {
   const { navigateSpace } = useRoomNavigate();
   if (!requested) return null;
 
-  const parent = requested.spaceId ? (client.getRoom(requested.spaceId) ?? undefined) : undefined;
+  const parent = requested.spaceId ? client.getRoom(requested.spaceId) ?? undefined : undefined;
   const title = parent
     ? t('featureUi.createSpace.createSpaceModal.newSpace')
     : t('nav.createSpace');

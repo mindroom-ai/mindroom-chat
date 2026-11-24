@@ -101,10 +101,7 @@ const exchange = async (req, res) => {
   const deviceId = body?.device_id;
   const token = body?.openid_token;
   if (typeof roomId !== 'string' || typeof deviceId !== 'string' || !token?.access_token) {
-    reply(res, 400, {
-      errcode: 'M_BAD_JSON',
-      error: 'room, device_id and openid_token are required',
-    });
+    reply(res, 400, { errcode: 'M_BAD_JSON', error: 'room, device_id and openid_token are required' });
     return;
   }
   const userId = await openIdUser(token.access_token).catch(() => undefined);

@@ -201,7 +201,7 @@ describe('thread summary actions', () => {
           });
         } else {
           room.getThread = () =>
-            ({ events: [notice], timeline: [notice] }) as ReturnType<Room['getThread']>;
+            ({ events: [notice], timeline: [notice] } as ReturnType<Room['getThread']>);
         }
       }
       await saveThreadSummary(mx, room, '$root', 'Human title wins');

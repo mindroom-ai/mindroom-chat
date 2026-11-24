@@ -16,7 +16,7 @@ vi.mock('../lib/hooks/useIntersectionObserver', () => ({
 }));
 
 type Box = { top: number; height: number };
-const boxRect = ({ top, height }: Box) => ({ top, bottom: top + height, height }) as DOMRect;
+const boxRect = ({ top, height }: Box) => ({ top, bottom: top + height, height } as DOMRect);
 
 /** A scroll area 600px tall under an 80px header and above a 120px composer. */
 const makeScrollArea = () => {

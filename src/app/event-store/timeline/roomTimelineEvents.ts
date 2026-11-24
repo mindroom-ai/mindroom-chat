@@ -1,10 +1,6 @@
 import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
-import {
-  isHiddenReferenceEvent,
-  isMembershipChanged,
-  reactionOrEditEvent,
-} from '../../matrix/room';
+import { isHiddenReferenceEvent, isMembershipChanged, reactionOrEditEvent } from '../../matrix/room';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { isThreadReplyEvent } from '../threads/threadUtils';
 import {
@@ -20,8 +16,7 @@ export type TimelineEventEntry = {
 
 const KNOWN_EVENT_TYPES = new Set<string>([
   // Messages and stickers (spec: Instant Messaging module), including their encrypted form.
-  MessageEvent.RoomMessageEncrypted,
-  MessageEvent.RoomMessage,
+  MessageEvent.RoomMessageEncrypted, MessageEvent.RoomMessage,
   MessageEvent.Sticker,
   MINDROOM_TOOL_APPROVAL_EVENT,
   StateEvent.RoomMember,

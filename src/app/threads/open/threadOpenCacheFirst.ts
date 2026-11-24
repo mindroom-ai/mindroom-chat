@@ -1,10 +1,7 @@
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { countCacheProbe } from '../../event-store/cache/cacheProbe';
-import {
-  hasUsableThreadCacheSnapshot,
-  isCompleteThreadCacheCoverage,
-} from '../../event-store/cache/threadCacheCoverage';
+import { hasUsableThreadCacheSnapshot, isCompleteThreadCacheCoverage } from '../../event-store/cache/threadCacheCoverage';
 import type { HydratedThreadCachePage } from '../../event-store/threads/types';
 import type { hydrateThreadFromCache } from './threadOpenCacheController';
 import type { ReconcileResult, ScheduleReconcileArgs } from '../../event-store/engine/reconciler';

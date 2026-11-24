@@ -70,7 +70,8 @@ const messages = async (accessToken: string, roomId: string) => {
     .filter(({ type }) => type === 'm.room.message')
     .map(({ content }) => {
       const relation = content['m.relates_to'] as
-        { rel_type?: string; event_id?: string } | undefined;
+        | { rel_type?: string; event_id?: string }
+        | undefined;
       const thread = relation?.rel_type === 'm.thread' ? relation.event_id : null;
       return [content.msgtype, content.body, thread];
     });

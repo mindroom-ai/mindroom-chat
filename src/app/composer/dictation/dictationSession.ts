@@ -38,7 +38,12 @@ const TRANSIENT_STATUSES = new Set([0, 429, 502, 503, 504]);
 
 export type { DictationCaptureFactory, DictationCaptureHandle } from './dictationAudioCapture';
 export type DictationPhase =
-  'idle' | 'requesting' | 'recording' | 'paused' | 'finishing' | 'failed';
+  | 'idle'
+  | 'requesting'
+  | 'recording'
+  | 'paused'
+  | 'finishing'
+  | 'failed';
 
 export type DictationSnapshot = {
   phase: DictationPhase;
@@ -384,7 +389,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     const allUncoveredCompleted = records
       .slice(firstUncovered, targetEnd + 1)
       .every((item) => item.status === 'completed');
-    const requestSignal = allUncoveredCompleted ? (finishPolishAbort?.signal ?? signal) : signal;
+    const requestSignal = allUncoveredCompleted ? finishPolishAbort?.signal ?? signal : signal;
     if (
       !merged ||
       requestSignal.aborted ||

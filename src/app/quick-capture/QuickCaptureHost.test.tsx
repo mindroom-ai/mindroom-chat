@@ -63,7 +63,7 @@ const makeRoom = (roomId: string, name: string, lastActiveTs: number, space = fa
     findEventById: () => undefined,
     getMember: () => null,
     membersLoaded: () => true,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const roomA = makeRoom('!a', 'Alpha', 300);
 const roomB = makeRoom('!b', 'Bob', 200);
@@ -94,7 +94,7 @@ const entry = (roomId: string, rootId: string, lastActivityTs: number): CrossRoo
     isInvolved: true,
     lastActivityTs,
     generation: 1,
-  }) as unknown as CrossRoomThreadIndexEntry;
+  } as unknown as CrossRoomThreadIndexEntry);
 
 const setIndex = (store: ReturnType<typeof createStore>, entries: CrossRoomThreadIndexEntry[]) =>
   store.set(crossRoomThreadIndexAtom, {

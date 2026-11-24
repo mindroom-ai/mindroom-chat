@@ -1,5 +1,8 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
-import { hasMessageExtras, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
+import {
+  hasMessageExtras,
+  parseMessageExtras,
+} from '../../matrix/protocol/messageExtrasData';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit } from '../../matrix/room';
@@ -186,8 +189,7 @@ const pastEndCorrection = (
 ): number => {
   const { scrollHeight, clientHeight } = scrollElement ?? {};
   if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return 0;
-  if (shownPx === undefined)
-    return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
+  if (shownPx === undefined) return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
   return Math.min(0, scrollHeight - clientHeight - shownPx + rowMovesPx - scrollOffset);
 };
 

@@ -26,10 +26,7 @@ class Recorder {
 
   listeners = new Map<string, Set<(event: any) => void>>();
 
-  constructor(
-    _stream: MediaStream,
-    readonly options: MediaRecorderOptions
-  ) {
+  constructor(_stream: MediaStream, readonly options: MediaRecorderOptions) {
     this.mimeType = options.mimeType ?? '';
     Recorder.instances.push(this);
   }

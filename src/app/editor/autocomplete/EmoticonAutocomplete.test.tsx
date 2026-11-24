@@ -18,9 +18,7 @@ vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 const state = vi.hoisted(() => ({ packs: [] as unknown[], addRecentEmoji: vi.fn() }));
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../emoji/useImagePacks', () => ({ useRelevantImagePacks: () => state.packs }));
 vi.mock('../../emoji/recent-emoji-list', () => ({ addRecentEmoji: state.addRecentEmoji }));
 vi.mock('../../matrix/matrix', () => ({ mxcUrlToHttp: (_mx: unknown, mxc: string) => mxc }));

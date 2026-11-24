@@ -14,7 +14,8 @@ const CLOSED_NAV_CATEGORIES = 'closedNavCategories';
 const INITIALIZED_NAV_CATEGORIES = 'initializedNavCategories';
 
 type ClosedNavCategoriesAction =
-  { type: 'PUT'; categoryId: string } | { type: 'DELETE'; categoryId: string };
+  | { type: 'PUT'; categoryId: string }
+  | { type: 'DELETE'; categoryId: string };
 
 export type ClosedNavCategoriesAtom = WritableAtom<Set<string>, [ClosedNavCategoriesAction], void>;
 

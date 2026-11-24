@@ -6,7 +6,10 @@ export type FrontTarget = { pid: number; windowId: number | null };
 export type FrontTargetLookup = FrontTarget | 'FAILED' | undefined;
 export type ScreenshotTarget = 'window' | 'screen';
 export type ScreenshotErrorCode =
-  'PERMISSION_DENIED' | 'NO_WINDOW' | 'UNSUPPORTED' | 'CAPTURE_FAILED';
+  | 'PERMISSION_DENIED'
+  | 'NO_WINDOW'
+  | 'UNSUPPORTED'
+  | 'CAPTURE_FAILED';
 export type ScreenshotPayload = { bytes: Uint8Array; name: string };
 
 export const HELPER_BINARY_NAME = 'mindroom-screenshot-helper';

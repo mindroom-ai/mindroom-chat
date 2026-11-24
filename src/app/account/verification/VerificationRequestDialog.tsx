@@ -343,7 +343,7 @@ function VerificationPeer({ request }: { request: VerificationRequest }) {
   }, [client, otherUserId, otherDeviceId]);
 
   const own = otherUserId === client.getUserId();
-  const title = own ? (deviceName ?? otherDeviceId) : otherUserId;
+  const title = own ? deviceName ?? otherDeviceId : otherUserId;
   if (!title) return null;
 
   return (

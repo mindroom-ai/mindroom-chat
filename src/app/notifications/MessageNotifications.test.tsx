@@ -57,10 +57,7 @@ class FakeNotification {
 
   close = vi.fn();
 
-  constructor(
-    public title: string,
-    public options: NotificationOptions
-  ) {
+  constructor(public title: string, public options: NotificationOptions) {
     FakeNotification.shown.push(this);
   }
 }

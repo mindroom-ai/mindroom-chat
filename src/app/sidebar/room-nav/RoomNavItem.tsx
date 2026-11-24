@@ -113,8 +113,7 @@ function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
   const isSpace = room.getType() === RoomType.Space;
 
   let src = avatarMxc
-    ? (mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ??
-      undefined)
+    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
     : undefined;
   // A partner without an avatar shows the room's own, which is only looked up then.
   if (!src && personAvatar) src = getRoomAvatarUrl(mx, room, AVATAR_SIZE, useAuthentication);

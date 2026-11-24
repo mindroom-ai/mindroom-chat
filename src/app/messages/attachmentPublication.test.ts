@@ -335,8 +335,9 @@ it('retries failed capability lookup on a later explicit download', async () => 
 });
 
 it('keeps validated essential coverage when storage pressure denies a repeated prefetch', async () => {
-  const { __setCacheStoreByteBudgetForTests, runCacheEvictionIfOverBudget } =
-    await import('../event-store/cache/db');
+  const { __setCacheStoreByteBudgetForTests, runCacheEvictionIfOverBudget } = await import(
+    '../event-store/cache/db'
+  );
   const mx = createLegacyMediaClient({ baseUrl, userId });
   const body = new MatrixEvent({
     room_id: roomId,

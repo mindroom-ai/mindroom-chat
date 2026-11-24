@@ -182,7 +182,10 @@ describe('RenderBody', () => {
         <RenderBody
           body={content.body as string}
           customBody={content.formatted_body as string}
-          htmlReactParserOptions={useToolTraceMarkerParserOptions(htmlReactParserOptions, content)}
+          htmlReactParserOptions={useToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            content
+          )}
           linkifyOpts={linkifyOpts}
         />
       );

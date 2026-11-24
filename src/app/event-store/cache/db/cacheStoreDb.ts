@@ -271,7 +271,7 @@ export const captureCacheStoreWriteLease = (
     generation,
     roomId,
     roomGeneration: roomId
-      ? (writeGenerationByRoom.get(roomLeaseKey(sessionId, roomId)) ?? 0)
+      ? writeGenerationByRoom.get(roomLeaseKey(sessionId, roomId)) ?? 0
       : undefined,
   };
 };

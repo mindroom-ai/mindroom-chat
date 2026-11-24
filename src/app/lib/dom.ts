@@ -6,7 +6,7 @@ import { Clipboard } from '@capacitor/clipboard';
 
 /** The browser clipboard, which exists only in a secure context. */
 export const getBrowserClipboard = (): Clipboard | undefined =>
-  typeof navigator === 'undefined' ? undefined : (navigator.clipboard ?? undefined);
+  typeof navigator === 'undefined' ? undefined : navigator.clipboard ?? undefined;
 
 const copyWithNativeClipboard = async (text: string): Promise<boolean> => {
   if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('Clipboard')) return false;

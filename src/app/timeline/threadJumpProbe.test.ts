@@ -60,7 +60,7 @@ describe('threadJumpProbe scrollUp burst checks', () => {
     // Track raw scrollTop directly on the scroller while letting the probe's Element.prototype
     // setter observe programmatic writes when we assign scroller.scrollTop.
     scroller.getBoundingClientRect = () =>
-      ({ top: 0, bottom: 800, left: 0, right: 600, width: 600, height: 800 }) as DOMRect;
+      ({ top: 0, bottom: 800, left: 0, right: 600, width: 600, height: 800 } as DOMRect);
     inner = document.createElement('div');
     inner.dataset.timelineRows = '';
     inner.dataset.threadCount = '100';
@@ -75,7 +75,7 @@ describe('threadJumpProbe scrollUp burst checks', () => {
         right: 600,
         width: 600,
         height: 100,
-      }) as DOMRect;
+      } as DOMRect);
     inner.appendChild(row);
     scroller.appendChild(inner);
     document.body.appendChild(scroller);

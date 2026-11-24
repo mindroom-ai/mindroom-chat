@@ -50,7 +50,10 @@ describe('loadLatestCachedThreadEventsBatch', () => {
     );
 
     expect(transactionSpy).toHaveBeenCalledTimes(1);
-    expect(pages.get('$thread-a')?.events.map((event) => event.event_id)).toEqual(['$a1', '$a2']);
+    expect(pages.get('$thread-a')?.events.map((event) => event.event_id)).toEqual([
+      '$a1',
+      '$a2',
+    ]);
     expect(pages.get('$thread-b')?.events.map((event) => event.event_id)).toEqual(['$b1']);
   });
 });

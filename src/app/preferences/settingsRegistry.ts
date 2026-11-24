@@ -849,12 +849,14 @@ export const SETTINGS = [
 ] as const satisfies readonly SettingDefinition[];
 
 const PAGE_BY_REQUEST = new Map<string, SettingsPageId>(
-  SETTINGS_PAGES.flatMap((page): Array<[string, SettingsPageId]> => [
-    [page.id, page.id],
-    ...('aliases' in page
-      ? page.aliases.map((alias): [string, SettingsPageId] => [alias, page.id])
-      : []),
-  ])
+  SETTINGS_PAGES.flatMap(
+    (page): Array<[string, SettingsPageId]> => [
+      [page.id, page.id],
+      ...('aliases' in page
+        ? page.aliases.map((alias): [string, SettingsPageId] => [alias, page.id])
+        : []),
+    ]
+  )
 );
 
 /** The page an id or earlier id names; `undefined` for anything else. */

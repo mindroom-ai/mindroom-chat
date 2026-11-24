@@ -38,7 +38,9 @@ export type RoomModelSettingDefinition = {
 };
 
 export type RoomSettingDefinition =
-  RoomTextSettingDefinition | RoomChoiceSettingDefinition | RoomModelSettingDefinition;
+  | RoomTextSettingDefinition
+  | RoomChoiceSettingDefinition
+  | RoomModelSettingDefinition;
 
 export type RoomSettingSection = {
   id: string;

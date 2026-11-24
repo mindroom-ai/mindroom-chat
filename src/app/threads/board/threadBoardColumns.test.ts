@@ -62,7 +62,7 @@ const scheduleEvent = (
       execute_at: executeAt === null ? null : new Date(executeAt).toISOString(),
       ...(executeAt === null ? { cron_description: 'Every Monday at 9:00' } : {}),
     }),
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const job = (threadId: string | null): BackgroundJob => ({
   jobId: `job-${String(threadId)}`,

@@ -253,7 +253,7 @@ function ModelPickerPanel({
 
   // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
-    (mobileOrTablet() ? listRef.current : (inputRef.current ?? listRef.current))?.focus();
+    (mobileOrTablet() ? listRef.current : inputRef.current ?? listRef.current)?.focus();
   }, []);
 
   // A control that goes while it has focus (the filter field, Retry, the runtime chooser) leaves
@@ -714,8 +714,8 @@ export function ModelPicker({
     description: newThread
       ? t('mindroomUi.models.modelPicker.nextThreadOnly')
       : described.roomOverride
-        ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
-        : t('mindroomUi.models.modelPicker.threadOnly'),
+      ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
+      : t('mindroomUi.models.modelPicker.threadOnly'),
   };
   // Without an override the button names what each agent runs, as the default row in the menu does.
   const modelLabel =

@@ -25,8 +25,8 @@ const mapPreviewLines = (
   let fence: string | undefined;
   const lines = body.split(/\r?\n/).map((line) => {
     const match = fence
-      ? (/^(`{3,})( *)$/.exec(line) ?? /^ {0,3}(~{3,})([ \t]*)$/.exec(line))
-      : (/^(`{3,})(?!`)(\S*)$/.exec(line) ?? /^ {0,3}(~{3,})(.*)$/.exec(line));
+      ? /^(`{3,})( *)$/.exec(line) ?? /^ {0,3}(~{3,})([ \t]*)$/.exec(line)
+      : /^(`{3,})(?!`)(\S*)$/.exec(line) ?? /^ {0,3}(~{3,})(.*)$/.exec(line);
     if (fence) {
       if (
         match &&

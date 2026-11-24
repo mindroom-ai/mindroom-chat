@@ -6,7 +6,7 @@ import { Provider, createStore } from 'jotai';
 import { AvatarFallback, Text, color, config } from 'folds';
 import { Header, Menu, MenuItem, Modal } from '../../src/app/ui/glass/GlassPrimitives';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { LightTheme, THEMES } from '../../src/app/theme/useTheme';

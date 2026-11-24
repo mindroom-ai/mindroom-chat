@@ -579,9 +579,7 @@ describe('attachment staging ownership', () => {
     act(() => harness.feature.access.append(ROOM_ID, [item]));
     expect(harness.feature.hasSendableFiles).toBe(true);
 
-    act(() =>
-      harness.store.set(roomUploadAtomFamily(item.file), { error: new Error('too large') })
-    );
+    act(() => harness.store.set(roomUploadAtomFamily(item.file), { error: new Error('too large') }));
     expect(harness.feature.hasSendableFiles).toBe(false);
 
     act(() => harness.store.set(roomUploadAtomFamily(item.file), { mxc: 'mxc://example.org/ok' }));

@@ -19,8 +19,8 @@ vi.mock('../event-store/cache/cacheProbe', () => ({
     key === 'ledgerQuiescenceSettles'
       ? mocks.ledgerQuiescenceSettles
       : key === 'ledgerBoundarySettles'
-        ? mocks.ledgerBoundarySettles
-        : 0,
+      ? mocks.ledgerBoundarySettles
+      : 0,
 }));
 
 vi.mock('./scrollQuiescence', () => ({

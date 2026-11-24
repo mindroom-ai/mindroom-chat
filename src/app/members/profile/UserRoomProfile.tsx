@@ -185,7 +185,7 @@ export function ProfileCard({
   const user = client.getUser(userId);
   const avatarMxc = member?.getMxcAvatarUrl() ?? profile.avatarUrl ?? user?.avatarUrl;
   const avatarSrc = avatarMxc
-    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 112, 112, 'crop') ?? undefined)
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 112, 112, 'crop') ?? undefined
     : undefined;
   const server = getMxIdServer(userId);
   const tag = member ? getPowerTag(userId) : undefined;

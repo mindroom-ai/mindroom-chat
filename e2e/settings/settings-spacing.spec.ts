@@ -338,8 +338,8 @@ const measure = (dialog: Locator) =>
         const firstText = headings[0]
           ? textBox(headings[0])
           : cards[0]
-            ? cards[0].getBoundingClientRect()
-            : null;
+          ? cards[0].getBoundingClientRect()
+          : null;
         result.page = {
           top: firstText ? round(firstText.top - bar.bottom) : -1,
           headings: headings.map((heading) => start(textBox(heading), cardOf(heading))),
@@ -360,11 +360,11 @@ const measure = (dialog: Locator) =>
           textEdge: headings[0]
             ? start(textBox(headings[0]), bar)
             : firstCard && cards[0]!.firstElementChild
-              ? round(
-                  start(firstCard, bar) +
-                    parseFloat(getComputedStyle(cards[0]!.firstElementChild).paddingInlineStart)
-                )
-              : -1,
+            ? round(
+                start(firstCard, bar) +
+                  parseFloat(getComputedStyle(cards[0]!.firstElementChild).paddingInlineStart)
+              )
+            : -1,
         };
       }
     }

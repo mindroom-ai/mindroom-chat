@@ -109,7 +109,7 @@ const makeRoom = (findEventById: (id: string) => FakeEvent | undefined): Room =>
     roomId: '!room:example.org',
     findEventById: (id: string) => findEventById(id) as unknown as MatrixEvent | undefined,
     getThread: () => undefined,
-    getLiveTimeline: () => ({ getEvents: () => [] }) as never,
+    getLiveTimeline: () => ({ getEvents: () => [] } as never),
     getUnfilteredTimelineSet: () => undefined as never,
     getThreads: () => [],
   } as unknown as Room;

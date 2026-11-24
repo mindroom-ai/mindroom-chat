@@ -174,8 +174,11 @@ describe('cacheStore D8 legacy wipe (AC14)', () => {
       expect(namesBefore).toContain(name);
     });
 
-    const { openCacheStore, resetCacheStoreForTesting, getCacheStoreDbName } =
-      await import('../cacheStoreDb');
+    const {
+      openCacheStore,
+      resetCacheStoreForTesting,
+      getCacheStoreDbName,
+    } = await import('../cacheStoreDb');
     const { META_STORE, LEGACY_WIPE_MARKER_META_KEY } = await import('../cacheStoreSchema');
 
     const db = await openCacheStore(SESSION_ID);

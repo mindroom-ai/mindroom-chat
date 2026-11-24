@@ -305,7 +305,7 @@ export const getRoomAvatarUrl = (
 ): string | undefined => {
   const mxc = room.getMxcAvatarUrl();
   return mxc
-    ? (mxcUrlToHttp(mx, mxc, useAuthentication, size, size, 'crop') ?? undefined)
+    ? mxcUrlToHttp(mx, mxc, useAuthentication, size, size, 'crop') ?? undefined
     : undefined;
 };
 
@@ -318,7 +318,7 @@ export const getDirectRoomAvatarUrl = (
 ): string | undefined => {
   const mxc = room.getAvatarFallbackMember()?.getMxcAvatarUrl() ?? room.getMxcAvatarUrl();
   return mxc
-    ? (mxcUrlToHttp(mx, mxc, useAuthentication, size, size, 'crop') ?? undefined)
+    ? mxcUrlToHttp(mx, mxc, useAuthentication, size, size, 'crop') ?? undefined
     : undefined;
 };
 

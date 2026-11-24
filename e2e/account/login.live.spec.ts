@@ -1,10 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import {
-  loginWithPassword,
-  waitForLoggedInShell,
-  expectLoggedInShellStable,
-} from '../helpers/auth';
+import { loginWithPassword, waitForLoggedInShell, expectLoggedInShellStable } from '../helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,

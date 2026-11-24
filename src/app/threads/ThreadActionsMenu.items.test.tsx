@@ -330,8 +330,8 @@ describe('ThreadActionsMenu rows', () => {
     const menu = host.querySelector<HTMLElement>('[role="menu"]');
 
     // Narrower only on a screen without the room for it and a margin.
-    expect(menu?.getAttribute('style')).toContain('min-width: min(13.75rem, calc(100vw - 1rem))');
-    expect(menu?.getAttribute('style')).toContain('max-width: calc(100vw - 1rem)');
+    expect(menu?.style.minWidth).toBe('min(13.75rem, -1rem + 100vw)');
+    expect(menu?.style.maxWidth).toBe('calc(-1rem + 100vw)');
     expect(menu?.style.borderRadius).toBe(config.radii.R500);
   });
 });

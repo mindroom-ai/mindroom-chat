@@ -42,7 +42,7 @@ const decryptAs = (body: string) =>
     decryptEvent: vi.fn().mockResolvedValue({
       clearEvent: { type: 'm.room.message', content: editContent(body) },
     }),
-  }) as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
+  } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
 
 describe('getPinContent', () => {
   it('is the message itself without an edit', () => {

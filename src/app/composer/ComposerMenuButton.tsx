@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { FocusTrap } from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
+import { isHotkey } from 'is-hotkey';
 import { Icon, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';

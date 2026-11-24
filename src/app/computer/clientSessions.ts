@@ -161,7 +161,8 @@ export class ClientSessions {
       signal,
     });
     const body = (await response.json().catch(() => undefined)) as
-      { session_token?: unknown; expires_at?: unknown } | undefined;
+      | { session_token?: unknown; expires_at?: unknown }
+      | undefined;
     if (!response.ok) {
       throw new MindroomServerError(
         `MindRoom refused the sign-in (${response.status}).`,

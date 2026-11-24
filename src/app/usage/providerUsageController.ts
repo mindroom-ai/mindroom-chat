@@ -40,7 +40,8 @@ export type ProviderUsageState = {
   snapshotsByRuntime: Readonly<Record<string, ProviderUsageSnapshot>>;
 };
 export type RuntimeIdentity =
-  { id?: string; userId: string; deviceId: string; curveKey: string } | string;
+  | { id?: string; userId: string; deviceId: string; curveKey: string }
+  | string;
 
 type ProbeRun = {
   kind: 'startup' | 'full' | 'room';
@@ -191,7 +192,8 @@ export class ProviderUsageController {
 
   private bindEvents(bind: boolean): void {
     const fn = (bind ? this.mx.on : this.mx.removeListener)?.bind(this.mx) as
-      typeof this.mx.on | undefined;
+      | typeof this.mx.on
+      | undefined;
     if (!fn) return;
     fn(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     fn(ClientEvent.Sync, this.onSync);
@@ -373,8 +375,8 @@ export class ProviderUsageController {
       const status: ProviderUsageStatus = loading
         ? 'loading'
         : this.discovery === 'idle'
-          ? 'idle'
-          : 'unavailable';
+        ? 'idle'
+        : 'unavailable';
       this.state = { ...INITIAL_STATE, status, loading };
     } else {
       this.state = {

@@ -6,10 +6,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
-import {
-  insertCachedRoomTimeline,
-  prependCachedRoomTimeline,
-} from '../event-store/sdk/roomTimelineSdk';
+import { insertCachedRoomTimeline, prependCachedRoomTimeline } from '../event-store/sdk/roomTimelineSdk';
 import { markCacheHydrateEnd, markCacheHydrateStart } from '../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../diagnostics/timelineDebug';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';

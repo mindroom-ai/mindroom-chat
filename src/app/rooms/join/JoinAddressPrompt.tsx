@@ -53,7 +53,7 @@ const useAvatarUrl = () => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   return (mxc: string | undefined) =>
-    mxc ? (mxcUrlToHttp(mx, mxc, useAuthentication, 96, 96, 'crop') ?? undefined) : undefined;
+    mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, 96, 96, 'crop') ?? undefined : undefined;
 };
 
 /** The room a pasted address points at, with the name and topic its summary gives. */

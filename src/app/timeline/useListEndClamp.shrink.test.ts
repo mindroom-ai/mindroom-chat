@@ -8,7 +8,7 @@ import { listShrinkAfterResize, listShrinkNotRendered } from './useListEndClamp'
 const box = (element: HTMLElement, top: number, height: number) => {
   Object.defineProperty(element, 'offsetHeight', { configurable: true, value: height });
   element.getBoundingClientRect = () =>
-    ({ top, bottom: top + height, height, left: 0, right: 0, width: 0 }) as DOMRect;
+    ({ top, bottom: top + height, height, left: 0, right: 0, width: 0 } as DOMRect);
 };
 
 /** The list, its bottom at `listBottom`, with the tiles virtual-core mounts. */

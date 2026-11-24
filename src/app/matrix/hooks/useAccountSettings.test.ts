@@ -67,9 +67,9 @@ describe('enqueueAccountSettingsPatch', () => {
     const { mx, setAccountData } = makeClient({ showCanvasesInSidebar: false });
     setAccountData.mockRejectedValueOnce(new Error('offline'));
 
-    await expect(enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: true })).rejects.toThrow(
-      'offline'
-    );
+    await expect(
+      enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: true })
+    ).rejects.toThrow('offline');
     await expect(
       enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: false })
     ).resolves.toBeUndefined();

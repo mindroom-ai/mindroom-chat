@@ -17,7 +17,8 @@ const NAV_TO_ACTIVE_PATH = 'navToActivePath';
 export type NavToActivePath = Map<string, Path>;
 
 export type NavToActivePathAction =
-  { type: 'PUT'; navId: string; path: Path } | { type: 'DELETE'; navId: string };
+  | { type: 'PUT'; navId: string; path: Path }
+  | { type: 'DELETE'; navId: string };
 
 export type NavToActivePathAtom = WritableAtom<NavToActivePath, [NavToActivePathAction], void>;
 

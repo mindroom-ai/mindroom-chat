@@ -271,27 +271,27 @@ globalStyle(`${Segmented} > :last-child`, {
 });
 export const Segment = style([
   {
-    // Keep the touch area inside the segment, even when duration groups wrap onto adjacent rows.
-    '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
-    border: 0,
-    padding: '5px 11px',
-    backgroundColor: color.Surface.Container,
-    color: color.Surface.OnContainer,
-    font: 'inherit',
-    fontSize: 13,
-    fontWeight: config.fontWeight.W600,
-    cursor: 'pointer',
-    selectors: {
-      '& + &': {
-        borderInlineStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
-      },
-      '&:hover:not(:disabled)': {
-        backgroundColor: color.Primary.Container,
-        color: color.Primary.OnContainer,
-      },
-      '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
-      '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },
+  // Keep the touch area inside the segment, even when duration groups wrap onto adjacent rows.
+  '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
+  border: 0,
+  padding: '5px 11px',
+  backgroundColor: color.Surface.Container,
+  color: color.Surface.OnContainer,
+  font: 'inherit',
+  fontSize: 13,
+  fontWeight: config.fontWeight.W600,
+  cursor: 'pointer',
+  selectors: {
+    '& + &': {
+      borderInlineStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
     },
+    '&:hover:not(:disabled)': {
+      backgroundColor: color.Primary.Container,
+      color: color.Primary.OnContainer,
+    },
+    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
+    '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },
+  },
   },
 ]);
 export const SingleCall = style({ display: 'flex', flexDirection: 'column', gap: 10 });

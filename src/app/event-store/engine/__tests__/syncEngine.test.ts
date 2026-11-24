@@ -63,7 +63,7 @@ const makeRoom = (roomId: string): Room =>
     getLiveTimeline: () => ({ getEvents: () => [] }),
     getUnfilteredTimelineSet: () => undefined,
     getThreads: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeEvent = (): MatrixEvent =>
   ({
@@ -74,7 +74,7 @@ const makeEvent = (): MatrixEvent =>
     isRedaction: () => false,
     getAssociatedId: () => undefined,
     threadRootId: undefined,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 describe('SyncEngine (ISSUE-207 P3.1)', () => {
   beforeEach(() => {
@@ -261,7 +261,7 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
     engine.start();
     const room = makeRoom('!r1');
     const confirmed = (overrides: Partial<MatrixEvent> = {}) =>
-      ({ ...makeEvent(), status: null, ...overrides }) as unknown as MatrixEvent;
+      ({ ...makeEvent(), status: null, ...overrides } as unknown as MatrixEvent);
 
     // Still pending, and an update without a previous status.
     mx.__emit(

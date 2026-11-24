@@ -124,7 +124,9 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
 
     let renderer: ReactTestRenderer | undefined;
     act(() => {
-      renderer = create(React.createElement(PrefetchSettings, { className: 'settings-card' }));
+      renderer = create(
+        React.createElement(PrefetchSettings, { className: 'settings-card' })
+      );
     });
 
     // One SequenceCard renders as `<section className="settings-card">`.

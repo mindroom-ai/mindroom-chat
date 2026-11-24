@@ -65,7 +65,8 @@ export const readRawThreadReplies = (
   const replies = events
     .filter((event) => {
       const relation = event.content?.['m.relates_to'] as
-        { rel_type?: unknown; event_id?: unknown } | undefined;
+        | { rel_type?: unknown; event_id?: unknown }
+        | undefined;
       return (
         relation?.rel_type === 'm.thread' &&
         relation.event_id === rootId &&

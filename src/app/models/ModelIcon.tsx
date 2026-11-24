@@ -25,7 +25,7 @@ export function ModelIcon({ provider, id, iconUrl, size, className }: ModelIconP
   const [failedUrl, setFailedUrl] = useState<string>();
   // Thumbnails at twice the drawn size stay sharp on high-density screens.
   const src = iconUrl?.startsWith('mxc://')
-    ? (mxcUrlToHttp(mx, iconUrl, useAuthentication, size * 2, size * 2, 'scale') ?? undefined)
+    ? mxcUrlToHttp(mx, iconUrl, useAuthentication, size * 2, size * 2, 'scale') ?? undefined
     : undefined;
 
   if (src && failedUrl !== src) {

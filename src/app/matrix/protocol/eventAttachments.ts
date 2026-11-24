@@ -44,17 +44,17 @@ export const getEventAttachmentOwner = (
     return undefined;
   const redaction = event.getType() === 'm.room.redaction';
   const eventId = redaction
-    ? (event.event.redacts ?? event.getContent().redacts)
+    ? event.event.redacts ?? event.getContent().redacts
     : relation?.rel_type === 'm.replace'
-      ? relation.event_id
-      : event.getId();
+    ? relation.event_id
+    : event.getId();
   if (!roomId || !eventId) return undefined;
   const revision = describeMatrixEventRevision(event);
   const redactedAt = event.getUnsigned().redacted_because?.origin_server_ts;
   const revisionTs =
     event.isRedacted() && typeof redactedAt === 'number'
       ? redactedAt
-      : (revision.replacement?.ts ?? event.getTs());
+      : revision.replacement?.ts ?? event.getTs();
 
   return {
     roomId,
@@ -108,8 +108,8 @@ export const collectEventAttachments = (
       redaction || event.isRedacted()
         ? {}
         : relation?.rel_type === 'm.replace'
-          ? record(event.getContent()['m.new_content'])
-          : event.getContent();
+        ? record(event.getContent()['m.new_content'])
+        : event.getContent();
     const attachments: EventAttachment[] = [];
     const longText = getLongTextSource(content);
     if (longText)

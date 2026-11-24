@@ -65,7 +65,7 @@ const roomWithCallState = (roomId: string, events: StateEventStub[], membership 
             : [],
       }),
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const clientWith = (rooms: Room[] = [], deviceId = DEVICE) => {
   const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$left' });

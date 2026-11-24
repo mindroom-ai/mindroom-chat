@@ -39,14 +39,14 @@ const makeSpace = (
     isSpaceRoom: () => true,
     getCanonicalAlias: () => canonicalAlias ?? null,
     getAltAliases: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeClient = (rooms: Room[], getRoomIdForAlias = vi.fn()): MatrixClient =>
   ({
     getRoom: (roomId: string) => rooms.find((room) => room.roomId === roomId) ?? null,
     getRooms: () => rooms,
     getRoomIdForAlias,
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 function ShownSpace() {
   return <div data-shown-space={useSpace().roomId} />;

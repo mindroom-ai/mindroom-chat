@@ -51,7 +51,7 @@ const event = ({
     threadRootId,
     getAssociatedId: () => relatesTo,
     getRelation: () => (relatesTo ? { event_id: relatesTo } : null),
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const receiptOf = (userId: string, threadId?: string) =>
   event({
@@ -346,7 +346,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
         isRedacted: () => false,
         getWireContent: () => ({ 'm.relates_to': { rel_type: 'm.replace', event_id: messageId } }),
         getContent: () => ({}),
-      }) as unknown as MatrixEvent;
+      } as unknown as MatrixEvent);
     /** The store keeps 5,000 messages: one more drops the one it heard of longest ago. */
     const fill = (from: number) => () => {
       for (let i = from; i < from + 5000; i += 1) client.emit(ClientEvent.Event, editOf(`$m${i}`));

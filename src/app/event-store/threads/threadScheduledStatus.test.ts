@@ -29,7 +29,7 @@ const makeScheduledEvent = ({
       execute_at: executeAt,
       cron_description: cronDescription,
     }),
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 describe('threadScheduledStatus', () => {
   it('groups pending future scheduled tasks by thread', () => {

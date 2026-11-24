@@ -37,7 +37,7 @@ const message = (sender: string, ts: number, type: string = EventType.RoomMessag
     isDecryptionFailure: () => false,
     getRelation: () => (edit ? { rel_type: RelationType.Replace } : null),
     getContent: () => ({}),
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 /** A room both agents publish their state in, with the messages the client has loaded. */
 const room = (roomId: string, messages: MatrixEvent[]) =>
@@ -56,7 +56,7 @@ const room = (roomId: string, messages: MatrixEvent[]) =>
       getState: () => ({ getStateEvents: () => undefined }),
     }),
     getThreads: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('useHomeAgents', () => {
   it("reads the agents again as one answers in a room's timeline, not as people write", () => {

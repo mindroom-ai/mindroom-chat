@@ -255,7 +255,8 @@ const serverThreadCount = async (world: World, rootId: string) => {
     accessToken: world.reader.accessToken,
   });
   return (
-    sync.rooms?.join?.[world.roomId]?.unread_thread_notifications?.[rootId]?.notification_count ?? 0
+    sync.rooms?.join?.[world.roomId]?.unread_thread_notifications?.[rootId]?.notification_count ??
+    0
   );
 };
 
@@ -355,9 +356,7 @@ const unfocused = async (page: Page, world: World, receipts: SentReceipt[], labe
       frame(() => {
         window.setTimeout(() => callback(performance.now()), delay);
       });
-    Object.assign(window, {
-      restoreFrames: () => Object.assign(window, { requestAnimationFrame: frame }),
-    });
+    Object.assign(window, { restoreFrames: () => Object.assign(window, { requestAnimationFrame: frame }) });
     window.requestAnimationFrame = slow;
   }, SLOW_FRAME_MS);
   await navigate(page, threadRoute(world.roomId, rootId));

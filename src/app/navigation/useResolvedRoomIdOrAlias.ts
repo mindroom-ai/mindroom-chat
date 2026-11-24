@@ -32,16 +32,12 @@ export const useResolvedRoomIdOrAlias = (roomIdOrAlias: string | undefined) => {
 
   useEffect(() => {
     if (!roomIdOrAlias) {
-      setAsyncResolution((currentResolution) =>
-        currentResolution ? undefined : currentResolution
-      );
+      setAsyncResolution((currentResolution) => (currentResolution ? undefined : currentResolution));
       return;
     }
 
     if (!isRoomAlias(roomIdOrAlias) || knownRoomId) {
-      setAsyncResolution((currentResolution) =>
-        currentResolution ? undefined : currentResolution
-      );
+      setAsyncResolution((currentResolution) => (currentResolution ? undefined : currentResolution));
       return;
     }
 

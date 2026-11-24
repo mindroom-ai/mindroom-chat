@@ -126,12 +126,9 @@ export const useUserDirectoryCache = () => {
       ownerCacheFetchedAt > 0 &&
       Date.now() - ownerCacheFetchedAt < USER_DIRECTORY_CACHE_TTL_MS
     ) {
-      const timeoutId = setTimeout(
-        () => {
-          void refresh();
-        },
-        USER_DIRECTORY_CACHE_TTL_MS - (Date.now() - ownerCacheFetchedAt)
-      );
+      const timeoutId = setTimeout(() => {
+        void refresh();
+      }, USER_DIRECTORY_CACHE_TTL_MS - (Date.now() - ownerCacheFetchedAt));
 
       return () => {
         clearTimeout(timeoutId);

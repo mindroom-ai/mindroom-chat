@@ -192,10 +192,7 @@ export const notificationServiceUploadProblems = ({
     }
   });
 
-  const extensionPoint = plistString(
-    notificationServiceInfoPlistText,
-    'NSExtensionPointIdentifier'
-  );
+  const extensionPoint = plistString(notificationServiceInfoPlistText, 'NSExtensionPointIdentifier');
   if (extensionPoint !== 'com.apple.usernotifications.service') {
     problems.push(
       `${NOTIFICATION_SERVICE_TARGET} Info.plist NSExtensionPointIdentifier must be com.apple.usernotifications.service, got '${extensionPoint ?? '(missing)'}'.`

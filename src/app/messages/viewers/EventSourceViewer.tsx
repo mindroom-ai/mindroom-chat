@@ -77,7 +77,7 @@ const useEventSourceBundle = (mEvent: MatrixEvent) => {
       if (disposed) return;
       const edit =
         typeof mEvent.replacingEvent === 'function'
-          ? (getAppliedEdit(mEvent) ?? undefined)
+          ? getAppliedEdit(mEvent) ?? undefined
           : undefined;
       if (edit !== listenedEdit) {
         listenedEdit?.off(MatrixEventEvent.Decrypted, onChange);
@@ -361,10 +361,10 @@ function JsonTreeNode({
     typeof value === 'number'
       ? 'token number'
       : typeof value === 'boolean'
-        ? 'token keyword'
-        : value === null
-          ? 'token tag'
-          : 'token string';
+      ? 'token keyword'
+      : value === null
+      ? 'token tag'
+      : 'token string';
   const quoted = tokenClass === 'token string';
   const leafText = quoted ? formatJsonStringInner(String(value)) : String(value);
   const hint =
@@ -520,12 +520,12 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
         event.key === nextKey
           ? (index + 1) % len
           : event.key === prevKey
-            ? (index - 1 + len) % len
-            : event.key === 'Home'
-              ? 0
-              : event.key === 'End'
-                ? len - 1
-                : undefined;
+          ? (index - 1 + len) % len
+          : event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+          ? len - 1
+          : undefined;
       const nextDoc = nextIndex !== undefined ? bundle.docs[nextIndex] : undefined;
       if (!nextDoc) return;
       event.preventDefault();
@@ -597,7 +597,7 @@ export const EventSourceViewer = as<'div', EventSourceViewerProps>(
               const technical = key !== 'origin_server_ts';
               const display = technical
                 ? revealDirectionControls(raw)
-                : (formatTimestampHint(summary.timestamp!, i18n.language) ?? raw);
+                : formatTimestampHint(summary.timestamp!, i18n.language) ?? raw;
               const isCopied = copiedId === `meta:${key}`;
               const label = `${t('sharedUi.eventSourceViewer.copyField', {
                 field: t(labelKey),

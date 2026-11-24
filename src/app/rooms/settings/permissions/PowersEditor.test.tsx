@@ -77,9 +77,7 @@ vi.mock('../../../ui/SettingTile', () => ({
 }));
 vi.mock('../../../emoji/board/LazyEmojiBoard', () => ({ EmojiBoard: () => null }));
 vi.mock('../../../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
-vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
+vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../../lib/hooks/useFilePicker', () => ({ useFilePicker: () => vi.fn() }));
 vi.mock('../../../lib/hooks/useAlive', () => ({ useAlive: () => () => true }));
 vi.mock('../../../matrix/hooks/useStateEvent', () => ({

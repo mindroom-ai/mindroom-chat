@@ -124,7 +124,7 @@ const makeThread = (rootId: string, timelineEvents: FakeEvent[]): Thread =>
         getChildEventsForEvent: () => undefined,
       },
     }),
-  }) as unknown as Thread;
+  } as unknown as Thread);
 
 const makeRoom = ({
   events,
@@ -138,14 +138,14 @@ const makeRoom = ({
     findEventById: (id: string) => events[id] as unknown as MatrixEvent | undefined,
     getThread: (id: string) => threads.find((t) => (t as unknown as { id: string }).id === id),
     getThreads: () => threads,
-    getLiveTimeline: () => ({ getEvents: () => [] }) as never,
+    getLiveTimeline: () => ({ getEvents: () => [] } as never),
     getUnfilteredTimelineSet: () =>
       ({
         relations: {
           getChildEventsForEvent: () => undefined,
         },
-      }) as never,
-  }) as unknown as Room;
+      } as never),
+  } as unknown as Room);
 
 const redactionMeta = (sdkThreadId?: string): EngineLiveEventMeta => ({
   kind: 'redaction',

@@ -47,8 +47,9 @@ describe('roomThreadOverviewModel', () => {
     });
 
     it('round-trips non-default filters, sort state, tags, search, and OR mode', async () => {
-      const { deserializeThreadFilterState, serializeThreadFilterState } =
-        await import('./roomThreadOverviewModel');
+      const { deserializeThreadFilterState, serializeThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
       const state = makeDefaultState({
         resolved: 'include',
         snoozed: 'include',
@@ -111,8 +112,9 @@ describe('roomThreadOverviewModel', () => {
     });
 
     it('reads a stored filter state without a snoozed key as excluding snoozed threads', async () => {
-      const { deserializeThreadFilterState, serializeThreadFilterState } =
-        await import('./roomThreadOverviewModel');
+      const { deserializeThreadFilterState, serializeThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
       const stored = { ...serializeThreadFilterState(makeDefaultState()) } as Record<
         string,
         unknown
@@ -246,8 +248,9 @@ describe('roomThreadOverviewModel', () => {
 
   describe('tag filter helpers', () => {
     it('adds, removes, and counts tag filters', async () => {
-      const { addTagFilter, collectAvailableRoomTags, removeTagFilter } =
-        await import('./roomThreadOverviewModel');
+      const { addTagFilter, collectAvailableRoomTags, removeTagFilter } = await import(
+        './roomThreadOverviewModel'
+      );
 
       const defaultState = makeDefaultState();
       const added = addTagFilter(defaultState, 'blocked');
@@ -327,8 +330,9 @@ describe('roomThreadOverviewModel', () => {
 
   describe('simplifyAgentlessSimpleThreadFilterState', () => {
     it('keeps only the sort, leaving the resolved and snoozed filters inactive', async () => {
-      const { simplifyAgentlessSimpleThreadFilterState } =
-        await import('./roomThreadOverviewModel');
+      const { simplifyAgentlessSimpleThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
 
       expect(
         simplifyAgentlessSimpleThreadFilterState(
@@ -394,8 +398,9 @@ describe('workflow tab persistence', () => {
 });
 
 it('changes the frozen-order signature when the tab changes', async () => {
-  const { createDefaultThreadFilterState, createThreadSortControlSignature } =
-    await import('./roomThreadOverviewModel');
+  const { createDefaultThreadFilterState, createThreadSortControlSignature } = await import(
+    './roomThreadOverviewModel'
+  );
   const state = createDefaultThreadFilterState();
   expect(createThreadSortControlSignature({ state: { ...state, tab: 'working' } })).not.toBe(
     createThreadSortControlSignature({ state: { ...state, tab: 'needsYou' } })

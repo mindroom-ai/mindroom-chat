@@ -50,7 +50,10 @@ describe('bundled iOS client config', () => {
       new URL('../../../ios/App/ci_scripts/ci_pre_xcodebuild.sh', import.meta.url),
       'utf8'
     );
-    const phone = readFileSync(new URL('../../../scripts/ios-phone.mjs', import.meta.url), 'utf8');
+    const phone = readFileSync(
+      new URL('../../../scripts/ios-phone.mjs', import.meta.url),
+      'utf8'
+    );
     const fastlane = readFileSync(
       new URL('../../../ios/App/fastlane/Fastfile', import.meta.url),
       'utf8'

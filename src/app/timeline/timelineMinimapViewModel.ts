@@ -1,9 +1,6 @@
 import type { TFunction } from 'i18next';
 import { EventType } from 'matrix-js-sdk';
-import {
-  isMindroomAgentMessageEvent,
-  isMindroomAgentUserId,
-} from '../matrix/protocol/agentIdentity';
+import { isMindroomAgentMessageEvent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { getLocalizedThreadMessagePreviewText } from '../event-store/threads/threadMessagePreview';
 import { matchesEnum } from '../lib/matchesEnum';
 

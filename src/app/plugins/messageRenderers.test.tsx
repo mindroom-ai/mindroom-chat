@@ -47,9 +47,8 @@ const message = (sender: string): PluginEvent => ({ sender, content: { body: 'He
 
 const withConfig =
   (config: ClientConfig) =>
-  ({ children }: { children: ReactNode }) => (
-    <ClientConfigProvider value={config}>{children}</ClientConfigProvider>
-  );
+  ({ children }: { children: ReactNode }) =>
+    <ClientConfigProvider value={config}>{children}</ClientConfigProvider>;
 
 /** The renderer the hook picks for `event`, as `viewer` (null: signed out) with `config`. */
 const pick = (

@@ -33,7 +33,7 @@ const inlineCenter = {
   justifyContent: 'center',
 } as const;
 const flexCol = (gap: string) =>
-  ({ display: 'flex', flexDirection: 'column', gap, minWidth: 0 }) as const;
+  ({ display: 'flex', flexDirection: 'column', gap, minWidth: 0 } as const);
 const flexWrap = { display: 'flex', flexWrap: 'wrap', minWidth: 0 } as const;
 const pillBase = {
   display: 'inline-flex',

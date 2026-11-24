@@ -37,7 +37,8 @@ const rowOf = (popover: Locator, word: string): Locator =>
 const reactionsTo = async (stack: AgentStack, eventId: string): Promise<MatrixEvent[]> =>
   (await lobbyEvents(stack)).filter((event) => {
     const relation = event.content['m.relates_to'] as
-      { rel_type?: string; event_id?: string } | undefined;
+      | { rel_type?: string; event_id?: string }
+      | undefined;
     return (
       event.type === 'm.reaction' &&
       relation?.rel_type === 'm.annotation' &&

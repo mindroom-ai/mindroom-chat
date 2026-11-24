@@ -25,7 +25,7 @@ const entry = (key: string, overrides: Partial<CrossRoomThreadIndexEntry> = {}) 
     lastActivityTs: NOW - 3600_000,
     threadRecord: { presentation: {}, status: {} },
     ...overrides,
-  }) as CrossRoomThreadIndexEntry;
+  } as CrossRoomThreadIndexEntry);
 
 const quiet: ThreadSignals = {
   mentionedMe: false,

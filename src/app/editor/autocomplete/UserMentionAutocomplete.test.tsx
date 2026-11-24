@@ -13,7 +13,7 @@ const member = (userId: string, name: string) =>
     rawDisplayName: name,
     membership: 'join',
     getMxcAvatarUrl: () => undefined,
-  }) as unknown as RoomMember;
+  } as unknown as RoomMember);
 const maya = member('@maya:x', 'Maya');
 const grace = member('@grace:x', 'Grace');
 const mind = member('@mind:x', 'Mind');
@@ -34,9 +34,7 @@ vi.mock('../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => ne
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:x' }),
 }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
-  useMediaAuthentication: () => false,
-}));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('./AutocompleteMenu', () => ({
   AutocompleteMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));

@@ -50,7 +50,7 @@ const decryptingTo = (body: string) =>
     decryptEvent: vi.fn().mockResolvedValue({
       clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body } },
     }),
-  }) as unknown as Crypto;
+  } as unknown as Crypto);
 
 describe('useRoomEvent with a copy the client holds', () => {
   it('decrypts a copy that nothing decrypted, and shows it', async () => {

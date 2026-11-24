@@ -101,7 +101,7 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
   const roomServer = useRoomMindroomServer(mx, roomId ?? '');
   const computerUrls = useComputerApiUrls();
   const apiUrl =
-    supported && !roomServer.pending ? (roomServer.apiUrl ?? computerUrls.urls[0]) : undefined;
+    supported && !roomServer.pending ? roomServer.apiUrl ?? computerUrls.urls[0] : undefined;
 
   const sessions = useMemo(() => (apiUrl ? clientSessions(mx, apiUrl) : undefined), [apiUrl, mx]);
   const [retryTick, setRetryTick] = useState(0);
@@ -196,11 +196,11 @@ export const useDictationServer = (roomId?: string): DictationServerInfo => {
 
   const settled =
     sessions !== undefined
-      ? (cached ??
-        (probed?.sessions === sessions && probed.roomId === roomId ? probed.value : undefined))
+      ? cached ??
+        (probed?.sessions === sessions && probed.roomId === roomId ? probed.value : undefined)
       : roomServer.pending
-        ? undefined
-        : false;
+      ? undefined
+      : false;
   const confirmed = supported && sessions !== undefined && settled === true;
   const available =
     supported &&

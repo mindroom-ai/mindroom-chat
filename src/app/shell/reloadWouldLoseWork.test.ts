@@ -17,7 +17,7 @@ import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
 import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 
-const event = (status: EventStatus | null) => ({ status }) as MatrixEvent;
+const event = (status: EventStatus | null) => ({ status } as MatrixEvent);
 
 /** A client with one room whose timeline (and one thread) hold events of these statuses. */
 const client = ({
@@ -33,7 +33,7 @@ const client = ({
         getThreads: () => [{ liveTimeline: { getEvents: () => thread.map(event) } }],
       } as unknown as Room,
     ],
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 describe('reloadWouldLoseWork', () => {
   const draftKey = getRoomInputDraftKey('@reader:example.org', '!room:example.org');

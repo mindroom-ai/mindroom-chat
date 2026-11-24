@@ -7,7 +7,7 @@ const roomOfType = (type: string) =>
     getLiveTimeline: () => ({
       getState: () => ({ getStateEvents: () => ({ getContent: () => ({ type }) }) }),
     }),
-  }) as never;
+  } as never);
 
 /** A client that knows one room, a space. */
 const mxWithSpace = {

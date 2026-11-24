@@ -26,7 +26,7 @@ const makeRoom = (): Room =>
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getMember: () => undefined,
     getMembers: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const makeRecord = (threadRootId: string, messageCount: number): ThreadRecord =>
   ({
@@ -51,7 +51,7 @@ const makeRecord = (threadRootId: string, messageCount: number): ThreadRecord =>
       nextScheduledTs: undefined,
       lastActivityTs: 1000,
     },
-  }) as unknown as ThreadRecord;
+  } as unknown as ThreadRecord);
 
 type HarnessProps = {
   room: Room;

@@ -66,7 +66,11 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets).toEqual(['$visible', '$compact-a', '$compact-b']);
+    expect(targets).toEqual([
+      '$visible',
+      '$compact-a',
+      '$compact-b',
+    ]);
   });
 
   it('returns no room-overview refresh targets while inside a thread', () => {

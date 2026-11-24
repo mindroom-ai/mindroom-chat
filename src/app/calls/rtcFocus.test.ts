@@ -20,7 +20,7 @@ const fakeClient = (transports: () => Promise<unknown>) =>
     getDomain: () => 'example.org',
     baseUrl: 'https://matrix.example.org',
     http: { authedRequest: vi.fn(transports) },
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 describe('firstLivekitServiceUrl', () => {
   it('takes the first LiveKit entry with an HTTP(S) URL', () => {
@@ -176,7 +176,7 @@ describe('requestOwnSfuGrant', () => {
         expires_in: 3600,
       })),
       http: { authedRequest: vi.fn(async () => Promise.reject(new Error('404'))) },
-    }) as unknown as MatrixClient;
+    } as unknown as MatrixClient);
 
   it("asks the deployment's own service, the one its well-known names", async () => {
     const fetchFn = vi.fn(async (url: string) =>

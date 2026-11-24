@@ -313,7 +313,8 @@ describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const meta = (await readMeta(db, ROOM_ID, '')) as
-      { lastOpenedTs?: number; roomId?: string; scope?: string } | undefined;
+      | { lastOpenedTs?: number; roomId?: string; scope?: string }
+      | undefined;
     expect(meta).toBeDefined();
     expect(meta?.roomId).toBe(ROOM_ID);
     expect(meta?.scope).toBe('');

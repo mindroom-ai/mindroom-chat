@@ -20,7 +20,8 @@ import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { isJoined } from '../matrix/state/roomList';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
-export type RoomInputAutocompleteQuery = AutocompleteQuery<RoomInputAutocompletePrefix>;
+export type RoomInputAutocompleteQuery =
+  AutocompleteQuery<RoomInputAutocompletePrefix>;
 
 type RoomInputAutocompleteProps = {
   editor: Editor;
@@ -108,7 +109,9 @@ export const getRoomInputVoiceUploadRelation = (context: PendingVoiceSendContext
     allowThreadRelation: context.threadingEnabled,
   });
 
-export const createRoomInputPasteMarkerElement = (marker: PasteMarker): PasteMarkerElement => ({
+export const createRoomInputPasteMarkerElement = (
+  marker: PasteMarker
+): PasteMarkerElement => ({
   type: BlockType.PasteMarker,
   id: marker.id,
   chars: marker.chars,
@@ -137,13 +140,20 @@ export const getRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<strin
   return fileNames;
 };
 
-export function RoomInputAutocomplete({ editor, query, requestClose }: RoomInputAutocompleteProps) {
+export function RoomInputAutocomplete({
+  editor,
+  query,
+  requestClose,
+}: RoomInputAutocompleteProps) {
   if (!isRoomInputAutocompleteQuery(query)) return null;
 
   return <AgentCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />;
 }
 
-export function RoomInputThreadIndicator({ room, relation }: RoomInputThreadIndicatorProps) {
+export function RoomInputThreadIndicator({
+  room,
+  relation,
+}: RoomInputThreadIndicatorProps) {
   if (relation?.rel_type !== RelationType.Thread) return null;
 
   return <ThreadIndicator room={room} style={{ flexShrink: 0 }} />;

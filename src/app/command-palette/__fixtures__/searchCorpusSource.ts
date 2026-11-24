@@ -265,28 +265,32 @@ const buildSource = (language: CorpusLanguage): CorpusSource => {
     { currentRoomName: 'General', currentThreadId: '$login', isCurrentThreadResolved: false },
     translate as unknown as TFunction
   );
-  const callRows = ['code', 'research'].map((agent): CommandPaletteActionItem => ({
-    id: `call-agent:${agent}`,
-    kind: 'action',
-    title: translate('mindroomUi.calls.agentCallHeaderButton.callAgent', {
-      name: agent === 'code' ? 'Code' : 'Research',
-    }),
-    description: 'General',
-    keywords: ['voice', 'agent'],
-    sortRank: 75,
-  }));
+  const callRows = ['code', 'research'].map(
+    (agent): CommandPaletteActionItem => ({
+      id: `call-agent:${agent}`,
+      kind: 'action',
+      title: translate('mindroomUi.calls.agentCallHeaderButton.callAgent', {
+        name: agent === 'code' ? 'Code' : 'Research',
+      }),
+      description: 'General',
+      keywords: ['voice', 'agent'],
+      sortRank: 75,
+    })
+  );
   const roomCommandRows = (
     [
       ['viewSwitch', 'mindroomUi.threads.mindroomRoomViewHeader.compactView'],
       ['toolCalls', 'mindroomUi.messages.showToolCalls'],
     ] as const
-  ).map(([id, key]): CommandPaletteActionItem => ({
-    id: `room-command:${id}`,
-    kind: 'action',
-    title: translate(key),
-    description: 'General',
-    sortRank: 45,
-  }));
+  ).map(
+    ([id, key]): CommandPaletteActionItem => ({
+      id: `room-command:${id}`,
+      kind: 'action',
+      title: translate(key),
+      description: 'General',
+      sortRank: 45,
+    })
+  );
   const shortcutRows = (
     [
       ['help', 15],
@@ -294,12 +298,14 @@ const buildSource = (language: CorpusLanguage): CorpusSource => {
       ['previousUnread', 13],
       ['roomList', 12],
     ] as const
-  ).map(([id, sortRank]): CommandPaletteActionItem => ({
-    id: `shortcut:${id}`,
-    kind: 'action',
-    title: translate(SHORTCUTS[id].labelKey),
-    sortRank,
-  }));
+  ).map(
+    ([id, sortRank]): CommandPaletteActionItem => ({
+      id: `shortcut:${id}`,
+      kind: 'action',
+      title: translate(SHORTCUTS[id].labelKey),
+      sortRank,
+    })
+  );
 
   const themeRows = getCommandPalettePageRows(
     'theme',

@@ -9,7 +9,7 @@ const makeRoom = (overrides: Partial<Room> = {}): Room =>
     roomId: '!room:example.org',
     hasEncryptionStateEvent: () => false,
     ...overrides,
-  }) as Room;
+  } as Room);
 
 const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
   roomId: '!room:example.org',

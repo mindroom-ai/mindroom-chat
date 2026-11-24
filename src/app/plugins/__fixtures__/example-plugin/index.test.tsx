@@ -84,7 +84,7 @@ const dragEvent = (type: string, data: Map<string, string>): Event => {
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       types: [...data.keys()],
-      getData: (format: string) => (type === 'drop' ? (data.get(format) ?? '') : ''),
+      getData: (format: string) => (type === 'drop' ? data.get(format) ?? '' : ''),
       setData: (format: string, text: string) => data.set(format, text),
     },
   });

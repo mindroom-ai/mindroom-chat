@@ -72,7 +72,7 @@ const makeEvent = ({
     isRedacted: () => false,
     isRedaction: () => false,
     replacingEvent: () => replacingEvent?.(),
-  }) as MatrixEvent;
+  } as MatrixEvent);
 
 const makeTimelineSet = (events: MatrixEvent[]) => ({
   relations: {
@@ -92,7 +92,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => replies.at(-1) ?? null,
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
-  }) as unknown as Thread;
+  } as unknown as Thread);
 
 const tagSnapshot: ThreadTagSnapshot = {
   content: { tags: { urgent: { set_by: '@alice:example.org', set_at: '2026-05-06T00:00:00Z' } } },

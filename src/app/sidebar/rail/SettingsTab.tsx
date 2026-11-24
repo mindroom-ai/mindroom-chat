@@ -147,8 +147,8 @@ export function SettingsTab({
   const profile = useUserProfile(userId);
 
   const displayName = profile.isDisplayNameResolved
-    ? (profile.displayName ?? getMxIdLocalPart(userId) ?? userId)
-    : (activeSession?.lastKnownDisplayName ?? getMxIdLocalPart(userId) ?? userId);
+    ? profile.displayName ?? getMxIdLocalPart(userId) ?? userId
+    : activeSession?.lastKnownDisplayName ?? getMxIdLocalPart(userId) ?? userId;
 
   useEffect(() => {
     if (!activeSession || !profile.isDisplayNameResolved || !profile.displayName) return;

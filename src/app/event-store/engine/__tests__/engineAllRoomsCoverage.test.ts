@@ -51,10 +51,10 @@ const makeRoom = (roomId: string): Room =>
     roomId,
     findEventById: () => undefined,
     getThread: () => undefined,
-    getLiveTimeline: () => ({ getEvents: () => [] }) as never,
+    getLiveTimeline: () => ({ getEvents: () => [] } as never),
     getUnfilteredTimelineSet: () => undefined as never,
     getThreads: () => [],
-  }) as unknown as Room;
+  } as unknown as Room);
 
 const meta = (roomId: string): EngineLiveEventMeta => ({
   kind: 'timeline',

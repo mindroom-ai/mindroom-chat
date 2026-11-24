@@ -2,15 +2,9 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../../event-store/cache/preloadSettings';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
-import {
-  getLinkedTimelines,
-  getThreadTimelineEvents,
-} from '../../event-store/timeline/linkedTimelines';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
 import { reconcileThreadBackwardPagination } from '../../event-store/timeline/threadPaginationUtils';
-import {
-  createPreferLiveEventMapper,
-  loadThreadCachedSnapshot,
-} from '../../event-store/cache/eventRepository';
+import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
 import { MAX_THREAD_FETCH_ITERATIONS } from '../../event-store/engine/threadRelationsFetcher';
 import {
   getAuthoritativeCachedThreadReplyCount,

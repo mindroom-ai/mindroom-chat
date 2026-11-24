@@ -226,8 +226,8 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
               {suggestions.map((user, index) => {
                 const displayName = getDisplayName(user);
                 const avatarUrl = user.avatarMxcUrl
-                  ? (mxcUrlToHttp(mx, user.avatarMxcUrl, useAuthentication, 32, 32, 'crop') ??
-                    undefined)
+                  ? mxcUrlToHttp(mx, user.avatarMxcUrl, useAuthentication, 32, 32, 'crop') ??
+                    undefined
                   : undefined;
                 const active = !typedUserId && index === clampedFocusIndex;
 

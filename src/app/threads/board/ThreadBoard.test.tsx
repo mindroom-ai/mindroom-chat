@@ -76,7 +76,7 @@ const makeRecord = (threadRootId: string, status: Partial<ThreadStatusSnapshot> 
     },
     cache: {},
     absoluteIndex: 0,
-  }) as ThreadRecord;
+  } as ThreadRecord);
 
 type Thread = [string, Partial<ThreadStatusSnapshot>];
 type Threads = Thread[];
@@ -172,14 +172,14 @@ describe('ThreadBoard', () => {
   });
 
   it('shows the first 20 of Open and Done, and 20 more for each Show more', () => {
-    const open = Array.from({ length: 45 }, (_, index): Thread => [
-      `$open-${index}`,
-      { lastActivityTs: 1000 - index },
-    ]);
-    const done = Array.from({ length: 21 }, (_, index): Thread => [
-      `$done-${index}`,
-      { isResolved: true, lastActivityTs: 1000 - index },
-    ]);
+    const open = Array.from(
+      { length: 45 },
+      (_, index): Thread => [`$open-${index}`, { lastActivityTs: 1000 - index }]
+    );
+    const done = Array.from(
+      { length: 21 },
+      (_, index): Thread => [`$done-${index}`, { isResolved: true, lastActivityTs: 1000 - index }]
+    );
     renderBoard([...open, ...done]);
     expect(screen.getByRole('heading', { name: 'Open 45' })).toBeTruthy();
     expect(cardsOf('Open')).toHaveLength(20);
@@ -199,10 +199,13 @@ describe('ThreadBoard', () => {
 
   it('shows every thread of Working and Later', () => {
     renderBoard(
-      Array.from({ length: 50 }, (_, index): Thread => [
-        `$t-${index}`,
-        index % 2 ? { isStreaming: true } : { snoozedUntilTs: NOW + (index + 1) * MINUTE },
-      ])
+      Array.from(
+        { length: 50 },
+        (_, index): Thread => [
+          `$t-${index}`,
+          index % 2 ? { isStreaming: true } : { snoozedUntilTs: NOW + (index + 1) * MINUTE },
+        ]
+      )
     );
     expect(cardsOf('Working')).toHaveLength(25);
     expect(cardsOf('Later')).toHaveLength(25);

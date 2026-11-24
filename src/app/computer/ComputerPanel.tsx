@@ -28,7 +28,13 @@ const LazyComputerScreen = lazyPart(() => import('./ComputerScreen'), ComputerSc
 const actionButtonProps = { size: '300', fill: 'Soft', outlined: true, radii: '300' } as const;
 
 type PanelPhase =
-  'selecting' | 'connecting' | 'reconnecting' | 'ready' | 'disconnected' | 'stopped' | 'error';
+  | 'selecting'
+  | 'connecting'
+  | 'reconnecting'
+  | 'ready'
+  | 'disconnected'
+  | 'stopped'
+  | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
 // Starts at capture, not at connect. A release slower than this falls back to a blank screen.

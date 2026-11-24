@@ -48,8 +48,8 @@ export const buildRoomThreadScheduledStatusMap = (
       executeAtTs === undefined || !previousTimestampsComplete
         ? undefined
         : current.nextScheduledTs === undefined || executeAtTs < current.nextScheduledTs
-          ? executeAtTs
-          : current.nextScheduledTs;
+        ? executeAtTs
+        : current.nextScheduledTs;
     const cronDescription =
       current.scheduledTaskCount === 0 && executeAtTs === undefined
         ? parsedTask.cronDescription
@@ -70,7 +70,7 @@ export const getThreadScheduledStatus = (
   threadRootId: string | undefined
 ): ThreadScheduledStatus =>
   threadRootId
-    ? (scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS)
+    ? scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS
     : EMPTY_THREAD_SCHEDULED_STATUS;
 
 /** Same sender trust rule as the room's scheduled-task controls. Read once per index flush. */

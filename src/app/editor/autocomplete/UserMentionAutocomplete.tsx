@@ -71,7 +71,7 @@ function MentionRow({
   const displayName = memberName(member);
   const avatarMxc = member.getMxcAvatarUrl();
   const avatarSrc = avatarMxc
-    ? (mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
+    ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined
     : undefined;
   const avatar = (
     <Avatar size="200">

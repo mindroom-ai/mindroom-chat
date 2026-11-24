@@ -10,10 +10,7 @@ import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { ThreadFilterDropdown, ThreadFilterPanel } from './ThreadFilterDropdown';
 import * as css from './ThreadFilterDropdown.css';
-import {
-  buildThreadPeopleActivity,
-  matchesThreadPersonSearch,
-} from '../../event-store/threads/threadPeopleFilter';
+import { buildThreadPeopleActivity, matchesThreadPersonSearch } from '../../event-store/threads/threadPeopleFilter';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
 export type ThreadPeopleFilterProps = {
@@ -59,7 +56,7 @@ function PeoplePanel({
       userId,
       displayName: getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId,
       avatarUrl: avatarMxc
-        ? (mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined)
+        ? mxcUrlToHttp(mx, avatarMxc, authenticatedMedia, 32, 32, 'crop') ?? undefined
         : undefined,
       agent: isMindroomAgentUserId(userId),
       threadCount,

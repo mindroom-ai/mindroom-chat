@@ -363,7 +363,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   let avatarUrl: string | undefined;
   try {
     avatarUrl = summary.avatar_url
-      ? (mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined)
+      ? mxcUrlToHttp(client, summary.avatar_url, useAuthentication, 96, 96, 'crop') ?? undefined
       : undefined;
   } catch {
     // A client without a homeserver URL yet shows the fallback icon.

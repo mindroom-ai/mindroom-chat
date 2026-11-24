@@ -223,11 +223,7 @@ test('an unread fast agent reply stays counted after a reload', async ({ page: d
       .poll(
         async () =>
           Math.max(0, ...Object.values((await serverUnreadCounts(stack, roomId)).threads)),
-        {
-          timeout: 120_000,
-          intervals: [1000],
-          message: 'the server counts the reply and its title',
-        }
+        { timeout: 120_000, intervals: [1000], message: 'the server counts the reply and its title' }
       )
       .toBeGreaterThanOrEqual(2);
     await expectDevices([['desk', desk]], stack, roomId, log, 'fast', (server) => server - 1);

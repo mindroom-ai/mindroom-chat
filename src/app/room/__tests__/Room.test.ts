@@ -95,7 +95,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       panelDisposals: 0,
       computerPanelThreads: [] as Array<string | undefined>,
       routedEvent: undefined as
-        undefined | { getId: () => string; threadRootId?: string; isSending: () => boolean },
+        | undefined
+        | { getId: () => string; threadRootId?: string; isSending: () => boolean },
       clientConfig: { mindroom: {} },
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as

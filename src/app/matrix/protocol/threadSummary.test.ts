@@ -57,7 +57,9 @@ describe('isThreadSummaryEvent', () => {
   });
 
   it('returns false when thread_summary metadata is absent', () => {
-    expect(isThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(false);
+    expect(isThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(
+      false
+    );
   });
 
   it('returns false for empty content', () => {

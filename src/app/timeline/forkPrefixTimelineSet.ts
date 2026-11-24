@@ -11,7 +11,7 @@ export const forkPrefixThreadId = (
   eventId: string,
   forkPrefixEventIds: ReadonlySet<string> | undefined
 ): string | undefined =>
-  forkPrefixEventIds?.has(eventId) ? (ownThreadId(event) ?? eventId) : undefined;
+  forkPrefixEventIds?.has(eventId) ? ownThreadId(event) ?? eventId : undefined;
 
 /**
  * The set a row reads its edits from: a fork prefix's row its parent thread's, every other row

@@ -15,9 +15,7 @@ import { DARK_THEMES, LIGHT_THEMES, type ThemeName } from '../preferences/themeN
 // schemes publish (NOTICE, "Colour schemes"); the steps between are mixed here.
 
 // A colour for every token of the folds colour contract, which `createTheme(color, palette)` takes.
-type Palette = {
-  [Group in keyof typeof color]: { [Token in keyof (typeof color)[Group]]: string };
-};
+type Palette = { [Group in keyof typeof color]: { [Token in keyof (typeof color)[Group]]: string } };
 
 const lightAccents = {
   Primary: {

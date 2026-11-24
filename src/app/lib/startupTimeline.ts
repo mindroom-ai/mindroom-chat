@@ -68,7 +68,8 @@ export const claimClientStartup = (isActive: () => boolean): MarkClientStartup |
  */
 export const readStartupTimeline = () => {
   const entry = globalThis.performance?.getEntriesByType?.('navigation')[0] as
-    PerformanceNavigationTiming | undefined;
+    | PerformanceNavigationTiming
+    | undefined;
   const navigation = entry
     ? { responseEnd: entry.responseEnd, domInteractive: entry.domInteractive }
     : null;

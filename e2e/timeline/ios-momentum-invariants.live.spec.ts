@@ -96,12 +96,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
               (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
             ).join('\n')}`
           : i % 3 === 0
-            ? `short reply ${i}`
-            : `long reply ${i}\n${Array.from(
-                { length: 24 },
-                (_v, line) =>
-                  `line ${line} of reply ${i} with enough text to wrap on a phone screen`
-              ).join('\n')}`;
+          ? `short reply ${i}`
+          : `long reply ${i}\n${Array.from(
+              { length: 24 },
+              (_v, line) => `line ${line} of reply ${i} with enough text to wrap on a phone screen`
+            ).join('\n')}`;
       // eslint-disable-next-line no-await-in-loop
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
@@ -876,12 +875,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
               (_v, line) => `streamed answer line ${line} of reply ${i} with wrapping text`
             ).join('\n')}`
           : i % 3 === 0
-            ? `short reply ${i}`
-            : `long reply ${i}\n${Array.from(
-                { length: 24 },
-                (_v, line) =>
-                  `line ${line} of reply ${i} with enough text to wrap on a phone screen`
-              ).join('\n')}`;
+          ? `short reply ${i}`
+          : `long reply ${i}\n${Array.from(
+              { length: 24 },
+              (_v, line) => `line ${line} of reply ${i} with enough text to wrap on a phone screen`
+            ).join('\n')}`;
       // eslint-disable-next-line no-await-in-loop
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',

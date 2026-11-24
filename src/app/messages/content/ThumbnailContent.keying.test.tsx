@@ -8,9 +8,7 @@ const mocks = vi.hoisted(() => ({
   matrixClient: {},
 }));
 
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => mocks.matrixClient,
-}));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.matrixClient }));
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
   downloadCachedAttachment: mocks.downloadCachedAttachment,
 }));

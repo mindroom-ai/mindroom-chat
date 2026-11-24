@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ContactInfo } from './ContactInfo';
 
 const mocks = vi.hoisted(() => {
-  const getThreePids = vi.fn<() => Promise<{ threepids: { medium: string; address: string }[] }>>();
+  const getThreePids =
+    vi.fn<() => Promise<{ threepids: { medium: string; address: string }[] }>>();
   // One client for every render, as the provider gives: the effect depends on it.
   return { getThreePids, client: { getThreePids } };
 });

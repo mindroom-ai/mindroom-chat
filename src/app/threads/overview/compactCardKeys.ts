@@ -68,7 +68,7 @@ export const focusCardBeside = (
   exact = false
 ): boolean => {
   const navigation = navigationIn(root);
-  const index = id === undefined ? -1 : (navigation?.ids.indexOf(id) ?? -1);
+  const index = id === undefined ? -1 : navigation?.ids.indexOf(id) ?? -1;
   if (navigation && index >= 0) {
     return navigation.focus(navigation.ids[index + step] ?? navigation.ids[index]);
   }

@@ -523,7 +523,7 @@ const expectHitAreasApart = async (page: Page) => {
           name,
           at: [Math.round(px!), Math.round(py!)],
           own: hit === button,
-          other: hit && hit !== button ? (hit.getAttribute('aria-label') ?? '') : null,
+          other: hit && hit !== button ? hit.getAttribute('aria-label') ?? '' : null,
           areaButton: name === 'Thread options' || name === 'Resolve',
         };
       });
@@ -638,7 +638,7 @@ const expectTabInScreenOrder = async (page: Page, dir: 'ltr' | 'rtl') => {
       const { top, bottom, left, right } = element.getBoundingClientRect();
       const name = element.hasAttribute('data-thread-context-summary')
         ? 'title'
-        : (element.getAttribute('aria-label') ?? element.textContent ?? '');
+        : element.getAttribute('aria-label') ?? element.textContent ?? '';
       return { name, top, bottom, left, right };
     });
     if (!stop) break;

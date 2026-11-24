@@ -18,7 +18,7 @@
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
 #   strict    tsc --noEmit -p config/tsconfig.strict.json (tests and e2e included)
 #   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
-#             it reads changes: scripts/eslint-shared.cjs, the tsconfigs)
+#             it reads changes: scripts/eslint-shared.mjs, the tsconfigs)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
 #             second failure counts (the detail says how many passed on the rerun)
 #   keys      every object base..rev adds (files and commit messages) against the values in
@@ -225,10 +225,10 @@ check_lint() {
   local rc=0 files=() scope problems
   mapfile -t files < <(
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
-      src e2e scripts vite.config.js vitest.config.ts .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
+      src e2e scripts vite.config.js vitest.config.ts eslint.config.plugin.mjs electron playwright.electron.config.ts | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
   # The config, and what it reads to type the files.
-  if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- .eslintrc.cjs scripts/eslint-shared.cjs \
+  if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- eslint.config.mjs scripts/eslint-shared.mjs \
     tsconfig.json config/tsconfig.strict.json)" ]; then
     scope='every file (the ESLint config or a file it reads changed)'
     (cd "$tree" && npm run lint) >"$logs/lint.log" 2>&1 || rc=$?

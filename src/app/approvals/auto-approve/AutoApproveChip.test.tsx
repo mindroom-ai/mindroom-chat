@@ -48,8 +48,8 @@ const NOW = Date.parse('2026-10-22T15:00:00Z');
 const room = {
   myUserId: ME,
   getMember: (userId: string) =>
-    ({ '@bob:example.org': { name: 'Bob' }, '@carol:example.org': { name: 'Carol' } })[userId] ??
-    null,
+    ({ '@bob:example.org': { name: 'Bob' }, '@carol:example.org': { name: 'Carol' } }[userId] ??
+    null),
 } as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;

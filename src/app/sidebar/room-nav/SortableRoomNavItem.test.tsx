@@ -50,7 +50,7 @@ const room = (roomId: string, name: string): Room =>
   ({
     roomId,
     name,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 function Harness({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
   const parentSpaceId = '!space:example.org';

@@ -10,7 +10,7 @@ type NamesSentenceKeyTuple<Prefix extends 'featureUi.room.typing' | 'featureUi.r
     `${Prefix}.two`,
     `${Prefix}.three`,
     `${Prefix}.four`,
-    `${Prefix}.many`,
+    `${Prefix}.many`
   ];
 
 type NamesSentenceKeys =

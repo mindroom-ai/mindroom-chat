@@ -28,7 +28,7 @@ const fakeEvent = (
     replacingEvent: () => undefined,
     isRedacted: () => false,
     isRedaction: () => false,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const listedThread = ({ participated }: { participated: boolean }) => {
   const root = fakeEvent('$root', ROOT_SENDER, {

@@ -100,7 +100,7 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
 
   const resolvedActiveIndex =
     activeIndex !== null && activeIndex < items.length ? activeIndex : null;
-  const activeItem = resolvedActiveIndex === null ? null : (items[resolvedActiveIndex] ?? null);
+  const activeItem = resolvedActiveIndex === null ? null : items[resolvedActiveIndex] ?? null;
   const activeTopPercent =
     resolvedActiveIndex === null
       ? 0
@@ -163,7 +163,7 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
           }}
           onClick={(event) => {
             const nextIndex = resolveActiveIndexFromPointer(event);
-            const nextItem = nextIndex === null ? null : (items[nextIndex] ?? null);
+            const nextItem = nextIndex === null ? null : items[nextIndex] ?? null;
             if (nextItem) {
               onSelect(nextItem);
             }

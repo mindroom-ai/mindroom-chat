@@ -83,7 +83,7 @@ const client = (notifies = true) =>
   ({
     getUserId: () => ME,
     getPushActionsForEvent: () => ({ notify: notifies, tweaks: {} }),
-  }) as unknown as MatrixClient;
+  } as unknown as MatrixClient);
 
 afterEach(() => clearSeenThreadRoots(ME));
 

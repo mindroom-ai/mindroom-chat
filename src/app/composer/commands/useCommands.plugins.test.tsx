@@ -12,7 +12,7 @@ vi.mock('../../plugins/slashCommands', () => ({
   usePluginSlashCommands: () => plugins.commands,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({}) as MatrixClient,
+  useMatrixClient: () => ({} as MatrixClient),
 }));
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined }),

@@ -78,12 +78,7 @@ describe('native watch plugin', () => {
     await expect(getWatchStatus()).resolves.toMatchObject({ device: { deviceId: 'WATCH' } });
     await sendWatchCredentials(credentials);
     expect(plugin.sendCredentials).toHaveBeenCalledWith(credentials);
-    const secrets = {
-      v: 1 as const,
-      kind: 'secrets' as const,
-      userId: '@bas:mindroom.chat',
-      bundle: '{}',
-    };
+    const secrets = { v: 1 as const, kind: 'secrets' as const, userId: '@bas:mindroom.chat', bundle: '{}' };
     await sendWatchSecrets(secrets);
     expect(plugin.sendSecrets).toHaveBeenCalledWith(secrets);
     await signOutWatch();

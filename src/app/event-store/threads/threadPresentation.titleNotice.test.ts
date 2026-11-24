@@ -33,7 +33,7 @@ const threadEvent = (eventId: string, ts: number, content: Record<string, unknow
     isRedacted: () => false,
     isRedaction: () => false,
     threadRootId: ROOT,
-  }) as unknown as MatrixEvent;
+  } as unknown as MatrixEvent);
 
 const reply = threadEvent('$reply', 2, {
   msgtype: 'm.text',

@@ -1,10 +1,4 @@
-import {
-  EventType,
-  RelationType,
-  type MatrixClient,
-  type Relations,
-  type Room,
-} from 'matrix-js-sdk';
+import { EventType, RelationType, type MatrixClient, type Relations, type Room } from 'matrix-js-sdk';
 import { discardFailedLocalEcho } from '../../matrix/protocol/pendingLocalEcho';
 
 type ReactionToggle = {
@@ -27,8 +21,7 @@ const ownReactionId = (relations: Relations | undefined, key: string, userId: st
     ?.getSortedAnnotationsByKey()
     ?.find(([annotationKey]) => annotationKey === key)?.[1];
   const own =
-    reactions &&
-    [...reactions].find((event) => event.getSender() === userId && !event.isRedacted());
+    reactions && [...reactions].find((event) => event.getSender() === userId && !event.isRedacted());
   return own?.getId();
 };
 

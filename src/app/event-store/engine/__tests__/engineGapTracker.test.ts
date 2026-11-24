@@ -35,7 +35,7 @@ const makeRoom = ({
       ({
         getPaginationToken: (dir: Direction) =>
           dir === Direction.Backward ? paginationToken : null,
-      }) as never,
+      } as never),
     getUnfilteredTimelineSet: () => timelineSet,
   } as unknown as Room;
 };
@@ -47,10 +47,9 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     marker: { markedAt: number; prevBatch?: string | null; generation?: string }
   ) => marker;
   const markDiscontinuity = vi.fn(defaultMarkDiscontinuity);
-  const loadCachedTail = vi.fn(async (): Promise<CachedRoomEventPage> => ({
-    events: [],
-    hasMoreBefore: false,
-  }));
+  const loadCachedTail = vi.fn(
+    async (): Promise<CachedRoomEventPage> => ({ events: [], hasMoreBefore: false })
+  );
 
   beforeEach(() => {
     resetCacheProbe();
@@ -384,7 +383,8 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
     let resolveFirst:
-      ((marker: { markedAt: number; prevBatch?: string | null }) => void) | undefined;
+      | ((marker: { markedAt: number; prevBatch?: string | null }) => void)
+      | undefined;
     markDiscontinuity
       .mockImplementationOnce(
         async () =>
