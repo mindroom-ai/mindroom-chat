@@ -800,14 +800,16 @@ describe('createDictationSession', () => {
 
     // Finish refinement that is the sole transcription for a flushed segment is NOT aborted.
     let soleCall = 0;
-    let soleSignal: AbortSignal | undefined;
+    let soleAbortedDuringUpload: boolean | undefined;
     const { rig: rigSole, session: soleSess } = await startTestSession(
       (_wav: Blob, _opts?: { prompt?: string; roomId?: string }, signal?: AbortSignal) => {
         soleCall += 1;
         if (soleCall === 1) return Promise.resolve({ text: 'First.', seconds: 1 });
-        soleSignal = signal;
         return new Promise<{ text: string; seconds: number }>((resolve) => {
-          setTimeout(() => resolve({ text: 'First and flushed tail.', seconds: 1.5 }), 80);
+          setTimeout(() => {
+            soleAbortedDuringUpload = signal?.aborted;
+            resolve({ text: 'First and flushed tail.', seconds: 1.5 });
+          }, 80);
         });
       },
       { finishPolishTimeoutMs: 30 }
@@ -820,7 +822,7 @@ describe('createDictationSession', () => {
       status: 'completed',
       text: 'First and flushed tail.',
     });
-    expect(soleSignal?.aborted).toBe(false);
+    expect(soleAbortedDuringUpload).toBe(false);
   });
 
   it('self-heals an earlier failed primary when merged group refinement succeeds on Finish', async () => {

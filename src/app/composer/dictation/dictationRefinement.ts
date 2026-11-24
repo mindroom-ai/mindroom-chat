@@ -352,8 +352,7 @@ export const appendSegmentToGroups = (
 export const isRecordCoveredByRefinement = (
   groups: readonly RefinementGroup[],
   index: number
-): boolean =>
-  groups.some((group) => index >= group.startIndex && index <= groupCoveredEnd(group));
+): boolean => groups.some((group) => index >= group.startIndex && index <= groupCoveredEnd(group));
 
 /** Picks the chronologically earliest queued/live refinement or uncovered primary upload. */
 export const selectNextUpload = (
