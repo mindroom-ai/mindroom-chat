@@ -1178,6 +1178,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
+      "awaitingAnswer": "Menunggu jawaban Anda: {{tool}}",
       "jobCountFinished": "{{count}} tugas latar belakang selesai",
       "groupWorkflows": "Alur kerja · {{number}}",
       "groupSubagents": "Subagen · {{number}}",

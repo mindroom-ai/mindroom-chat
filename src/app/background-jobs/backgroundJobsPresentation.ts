@@ -250,6 +250,6 @@ export const presentBackgroundJobs = (
   if (items[0]!.waiting)
     return { title: t('mindroomUi.backgroundJobs.awaitingApproval', { tool }), ...one };
   if (items[0]!.workflowWaiting)
-    return { title: `${t('mindroomUi.workflowRun.status.waiting')}: ${tool}`, ...one };
+    return { title: t('mindroomUi.backgroundJobs.awaitingAnswer', { tool }), ...one };
   return { title: t('mindroomUi.backgroundJobs.running', { tool }), ...one };
 };

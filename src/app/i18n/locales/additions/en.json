@@ -1213,6 +1213,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
+      "awaitingAnswer": "Waiting for your answer: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished",
       "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Sub-agents · {{number}}",

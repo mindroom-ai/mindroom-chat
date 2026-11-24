@@ -1248,6 +1248,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tâches en arrière-plan ({{shown}} affichées)",
       "finished": "Terminé : {{tool}}",
+      "awaitingAnswer": "En attente de votre réponse : {{tool}}",
       "jobCountFinished": "{{count}} tâches en arrière-plan terminées",
       "groupWorkflows": "Flux de travail · {{number}}",
       "groupSubagents": "Sous-agents · {{number}}",

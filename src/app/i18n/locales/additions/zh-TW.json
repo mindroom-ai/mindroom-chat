@@ -1178,6 +1178,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
+      "awaitingAnswer": "等待你的回答：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成",
       "groupWorkflows": "工作流程 · {{number}}",
       "groupSubagents": "子代理 · {{number}}",

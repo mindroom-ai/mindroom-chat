@@ -1283,6 +1283,7 @@
     "backgroundJobs": {
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
+      "awaitingAnswer": "Ждёт вашего ответа: {{tool}}",
       "jobCountFinished": "Завершено фоновых задач: {{count}}",
       "groupWorkflows": "Рабочие процессы · {{number}}",
       "groupSubagents": "Субагенты · {{number}}",

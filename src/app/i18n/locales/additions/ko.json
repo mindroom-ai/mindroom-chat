@@ -1178,6 +1178,7 @@
     "backgroundJobs": {
       "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
       "finished": "완료됨: {{tool}}",
+      "awaitingAnswer": "답변 대기 중: {{tool}}",
       "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨",
       "groupWorkflows": "워크플로 · {{number}}",
       "groupSubagents": "하위 에이전트 · {{number}}",

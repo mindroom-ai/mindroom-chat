@@ -1353,6 +1353,7 @@
     "backgroundJobs": {
       "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)",
       "finished": "انتهى: ⁨{{tool}}⁩",
+      "awaitingAnswer": "بانتظار إجابتك: ⁨{{tool}}⁩",
       "jobCountFinished": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
       "groupWorkflows": "سير العمل · ⁨{{number}}⁩",
       "groupSubagents": "الوكلاء الفرعيون · ⁨{{number}}⁩",

@@ -1213,6 +1213,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
+      "awaitingAnswer": "Wacht op jouw antwoord: {{tool}}",
       "jobCountFinished": "{{count}} achtergrondtaken voltooid",
       "groupWorkflows": "Workflows · {{number}}",
       "groupSubagents": "Subagenten · {{number}}",

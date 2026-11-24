@@ -440,6 +440,16 @@ describe('presentBackgroundJobs, rich rows', () => {
     // Workflow ask_user wait is not an approval wait; folded summary counts workflows with tools.
     expect(model?.summary).toEqual({ subagents: 1, tools: 1, waiting: 0 });
 
+    // Single workflow waiting on an answer uses its dedicated localized title key.
+    const singleWaiting = presentBackgroundJobs(
+      [job('job_wf', { kind: 'workflow', tool: 'workflow', workflow: runId })],
+      none,
+      t,
+      1,
+      { runs: [], toolCallFor: () => undefined, workflowRuns: new Map([[runId, workflowEntry]]) }
+    );
+    expect(singleWaiting?.title).toBe('Waiting for your answer: Audit the sample module');
+
     // Peer-only wait is not a human wait; approval wait counts as waiting for approval.
     const peerEntry = {
       ...workflowEntry,

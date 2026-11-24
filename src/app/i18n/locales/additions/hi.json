@@ -1213,6 +1213,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
       "finished": "पूरा हुआ: {{tool}}",
+      "awaitingAnswer": "आपके उत्तर की प्रतीक्षा में: {{tool}}",
       "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए",
       "groupWorkflows": "वर्कफ़्लो · {{number}}",
       "groupSubagents": "सब-एजेंट · {{number}}",

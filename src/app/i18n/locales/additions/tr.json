@@ -1213,6 +1213,7 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
+      "awaitingAnswer": "Yanıtınız bekleniyor: {{tool}}",
       "jobCountFinished": "{{count}} arka plan işi tamamlandı",
       "groupWorkflows": "İş akışları · {{number}}",
       "groupSubagents": "Alt ajanlar · {{number}}",
