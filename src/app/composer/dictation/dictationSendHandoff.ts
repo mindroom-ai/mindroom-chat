@@ -8,7 +8,7 @@ import {
   type Descendant,
   type Editor,
 } from 'slate';
-import { isEmptyEditor, withInlineElements } from '../../editor/utils';
+import { createParagraphElement, isEmptyEditor, withInlineElements } from '../../editor/utils';
 import { isSignalBridgeRoom } from '../../matrix/bridgeDetection';
 import { MID_TURN_MODE_KEY } from '../../matrix/protocol/midTurn';
 import type { ThreadModelContent } from '../../matrix/protocol/threadModel';
@@ -19,7 +19,6 @@ import type { SlashCommand } from '../commands/useCommands';
 import { composeTextMessage, withMention } from '../composeTextMessage';
 import type { RoomInputAttachmentAccess } from '../roomInputAttachmentAccess';
 import {
-  activeDictationAtom,
   detachedDictationErrorAtom,
   detachedDictationSendsAtom,
   restoreTextToDraft,
@@ -34,7 +33,8 @@ import {
   type RoomInputSendContext,
   type StartRoomInputSendSessionOptions,
 } from '../useRoomInputSendSessionController';
-import { voiceAccountGuard } from '../voice/liveVoiceRecording';
+import { deleteCapture, releaseCapture } from '../capture/captureJournal';
+import { captureAccountGuard } from '../capture/liveCapture';
 import type { DictationFinishResult, DictationSession } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 
@@ -49,6 +49,7 @@ type JotaiStore = ReturnType<typeof createStore>;
 type ComposerContext = { roomId: string; threadId: string | undefined };
 
 export type MountedDictationOwner = {
+  insertDictatedText: (text: string, focus: boolean, session: DictationSession) => void;
   restoreText: (fragment: Descendant[]) => void;
   restoreReplyDraft: (replyDraft: IReplyDraft) => void;
   restoreAttachments: (roomId: string, items: TUploadItem[]) => void;
@@ -81,7 +82,10 @@ export const registerMountedDictationOwner = (
   };
 };
 
-const getMountedOwner = (store: JotaiStore, sendKey: string): MountedDictationOwner | undefined => {
+export const getMountedOwner = (
+  store: JotaiStore,
+  sendKey: string
+): MountedDictationOwner | undefined => {
   const set = mountedOwnersByStore.get(store)?.get(sendKey);
   return set && set.size > 0 ? [...set][set.size - 1] : undefined;
 };
@@ -101,7 +105,8 @@ export const mergeDictatedDoc = (
   pendingMarks: Record<string, unknown> | null
 ): Editor => {
   const scratch = withInlineElements(createEditor());
-  scratch.children = structuredClone(docSnapshot);
+  scratch.children =
+    docSnapshot.length > 0 ? structuredClone(docSnapshot) : [createParagraphElement()];
   if (pendingMarks && (!savedSelection || SlateRange.isCollapsed(savedSelection))) {
     if (savedSelection) {
       try {
@@ -128,7 +133,6 @@ export type StartDetachedDictationSendInput = {
   store: JotaiStore;
   mx: MatrixClient;
   ownerKey: string;
-  ownershipKey?: string;
   draftKey: string;
   roomName: string;
   sendContext: RoomInputSendContext;
@@ -250,13 +254,16 @@ export const startDetachedDictationSend = (
   input: StartDetachedDictationSendInput
 ): DetachedDictationSend => {
   const { store, mx, ownerKey, sendContext, composerContext, session, ask, attachments } = input;
-  const ownershipKey = input.ownershipKey ?? ownerKey;
   const { roomId, replyDraft } = sendContext;
-  const sameAccount = voiceAccountGuard(store);
+  const sameAccount = captureAccountGuard(store);
   const stagedFiles = input.stagedSnapshot.map((item) => item.file);
   let aborted = false;
   let accountRestored = false;
+  const journalId = session.getJournalId();
   let currentEntry!: DetachedDictationSend;
+  const deleteJournal = () => {
+    if (journalId) void deleteCapture(journalId).catch(() => undefined);
+  };
 
   const getActiveStaged = (): TUploadItem[] => {
     if (ask || input.stagedSnapshot.length === 0) return [];
@@ -337,7 +344,8 @@ export const startDetachedDictationSend = (
   const handleFinishResult = async (result: DictationFinishResult): Promise<void> => {
     if (aborted || !sameAccount()) {
       clearEnrollments();
-      session.discard();
+      session.reset();
+      if (result.status === 'completed' && journalId) releaseCapture(journalId);
       restoreDocOnAccountSwitch();
       removeEntry();
       return;
@@ -369,11 +377,13 @@ export const startDetachedDictationSend = (
       const unknownCommand = readUnknownCommand(scratch.children, input.commandsSnapshot);
       if (unknownCommand !== undefined) {
         restoreDraftAndCleanup(mergedFallback);
+        deleteJournal();
         getMountedOwner(store, ownerKey)?.onCommandProblem(unknownCommand);
         return;
       }
       if (readActingCommand(scratch.children, input.commandsSnapshot)) {
         restoreDraftAndCleanup(mergedFallback);
+        deleteJournal();
         return;
       }
     }
@@ -394,6 +404,7 @@ export const startDetachedDictationSend = (
     const activeStaged = getActiveStaged();
     if (!textContent && (ask || activeStaged.length === 0)) {
       restoreDraftAndCleanup(input.docSnapshot);
+      deleteJournal();
       const mountedOwner = getMountedOwner(store, ownerKey);
       if (mountedOwner) {
         mountedOwner.onNoSpeech();
@@ -410,6 +421,7 @@ export const startDetachedDictationSend = (
     const liveRoom = mx.getRoom(roomId);
     if (!liveRoom) {
       restoreDraftAndCleanup(mergedFallback);
+      deleteJournal();
       return;
     }
 
@@ -422,6 +434,14 @@ export const startDetachedDictationSend = (
     clearMatchingError();
     if (textContent && !ask) input.dismissLostNotices?.();
 
+    let textConsumed = false;
+    const onTextConsumed = () => {
+      if (textConsumed) return;
+      textConsumed = true;
+      if (!journalId) return;
+      if (sameAccount() && !aborted) deleteJournal();
+      else releaseCapture(journalId);
+    };
     try {
       await input.sessions.startSendSession({
         textContent,
@@ -443,10 +463,15 @@ export const startDetachedDictationSend = (
               if (sameAccount()) ask.onLocalEcho?.(eventId, sentRoom);
             }
           : undefined,
+        onTextConsumed,
       });
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[dictation-send] could not send dictated message', error);
+      if (!textConsumed && sameAccount() && !aborted) {
+        restoreDraftAndCleanup(mergedFallback);
+      }
+      onTextConsumed();
     } finally {
       if (sameAccount()) ask?.onSendingChange?.(false);
     }
@@ -463,33 +488,34 @@ export const startDetachedDictationSend = (
 
   function insertPartial() {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
+    const { text } = session.takePartialText();
     const scratch = mergeDictatedDoc(
       input.docSnapshot,
-      session.takePartialText(),
+      text,
       input.savedSelection,
       input.pendingMarks
     );
     restoreDraftAndCleanup(structuredClone(scratch.children));
+    deleteJournal();
   }
 
-  function discard() {
+  async function discard(): Promise<void> {
     if (aborted || !sameAccount() || currentEntry.status !== 'failed') return;
-    session.discard();
+    if (store.get(detachedDictationSendsAtom).get(ownerKey) !== currentEntry) return;
     restoreDraftAndCleanup(input.docSnapshot);
+    await session.discard();
   }
 
   function abort() {
     if (aborted) return;
     aborted = true;
-    session.discard();
+    session.reset();
     clearEnrollments();
     restoreDocOnAccountSwitch();
   }
 
-  // Register entry before releasing activeDictationAtom so reload protection never flickers false.
   const entry = setEntryStatus('sending');
   const finishPromise = session.finish();
-  if (store.get(activeDictationAtom) === ownershipKey) store.set(activeDictationAtom, undefined);
   void finishPromise.then(handleFinishResult, () => handleFinishResult({ status: 'cancelled' }));
   return entry;
 };

@@ -62,7 +62,7 @@ import {
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
 import { confirmedVoiceThreadId } from '../composer/RoomInputExtensions';
-import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import { liveCaptureAtom } from '../composer/capture/liveCapture';
 import { toPlainText } from '../editor/output';
 import { createParagraphElement } from '../editor/utils';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
@@ -423,7 +423,7 @@ export function RoomViewHeader({
   const editScheduledTask = (task: ParsedScheduledTask): EditScheduledTaskResult => {
     if (!isCommandSafeTaskId(task.taskId)) return undefined;
     if (
-      store.get(liveVoiceRecordingAtom) !== undefined ||
+      store.get(liveCaptureAtom) !== undefined ||
       store.get(pendingVoiceSendDraftAtom)?.recovered
     ) {
       return 'draft-busy';

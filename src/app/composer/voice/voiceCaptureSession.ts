@@ -92,7 +92,7 @@ export type VoiceCaptureSession = {
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
   Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
 
-/** The recording's disk copy (`voiceRecordingJournal.ts`), which this tab holds the lock of. */
+/** The recording's disk copy (`capture/captureJournal.ts`), which this tab holds the lock of. */
 type CaptureJournal = {
   id: string;
   append: (seq: number, data: Blob, elapsedMs: number) => Promise<void>;

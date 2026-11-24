@@ -8,7 +8,7 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { ScreenSizeProvider, useScreenSize } from '../lib/hooks/useScreenSize';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { watchComposerAccount } from '../composer/roomInputDrafts';
-import { parkLiveVoiceRecording } from '../composer/voice/liveVoiceRecording';
+import { parkLiveCapture } from '../composer/capture/liveCapture';
 import {
   ThemeContextProvider,
   deploymentDefaultTheme,
@@ -107,7 +107,7 @@ function App() {
   // on the sign-in pages.
   useReconcileNativeNotifications();
   useLayoutEffect(() => watchComposerAccount(appJotaiStore), []);
-  useEffect(() => watchDesktopWindowHidden(() => parkLiveVoiceRecording(appJotaiStore)), []);
+  useEffect(() => watchDesktopWindowHidden(() => parkLiveCapture(appJotaiStore)), []);
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
   // A tap on the iOS status bar scrolls the view under it to the top.

@@ -690,7 +690,18 @@
       "manage": "Kelola"
     },
     "roomOrder": {
-      "sortByName": "Urutkan ruang dari A ke Z"
+      "sortRooms": "Urutkan ruang",
+      "sortHeading": "Urutkan ruang",
+      "displayHeading": "Tampilan",
+      "recentActivity": "Aktivitas terbaru",
+      "aToZ": "A ke Z",
+      "customOrder": "Urutan kustom",
+      "saved": "Tersimpan",
+      "showActivityTimes": "Tampilkan waktu aktivitas",
+      "matchSpace": "Ikuti space ({{mode}})",
+      "shortRecent": "Terbaru",
+      "shortName": "A ke Z",
+      "shortManual": "Kustom"
     },
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",
@@ -1444,7 +1455,20 @@
       "statusPendingRetry_other": "{{count}} segmen menunggu percobaan ulang",
       "capReached": "Batas 5:00 tercapai",
       "micInterrupted": "Mikrofon terputus. Lanjutkan atau selesaikan.",
-      "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen."
+      "failedSummary_other": "Tidak dapat mentranskripsi {{count}} segmen.",
+      "discardDictation": "Buang dikte",
+      "discardConfirmTitle": "Buang dikte?",
+      "discardConfirmBody": "Dikte ini belum dimasukkan atau dikirim. Buang secara permanen?",
+      "errorTitle": "Kesalahan Dikte",
+      "statusRecovered": "Dikte dipulihkan",
+      "recoveredDuration": "Dipulihkan · {{time}}",
+      "indicator": {
+        "recording": "Mendikte {{time}}",
+        "paused": "Dikte dijeda {{time}}",
+        "recovered": "Dikte dipulihkan {{time}}",
+        "finishing": "Menyelesaikan dikte...",
+        "failed": "Dikte perlu perhatian"
+      }
     }
   },
   "commandPalette": {

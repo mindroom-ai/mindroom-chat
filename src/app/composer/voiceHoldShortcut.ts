@@ -70,7 +70,7 @@ export const useVoiceComposer = (composer: VoiceComposer | undefined): void => {
  * The composer a press of the voice key acts in, among those shown. One that offers a failed
  * recording is the only one that may (no other recording starts while it waits); else the focused
  * composer, else the open thread's, else the room's. A recording that runs is the account's and
- * shows in every composer (voice/liveVoiceRecording.ts), so it is sent from the one found so.
+ * shows in every composer (capture/liveCapture.ts), so it is sent from the one found so.
  */
 export const resolveVoiceComposer = (
   focused: Element | null = document.activeElement

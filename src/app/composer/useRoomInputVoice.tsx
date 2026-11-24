@@ -18,7 +18,6 @@ import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
   type StagedList,
-  activeDictationAtom,
   composerUploadItemsAtom,
   getRoomInputDraftKey,
   pendingVoiceSendDraftAtom,
@@ -47,13 +46,14 @@ import {
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
 import {
-  liveVoiceRecordingAtom,
-  voiceAccountGuard,
-  voiceDiscardsInFlightAtom,
-} from './voice/liveVoiceRecording';
+  captureAccountGuard,
+  captureDiscardsInFlightAtom,
+  liveCaptureAtom,
+} from './capture/liveCapture';
 import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
+import { dictationRestoresAtom, getDictationSessionId } from './dictation/startLiveDictation';
 import { useSavedVoiceDraft, voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
-import { releaseVoiceRecording } from './voice/voiceRecordingJournal';
+import { releaseCapture } from './capture/captureJournal';
 import { hasFailedPasteMarkerInText, skipsRootModel } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -154,15 +154,16 @@ export const useRoomInputVoice = ({
   const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
   const defaultMidTurnModeRef = useLatestRef(useSettingValue(settingsAtom, 'midTurnSend'));
   // The account's recording, which this composer shows while it runs and sends when its Send is
-  // pressed (voice/liveVoiceRecording.ts). It is not this composer's until then.
-  const liveRecording = useAtomValue(liveVoiceRecordingAtom) !== undefined;
-  const activeDictation = useAtomValue(activeDictationAtom);
+  // pressed (capture/liveCapture.ts). It is not this composer's until then.
+  const liveCapture = useAtomValue(liveCaptureAtom);
+  const liveRecording = liveCapture?.kind === 'voice';
   // This composer's Send took the recording: its capsule stays, as sending, until that settles.
   // It covers the whole send; the recorder hook's `claimed` (voice/useVoiceRecorder.ts) holds the
   // recording itself for the same time, and is what the capsule draws.
   const [sendingHere, setSendingHere] = useState(false);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
   const voiceDraftRestores = useAtomValue(voiceDraftRestoresAtom);
+  const dictationRestores = useAtomValue(dictationRestoresAtom);
   const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
   // Drafts are stamped with the matrix userId of the session that captured
@@ -170,6 +171,7 @@ export const useRoomInputVoice = ({
   // switch in the sidebar leaves yesterday's draft visible to a new
   // account; ignore (and clean up) any draft that does not belong to us.
   const currentSessionId = mx.getUserId() ?? undefined;
+  const dictationSessionId = getDictationSessionId(mx);
   // A failed send recorded in this composer comes back in it.
   const composerContext = getContext();
   const composerKey = voiceComposerKey(composerContext);
@@ -235,8 +237,7 @@ export const useRoomInputVoice = ({
     if (!pendingVoiceSendDraft) return;
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
     if (!draftBelongsToCurrentSession || (!recovered && (!sourceRoom || !isJoined(sourceRoom)))) {
-      if (pendingVoiceSendDraft.recordingId)
-        releaseVoiceRecording(pendingVoiceSendDraft.recordingId);
+      if (pendingVoiceSendDraft.recordingId) releaseCapture(pendingVoiceSendDraft.recordingId);
       setPendingVoiceSendDraft(undefined);
     }
   }, [
@@ -269,12 +270,13 @@ export const useRoomInputVoice = ({
   const claimVoiceAutoSend = useCallback(() => {
     if (store.get(voiceAutoSendPendingAtom)) return false;
 
-    voiceAutoSendClaimedRef.current = voiceAccountGuard(store);
+    voiceAutoSendClaimedRef.current = captureAccountGuard(store);
     store.set(voiceAutoSendPendingAtom, true);
     const bundle = pendingVoiceComposerBundleRef.current;
-    const parked = store.get(liveVoiceRecordingAtom)
-      ? undefined
-      : store.get(pendingVoiceSendDraftAtom);
+    const parked =
+      store.get(liveCaptureAtom)?.kind === 'voice'
+        ? undefined
+        : store.get(pendingVoiceSendDraftAtom);
     const target = parked && !parked.recovered ? parked.context : getContext();
     if (
       !bundle?.pastesMissing &&
@@ -339,7 +341,7 @@ export const useRoomInputVoice = ({
       let sentEventIdToNotify: string | undefined;
       let voiceSent = false;
       // Left meanwhile, the account sends nothing more: the send fails, and parks nothing.
-      const sameAccount = voiceAccountGuard(store);
+      const sameAccount = captureAccountGuard(store);
       const ensureSameAccount = () => {
         if (!sameAccount()) throw new Error(t('composer.voiceRoomUnavailable'));
       };
@@ -573,7 +575,8 @@ export const useRoomInputVoice = ({
       pastesMissing: boolean,
       explicitMode?: MidTurnMode
     ): Promise<void> | undefined => {
-      const live = store.get(liveVoiceRecordingAtom);
+      const liveCapture = store.get(liveCaptureAtom);
+      const live = liveCapture?.kind === 'voice' ? liveCapture.session : undefined;
       if (!live && !ownsPendingVoiceDraft) return undefined;
       const context = getContext();
       // No recording is taken for a thread the server has not confirmed: it stays live, so the
@@ -634,7 +637,7 @@ export const useRoomInputVoice = ({
 
   // A confirmed Discard ends the recording at once and deletes its disk copy after: a recorder
   // that showed stays, with its busy question, until the copy is gone.
-  const discarding = useAtomValue(voiceDiscardsInFlightAtom) > 0;
+  const discarding = useAtomValue(captureDiscardsInFlightAtom) > 0;
   const recorderWasShown = useRef(false);
   const recorderShown =
     liveRecording ||
@@ -669,16 +672,21 @@ export const useRoomInputVoice = ({
   }
   // The mic waits for restore, then no recording starts while one runs, sends or waits to retry.
   // Read from the store at start too: the voice key may have pinned this composer before restore.
-  const microphoneBlocked = (restores = voiceDraftRestores): boolean =>
+  const microphoneBlocked = (
+    restores = voiceDraftRestores,
+    dictRestores = dictationRestores
+  ): boolean =>
     (currentSessionId !== undefined && restores.get(currentSessionId) !== null) ||
-    store.get(liveVoiceRecordingAtom) !== undefined ||
+    (dictationSessionId !== undefined && dictRestores.get(dictationSessionId) != null) ||
+    store.get(liveCaptureAtom) !== undefined ||
+    liveCapture !== undefined ||
     store.get(voiceAutoSendPendingAtom) ||
-    store.get(activeDictationAtom) !== undefined ||
-    activeDictation !== undefined ||
     store.get(pendingVoiceSendDraftAtom)?.context.ownerSessionId === currentSessionId;
   const microphoneDisabled = microphoneBlocked();
   const startRecording = (): boolean => {
-    if (microphoneBlocked(store.get(voiceDraftRestoresAtom))) return false;
+    if (microphoneBlocked(store.get(voiceDraftRestoresAtom), store.get(dictationRestoresAtom))) {
+      return false;
+    }
     pauseAllMediaElements();
     void startLiveVoiceRecording(store, getVoiceSendContext());
     return true;
