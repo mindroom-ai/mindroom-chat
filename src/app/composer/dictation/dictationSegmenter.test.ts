@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  DICTATION_FRAME_MS,
   DICTATION_FRAME_SAMPLES,
   DICTATION_MAX_SEGMENT_BYTES,
   DICTATION_SAMPLE_RATE,
@@ -153,6 +154,9 @@ describe('DictationSegmenter', () => {
 
     expect(segments).toHaveLength(1);
     expect(segments[0]?.overlapped).toBe(false);
+    expect(segments[0]?.cutReason).toBe('soft');
+    expect(segments[0]?.leadingQuietFrames).toBe(0);
+    expect(segments[0]?.trailingQuietFrames).toBe(2);
     expect(segments[0]?.seconds).toBeGreaterThan(15);
     expect(segments[0]?.seconds).toBeLessThan(16);
   });
@@ -177,6 +181,8 @@ describe('DictationSegmenter', () => {
 
     expect(segments).toHaveLength(2);
     expect(segments[0]?.overlapped).toBe(false);
+    expect(segments[0]?.cutReason).toBe('hard');
+    expect(segments[0]?.trailingQuietFrames).toBe(0);
     // Cut happened at index 255 (256 frames emitted in segment 0).
     expect(segments[0]?.seconds).toBeCloseTo(
       (256 * DICTATION_FRAME_SAMPLES) / DICTATION_SAMPLE_RATE,
@@ -186,6 +192,8 @@ describe('DictationSegmenter', () => {
 
     // Segment 1 is flagged overlapped: true and carries 6 overlap frames + remaining 10 frames = 16 frames.
     expect(segments[1]?.overlapped).toBe(true);
+    expect(segments[1]?.cutReason).toBe('flush');
+    expect(segments[1]?.pauseBeforeMs).toBe(0);
     expect(segments[1]?.seconds).toBeCloseTo(
       (16 * DICTATION_FRAME_SAMPLES) / DICTATION_SAMPLE_RATE,
       3
@@ -278,5 +286,95 @@ describe('DictationSegmenter', () => {
 
     for (let i = 0; i < 10; i += 1) segmenter.pushFrame(makeFrame(0.1));
     expect(onCapReached).toHaveBeenCalledTimes(1);
+  });
+
+  it('records cutReason, leading/trailing quiet frames, and deterministic pauseBeforeMs across pauses and flush', async () => {
+    const segments: DictationSegment[] = [];
+    const segmenter = new DictationSegmenter({ onSegment: (seg) => segments.push(seg) });
+    await segmenter.attachVad({
+      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    });
+
+    const pushMany = (count: number, amp: number) => {
+      for (let i = 0; i < count; i += 1) segmenter.pushFrame(makeFrame(amp));
+    };
+
+    // Seg 0: 6 leading quiet (4 pad kept) + 4 voiced + 8 redemption -> natural cut, pauseBeforeMs = Infinity.
+    pushMany(6, 0.001);
+    pushMany(4, 0.3);
+    pushMany(8, 0.001);
+    // 10 quiet frames between seg 0 and seg 1 (6 dropped + 4 in preSpeechPad) -> total pause = (8 + 10) * 96 ms.
+    pushMany(10, 0.001);
+    pushMany(3, 0.3);
+    pushMany(8, 0.001);
+    // 2 quiet frames (all 2 in preSpeechPad, 0 dropped) + 3 voiced -> flushed mid-speech.
+    pushMany(2, 0.001);
+    pushMany(3, 0.3);
+    await segmenter.flush();
+
+    // Post-flush segment starts a fresh pause boundary (pauseBeforeMs = Infinity).
+    pushMany(3, 0.3);
+    await segmenter.flush();
+
+    expect(segments).toHaveLength(4);
+    expect(segments[0]).toMatchObject({
+      cutReason: 'natural',
+      leadingQuietFrames: 4,
+      trailingQuietFrames: 8,
+      pauseBeforeMs: Infinity,
+    });
+    expect(segments[1]).toMatchObject({
+      cutReason: 'natural',
+      leadingQuietFrames: 4,
+      trailingQuietFrames: 8,
+      pauseBeforeMs: 18 * DICTATION_FRAME_MS,
+    });
+    expect(segments[2]).toMatchObject({
+      cutReason: 'flush',
+      leadingQuietFrames: 2,
+      trailingQuietFrames: 0,
+      pauseBeforeMs: 10 * DICTATION_FRAME_MS,
+    });
+    expect(segments[3]).toMatchObject({
+      cutReason: 'flush',
+      leadingQuietFrames: 0,
+      trailingQuietFrames: 0,
+      pauseBeforeMs: Infinity,
+    });
+  });
+
+  it('fires onLongSilence once at ~8 s idle silence and resets on next segment or flush', async () => {
+    const onLongSilence = vi.fn();
+    const scorer = {
+      score: async (frame: Float32Array) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
+    };
+    const segmenter = new DictationSegmenter({ onSegment: () => undefined, onLongSilence });
+    const pushAndDrain = async (count: number, amp: number) => {
+      for (let i = 0; i < count; i += 1) segmenter.pushFrame(makeFrame(amp));
+      await segmenter.attachVad(scorer);
+    };
+
+    // Silence before any segment is emitted does not trigger onLongSilence.
+    await pushAndDrain(90, 0.001);
+    expect(onLongSilence).not.toHaveBeenCalled();
+
+    // Emit one natural segment, then 82 quiet frames (just shy of 83) -> still not fired.
+    await pushAndDrain(3, 0.3);
+    await pushAndDrain(8 + 82, 0.001);
+    expect(onLongSilence).not.toHaveBeenCalled();
+
+    // 83rd frame triggers once; further quiet frames do not re-fire.
+    await pushAndDrain(20, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(1);
+
+    // Another emitted segment re-arms onLongSilence.
+    await pushAndDrain(3, 0.3);
+    await pushAndDrain(8 + 83, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(2);
+
+    // flush() resets the idle-silence trigger until a new post-flush segment is emitted.
+    await segmenter.flush();
+    await pushAndDrain(90, 0.001);
+    expect(onLongSilence).toHaveBeenCalledTimes(2);
   });
 });

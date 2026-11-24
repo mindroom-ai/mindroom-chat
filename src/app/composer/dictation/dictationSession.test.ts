@@ -73,11 +73,11 @@ describe('createDictationSession', () => {
     vi.restoreAllMocks();
   });
 
-  it('serializes segment uploads with prompt chaining and stitches results on finish', async () => {
+  it('serializes segment uploads with prompt chaining and coalesces open clauses on finish', async () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const calls: Array<{ prompt?: string; roomId?: string }> = [];
-    const responses = ['First sentence.', 'Second sentence.'];
+    const responses = ['First clause.', 'Second clause.', 'First clause and second clause.'];
 
     const transcribe = vi.fn(async (_wav: Blob, opts?: { prompt?: string; roomId?: string }) => {
       inFlight += 1;
@@ -101,20 +101,24 @@ describe('createDictationSession', () => {
     expect(session.getSnapshot().previewText).toBe('');
 
     pushSpeechAndPause(rig.pushFrame);
-    pushSpeechAndPause(rig.pushFrame);
     await flushMicrotasks(20);
-    expect(session.getSnapshot().previewText).toBe('First sentence.');
+    expect(session.getSnapshot().previewText).toBe('First clause.');
     expect(session.getSnapshot().hasPartialText).toBe(true);
+
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    expect(session.getSnapshot().previewText).toBe('First clause. Second clause.');
 
     const finished = await session.finish();
     expect(finished).toEqual({
       status: 'completed',
-      text: 'First sentence. Second sentence.',
+      text: 'First clause and second clause.',
     });
     expect(maxInFlight).toBe(1);
     expect(calls).toEqual([
       { prompt: undefined, roomId: '!room:example.org' },
-      { prompt: 'First sentence.', roomId: '!room:example.org' },
+      { prompt: 'First clause.', roomId: '!room:example.org' },
+      { prompt: undefined, roomId: '!room:example.org' },
     ]);
     expect(session.getSnapshot().phase).toBe('idle');
     expect(session.getSnapshot().previewText).toBe('');
@@ -125,10 +129,16 @@ describe('createDictationSession', () => {
     let seg1Attempts = 0;
     const sleepDelays: number[] = [];
 
-    const transcribe = vi.fn(async (_wav: Blob, opts?: { prompt?: string }) => {
-      if (!opts?.prompt) {
+    let firstWavSize = 0;
+    const transcribe = vi.fn(async (wav: Blob, opts?: { prompt?: string }) => {
+      if (!opts?.prompt && (firstWavSize === 0 || wav.size === firstWavSize)) {
+        firstWavSize = wav.size;
         seg0Attempts += 1;
         return { text: 'Hello from segment zero.', seconds: 1.0 };
+      }
+      if (!opts?.prompt) {
+        // Optional merged refinement also hits 429 while backend is rate-limited; fails open.
+        throw new DictationApiError('Rate limited', 429, 'too-many-requests', 2000);
       }
       seg1Attempts += 1;
       if (seg1Attempts <= 3) {
@@ -541,5 +551,287 @@ describe('createDictationSession', () => {
         value: prevWorkletNode,
       });
     }
+  });
+
+  const startTestSession = async (
+    transcribe: Parameters<typeof createDictationSession>[0]['client']['transcribe'],
+    extra: Partial<Parameters<typeof createDictationSession>[0]> = {}
+  ) => {
+    const rig = createFakeCaptureRig();
+    const session = createDictationSession({
+      client: { transcribe },
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+      ...extra,
+    });
+    await session.start();
+    await flushMicrotasks();
+    return { rig, session };
+  };
+
+  it('coalesces slow-speaker pauses on 8 s idle silence and Finish with capped silence and clean prior prompts', async () => {
+    const calls: Array<{ size: number; prompt?: string }> = [];
+    const responses = [
+      'Go back.',
+      'And re-transcribe.',
+      'Go back and re-transcribe',
+      'Certain parts.',
+      'When it makes sense.',
+      'certain parts when it makes sense.',
+    ];
+    const { rig, session } = await startTestSession(async (wav, opts) => {
+      calls.push({ size: wav.size, prompt: opts?.prompt });
+      return { text: responses.shift() ?? '', seconds: 1.0 };
+    });
+
+    // Clause 0 + 5 s thinking pause (52 quiet frames) + Clause 1 -> live fragmented preview.
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    expect(session.getSnapshot().previewText).toBe('Go back.');
+
+    for (let i = 0; i < 52; i += 1) rig.pushFrame(makeFrame(0.001));
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(80);
+    expect(session.getSnapshot().previewText).toBe('Go back. And re-transcribe.');
+
+    // ~8 s idle silence (83 quiet frames) seals [0..1] and replaces previewText atomically.
+    for (let i = 0; i < 83; i += 1) rig.pushFrame(makeFrame(0.001));
+    await flushMicrotasks(120);
+    expect(session.getSnapshot().previewText).toBe('Go back and re-transcribe');
+    expect(calls[2]!.prompt).toBeUndefined();
+    expect(calls[2]!.size).toBeLessThan(60_000); // 5 s pause capped to 288 ms
+
+    // Group [2..3] finishes with prompt strictly from the prior refined group.
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Go back and re-transcribe certain parts when it makes sense.',
+    });
+    expect(calls[5]!.prompt).toBe('Go back and re-transcribe');
+  });
+
+  it('skips uploading the trailing primary on Finish and falls back to it if merged refinement fails', async () => {
+    const okResponses = ['First half.', 'First half and final clause.'];
+    const okTranscribe = vi.fn(async () => ({ text: okResponses.shift() ?? '', seconds: 1.0 }));
+    const { rig: rigA, session: sessionA } = await startTestSession(okTranscribe);
+    pushSpeechAndPause(rigA.pushFrame);
+    await flushMicrotasks(25);
+    for (let i = 0; i < 4; i += 1) rigA.pushFrame(makeFrame(0.3));
+    await flushMicrotasks(10);
+    await expect(sessionA.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'First half and final clause.',
+    });
+    expect(okTranscribe).toHaveBeenCalledTimes(2);
+
+    let call = 0;
+    const fallbackTranscribe = vi.fn(async () => {
+      call += 1;
+      if (call === 1) return { text: 'First half.', seconds: 1.0 };
+      if (call === 2) throw new DictationApiError('Unavailable', 503, 'unavailable');
+      return { text: 'Final clause.', seconds: 1.0 };
+    });
+    const { rig: rigB, session: sessionB } = await startTestSession(fallbackTranscribe);
+    pushSpeechAndPause(rigB.pushFrame);
+    await flushMicrotasks(25);
+    for (let i = 0; i < 4; i += 1) rigB.pushFrame(makeFrame(0.3));
+    await flushMicrotasks(10);
+    await expect(sessionB.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'First half. Final clause.',
+    });
+    expect(fallbackTranscribe).toHaveBeenCalledTimes(3);
+  });
+
+  it('skips refinement for single utterances and 25 s hard cuts while preserving overlap deduplication', async () => {
+    const singleTranscribe = vi.fn(async () => ({ text: 'One clean sentence.', seconds: 1.0 }));
+    const { rig: rigS, session: single } = await startTestSession(singleTranscribe);
+    pushSpeechAndPause(rigS.pushFrame);
+    await flushMicrotasks(25);
+    await expect(single.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'One clean sentence.',
+    });
+    expect(singleTranscribe).toHaveBeenCalledTimes(1);
+
+    const hardResponses = [
+      'Long continuous speech ending alpha beta',
+      'alpha beta first pause.',
+      'alpha beta first pause and ending.',
+    ];
+    const hardTranscribe = vi.fn(async () => ({ text: hardResponses.shift() ?? '', seconds: 2.0 }));
+    const { rig: rigH, session: hard } = await startTestSession(hardTranscribe);
+    for (let i = 0; i < 262; i += 1) rigH.pushFrame(makeFrame(0.3));
+    for (let i = 0; i < 8; i += 1) rigH.pushFrame(makeFrame(0.001));
+    await flushMicrotasks(300);
+    for (let i = 0; i < 4; i += 1) rigH.pushFrame(makeFrame(0.3));
+    await flushMicrotasks(15);
+    await expect(hard.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Long continuous speech ending alpha beta first pause and ending.',
+    });
+    expect(hardTranscribe).toHaveBeenCalledTimes(3);
+  });
+
+  it('seals and refines the longest-pause prefix mid-recording when an open group overflows 22 s', async () => {
+    const responses = [
+      'Part A.',
+      'Part B.',
+      'Part A and Part B.',
+      'Part C.',
+      'Part D.',
+      'Part C and Part D.',
+    ];
+    const prompts: Array<string | undefined> = [];
+    const { rig, session } = await startTestSession(async (_wav, opts) => {
+      prompts.push(opts?.prompt);
+      return { text: responses.shift() ?? '', seconds: 2.0 };
+    });
+
+    const pushClause = (voicedFrames: number, extraSilenceFrames = 0) => {
+      for (let i = 0; i < voicedFrames; i += 1) rig.pushFrame(makeFrame(0.3));
+      for (let i = 0; i < 8 + extraSilenceFrames; i += 1) rig.pushFrame(makeFrame(0.001));
+    };
+
+    // Seg 0 (~7.7 s) + Seg 1 (~7.7 s) -> ~15.4 s open; 3 s pause before Seg 2 (~8 s) overflows 22 s!
+    pushClause(80);
+    await flushMicrotasks(110);
+    pushClause(80, 30);
+    await flushMicrotasks(140);
+    // Seg 2 arrives -> seals [0..1] for immediate refinement, then uploads Seg 2 with refined prompt.
+    pushClause(85);
+    await flushMicrotasks(120);
+    expect(session.getSnapshot().previewText).toBe('Part A and Part B. Part C.');
+    expect(prompts).toEqual([undefined, 'Part A.', undefined, 'Part A and Part B.']);
+
+    pushClause(20);
+    await flushMicrotasks(50);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Part A and Part B. Part C and Part D.',
+    });
+  });
+
+  it('fails open on refinement 503, empty text, 429 Retry-After, and Finish polish timeout', async () => {
+    const emptyResponses = ['Alpha.', 'Beta.', '   '];
+    const { rig: rigE, session: emptySess } = await startTestSession(async () => ({
+      text: emptyResponses.shift() ?? '',
+      seconds: 1,
+    }));
+    pushSpeechAndPause(rigE.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rigE.pushFrame);
+    await flushMicrotasks(25);
+    await expect(emptySess.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Alpha. Beta.',
+    });
+
+    let call429 = 0;
+    let clock = 10_000;
+    const sleepDelays: number[] = [];
+    const { rig: rig429, session: sess429 } = await startTestSession(
+      async () => {
+        call429 += 1;
+        if (call429 === 1) return { text: 'Part one.', seconds: 1 };
+        if (call429 === 2)
+          throw new DictationApiError('Rate limited', 429, 'too-many-requests', 1500);
+        return { text: 'Part two.', seconds: 1 };
+      },
+      {
+        now: () => clock,
+        sleep: async (ms) => {
+          sleepDelays.push(ms);
+          clock += ms;
+        },
+      }
+    );
+    pushSpeechAndPause(rig429.pushFrame);
+    await flushMicrotasks(25);
+    for (let i = 0; i < 4; i += 1) rig429.pushFrame(makeFrame(0.3));
+    await flushMicrotasks(10);
+    await expect(sess429.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Part one. Part two.',
+    });
+    expect(sleepDelays).toEqual([1500]);
+
+    let polishCall = 0;
+    let polishAborted = false;
+    const { rig: rigT, session: timeoutSess } = await startTestSession(
+      (_wav: Blob, _opts?: { prompt?: string; roomId?: string }, signal?: AbortSignal) => {
+        polishCall += 1;
+        if (polishCall === 1) return Promise.resolve({ text: 'One.', seconds: 1 });
+        if (polishCall === 2) return Promise.resolve({ text: 'Two.', seconds: 1 });
+        return new Promise<{ text: string; seconds: number }>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            polishAborted = true;
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        });
+      },
+      { finishPolishTimeoutMs: 50 }
+    );
+    pushSpeechAndPause(rigT.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rigT.pushFrame);
+    await flushMicrotasks(25);
+    await expect(timeoutSess.finish()).resolves.toEqual({ status: 'completed', text: 'One. Two.' });
+    expect(polishAborted).toBe(true);
+  });
+
+  it('self-heals an earlier failed primary when merged group refinement succeeds on Finish', async () => {
+    let call = 0;
+    const transcribe = vi.fn(async () => {
+      call += 1;
+      if (call === 1) return { text: 'Clause one.', seconds: 1.0 };
+      if (call <= 3) throw new DictationApiError('Transient', 503, 'unavailable');
+      return { text: 'Clause one and healed clause two.', seconds: 2.0 };
+    });
+    const { rig, session } = await startTestSession(transcribe, { sleep: async () => undefined });
+    pushSpeechAndPause(rig.pushFrame);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(40);
+    expect(session.getSnapshot().failedSegments).toBe(1);
+
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Clause one and healed clause two.',
+    });
+    expect(transcribe).toHaveBeenCalledTimes(4);
+  });
+
+  it('skips optional refinement when the rolling 1-minute request budget would be exceeded', async () => {
+    let count = 0;
+    const transcribe = vi.fn(async () => ({ text: `Clip ${(count += 1)}.`, seconds: 1.0 }));
+    const { rig, session } = await startTestSession(transcribe, { now: () => 50_000 });
+
+    // Burn 22 primary requests inside the rolling 60 s window via quick single-utterance runs.
+    for (let i = 0; i < 22; i += 1) {
+      if (i > 0) {
+        await session.start();
+        await flushMicrotasks();
+      }
+      pushSpeechAndPause(rig.pushFrame);
+      await flushMicrotasks(25);
+      await session.finish();
+    }
+    expect(transcribe).toHaveBeenCalledTimes(22);
+
+    // Next session makes 2 primary uploads (hitting 24 RPM); optional Finish refinement is skipped.
+    await session.start();
+    await flushMicrotasks();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(25);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'Clip 23. Clip 24.',
+    });
+    expect(transcribe).toHaveBeenCalledTimes(24);
   });
 });
