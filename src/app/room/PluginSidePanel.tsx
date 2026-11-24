@@ -32,7 +32,6 @@ export function PluginSidePanel({
       sampleMemory('plugin_panel_close');
     };
     // Sample when the shown panel, room, or request mounts/changes and on close, not on unrelated re-renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, Component, roomId, request]);
   const own = frame === 'own';
   // Only without its own frame: `frame: 'own'` wins.

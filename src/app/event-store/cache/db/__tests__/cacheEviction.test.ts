@@ -564,3 +564,85 @@ it('drops a cached verdict when pruning turns a cached essential attachment opti
   });
   expect(evictionTraces(trace)).toHaveLength(2);
 });
+
+it('drops a cached verdict when redacting a large uncached-attachment caption brings ledger bytes under budget', async () => {
+  await store.saveRoomEventsToCacheCommitted(
+    session,
+    'room-focused',
+    [
+      {
+        event_id: '$captioned',
+        room_id: 'room-focused',
+        origin_server_ts: 1,
+        sender: '@owner:test',
+        type: 'm.room.message',
+        content: { msgtype: 'm.image', body: 'x'.repeat(2000), url: 'mxc://test/uncached-caption' },
+      },
+    ],
+    undefined,
+    'partial',
+    undefined,
+    [
+      {
+        roomId: 'room-focused',
+        eventId: '$captioned',
+        revisionTs: 1,
+        attachments: [
+          { mxcUri: 'mxc://test/uncached-caption', essential: false, autoDownload: false },
+        ],
+      },
+    ]
+  );
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+
+  await store.saveRoomEventsToCacheCommitted(session, 'room-focused', [
+    {
+      event_id: '$redact-captioned',
+      room_id: 'room-focused',
+      origin_server_ts: 2,
+      sender: '@owner:test',
+      type: 'm.room.redaction',
+      redacts: '$captioned',
+      content: {},
+    },
+  ]);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: false });
+});
+
+it('keeps a cached verdict when a small redaction leaves protected bytes well over budget', async () => {
+  await save('protected-a', 'room-focused');
+  await save('protected-b', 'room-focused');
+  await store.saveRoomEventsToCacheCommitted(session, 'room-focused', [
+    {
+      event_id: '$small',
+      room_id: 'room-focused',
+      origin_server_ts: 1,
+      sender: '@owner:test',
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: 'x'.repeat(200) },
+    },
+  ]);
+  await store.runCacheEvictionIfOverBudget(session);
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  const trace = vi.spyOn(deepTrace, 'recordDeepTraceEvent');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+
+  await store.saveRoomEventsToCacheCommitted(session, 'room-focused', [
+    {
+      event_id: '$redact-small',
+      room_id: 'room-focused',
+      origin_server_ts: 2,
+      sender: '@owner:test',
+      type: 'm.room.redaction',
+      redacts: '$small',
+      content: {},
+    },
+  ]);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
+  expect(evictionTraces(trace)).toHaveLength(1);
+});

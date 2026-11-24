@@ -20,7 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
-import { invalidateEvictionVerdict } from './cacheEviction';
+import { invalidateEvictionVerdict, noteEvictionBytesFreed } from './cacheEviction';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -234,7 +234,8 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
   const unowned: string[] = [];
-  let verdictAffected = false;
+  let freedBytes = 0;
+  let becameOptional = false;
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
@@ -246,17 +247,20 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
     if (!remaining.length) {
       blobs.delete(mxcUri);
-      verdictAffected = true;
+      freedBytes += cached.byteLength;
     } else if (cached.essential !== essential) {
       blobs.put({ ...cached, essential });
-      if (!essential) verdictAffected = true;
+      if (!essential) becameOptional = true;
     }
   }
   // A picture's scaled copy goes with its last reference, saved bytes or not.
-  if ((await deleteScaledPictures(blobs, unowned)) > 0) verdictAffected = true;
-  if (verdictAffected) {
-    // Only cached deletions or newly optional blobs can change a protected eviction verdict.
+  freedBytes += await deleteScaledPictures(blobs, unowned);
+  if (becameOptional) {
     transaction.addEventListener('complete', () => invalidateEvictionVerdict(), { once: true });
+  } else if (freedBytes > 0) {
+    transaction.addEventListener('complete', () => noteEvictionBytesFreed(freedBytes), {
+      once: true,
+    });
   }
 };
 
