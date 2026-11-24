@@ -359,31 +359,47 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(visualBefore);
   });
 
-  it('clamps negative _holdOffset to -scrollTop so flushing near the top never snaps rows upward', async () => {
+  it('clamps negative _holdOffset on flush so reaching scrollTop=0 never snaps rows upward', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     stubUserAgent(SAFARI_MAC_UA);
-    const { scrollElement, getVirtualizer } = await mountRoom({
-      initialScrollTop: 40,
+    const initialKeys = Array.from({ length: 40 }, (_, i) => `$ev-${i}`);
+    const { scrollElement, render, getVirtualizer, getTileTop } = await mountRoom({
+      initialKeys,
+      initialScrollTop: 1200,
     });
     const v = getVirtualizer();
-    // Simulate an unmeasured row 0 (estimated at 100px, start=0 < scrollTop=40) shrinking to 20px.
-    v.itemSizeCache.delete('$ev-0');
+    const anchorVisualBeforeResize = getTileTop('$ev-12')! - scrollElement.scrollTop;
 
+    // Row 0 (above scrollTop=1200) shrinks by -80px during a live wheel burst.
     scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
     v.resizeItem(0, 20);
+    expect(readVirtualizerHoldOffset(v)).toBe(-80);
+    expect(getTileTop('$ev-12')! - scrollElement.scrollTop).toBe(anchorVisualBeforeResize);
 
-    // Negative hold is clamped to -live (-40), never -80.
-    expect(readVirtualizerHoldOffset(v)).toBe(-40);
-    // Flushing writes scrollTop=0 (exact -40 move), matching the -40 hold with no snap.
+    // User keeps wheeling up to scrollTop=30 while -80 is still held (live + hold = -50 < 0).
+    scrollElement.scrollTop = 30;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    render();
+    const row1VisualAt30 = getTileTop('$ev-1')! - scrollElement.scrollTop;
+
+    // Wheel quiescence flushes only -30 to scrollTop=0, leaving -50 held with 0px visual snap.
     vi.advanceTimersByTime(200);
-    expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(0);
+    expect(readVirtualizerHoldOffset(v)).toBe(-50);
+    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
 
-    // At scrollTop=0, another above-fold shrink during live wheel accumulates zero negative hold.
-    v.itemSizeCache.delete('$ev-0');
+    // Another wheel pause at scrollTop=0 keeps -50 held rather than snapping rows by -50px.
     scrollElement.dispatchEvent(new WheelEvent('wheel', { deltaY: -40 }));
-    v.resizeItem(0, 10);
+    vi.advanceTimersByTime(200);
+    expect(scrollElement.scrollTop).toBe(0);
+    expect(readVirtualizerHoldOffset(v)).toBe(-50);
+    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
+
+    // When an older page prepends (+1000px), the remaining -50 hold drains cleanly to 0 with 0px snap.
+    render([...Array.from({ length: 10 }, (_, i) => `$older-${i}`), ...initialKeys]);
     expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(950);
+    expect(getTileTop('$ev-1')! - scrollElement.scrollTop).toBe(row1VisualAt30);
   });
 
   it('clears _holdOffset on explicit jump and bottom pin so wheel quiescence cannot clobber landing', async () => {

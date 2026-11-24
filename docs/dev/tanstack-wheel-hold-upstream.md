@@ -21,7 +21,7 @@
 +        this._lastElementOffset = live; scheduleWheelFlush(50); return
 +      }
 +      this._wheelTimer = null; this._wheelLive = false
-+      if (live !== null && this._holdOffset !== 0) this.scrollOffset = Math.max(0, live + this._holdOffset)
++      if (live !== null && this._holdOffset !== 0) this.scrollOffset = live + this._holdOffset
 +      this._flushHoldIfReady(true); this._retryClampedAdjustment()
 +    }, delay)
 +  }
@@ -41,22 +41,34 @@
 +  const live = this._holdOffset === 0 && this._clampedAdjustment === null ? this._readElementOffset() : null
 +  const offset = live !== null && this._lastElementOffset !== null && live !== this._lastElementOffset && (this.pendingWrite === null || !approxEqual(live, this.pendingWrite.target)) ? live : this.getScrollOffset()
 -  if (this.pendingWrite === write) this.scrollOffset += delta
+-  if (this.scrollOffset < 0) this.scrollOffset = 0
 +  if (this.pendingWrite === write) this.scrollOffset = offset + delta
++  if (this._holdOffset === 0 && this.scrollOffset < 0) this.scrollOffset = 0
 ```
 
-## PR 3: Clamp negative `_holdOffset` to `-live` in `applyScrollAdjustment`
+## PR 3: Never flush negative `_holdOffset` past `scrollTop = 0`
 
-**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate negative `_holdOffset` without bound. When `live + _holdOffset < 0`, virtual items shift downward by `|_holdOffset|` leaving a blank gap above item 0, and `_flushHoldIfReady` clamps `scrollOffset` at `0` while zeroing `_holdOffset`, snapping every visible row upward by the excess. Clamp negative held deltas in `applyScrollAdjustment` so `live + _holdOffset` never drops below `0`.
+**Problem & repro:** While scroll writes are held (`!this._canWriteScroll()`), negative size deltas (rows above the viewport shrinking on first measurement) accumulate a negative `_holdOffset`. If the reader then scrolls upward until `live + _holdOffset < 0`, `_flushHoldIfReady` zeroes `_holdOffset` while `scrollTop` clamps at `0`, snapping every visible row upward by `-(live + _holdOffset)`. Flush only the portion that fits above `0` (`nextHold = live + _holdOffset < 0 ? live + _holdOffset : 0`), leaving the excess held without snapping until a prepend or downward scroll provides room above `0`.
 
 ```diff
-   if (!this._canWriteScroll()) {
--    this._holdOffset += delta
--    if (this.scrollOffset !== null) this.scrollOffset += delta
-+    const live = this._readElementOffset()
-+    const applied = delta < 0 && live !== null ? Math.max(delta, Math.min(0, -(live + this._holdOffset))) : delta
-+    if (applied === 0) return false
-+    this._holdOffset += applied
-+    if (this.scrollOffset !== null) this.scrollOffset += applied
-     return true
-   }
+   // _flushHoldIfReady(sync):
+-  this._holdOffset = 0
+-  if (this.scrollOffset !== null && this.scrollOffset < 0) {
+-    this.scrollOffset = 0
+-  }
++  const cmd = this.getCommandWrittenOffset()
++  const live = cmd === null ? this._readElementOffset() : null
++  const nextHold = live !== null && live + this._holdOffset < 0 ? live + this._holdOffset : 0
++  if (nextHold === this._holdOffset) return
++  this._holdOffset = nextHold
++  if (nextHold < 0) {
++    this.scrollOffset = nextHold; this._clampedAdjustment = null
++    this._scrollToOffset(nextHold); this.notify(sync); return
++  }
++  if (this.scrollOffset !== null && this.scrollOffset < 0) {
++    this.scrollOffset = 0
++  }
+   this.notify(sync)
+-  const target = this.getCommandWrittenOffset() ?? this.getScrollOffset()
++  const target = cmd ?? this.getScrollOffset()
 ```
