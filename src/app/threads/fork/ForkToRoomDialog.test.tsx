@@ -142,6 +142,23 @@ describe('targetHasUnsharedAgents', () => {
       )
     ).toBe(true);
   });
+
+  it('excludes @mindroom_router when computing target-room and shared responders', () => {
+    const human = { userId: MY_USER, membership: KnownMembership.Join };
+    const router = { userId: '@mindroom_router:example.org', membership: KnownMembership.Join };
+    const coder = { userId: '@mindroom_coder:example.org', membership: KnownMembership.Join };
+    const writer = { userId: '@mindroom_writer:example.org', membership: KnownMembership.Join };
+
+    // Shared router must not hide an unshared responding agent in the target room.
+    expect(targetHasUnsharedAgents([human, router], [human, router, coder])).toBe(true);
+    // Router alone is not counted as a responding agent in the target room.
+    expect(targetHasUnsharedAgents([human], [human, router])).toBe(false);
+    expect(targetHasUnsharedAgents([human, router], [human, router])).toBe(false);
+    // A shared actual responder suppresses the warning even when router is present.
+    expect(targetHasUnsharedAgents([human, router, coder], [human, router, coder, writer])).toBe(
+      false
+    );
+  });
 });
 
 describe('ForkToRoomDialog', () => {
@@ -313,6 +330,42 @@ describe('ForkToRoomDialog', () => {
     expect(unsharedRow?.querySelector('[data-fork-room-agent-warning]')?.textContent).toContain(
       'Project Alpha'
     );
+  });
+
+  it('still shows the unshared-agent warning when source and target share only @mindroom_router', () => {
+    const human = { userId: MY_USER, membership: KnownMembership.Join };
+    const router = { userId: '@mindroom_router:example.org', membership: KnownMembership.Join };
+    const coder = { userId: '@mindroom_coder:example.org', membership: KnownMembership.Join };
+
+    const alpha = makeRoom({
+      roomId: '!alpha:example.org',
+      name: 'Project Alpha',
+      members: [human, router],
+    });
+    const beta = makeRoom({
+      roomId: '!beta:example.org',
+      name: 'Project Beta',
+      members: [human, router, coder],
+    });
+    const routerOnly = makeRoom({
+      roomId: '!router-only:example.org',
+      name: 'Router Only Room',
+      members: [human, router],
+    });
+
+    renderDialog({
+      sourceRoom: alpha,
+      rooms: [alpha, beta, routerOnly],
+    });
+
+    const warnings = document.querySelectorAll('[data-fork-room-agent-warning]');
+    expect(warnings).toHaveLength(1);
+    const betaRow = document.querySelector('[data-fork-room-id="!beta:example.org"]');
+    expect(betaRow?.querySelector('[data-fork-room-agent-warning]')?.textContent).toContain(
+      'Project Alpha'
+    );
+    const routerOnlyRow = document.querySelector('[data-fork-room-id="!router-only:example.org"]');
+    expect(routerOnlyRow?.querySelector('[data-fork-room-agent-warning]')).toBeNull();
   });
 
   it('scrolls the active option into view on ArrowDown and End keyboard navigation', () => {

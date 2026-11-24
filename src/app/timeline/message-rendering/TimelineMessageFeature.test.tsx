@@ -88,9 +88,10 @@ vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   };
 });
 
-const summaryEvent = (id: string) =>
+const summaryEvent = (id: string, opts: { roomId?: string; threadRootId?: string } = {}) =>
   makeEvent(id, {
-    threadRootId: '$thread',
+    ...(opts.roomId ? { roomId: opts.roomId } : {}),
+    threadRootId: opts.threadRootId ?? '$thread',
     content: {
       msgtype: 'm.notice',
       body: 'Fixing token refresh',
@@ -1396,6 +1397,62 @@ describe('cross-room fork prefix rows', () => {
         forkTargetRoom: betaRoomMode,
       });
       expect(blocked.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+
+  it("omits Title settings on inherited cross-room prefix summary markers (single and grouped) while keeping it on the fork's own markers", async () => {
+    const sourceRoom = makeRoom({ roomId: '!alpha:example.org' });
+    openRoomSettings.mockClear();
+    matrixClientMock.getRoom.mockImplementation(((id: string) =>
+      id === '!alpha:example.org' ? sourceRoom : null) as never);
+
+    try {
+      const inheritedSingle = summaryEvent('$alpha-summary-1', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const inheritedRunHead = summaryEvent('$alpha-summary-2', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const inheritedRunTail = summaryEvent('$alpha-summary-3', {
+        roomId: '!alpha:example.org',
+        threadRootId: '$parent',
+      });
+      const ownSummary = summaryEvent('$beta-summary-1', {
+        roomId: '!room:example.org',
+        threadRootId: '$fork',
+      });
+
+      const rows: TimelineMessageRow[] = [
+        rowFor(inheritedSingle, 0),
+        { ...rowFor(inheritedRunHead, 1), quietRun: [rowFor(inheritedRunTail, 2)] },
+        rowFor(ownSummary, 3),
+      ];
+      const { renderer, data, update, room } = await mountFeature(
+        rows,
+        '$fork',
+        new Set(['$alpha-summary-1', '$alpha-summary-2', '$alpha-summary-3'])
+      );
+      ['$alpha-summary-1', '$alpha-summary-2', '$alpha-summary-3', '$beta-summary-1'].forEach(
+        (id) => data.threadSummaryTimeline.markersByEventId.set(id, { first: false })
+      );
+      update();
+
+      const markers = summaryMarkers(renderer);
+      expect(markers).toHaveLength(4);
+      // Single inherited marker and both markers in the inherited grouped run are read-only.
+      expect(markers[0]!.props.onOpenSettings).toBeUndefined();
+      expect(markers[1]!.props.onOpenSettings).toBeUndefined();
+      expect(markers[2]!.props.onOpenSettings).toBeUndefined();
+
+      // The fork's own title marker in the target room still opens the target room's settings.
+      expect(markers[3]!.props.onOpenSettings).toBeTypeOf('function');
+      (markers[3]!.props.onOpenSettings as () => void)();
+      expect(openRoomSettings).toHaveBeenCalledTimes(1);
+      expect(openRoomSettings).toHaveBeenCalledWith(room().roomId, RoomSettingsPage.MindroomPage);
     } finally {
       matrixClientMock.getRoom.mockImplementation(() => null);
     }

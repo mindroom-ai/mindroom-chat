@@ -580,7 +580,7 @@ export const useTimelineMessageFeature = ({
         data,
         eventRoom,
         userId ?? undefined,
-        onOpenTitleSettings
+        prefixThreadId !== undefined ? undefined : onOpenTitleSettings
       );
     },
     [client, room, threadId, userId]
@@ -622,7 +622,7 @@ export const useTimelineMessageFeature = ({
               data,
               eventRoom,
               userId ?? undefined,
-              openTitleSettings
+              readOnly ? undefined : openTitleSettings
             )
           : null;
       if (quietMarker) {
@@ -656,7 +656,7 @@ export const useTimelineMessageFeature = ({
             marker.event,
             data,
             marker.timelineSet,
-            openTitleSettings
+            markerPrefixThreadId !== undefined ? undefined : openTitleSettings
           );
           return node ? [{ eventId: marker.eventId, node }] : [];
         });

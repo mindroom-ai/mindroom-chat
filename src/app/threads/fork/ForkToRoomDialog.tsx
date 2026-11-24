@@ -18,7 +18,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
-import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
+import { isMindroomAgentUserId, isMindroomOwnerUserId } from '../../matrix/protocol/agentIdentity';
 import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
 import { navigationRoomsAtom } from '../../matrix/state/archivedRooms';
 import { StateEvent } from '../../matrix/types/room';
@@ -27,9 +27,13 @@ import { isJoinedRoom } from '../../navigation/routeVisibility';
 import { ActionDialog } from '../../ui/ActionDialog';
 import * as css from './ForkToRoomDialog.css';
 
+const isRespondingMindroomAgent = (userId: string): boolean =>
+  isMindroomAgentUserId(userId) && !isMindroomOwnerUserId(userId);
+
 /**
- * Whether `targetMembers` includes at least one active (joined or invited) MindRoom agent and
- * none of those agents are joined to the source room.
+ * Whether `targetMembers` includes at least one active (joined or invited) responding MindRoom
+ * agent (excluding `@mindroom_router`, which is joined to every room) and none of those agents
+ * are joined to the source room.
  */
 export const targetHasUnsharedAgents = (
   sourceMembers: readonly Pick<RoomMember, 'membership' | 'userId'>[],
@@ -38,15 +42,18 @@ export const targetHasUnsharedAgents = (
   const targetAgents = targetMembers.filter(
     ({ membership, userId }) =>
       (membership === KnownMembership.Join || membership === KnownMembership.Invite) &&
-      isMindroomAgentUserId(userId)
+      isRespondingMindroomAgent(userId)
   );
   if (targetAgents.length === 0) return false;
-  const sourceJoined = new Set(
+  const sourceJoinedAgents = new Set(
     sourceMembers
-      .filter(({ membership }) => membership === KnownMembership.Join)
+      .filter(
+        ({ membership, userId }) =>
+          membership === KnownMembership.Join && isRespondingMindroomAgent(userId)
+      )
       .map(({ userId }) => userId)
   );
-  return !targetAgents.some(({ userId }) => sourceJoined.has(userId));
+  return !targetAgents.some(({ userId }) => sourceJoinedAgents.has(userId));
 };
 
 const getForwardState = (room: Room) =>
