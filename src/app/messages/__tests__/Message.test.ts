@@ -23,6 +23,10 @@ const longTextMocks = vi.hoisted(() => ({
   getMindroomLongTextSource: vi.fn<typeof getLongTextSource>(() => undefined),
   useMindroomLongTextResolvedContent: vi.fn<typeof useLongTextResolvedContent>(() => undefined),
 }));
+const settingsMocks = vi.hoisted(() => ({
+  developerTools: false,
+  useSetting: vi.fn(() => [settingsMocks.developerTools, vi.fn()]),
+}));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../styles.css', () => ({
@@ -377,6 +381,10 @@ vi.mock('../../preferences/settings', () => ({
     Bubble: 'Bubble',
     Modern: 'Modern',
   },
+  settingsAtom: {},
+}));
+vi.mock('../../preferences/useSetting', () => ({
+  useSetting: settingsMocks.useSetting,
 }));
 
 const getMessageComponent = async () => (await import('../Message')).Message;
@@ -386,6 +394,7 @@ let messageSender = '@alice:example.org';
 beforeEach(() => {
   lastMessageBaseNode = undefined;
   messageSender = '@alice:example.org';
+  settingsMocks.developerTools = false;
   vi.clearAllMocks();
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
@@ -952,6 +961,41 @@ describe('Message copy text overflow integration', () => {
     });
 
     expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Resolved overflow body');
+  });
+
+  it('gates Download Original and View Source behind developerTools without hiding Copy Text', async () => {
+    const longTextContent = {
+      msgtype: 'm.file',
+      body: 'Long text overflow…',
+      url: 'mxc://mindroom/overflow',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    longTextMocks.getMindroomLongTextSource.mockReturnValue({
+      previewContent: longTextContent,
+      mxcUri: 'mxc://mindroom/overflow',
+      isV2ContentJson: true,
+    });
+    longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue({
+      msgtype: 'm.text',
+      body: 'Full long-text reply',
+    });
+
+    const { renderer: hidden } = await renderMessage(longTextContent);
+    expect(settingsMocks.useSetting).not.toHaveBeenCalled();
+    await openContextMenu(hidden);
+    expect(getButtonByText(hidden, 'Copy Text')).toBeDefined();
+    expect(getButtonByText(hidden, 'Download Original')).toBeUndefined();
+    expect(getButtonByText(hidden, 'View Source')).toBeUndefined();
+
+    settingsMocks.developerTools = true;
+    const { renderer: shown } = await renderMessage(longTextContent);
+    await openContextMenu(shown);
+    expect(getButtonByText(shown, 'Download Original')).toBeDefined();
+    expect(getButtonByText(shown, 'View Source')).toBeDefined();
+    const texts = buttonTexts(shown);
+    expect(texts.indexOf('Download Original')).toBe(texts.indexOf('Read Receipts') + 1);
+    expect(texts.indexOf('View Source')).toBe(texts.indexOf('Download Original') + 1);
+    expect(texts.indexOf('Report a bug')).toBe(texts.indexOf('View Source') + 1);
   });
 });
 

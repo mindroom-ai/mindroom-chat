@@ -54,12 +54,14 @@ import {
 import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { MessageLayout, type MessageSpacing } from '../preferences/settings';
+import { MessageLayout, settingsAtom, type MessageSpacing } from '../preferences/settings';
+import { useSetting } from '../preferences/useSetting';
 import { canEditEvent, getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
 import { copyToClipboard, selectableTextNear } from '../lib/dom';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import type { LongTextSource } from '../matrix/protocol/longText';
 import { getViaServers } from '../matrix/via-servers';
 import { MessageEditor } from './edit/MessageEditor';
 import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
@@ -103,6 +105,28 @@ type ToolbarActionProps = {
   /** Moves a glyph that is drawn off-centre in its box back to the middle of the button. */
   iconClassName?: string;
 };
+
+/** Message menu actions kept behind Developer Tools, mounted only while the menu is open. */
+function DeveloperMessageMenuItems({
+  room,
+  mEvent,
+  longTextSource,
+  onClose,
+}: {
+  room: Room;
+  mEvent: MatrixEvent;
+  longTextSource?: LongTextSource;
+  onClose: () => void;
+}) {
+  const [developerTools] = useSetting(settingsAtom, 'developerTools');
+  if (!developerTools) return null;
+  return (
+    <>
+      {longTextSource && <DownloadOriginalMenuItem source={longTextSource} onClose={onClose} />}
+      <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={onClose} />
+    </>
+  );
+}
 
 /** An icon button of the hover toolbar, which shows its name in a tooltip above it. */
 function ToolbarAction({
@@ -1030,13 +1054,15 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
                 )}
                 {controls && <AiRunMenuItem onOpen={openAiRun} />}
-                {longTextSource && (
-                  <DownloadOriginalMenuItem source={longTextSource} onClose={dismissMenu} />
-                )}
                 {!hideReadReceipts && confirmed && (
                   <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
                 )}
-                <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                <DeveloperMessageMenuItems
+                  room={room}
+                  mEvent={mEvent}
+                  longTextSource={longTextSource}
+                  onClose={dismissMenu}
+                />
                 <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
                 {confirmed && canDelete && (
                   <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
