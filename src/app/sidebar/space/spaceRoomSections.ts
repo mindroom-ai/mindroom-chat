@@ -80,9 +80,10 @@ const belongsToSpaceSection = (
 
 /**
  * Flat ordered room sections for a Space sidebar: the active space's Rooms section first, followed
- * by every non-empty joined descendant sub-space in pre-order DFS. Empty intermediate sub-spaces
- * are hidden without hiding their populated descendants; an empty root Rooms section is hidden
- * whenever at least one sub-space section is shown (and kept when the entire space is empty).
+ * by joined descendant sub-spaces in pre-order DFS. Empty sub-spaces are kept only when
+ * `canEditSpace` allows adding rooms to them (non-editable empty organizers are skipped without
+ * hiding their populated descendants); an empty root Rooms section is kept when no sub-space
+ * sections are shown or when `canEditSpace(rootSpaceId)` is true.
  */
 export const getSpaceRoomSections = (
   mx: MatrixClient,
@@ -92,7 +93,8 @@ export const getSpaceRoomSections = (
   spaceRoomsByName: string[],
   directs: Set<string>,
   roomToParents: RoomToParents,
-  chatRooms: ReadonlySet<string>
+  chatRooms: ReadonlySet<string>,
+  canEditSpace: (spaceId: string) => boolean = () => false
 ): SpaceRoomSection[] => {
   const spaceRoomSet = new Set(spaceRoomsByName);
   const buildSection = (sectionSpaceId: string, isRoot: boolean): SpaceRoomSection => {
@@ -116,25 +118,35 @@ export const getSpaceRoomSections = (
 
   const subspaceSections = getDescendantSubspaces(mx, rootSpaceId, joinedRoomIds, roomToParents)
     .map((subspaceId) => buildSection(subspaceId, false))
-    .filter((section) => section.scopeRoomsByName.length > 0);
+    .filter((section) => section.scopeRoomsByName.length > 0 || canEditSpace(section.spaceId));
 
   const rootSection = buildSection(rootSpaceId, true);
-  if (rootSection.scopeRoomsByName.length === 0 && subspaceSections.length > 0) {
+  if (
+    rootSection.scopeRoomsByName.length === 0 &&
+    subspaceSections.length > 0 &&
+    !canEditSpace(rootSpaceId)
+  ) {
     return subspaceSections;
   }
   return [rootSection, ...subspaceSections];
 };
 
+export type CollapsedSectionUnread = { readonly highlight: boolean };
+
+const COLLAPSED_UNREAD: CollapsedSectionUnread = { highlight: false };
+const COLLAPSED_HIGHLIGHT: CollapsedSectionUnread = { highlight: true };
+
 /**
  * Whether a collapsed section hides any unread visible room (excluding the lone visible selected
- * room, if shown), and whether any hidden unread room has a highlight/mention.
+ * room, if shown), and whether any hidden unread room has a highlight/mention. Returns stable
+ * singletons so Jotai derived atoms avoid spurious re-renders when unread state is unchanged.
  */
 export const getCollapsedSectionUnread = (
   closed: boolean,
   shownRoomIds: readonly string[],
   selectedRoomId: string | undefined,
   unreads: RoomToUnread
-): { highlight: boolean } | undefined => {
+): CollapsedSectionUnread | undefined => {
   if (!closed) return undefined;
   let hasUnread = false;
   let highlight = false;
@@ -145,7 +157,8 @@ export const getCollapsedSectionUnread = (
     hasUnread = true;
     if (unread.highlight > 0) highlight = true;
   });
-  return hasUnread ? { highlight } : undefined;
+  if (!hasUnread) return undefined;
+  return highlight ? COLLAPSED_HIGHLIGHT : COLLAPSED_UNREAD;
 };
 
 /**

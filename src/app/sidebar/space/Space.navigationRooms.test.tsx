@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { useEffect } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
+import { RoomStateEvent } from 'matrix-js-sdk';
+import { matchesEnum } from '../../lib/matchesEnum';
 import { Space } from './Space';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
@@ -15,53 +17,100 @@ import { getSpaceRoomPath } from '../../routes/pathUtils';
 // Integration tests for Space sidebar navigation: inline collapsible sub-space sections, persisted
 // collapse state, scoped collapsed unread indicators, single shortcut hook, and atomic sort reset.
 
-const { accountData, passthrough, rooms, screen, selected, shortcutCalls, subRooms } = vi.hoisted(
-  () => {
-    const specs = {
-      space: { id: '!garden:example.org', name: 'garden', space: true },
-      joined: { id: '!seedlings:example.org', name: 'seedlings', space: false },
-      invited: { id: '!compost:example.org', name: 'compost', space: false },
-      left: { id: '!orchard:example.org', name: 'orchard', space: false },
-      design: { id: '!design:example.org', name: 'Design Team', space: true },
-      designReview: { id: '!design-review:example.org', name: 'Design Review', space: false },
-      iconSketches: { id: '!icon-sketches:example.org', name: 'Icon Sketches', space: false },
-      research: { id: '!research:example.org', name: 'Research Group', space: true },
-      readingList: { id: '!reading-list:example.org', name: 'Reading List', space: false },
-      interviews: { id: '!interviews:example.org', name: 'Field Interviews', space: false },
-    };
-    const byId = new Map(Object.values(specs).map((spec) => [spec.id, spec]));
-    const ids = Object.fromEntries(
-      Object.entries(specs).map(([key, spec]) => [key, spec.id])
-    ) as Record<keyof typeof specs, string>;
-    const roomOf = (roomId: string) => {
-      const spec = byId.get(roomId);
-      const space = spec?.space ?? false;
-      const type = space ? 'm.space' : undefined;
-      return {
-        roomId,
-        name: spec?.name ?? roomId.slice(1, roomId.indexOf(':')),
-        getCanonicalAlias: () => null,
-        isSpaceRoom: () => space,
-        currentState: { getStateEvents: () => [] },
-        getLiveTimeline: () => ({
-          getState: () => ({ getStateEvents: () => ({ getContent: () => ({ type }) }) }),
-        }),
-      };
-    };
+const {
+  accountData,
+  categoryButtonStats,
+  dragGroup,
+  editableSpaces,
+  moveSpaceRoomMock,
+  passthrough,
+  rooms,
+  screen,
+  selected,
+  shortcutCalls,
+  stateListeners,
+  subRooms,
+} = vi.hoisted(() => {
+  const specs = {
+    space: { id: '!garden:example.org', name: 'garden', space: true },
+    joined: { id: '!seedlings:example.org', name: 'seedlings', space: false },
+    invited: { id: '!compost:example.org', name: 'compost', space: false },
+    left: { id: '!orchard:example.org', name: 'orchard', space: false },
+    organizer: { id: '!organizer:example.org', name: 'Operations', space: true },
+    design: { id: '!design:example.org', name: 'Design Team', space: true },
+    designReview: { id: '!design-review:example.org', name: 'Design Review', space: false },
+    iconSketches: { id: '!icon-sketches:example.org', name: 'Icon Sketches', space: false },
+    research: { id: '!research:example.org', name: 'Research Group', space: true },
+    readingList: { id: '!reading-list:example.org', name: 'Reading List', space: false },
+    interviews: { id: '!interviews:example.org', name: 'Field Interviews', space: false },
+    nestedSub: { id: '!nested-sub:example.org', name: 'Nested Sub', space: false },
+  };
+  const byId = new Map(Object.values(specs).map((spec) => [spec.id, spec]));
+  const ids = Object.fromEntries(
+    Object.entries(specs).map(([key, spec]) => [key, spec.id])
+  ) as Record<keyof typeof specs, string>;
+  const editable = new Set<string>();
+  const roomOf = (roomId: string) => {
+    const spec = byId.get(roomId);
+    const space = spec?.space ?? false;
+    const type = space ? 'm.space' : undefined;
     return {
-      rooms: { ids, of: roomOf },
-      subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
-      screen: { size: 'Desktop' },
-      selected: { roomId: undefined as string | undefined },
-      shortcutCalls: [] as Array<readonly string[]>,
-      accountData: {
-        content: undefined as Record<string, unknown> | undefined,
-        setAccountData: vi.fn(async () => ({})),
-      },
-      passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+      roomId,
+      name: spec?.name ?? roomId.slice(1, roomId.indexOf(':')),
+      getCanonicalAlias: () => null,
+      getMyMembership: () => 'join',
+      isSpaceRoom: () => space,
+      currentState: { getStateEvents: () => [] },
+      getLiveTimeline: () => ({
+        getState: () => ({
+          getStateEvents: (eventType: string) => {
+            if (eventType === 'm.room.create') {
+              return { getContent: () => ({ type }), getSender: () => '@owner:example.org' };
+            }
+            if (eventType === 'm.room.power_levels') {
+              return {
+                getContent: () => ({
+                  state_default: 50,
+                  users: { '@alice:example.org': editable.has(roomId) ? 100 : 0 },
+                }),
+              };
+            }
+            return null;
+          },
+        }),
+      }),
     };
-  }
-);
+  };
+  const listeners = new Set<(...args: unknown[]) => void>();
+  return {
+    rooms: { ids, of: roomOf },
+    editableSpaces: editable,
+    stateListeners: listeners,
+    moveSpaceRoomMock: vi.fn(async (): Promise<void> => undefined),
+    dragGroup: {
+      canMoveRoom: undefined as
+        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean)
+        | undefined,
+      onMoveRoom: undefined as
+        | ((sourceSpaceId: string, targetSpaceId: string, roomId: string) => void | Promise<void>)
+        | undefined,
+    },
+    categoryButtonStats: {
+      mounts: new Map<string, number>(),
+      unmounts: new Map<string, number>(),
+      renders: new Map<string, number>(),
+    },
+    subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
+    screen: { size: 'Desktop' },
+    selected: { roomId: undefined as string | undefined },
+    shortcutCalls: [] as Array<readonly string[]>,
+    accountData: {
+      content: undefined as Record<string, unknown> | undefined,
+      setAccountData: vi.fn(async () => ({})),
+    },
+    passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  };
+});
 
 const client = {
   getRoom: (roomId: string) => rooms.of(roomId),
@@ -73,8 +122,15 @@ const client = {
       ? { getContent: () => accountData.content }
       : undefined,
   setAccountData: accountData.setAccountData,
-  on: () => undefined,
-  off: () => undefined,
+  on: (event: string, listener: (...args: unknown[]) => void) => {
+    if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.add(listener);
+  },
+  off: (event: string, listener: (...args: unknown[]) => void) => {
+    if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.delete(listener);
+  },
+  removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+    if (matchesEnum(event, RoomStateEvent.Events)) stateListeners.delete(listener);
+  },
 };
 
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -132,18 +188,38 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
     ownDirection?: boolean;
     after?: React.ReactNode;
     children?: React.ReactNode;
-  } & Record<string, unknown>) => (
-    <button
-      type="button"
-      data-section-button
-      data-closed={closed ? 'true' : 'false'}
-      data-own-direction-prop={ownDirection ? 'true' : 'false'}
-      {...props}
-    >
-      {children}
-      {after}
-    </button>
-  ),
+    'data-category-id'?: string;
+  } & Record<string, unknown>) => {
+    const categoryId = props['data-category-id'] ?? '';
+    categoryButtonStats.renders.set(
+      categoryId,
+      (categoryButtonStats.renders.get(categoryId) ?? 0) + 1
+    );
+    useEffect(() => {
+      categoryButtonStats.mounts.set(
+        categoryId,
+        (categoryButtonStats.mounts.get(categoryId) ?? 0) + 1
+      );
+      return () => {
+        categoryButtonStats.unmounts.set(
+          categoryId,
+          (categoryButtonStats.unmounts.get(categoryId) ?? 0) + 1
+        );
+      };
+    }, [categoryId]);
+    return (
+      <button
+        type="button"
+        data-section-button
+        data-closed={closed ? 'true' : 'false'}
+        data-own-direction-prop={ownDirection ? 'true' : 'false'}
+        {...props}
+      >
+        {children}
+        {after}
+      </button>
+    );
+  },
 }));
 // The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
@@ -159,6 +235,20 @@ vi.mock('../useRoomListShortcuts', () => ({
   },
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
+  SortableRoomGroup: ({
+    canMoveRoom,
+    onMoveRoom,
+    children,
+  }: {
+    canMoveRoom?: (sourceSpaceId: string, targetSpaceId: string, roomId: string) => boolean;
+    onMoveRoom?: (sourceSpaceId: string, targetSpaceId: string, roomId: string) => void;
+    children?: React.ReactNode;
+  }) => {
+    dragGroup.canMoveRoom = canMoveRoom;
+    dragGroup.onMoveRoom = onMoveRoom;
+    return <div data-sortable-group>{children}</div>;
+  },
+  useRoomSectionDrop: () => ({}),
   SortableRoomList: ({ listId, children }: { listId: string; children?: React.ReactNode }) => (
     <div data-sortable-list={listId}>{children}</div>
   ),
@@ -181,6 +271,10 @@ vi.mock('../room-nav/SortableRoomList', () => ({
     />
   ),
 }));
+vi.mock('../../spaces/lobby/spaceChildren', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../spaces/lobby/spaceChildren')>()),
+  moveSpaceRoom: moveSpaceRoomMock,
+}));
 vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({ JoinBeforeNavigate: () => null }));
 vi.mock('../../room/RoomRoute', () => ({ RouteResolving: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
@@ -195,9 +289,16 @@ vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => sele
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: () => undefined,
 }));
-vi.mock('../../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
-vi.mock('../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
-vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
+vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
+  usePowerLevels: () => ({}),
+}));
+vi.mock('../../matrix/hooks/useRoomCreators', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useRoomCreators')>()),
+  useRoomCreators: () => new Set(),
+}));
+vi.mock('../../matrix/hooks/useRoomPermissions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useRoomPermissions')>()),
   useRoomPermissions: () => ({ action: () => false }),
 }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
@@ -229,6 +330,15 @@ describe('Space navigation', () => {
     screen.size = 'Desktop';
     selected.roomId = undefined;
     shortcutCalls.length = 0;
+    editableSpaces.clear();
+    stateListeners.clear();
+    dragGroup.canMoveRoom = undefined;
+    dragGroup.onMoveRoom = undefined;
+    categoryButtonStats.mounts.clear();
+    categoryButtonStats.unmounts.clear();
+    categoryButtonStats.renders.clear();
+    moveSpaceRoomMock.mockReset();
+    moveSpaceRoomMock.mockImplementation(async () => undefined);
     accountData.content = undefined;
     accountData.setAccountData.mockReset();
     localStorage.clear();
@@ -431,5 +541,160 @@ describe('Space navigation', () => {
       designReview,
       iconSketches,
     ]);
+  });
+
+  it('shows editable empty sub-spaces, reacts to power-level changes, and keeps section headers mounted across toggles', () => {
+    const { space, joined, organizer, design, designReview, research, readingList } = rooms.ids;
+    const { store } = renderSpace(
+      [space, joined, organizer, design, designReview, research, readingList],
+      {
+        [joined]: [space],
+        [organizer]: [space],
+        [design]: [space],
+        [research]: [organizer],
+        [designReview]: [design],
+        [readingList]: [research],
+      }
+    );
+
+    const organizerCategoryId = makeNavCategoryId(space, 'subspace', organizer);
+    const researchCategoryId = makeNavCategoryId(space, 'subspace', research);
+
+    // Non-editable empty organizer is hidden without hiding its populated child Research Group.
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      researchCategoryId,
+    ]);
+
+    // Granting m.space.child permission on the organizer via RoomPowerLevels reveals it immediately.
+    editableSpaces.add(organizer);
+    act(() => {
+      stateListeners.forEach((listener) =>
+        listener({ getType: () => 'm.room.power_levels', getRoomId: () => organizer })
+      );
+    });
+    expect(sectionButtons().map((node) => node.props['data-category-id'])).toEqual([
+      makeNavCategoryId(space, 'room'),
+      makeNavCategoryId(space, 'subspace', design),
+      organizerCategoryId,
+      researchCategoryId,
+    ]);
+
+    // Unread updates while Research Group is expanded do not re-render its header button.
+    const rendersBeforeExpandedUnread = categoryButtonStats.renders.get(researchCategoryId) ?? 0;
+    act(() =>
+      store.set(roomToUnreadAtom, {
+        type: 'RESET',
+        unreadInfos: [{ roomId: readingList, total: 1, highlight: 0 }],
+      })
+    );
+    expect(categoryButtonStats.renders.get(researchCategoryId)).toBe(rendersBeforeExpandedUnread);
+
+    // Collapsing and re-expanding keeps the same button mounted (preserving keyboard focus).
+    const researchButton = () =>
+      sectionButtons().find((node) => node.props['data-category-id'] === researchCategoryId)!;
+    act(() => {
+      researchButton().props.onClick({ currentTarget: { getAttribute: () => researchCategoryId } });
+    });
+    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(1);
+    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(0);
+
+    // While collapsed with unread, an unrelated unread update does not re-render this header.
+    const rendersWhileCollapsed = categoryButtonStats.renders.get(researchCategoryId) ?? 0;
+    act(() =>
+      store.set(roomToUnreadAtom, {
+        type: 'RESET',
+        unreadInfos: [
+          { roomId: readingList, total: 1, highlight: 0 },
+          { roomId: designReview, total: 3, highlight: 0 },
+        ],
+      })
+    );
+    expect(categoryButtonStats.renders.get(researchCategoryId)).toBe(rendersWhileCollapsed);
+
+    act(() => {
+      researchButton().props.onClick({ currentTarget: { getAttribute: () => researchCategoryId } });
+    });
+    expect(categoryButtonStats.mounts.get(researchCategoryId)).toBe(1);
+    expect(categoryButtonStats.unmounts.get(researchCategoryId) ?? 0).toBe(0);
+  });
+
+  it('validates cross-section moves, calls moveSpaceRoom, guards in-flight moves, and appends only to manual targets', async () => {
+    const { space, joined, design, designReview, iconSketches, research, readingList, nestedSub } =
+      rooms.ids;
+    editableSpaces.add(space);
+    editableSpaces.add(design);
+    editableSpaces.add(research);
+    accountData.content = {
+      lists: {
+        [design]: [iconSketches, designReview],
+      },
+    };
+    renderSpace(
+      [space, joined, design, designReview, iconSketches, research, readingList, nestedSub],
+      {
+        [joined]: [space],
+        [design]: [space],
+        [research]: [space],
+        [designReview]: [design],
+        [iconSketches]: [design],
+        [readingList]: [research],
+        [nestedSub]: [joined],
+      }
+    );
+
+    expect(dragGroup.canMoveRoom?.(space, design, joined)).toBe(true);
+    expect(dragGroup.canMoveRoom?.(space, space, joined)).toBe(false);
+    // Nested chat sub-room is not a direct child of space -> blocked.
+    expect(dragGroup.canMoveRoom?.(space, design, nestedSub)).toBe(false);
+    // Target space without m.space.child permission -> blocked.
+    expect(dragGroup.canMoveRoom?.(space, rooms.ids.organizer, joined)).toBe(false);
+
+    // Moving into an A-Z target (research) calls moveSpaceRoom and leaves account data untouched.
+    await act(async () => {
+      await dragGroup.onMoveRoom?.(space, research, joined);
+    });
+    expect(moveSpaceRoomMock).toHaveBeenCalledTimes(1);
+    expect(moveSpaceRoomMock).toHaveBeenCalledWith(
+      client,
+      space,
+      expect.objectContaining({ roomId: research }),
+      joined
+    );
+    expect(accountData.setAccountData).not.toHaveBeenCalled();
+
+    // Moving into a manually ordered target (design) appends the moved room once.
+    moveSpaceRoomMock.mockClear();
+    let resolveMove!: () => void;
+    moveSpaceRoomMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveMove = resolve;
+        })
+    );
+
+    let firstMove!: Promise<void>;
+    act(() => {
+      firstMove = Promise.resolve(dragGroup.onMoveRoom?.(space, design, joined));
+    });
+    // While in flight, overlapping moves of the same room are blocked.
+    expect(dragGroup.canMoveRoom?.(space, design, joined)).toBe(false);
+    await act(async () => {
+      await dragGroup.onMoveRoom?.(space, design, joined);
+    });
+    expect(moveSpaceRoomMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMove();
+      await firstMove;
+    });
+    expect(accountData.setAccountData).toHaveBeenCalledTimes(1);
+    expect(accountData.setAccountData).toHaveBeenCalledWith('io.mindroom.room_order', {
+      lists: {
+        [design]: [iconSketches, designReview, joined],
+      },
+    });
+    expect(dragGroup.canMoveRoom?.(space, design, joined)).toBe(true);
   });
 });

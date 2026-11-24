@@ -53,6 +53,7 @@ import {
 } from '../../navigation/routeVisibility';
 import { useJoinedParentSpaces } from '../../matrix/state/useSpaceSearchRooms';
 import { BackToListButton } from '../../ui/page/PhoneBackButton';
+import { SortableRoomGroup } from '../room-nav/SortableRoomList';
 import { getSpaceShareLink } from './spaceLink';
 import { SpaceRoomSection, useSpaceRoomSections } from './SpaceRoomSection';
 
@@ -313,8 +314,16 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
-  const { spaceRooms, sections, shortcutRoomIds, onCategoryClick, onReorder, onSortByName } =
-    useSpaceRoomSections(space.roomId, selectedRoomId);
+  const {
+    spaceRooms,
+    sections,
+    shortcutRoomIds,
+    onCategoryClick,
+    onReorder,
+    onSortByName,
+    canMoveRoom,
+    onMoveRoom,
+  } = useSpaceRoomSections(space.roomId, selectedRoomId);
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(shortcutRoomIds, selectedRoomId, spaceRoomPath);
@@ -332,17 +341,19 @@ export function Space() {
               selected={lobbySelected}
             />
           </NavCategory>
-          {sections.map((section) => (
-            <SpaceRoomSection
-              key={section.categoryId}
-              section={section}
-              spaceId={space.roomId}
-              spaceIdOrAlias={spaceIdOrAlias}
-              selectedRoomId={selectedRoomId}
-              onCategoryClick={onCategoryClick}
-              onReorder={onReorder}
-            />
-          ))}
+          <SortableRoomGroup canMoveRoom={canMoveRoom} onMoveRoom={onMoveRoom}>
+            {sections.map((section) => (
+              <SpaceRoomSection
+                key={section.categoryId}
+                section={section}
+                spaceId={space.roomId}
+                spaceIdOrAlias={spaceIdOrAlias}
+                selectedRoomId={selectedRoomId}
+                onCategoryClick={onCategoryClick}
+                onReorder={onReorder}
+              />
+            ))}
+          </SortableRoomGroup>
           <ThreadNavCategory spaceId={space.roomId} />
         </Box>
       </PageNavContent>

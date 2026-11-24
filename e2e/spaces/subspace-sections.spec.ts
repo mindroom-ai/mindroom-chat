@@ -3,6 +3,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
@@ -13,6 +14,7 @@ import {
   joinRoom,
   matrixFetch,
   sendRoomMessage,
+  sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
@@ -21,13 +23,15 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// A space lists its own rooms followed by inline collapsible sections for every non-empty joined
-// descendant sub-space in pre-order DFS (skipping empty organizer headers while still showing
-// their populated descendants). Collapsing a section hides its rooms, persists across reload,
-// keeps the currently selected room visible, and shows a compact unread dot while any hidden room
-// has unread messages. Clicking a room in any section opens it under the parent space route,
-// keyboard room-stepping crosses sections, and visiting a sub-space directly still shows Back to
-// the parent. Set SUBSPACES_SECTIONS_SHOTS (or SUBSPACES_MENU_SHOTS) to capture screenshots.
+// A space lists its own rooms followed by inline collapsible sections for joined descendant
+// sub-spaces in pre-order DFS: editable empty sub-spaces stay visible as drop targets while
+// non-editable empty organizers are skipped without hiding their populated descendants.
+// Dragging a room onto another eligible section moves it there and persists across reload.
+// Collapsing a section hides its rooms, persists across reload, keeps the currently selected room
+// visible, and shows a compact unread dot while any hidden room has unread messages. Clicking a
+// room in any section opens it under the parent space route, keyboard room-stepping crosses
+// sections, and visiting a sub-space directly still shows Back to the parent. Set
+// SUBSPACES_SECTIONS_SHOTS (or SUBSPACES_MENU_SHOTS) to capture screenshots.
 const PASSWORD = 'subspace-sections-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.SUBSPACES_SECTIONS_SHOTS ?? process.env.SUBSPACES_MENU_SHOTS;
@@ -36,6 +40,7 @@ const PARENT_ROOMS = ['Book Swap', 'Garden Club', 'Harbor Plans'];
 const DESIGN = 'Design Team';
 const DESIGN_ROOMS = ['Design Review', 'Icon Sketches'];
 const ORGANIZER = 'Operations';
+const READONLY_ORGANIZER = 'Readonly Archive';
 const RESEARCH = 'Research Group';
 const RESEARCH_ROOMS = ['Field Interviews', 'Reading List'];
 const ALL_ROOMS = [...PARENT_ROOMS, ...DESIGN_ROOMS, ...RESEARCH_ROOMS];
@@ -64,19 +69,22 @@ type Seed = {
   parent: string;
   design: string;
   organizer: string;
+  readonlyOrganizer: string;
   research: string;
   roomIds: Record<string, string>;
 };
 const seeds = new Map<string, Promise<Seed>>();
 
 /**
- * One account per engine: Field Notes -> (own rooms, Design Team, empty Operations -> Research
- * Group). Reading List stays unread for unread-dot checks; tests avoid opening it.
+ * One account per engine: Field Notes -> (own rooms, Design Team, editable empty Operations ->
+ * Research Group, and non-editable empty Readonly Archive owned by peer). Reading List stays
+ * unread for unread-dot checks; tests avoid opening it.
  */
 const seed = async (engine: string): Promise<Seed> => {
   const viewer = await register(`viewer_${engine}`);
   const peer = await register(`peer_${engine}`);
   const token = viewer.accessToken;
+  const via = new URL(HOMESERVER).host;
   const roomIds: Record<string, string> = {};
   const space = async (name: string) => createPrivateSpace(HOMESERVER, token, { name, topic: '' });
   const rooms = async (spaceId: string, names: string[], unread?: string) => {
@@ -100,9 +108,18 @@ const seed = async (engine: string): Promise<Seed> => {
   const parent = await space(PARENT);
   const design = await space(DESIGN);
   const organizer = await space(ORGANIZER);
+  const readonlyOrganizer = await createPrivateSpace(HOMESERVER, peer.accessToken, {
+    name: READONLY_ORGANIZER,
+    topic: '',
+    invite: [viewer.userId],
+  });
+  await joinRoom(HOMESERVER, token, readonlyOrganizer);
   const research = await space(RESEARCH);
   await addRoomToSpace(HOMESERVER, token, parent, design);
   await addRoomToSpace(HOMESERVER, token, parent, organizer);
+  await sendStateEvent(HOMESERVER, token, parent, 'm.space.child', readonlyOrganizer, {
+    via: [via],
+  });
   await addRoomToSpace(HOMESERVER, token, organizer, research);
   await rooms(parent, PARENT_ROOMS);
   await rooms(design, DESIGN_ROOMS);
@@ -110,7 +127,15 @@ const seed = async (engine: string): Promise<Seed> => {
   await setAccountData(HOMESERVER, token, viewer.userId, 'io.mindroom.spaces', {
     sidebar: [parent],
   });
-  return { username: viewer.username, parent, design, organizer, research, roomIds };
+  return {
+    username: viewer.username,
+    parent,
+    design,
+    organizer,
+    readonlyOrganizer,
+    research,
+    roomIds,
+  };
 };
 
 const signIn = async (
@@ -157,6 +182,28 @@ const list = (page: Page) => page.getByTestId('resizable-page-nav');
 const roomRow = (page: Page, name: string) => list(page).getByRole('link', { name });
 const sectionButton = (page: Page, categoryId: string) =>
   list(page).locator(`[data-category-id="${categoryId}"]`);
+const sectionContainer = (page: Page, categoryId: string) =>
+  sectionButton(page, categoryId).locator('xpath=../..');
+const sectionRoomIds = (page: Page, categoryId: string) =>
+  sectionContainer(page, categoryId)
+    .locator('[data-room-id]')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-room-id')));
+
+const dragToSection = async (
+  page: Page,
+  from: Locator,
+  to: Locator,
+  whileOver?: () => Promise<void>
+) => {
+  const start = (await from.boundingBox())!;
+  const target = (await to.boundingBox())!;
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2 + 12, { steps: 4 });
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  await whileOver?.();
+  await page.mouse.up();
+};
 
 /** The list shows exactly these rooms of the seeded hierarchy. */
 const expectRooms = async (page: Page, shown: string[]) => {
@@ -171,16 +218,19 @@ const checkDesktop = async (browser: Browser, engine: string, language?: string)
   const rootId = `${seeded.parent}|room`;
   const designId = `${seeded.parent}|subspace|${seeded.design}`;
   const organizerId = `${seeded.parent}|subspace|${seeded.organizer}`;
+  const readonlyOrganizerId = `${seeded.parent}|subspace|${seeded.readonlyOrganizer}`;
   const researchId = `${seeded.parent}|subspace|${seeded.research}`;
 
   await page.locator(`[data-id="${seeded.parent}"]`).first().click();
   await expect(page).toHaveURL(lobbyPath(seeded.parent));
   await expect(list(page).locator('[data-subspaces-menu]')).toHaveCount(0);
 
-  // Parent Rooms plus populated sub-spaces render inline; the empty organizer header is hidden.
+  // Editable empty sub-spaces (Operations) render as drop targets while non-editable empty
+  // organizers (Readonly Archive) stay hidden.
   await expect(sectionButton(page, rootId)).toBeVisible();
   await expect(sectionButton(page, designId)).toBeVisible();
-  await expect(sectionButton(page, organizerId)).toHaveCount(0);
+  await expect(sectionButton(page, organizerId)).toBeVisible();
+  await expect(sectionButton(page, readonlyOrganizerId)).toHaveCount(0);
   await expect(sectionButton(page, researchId)).toBeVisible();
   await expectRooms(page, ALL_ROOMS);
 
@@ -267,14 +317,86 @@ const checkKeyboard = async (browser: Browser, engine: string) => {
   await context.close();
 };
 
+const checkDragMove = async (browser: Browser, engine: string) => {
+  // Isolated account so Matrix state moves do not affect the shared seed of other tests.
+  const { context, page, seeded } = await signIn(browser, `${engine}_drag`, DESKTOP);
+  const rootId = `${seeded.parent}|room`;
+  const designId = `${seeded.parent}|subspace|${seeded.design}`;
+  const organizerId = `${seeded.parent}|subspace|${seeded.organizer}`;
+  const bookSwap = seeded.roomIds['Book Swap']!;
+  const gardenClub = seeded.roomIds['Garden Club']!;
+  const harborPlans = seeded.roomIds['Harbor Plans']!;
+  const designReview = seeded.roomIds['Design Review']!;
+  const iconSketches = seeded.roomIds['Icon Sketches']!;
+
+  await page.goto(`/${encodeURIComponent(seeded.parent)}/lobby/`);
+  await expect(sectionButton(page, organizerId)).toBeVisible();
+  await expect
+    .poll(() => sectionRoomIds(page, rootId))
+    .toEqual([bookSwap, gardenClub, harborPlans]);
+  await expect.poll(() => sectionRoomIds(page, organizerId)).toEqual([]);
+
+  // Drag Book Swap from Rooms into the empty Operations sub-space section.
+  await dragToSection(
+    page,
+    list(page).locator(`[data-room-id="${bookSwap}"]`),
+    sectionButton(page, organizerId),
+    async () => {
+      await expect(sectionContainer(page, organizerId)).toHaveAttribute(
+        'data-section-drop-target',
+        'true'
+      );
+      if (SHOTS) {
+        await page.screenshot({ path: `${SHOTS}/subspace-sections-drag-target-${engine}.png` });
+      }
+    }
+  );
+  await expect.poll(() => sectionRoomIds(page, organizerId)).toEqual([bookSwap]);
+  await expect.poll(() => sectionRoomIds(page, rootId)).toEqual([gardenClub, harborPlans]);
+  await expect(page).toHaveURL(lobbyPath(seeded.parent));
+
+  // Drag Harbor Plans from Rooms onto populated Design Team (highlights the whole section).
+  await dragToSection(
+    page,
+    list(page).locator(`[data-room-id="${harborPlans}"]`),
+    list(page).locator(`[data-room-id="${designReview}"]`),
+    async () => {
+      await expect(sectionContainer(page, designId)).toHaveAttribute(
+        'data-section-drop-target',
+        'true'
+      );
+      await expect(list(page).locator('[data-drop-at]')).toHaveCount(0);
+    }
+  );
+  await expect.poll(() => sectionRoomIds(page, rootId)).toEqual([gardenClub]);
+  await expect
+    .poll(() => sectionRoomIds(page, designId))
+    .toEqual([designReview, harborPlans, iconSketches]);
+  if (SHOTS) {
+    await page.screenshot({ path: `${SHOTS}/subspace-sections-after-move-${engine}.png` });
+  }
+
+  // Both moves persist across a full reload.
+  await page.reload();
+  await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
+  await expect.poll(() => sectionRoomIds(page, rootId)).toEqual([gardenClub]);
+  await expect
+    .poll(() => sectionRoomIds(page, designId))
+    .toEqual([designReview, harborPlans, iconSketches]);
+  await expect.poll(() => sectionRoomIds(page, organizerId)).toEqual([bookSwap]);
+  await context.close();
+};
+
 const checkPhone = async (browser: Browser, engine: string, language?: string) => {
   const { context, page, seeded } = await signIn(browser, engine, PHONE, language);
   const designId = `${seeded.parent}|subspace|${seeded.design}`;
   const organizerId = `${seeded.parent}|subspace|${seeded.organizer}`;
+  const readonlyOrganizerId = `${seeded.parent}|subspace|${seeded.readonlyOrganizer}`;
 
   await page.locator(`[data-id="${seeded.parent}"]`).first().tap();
   await expect(page).toHaveURL(spacePath(seeded.parent));
-  await expect(sectionButton(page, organizerId)).toHaveCount(0);
+  await expect(sectionButton(page, organizerId)).toBeVisible();
+  await expect(sectionButton(page, readonlyOrganizerId)).toHaveCount(0);
   await expectRooms(page, ALL_ROOMS);
   if (SHOTS) {
     await page.screenshot({
@@ -335,6 +457,12 @@ test('keyboard room-stepping crosses inline sub-space sections', async ({ browse
   await checkKeyboard(browser, 'chromium');
 });
 
+test('dragging a room across sections moves it into an empty or populated sub-space and persists', async ({
+  browser,
+}) => {
+  await checkDragMove(browser, 'chromium');
+});
+
 test('on a phone sub-space sections collapse inline and back returns to the parent', async ({
   browser,
 }) => {
@@ -353,5 +481,7 @@ test.describe('WebKit', () => {
     inWebKit((browser) => checkDesktop(browser, 'webkit')));
   test('keyboard stepping across sections', () =>
     inWebKit((browser) => checkKeyboard(browser, 'webkit')));
+  test('dragging a room across sections', () =>
+    inWebKit((browser) => checkDragMove(browser, 'webkit')));
   test('inline sections on a phone', () => inWebKit((browser) => checkPhone(browser, 'webkit')));
 });

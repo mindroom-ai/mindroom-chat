@@ -46,6 +46,24 @@ const viaFor = (client: MatrixClient, room: Room | null | undefined): string[] =
   return own ? [own] : [];
 };
 
+const liveSpaceChildContent = (
+  space: Room | null | undefined,
+  childId: string
+): Record<string, unknown> | undefined => {
+  const content = space
+    ? liveState(space)?.getStateEvents(StateEvent.SpaceChild, childId)?.getContent()
+    : undefined;
+  if (
+    !content ||
+    !Array.isArray(content.via) ||
+    content.via.length === 0 ||
+    !content.via.every((server) => typeof server === 'string')
+  ) {
+    return undefined;
+  }
+  return content;
+};
+
 /**
  * Adds `childId` to `space`. Where the user may, the child also names the space as a parent,
  * so other clients find the space from the room.
@@ -53,13 +71,14 @@ const viaFor = (client: MatrixClient, room: Room | null | undefined): string[] =
 export const addSpaceChild = async (
   client: MatrixClient,
   space: Room,
-  childId: string
+  childId: string,
+  options?: { suggested?: boolean }
 ): Promise<void> => {
   const child = client.getRoom(childId);
   await sendState(client)(
     space.roomId,
     StateEvent.SpaceChild,
-    { via: viaFor(client, child), suggested: false },
+    { via: viaFor(client, child), suggested: options?.suggested === true },
     childId
   );
   if (
@@ -98,6 +117,26 @@ export const removeSpaceChild = async (
   }
 };
 
+/**
+ * Moves `roomId` from `sourceSpaceId` to `targetSpace`, preserving its `suggested` flag.
+ * Adds the link in `targetSpace` before removing it from `sourceSpaceId` so a failed write
+ * never orphans the room.
+ */
+export const moveSpaceRoom = async (
+  client: MatrixClient,
+  sourceSpaceId: string,
+  targetSpace: Room,
+  roomId: string
+): Promise<void> => {
+  if (sourceSpaceId === targetSpace.roomId) return;
+  const sourceSpace = client.getRoom(sourceSpaceId);
+  const suggested = liveSpaceChildContent(sourceSpace, roomId)?.suggested === true;
+  if (!liveSpaceChildContent(targetSpace, roomId)) {
+    await addSpaceChild(client, targetSpace, roomId, { suggested });
+  }
+  await removeSpaceChild(client, sourceSpaceId, roomId);
+};
+
 /** Marks a child of `space` as suggested (or not), keeping the rest of its link. */
 export const setSpaceChildSuggested = async (
   client: MatrixClient,
@@ -105,7 +144,7 @@ export const setSpaceChildSuggested = async (
   childId: string,
   suggested: boolean
 ): Promise<void> => {
-  const current = liveState(space)?.getStateEvents(StateEvent.SpaceChild, childId)?.getContent();
-  if (!current || !Array.isArray(current.via) || current.via.length === 0) return;
+  const current = liveSpaceChildContent(space, childId);
+  if (!current) return;
   await sendState(client)(space.roomId, StateEvent.SpaceChild, { ...current, suggested }, childId);
 };

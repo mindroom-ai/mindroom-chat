@@ -1,7 +1,7 @@
-import { Fragment, type MouseEventHandler, useLayoutEffect, useMemo, useRef } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
+import { Fragment, type MouseEventHandler, useCallback, useMemo, useRef } from 'react';
+import { atom, useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { revealDirectionControls } from '../../ui/directional';
 import { NavCategory } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
@@ -10,7 +10,11 @@ import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories'
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { useRoomOrders } from '../room-nav/roomOrder';
-import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import {
+  SortableRoomList,
+  SortableRoomRow,
+  useRoomSectionDrop,
+} from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, type SubRoomTree, buildSubRoomList } from '../room-nav/SubRoomRows';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -19,19 +23,26 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
+import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { StateEvent } from '../../matrix/types/room';
 import { getSpaceRoomPath } from '../../routes/pathUtils';
 import { getSpaceSearchRooms } from '../../matrix/state/useSpaceSearchRooms';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { matchesEnum } from '../../lib/matchesEnum';
+import { canSendState, moveSpaceRoom } from '../../spaces/lobby/spaceChildren';
 import {
+  type CollapsedSectionUnread,
   type SpaceRoomSection as SpaceRoomSectionData,
   collectShortcutRoomIds,
   getCollapsedSectionUnread,
+  getDescendantSubspaces,
   getSpaceRoomSections,
 } from './spaceRoomSections';
 
@@ -58,6 +69,43 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
   const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
   const onCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
+  const joinedRoomSet = useMemo(() => new Set(joinedRoomIds), [joinedRoomIds]);
+  const descendantSubspaces = useMemo(
+    () => getDescendantSubspaces(client, spaceId, joinedRoomIds, roomToParents),
+    [client, spaceId, joinedRoomIds, roomToParents]
+  );
+  const trackedSpaceIds = useMemo(
+    () => new Set([spaceId, ...descendantSubspaces]),
+    [spaceId, descendantSubspaces]
+  );
+  const [powerLevelsVersion, refreshPowerLevels] = useForceUpdate();
+  const handlePowerLevelsChange = useCallback(
+    (event: MatrixEvent) => {
+      if (
+        matchesEnum(event.getType(), StateEvent.RoomPowerLevels) &&
+        trackedSpaceIds.has(event.getRoomId() ?? '')
+      ) {
+        refreshPowerLevels();
+      }
+    },
+    [trackedSpaceIds, refreshPowerLevels]
+  );
+  useStateEventCallback(client, handlePowerLevelsChange);
+
+  const canEditSpace = useCallback(
+    (targetSpaceId: string): boolean => {
+      void powerLevelsVersion;
+      if (!joinedRoomSet.has(targetSpaceId)) return false;
+      const room = client.getRoom(targetSpaceId);
+      return (
+        room !== null &&
+        matchesEnum(room.getMyMembership(), KnownMembership.Join) &&
+        canSendState(client, room, StateEvent.SpaceChild)
+      );
+    },
+    [client, joinedRoomSet, powerLevelsVersion]
+  );
+
   // Mark as Read covers the rooms of the sub-spaces too; each section shows its space's own rooms
   // with their chat sub-rooms.
   const spaceRooms = useMemo(
@@ -78,7 +126,8 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
         spaceRoomsByName,
         directRoomIds,
         roomToParents,
-        chatRooms
+        chatRooms,
+        canEditSpace
       ),
     [
       client,
@@ -89,6 +138,7 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
       directRoomIds,
       roomToParents,
       chatRooms,
+      canEditSpace,
     ]
   );
   const roomOrders = useRoomOrders();
@@ -114,6 +164,51 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
     .filter((section) => roomOrders.isManual(section.spaceId))
     .map((section) => section.spaceId);
 
+  const movingRoomIdsRef = useRef(new Set<string>());
+  const roomOrdersRef = useRef(roomOrders);
+  roomOrdersRef.current = roomOrders;
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
+
+  const canMoveRoom = useCallback(
+    (sourceSpaceId: string, targetSpaceId: string, roomId: string): boolean => {
+      if (sourceSpaceId === targetSpaceId) return false;
+      if (movingRoomIdsRef.current.has(roomId)) return false;
+      const parents = roomToParents.get(roomId);
+      if (!parents?.has(sourceSpaceId) || parents.has(targetSpaceId)) return false;
+      return canEditSpace(sourceSpaceId) && canEditSpace(targetSpaceId);
+    },
+    [roomToParents, canEditSpace]
+  );
+
+  const onMoveRoom = useCallback(
+    async (sourceSpaceId: string, targetSpaceId: string, roomId: string) => {
+      if (!canMoveRoom(sourceSpaceId, targetSpaceId, roomId)) return;
+      const targetSpace = client.getRoom(targetSpaceId);
+      if (!targetSpace) return;
+
+      movingRoomIdsRef.current.add(roomId);
+      try {
+        await moveSpaceRoom(client, sourceSpaceId, targetSpace, roomId);
+        const latestOrders = roomOrdersRef.current;
+        if (latestOrders.isManual(targetSpaceId)) {
+          const targetSection = sectionsRef.current.find(
+            (section) => section.spaceId === targetSpaceId
+          );
+          const current = (
+            targetSection ? latestOrders.orderOf(targetSpaceId, targetSection.tree.top) : []
+          ).filter((id) => id !== roomId);
+          latestOrders.save(targetSpaceId, [...current, roomId]);
+        }
+      } catch {
+        // Leave Matrix state authoritative if the move fails.
+      } finally {
+        movingRoomIdsRef.current.delete(roomId);
+      }
+    },
+    [canMoveRoom, client]
+  );
+
   return {
     spaceRooms,
     sections,
@@ -122,28 +217,53 @@ export function useSpaceRoomSections(spaceId: string, selectedRoomId: string | u
     onReorder: roomOrders.save,
     onSortByName:
       manualSectionIds.length > 0 ? () => roomOrders.reset(manualSectionIds) : undefined,
+    canMoveRoom,
+    onMoveRoom,
   };
 }
 
-type SectionCategoryButtonProps = {
+const EMPTY_UNREAD_ATOM = atom<CollapsedSectionUnread | undefined>(undefined);
+
+type SectionHeaderButtonProps = {
   label: string;
   ownDirection?: boolean;
   categoryId: string;
   closed: boolean;
-  unread?: { highlight: boolean };
+  shownRoomIds: readonly string[];
+  selectedRoomId: string | undefined;
   onClick: MouseEventHandler<HTMLElement>;
 };
 
-/** Collapsible heading for a space room section, with a compact unread dot while collapsed. */
-function SectionCategoryButton({
+/**
+ * Collapsible heading for a space room section. Keeps one button mounted across toggles
+ * (preserving keyboard focus) and subscribes to unread state only while collapsed.
+ */
+function SectionHeaderButton({
   label,
   ownDirection,
   categoryId,
   closed,
-  unread,
+  shownRoomIds,
+  selectedRoomId,
   onClick,
-}: SectionCategoryButtonProps) {
+}: SectionHeaderButtonProps) {
   const { t } = useTranslation();
+  const unreadAtom = useMemo(
+    () =>
+      closed
+        ? atom((get) =>
+            getCollapsedSectionUnread(
+              true,
+              shownRoomIds,
+              selectedRoomId,
+              get(navigationRoomToUnreadAtom)
+            )
+          )
+        : EMPTY_UNREAD_ATOM,
+    [closed, shownRoomIds, selectedRoomId]
+  );
+  const unread = useAtomValue(unreadAtom);
+
   return (
     <RoomNavCategoryButton
       closed={closed}
@@ -163,66 +283,6 @@ function SectionCategoryButton({
     >
       {label}
     </RoomNavCategoryButton>
-  );
-}
-
-type CollapsedSectionUnreadProps = Omit<SectionCategoryButtonProps, 'closed' | 'unread'> & {
-  shownRoomIds: readonly string[];
-  selectedRoomId: string | undefined;
-};
-
-/**
- * Subscribes to unread state only while a section is collapsed, so expanded sections and room rows
- * do not re-render when unread counts change.
- */
-function CollapsedSectionUnread({
-  shownRoomIds,
-  selectedRoomId,
-  ...props
-}: CollapsedSectionUnreadProps) {
-  const unreads = useAtomValue(navigationRoomToUnreadAtom);
-  const unread = getCollapsedSectionUnread(true, shownRoomIds, selectedRoomId, unreads);
-  return <SectionCategoryButton {...props} closed unread={unread} />;
-}
-
-type SectionHeaderButtonProps = Omit<SectionCategoryButtonProps, 'unread'> & {
-  shownRoomIds: readonly string[];
-  selectedRoomId: string | undefined;
-};
-
-/** Renders the section heading button, mounting the unread subscription only while collapsed. */
-function SectionHeaderButton({
-  closed,
-  shownRoomIds,
-  selectedRoomId,
-  onClick,
-  ...props
-}: SectionHeaderButtonProps) {
-  const restoreFocusRef = useRef<{ parent: Element; wasClosed: boolean } | null>(null);
-  const handleClick: MouseEventHandler<HTMLElement> = (event) => {
-    const target = event.currentTarget;
-    restoreFocusRef.current =
-      typeof document !== 'undefined' && document.activeElement === target && target.parentElement
-        ? { parent: target.parentElement, wasClosed: closed }
-        : null;
-    onClick(event);
-  };
-  useLayoutEffect(() => {
-    const pending = restoreFocusRef.current;
-    if (!pending || pending.wasClosed === closed) return;
-    restoreFocusRef.current = null;
-    pending.parent.querySelector<HTMLElement>('[data-category-id]')?.focus();
-  }, [closed]);
-
-  return closed ? (
-    <CollapsedSectionUnread
-      {...props}
-      shownRoomIds={shownRoomIds}
-      selectedRoomId={selectedRoomId}
-      onClick={handleClick}
-    />
-  ) : (
-    <SectionCategoryButton {...props} closed={false} onClick={handleClick} />
   );
 }
 
@@ -256,6 +316,7 @@ export function SpaceRoomSection({
   const client = useMatrixClient();
   const { t } = useTranslation();
   const notificationPreferences = useRoomsNotificationPreferencesContext();
+  const sectionDrop = useRoomSectionDrop(section.spaceId);
   const subspace = section.isRoot ? undefined : client.getRoom(section.spaceId) ?? undefined;
   if (!section.isRoot && !subspace) return null;
 
@@ -272,7 +333,7 @@ export function SpaceRoomSection({
   const previewPath = (roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId);
 
   return (
-    <NavCategory>
+    <NavCategory {...sectionDrop}>
       <NavCategoryHeader>
         {subspace ? (
           <SubspaceCategoryButton

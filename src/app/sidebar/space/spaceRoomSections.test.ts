@@ -253,6 +253,61 @@ describe('getSpaceRoomSections', () => {
       },
     ]);
   });
+
+  it('keeps editable empty sub-spaces and empty editable root Rooms while hiding non-editable empty organizers', () => {
+    const mx = makeClient({
+      '!root': { name: 'Root', space: true },
+      '!editable-empty': { name: 'Editable Empty', space: true },
+      '!readonly-org': { name: 'Readonly Organizer', space: true },
+      '!leaf': { name: 'Leaf', space: true },
+      '!leaf-room': { name: 'Leaf Room' },
+    });
+    const joined = ['!root', '!editable-empty', '!readonly-org', '!leaf', '!leaf-room'];
+    const parents = makeParents({
+      '!editable-empty': ['!root'],
+      '!readonly-org': ['!root'],
+      '!leaf': ['!readonly-org'],
+      '!leaf-room': ['!leaf'],
+    });
+
+    // When root and editable-empty are editable, both appear even while empty,
+    // while readonly-org stays hidden without hiding its populated descendant !leaf.
+    const editable = new Set(['!root', '!editable-empty']);
+    const sectionsWithEditableRoot = getSpaceRoomSections(
+      mx,
+      '!root',
+      joined,
+      joined,
+      ['!leaf-room'],
+      new Set(),
+      parents,
+      new Set(),
+      (spaceId) => editable.has(spaceId)
+    );
+    expect(sectionsWithEditableRoot.map((section) => [section.spaceId, section.isRoot])).toEqual([
+      ['!root', true],
+      ['!editable-empty', false],
+      ['!leaf', false],
+    ]);
+
+    // When root is NOT editable, the empty root Rooms section is hidden again,
+    // while editable-empty and populated !leaf remain visible.
+    const sectionsReadonlyRoot = getSpaceRoomSections(
+      mx,
+      '!root',
+      joined,
+      joined,
+      ['!leaf-room'],
+      new Set(),
+      parents,
+      new Set(),
+      (spaceId) => spaceId === '!editable-empty'
+    );
+    expect(sectionsReadonlyRoot.map((section) => [section.spaceId, section.isRoot])).toEqual([
+      ['!editable-empty', false],
+      ['!leaf', false],
+    ]);
+  });
 });
 
 describe('getCollapsedSectionUnread', () => {
@@ -278,6 +333,12 @@ describe('getCollapsedSectionUnread', () => {
     expect(getCollapsedSectionUnread(true, ['!quiet', '!mention'], '!mention', unreads)).toEqual({
       highlight: false,
     });
+    expect(getCollapsedSectionUnread(true, ['!quiet'], undefined, unreads)).toBe(
+      getCollapsedSectionUnread(true, ['!quiet', '!read'], undefined, unreads)
+    );
+    expect(getCollapsedSectionUnread(true, ['!mention'], undefined, unreads)).toBe(
+      getCollapsedSectionUnread(true, ['!quiet', '!mention'], undefined, unreads)
+    );
   });
 });
 
