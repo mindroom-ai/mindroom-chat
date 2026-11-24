@@ -810,7 +810,6 @@ it('sends typing, paste, and Escape inside the beside thread column to Reply, wh
   renderView();
   const back = screen.getByRole('button', { name: 'Back' });
   const reply = screen.getByLabelText('Reply');
-  const message = screen.getByRole('textbox', { name: 'Message' });
 
   back.focus();
   fireEvent.keyDown(back, { key: 'a', code: 'KeyA' });
@@ -824,19 +823,20 @@ it('sends typing, paste, and Escape inside the beside thread column to Reply, wh
   expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
   expect(document.activeElement).toBe(reply);
 
-  (document.activeElement as HTMLElement).blur();
-  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
-  expect(document.activeElement).toBe(message);
-
-  message.blur();
-  fireEvent.blur(message);
-  fireEvent.keyDown(document.body, { key: 'v', code: 'KeyV', metaKey: true });
-  expect(document.activeElement).toBe(message);
-
-  message.blur();
-  fireEvent.blur(message);
-  expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);
-  expect(document.activeElement).toBe(message);
+  const bodyCases: Array<() => void> = [
+    () => fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' }),
+    () => fireEvent.keyDown(document.body, { key: 'v', code: 'KeyV', metaKey: true }),
+    () =>
+      expect(runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(
+        true
+      ),
+  ];
+  for (const trigger of bodyCases) {
+    cleanup();
+    renderView();
+    trigger();
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+  }
 });
 
 it("gives a file dropped on the thread column's header, beside the messages or filling the page, to the thread's composer", () => {
