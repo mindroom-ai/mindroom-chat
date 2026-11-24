@@ -157,20 +157,18 @@ const omitRooms = (section: SpaceRoomSection, excluded: ReadonlySet<string>): Sp
 
 /**
  * Single joined ancestor chain upward via `roomToParents` (cycle-safe, nearest joined parent
- * first). Follows `preferredParentId` when joined, else the first joined parent sorted A to Z at
- * each step, so diamond-shared sub-spaces inherit sort settings only from their displayed branch.
+ * first). Picks the first joined parent sorted A to Z at each step so standalone emitted spaces
+ * resolve a single deterministic branch.
  */
 const getJoinedAncestorSpaceIds = (
   mx: MatrixClient,
   spaceId: string,
   joinedSpaceSet: ReadonlySet<string>,
-  roomToParents: RoomToParents,
-  preferredParentId?: string
+  roomToParents: RoomToParents
 ): string[] => {
   const ancestors: string[] = [];
   const seen = new Set<string>([spaceId]);
   let current = spaceId;
-  let firstParent = preferredParentId;
   for (;;) {
     const direct = sortRoomIdsByName(
       mx,
@@ -178,8 +176,7 @@ const getJoinedAncestorSpaceIds = (
         (parentId) => joinedSpaceSet.has(parentId) && !seen.has(parentId)
       )
     );
-    const next = firstParent && direct.includes(firstParent) ? firstParent : direct[0];
-    firstParent = undefined;
+    const next = direct[0];
     if (!next) break;
     seen.add(next);
     ancestors.push(next);
@@ -289,25 +286,22 @@ export const getHomeSpaceSections = (
 
   const emitted = new Set<string>();
   const built: SpaceRoomSection[] = [];
-  const emit = (spaceId: string, preferredParentId?: string) => {
-    if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return;
+  const emit = (spaceId: string, ancestorChain?: readonly string[]): string[] | undefined => {
+    if (emitted.has(spaceId) || !joinedSpaceSet.has(spaceId)) return undefined;
     emitted.add(spaceId);
-    const ancestors = getJoinedAncestorSpaceIds(
-      mx,
-      spaceId,
-      joinedSpaceSet,
-      roomToParents,
-      preferredParentId
-    );
+    const ancestors = ancestorChain
+      ? [...new Set(ancestorChain)].filter((id) => id !== spaceId)
+      : getJoinedAncestorSpaceIds(mx, spaceId, joinedSpaceSet, roomToParents);
     built.push(
       build(spaceId, false, ancestors[0], ancestors, makeNavCategoryId('home', 'space', spaceId))
     );
+    return ancestors;
   };
   const emitTree = (rootSpaceId: string) => {
-    if (emitted.has(rootSpaceId) || !joinedSpaceSet.has(rootSpaceId)) return;
-    emit(rootSpaceId);
+    const rootAncestors = emit(rootSpaceId);
+    if (!rootAncestors) return;
     getDescendantSubspaceEntries(mx, rootSpaceId, joinedRoomIds, roomToParents).forEach(
-      ({ spaceId, parentSpaceId }) => emit(spaceId, parentSpaceId)
+      ({ spaceId, ancestorSpaceIds }) => emit(spaceId, [...ancestorSpaceIds, ...rootAncestors])
     );
   };
 

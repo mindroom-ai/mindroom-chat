@@ -724,20 +724,33 @@ describe('getHomeSpaceSections', () => {
     expectEveryRoomCovered(homeRooms, result);
   });
 
-  it('tracks only the single displayed parent chain for a diamond-shared sub-space', () => {
+  it('tracks only the single displayed parent chain for a diamond-shared sub-space and its descendants', () => {
     const mx = makeClient({
       '!work': { name: 'Work', space: true },
       '!garden': { name: 'Garden', space: true },
       '!design': { name: 'Design Team', space: true },
-      '!sketches': { name: 'Sketches' },
+      '!sketches': { name: 'Sketches', space: true },
+      '!wireframes': { name: 'Wireframes' },
+      '!mocks': { name: 'Mocks' },
       '!planning': { name: 'Weekly Planning' },
       '!plants': { name: 'Plant Care' },
     });
-    const joined = ['!work', '!garden', '!design', '!sketches', '!planning', '!plants'];
-    const homeRooms = ['!plants', '!sketches', '!planning'];
+    const joined = [
+      '!work',
+      '!garden',
+      '!design',
+      '!sketches',
+      '!wireframes',
+      '!mocks',
+      '!planning',
+      '!plants',
+    ];
+    const homeRooms = ['!mocks', '!plants', '!planning', '!wireframes'];
     const parents = makeParents({
       '!design': ['!work', '!garden'],
       '!sketches': ['!design'],
+      '!wireframes': ['!sketches'],
+      '!mocks': ['!design'],
       '!planning': ['!work'],
       '!plants': ['!garden'],
     });
@@ -754,8 +767,11 @@ describe('getHomeSpaceSections', () => {
     );
 
     const design = result.sections.find((section) => section.spaceId === '!design')!;
+    const sketches = result.sections.find((section) => section.spaceId === '!sketches')!;
     expect(design.parentSpaceId).toBe('!work');
     expect(design.ancestorSpaceIds).toEqual(['!work']);
+    expect(sketches.parentSpaceId).toBe('!design');
+    expect(sketches.ancestorSpaceIds).toEqual(['!design', '!work']);
     expectEveryRoomCovered(homeRooms, result);
   });
 });

@@ -311,13 +311,16 @@ describe('useHomeRoomSections', () => {
     expect(sectionOf('!design').orderedTop).toEqual(['!yankee', '!beta']);
   });
 
-  it('inherits sort mode only from the displayed parent branch for a diamond-shared sub-space', () => {
+  it('inherits sort mode only from the displayed parent branch for a diamond-shared sub-space and its descendants', () => {
     const { client } = makeRealClient({
       '!work': { name: 'Work', space: true, createdAt: 100 },
       '!garden': { name: 'Garden', space: true, createdAt: 200 },
       '!design': { name: 'Design Team', space: true, createdAt: 300 },
+      '!sketches': { name: 'Sketches', space: true, createdAt: 400 },
       '!alpha': { name: 'Alpha', lastMessageTs: 1000 },
       '!zebra': { name: 'Zebra', lastMessageTs: 5000 },
+      '!beta': { name: 'Beta', lastMessageTs: 1000 },
+      '!yankee': { name: 'Yankee', lastMessageTs: 6000 },
       '!planning': { name: 'Weekly Planning', lastMessageTs: 2000 },
       '!plants': { name: 'Plant Care', lastMessageTs: 3000 },
     });
@@ -328,11 +331,25 @@ describe('useHomeRoomSections', () => {
     client.store.storeAccountDataEvents([event]);
 
     const store = makeStore(
-      ['!work', '!garden', '!design', '!alpha', '!zebra', '!planning', '!plants'],
+      [
+        '!work',
+        '!garden',
+        '!design',
+        '!sketches',
+        '!alpha',
+        '!zebra',
+        '!beta',
+        '!yankee',
+        '!planning',
+        '!plants',
+      ],
       {
         '!design': ['!work', '!garden'],
+        '!sketches': ['!design'],
         '!alpha': ['!design'],
         '!zebra': ['!design'],
+        '!beta': ['!sketches'],
+        '!yankee': ['!sketches'],
         '!planning': ['!work'],
         '!plants': ['!garden'],
       }
@@ -341,11 +358,17 @@ describe('useHomeRoomSections', () => {
 
     const { state } = mount(client, store);
     const design = state.sections.sections.find((section) => section.spaceId === '!design')!;
+    const sketches = state.sections.sections.find((section) => section.spaceId === '!sketches')!;
 
-    // Design Team is rendered under Work (default A to Z), so it must NOT inherit Garden's Recent mode.
+    // Design Team and its descendant Sketches are rendered under Work (default A to Z), so neither
+    // may inherit Garden's Recent mode.
     expect(design.ancestorSpaceIds).toEqual(['!work']);
     expect(design.mode).toBe('name');
     expect(design.sort?.inherit?.mode).toBe('name');
     expect(design.orderedTop).toEqual(['!alpha', '!zebra']);
+    expect(sketches.ancestorSpaceIds).toEqual(['!design', '!work']);
+    expect(sketches.mode).toBe('name');
+    expect(sketches.sort?.inherit?.mode).toBe('name');
+    expect(sketches.orderedTop).toEqual(['!beta', '!yankee']);
   });
 });

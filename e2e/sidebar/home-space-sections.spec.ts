@@ -40,7 +40,12 @@ const homeSectionLabels = (page: Page) =>
 
 const captureShot = async (page: Page, name: string) => {
   if (!SHOTS) return;
+  await page.evaluate(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+  });
   await page.mouse.move(0, 0);
+  await page.waitForTimeout(250);
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
 
@@ -166,6 +171,8 @@ test('groups Home rooms by rail-ordered spaces, persists Home collapse, supports
   await page.keyboard.press('Escape');
 
   // 5. Move Personal Notes into Garden Club: zero unspaced rooms hides Rooms heading and Home Sort, never shows No Rooms.
+  await page.goto('/home');
+  await expect(homeNav(page)).toBeVisible({ timeout: 30_000 });
   await addRoomToSpace(HOMESERVER, account.accessToken, gardenClub, personalNotes);
   await expect
     .poll(() => homeSectionLabels(page), { timeout: 30_000 })
