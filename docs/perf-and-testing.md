@@ -202,7 +202,7 @@ just agent-stack <slot> status | usage | down
 - **Ports (`slot 0-99`):** MindRoom API `29600+n`, stub model `29700+n`, plugin origins `29800+n`, sandbox runner `29900+n` (against slot homeserver `28100+n`, or `28008` on slot `0`).
 - **Key flags:** `--model stub|real|live` (default `$E2E_AGENT_MODEL` or `stub`), `--agents N` (stub only, adds `worker1..workerN`, default `0`), `--calls SERVICE_URL` (`--calls-profile realtime|live`), `--client-sessions`, `--terminals` (implies `--client-sessions`; incompatible with `--computers`), `--computers` (`--computer-image`, `--computer-tools`, implies `--client-sessions`), `--transcription stub|real`.
 - **Exit codes:** `2` invalid CLI arguments via `argparse` (such as `--terminals --computers`), `3` no MindRoom checkout, `4` no homeserver, `5` missing provider keys, `6` `--terminals` unsupported by backend ref, `1` other errors (such as `--model real --agents 1`).
-- **Secret hygiene:** when passing provider keys (`--model real`, `--transcription real`, `--calls`), set `E2E_AGENT_STACK_ROOT` to a private directory because the backend may persist them in its state, and keep `up`/`status` JSON output private (it includes the tester password and access token).
+- **Secret hygiene:** keep `up`/`status` JSON output private in every mode (it includes the tester password and access token). Whenever passing provider keys (`--model real`, `--model live`, `--transcription real`, `--calls`), also set `E2E_AGENT_STACK_ROOT` to a private directory because the backend may persist them in its state.
 
 ### Pre-push gate (`scripts/push-gate.sh`)
 
