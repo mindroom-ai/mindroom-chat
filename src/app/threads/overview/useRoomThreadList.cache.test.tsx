@@ -944,7 +944,7 @@ it('re-saves an unedited root when its bundled io.mindroom.title preview is reda
 
   // Mark the preview event redacted in the room without replacing `root.event`.
   saved.length = 0;
-  room.redactedBundledEdits = new Set(['$title-preview']);
+  room.redactedBundledEdits.add('$title-preview');
 
   const second = showList(mx, engine, room);
   await vi.waitFor(async () => {
