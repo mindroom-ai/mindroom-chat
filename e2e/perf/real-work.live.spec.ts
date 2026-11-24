@@ -142,17 +142,25 @@ const EXTERNAL_SCENARIOS: Scenario[] = [
   'cold-load',
   'compact-scroll',
 ];
+const parsePositiveNumber = (raw: string | undefined, fallback: number, min: number): number => {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
+};
 const REPLAY_CAPTURE = external ? (process.env.PERF_REPLAY_CAPTURE ?? '') : '';
-const MULTIPLY_THREADS = Math.max(1, Number(process.env.PERF_MULTIPLY_THREADS ?? 1));
-const MULTIPLY_ROOMS = Math.max(1, Number(process.env.PERF_MULTIPLY_ROOMS ?? 1));
-const REPLAY_SPEED = Math.max(0.01, Number(process.env.PERF_REPLAY_SPEED ?? 1));
+const MULTIPLY_THREADS = Math.floor(
+  parsePositiveNumber(process.env.PERF_MULTIPLY_THREADS, 1, 1)
+);
+const MULTIPLY_ROOMS = Math.floor(parsePositiveNumber(process.env.PERF_MULTIPLY_ROOMS, 1, 1));
+const REPLAY_SPEED = parsePositiveNumber(process.env.PERF_REPLAY_SPEED, 1, 0.01);
 const REPLAY_SERVER = fileURLToPath(
   new URL('../../scripts/perf/replay/server.mjs', import.meta.url)
 );
-const REPLAY_SUFFIX =
-  MULTIPLY_ROOMS > 1
-    ? `replay-${MULTIPLY_THREADS}x-${MULTIPLY_ROOMS}r`
-    : `replay-${MULTIPLY_THREADS}x`;
+const REPLAY_SUFFIX = [
+  `replay-${MULTIPLY_THREADS}x`,
+  ...(MULTIPLY_ROOMS > 1 ? [`${MULTIPLY_ROOMS}r`] : []),
+  ...(REPLAY_SPEED !== 1 ? [`speed${REPLAY_SPEED}`] : []),
+].join('-');
 
 const wanted = list('PERF_SCENARIOS', SCENARIOS.join(','));
 const scenarios = (external && !REPLAY_CAPTURE ? EXTERNAL_SCENARIOS : [...SCENARIOS]).filter(
@@ -1167,6 +1175,8 @@ type ReplayReady = {
   url: string;
   userId: string;
   username: string;
+  password: string;
+  accessToken: string;
   roomId: string;
   roomName: string;
 };
@@ -1285,7 +1295,7 @@ const startReplaySession = async (captureDir: string): Promise<ReplaySession> =>
     account: {
       homeserver: ready.url,
       username: ready.username,
-      password: 'replay',
+      password: ready.password,
       room: ready.roomId,
     },
     driver,

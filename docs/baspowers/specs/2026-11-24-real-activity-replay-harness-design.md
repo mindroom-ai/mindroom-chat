@@ -29,24 +29,28 @@ Three focused Node 22 ESM modules under `scripts/perf/replay/` plus a surgical i
 
 ## Capture Format (`scripts/perf/replay/capture.mjs`)
 
-- **Strict read-only (`GET` only)**: every homeserver request uses `GET` with bearer auth and an
-  inline JSON `filter` query parameter on `/_matrix/client/v3/sync` (never creates filters, posts
-  events, sends receipts, or mutates state).
+- **Strict read-only (`GET` only)**: every homeserver request uses `GET` with bearer auth, an inline
+  JSON `filter` query parameter, and `set_presence=offline` on `/_matrix/client/v3/sync` (never
+  creates filters, posts events, sends receipts, mutates state, or flips user presence).
+- **Device safety**: calling `GET /_matrix/client/v3/sync?since=...` advances the homeserver's sync
+  cursor (and to-device delivery position) on the access token's device. Operators **MUST** use a
+  fresh, dedicated capture device/login and never reuse an active MindRoom Chat session token.
 - **Capture sequence**:
   1. `GET /_matrix/client/v3/account/whoami` for viewer `userId` and domain.
-  2. Initial `GET /_matrix/client/v3/sync` (state, account data, joined rooms, spaces).
+  2. Initial `GET /_matrix/client/v3/sync?set_presence=offline&timeout=0` (state, account data,
+     joined rooms, spaces).
   3. For focused rooms (`--rooms`, or joined non-space rooms): paginate `/v1/rooms/{r}/threads`
      (up to `--max-threads`, default 600) preserving Tuwunel's bundled
      `unsigned['m.relations']['m.thread']` (`latest_event`, `io.mindroom.latest_reply`,
      `io.mindroom.title`); backfill `/v1/rooms/{r}/relations/{root}/m.thread` for the top
      `--heavy-threads` (default 25); paginate `/v3/rooms/{r}/messages` for room tail history.
-  4. Long-poll `/v3/sync` for `--duration` seconds (default 60), writing `{ tauMs, response }`
-     entries to `live.jsonl`.
-  5. Optional `--synthesize-live`: converts captured `m.replace` edit chains into `io.mindroom.live`
-     `v: 1` `snapshot` + `delta` splice frames and `io.mindroom.active_runs` state updates when a
-     capture window is quiet or `--duration 0`.
-  6. Downloads referenced `mxc://` blobs (prioritizing `io.mindroom.long_text` v2 JSON sidecars
-     over avatars/images, capped by `--max-blobs` and `--max-blob-bytes`) to `blobs/<sha256>`.
+  4. Long-poll `/v3/sync?set_presence=offline` for `--duration` seconds (default 60), writing
+     `{ tauMs, response }` entries to `live.jsonl` (capturing real `io.mindroom.live` and
+     `io.mindroom.subagents` ephemeral frames directly).
+  5. Downloads referenced `mxc://` blobs (prioritizing `io.mindroom.long_text` v2 JSON sidecars
+     over avatars/images, capped by `--max-blobs` and `--max-blob-bytes`, rejecting oversized
+     responses early via `Content-Length` and chunked stream reads before buffering) to
+     `blobs/<sha256>`.
 - **Directory permissions**: `--out` is `chmod 0o700`, blobs `0o600`; captures stay strictly local
   and are never checked into git.
 
@@ -60,6 +64,10 @@ Pure, deterministic transformation of a capture bundle into a multiplied timelin
   Live-created events receive generation-scoped IDs (`$id__r{r}_k{k}_g{gen}`) so looping never
   emits duplicate `event_id`s into `EventTimelineSet` or IndexedDB. Snapshot-era events use
   copy-scoped IDs (`$id__r{r}_k{k}`) with copy `(0, 0)` preserving original IDs.
+- **Chronological `K×` interleaving**: when cloning `initialSync.timeline.events` and
+  `messagesTail`, copies are interleaved in captured event order (`origin_server_ts` ascending,
+  tiebreaking by original index then copy index) so timeline timestamps stay monotonically
+  non-decreasing.
 - **Room cloning (`R×`)**: clones room IDs (`!local__r{r}:domain`) and duplicates `m.space.child`
   state entries in parent spaces so cloned rooms appear in space hierarchy.
 - **Pointer remapping** (copy-on-write envelopes sharing heavy text/tool payloads by reference):
@@ -74,11 +82,13 @@ Pure, deterministic transformation of a capture bundle into a multiplied timelin
     plain `'$root'` keys), `io.mindroom.thread_summary` (`state_key` + `content.event_id`),
     `com.mindroom.scheduled.task` (suffixed `state_key`, remapped `thread_id`/`source_event_id` in
     both top-level and `workflow` object/JSON string, shifted `execute_at`/`scheduled_at`).
-- **Agent-keyed state merging**: `io.mindroom.background_jobs` and `io.mindroom.active_runs` are
-  keyed by agent user ID (`state_key === sender`). Across in-room copies `k = 0..K-1`, the
-  multiplier **merges** per `(roomId, agentUserId)` rather than overwriting: suffixing
-  `job_id`/`run`/`subagent`, summing `total`, unioning `threads[]`, and re-stamping
-  `origin_server_ts` and `updated_at` to `replayNow` so `now > ts + ttl_ms` never expires live runs.
+- **Agent-keyed state merging (both `state.events` and timeline state events)**:
+  `io.mindroom.background_jobs` and `io.mindroom.active_runs` are keyed by agent user ID
+  (`state_key === sender`). Whether arriving in `state.events` or `timeline.events` (any event with
+  `typeof state_key === 'string'`), the multiplier **merges** across in-room copies `k = 0..K-1`
+  per `(roomId, agentUserId)` rather than overwriting: suffixing `job_id`/`run`/`subagent`, summing
+  `total`, unioning `threads[]`, and re-stamping `origin_server_ts` and `updated_at` to `replayNow`
+  so `now > ts + ttl_ms` never expires live runs.
 - **Ephemeral streams**:
   - `io.mindroom.live`: remaps `reply`, mints valid monotonic `sid` (`/^\d{13}-[0-9a-f]{8}$/`) with
     contiguous `seq = 0, 1, 2...`, and materializes `LiveDocs` across warmup (`tauMs <= offsetMs`)
@@ -92,15 +102,27 @@ Pure, deterministic transformation of a capture bundle into a multiplied timelin
 ## Replay Server (`scripts/perf/replay/server.mjs`)
 
 - Zero-dependency `node:http` server bound strictly to `127.0.0.1` (`--port 0` for ephemeral).
+- **Loopback security & auth**:
+  - Generates per-run random `password` and `accessToken` (returned in `--print-ready` JSON and from
+    `startReplayServer`), validates password on `POST /_matrix/client/v3/login` (`403 M_FORBIDDEN`),
+    and requires `Authorization: Bearer <accessToken>` (or `?access_token=` on media routes) on all
+    capture-data and `/__replay/*` routes (`401 M_UNKNOWN_TOKEN`), leaving only `OPTIONS`,
+    `/.well-known/matrix/client`, `/_matrix/client/versions`, `/_matrix/client/v3/login`, and
+    `/_matrix/client/v3/register` unauthenticated.
+  - Restricts `Access-Control-Allow-Origin` strictly to loopback origins (`127.0.0.1`, `localhost`,
+    `[::1]`) and rejects non-loopback `Host` headers (`403`, preventing DNS rebinding).
 - Implements Matrix CS-API v1.11 + Tuwunel extensions used by MindRoom Chat: `/versions`,
   `/v3/login` (password flow returning the captured viewer MXID), `/whoami`, `/capabilities`,
   `/v1/media/config`, `/pushrules/`, `/account_data`, `/filter`, `/joined_rooms`, `/profile`,
   `/v3/sync` (initial + incremental long-poll with `timeline.limit`, `limited: true`, `prev_batch`,
-  warm-reload catch-up from saved `since`), `/v1/rooms/{r}/threads` (live-updated bundled
-  summaries), `/v1/rooms/{r}/relations/{ev}`, `/v3/rooms/{r}/messages`, `/context`, `/event`,
-  `/members`, `/state`, `/v1/media/{download,thumbnail}` (and `/v3/media/...` alias, with 1×1 PNG
-  thumbnail fallback and 404 download fallback for uncaptured media), crypto stubs, in-memory write
-  stubs, and control routes `GET /__replay/status` & `POST /__replay/reset`.
+  warm-reload catch-up from saved `since`, and mid-stream `io.mindroom.live` snapshot synthesis for
+  active streams on initial sync), `/v1/rooms/{r}/threads` (seeded from captured roots first so
+  captured counts/summaries are preserved and incremented only on live replay replies),
+  `/v1/rooms/{r}/relations/{ev}`, `/v3/rooms/{r}/messages`, `/context`, `/event`, `/members`,
+  `/state` (updated by timeline state events as well as `state.events`),
+  `/v1/media/{download,thumbnail}` (and `/v3/media/...` alias, with 1×1 PNG thumbnail fallback and
+  404 download fallback for uncaptured media), crypto stubs, in-memory write stubs, and control
+  routes `GET /__replay/status` & `POST /__replay/reset` (keeping `syncSeq` monotonic).
 - Writes 5-second JSONL telemetry (`{ t, target, streaming, frames, edits, jobs, stuck }`) to
   `--stats-file` matching `scripts/perf/real-work/driver.py`, and `--print-ready` emits one JSON
   handshake line on stdout once bound.
@@ -112,7 +134,7 @@ When `PERF_TARGET=external` and `PERF_REPLAY_CAPTURE` is set:
   `PERF_MULTIPLY_THREADS` (default `1`), `PERF_MULTIPLY_ROOMS` (default `1`), `PERF_REPLAY_SPEED`
   (default `1`), and a temp `--stats-file`.
 - Uses the ready handshake for `homeserver`, bare `username` (avoiding remote `.well-known`
-  discovery while returning full captured `user_id` on login), and `roomId`.
+  discovery while returning full captured `user_id` on login), per-run `password`, and `roomId`.
 - Unlocks all 7 `SCENARIOS` (plus `soak` when `PERF_SOAK=1`) and feeds 5 s stats into `achieved`
   reporting while keeping `target: null` so natural activity variance does not trigger fixed-stream
   shortfall exclusion in `compare.mjs`.
@@ -121,8 +143,8 @@ When `PERF_TARGET=external` and `PERF_REPLAY_CAPTURE` is set:
 ## Verification
 
 1. `node --test scripts/perf/replay/replay.test.mjs`: unit tests for `capture.mjs` helpers,
-   `multiplier.mjs` cloning/merging/remapping/live-doc synthesis, and HTTP end-to-end tests for
-   `server.mjs` (all using invented placeholder fixtures).
+   `multiplier.mjs` cloning/merging/remapping/interleaving/live-doc synthesis, and HTTP end-to-end
+   + security tests for `server.mjs` (all using invented placeholder fixtures).
 2. `scripts/perf/replay/sdk-integration.test.ts`: Vitest integration booting the patched
    `matrix-js-sdk` against `startReplayServer` to verify sync, `fetchRoomThreads()`,
    `paginateEventTimeline()`, `fetchRelations()`, live `io.mindroom.live` delivery, and warm reload.

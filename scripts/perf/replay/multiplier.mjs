@@ -367,9 +367,12 @@ export function createReplayMultiplier(bundle, options = {}) {
     (a, b) => (a.tauMs ?? 0) - (b.tauMs ?? 0)
   );
 
-  const K = Math.max(1, Math.floor(options.multiplyThreads ?? 1));
-  const R = Math.max(1, Math.floor(options.multiplyRooms ?? 1));
-  const speed = Math.max(0.01, Number(options.speed ?? 1));
+  const rawK = Number(options.multiplyThreads ?? 1);
+  const rawR = Number(options.multiplyRooms ?? 1);
+  const rawSpeed = Number(options.speed ?? 1);
+  const K = Number.isFinite(rawK) ? Math.max(1, Math.floor(rawK)) : 1;
+  const R = Number.isFinite(rawR) ? Math.max(1, Math.floor(rawR)) : 1;
+  const speed = Number.isFinite(rawSpeed) ? Math.max(0.01, rawSpeed) : 1;
   const startNowMs = options.startNowMs ?? Date.now();
   const maxTau = liveEntries.length ? liveEntries[liveEntries.length - 1].tauMs : 0;
   const durationMs = Math.max(1_000, manifest.durationMs || 60_000, maxTau + 1);
@@ -383,6 +386,7 @@ export function createReplayMultiplier(bundle, options = {}) {
     (joined[id]?.state?.events ?? []).some(
       (e) => e.type === 'm.room.create' && e.content?.type === 'm.space'
     );
+  const cloneableNonSpace = new Set(origRoomIds.filter((id) => !isSpaceRoom(id)));
 
   const snapshotIds = collectEventIdsFromSnapshot(snapshot);
   const liveCreatedIds = collectLiveCreatedIds(liveEntries, snapshotIds);
@@ -651,6 +655,41 @@ export function createReplayMultiplier(bundle, options = {}) {
     return { ...ev, content: out };
   }
 
+  function transformStateEvent(roomId, ev, ctx, copyKey, { nowMs, stampTs, isSpace }) {
+    if (ctx.k > 0 && STRUCTURAL_STATE_TYPES.has(ev.type)) return [];
+    if (ev.type === 'io.mindroom.background_jobs' && ev.state_key) {
+      return [updateJobsState(roomId, ev.state_key, copyKey, ev, ctx, nowMs)];
+    }
+    if (ev.type === 'io.mindroom.active_runs' && ev.state_key) {
+      return [updateActiveRunsState(roomId, ev.state_key, copyKey, ev, ctx, nowMs)];
+    }
+    const tsOpts = stampTs !== undefined ? { stampTs } : undefined;
+    if (ev.type === 'm.room.pinned_events') {
+      const set = pinnedByRoom.get(roomId) ?? new Set();
+      for (const id of ev.content?.pinned ?? []) set.add(ctx.mapEv(id));
+      pinnedByRoom.set(roomId, set);
+      return [{ ...remapEvent(ev, ctx, tsOpts), content: { pinned: [...set] } }];
+    }
+    let remapped = remapEvent(ev, ctx, tsOpts);
+    if (ev.type === 'm.room.name' && ctx.r > 0 && typeof remapped.content?.name === 'string') {
+      remapped = {
+        ...remapped,
+        content: { ...remapped.content, name: `${remapped.content.name} (Copy ${ctx.r + 1})` },
+      };
+    }
+    const out = [remapped];
+    if (isSpace && ev.type === 'm.space.child' && cloneableNonSpace.has(ev.state_key)) {
+      for (let cr = 1; cr < R; cr += 1) {
+        out.push({
+          ...remapped,
+          event_id: `${remapped.event_id}__sc${cr}`,
+          state_key: mapRoomId(ev.state_key, cr),
+        });
+      }
+    }
+    return out;
+  }
+
   function applyLiveResponse(response, r, k, gen, nowMs, emit) {
     const outRooms = {};
     const deltaMs = nowMs - captureBaseTs;
@@ -663,30 +702,24 @@ export function createReplayMultiplier(bundle, options = {}) {
       if (k > 0 && !isPrimary) continue;
       if (r > 0 && isSpaceRoom(origRoomId)) continue;
       const roomId = mapRoomId(origRoomId, r);
+      const isSpace = isSpaceRoom(origRoomId);
       const stateEvents = [];
       const timelineEvents = [];
       const ephemeralEvents = [];
 
       for (const ev of roomData?.state?.events ?? []) {
-        if (k > 0 && STRUCTURAL_STATE_TYPES.has(ev.type)) continue;
-        if (ev.type === 'io.mindroom.background_jobs' && ev.state_key) {
-          stateEvents.push(updateJobsState(roomId, ev.state_key, copyKey, ev, ctx, nowMs));
-        } else if (ev.type === 'io.mindroom.active_runs' && ev.state_key) {
-          stateEvents.push(updateActiveRunsState(roomId, ev.state_key, copyKey, ev, ctx, nowMs));
-        } else if (ev.type === 'm.room.pinned_events') {
-          const set = pinnedByRoom.get(roomId) ?? new Set();
-          for (const id of ev.content?.pinned ?? []) set.add(ctx.mapEv(id));
-          pinnedByRoom.set(roomId, set);
-          stateEvents.push({
-            ...remapEvent(ev, ctx, { stampTs: nowMs }),
-            content: { pinned: [...set] },
-          });
-        } else {
-          stateEvents.push(remapEvent(ev, ctx, { stampTs: nowMs }));
-        }
+        stateEvents.push(
+          ...transformStateEvent(roomId, ev, ctx, copyKey, { nowMs, stampTs: nowMs, isSpace })
+        );
       }
       for (const ev of roomData?.timeline?.events ?? []) {
-        timelineEvents.push(remapEvent(ev, ctx, { stampTs: nowMs }));
+        if (typeof ev?.state_key === 'string') {
+          timelineEvents.push(
+            ...transformStateEvent(roomId, ev, ctx, copyKey, { nowMs, stampTs: nowMs, isSpace })
+          );
+        } else {
+          timelineEvents.push(remapEvent(ev, ctx, { stampTs: nowMs }));
+        }
       }
       for (const ev of roomData?.ephemeral?.events ?? []) {
         if (ev.type === 'io.mindroom.live') {
@@ -711,7 +744,6 @@ export function createReplayMultiplier(bundle, options = {}) {
   // Build initial state across R room copies and K thread copies (inside primary room).
   const initialRooms = {};
   const globalAccountData = [];
-  const cloneableNonSpace = new Set(origRoomIds.filter((id) => !isSpaceRoom(id)));
 
   for (const origRoomId of origRoomIds) {
     const roomSync = joined[origRoomId];
@@ -730,52 +762,77 @@ export function createReplayMultiplier(bundle, options = {}) {
       const members = [];
 
       const putState = (ev) => stateByKey.set(`${ev.type}\0${ev.state_key ?? ''}`, ev);
+      const ctxByK = Array.from({ length: threadCopies }, (_, k) =>
+        makeCtx(r, k, 0, snapshotDeltaMs)
+      );
 
       for (let k = 0; k < threadCopies; k += 1) {
-        const ctx = makeCtx(r, k, 0, snapshotDeltaMs);
+        const ctx = ctxByK[k];
         const copyKey = `${r}:${k}`;
 
         for (const ev of roomSync?.state?.events ?? []) {
-          if (k > 0 && STRUCTURAL_STATE_TYPES.has(ev.type)) continue;
-          if (ev.type === 'io.mindroom.background_jobs' && ev.state_key) {
-            putState(updateJobsState(roomId, ev.state_key, copyKey, ev, ctx, startNowMs));
-          } else if (ev.type === 'io.mindroom.active_runs' && ev.state_key) {
-            putState(updateActiveRunsState(roomId, ev.state_key, copyKey, ev, ctx, startNowMs));
-          } else if (ev.type === 'm.room.pinned_events') {
-            const set = pinnedByRoom.get(roomId) ?? new Set();
-            for (const id of ev.content?.pinned ?? []) set.add(ctx.mapEv(id));
-            pinnedByRoom.set(roomId, set);
-            putState({ ...remapEvent(ev, ctx), content: { pinned: [...set] } });
-          } else {
-            let remapped = remapEvent(ev, ctx);
-            if (ev.type === 'm.room.name' && r > 0 && typeof remapped.content?.name === 'string') {
-              remapped = {
-                ...remapped,
-                content: { ...remapped.content, name: `${remapped.content.name} (Copy ${r + 1})` },
-              };
-            }
-            putState(remapped);
-            if (space && ev.type === 'm.space.child' && cloneableNonSpace.has(ev.state_key)) {
-              for (let cr = 1; cr < R; cr += 1) {
-                putState({
-                  ...remapped,
-                  event_id: `${remapped.event_id}__sc${cr}`,
-                  state_key: mapRoomId(ev.state_key, cr),
-                });
-              }
-            }
+          for (const stEv of transformStateEvent(roomId, ev, ctx, copyKey, {
+            nowMs: startNowMs,
+            isSpace: space,
+          })) {
+            putState(stEv);
           }
         }
-        for (const ev of roomSync?.timeline?.events ?? []) timeline.push(remapEvent(ev, ctx));
         for (const ev of roomExtra.threads ?? []) threads.push(remapEvent(ev, ctx));
         for (const [rootId, rels] of Object.entries(roomExtra.threadRelations ?? {})) {
           threadRelations[ctx.mapEv(rootId)] = rels.map((ev) => remapEvent(ev, ctx));
         }
-        for (const ev of roomExtra.messagesTail ?? []) messagesTail.push(remapEvent(ev, ctx));
         if (k === 0) {
           for (const ev of roomExtra.members ?? []) members.push(remapEvent(ev, ctx));
         }
       }
+
+      // Chronologically interleave K copies of initialSync.timeline.events
+      // (origin_server_ts ascending, tiebreaking by original index then copy index).
+      const rawInitialTimeline = roomSync?.timeline?.events ?? [];
+      const timelineEntries = [];
+      for (let origIdx = 0; origIdx < rawInitialTimeline.length; origIdx += 1) {
+        const ev = rawInitialTimeline[origIdx];
+        const ts = typeof ev?.origin_server_ts === 'number' ? ev.origin_server_ts : 0;
+        for (let k = 0; k < threadCopies; k += 1) {
+          timelineEntries.push({ ev, ts, origIdx, k });
+        }
+      }
+      timelineEntries.sort((a, b) => a.ts - b.ts || a.origIdx - b.origIdx || a.k - b.k);
+      for (const { ev, k } of timelineEntries) {
+        const ctx = ctxByK[k];
+        if (typeof ev?.state_key === 'string') {
+          for (const stEv of transformStateEvent(roomId, ev, ctx, `${r}:${k}`, {
+            nowMs: startNowMs,
+            isSpace: space,
+          })) {
+            putState(stEv);
+            timeline.push(stEv);
+          }
+        } else {
+          timeline.push(remapEvent(ev, ctx));
+        }
+      }
+
+      // Chronologically interleave K copies of messagesTail (newest-first per /messages?dir=b).
+      const rawTailChrono = [...(roomExtra.messagesTail ?? [])].reverse();
+      const tailEntries = [];
+      for (let origIdx = 0; origIdx < rawTailChrono.length; origIdx += 1) {
+        const ev = rawTailChrono[origIdx];
+        const ts = typeof ev?.origin_server_ts === 'number' ? ev.origin_server_ts : 0;
+        for (let k = 0; k < threadCopies; k += 1) {
+          tailEntries.push({ ev, ts, origIdx, k });
+        }
+      }
+      tailEntries.sort((a, b) => a.ts - b.ts || a.origIdx - b.origIdx || a.k - b.k);
+      const tailChrono = [];
+      for (const { ev, k } of tailEntries) {
+        if (typeof ev?.state_key === 'string' && k > 0 && STRUCTURAL_STATE_TYPES.has(ev.type)) {
+          continue;
+        }
+        tailChrono.push(remapEvent(ev, ctxByK[k]));
+      }
+      messagesTail.push(...tailChrono.reverse());
 
       // Warmup live entries at tau <= offsetMs for each staggered copy k > 0.
       for (let k = 1; k < threadCopies; k += 1) {
@@ -786,6 +843,9 @@ export function createReplayMultiplier(bundle, options = {}) {
           const delta = warmed[roomId];
           if (!delta) continue;
           for (const ev of delta.stateEvents) putState(ev);
+          for (const ev of delta.timelineEvents) {
+            if (typeof ev?.state_key === 'string') putState(ev);
+          }
           timeline.push(...delta.timelineEvents);
         }
       }

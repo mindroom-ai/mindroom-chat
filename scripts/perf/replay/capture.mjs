@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 // Read-only (GET-only) Matrix CS-API capture CLI for MindRoom Chat replay performance benchmarks.
+//
+// IMPORTANT — DEVICE SAFETY:
+// Calling GET /_matrix/client/v3/sync?since=... advances the homeserver's sync cursor (and
+// to-device delivery position) for the access token's device. Operators MUST use a fresh,
+// dedicated capture device/login and NEVER reuse an active MindRoom Chat session token.
+// All /sync requests pass set_presence=offline so the capture device never flips user presence.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -92,167 +98,28 @@ export function extractMxcReferences(snapshot, liveEntries = []) {
   return [...byKey.values()].sort((a, b) => a.priority - b.priority || a.key.localeCompare(b.key));
 }
 
-/** Minimal UTF-16 splice matching `src/app/matrix/protocol/liveFrame.ts` `applyLiveDelta`. */
-export function computeLiveSplice(prev, next) {
-  const maxPrefix = Math.min(prev.length, next.length);
-  let at = 0;
-  while (at < maxPrefix && prev.charCodeAt(at) === next.charCodeAt(at)) at += 1;
-  const maxSuffix = Math.min(prev.length - at, next.length - at);
-  let suffix = 0;
-  while (
-    suffix < maxSuffix &&
-    prev.charCodeAt(prev.length - 1 - suffix) === next.charCodeAt(next.length - 1 - suffix)
-  ) {
-    suffix += 1;
-  }
-  return {
-    at,
-    del: prev.length - at - suffix,
-    ins: next.slice(at, next.length - suffix),
-    len: next.length,
-  };
+function makeBlobTooLargeError(message) {
+  const err = new Error(message);
+  err.code = 'BLOB_TOO_LARGE';
+  return err;
 }
 
-const makeSid = (baseMs, key) => {
-  const ms = String(Math.max(1_000_000_000_000, Math.floor(baseMs)))
-    .padStart(13, '0')
-    .slice(0, 13);
-  return `${ms}-${crypto.createHash('sha256').update(key).digest('hex').slice(0, 8)}`;
-};
-
-const extractDocs = (content) => {
-  const src = isRecord(content?.['m.new_content']) ? content['m.new_content'] : (content ?? {});
-  const trace = src['io.mindroom.tool_trace'];
-  const tools = Array.isArray(trace?.events)
-    ? trace.events.filter(isRecord)
-    : Array.isArray(trace)
-      ? trace.filter(isRecord)
-      : [];
-  const rawSegs = src['io.mindroom.live_reasoning_segments'];
-  const segments = Array.isArray(rawSegs)
-    ? rawSegs.filter(
-        (s) =>
-          isRecord(s) &&
-          Number.isSafeInteger(s.start) &&
-          s.start >= 0 &&
-          Number.isSafeInteger(s.after_tool) &&
-          s.after_tool >= 0
-      )
-    : [];
-  return {
-    md: typeof src.body === 'string' ? src.body : '',
-    reasoning:
-      typeof src['io.mindroom.reasoning'] === 'string'
-        ? src['io.mindroom.reasoning']
-        : typeof src['io.mindroom.live_reasoning'] === 'string'
-          ? src['io.mindroom.live_reasoning']
-          : '',
-    tools,
-    status: 'streaming',
-    activity:
-      typeof src['io.mindroom.live_activity'] === 'string' ? src['io.mindroom.live_activity'] : '',
-    segments,
-  };
-};
-
-/** Synthesize `{ tauMs, response }` live `io.mindroom.live` frames from `m.replace` edit chains. */
-export function synthesizeLiveFramesFromEvents(events, options = {}) {
-  const durationMs = Math.max(2_000, options.durationMs ?? 15_000);
-  const baseTs = options.baseTs ?? Date.now();
-  const byId = new Map();
-  const editsByTarget = new Map();
-  for (const ev of events) {
-    if (!isRecord(ev) || typeof ev.event_id !== 'string') continue;
-    byId.set(ev.event_id, ev);
-    const rel = ev.content?.['m.relates_to'];
-    if (rel?.rel_type === 'm.replace' && typeof rel.event_id === 'string') {
-      const list = editsByTarget.get(rel.event_id) ?? [];
-      list.push(ev);
-      editsByTarget.set(rel.event_id, list);
-    }
-  }
-  const out = [];
-  let chainIdx = 0;
-  for (const [targetId, edits] of editsByTarget.entries()) {
-    edits.sort((a, b) => (a.origin_server_ts ?? 0) - (b.origin_server_ts ?? 0));
-    const base = byId.get(targetId);
-    const roomId = base?.room_id ?? edits[0]?.room_id;
-    const sender = base?.sender ?? edits[0]?.sender;
-    if (!roomId || !sender) continue;
-    const threadRel = base?.content?.['m.relates_to'];
-    const threadId = threadRel?.rel_type === 'm.thread' ? threadRel.event_id : null;
-    const versions = [
-      ...(base ? [extractDocs(base.content)] : []),
-      ...edits.map((e) => extractDocs(e.content)),
-    ];
-    if (versions.length === 0) continue;
-    const sid = makeSid(baseTs + chainIdx, `${roomId}:${targetId}`);
-    const stepMs = Math.max(100, Math.floor((durationMs * 0.85) / Math.max(1, versions.length)));
-    const offset = Math.floor(((chainIdx % 5) / 5) * Math.min(2_000, durationMs * 0.15));
-    chainIdx += 1;
-
-    let prev = null;
-    versions.forEach((docs, seq) => {
-      const tauMs = Math.min(durationMs - 100, offset + seq * stepMs);
-      const isFirst = seq === 0 || !prev;
-      const content = isFirst
-        ? { v: 1, reply: targetId, sid, seq: 0, snapshot: docs }
-        : {
-            v: 1,
-            reply: targetId,
-            sid,
-            seq,
-            delta: {
-              ...(docs.md !== prev.md ? { md: computeLiveSplice(prev.md, docs.md) } : {}),
-              ...(docs.reasoning !== prev.reasoning
-                ? { reasoning: computeLiveSplice(prev.reasoning, docs.reasoning) }
-                : {}),
-              ...(docs.activity !== prev.activity ? { activity: docs.activity } : {}),
-              status: 'streaming',
-            },
-          };
-      prev = docs;
-      const roomDelta = {
-        ephemeral: {
-          events: [{ type: 'io.mindroom.live', sender, origin_server_ts: baseTs + tauMs, content }],
-        },
-      };
-      if (isFirst) {
-        roomDelta.state = {
-          events: [
-            {
-              type: 'io.mindroom.active_runs',
-              event_id: `$synth_ar_${chainIdx}_${seq}`,
-              sender,
-              state_key: sender,
-              room_id: roomId,
-              origin_server_ts: baseTs + tauMs,
-              content: {
-                version: 1,
-                updated_at: baseTs + tauMs,
-                ttl_ms: 180_000,
-                threads: [{ thread_id: threadId }],
-              },
-            },
-          ],
-        };
-      }
-      out.push({ tauMs, response: { rooms: { join: { [roomId]: roomDelta } } } });
-    });
-  }
-  return out.sort((a, b) => a.tauMs - b.tauMs);
-}
-
-/** Strict GET-only Matrix CS-API fetch wrapper. Never issues POST, PUT, or DELETE. */
-async function matrixGet(
+/**
+ * Strict GET-only Matrix CS-API fetch wrapper. Never issues POST, PUT, or DELETE.
+ * In binary mode, enforces `maxBytes` via Content-Length and incremental stream reads
+ * so oversized responses are aborted without buffering the full body.
+ */
+export async function matrixGet(
   homeserver,
   token,
   pathAndQuery,
-  { binary = false, fetchFn = fetch } = {}
+  { binary = false, maxBytes = Infinity, fetchFn = fetch } = {}
 ) {
+  const controller = new AbortController();
   const res = await fetchFn(`${trimSlash(homeserver)}${pathAndQuery}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
+    signal: controller.signal,
   });
   if (!res.ok) {
     const err = new Error(`GET ${pathAndQuery} failed with HTTP ${res.status}`);
@@ -260,10 +127,50 @@ async function matrixGet(
     throw err;
   }
   if (!binary) return res.json();
-  return {
-    buffer: Buffer.from(await res.arrayBuffer()),
-    contentType: res.headers.get('content-type') || 'application/octet-stream',
-  };
+
+  const contentType = res.headers?.get?.('content-type') || 'application/octet-stream';
+  const rawLen = res.headers?.get?.('content-length');
+  const contentLength =
+    rawLen !== null && rawLen !== undefined && rawLen !== '' ? Number(rawLen) : Number.NaN;
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    await res.body?.cancel?.().catch(() => {});
+    controller.abort();
+    throw makeBlobTooLargeError(
+      `GET ${pathAndQuery} Content-Length ${contentLength} exceeds maxBytes ${maxBytes}`
+    );
+  }
+
+  if (res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      for (let step = await reader.read(); !step.done; step = await reader.read()) {
+        const value = step.value;
+        const buf = Buffer.isBuffer(value)
+          ? value
+          : Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+        total += buf.length;
+        if (total > maxBytes) {
+          await reader.cancel().catch(() => {});
+          controller.abort();
+          throw makeBlobTooLargeError(`GET ${pathAndQuery} stream exceeded maxBytes ${maxBytes}`);
+        }
+        chunks.push(buf);
+      }
+    } finally {
+      reader.releaseLock?.();
+    }
+    return { buffer: Buffer.concat(chunks, total), contentType };
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > maxBytes) {
+    throw makeBlobTooLargeError(
+      `GET ${pathAndQuery} body ${buffer.length} exceeds maxBytes ${maxBytes}`
+    );
+  }
+  return { buffer, contentType };
 }
 
 async function paginateGet(
@@ -303,20 +210,19 @@ export function parseCaptureArgs(argv) {
     heavyThreads: 25,
     maxBlobs: 500,
     maxBlobBytes: DEFAULT_MAX_BLOB_BYTES,
-    synthesizeLive: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--synthesize-live') {
-      opts.synthesizeLive = true;
-      continue;
-    }
     const next = argv[++i] ?? '';
     if (arg === '--homeserver') opts.homeserver = next;
     else if (arg === '--token-file') opts.tokenFile = next;
     else if (arg === '--out') opts.out = next;
-    else if (arg === '--rooms') opts.rooms = next.split(',').map((s) => s.trim()).filter(Boolean);
-    else if (arg === '--duration') opts.duration = Number(next);
+    else if (arg === '--rooms') {
+      opts.rooms = next
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (arg === '--duration') opts.duration = Number(next);
     else if (arg === '--max-threads') opts.maxThreads = Number(next);
     else if (arg === '--heavy-threads') opts.heavyThreads = Number(next);
     else if (arg === '--max-blobs') opts.maxBlobs = Number(next);
@@ -338,7 +244,6 @@ export async function runCapture(options) {
     heavyThreads = 25,
     maxBlobs = 500,
     maxBlobBytes = DEFAULT_MAX_BLOB_BYTES,
-    synthesizeLive = false,
     fetchFn = fetch,
   } = options;
   if (!homeserver) throw new Error('Missing --homeserver');
@@ -359,7 +264,7 @@ export async function runCapture(options) {
   const initialSync = await matrixGet(
     homeserver,
     token,
-    `/_matrix/client/v3/sync?filter=${filterParam}&timeout=0`,
+    `/_matrix/client/v3/sync?filter=${filterParam}&set_presence=offline&timeout=0`,
     { fetchFn }
   );
   const joined = initialSync.rooms?.join ?? {};
@@ -373,7 +278,6 @@ export async function runCapture(options) {
     : allRoomIds.filter((id) => !isSpace(id));
 
   const roomsCapture = {};
-  const allEvents = [];
   for (const roomId of focusedRoomIds) {
     const encR = encodeURIComponent(roomId);
     const threads = await paginateGet(
@@ -404,7 +308,6 @@ export async function runCapture(options) {
         { maxPages: 10, maxItems: 1000, tokenField: 'next_batch', fetchFn }
       );
       threadRelations[root.event_id] = rels;
-      allEvents.push(root, ...rels);
     }
     const prevBatch = joined[roomId]?.timeline?.prev_batch ?? '';
     const messagesTail = prevBatch
@@ -417,7 +320,6 @@ export async function runCapture(options) {
           { maxPages: 5, maxItems: 500, tokenField: 'end', fetchFn }
         )
       : [];
-    allEvents.push(...messagesTail);
     let members = [];
     try {
       const mRes = await matrixGet(homeserver, token, `/_matrix/client/v3/rooms/${encR}/members`, {
@@ -441,7 +343,7 @@ export async function runCapture(options) {
       const res = await matrixGet(
         homeserver,
         token,
-        `/_matrix/client/v3/sync?filter=${filterParam}` +
+        `/_matrix/client/v3/sync?filter=${filterParam}&set_presence=offline` +
           `&since=${encodeURIComponent(since)}&timeout=${timeout}`,
         { fetchFn }
       );
@@ -450,23 +352,6 @@ export async function runCapture(options) {
       const hasRooms = isRecord(res.rooms?.join) && Object.keys(res.rooms.join).length > 0;
       const hasAcc = Array.isArray(res.account_data?.events) && res.account_data.events.length > 0;
       if (hasRooms || hasAcc) liveEntries.push({ tauMs, response: res });
-    }
-  }
-
-  let effectiveDurationMs = durationMs;
-  if (synthesizeLive) {
-    const hasLive = liveEntries.some((entry) =>
-      Object.values(entry.response?.rooms?.join ?? {}).some((r) =>
-        (r?.ephemeral?.events ?? []).some((e) => e.type === 'io.mindroom.live')
-      )
-    );
-    if (!hasLive) {
-      for (const room of Object.values(joined)) allEvents.push(...(room?.timeline?.events ?? []));
-      effectiveDurationMs = Math.max(durationMs, 15_000);
-      liveEntries.push(
-        ...synthesizeLiveFramesFromEvents(allEvents, { durationMs: effectiveDurationMs })
-      );
-      liveEntries.sort((a, b) => a.tauMs - b.tauMs);
     }
   }
 
@@ -479,12 +364,15 @@ export async function runCapture(options) {
     try {
       dl = await matrixGet(homeserver, token, `/_matrix/client/v1/media/download/${encS}/${encM}`, {
         binary: true,
+        maxBytes: maxBlobBytes,
         fetchFn,
       });
-    } catch (_err) {
+    } catch (err) {
+      if (err?.code === 'BLOB_TOO_LARGE') continue;
       try {
         dl = await matrixGet(homeserver, token, `/_matrix/media/v3/download/${encS}/${encM}`, {
           binary: true,
+          maxBytes: maxBlobBytes,
           fetchFn,
         });
       } catch (_fallbackErr) {
@@ -522,7 +410,7 @@ export async function runCapture(options) {
     primaryRoomId,
     primaryRoomName,
     focusedRoomIds,
-    durationMs: effectiveDurationMs || 60_000,
+    durationMs: durationMs || 60_000,
     stats: {
       rooms: allRoomIds.length,
       threads: Object.values(roomsCapture).reduce((n, r) => n + r.threads.length, 0),

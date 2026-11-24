@@ -10,11 +10,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildCaptureSyncFilter,
-  computeLiveSplice,
   extractMxcReferences,
+  matrixGet,
   parseMxcUri,
   runCapture,
-  synthesizeLiveFramesFromEvents,
 } from './capture.mjs';
 import {
   applyLiveDeltaToDocs,
@@ -602,58 +601,91 @@ test('capture helpers: GET-only sync filter and prioritized mxc extraction', () 
   assert.equal(refs[1].priority, 2);
 });
 
-test('capture helpers: computeLiveSplice and synthesizeLiveFramesFromEvents', () => {
-  const splice = computeLiveSplice('Hello world', 'Hello brave world!');
-  const applied = applyLiveDeltaToDocs(
-    { md: 'Hello world', reasoning: '', tools: [], status: 'streaming', activity: '', segments: [] },
-    { md: splice }
+test('capture: matrixGet rejects oversized responses early via Content-Length and chunked streams', async () => {
+  // Case A: Content-Length exceeds maxBytes -> rejected before reading stream body
+  let headerBodyPulled = false;
+  let headerBodyCancelled = false;
+  let headerSignal = null;
+  const headerFetch = async (_url, init) => {
+    headerSignal = init?.signal ?? null;
+    return new Response(
+      new ReadableStream(
+        {
+          pull() {
+            headerBodyPulled = true;
+            throw new Error('stream should not be read when Content-Length exceeds maxBytes');
+          },
+          cancel() {
+            headerBodyCancelled = true;
+          },
+        },
+        { highWaterMark: 0 }
+      ),
+      {
+        status: 200,
+        headers: { 'content-length': '10000', 'content-type': 'application/octet-stream' },
+      }
+    );
+  };
+  await assert.rejects(
+    () =>
+      matrixGet('http://127.0.0.1:1', 'tok', '/_matrix/client/v1/media/download/a/b', {
+        binary: true,
+        maxBytes: 256,
+        fetchFn: headerFetch,
+      }),
+    (err) => err?.code === 'BLOB_TOO_LARGE'
   );
-  assert.equal(applied.md, 'Hello brave world!');
+  assert.equal(headerBodyPulled, false);
+  assert.equal(headerBodyCancelled, true);
+  assert.equal(headerSignal?.aborted, true);
 
-  const events = [
-    {
-      type: 'm.room.message',
-      event_id: '$msg1',
-      room_id: ROOM_ID,
-      sender: AGENT,
-      origin_server_ts: BASE_TS,
-      content: {
-        msgtype: 'm.text',
-        body: 'Step 1',
-        'm.relates_to': { rel_type: 'm.thread', event_id: '$root1' },
-      },
-    },
-    {
-      type: 'm.room.message',
-      event_id: '$edit1',
-      room_id: ROOM_ID,
-      sender: AGENT,
-      origin_server_ts: BASE_TS + 1_000,
-      content: {
-        msgtype: 'm.text',
-        body: '* Step 1 -> Step 2',
-        'm.new_content': { msgtype: 'm.text', body: 'Step 1 -> Step 2' },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$msg1' },
-      },
-    },
-  ];
-  const synth = synthesizeLiveFramesFromEvents(events, { durationMs: 6_000, baseTs: BASE_TS });
-  assert.equal(synth.length, 2);
-  const f0 = synth[0].response.rooms.join[ROOM_ID].ephemeral.events[0].content;
-  const f1 = synth[1].response.rooms.join[ROOM_ID].ephemeral.events[0].content;
-  assert.equal(f0.v, 1);
-  assert.equal(f0.seq, 0);
-  assert.match(f0.sid, SID_RE);
-  assert.equal(f0.snapshot.md, 'Step 1');
-  assert.equal(f1.seq, 1);
-  assert.equal(f1.sid, f0.sid);
-  const after = applyLiveDeltaToDocs(f0.snapshot, f1.delta);
-  assert.equal(after.md, 'Step 1 -> Step 2');
+  // Case B: Chunked stream without Content-Length -> aborted as soon as cap is exceeded
+  let pulledChunks = 0;
+  let streamCancelled = false;
+  let streamSignal = null;
+  const totalChunks = 50;
+  const chunkSize = 100;
+  const streamFetch = async (_url, init) => {
+    streamSignal = init?.signal ?? null;
+    return new Response(
+      new ReadableStream(
+        {
+          pull(controller) {
+            if (pulledChunks >= totalChunks) {
+              controller.close();
+              return;
+            }
+            pulledChunks += 1;
+            controller.enqueue(new Uint8Array(chunkSize).fill(65));
+          },
+          cancel() {
+            streamCancelled = true;
+          },
+        },
+        { highWaterMark: 0 }
+      ),
+      { status: 200, headers: { 'content-type': 'application/octet-stream' } }
+    );
+  };
+  await assert.rejects(
+    () =>
+      matrixGet('http://127.0.0.1:1', 'tok', '/_matrix/client/v1/media/download/a/c', {
+        binary: true,
+        maxBytes: 250,
+        fetchFn: streamFetch,
+      }),
+    (err) => err?.code === 'BLOB_TOO_LARGE'
+  );
+  assert.equal(streamCancelled, true);
+  assert.equal(streamSignal?.aborted, true);
+  assert.equal(pulledChunks, 3);
 });
 
-test('runCapture enforces strictly GET-only requests, 0700 perms, and downloads long_text blobs', async () => {
+test('runCapture enforces GET-only, set_presence=offline, 0700 perms, and downloads long_text blobs', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-cap-test-'));
   const methods = [];
+  const syncUrls = [];
   const sidecarJson = JSON.stringify({ msgtype: 'm.text', body: 'Full hydrated long text body' });
   const srv = http.createServer((req, res) => {
     methods.push(req.method);
@@ -664,6 +696,7 @@ test('runCapture enforces strictly GET-only requests, 0700 perms, and downloads 
     };
     if (u.pathname === '/_matrix/client/v3/account/whoami') return send(200, { user_id: VIEWER });
     if (u.pathname === '/_matrix/client/v3/sync') {
+      syncUrls.push(u.searchParams.get('set_presence'));
       return send(200, {
         next_batch: 'nb1',
         rooms: {
@@ -687,19 +720,6 @@ test('runCapture enforces strictly GET-only requests, 0700 perms, and downloads 
                       body: 'Preview...',
                       url: 'mxc://example.test/sidecar1',
                       'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-                    },
-                  },
-                  {
-                    type: 'm.room.message',
-                    event_id: '$lt1_edit',
-                    room_id: ROOM_ID,
-                    sender: AGENT,
-                    origin_server_ts: BASE_TS + 500,
-                    content: {
-                      msgtype: 'm.text',
-                      body: '* Updated preview',
-                      'm.new_content': { msgtype: 'm.text', body: 'Updated preview full' },
-                      'm.relates_to': { rel_type: 'm.replace', event_id: '$lt1' },
                     },
                   },
                 ],
@@ -727,14 +747,14 @@ test('runCapture enforces strictly GET-only requests, 0700 perms, and downloads 
       token: 'fake-token',
       out: outDir,
       duration: 0,
-      synthesizeLive: true,
     });
     assert.ok(methods.length > 0);
     assert.ok(methods.every((m) => m === 'GET'), `Non-GET methods used: ${methods.join(',')}`);
+    assert.ok(syncUrls.length > 0);
+    assert.ok(syncUrls.every((p) => p === 'offline'), `expected set_presence=offline on /sync`);
     assert.equal(fs.statSync(outDir).mode & 0o777, 0o700);
     assert.equal(manifest.primaryRoomName, 'Captured Room');
     assert.equal(manifest.stats.blobs, 1);
-    assert.ok(manifest.stats.liveEntries >= 2);
     const blobEntry = manifest.blobIndex['example.test/sidecar1'];
     assert.equal(fs.readFileSync(path.join(outDir, 'blobs', blobEntry.file), 'utf8'), sidecarJson);
   } finally {
@@ -968,7 +988,11 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
   });
 
   const api = async (p, opts = {}) => {
-    const res = await fetch(`${srv.baseUrl}${p}`, opts);
+    const headers = {
+      Authorization: `Bearer ${srv.accessToken}`,
+      ...(opts.headers ?? {}),
+    };
+    const res = await fetch(`${srv.baseUrl}${p}`, { ...opts, headers });
     const ct = res.headers.get('content-type') ?? '';
     return {
       status: res.status,
@@ -986,9 +1010,11 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
     const login = await api('/_matrix/client/v3/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'm.login.password', user: 'viewer', password: 'x' }),
+      body: JSON.stringify({ type: 'm.login.password', user: 'viewer', password: srv.password }),
     });
+    assert.equal(login.status, 200);
     assert.equal(login.body.user_id, VIEWER);
+    assert.equal(login.body.access_token, srv.accessToken);
     assert.equal(login.body.home_server, 'example.test');
 
     // Saved filter + initial /sync with limited timeline
@@ -1077,9 +1103,21 @@ test('server: CS-API endpoints, live sync, threads, relations, messages, media, 
     assert.equal(st.body.threadCount, 2);
     assert.ok(st.body.stats.totalFrames > 0);
 
+    const preResetSyncSeq = st.body.syncSeq;
+    const preResetSince = `s${preResetSyncSeq}`;
     const reset = await api('/__replay/reset', { method: 'POST' });
     assert.equal(reset.body.ok, true);
     assert.equal(reset.body.status.stats.totalFrames, 0);
+    assert.ok(
+      reset.body.status.syncSeq > preResetSyncSeq,
+      `expected syncSeq to advance monotonically across reset (${reset.body.status.syncSeq} <= ${preResetSyncSeq})`
+    );
+    // Client holding a pre-reset since token must resync immediately without hanging
+    const postResetSync = await api(
+      `/_matrix/client/v3/sync?since=${encodeURIComponent(preResetSince)}&timeout=2000`
+    );
+    assert.equal(postResetSync.status, 200);
+    assert.notEqual(postResetSync.body.next_batch, preResetSince);
 
     await new Promise((r) => setTimeout(r, 350));
     assert.ok(fs.existsSync(statsFile));
@@ -1136,6 +1174,10 @@ test('server CLI --print-ready emits JSON handshake and shuts down cleanly on SI
     assert.equal(ready.username, 'viewer');
     assert.equal(ready.roomId, ROOM_ID);
     assert.equal(ready.multiplyThreads, 2);
+    assert.equal(typeof ready.password, 'string');
+    assert.ok(ready.password.length >= 16);
+    assert.equal(typeof ready.accessToken, 'string');
+    assert.ok(ready.accessToken.length >= 16);
 
     const exitCode = await new Promise((resolve) => {
       child.on('exit', (code) => resolve(code));
@@ -1145,5 +1187,763 @@ test('server CLI --print-ready emits JSON handshake and shuts down cleanly on SI
   } finally {
     child.kill('SIGKILL');
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('server security: auth gate, loopback-only CORS, Host header check, and login password check', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'replay-sec-test-'));
+  const blobsDir = path.join(dir, 'blobs');
+  fs.mkdirSync(blobsDir, { recursive: true });
+  const mediaPayload = Buffer.from('secret-media-payload');
+  const sha = crypto.createHash('sha256').update(mediaPayload).digest('hex');
+  fs.writeFileSync(path.join(blobsDir, sha), mediaPayload);
+
+  const bundle = makeFixtureBundle();
+  bundle.manifest.blobIndex = {
+    'example.test/m1': { file: sha, contentType: 'text/plain', bytes: mediaPayload.length },
+  };
+  const srv = await startReplayServer({
+    bundle,
+    blobsDir,
+    port: 0,
+    multiplyThreads: 1,
+    speed: 1,
+  });
+
+  const rawHttpRequest = (p, { method = 'GET', headers = {} } = {}) =>
+    new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: '127.0.0.1', port: srv.port, path: p, method, headers },
+        (res) => {
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            resolve({
+              status: res.statusCode,
+              headers: res.headers,
+              body: raw ? JSON.parse(raw) : null,
+            });
+          });
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+
+  try {
+    // (a) Unauthenticated capture-data & /__replay/* routes return 401 M_UNKNOWN_TOKEN
+    const unauthSync = await fetch(`${srv.baseUrl}/_matrix/client/v3/sync?timeout=0`);
+    assert.equal(unauthSync.status, 401);
+    assert.equal((await unauthSync.json()).errcode, 'M_UNKNOWN_TOKEN');
+
+    const unauthStatus = await fetch(`${srv.baseUrl}/__replay/status`);
+    assert.equal(unauthStatus.status, 401);
+    assert.equal((await unauthStatus.json()).errcode, 'M_UNKNOWN_TOKEN');
+
+    const unauthMedia = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/media/download/example.test/m1`
+    );
+    assert.equal(unauthMedia.status, 401);
+
+    // Media also accepts ?access_token= query parameter; /sync does NOT
+    const queryMedia = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/media/download/example.test/m1?access_token=${encodeURIComponent(srv.accessToken)}`
+    );
+    assert.equal(queryMedia.status, 200);
+    assert.equal(await queryMedia.text(), 'secret-media-payload');
+
+    const querySync = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/sync?timeout=0&access_token=${encodeURIComponent(srv.accessToken)}`
+    );
+    assert.equal(querySync.status, 401);
+
+    // Public discovery endpoints remain accessible unauthenticated
+    assert.equal((await fetch(`${srv.baseUrl}/.well-known/matrix/client`)).status, 200);
+    assert.equal((await fetch(`${srv.baseUrl}/_matrix/client/versions`)).status, 200);
+    assert.equal((await fetch(`${srv.baseUrl}/_matrix/client/v3/login`)).status, 200);
+    assert.equal((await fetch(`${srv.baseUrl}/_matrix/client/v3/register`)).status, 403);
+
+    // (b) Non-loopback Origin receives NO Access-Control-Allow-Origin; loopback Origins do
+    const evilCors = await fetch(`${srv.baseUrl}/_matrix/client/versions`, {
+      headers: { Origin: 'https://evil.example' },
+    });
+    assert.equal(evilCors.headers.get('access-control-allow-origin'), null);
+
+    const evilSubdomainCors = await fetch(`${srv.baseUrl}/_matrix/client/versions`, {
+      headers: { Origin: 'http://127.0.0.1.evil.example:4200' },
+    });
+    assert.equal(evilSubdomainCors.headers.get('access-control-allow-origin'), null);
+
+    const loopbackCors = await fetch(`${srv.baseUrl}/_matrix/client/versions`, {
+      headers: { Origin: 'http://127.0.0.1:4200' },
+    });
+    assert.equal(loopbackCors.headers.get('access-control-allow-origin'), 'http://127.0.0.1:4200');
+
+    const localhostCors = await fetch(`${srv.baseUrl}/_matrix/client/versions`, {
+      headers: { Origin: 'http://localhost:5173' },
+    });
+    assert.equal(localhostCors.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+
+    // (c) Non-loopback Host header returns 403 (DNS rebinding protection)
+    const badHost = await rawHttpRequest('/_matrix/client/versions', {
+      headers: { Host: 'evil.example:8080' },
+    });
+    assert.equal(badHost.status, 403);
+    assert.equal(badHost.body.errcode, 'M_FORBIDDEN');
+
+    const wrongPortHost = await rawHttpRequest('/_matrix/client/versions', {
+      headers: { Host: '127.0.0.1:1' },
+    });
+    assert.equal(wrongPortHost.status, 403);
+
+    const goodLocalhost = await rawHttpRequest('/_matrix/client/versions', {
+      headers: { Host: `localhost:${srv.port}` },
+    });
+    assert.equal(goodLocalhost.status, 200);
+
+    // (d) Wrong login password returns 403 M_FORBIDDEN; valid password returns per-run accessToken
+    const badLogin = await fetch(`${srv.baseUrl}/_matrix/client/v3/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'm.login.password',
+        user: 'viewer',
+        password: 'wrong-password',
+      }),
+    });
+    assert.equal(badLogin.status, 403);
+    assert.equal((await badLogin.json()).errcode, 'M_FORBIDDEN');
+
+    const goodLogin = await fetch(`${srv.baseUrl}/_matrix/client/v3/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'm.login.password', user: 'viewer', password: srv.password }),
+    });
+    assert.equal(goodLogin.status, 200);
+    const loginBody = await goodLogin.json();
+    assert.equal(loginBody.access_token, srv.accessToken);
+    assert.equal(loginBody.user_id, VIEWER);
+
+    // Deterministic password/accessToken options override random defaults
+    const customSrv = await startReplayServer({
+      bundle,
+      port: 0,
+      password: 'custom-test-password',
+      accessToken: 'custom-test-token',
+    });
+    try {
+      assert.equal(customSrv.password, 'custom-test-password');
+      assert.equal(customSrv.accessToken, 'custom-test-token');
+      const customLogin = await fetch(`${customSrv.baseUrl}/_matrix/client/v3/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'm.login.password',
+          user: 'viewer',
+          password: 'custom-test-password',
+        }),
+      });
+      assert.equal(customLogin.status, 200);
+      assert.equal((await customLogin.json()).access_token, 'custom-test-token');
+    } finally {
+      await customSrv.close();
+    }
+  } finally {
+    await srv.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('timeline state events: io.mindroom.active_runs in timeline.events is merged under 2x, persisted in /state, and present in cold /sync past timeline.limit', async () => {
+  const bundle = makeFixtureBundle();
+  // Remove initial active_runs from state.events so it arrives ONLY via live timeline.events
+  bundle.snapshot.initialSync.rooms.join[ROOM_ID].state.events =
+    bundle.snapshot.initialSync.rooms.join[ROOM_ID].state.events.filter(
+      (ev) => ev.type !== 'io.mindroom.active_runs'
+    );
+  bundle.manifest.durationMs = 4_000;
+  bundle.liveEntries = [
+    {
+      tauMs: 100,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              timeline: {
+                events: [
+                  {
+                    type: 'io.mindroom.active_runs',
+                    event_id: '$tl_ar_1',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    state_key: AGENT,
+                    origin_server_ts: BASE_TS + 100,
+                    content: {
+                      version: 1,
+                      updated_at: BASE_TS + 100,
+                      ttl_ms: 180_000,
+                      threads: [{ thread_id: '$root1' }],
+                    },
+                  },
+                  {
+                    type: 'com.mindroom.thread.tags',
+                    event_id: '$tl_tag_1',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    state_key: '["$root1","tl-tag"]',
+                    origin_server_ts: BASE_TS + 102,
+                    content: { set_by: VIEWER, set_at: '2026-11-24T10:00:00.000Z' },
+                  },
+                  {
+                    type: 'm.room.member',
+                    event_id: '$tl_mem_1',
+                    room_id: ROOM_ID,
+                    sender: '@late_joiner:example.test',
+                    state_key: '@late_joiner:example.test',
+                    origin_server_ts: BASE_TS + 104,
+                    content: { membership: 'join', displayname: 'Late Joiner' },
+                  },
+                  {
+                    type: 'm.room.message',
+                    event_id: '$tl_pad_1',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 110,
+                    content: { msgtype: 'm.text', body: 'Pad message 1' },
+                  },
+                  {
+                    type: 'm.room.message',
+                    event_id: '$tl_pad_2',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 120,
+                    content: { msgtype: 'm.text', body: 'Pad message 2' },
+                  },
+                  {
+                    type: 'm.room.message',
+                    event_id: '$tl_pad_3',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 130,
+                    content: { msgtype: 'm.text', body: 'Pad message 3' },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 2,
+    multiplyRooms: 1,
+    speed: 20,
+  });
+
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+  try {
+    // Wait until copy 0 has also fired tau=100 (copy 1 fired during warmup at offset=2000ms)
+    const deadline = Date.now() + 3_000;
+    let mergedAr = null;
+    while (Date.now() < deadline) {
+      const stateRes = await fetch(
+        `${srv.baseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(ROOM_ID)}/state`,
+        { headers: authHeaders }
+      );
+      const stateEvents = await stateRes.json();
+      const found = stateEvents.find(
+        (ev) => ev.type === 'io.mindroom.active_runs' && ev.state_key === AGENT
+      );
+      if (found && found.content.threads.length === 2) {
+        mergedAr = found;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 30));
+    }
+
+    assert.ok(mergedAr, 'expected merged io.mindroom.active_runs from timeline.events in /state');
+    assert.deepEqual(
+      mergedAr.content.threads.map((t) => t.thread_id).sort(),
+      ['$root1', '$root1__r0_k1'].sort()
+    );
+
+    // Fresh cold /sync with timeline.limit = 2 pushes $tl_ar_1 outside timeline.events,
+    // yet state.events MUST still include the merged io.mindroom.active_runs event!
+    const filter = encodeURIComponent(JSON.stringify({ room: { timeline: { limit: 2 } } }));
+    const coldRes = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/sync?filter=${filter}&timeout=0`,
+      { headers: authHeaders }
+    );
+    assert.equal(coldRes.status, 200);
+    const coldRoom = (await coldRes.json()).rooms.join[ROOM_ID];
+    assert.equal(coldRoom.timeline.events.length, 2);
+    assert.equal(
+      coldRoom.timeline.events.some((ev) => ev.type === 'io.mindroom.active_runs'),
+      false,
+      'active_runs should have fallen past timeline.limit=2'
+    );
+    const coldAr = coldRoom.state.events.find(
+      (ev) => ev.type === 'io.mindroom.active_runs' && ev.state_key === AGENT
+    );
+    assert.ok(coldAr, 'expected merged io.mindroom.active_runs in cold /sync state.events');
+    assert.deepEqual(
+      coldAr.content.threads.map((t) => t.thread_id).sort(),
+      ['$root1', '$root1__r0_k1'].sort()
+    );
+    const coldTags = coldRoom.state.events
+      .filter((ev) => ev.type === 'com.mindroom.thread.tags' && ev.state_key.includes('tl-tag'))
+      .map((ev) => ev.state_key)
+      .sort();
+    assert.deepEqual(coldTags, ['["$root1","tl-tag"]', '["$root1__r0_k1","tl-tag"]'].sort());
+
+    const membersRes = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(ROOM_ID)}/members`,
+      { headers: authHeaders }
+    );
+    const membersChunk = (await membersRes.json()).chunk;
+    assert.ok(membersChunk.some((ev) => ev.state_key === '@late_joiner:example.test'));
+  } finally {
+    await srv.close();
+  }
+});
+
+test('server: thread summary seeding preserves captured count=17, participation, and latest reply alongside historical replies', async () => {
+  const capturedLatest = {
+    type: 'm.room.message',
+    event_id: '$rep17',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 50_000,
+    content: {
+      msgtype: 'm.text',
+      body: 'Captured 17th reply',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root_old' },
+    },
+  };
+  const capturedTitle = {
+    type: 'm.room.message',
+    event_id: '$title_old',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 60_000,
+    content: {
+      msgtype: 'm.notice',
+      body: 'Captured Thread Title',
+      'io.mindroom.thread_summary': { summary: 'Captured Thread Title', version: 1 },
+    },
+  };
+  const oldRoot = {
+    type: 'm.room.message',
+    event_id: '$root_old',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 200_000,
+    content: { msgtype: 'm.text', body: 'Older thread root' },
+    unsigned: {
+      'm.relations': {
+        'm.thread': {
+          count: 17,
+          current_user_participated: true,
+          latest_event: capturedLatest,
+          'io.mindroom.latest_reply': capturedLatest,
+          'io.mindroom.title': capturedTitle,
+        },
+      },
+    },
+  };
+  const historicalReply = {
+    type: 'm.room.message',
+    event_id: '$hist_rep',
+    room_id: ROOM_ID,
+    sender: AGENT,
+    origin_server_ts: BASE_TS - 40_000,
+    content: {
+      msgtype: 'm.text',
+      body: 'Historical reply indexed from messagesTail / timeline',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root_old' },
+    },
+  };
+
+  const bundle = makeFixtureBundle();
+  bundle.liveEntries = [];
+  bundle.snapshot.initialSync.rooms.join[ROOM_ID].timeline.events = [historicalReply];
+  bundle.snapshot.rooms[ROOM_ID] = {
+    threads: [oldRoot],
+    threadRelations: { $root_old: [historicalReply] },
+    messagesTail: [historicalReply],
+    members: bundle.snapshot.rooms[ROOM_ID].members,
+  };
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 1,
+    multiplyRooms: 1,
+    speed: 1,
+  });
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+
+  try {
+    const res = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/rooms/${encodeURIComponent(ROOM_ID)}/threads?limit=10`,
+      { headers: authHeaders }
+    );
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.chunk.length, 1);
+    const summary = body.chunk[0].unsigned['m.relations']['m.thread'];
+    assert.equal(summary.count, 17);
+    assert.equal(summary.current_user_participated, true);
+    assert.equal(summary.latest_event.event_id, '$rep17');
+    assert.equal(summary['io.mindroom.latest_reply'].event_id, '$rep17');
+    assert.equal(summary['io.mindroom.title'].event_id, '$title_old');
+
+    // Sending a genuinely new live reply increments count to 18 and updates latest_event
+    const sendRes = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(ROOM_ID)}/send/m.room.message/txn_live`,
+      {
+        method: 'PUT',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          msgtype: 'm.text',
+          body: 'Brand new live reply',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root_old' },
+        }),
+      }
+    );
+    const sent = await sendRes.json();
+    const afterRes = await fetch(
+      `${srv.baseUrl}/_matrix/client/v1/rooms/${encodeURIComponent(ROOM_ID)}/threads?limit=10`,
+      { headers: authHeaders }
+    );
+    const afterSummary = (await afterRes.json()).chunk[0].unsigned['m.relations']['m.thread'];
+    assert.equal(afterSummary.count, 18);
+    assert.equal(afterSummary.latest_event.event_id, sent.event_id);
+    assert.equal(afterSummary['io.mindroom.latest_reply'].event_id, sent.event_id);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('server: mid-stream initial /sync includes valid snapshot frame for active live stream', async () => {
+  const bundle = makeFixtureBundle();
+  bundle.manifest.durationMs = 10_000;
+  bundle.liveEntries = [
+    {
+      tauMs: 50,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              timeline: {
+                events: [
+                  {
+                    type: 'm.room.message',
+                    event_id: '$mid_reply',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 50,
+                    content: {
+                      msgtype: 'm.text',
+                      body: 'Hello',
+                      'io.mindroom.stream_status': 'streaming',
+                    },
+                  },
+                ],
+              },
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 50,
+                    content: {
+                      v: 1,
+                      reply: '$mid_reply',
+                      sid: '1760000000050-11223344',
+                      seq: 0,
+                      snapshot: {
+                        md: 'Hello',
+                        reasoning: '',
+                        tools: [],
+                        status: 'streaming',
+                        activity: 'Typing',
+                        segments: [],
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      tauMs: 150,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 150,
+                    content: {
+                      v: 1,
+                      reply: '$mid_reply',
+                      sid: '1760000000050-11223344',
+                      seq: 1,
+                      delta: {
+                        md: { at: 5, del: 0, ins: ' world', len: 11 },
+                        status: 'streaming',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      tauMs: 1_200,
+      response: {
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              ephemeral: {
+                events: [
+                  {
+                    type: 'io.mindroom.live',
+                    sender: AGENT,
+                    origin_server_ts: BASE_TS + 1_200,
+                    content: {
+                      v: 1,
+                      reply: '$mid_reply',
+                      sid: '1760000000050-11223344',
+                      seq: 2,
+                      delta: {
+                        md: { at: 11, del: 0, ins: '!', len: 12 },
+                        status: 'streaming',
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const srv = await startReplayServer({
+    bundle,
+    port: 0,
+    multiplyThreads: 1,
+    multiplyRooms: 1,
+    speed: 1,
+  });
+  const authHeaders = { Authorization: `Bearer ${srv.accessToken}` };
+
+  try {
+    // Advance past both the initial snapshot (tau=50ms) and first delta (tau=150ms),
+    // leaving a generous window before delta 2 (tau=1200ms).
+    const deadline = Date.now() + 2_000;
+    while (Date.now() < deadline && srv.getStatus().stats.totalFrames < 2) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.ok(srv.getStatus().stats.totalFrames >= 2);
+
+    // Connect a fresh client mid-stream via initial /sync
+    const initRes = await fetch(`${srv.baseUrl}/_matrix/client/v3/sync?timeout=0`, {
+      headers: authHeaders,
+    });
+    assert.equal(initRes.status, 200);
+    const initBody = await initRes.json();
+    const ephemeral = initBody.rooms.join[ROOM_ID].ephemeral.events;
+    const snapEv = ephemeral.find(
+      (e) => e.type === 'io.mindroom.live' && e.content?.reply === '$mid_reply'
+    );
+    assert.ok(snapEv, 'expected initial /sync ephemeral.events to include active live snapshot');
+    assert.equal(snapEv.content.v, 1);
+    assert.match(snapEv.content.sid, SID_RE);
+    assert.equal(snapEv.content.seq, 1);
+    assert.ok(snapEv.content.snapshot, 'mid-stream initial sync frame must carry snapshot');
+    assert.equal(snapEv.content.delta, undefined);
+    assert.equal(snapEv.content.snapshot.md, 'Hello world');
+
+    // Subsequent incremental /sync delivers delta 2 chaining seamlessly onto that snapshot
+    let since = initBody.next_batch;
+    let deltaEv = null;
+    for (let i = 0; i < 6 && !deltaEv; i += 1) {
+      const incRes = await fetch(
+        `${srv.baseUrl}/_matrix/client/v3/sync?since=${encodeURIComponent(since)}&timeout=1500`,
+        { headers: authHeaders }
+      );
+      const incBody = await incRes.json();
+      since = incBody.next_batch;
+      const eps = incBody.rooms.join[ROOM_ID]?.ephemeral?.events ?? [];
+      deltaEv = eps.find(
+        (e) =>
+          e.type === 'io.mindroom.live' && e.content?.reply === '$mid_reply' && e.content?.delta
+      );
+    }
+    assert.ok(deltaEv, 'expected incremental /sync to deliver subsequent delta frame');
+    assert.equal(deltaEv.content.sid, snapEv.content.sid);
+    assert.equal(deltaEv.content.seq, snapEv.content.seq + 1);
+    const applied = applyLiveDeltaToDocs(snapEv.content.snapshot, deltaEv.content.delta);
+    assert.equal(applied.md, 'Hello world!');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('multiplier: chronological Kx interleaving of initialSync.timeline and messagesTail', async () => {
+  const bundle = {
+    manifest: {
+      version: 1,
+      capturedAtMs: 101,
+      userId: VIEWER,
+      viewerDomain: 'example.test',
+      primaryRoomId: ROOM_ID,
+      primaryRoomName: 'Chrono Room',
+      focusedRoomIds: [ROOM_ID],
+      durationMs: 10_000,
+      blobIndex: {},
+    },
+    snapshot: {
+      initialSync: {
+        next_batch: 'b0',
+        account_data: { events: [] },
+        rooms: {
+          join: {
+            [ROOM_ID]: {
+              state: {
+                events: [
+                  {
+                    type: 'm.room.create',
+                    event_id: '$st_c',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    state_key: '',
+                    origin_server_ts: 1,
+                    content: { room_version: '11' },
+                  },
+                ],
+              },
+              timeline: {
+                events: [
+                  {
+                    type: 'm.room.message',
+                    event_id: '$e1',
+                    room_id: ROOM_ID,
+                    sender: VIEWER,
+                    origin_server_ts: 100,
+                    content: { msgtype: 'm.text', body: 'first' },
+                  },
+                  {
+                    type: 'm.room.message',
+                    event_id: '$e2',
+                    room_id: ROOM_ID,
+                    sender: AGENT,
+                    origin_server_ts: 101,
+                    content: { msgtype: 'm.text', body: 'second' },
+                  },
+                ],
+                limited: true,
+                prev_batch: 'pb0',
+              },
+              ephemeral: { events: [] },
+              account_data: { events: [] },
+            },
+          },
+        },
+      },
+      rooms: {
+        [ROOM_ID]: {
+          threads: [],
+          threadRelations: {},
+          // /messages?dir=b stores newest first
+          messagesTail: [
+            {
+              type: 'm.room.message',
+              event_id: '$m2',
+              room_id: ROOM_ID,
+              sender: AGENT,
+              origin_server_ts: 51,
+              content: { msgtype: 'm.text', body: 'tail-2' },
+            },
+            {
+              type: 'm.room.message',
+              event_id: '$m1',
+              room_id: ROOM_ID,
+              sender: VIEWER,
+              origin_server_ts: 50,
+              content: { msgtype: 'm.text', body: 'tail-1' },
+            },
+          ],
+          members: [],
+        },
+      },
+    },
+    liveEntries: [],
+  };
+
+  const mult = createReplayMultiplier(bundle, {
+    multiplyThreads: 2,
+    multiplyRooms: 1,
+    speed: 1,
+    startNowMs: 101,
+  });
+  const room0 = mult.initialState.rooms[ROOM_ID];
+  assert.deepEqual(
+    room0.timeline.map((e) => e.origin_server_ts),
+    [100, 100, 101, 101]
+  );
+  assert.deepEqual(
+    room0.timeline.map((e) => e.event_id),
+    ['$e1', '$e1__r0_k1', '$e2', '$e2__r0_k1']
+  );
+
+  // messagesTail is stored newest-first; reversing it yields chronological 50, 50, 51, 51
+  const tailChrono = [...room0.messagesTail].reverse();
+  assert.deepEqual(
+    tailChrono.map((e) => e.origin_server_ts),
+    [50, 50, 51, 51]
+  );
+  assert.deepEqual(
+    tailChrono.map((e) => e.event_id),
+    ['$m1', '$m1__r0_k1', '$m2', '$m2__r0_k1']
+  );
+
+  // Server /messages?dir=f exposes the full timeline in monotonically non-decreasing order
+  const srv = await startReplayServer({ bundle, port: 0, multiplyThreads: 2 });
+  try {
+    const res = await fetch(
+      `${srv.baseUrl}/_matrix/client/v3/rooms/${encodeURIComponent(ROOM_ID)}/messages?dir=f&limit=20`,
+      { headers: { Authorization: `Bearer ${srv.accessToken}` } }
+    );
+    const body = await res.json();
+    const ts = body.chunk.map((e) => e.origin_server_ts);
+    assert.equal(ts.length, 8);
+    for (let i = 1; i < ts.length; i += 1) {
+      assert.ok(ts[i] >= ts[i - 1], `non-monotonic timestamps at ${i}: ${ts.join(',')}`);
+    }
+    assert.deepEqual(
+      body.chunk.map((e) => e.event_id),
+      ['$m1', '$m1__r0_k1', '$m2', '$m2__r0_k1', '$e1', '$e1__r0_k1', '$e2', '$e2__r0_k1']
+    );
+  } finally {
+    await srv.close();
   }
 });

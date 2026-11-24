@@ -300,7 +300,7 @@ describe('replay server integration with patched matrix-js-sdk', () => {
       baseUrl: srv.baseUrl,
       userId: VIEWER,
       deviceId: 'SDK_TEST',
-      accessToken: 'replay_access_token',
+      accessToken: srv.accessToken,
       store: new MemoryStore(),
       timelineSupport: true,
     });
@@ -421,7 +421,7 @@ describe('replay server integration with patched matrix-js-sdk', () => {
       baseUrl: srv.baseUrl,
       userId: VIEWER,
       deviceId: 'SDK_WARM',
-      accessToken: 'replay_access_token',
+      accessToken: srv.accessToken,
       store: warmStore,
       timelineSupport: true,
       fetchFn: warmFetch,
