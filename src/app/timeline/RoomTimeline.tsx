@@ -1189,27 +1189,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadIdRef,
     timeline,
   });
-  const { paginator, settledRoomPage, getRoomRowElement } = useRoomWindowPaginator({
-    alive,
-    roomRows,
-    roomRowsRef,
-    activeTimelineRange,
-    activeRangeRef,
-    loadedRangeOfRef,
-    firstRoomTimelineRef,
-    lastRoomTimelineRef,
-    scrollRef,
-    setTimeline,
-    paginateRoom,
-    suppressFocusPaginationRef,
-    windowLimit,
-    getScrollElement,
-    deferAutomaticPagination: automaticFill.defer,
-    // The Threads view, newest first, lists every thread from the room's thread list: history
-    // brings it only the messages without a thread, as the reader reaches them.
-    readAhead: !latestAtTop,
-  });
-
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLeadingOffset = showThreadLoadOlder ? 1 : 0;
   const threadLeadingOffsetRef = useLatestRef(threadLeadingOffset);
@@ -1370,6 +1349,30 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     renderedRoomRowsRef,
     roomLeadingOffset
   );
+
+  // After useTimelineScrollLedgerController so virtual-core's _willUpdate() applies anchorTo: 'end'
+  // scrollTop shifts in useLayoutEffect before useVirtualPaginator checks backSentinel visibility
+  // and trims rows below view.
+  const { paginator, settledRoomPage, getRoomRowElement } = useRoomWindowPaginator({
+    alive,
+    roomRows,
+    roomRowsRef,
+    activeTimelineRange,
+    activeRangeRef,
+    loadedRangeOfRef,
+    firstRoomTimelineRef,
+    lastRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom,
+    suppressFocusPaginationRef,
+    windowLimit,
+    getScrollElement,
+    deferAutomaticPagination: automaticFill.defer,
+    // The Threads view, newest first, lists every thread from the room's thread list: history
+    // brings it only the messages without a thread, as the reader reaches them.
+    readAhead: !latestAtTop,
+  });
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
