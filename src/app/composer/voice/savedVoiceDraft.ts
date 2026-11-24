@@ -56,12 +56,12 @@ const openDraftDb = (): Promise<IDBPDatabase<VoiceDraftDb>> =>
 
 // Storage that fails (private mode, full disk) leaves the recording in memory, as before.
 const withDraftDb = async <T>(
-  use: (db: IDBPDatabase<VoiceDraftDb>) => Promise<T>
+  run: (db: IDBPDatabase<VoiceDraftDb>) => Promise<T>
 ): Promise<T | undefined> => {
   try {
     const db = await openDraftDb();
     try {
-      return await use(db);
+      return await run(db);
     } finally {
       db.close();
     }

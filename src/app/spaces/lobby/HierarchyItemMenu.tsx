@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { Box, Icon, IconButton, Icons, Line, config, toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { IconSrc, RectCords } from 'folds';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';

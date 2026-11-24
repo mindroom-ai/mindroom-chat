@@ -582,7 +582,7 @@ test.use({
 test.describe('messages missed in a gappy sync show', () => {
   test.beforeAll(async () => {
     test.setTimeout(300_000);
-    let reachable = false;
+    let reachable: boolean;
     try {
       reachable = (await fetch(`${homeserver}/_matrix/client/versions`)).ok;
     } catch {

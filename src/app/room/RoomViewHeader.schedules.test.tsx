@@ -65,7 +65,7 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  FocusTrap: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('../ui/page/Page', async () => {
   const { forwardRef } = await import('react');

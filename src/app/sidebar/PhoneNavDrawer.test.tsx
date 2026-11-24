@@ -483,7 +483,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
       expect(drawer.panel.hasAttribute('data-open')).toBe(false);
       expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
       expect(drawer.scrim.hasAttribute('data-swiping')).toBe(true);
-      expect(drawer.panel.style.translate).toBe('90px 0');
+      expect(drawer.panel.style.translate).toBe('90px');
       expect(drawer.scrim.style.opacity).toBe('0.3');
       expect(document.activeElement).toBe(drawer.menuButton);
 
@@ -538,7 +538,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         dispatchTouch(window, 'touchmove', [{ clientX: 44, clientY: 200 }], 220);
       });
 
-      expect(drawer.panel.style.translate).toBe('26px 0');
+      expect(drawer.panel.style.translate).toBe('26px');
       expect(drawer.scrim.style.opacity).toBe(String(26 / 64));
 
       domAct(() => {
@@ -588,7 +588,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         vi.advanceTimersToNextFrame();
       });
 
-      expect(drawer.panel.style.translate).toBe('-60px 0');
+      expect(drawer.panel.style.translate).toBe('-60px');
       expect(drawer.scrim.style.opacity).toBe('0.8');
       expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
       expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
@@ -610,7 +610,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 100, clientY: 200 }], 700);
         vi.advanceTimersToNextFrame();
       });
-      expect(drawer.panel.style.translate).toBe('-140px 0');
+      expect(drawer.panel.style.translate).toBe('-140px');
 
       domAct(() => {
         dispatchTouch(drawer.panel, 'touchend', [], 720);
@@ -660,7 +660,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         dispatchTouch(window, 'touchstart', [{ clientX: 382, clientY: 200 }], 100);
         dispatchTouch(window, 'touchmove', [{ clientX: 220, clientY: 200 }], 200);
       });
-      expect(drawer.panel.style.translate).toBe('-152px 0');
+      expect(drawer.panel.style.translate).toBe('-152px');
 
       domAct(() => {
         dispatchTouch(window, 'touchend', [], 220);
@@ -673,7 +673,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         dispatchTouch(drawer.panel, 'touchstart', [{ clientX: 150, clientY: 200 }], 300);
         dispatchTouch(drawer.panel, 'touchmove', [{ clientX: 300, clientY: 200 }], 400);
       });
-      expect(drawer.panel.style.translate).toBe('140px 0');
+      expect(drawer.panel.style.translate).toBe('140px');
 
       domAct(() => {
         dispatchTouch(drawer.panel, 'touchend', [], 420);
@@ -1001,7 +1001,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
 
       // Right up until the deferred open committed, the settled open drawer stayed pinned with zero snap-offscreen.
       expect(pinnedBeforeOpen).toBe(true);
-      expect(translateBeforeOpen).toBe('300px 0');
+      expect(translateBeforeOpen).toBe('300px');
       expect(opacityBeforeOpen).toBe('1');
       expect(railMountedBeforeOpen).toBe(true);
 
@@ -1058,7 +1058,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
       });
 
       expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
-      expect(drawer.panel.style.translate).toBe('26px 0');
+      expect(drawer.panel.style.translate).toBe('26px');
       expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).not.toBeNull();
       expect(drawer.store.get(drawerNoticeSlotAtom)).toBeNull();
       expect(document.activeElement).toBe(noticeButton);
@@ -1168,7 +1168,7 @@ describe('PhoneNavDrawer interactive swipes', () => {
         dispatchTouch(window, 'touchmove', [{ clientX: 180, clientY: 200 }], 200);
       });
       expect(drawer.panel.hasAttribute('data-swiping')).toBe(true);
-      expect(drawer.panel.style.translate).toBe('162px 0');
+      expect(drawer.panel.style.translate).toBe('162px');
       expect(drawer.container.querySelector('[data-testid="drawer-list"]')).not.toBeNull();
 
       domAct(() => {

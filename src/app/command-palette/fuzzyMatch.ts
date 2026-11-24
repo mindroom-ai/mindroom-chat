@@ -193,21 +193,23 @@ const flagger = (length: number) => {
       if (word) {
         const segmentStart = !wasWord || (wasSmall && capital);
         if (segmentStart || unspaced) {
-          if (open >= 0) flags[open] |= WORD_END;
-          flags[at] |= segmentStart ? WORD_START | SEGMENT_START : WORD_START;
+          if (open >= 0) flags[open] = (flags[open] ?? 0) | WORD_END;
+          flags[at] = (flags[at] ?? 0) | (segmentStart ? WORD_START | SEGMENT_START : WORD_START);
           if (segmentStart) starts.push(at);
         }
-        for (let index = at; index < at + size; index += 1) flags[index] |= WORD_CHAR;
+        for (let index = at; index < at + size; index += 1) {
+          flags[index] = (flags[index] ?? 0) | WORD_CHAR;
+        }
         open = at + size - 1;
       } else if (open >= 0) {
-        flags[open] |= WORD_END;
+        flags[open] = (flags[open] ?? 0) | WORD_END;
         open = -1;
       }
       wasWord = word;
       wasSmall = small;
     },
     end() {
-      if (open >= 0) flags[open] |= WORD_END;
+      if (open >= 0) flags[open] = (flags[open] ?? 0) | WORD_END;
     },
   };
 };
@@ -231,7 +233,7 @@ const prepareAscii = (text: string): PreparedText => {
     const word = small || capital || (code >= 48 && code <= 57);
     if (word) {
       if (!wasWord || (wasSmall && capital)) {
-        if (wasWord) flags[index - 1] |= WORD_END;
+        if (wasWord) flags[index - 1] = (flags[index - 1] ?? 0) | WORD_END;
         flags[index] = WORD_START | SEGMENT_START | WORD_CHAR;
         starts.push(index);
         initials += folded.charAt(index);
@@ -239,12 +241,12 @@ const prepareAscii = (text: string): PreparedText => {
         flags[index] = WORD_CHAR;
       }
     } else if (wasWord) {
-      flags[index - 1] |= WORD_END;
+      flags[index - 1] = (flags[index - 1] ?? 0) | WORD_END;
     }
     wasWord = word;
     wasSmall = small;
   }
-  if (wasWord) flags[length - 1] |= WORD_END;
+  if (wasWord) flags[length - 1] = (flags[length - 1] ?? 0) | WORD_END;
   return { text: folded, flags, starts, initials };
 };
 

@@ -1078,8 +1078,8 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(145);
 
     scene!.update(195, 0.5);
-    expect(page.style.translate).toBe('195px 0');
-    expect(under?.style.translate).toBe(`${-0.3 * 390 * 0.5}px 0`);
+    expect(page.style.translate).toBe('195px');
+    expect(under?.style.translate).toBe(`${-0.3 * 390 * 0.5}px`);
     expect(stage.querySelector<HTMLElement>('[data-swipe-dim="back"]')?.style.opacity).toBe('0.06');
 
     // Cancel drag: cleans up styles/preview without committing and preserves cache for retry.
@@ -1240,11 +1240,11 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     const over = stage.querySelector<HTMLElement>('[data-swipe-preview="over"]');
     const dim = stage.querySelector<HTMLElement>('[data-swipe-dim="forward"]');
     expect(over).not.toBeNull();
-    expect(over?.style.translate).toBe('390px 0');
+    expect(over?.style.translate).toBe('390px');
 
     scene!.update(195, 0.5);
-    expect(over?.style.translate).toBe('195px 0');
-    expect(page.style.translate).toBe(`${-0.3 * 390 * 0.5}px 0`);
+    expect(over?.style.translate).toBe('195px');
+    expect(page.style.translate).toBe(`${-0.3 * 390 * 0.5}px`);
     expect(dim?.style.opacity).toBe('0.06');
 
     // Cancel keeps thread preview cached and cleans up cleanly.
@@ -1798,7 +1798,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     backScene!.update(120, 0.3);
 
     expect(page.hasAttribute('data-swiping')).toBe(true);
-    expect(page.style.translate).toBe('120px 0');
+    expect(page.style.translate).toBe('120px');
     expect(drawerPanel.hasAttribute('data-swiping')).toBe(false);
     expect(drawerPanel.style.translate).toBe('');
     expect(drawerScrim.hasAttribute('data-swiping')).toBe(false);

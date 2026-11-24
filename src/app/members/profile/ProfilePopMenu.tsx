@@ -1,5 +1,5 @@
 import { type CSSProperties, type ReactNode } from 'react';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap } from 'focus-trap-react';
 import { type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';

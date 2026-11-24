@@ -82,7 +82,7 @@ beforeEach(() => {
   vi.stubGlobal('navigator', {
     mediaDevices: { getUserMedia: async () => ({ getTracks: () => [track] }) },
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
         if (held.has(name)) return callback(null);
         held.add(name);
         try {

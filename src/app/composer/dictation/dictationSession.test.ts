@@ -1154,7 +1154,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     Object.defineProperty(globalThis.navigator, 'locks', {
       configurable: true,
       value: {
-        request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+        request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
           if (heldLocks.has(name)) return callback(null);
           heldLocks.add(name);
           try {

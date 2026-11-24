@@ -4,7 +4,7 @@ import {
   threadModelContent,
   type ThreadModelContent,
 } from '../../matrix/protocol/threadModel';
-import { Provider, createStore } from 'jotai';
+import { type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
@@ -372,7 +372,7 @@ vi.mock('../upload/UploadBoard', async () => {
       uploadFamilyObserverAtom,
       onCancel,
     }: {
-      uploadFamilyObserverAtom: Parameters<typeof useAtomValue>[0];
+      uploadFamilyObserverAtom: Atom<Upload[]>;
       onCancel: (uploads: Upload[]) => void;
     }) => {
       const uploads = useAtomValue(uploadFamilyObserverAtom);

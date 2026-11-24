@@ -4,7 +4,7 @@ import { Provider } from 'jotai';
 import { config, toRem } from 'folds';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
 import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';

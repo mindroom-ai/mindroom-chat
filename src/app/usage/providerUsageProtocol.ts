@@ -152,7 +152,7 @@ const parseAccount = (raw: unknown): ProviderAccountUsage | undefined => {
     ...(accountLabel !== undefined ? { account_label: accountLabel } : {}),
     ...(plan !== undefined ? { plan } : {}),
     ...(unavailableReason !== undefined ? { unavailable_reason: unavailableReason } : {}),
-    model_keys: [...(raw.model_keys as string[])],
+    model_keys: [...raw.model_keys],
     windows,
     ...(raw.checked_at !== undefined ? { checked_at: raw.checked_at } : {}),
     stale: raw.stale,

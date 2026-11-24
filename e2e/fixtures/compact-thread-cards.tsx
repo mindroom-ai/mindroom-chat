@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';
-import '@fontsource/inter/variable.css';
+import '@fontsource-variable/inter';
 import '../../src/index.css';
 import i18n from '../../src/app/i18n/i18n';
 import { LightTheme, THEMES } from '../../src/app/theme/useTheme';

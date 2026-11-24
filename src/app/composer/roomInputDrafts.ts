@@ -4,7 +4,7 @@
  * attachments (only their names are kept), and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
-import { atomFamily } from 'jotai/utils';
+import { atomFamily } from 'jotai-family';
 import type { Descendant } from 'slate';
 import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../matrix/matrix';
@@ -545,19 +545,6 @@ export const composerOfferAtom = (
 
 // What a reload would lose.
 
-/** The keys a family holds atoms for, listed without creating or removing any. */
-const familyKeys = <Key>(family: {
-  setShouldRemove: (test: ((createdAt: number, key: Key) => boolean) | null) => void;
-}): Key[] => {
-  const keys: Key[] = [];
-  family.setShouldRemove((_createdAt, key) => {
-    keys.push(key);
-    return false;
-  });
-  family.setShouldRemove(null);
-  return keys;
-};
-
 /**
  * Whether a composer holds something that only lives in memory, so a page reload would drop it:
  * a staged file, the message being replied to, or a voice message, recorded or being recorded.
@@ -570,10 +557,10 @@ export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
   store.get(captureDiscardsInFlightAtom) > 0 ||
   store.get(voiceAutoSendPendingAtom) ||
   store.get(detachedDictationSendsAtom).size > 0 ||
-  familyKeys(roomIdToUploadItemsAtomFamily).some(
+  [...roomIdToUploadItemsAtomFamily.getParams()].some(
     (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
   ) ||
-  familyKeys(roomIdToReplyDraftAtomFamily).some(
+  [...roomIdToReplyDraftAtomFamily.getParams()].some(
     (key) => store.get(roomIdToReplyDraftAtomFamily(key)) !== undefined
   );
 

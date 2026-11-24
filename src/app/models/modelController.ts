@@ -508,7 +508,10 @@ export class ModelController {
       );
       rooms.delete(roomId);
       if (cached.length) rooms.set(roomId, cached);
-      if (rooms.size > ROOM_CATALOG_LIMIT) rooms.delete(rooms.keys().next().value);
+      if (rooms.size > ROOM_CATALOG_LIMIT) {
+        const oldest = rooms.keys().next().value;
+        if (oldest !== undefined) rooms.delete(oldest);
+      }
       save();
     }
     scope.needsRefresh = !!scope.send;

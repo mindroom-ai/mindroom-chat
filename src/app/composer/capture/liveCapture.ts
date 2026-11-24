@@ -104,7 +104,7 @@ export const beginLiveCapture = async <K extends LiveCaptureKind>(
   const entry = { kind, session } as LiveCapture;
   store.set(liveCaptureAtom, entry);
   store.set(liveCaptureErrorAtom, undefined);
-  let started = false;
+  let started: boolean;
   try {
     started = await session.start();
   } catch (error) {

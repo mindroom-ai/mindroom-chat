@@ -99,7 +99,7 @@ const stubLocks = () => {
   const held = new Set<string>();
   vi.stubGlobal('navigator', {
     locks: {
-      request: async (name: string, _options: LockOptions, callback: LockGrantedCallback) => {
+      request: async <T>(name: string, _options: LockOptions, callback: LockGrantedCallback<T>) => {
         if (held.has(name)) return callback(null);
         held.add(name);
         try {

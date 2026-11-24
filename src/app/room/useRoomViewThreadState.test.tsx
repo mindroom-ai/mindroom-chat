@@ -574,7 +574,7 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     expect(scene).not.toBeNull();
 
     scene!.update(90, 90 / 390);
-    expect(page.style.translate).toBe('90px 0');
+    expect(page.style.translate).toBe('90px');
 
     await scene!.settle(false, 0, 90);
     scene!.cleanup(false);

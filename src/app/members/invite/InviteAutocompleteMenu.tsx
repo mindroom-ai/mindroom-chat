@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import FocusTrap from 'focus-trap-react';
+import { FocusTrap, type FocusTrapProps } from 'focus-trap-react';
 import classNames from 'classnames';
 import { config, type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
@@ -33,7 +33,7 @@ type InviteAutocompleteMenuProps = {
   children: ReactNode;
 };
 
-type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
+type TrapOptions = NonNullable<FocusTrapProps['focusTrapOptions']>;
 
 /** Where the anchor box sat on screen, and the viewport height it was read against. */
 type Measurement = { anchor: RectCords; viewportHeight: number };

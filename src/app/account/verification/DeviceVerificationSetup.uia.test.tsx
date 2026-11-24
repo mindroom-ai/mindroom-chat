@@ -71,7 +71,7 @@ vi.mock('folds', () => {
   };
 });
 vi.mock('focus-trap-react', () => ({
-  default: ({
+  FocusTrap: ({
     children,
     focusTrapOptions,
   }: {
