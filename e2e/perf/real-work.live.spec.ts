@@ -142,9 +142,21 @@ const EXTERNAL_SCENARIOS: Scenario[] = [
   'cold-load',
   'compact-scroll',
 ];
+const REPLAY_CAPTURE = external ? (process.env.PERF_REPLAY_CAPTURE ?? '') : '';
+const MULTIPLY_THREADS = Math.max(1, Number(process.env.PERF_MULTIPLY_THREADS ?? 1));
+const MULTIPLY_ROOMS = Math.max(1, Number(process.env.PERF_MULTIPLY_ROOMS ?? 1));
+const REPLAY_SPEED = Math.max(0.01, Number(process.env.PERF_REPLAY_SPEED ?? 1));
+const REPLAY_SERVER = fileURLToPath(
+  new URL('../../scripts/perf/replay/server.mjs', import.meta.url)
+);
+const REPLAY_SUFFIX =
+  MULTIPLY_ROOMS > 1
+    ? `replay-${MULTIPLY_THREADS}x-${MULTIPLY_ROOMS}r`
+    : `replay-${MULTIPLY_THREADS}x`;
+
 const wanted = list('PERF_SCENARIOS', SCENARIOS.join(','));
-const scenarios = (external ? EXTERNAL_SCENARIOS : [...SCENARIOS]).filter((name) =>
-  wanted.includes(name)
+const scenarios = (external && !REPLAY_CAPTURE ? EXTERNAL_SCENARIOS : [...SCENARIOS]).filter(
+  (name) => wanted.includes(name)
 );
 
 const WORKLOAD = process.env.PERF_WORKLOAD ?? 'e2e/perf/workloads/real-work-census.json';
@@ -203,6 +215,8 @@ type Achieved = {
 };
 type Driver = {
   streams: number;
+  /** False for replay mode, which reports natural activity without a fixed stream target. */
+  enforceTarget?: boolean;
   lines: () => DriverLine[];
   /** The exit code once it has ended (null: killed by a signal), undefined while it runs. */
   ended: () => number | null | undefined;
@@ -763,14 +777,16 @@ const checkLoad = (label: string, driver: Driver, achieved: Achieved | undefined
         .slice(-500)}`
     )
     .toBeUndefined();
-  expect
-    .soft(
-      achieved?.streaming ?? 0,
-      `${label}: the driver held ${achieved?.streaming ?? 'no reported'} streams of the ${
-        driver.streams
-      } asked for, under ${SHARE * 100} %`
-    )
-    .toBeGreaterThanOrEqual(SHARE * driver.streams);
+  if (driver.enforceTarget !== false) {
+    expect
+      .soft(
+        achieved?.streaming ?? 0,
+        `${label}: the driver held ${achieved?.streaming ?? 'no reported'} streams of the ${
+          driver.streams
+        } asked for, under ${SHARE * 100} %`
+      )
+      .toBeGreaterThanOrEqual(SHARE * driver.streams);
+  }
 };
 
 /**
@@ -864,7 +880,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     engine: run.engine,
     throttle: run.throttle,
     viewport: VIEWPORT,
-    target: driver?.streams ?? null,
+    target: driver && driver.enforceTarget !== false ? driver.streams : null,
     timings: [] as Timing[],
     typing: undefined as Stats | undefined,
     // Whether every thread the scenario opened showed the streaming marker when pressed.
@@ -1140,9 +1156,145 @@ test.describe('PERF: real work under the backend load', () => {
   }
 });
 
+type ExternalAccount = {
+  homeserver: string;
+  username: string;
+  password: string;
+  room: string;
+};
+
+type ReplayReady = {
+  url: string;
+  userId: string;
+  username: string;
+  roomId: string;
+  roomName: string;
+};
+
+type ReplaySession = {
+  account: ExternalAccount;
+  driver: Driver;
+  cleanup: () => void;
+};
+
+/** Spawns the local replay server for `PERF_REPLAY_CAPTURE` and exposes its 5 s stats. */
+const startReplaySession = async (captureDir: string): Promise<ReplaySession> => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'real-work-replay-'));
+  chmodSync(tempDir, 0o700);
+  const statsFile = join(tempDir, 'stats.jsonl');
+  const child = spawn(
+    process.execPath,
+    [
+      REPLAY_SERVER,
+      '--capture',
+      captureDir,
+      '--port',
+      '0',
+      '--multiply-threads',
+      String(MULTIPLY_THREADS),
+      '--multiply-rooms',
+      String(MULTIPLY_ROOMS),
+      '--speed',
+      String(REPLAY_SPEED),
+      '--stats-file',
+      statsFile,
+      '--print-ready',
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  let errors = '';
+  child.stderr.on('data', (chunk: Buffer) => {
+    errors = (errors + chunk.toString()).slice(-4000);
+  });
+  let code: number | null | undefined;
+  const exited = new Promise<number | null>((resolve) => {
+    child.on('exit', (status) => {
+      code = status;
+      resolve(status);
+    });
+    child.on('error', (error) => {
+      errors += String(error);
+      code = 1;
+      resolve(1);
+    });
+  });
+
+  let ready: ReplayReady;
+  try {
+    ready = await new Promise<ReplayReady>((resolve, reject) => {
+      let buf = '';
+      let settled = false;
+      const fail = (message: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        child.stdout.off('data', onData);
+        reject(new Error(message));
+      };
+      const timer = setTimeout(() => {
+        fail(`replay server did not report ready within 30 s: ${errors.trim()}`);
+      }, 30_000);
+      const onData = (chunk: Buffer) => {
+        buf += chunk.toString();
+        const nl = buf.indexOf('\n');
+        if (nl < 0) return;
+        clearTimeout(timer);
+        child.stdout.off('data', onData);
+        if (settled) return;
+        settled = true;
+        try {
+          resolve(JSON.parse(buf.slice(0, nl)) as ReplayReady);
+        } catch (err) {
+          reject(new Error(`invalid replay ready JSON: ${String(err)}`));
+        }
+      };
+      child.stdout.on('data', onData);
+      void exited.then((status) => {
+        fail(`replay server exited before ready (code ${status}): ${errors.trim()}`);
+      });
+    });
+  } catch (error) {
+    if (code === undefined) child.kill('SIGKILL');
+    rmSync(tempDir, { recursive: true, force: true });
+    throw error;
+  }
+
+  const driver: Driver = {
+    streams: 0,
+    enforceTarget: false,
+    lines: () =>
+      existsSync(statsFile)
+        ? readFileSync(statsFile, 'utf8')
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line) as DriverLine)
+        : [],
+    ended: () => code,
+    errors: () => errors,
+    stop: async () => {
+      if (code !== undefined) return code;
+      child.kill('SIGTERM');
+      const kill = setTimeout(() => child.kill('SIGKILL'), 5_000);
+      const status = await exited;
+      clearTimeout(kill);
+      return status;
+    },
+  };
+
+  return {
+    account: {
+      homeserver: ready.url,
+      username: ready.username,
+      password: 'replay',
+      room: ready.roomId,
+    },
+    driver,
+    cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
+  };
+};
+
 /** The external homeserver, when it is on this machine; anything else is refused. */
-const loopbackHomeserver = (): string => {
-  const homeserver = process.env.PERF_HOMESERVER ?? '';
+const loopbackHomeserver = (homeserver = process.env.PERF_HOMESERVER ?? ''): string => {
   let host = '';
   try {
     host = new URL(homeserver).hostname;
@@ -1157,8 +1309,12 @@ const loopbackHomeserver = (): string => {
   return homeserver;
 };
 
-const externalPage = async (browser: Browser, baseURL: string | undefined): Promise<Page> => {
-  const homeserver = loopbackHomeserver();
+const externalPage = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  account?: ExternalAccount
+): Promise<Page> => {
+  const homeserver = loopbackHomeserver(account?.homeserver);
   // Not the fixtures' context: that one starts the agent stack and signs its tester in.
   const context = await browser.newContext({
     baseURL,
@@ -1213,10 +1369,10 @@ const externalPage = async (browser: Browser, baseURL: string | undefined): Prom
   await dismissRecoveryPrompt(page);
   await loginWithPassword(page, {
     homeserver,
-    username: process.env.PERF_USERNAME ?? '',
-    password: process.env.PERF_PASSWORD ?? '',
+    username: account?.username ?? process.env.PERF_USERNAME ?? '',
+    password: account?.password ?? process.env.PERF_PASSWORD ?? '',
   });
-  await page.goto(`/home/${encodeURIComponent(process.env.PERF_ROOM ?? '')}`, {
+  await page.goto(`/home/${encodeURIComponent(account?.room ?? process.env.PERF_ROOM ?? '')}`, {
     timeout: 180_000,
   });
   await setRoomCompact(page, true);
@@ -1228,12 +1384,18 @@ test.describe('PERF: real work on an external account', () => {
   test.skip(!enabled || !external, 'PERF_REAL_WORK=1 with PERF_TARGET=external runs it');
   test.describe.configure({ mode: 'default' });
 
+  let replay: ReplaySession | undefined;
+
   // Before any fixture that starts a browser, so a refused homeserver or engine starts none.
-  test.beforeAll(({ browserName }) => {
+  test.beforeAll(async ({ browserName }) => {
     if (browserName !== 'chromium') {
       throw new Error(
         `external mode runs in Chromium only: its guard against requests to other hosts is a Chromium proxy setting, and this is ${browserName}`
       );
+    }
+    if (REPLAY_CAPTURE) {
+      replay = await startReplaySession(REPLAY_CAPTURE);
+      return;
     }
     loopbackHomeserver();
     for (const name of ['PERF_USERNAME', 'PERF_PASSWORD', 'PERF_ROOM']) {
@@ -1241,17 +1403,91 @@ test.describe('PERF: real work on an external account', () => {
     }
   });
 
+  test.afterAll(async () => {
+    if (!replay) return;
+    await replay.driver.stop();
+    replay.cleanup();
+  });
+
   for (const throttle of THROTTLES) {
     test(`scenarios at ${throttle}x CPU`, async ({ browser, browserName, baseURL }) => {
       test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
       test.setTimeout(scenariosTimeout(throttle));
-      const page = await externalPage(browser, baseURL);
+      const page = await externalPage(browser, baseURL, replay?.account);
       try {
-        await runScenarios({ page, engine: browserName, throttle, suffix: 'external' });
+        await runScenarios({
+          page,
+          engine: browserName,
+          throttle,
+          suffix: replay ? REPLAY_SUFFIX : 'external',
+          driver: replay?.driver,
+        });
       } finally {
         await page.context().unrouteAll({ behavior: 'ignoreErrors' });
         await page.context().close();
       }
     });
   }
+
+  test('soak', async ({ browser, browserName, baseURL }) => {
+    test.skip(!SOAK || !REPLAY_CAPTURE, 'PERF_SOAK=1 with PERF_REPLAY_CAPTURE runs replay soak');
+    test.setTimeout(SOAK_TIMEOUT);
+    if (!replay) throw new Error('the replay server did not start');
+    const page = await externalPage(browser, baseURL, replay.account);
+    const run: Run = {
+      page,
+      engine: browserName,
+      throttle: 1,
+      suffix: REPLAY_SUFFIX,
+      driver: replay.driver,
+    };
+    const label = `soak-${browserName}-1x-${REPLAY_SUFFIX}`;
+    const from = Date.now();
+    const probe = await startProbe(page, {
+      label,
+      outDir: OUT_DIR,
+      sampleMs: 5000,
+      collectGarbage: SOAK_GC,
+    });
+    const extra = {
+      scenario: 'soak',
+      engine: browserName,
+      throttle: 1,
+      viewport: VIEWPORT,
+      target: null,
+      timings: [] as Timing[],
+      collected: SOAK_GC,
+    };
+    let result: ProbeResult;
+    let to: number;
+    try {
+      const end = from + SOAK_MINUTES * 60_000;
+      while (Date.now() < end) {
+        expectDriverRuns(label, replay.driver);
+        await showCompact(page);
+        await page.waitForTimeout(60_000);
+        expectDriverRuns(label, replay.driver);
+        await showThread(run);
+        await page.waitForTimeout(60_000);
+      }
+      to = Date.now();
+      result = await probe.stop(extra);
+    } catch (error) {
+      await probe.stop({ ...extra, failed: String(error) }).catch(() => undefined);
+      throw error;
+    } finally {
+      await page.context().unrouteAll({ behavior: 'ignoreErrors' });
+      await page.context().close();
+    }
+    const achieved = await achievedBetween(replay.driver, from, to);
+    addAchieved(label, replay.driver, achieved);
+    checkLoad(label, replay.driver, achieved);
+    report(result, { timings: [], target: null }, achieved, replay.driver);
+    const first = result.series[0]?.heapMB ?? 0;
+    const last = result.series.at(-1)?.heapMB ?? 0;
+    expect(
+      last - first,
+      `the heap went from ${first} MB to ${last} MB in ${SOAK_MINUTES} minutes`
+    ).toBeLessThanOrEqual(SOAK_HEAP_MB);
+  });
 });
