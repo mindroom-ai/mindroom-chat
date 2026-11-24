@@ -29,19 +29,12 @@ export type NativeScreenShareStateEvent = {
   detail?: string;
 };
 
-/** Status returned by `MindRoomScreenSharePlugin.heartbeat`. */
-export type NativeScreenShareHeartbeatResult = {
-  broadcasting: boolean;
-  connected: boolean;
-  keyIndex: number;
-};
-
 /** Plugin `MindRoomScreenShare` (`ios/App/App/MindRoomScreenSharePlugin.swift`). */
 export type NativeScreenSharePlugin = {
   start(options: NativeScreenShareStartOptions): Promise<{ generation: number }>;
   setKey(options: { generation: number; keyBase64: string; keyIndex: number }): Promise<void>;
   updateAllowedParticipants(options: { generation: number; identities: string[] }): Promise<void>;
-  heartbeat(options: { generation: number }): Promise<NativeScreenShareHeartbeatResult>;
+  heartbeat(options: { generation: number }): Promise<void>;
   stop(): Promise<void>;
   addListener(
     event: 'stateChange',

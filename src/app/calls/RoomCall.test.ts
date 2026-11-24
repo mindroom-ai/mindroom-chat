@@ -41,7 +41,7 @@ const fakes = vi.hoisted(() => ({
     start: vi.fn(async () => ({ generation: 1 })),
     setKey: vi.fn(async () => undefined),
     updateAllowedParticipants: vi.fn(async () => undefined),
-    heartbeat: vi.fn(async () => ({ broadcasting: true, connected: true, keyIndex: 0 })),
+    heartbeat: vi.fn(async () => undefined),
     stop: vi.fn(async () => undefined),
     addListener: vi.fn(
       async (

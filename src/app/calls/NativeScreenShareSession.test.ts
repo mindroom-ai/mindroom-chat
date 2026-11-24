@@ -90,7 +90,7 @@ const makeFixture = ({
     start: vi.fn().mockResolvedValue({ generation: 1 }),
     setKey: vi.fn().mockResolvedValue(undefined),
     updateAllowedParticipants: vi.fn().mockResolvedValue(undefined),
-    heartbeat: vi.fn().mockResolvedValue({ broadcasting: true, connected: true, keyIndex: 0 }),
+    heartbeat: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     addListener: vi.fn().mockImplementation((_event, cb) => {
       listener = cb;

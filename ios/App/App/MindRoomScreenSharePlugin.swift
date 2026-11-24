@@ -212,11 +212,7 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
                 self.log.info("Heartbeat gen=\(gen, privacy: .public) spacing=\(spacing, format: .fixed(precision: 1), privacy: .public)s broadcasting=\(active.isBroadcasting, privacy: .public) keyIndex=\(active.keyIndex, privacy: .public)")
             }
             self.session = active
-            call.resolve([
-                "broadcasting": active.isBroadcasting,
-                "connected": active.room.connectionState == .connected,
-                "keyIndex": Int(active.keyIndex),
-            ])
+            call.resolve()
         }
     }
 
@@ -225,7 +221,6 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
             guard let self else { return call.resolve() }
             self.generation += 1
             await self.teardown(expectedGeneration: nil, reason: "user")
-            BroadcastManager.shared.requestStop()
             call.resolve()
         }
     }
@@ -233,11 +228,7 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
     @MainActor
     private func handleBroadcast(_ isBroadcasting: Bool) async {
         if isBroadcasting {
-            guard var active = session else {
-                log.info("Stopping system broadcast started outside a call")
-                BroadcastManager.shared.requestStop()
-                return
-            }
+            guard var active = session else { return }
             guard !active.isBroadcasting else { return }
             active.watchdogTask?.cancel()
             active.watchdogTask = nil
@@ -323,7 +314,7 @@ public final class MindRoomScreenSharePlugin: CAPPlugin, CAPBridgedPlugin, @unch
         session = nil
         dismissPickerSheet()
         active.watchdogTask?.cancel()
-        if active.isBroadcasting || BroadcastManager.shared.isBroadcasting { BroadcastManager.shared.requestStop() }
+        if active.isBroadcasting { BroadcastManager.shared.requestStop() }
         await active.room.disconnect()
         var payload: [String: Any] = ["generation": active.generation, "state": "stopped", "reason": reason]
         if let detail, !detail.isEmpty { payload["detail"] = detail }
