@@ -98,18 +98,11 @@ export const registerBundleScheme = (): void => {
   ]);
 };
 
-const toBodyBytes = (buffer: Buffer): Uint8Array<ArrayBuffer> =>
-  buffer.buffer instanceof ArrayBuffer
-    ? new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
-    : new Uint8Array(buffer);
-
 const readBundleFile = async (
   realRoot: string,
   relative: string,
   headOnly: boolean
-): Promise<
-  { file: string; fullPath: string; body: Uint8Array<ArrayBuffer> | null } | undefined
-> => {
+): Promise<{ file: string; fullPath: string; body: Buffer<ArrayBuffer> | null } | undefined> => {
   const lexical = path.resolve(realRoot, relative);
   if (!lexical.startsWith(`${realRoot}${path.sep}`)) return undefined;
   let handle: fs.promises.FileHandle | undefined;
@@ -120,7 +113,7 @@ const readBundleFile = async (
     return {
       file: relative,
       fullPath: lexical,
-      body: headOnly ? null : toBodyBytes(await handle.readFile()),
+      body: headOnly ? null : await handle.readFile(),
     };
   } catch {
     return undefined;
