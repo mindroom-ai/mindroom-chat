@@ -1198,7 +1198,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "सघन दृश्य",
-        "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
+        "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)",
+        "mindroomSettings": "MindRoom सेटिंग्स"
       },
       "roomThreadOverview": {
         "advancedFilters": "उन्नत फ़िल्टर",
@@ -1638,7 +1639,9 @@
     },
     "actions": {
       "goActivity": "गतिविधि पर जाएँ",
-      "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है"
+      "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है",
+      "openCurrentRoomMindroomSettings": "MindRoom रूम सेटिंग्स खोलें",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} के लिए MindRoom सेटिंग्स खोलें"
     },
     "recentVisits": {
       "recentlyOpened": "हाल ही में खोला गया",

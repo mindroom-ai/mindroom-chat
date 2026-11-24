@@ -1198,7 +1198,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "কমপ্যাক্ট ভিউ",
-        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
+        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)",
+        "mindroomSettings": "MindRoom সেটিংস"
       },
       "roomThreadOverview": {
         "advancedFilters": "উন্নত ফিল্টার",
@@ -1638,7 +1639,9 @@
     },
     "actions": {
       "goActivity": "কার্যকলাপে যান",
-      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে"
+      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে",
+      "openCurrentRoomMindroomSettings": "MindRoom রুম সেটিংস খুলুন",
+      "openCurrentRoomMindroomSettingsDescription": "{{room}} এর জন্য MindRoom সেটিংস খুলুন"
     },
     "recentVisits": {
       "recentlyOpened": "সম্প্রতি খোলা হয়েছে",

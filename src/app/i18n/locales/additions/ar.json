@@ -1338,7 +1338,8 @@
     "threads": {
       "mindroomRoomViewHeader": {
         "compactView": "عرض مدمج",
-        "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
+        "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)",
+        "mindroomSettings": "إعدادات MindRoom"
       },
       "roomThreadOverview": {
         "advancedFilters": "عوامل تصفية متقدمة",
@@ -1854,7 +1855,9 @@
     },
     "actions": {
       "goActivity": "الانتقال إلى النشاط",
-      "goActivityDescription": "الإشارات والردود وما ينتظرك"
+      "goActivityDescription": "الإشارات والردود وما ينتظرك",
+      "openCurrentRoomMindroomSettings": "فتح إعدادات MindRoom للغرفة",
+      "openCurrentRoomMindroomSettingsDescription": "فتح إعدادات MindRoom لـ ⁨{{room}}⁩"
     },
     "recentVisits": {
       "recentlyOpened": "المفتوحة مؤخرًا",
